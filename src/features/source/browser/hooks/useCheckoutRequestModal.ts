@@ -5,11 +5,11 @@ export interface UseCheckoutRequestModalReturn {
   // Modal visibility
   showCheckoutRequestModal: boolean
   setShowCheckoutRequestModal: (show: boolean) => void
-  
+
   // File being requested
   checkoutRequestFile: LocalFile | null
   setCheckoutRequestFile: (file: LocalFile | null) => void
-  
+
   // Form state
   checkoutRequestMessage: string
   setCheckoutRequestMessage: (message: string) => void
@@ -34,6 +34,6 @@ export function useCheckoutRequestModal(): UseCheckoutRequestModalReturn {
     checkoutRequestMessage,
     setCheckoutRequestMessage,
     isSubmittingCheckoutRequest,
-    setIsSubmittingCheckoutRequest
+    setIsSubmittingCheckoutRequest,
   }
 }

@@ -1,6 +1,6 @@
 /**
  * RolesTab - Displays and manages workflow roles
- * 
+ *
  * This component uses hooks directly instead of context:
  * - usePDMStore for user/org info
  * - useWorkflowRoles for data
@@ -33,9 +33,9 @@ export function RolesTab({ searchQuery = '', onShowCreateRoleDialog }: RolesTabP
     workflowRoles,
     userRoleAssignments: userWorkflowRoleAssignments,
     updateWorkflowRole,
-    deleteWorkflowRole
+    deleteWorkflowRole,
   } = useWorkflowRoles(orgId)
-  
+
   const { members: orgUsers } = useMembers(orgId)
 
   // Dialog state - for edit operations within the tab
@@ -47,7 +47,7 @@ export function RolesTab({ searchQuery = '', onShowCreateRoleDialog }: RolesTabP
     workflowRoleFormData,
     setWorkflowRoleFormData,
     isSavingWorkflowRole,
-    setIsSavingWorkflowRole
+    setIsSavingWorkflowRole,
   } = useWorkflowRoleDialogs()
 
   // Delete confirmation dialog state
@@ -55,8 +55,8 @@ export function RolesTab({ searchQuery = '', onShowCreateRoleDialog }: RolesTabP
   const [isDeleting, setIsDeleting] = useState(false)
 
   // Filter roles by search
-  const filteredRoles = workflowRoles.filter(r => 
-    !searchQuery || r.name.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredRoles = workflowRoles.filter(
+    (r) => !searchQuery || r.name.toLowerCase().includes(searchQuery.toLowerCase()),
   )
 
   // Handlers
@@ -89,13 +89,13 @@ export function RolesTab({ searchQuery = '', onShowCreateRoleDialog }: RolesTabP
     }
   }
 
-  const openEditRoleDialog = (role: typeof workflowRoles[0]) => {
+  const openEditRoleDialog = (role: (typeof workflowRoles)[0]) => {
     setEditingWorkflowRole(role)
     setWorkflowRoleFormData({
       name: role.name,
       color: role.color,
       icon: role.icon,
-      description: role.description || ''
+      description: role.description || '',
     })
     setShowEditWorkflowRoleDialog(true)
   }
@@ -109,10 +109,7 @@ export function RolesTab({ searchQuery = '', onShowCreateRoleDialog }: RolesTabP
             {searchQuery ? 'No matching workflow roles' : 'No workflow roles yet'}
           </p>
           {isAdmin && !searchQuery && onShowCreateRoleDialog && (
-            <button
-              onClick={onShowCreateRoleDialog}
-              className="btn btn-primary btn-sm"
-            >
+            <button onClick={onShowCreateRoleDialog} className="btn btn-primary btn-sm">
               <Plus size={14} className="mr-1" />
               Create First Role
             </button>
@@ -126,12 +123,15 @@ export function RolesTab({ searchQuery = '', onShowCreateRoleDialog }: RolesTabP
     <div className="space-y-3">
       <div className="border border-plm-border rounded-lg overflow-hidden bg-plm-bg/50">
         <div className="divide-y divide-plm-border/50">
-          {filteredRoles.map(role => {
-            const RoleIcon = (LucideIcons as unknown as Record<string, React.ComponentType<{ size?: number }>>)[role.icon] || Shield
-            const usersWithRole = orgUsers.filter(u => 
-              userWorkflowRoleAssignments[u.id]?.includes(role.id)
+          {filteredRoles.map((role) => {
+            const RoleIcon =
+              (LucideIcons as unknown as Record<string, React.ComponentType<{ size?: number }>>)[
+                role.icon
+              ] || Shield
+            const usersWithRole = orgUsers.filter((u) =>
+              userWorkflowRoleAssignments[u.id]?.includes(role.id),
             )
-            
+
             return (
               <div
                 key={role.id}
@@ -144,7 +144,7 @@ export function RolesTab({ searchQuery = '', onShowCreateRoleDialog }: RolesTabP
                 >
                   <RoleIcon size={20} />
                 </div>
-                
+
                 {/* Role info */}
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-plm-fg">{role.name}</div>
@@ -153,11 +153,11 @@ export function RolesTab({ searchQuery = '', onShowCreateRoleDialog }: RolesTabP
                     {role.description && ` • ${role.description}`}
                   </div>
                 </div>
-                
+
                 {/* Users with this role */}
                 {usersWithRole.length > 0 && (
                   <div className="flex -space-x-2 flex-shrink-0">
-                    {usersWithRole.slice(0, 4).map(u => (
+                    {usersWithRole.slice(0, 4).map((u) =>
                       getEffectiveAvatarUrl(u) ? (
                         <img
                           key={u.id}
@@ -175,8 +175,8 @@ export function RolesTab({ searchQuery = '', onShowCreateRoleDialog }: RolesTabP
                         >
                           {getInitials(u.full_name || u.email)}
                         </div>
-                      )
-                    ))}
+                      ),
+                    )}
                     {usersWithRole.length > 4 && (
                       <div className="w-7 h-7 rounded-full bg-plm-fg-muted/20 flex items-center justify-center text-[10px] font-medium border-2 border-plm-bg-light">
                         +{usersWithRole.length - 4}
@@ -184,7 +184,7 @@ export function RolesTab({ searchQuery = '', onShowCreateRoleDialog }: RolesTabP
                     )}
                   </div>
                 )}
-                
+
                 {/* Actions */}
                 {isAdmin && (
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -209,11 +209,11 @@ export function RolesTab({ searchQuery = '', onShowCreateRoleDialog }: RolesTabP
           })}
         </div>
       </div>
-      
+
       {/* Info footer */}
       <p className="text-xs text-plm-fg-muted">
-        Workflow roles define responsibilities in workflows (e.g., approvers, reviewers). 
-        Editing a role updates it for all assigned users.
+        Workflow roles define responsibilities in workflows (e.g., approvers, reviewers). Editing a
+        role updates it for all assigned users.
       </p>
 
       {/* Edit Workflow Role Dialog - rendered here for edit actions within the tab */}

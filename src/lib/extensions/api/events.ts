@@ -1,18 +1,15 @@
 /**
  * Extension Events API Implementation
- * 
+ *
  * Provides event subscription and emission for extensions.
  * Extensions can subscribe to application events and emit their own events.
- * 
+ *
  * @module extensions/api/events
  */
 
-import type {
-  EventsAPI,
-  ExtensionEvent,
-  Disposable,
-} from './types'
+import type { EventsAPI, ExtensionEvent, Disposable } from './types'
 import { toDisposable } from './types'
+import { log } from '@/lib/logger'
 
 // ============================================
 // IPC Channel Constants
@@ -36,8 +33,8 @@ export const EVENTS_IPC_CHANNELS = {
  * Send an IPC message to the main process.
  */
 async function sendIPC<T>(channel: string, ...args: unknown[]): Promise<T> {
-  if (typeof window !== 'undefined' && (window as any).__extensionIPC) {
-    return (window as any).__extensionIPC.invoke(channel, ...args)
+  if (typeof window !== 'undefined' && (window as any).__extensionIPC) { // TODO: type this
+    return (window as any).__extensionIPC.invoke(channel, ...args) // TODO: type this
   }
   throw new Error(`IPC not available: ${channel}`)
 }
@@ -63,7 +60,7 @@ const subscriptions = new Map<string, Map<string, Map<string, (...args: unknown[
  * Get or create the subscription map for an extension.
  */
 function getExtensionSubscriptions(
-  extensionId: string
+  extensionId: string,
 ): Map<string, Map<string, (...args: unknown[]) => void>> {
   let extSubs = subscriptions.get(extensionId)
   if (!extSubs) {
@@ -78,7 +75,7 @@ function getExtensionSubscriptions(
  */
 function getEventSubscriptions(
   extensionId: string,
-  event: string
+  event: string,
 ): Map<string, (...args: unknown[]) => void> {
   const extSubs = getExtensionSubscriptions(extensionId)
   let eventSubs = extSubs.get(event)
@@ -92,17 +89,13 @@ function getEventSubscriptions(
 /**
  * Handle an incoming event from the main process.
  */
-export function handleEvent(
-  extensionId: string,
-  event: string,
-  args: unknown[]
-): void {
+export function handleEvent(extensionId: string, event: string, args: unknown[]): void {
   const eventSubs = getEventSubscriptions(extensionId, event)
   for (const callback of eventSubs.values()) {
     try {
       callback(...args)
     } catch (error) {
-      console.error(`[Extension:${extensionId}] Error in event callback for '${event}':`, error)
+      log.error(`[Extension:${extensionId}]`, `Error in event callback for '${event}'`, { error })
     }
   }
 }
@@ -118,7 +111,7 @@ export function broadcastEvent(event: string, args: unknown[]): void {
         try {
           callback(...args)
         } catch (error) {
-          console.error(`[Extension:${extensionId}] Error in broadcast callback for '${event}':`, error)
+          log.error(`[Extension:${extensionId}]`, `Error in broadcast callback for '${event}'`, { error })
         }
       }
     }
@@ -131,53 +124,50 @@ export function broadcastEvent(event: string, args: unknown[]): void {
 
 /**
  * Create the Events API implementation for an extension.
- * 
+ *
  * @param extensionId - The ID of the extension using this API
  * @param grantedPermissions - Permissions granted to the extension
  * @returns The Events API implementation
- * 
+ *
  * @example
  * ```typescript
  * const events = createEventsAPI('my-extension', [])
- * 
+ *
  * // Subscribe to vault changes
  * context.subscriptions.push(
  *   events.on('vault:changed', (vaultId) => {
  *     console.log('Vault changed to:', vaultId)
  *   })
  * )
- * 
+ *
  * // Emit custom event (must be prefixed with extension ID)
  * events.emit('my-extension.customEvent', { data: 'value' })
  * ```
  */
-export function createEventsAPI(
-  extensionId: string,
-  _grantedPermissions: string[]
-): EventsAPI {
+export function createEventsAPI(extensionId: string, _grantedPermissions: string[]): EventsAPI {
   return {
     /**
      * Subscribe to an application event.
      */
     on(event: ExtensionEvent, callback: (...args: unknown[]) => void): Disposable {
       // No permission check - event subscription is always allowed
-      
+
       const subscriptionId = generateSubscriptionId()
       const eventSubs = getEventSubscriptions(extensionId, event)
-      
+
       // Store callback locally
       eventSubs.set(subscriptionId, callback)
-      
+
       // Register with main process
       sendIPC(EVENTS_IPC_CHANNELS.SUBSCRIBE, {
         extensionId,
         event,
         subscriptionId,
       }).catch((error) => {
-        console.error(`[Extension:${extensionId}] Failed to subscribe to event '${event}':`, error)
+        log.error(`[Extension:${extensionId}]`, `Failed to subscribe to event '${event}'`, { error })
         eventSubs.delete(subscriptionId)
       })
-      
+
       // Return disposable for cleanup
       return toDisposable(() => {
         eventSubs.delete(subscriptionId)
@@ -186,7 +176,7 @@ export function createEventsAPI(
           event,
           subscriptionId,
         }).catch((error) => {
-          console.error(`[Extension:${extensionId}] Failed to unsubscribe from event '${event}':`, error)
+          log.error(`[Extension:${extensionId}]`, `Failed to unsubscribe from event '${event}'`, { error })
         })
       })
     },
@@ -200,20 +190,20 @@ export function createEventsAPI(
       if (!event.startsWith(`${extensionId}.`)) {
         throw new Error(
           `Extensions can only emit events prefixed with their ID. ` +
-          `Expected '${extensionId}.*', got '${event}'`
+            `Expected '${extensionId}.*', got '${event}'`,
         )
       }
-      
+
       // Broadcast locally first
       broadcastEvent(event, args)
-      
+
       // Send to main process for cross-extension communication
       sendIPC(EVENTS_IPC_CHANNELS.EMIT, {
         extensionId,
         event,
         args,
       }).catch((error) => {
-        console.error(`[Extension:${extensionId}] Failed to emit event '${event}':`, error)
+        log.error(`[Extension:${extensionId}]`, `Failed to emit event '${event}'`, { error })
       })
     },
   }
@@ -225,31 +215,31 @@ export function createEventsAPI(
 
 /**
  * Create a typed event emitter for a specific event.
- * 
+ *
  * @param events - The Events API instance
  * @param eventName - The event name to emit
  * @returns A typed emit function
- * 
+ *
  * @example
  * ```typescript
  * const emitSyncComplete = createTypedEmitter<[number]>(
  *   api.events,
  *   'my-extension.syncComplete'
  * )
- * 
+ *
  * emitSyncComplete(42) // Emit with file count
  * ```
  */
 export function createTypedEmitter<TArgs extends unknown[]>(
   events: EventsAPI,
-  eventName: string
+  eventName: string,
 ): (...args: TArgs) => void {
   return (...args: TArgs) => events.emit(eventName, ...args)
 }
 
 /**
  * Create a typed event subscriber for a specific event.
- * 
+ *
  * @param events - The Events API instance
  * @param event - The event to subscribe to
  * @param callback - The typed callback function
@@ -258,14 +248,14 @@ export function createTypedEmitter<TArgs extends unknown[]>(
 export function onTyped<TArgs extends unknown[]>(
   events: EventsAPI,
   event: ExtensionEvent,
-  callback: (...args: TArgs) => void
+  callback: (...args: TArgs) => void,
 ): Disposable {
   return events.on(event, callback as (...args: unknown[]) => void)
 }
 
 /**
  * Subscribe to an event once (auto-unsubscribe after first trigger).
- * 
+ *
  * @param events - The Events API instance
  * @param event - The event to subscribe to
  * @param callback - The callback function
@@ -274,7 +264,7 @@ export function onTyped<TArgs extends unknown[]>(
 export function once(
   events: EventsAPI,
   event: ExtensionEvent,
-  callback: (...args: unknown[]) => void
+  callback: (...args: unknown[]) => void,
 ): Disposable {
   const disposable = events.on(event, (...args) => {
     disposable.dispose()
@@ -285,12 +275,12 @@ export function once(
 
 /**
  * Wait for an event to fire (promise-based).
- * 
+ *
  * @param events - The Events API instance
  * @param event - The event to wait for
  * @param timeout - Optional timeout in milliseconds
  * @returns Promise that resolves with event args
- * 
+ *
  * @example
  * ```typescript
  * const [vaultId] = await waitForEvent(api.events, 'vault:changed', 5000)
@@ -299,17 +289,17 @@ export function once(
 export function waitForEvent<T extends unknown[] = unknown[]>(
   events: EventsAPI,
   event: ExtensionEvent,
-  timeout?: number
+  timeout?: number,
 ): Promise<T> {
   return new Promise((resolve, reject) => {
     let timeoutId: ReturnType<typeof setTimeout> | undefined
-    
+
     const disposable = events.on(event, (...args) => {
       if (timeoutId) clearTimeout(timeoutId)
       disposable.dispose()
       resolve(args as T)
     })
-    
+
     if (timeout) {
       timeoutId = setTimeout(() => {
         disposable.dispose()
@@ -326,7 +316,7 @@ export function waitForEvent<T extends unknown[] = unknown[]>(
 export function getExtensionSubscriptionCount(extensionId: string): number {
   const extSubs = subscriptions.get(extensionId)
   if (!extSubs) return 0
-  
+
   let count = 0
   for (const eventSubs of extSubs.values()) {
     count += eventSubs.size

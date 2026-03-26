@@ -1,20 +1,8 @@
 import { useState, useEffect } from 'react'
 import type React from 'react'
 import * as LucideIcons from 'lucide-react'
-import {
-  Shield,
-  X,
-  Loader2,
-  Search,
-  Database,
-  Check,
-  Minus
-} from 'lucide-react'
-import {
-  PERMISSION_ACTIONS,
-  PERMISSION_ACTION_LABELS,
-  ALL_RESOURCES
-} from '@/types/permissions'
+import { Shield, X, Loader2, Search, Database, Check, Minus } from 'lucide-react'
+import { PERMISSION_ACTIONS, PERMISSION_ACTION_LABELS, ALL_RESOURCES } from '@/types/permissions'
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
@@ -42,20 +30,22 @@ interface UserPermissionsDialogProps {
 export function UserPermissionsDialog({
   user,
   onClose,
-  currentUserId
+  currentUserId,
 }: UserPermissionsDialogProps) {
   const { addToast, organization } = usePDMStore()
   const [permissions, setPermissions] = useState<Record<string, PermissionAction[]>>({})
-  const [originalPermissions, setOriginalPermissions] = useState<Record<string, PermissionAction[]>>({})
+  const [originalPermissions, setOriginalPermissions] = useState<
+    Record<string, PermissionAction[]>
+  >({})
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  
+
   // Vault scope state
   const [vaults, setVaults] = useState<Vault[]>([])
   const [selectedVaultId, setSelectedVaultId] = useState<string | null>(null) // null = "All Vaults"
   const [vaultsLoading, setVaultsLoading] = useState(true)
-  
+
   // Load vaults for this org
   useEffect(() => {
     const loadVaults = async () => {
@@ -69,32 +59,29 @@ export function UserPermissionsDialog({
           .select('id, name, slug')
           .eq('org_id', organization.id)
           .order('name')
-        
+
         if (error) throw error
         const typedData = (data || []) as unknown as VaultQueryResult[]
         setVaults(typedData as Vault[])
-      } catch (err) {
-        log.error('[UserPermissions]', 'Failed to load vaults', { error: err })
+      } catch (error) {
+        log.error('[UserPermissions]', 'Failed to load vaults', { error: error })
       } finally {
         setVaultsLoading(false)
       }
     }
     loadVaults()
   }, [organization?.id])
-  
+
   useEffect(() => {
     loadPermissions()
   }, [user.id, selectedVaultId])
-  
+
   const loadPermissions = async () => {
     setIsLoading(true)
     try {
       // Build query - filter by vault_id
-      let query = supabase
-        .from('user_permissions')
-        .select('*')
-        .eq('user_id', user.id)
-      
+      let query = supabase.from('user_permissions').select('*').eq('user_id', user.id)
+
       if (selectedVaultId === null) {
         // "All Vaults" - only load global permissions
         query = query.is('vault_id', null)
@@ -102,45 +89,42 @@ export function UserPermissionsDialog({
         // Specific vault
         query = query.eq('vault_id', selectedVaultId)
       }
-      
+
       const { data, error } = await query
-      
+
       if (error) throw error
-      
+
       const typedPerms = (data || []) as unknown as UserPermissionResult[]
       const permsMap: Record<string, PermissionAction[]> = {}
       for (const perm of typedPerms) {
         permsMap[perm.resource] = perm.actions
       }
-      
+
       setPermissions(permsMap)
       setOriginalPermissions(permsMap)
-    } catch (err) {
-      log.error('[UserPermissions]', 'Failed to load user permissions', { error: err })
+    } catch (error) {
+      log.error('[UserPermissions]', 'Failed to load user permissions', { error: error })
     } finally {
       setIsLoading(false)
     }
   }
-  
+
   const savePermissions = async () => {
     if (!currentUserId) return
-    
+
     setIsSaving(true)
     try {
       // Delete existing permissions for this vault scope
-      let deleteQuery = supabase
-        .from('user_permissions')
-        .delete()
-        .eq('user_id', user.id)
-      
+      let deleteQuery = supabase.from('user_permissions').delete().eq('user_id', user.id)
+
       if (selectedVaultId === null) {
         deleteQuery = deleteQuery.is('vault_id', null)
       } else {
         deleteQuery = deleteQuery.eq('vault_id', selectedVaultId)
       }
-      
+
       await deleteQuery
-      
+
       // Insert new permissions
       const newPerms = Object.entries(permissions)
         .filter(([_, actions]) => actions.length > 0)
@@ -149,54 +133,61 @@ export function UserPermissionsDialog({
           resource,
           vault_id: selectedVaultId,
           actions,
-          granted_by: currentUserId
+          granted_by: currentUserId,
         }))
-      
+
       if (newPerms.length > 0) {
         // Supabase v2 type inference incomplete for user_permissions table
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error } = await (supabase as any).from('user_permissions').insert(newPerms)
+        const { error } = await (supabase as any).from('user_permissions').insert(newPerms) // TODO: type this
         if (error) throw error
       }
-      
-      const vaultName = selectedVaultId 
-        ? vaults.find(v => v.id === selectedVaultId)?.name || 'selected vault'
+
+      const vaultName = selectedVaultId
+        ? vaults.find((v) => v.id === selectedVaultId)?.name || 'selected vault'
         : 'all vaults'
       addToast('success', `Permissions saved for ${user.full_name || user.email} on ${vaultName}`)
       onClose()
-    } catch (err) {
-      log.error('[UserPermissions]', 'Failed to save permissions', { error: err })
+    } catch (error) {
+      log.error('[UserPermissions]', 'Failed to save permissions', { error: error })
       addToast('error', 'Failed to save permissions')
     } finally {
       setIsSaving(false)
     }
   }
-  
+
   const toggleAction = (resourceId: string, action: PermissionAction) => {
-    setPermissions(prev => {
+    setPermissions((prev) => {
       const current = prev[resourceId] || []
       if (current.includes(action)) {
-        return { ...prev, [resourceId]: current.filter(a => a !== action) }
+        return { ...prev, [resourceId]: current.filter((a) => a !== action) }
       } else {
         return { ...prev, [resourceId]: [...current, action] }
       }
     })
   }
-  
+
   const hasChanges = JSON.stringify(permissions) !== JSON.stringify(originalPermissions)
   const permissionCount = Object.entries(permissions).filter(([_, a]) => a.length > 0).length
-  
+
   // Filter resources by search
   const filteredResources = searchQuery
-    ? ALL_RESOURCES.filter(r => 
-        r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        r.description.toLowerCase().includes(searchQuery.toLowerCase())
+    ? ALL_RESOURCES.filter(
+        (r) =>
+          r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          r.description.toLowerCase().includes(searchQuery.toLowerCase()),
       )
     : ALL_RESOURCES
-  
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center overflow-hidden" onClick={onClose}>
-      <div className="bg-plm-bg-light border border-plm-border rounded-xl w-full max-w-4xl h-[85vh] mx-4 flex flex-col shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center overflow-hidden"
+      onClick={onClose}
+    >
+      <div
+        className="bg-plm-bg-light border border-plm-border rounded-xl w-full max-w-4xl h-[85vh] mx-4 flex flex-col shadow-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="p-4 border-b border-plm-border flex items-center gap-4 flex-shrink-0">
           <div className="p-2.5 rounded-lg bg-purple-500/20 text-purple-400">
@@ -205,13 +196,15 @@ export function UserPermissionsDialog({
           <div className="flex-1">
             <h2 className="text-lg font-semibold text-plm-fg flex items-center gap-2">
               Individual Permissions
-              <span className="text-sm font-normal text-plm-fg-muted">— {user.full_name || user.email}</span>
+              <span className="text-sm font-normal text-plm-fg-muted">
+                — {user.full_name || user.email}
+              </span>
             </h2>
             <p className="text-sm text-plm-fg-muted">
               These permissions are added to any team permissions (union of all)
             </p>
           </div>
-          
+
           {/* Vault scope selector */}
           <div className="flex items-center gap-2">
             <Database size={16} className="text-plm-fg-muted" />
@@ -225,33 +218,39 @@ export function UserPermissionsDialog({
               className="px-3 py-1.5 text-sm bg-plm-bg border border-plm-border rounded-lg text-plm-fg focus:outline-none focus:border-plm-accent min-w-[160px]"
             >
               <option value="all">All Vaults (Global)</option>
-              {vaults.map(vault => (
+              {vaults.map((vault) => (
                 <option key={vault.id} value={vault.id}>
                   {vault.name}
                 </option>
               ))}
             </select>
           </div>
-          
-          <button onClick={onClose} className="p-2 text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight rounded-lg">
+
+          <button
+            onClick={onClose}
+            className="p-2 text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight rounded-lg"
+          >
             <X size={18} />
           </button>
         </div>
-        
+
         {/* Search */}
         <div className="p-3 border-b border-plm-border flex-shrink-0">
           <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
+            <Search
+              size={14}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted"
+            />
             <input
               type="text"
               value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
+              onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search resources..."
               className="w-full pl-9 pr-3 py-1.5 text-sm bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-dim focus:outline-none focus:border-plm-accent"
             />
           </div>
         </div>
-        
+
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4 bg-plm-bg-light">
           {isLoading ? (
@@ -260,10 +259,13 @@ export function UserPermissionsDialog({
             </div>
           ) : (
             <div className="space-y-0">
-              {filteredResources.map(resource => {
-                const ResourceIcon = (LucideIcons as unknown as Record<string, React.ComponentType<{ size?: number }>>)[resource.icon] || Shield
+              {filteredResources.map((resource) => {
+                const ResourceIcon =
+                  (
+                    LucideIcons as unknown as Record<string, React.ComponentType<{ size?: number }>>
+                  )[resource.icon] || Shield
                 const currentActions = permissions[resource.id] || []
-                
+
                 return (
                   <div
                     key={resource.id}
@@ -273,36 +275,51 @@ export function UserPermissionsDialog({
                       <ResourceIcon size={16} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm text-plm-fg font-medium truncate">{resource.name}</div>
-                      <div className="text-xs text-plm-fg-muted truncate">{resource.description}</div>
+                      <div className="text-sm text-plm-fg font-medium truncate">
+                        {resource.name}
+                      </div>
+                      <div className="text-xs text-plm-fg-muted truncate">
+                        {resource.description}
+                      </div>
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
-                      {PERMISSION_ACTIONS.map(action => {
+                      {PERMISSION_ACTIONS.map((action) => {
                         const isApplicable = resource.applicableActions.includes(action)
                         const isGranted = currentActions.includes(action)
-                        
+
                         if (!isApplicable) {
                           return (
-                            <div key={action} className="w-8 h-8 rounded-lg flex items-center justify-center opacity-20">
+                            <div
+                              key={action}
+                              className="w-8 h-8 rounded-lg flex items-center justify-center opacity-20"
+                            >
                               <Minus size={12} className="text-plm-fg-dim" />
                             </div>
                           )
                         }
-                        
-                        const colorClass = 
-                          action === 'view' ? 'bg-blue-500/35 text-blue-300 border-blue-400/70' :
-                          action === 'create' ? 'bg-green-500/35 text-green-300 border-green-400/70' :
-                          action === 'edit' ? 'bg-yellow-500/35 text-yellow-300 border-yellow-400/70' :
-                          action === 'delete' ? 'bg-red-500/35 text-red-300 border-red-400/70' :
-                          'bg-purple-500/35 text-purple-300 border-purple-400/70'
-                        
-                        const uncheckedClass = 
-                          action === 'view' ? 'border-blue-500/20 bg-blue-500/5 text-blue-400/40 hover:border-blue-400/50 hover:bg-blue-500/15' :
-                          action === 'create' ? 'border-green-500/20 bg-green-500/5 text-green-400/40 hover:border-green-400/50 hover:bg-green-500/15' :
-                          action === 'edit' ? 'border-yellow-500/20 bg-yellow-500/5 text-yellow-400/40 hover:border-yellow-400/50 hover:bg-yellow-500/15' :
-                          action === 'delete' ? 'border-red-500/20 bg-red-500/5 text-red-400/40 hover:border-red-400/50 hover:bg-red-500/15' :
-                          'border-purple-500/20 bg-purple-500/5 text-purple-400/40 hover:border-purple-400/50 hover:bg-purple-500/15'
-                        
+
+                        const colorClass =
+                          action === 'view'
+                            ? 'bg-blue-500/35 text-blue-300 border-blue-400/70'
+                            : action === 'create'
+                              ? 'bg-green-500/35 text-green-300 border-green-400/70'
+                              : action === 'edit'
+                                ? 'bg-yellow-500/35 text-yellow-300 border-yellow-400/70'
+                                : action === 'delete'
+                                  ? 'bg-red-500/35 text-red-300 border-red-400/70'
+                                  : 'bg-purple-500/35 text-purple-300 border-purple-400/70'
+
+                        const uncheckedClass =
+                          action === 'view'
+                            ? 'border-blue-500/20 bg-blue-500/5 text-blue-400/40 hover:border-blue-400/50 hover:bg-blue-500/15'
+                            : action === 'create'
+                              ? 'border-green-500/20 bg-green-500/5 text-green-400/40 hover:border-green-400/50 hover:bg-green-500/15'
+                              : action === 'edit'
+                                ? 'border-yellow-500/20 bg-yellow-500/5 text-yellow-400/40 hover:border-yellow-400/50 hover:bg-yellow-500/15'
+                                : action === 'delete'
+                                  ? 'border-red-500/20 bg-red-500/5 text-red-400/40 hover:border-red-400/50 hover:bg-red-500/15'
+                                  : 'border-purple-500/20 bg-purple-500/5 text-purple-400/40 hover:border-purple-400/50 hover:bg-purple-500/15'
+
                         return (
                           <button
                             key={action}
@@ -315,7 +332,9 @@ export function UserPermissionsDialog({
                             {isGranted ? (
                               <Check size={12} />
                             ) : (
-                              <span className="text-[9px] font-medium">{action.charAt(0).toUpperCase()}</span>
+                              <span className="text-[9px] font-medium">
+                                {action.charAt(0).toUpperCase()}
+                              </span>
                             )}
                           </button>
                         )
@@ -327,7 +346,7 @@ export function UserPermissionsDialog({
             </div>
           )}
         </div>
-        
+
         {/* Footer */}
         <div className="p-4 border-t border-plm-border flex items-center justify-between bg-plm-bg/50 flex-shrink-0">
           <div className="text-sm text-plm-fg-muted">
@@ -335,7 +354,9 @@ export function UserPermissionsDialog({
             {hasChanges && <span className="ml-2 text-plm-warning">• Unsaved changes</span>}
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={onClose} className="btn btn-ghost">Cancel</button>
+            <button onClick={onClose} className="btn btn-ghost">
+              Cancel
+            </button>
             <button
               onClick={savePermissions}
               disabled={isSaving || !hasChanges}

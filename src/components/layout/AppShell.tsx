@@ -1,19 +1,29 @@
 import { useState, useEffect, Suspense, lazy } from 'react'
+import { Loader2 } from 'lucide-react'
+
 import { usePDMStore } from '@/stores/pdmStore'
 import { useLoadFiles, useVaultManagement, useStagedCheckins } from '@/hooks'
-import { MenuBar } from './MenuBar'
-import { ActivityBar } from './ActivityBar'
-import { Sidebar } from './Sidebar'
 import { Toast } from '@/components/core'
 import { ChristmasEffects, HalloweenEffects, WeatherEffects } from '@/components/effects/seasonal'
 import { ImpersonationBanner } from '@/components/shared/ImpersonationBanner'
-import { UpdateModal, OrphanedCheckoutsContainer, MissingStorageFilesContainer, VaultNotFoundDialog, StagedCheckinConflictDialog, UploadSizeWarningContainer, CommandConfirmContainer } from '@/components/shared/Dialogs'
+import {
+  UpdateModal,
+  OrphanedCheckoutsContainer,
+  MissingStorageFilesContainer,
+  VaultNotFoundDialog,
+  StagedCheckinConflictDialog,
+  UploadSizeWarningContainer,
+  CommandConfirmContainer,
+} from '@/components/shared/Dialogs'
+
+import { MenuBar } from './MenuBar'
+import { ActivityBar } from './ActivityBar'
+import { Sidebar } from './Sidebar'
 import { ResizeHandle } from './ResizeHandle'
 import { MainContent } from './MainContent'
-import { Loader2 } from 'lucide-react'
 
 // Lazy load right panel
-const RightPanel = lazy(() => import('./RightPanel').then(m => ({ default: m.RightPanel })))
+const RightPanel = lazy(() => import('./RightPanel').then((m) => ({ default: m.RightPanel })))
 
 // Loading fallback for lazy-loaded components
 function ContentLoading() {
@@ -33,11 +43,7 @@ interface AppShellProps {
 /**
  * Main application shell - handles layout, resizing, and global UI elements
  */
-export function AppShell({
-  showWelcome,
-  isSignInScreen,
-  handleChangeOrg,
-}: AppShellProps) {
+export function AppShell({ showWelcome, isSignInScreen, handleChangeOrg }: AppShellProps) {
   const {
     activeView,
     sidebarVisible,
@@ -97,25 +103,28 @@ export function AppShell({
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [isResizingSidebar, isResizingDetails, isResizingRightPanel, setSidebarWidth, setDetailsPanelHeight, setRightPanelWidth])
+  }, [
+    isResizingSidebar,
+    isResizingDetails,
+    isResizingRightPanel,
+    setSidebarWidth,
+    setDetailsPanelHeight,
+    setRightPanelWidth,
+  ])
 
   return (
     <div className="h-screen flex flex-col bg-plm-bg overflow-hidden relative">
       {/* 🎄 Christmas Effects - snow, sleigh, stars when theme is active */}
       <ChristmasEffects />
-      
+
       {/* 🎃 Halloween Effects - bats, ghosts, pumpkins when theme is active */}
       <HalloweenEffects />
-      
+
       {/* 🌤️ Weather Effects - dynamic theme based on local weather */}
       <WeatherEffects />
-      
-      <MenuBar
-        onOpenVault={handleOpenVault}
-        onRefresh={loadFiles}
-        minimal={isSignInScreen}
-      />
-      
+
+      <MenuBar onOpenVault={handleOpenVault} onRefresh={loadFiles} minimal={isSignInScreen} />
+
       {/* Role impersonation banner (dev tools) */}
       <ImpersonationBanner />
 
@@ -150,29 +159,34 @@ export function AppShell({
         />
 
         {/* Right Panel (lazy loaded) */}
-        {rightPanelVisible && rightPanelTabs.length > 0 && !showWelcome && activeView !== 'workflows' && (
-          <>
-            <ResizeHandle
-              direction="horizontal"
-              onResizeStart={() => setIsResizingRightPanel(true)}
-            />
-            <div className={isResizingSidebar || isResizingRightPanel ? 'pointer-events-none' : ''}>
-              <Suspense fallback={<ContentLoading />}>
-                <RightPanel />
-              </Suspense>
-            </div>
-          </>
-        )}
+        {rightPanelVisible &&
+          rightPanelTabs.length > 0 &&
+          !showWelcome &&
+          activeView !== 'workflows' && (
+            <>
+              <ResizeHandle
+                direction="horizontal"
+                onResizeStart={() => setIsResizingRightPanel(true)}
+              />
+              <div
+                className={isResizingSidebar || isResizingRightPanel ? 'pointer-events-none' : ''}
+              >
+                <Suspense fallback={<ContentLoading />}>
+                  <RightPanel />
+                </Suspense>
+              </div>
+            </>
+          )}
       </div>
 
       <Toast />
-      
+
       {/* Update Modal */}
       <UpdateModal />
-      
+
       {/* Orphaned Checkouts Dialog */}
       <OrphanedCheckoutsContainer onRefresh={loadFiles} />
-      
+
       {/* Staged Check-in Conflict Dialog */}
       {stagedConflicts.length > 0 && (
         <StagedCheckinConflictDialog
@@ -181,16 +195,16 @@ export function AppShell({
           onRefresh={loadFiles}
         />
       )}
-      
+
       {/* Missing Storage Files Dialog */}
       <MissingStorageFilesContainer onRefresh={loadFiles} />
-      
+
       {/* Upload Size Warning Dialog */}
       <UploadSizeWarningContainer />
-      
+
       {/* Command Confirmation Dialog (ctx.confirm from command handlers) */}
       <CommandConfirmContainer />
-      
+
       {/* Vault Not Found Dialog */}
       {vaultNotFoundPath && (
         <VaultNotFoundDialog
@@ -201,7 +215,6 @@ export function AppShell({
           onBrowseNewPath={handleVaultNotFoundBrowse}
         />
       )}
-      
     </div>
   )
 }

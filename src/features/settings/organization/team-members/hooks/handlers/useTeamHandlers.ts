@@ -1,6 +1,6 @@
 /**
  * useTeamHandlers - Team-related handler functions
- * 
+ *
  * Provides handlers for team CRUD operations and vault access management.
  */
 import { useCallback } from 'react'
@@ -22,20 +22,20 @@ export interface UseTeamHandlersParams {
     teamId: string | null,
     orgId: string,
     setOrg: (org: T) => void,
-    org: T
+    org: T,
   ) => Promise<boolean>
   saveTeamVaultAccess: (teamId: string, vaultIds: string[], teamName: string) => Promise<boolean>
-  
+
   // Refresh functions
   loadTeams: () => Promise<void>
   loadOrgUsers: () => Promise<void>
   loadTeamVaultAccess: () => Promise<void>
-  
+
   // Organization
   organization: OrganizationWithDefaultTeam | null
   setOrganization: (org: OrganizationWithDefaultTeam) => void
   addToast: (type: 'success' | 'error' | 'warning' | 'info', message: string) => void
-  
+
   // Dialog state
   selectedTeam: TeamWithDetails | null
   setSelectedTeam: (team: TeamWithDetails | null) => void
@@ -85,12 +85,12 @@ export function useTeamHandlers(params: UseTeamHandlersParams) {
     teamVaultAccessMap,
     setPendingTeamVaultAccess,
     resetTeamForm,
-    setIsSavingDefaultTeam
+    setIsSavingDefaultTeam,
   } = params
 
   const handleCreateTeam = useCallback(async () => {
     if (!teamFormData.name.trim()) return
-    
+
     setIsSavingTeam(true)
     try {
       const success = await hookCreateTeam(teamFormData, copyFromTeamId)
@@ -102,11 +102,19 @@ export function useTeamHandlers(params: UseTeamHandlersParams) {
     } finally {
       setIsSavingTeam(false)
     }
-  }, [teamFormData, copyFromTeamId, hookCreateTeam, setIsSavingTeam, setShowCreateTeamDialog, resetTeamForm, loadTeamVaultAccess])
+  }, [
+    teamFormData,
+    copyFromTeamId,
+    hookCreateTeam,
+    setIsSavingTeam,
+    setShowCreateTeamDialog,
+    resetTeamForm,
+    loadTeamVaultAccess,
+  ])
 
   const handleUpdateTeam = useCallback(async () => {
     if (!selectedTeam || !teamFormData.name.trim()) return
-    
+
     setIsSavingTeam(true)
     try {
       const success = await hookUpdateTeam(selectedTeam.id, teamFormData)
@@ -118,11 +126,19 @@ export function useTeamHandlers(params: UseTeamHandlersParams) {
     } finally {
       setIsSavingTeam(false)
     }
-  }, [selectedTeam, teamFormData, hookUpdateTeam, setIsSavingTeam, setShowEditTeamDialog, setSelectedTeam, resetTeamForm])
+  }, [
+    selectedTeam,
+    teamFormData,
+    hookUpdateTeam,
+    setIsSavingTeam,
+    setShowEditTeamDialog,
+    setSelectedTeam,
+    resetTeamForm,
+  ])
 
   const handleDeleteTeam = useCallback(async () => {
     if (!selectedTeam) return
-    
+
     setIsSavingTeam(true)
     try {
       const success = await hookDeleteTeam(selectedTeam.id)
@@ -134,34 +150,47 @@ export function useTeamHandlers(params: UseTeamHandlersParams) {
     } finally {
       setIsSavingTeam(false)
     }
-  }, [selectedTeam, hookDeleteTeam, setIsSavingTeam, setShowDeleteTeamDialog, setSelectedTeam, loadOrgUsers])
+  }, [
+    selectedTeam,
+    hookDeleteTeam,
+    setIsSavingTeam,
+    setShowDeleteTeamDialog,
+    setSelectedTeam,
+    loadOrgUsers,
+  ])
 
-  const handleSetDefaultTeam = useCallback(async (teamId: string | null) => {
-    if (!organization?.id) return
-    
-    setIsSavingDefaultTeam(true)
-    try {
-      await hookSetDefaultTeam(teamId, organization.id, setOrganization, organization)
-    } finally {
-      setIsSavingDefaultTeam(false)
-    }
-  }, [organization, hookSetDefaultTeam, setOrganization, setIsSavingDefaultTeam])
+  const handleSetDefaultTeam = useCallback(
+    async (teamId: string | null) => {
+      if (!organization?.id) return
 
-  const handleDeleteTeamDirect = useCallback(async (team: { id: string; name: string }) => {
-    if (team.name === 'Administrators') {
-      addToast('error', 'Cannot delete the Administrators team')
-      return
-    }
-    
-    const success = await hookDeleteTeam(team.id)
-    if (success) {
-      loadOrgUsers()
-    }
-  }, [hookDeleteTeam, loadOrgUsers, addToast])
+      setIsSavingDefaultTeam(true)
+      try {
+        await hookSetDefaultTeam(teamId, organization.id, setOrganization, organization)
+      } finally {
+        setIsSavingDefaultTeam(false)
+      }
+    },
+    [organization, hookSetDefaultTeam, setOrganization, setIsSavingDefaultTeam],
+  )
+
+  const handleDeleteTeamDirect = useCallback(
+    async (team: { id: string; name: string }) => {
+      if (team.name === 'Administrators') {
+        addToast('error', 'Cannot delete the Administrators team')
+        return
+      }
+
+      const success = await hookDeleteTeam(team.id)
+      if (success) {
+        loadOrgUsers()
+      }
+    },
+    [hookDeleteTeam, loadOrgUsers, addToast],
+  )
 
   const handleUpdateTeamFromManage = useCallback(async () => {
     if (!editingTeamFromManage) return
-    
+
     setIsSavingTeam(true)
     try {
       const success = await hookUpdateTeam(editingTeamFromManage.id, teamFormData)
@@ -173,20 +202,35 @@ export function useTeamHandlers(params: UseTeamHandlersParams) {
     } finally {
       setIsSavingTeam(false)
     }
-  }, [editingTeamFromManage, teamFormData, hookUpdateTeam, setIsSavingTeam, setShowEditTeamDialog, setEditingTeamFromManage, loadOrgUsers])
+  }, [
+    editingTeamFromManage,
+    teamFormData,
+    hookUpdateTeam,
+    setIsSavingTeam,
+    setShowEditTeamDialog,
+    setEditingTeamFromManage,
+    loadOrgUsers,
+  ])
 
-  const openTeamVaultAccessDialog = useCallback((team: TeamWithDetails) => {
-    setSelectedTeam(team)
-    setPendingTeamVaultAccess(teamVaultAccessMap[team.id] || [])
-    setShowTeamVaultAccessDialog(true)
-  }, [setSelectedTeam, setPendingTeamVaultAccess, teamVaultAccessMap, setShowTeamVaultAccessDialog])
+  const openTeamVaultAccessDialog = useCallback(
+    (team: TeamWithDetails) => {
+      setSelectedTeam(team)
+      setPendingTeamVaultAccess(teamVaultAccessMap[team.id] || [])
+      setShowTeamVaultAccessDialog(true)
+    },
+    [setSelectedTeam, setPendingTeamVaultAccess, teamVaultAccessMap, setShowTeamVaultAccessDialog],
+  )
 
   const handleSaveTeamVaultAccess = useCallback(async () => {
     if (!selectedTeam) return
-    
+
     setIsSavingTeamVaultAccess(true)
     try {
-      const success = await saveTeamVaultAccess(selectedTeam.id, pendingTeamVaultAccess, selectedTeam.name)
+      const success = await saveTeamVaultAccess(
+        selectedTeam.id,
+        pendingTeamVaultAccess,
+        selectedTeam.name,
+      )
       if (success) {
         setShowTeamVaultAccessDialog(false)
         setSelectedTeam(null)
@@ -194,7 +238,14 @@ export function useTeamHandlers(params: UseTeamHandlersParams) {
     } finally {
       setIsSavingTeamVaultAccess(false)
     }
-  }, [selectedTeam, pendingTeamVaultAccess, saveTeamVaultAccess, setIsSavingTeamVaultAccess, setShowTeamVaultAccessDialog, setSelectedTeam])
+  }, [
+    selectedTeam,
+    pendingTeamVaultAccess,
+    saveTeamVaultAccess,
+    setIsSavingTeamVaultAccess,
+    setShowTeamVaultAccessDialog,
+    setSelectedTeam,
+  ])
 
   return {
     handleCreateTeam,
@@ -204,6 +255,6 @@ export function useTeamHandlers(params: UseTeamHandlersParams) {
     handleDeleteTeamDirect,
     handleUpdateTeamFromManage,
     openTeamVaultAccessDialog,
-    handleSaveTeamVaultAccess
+    handleSaveTeamVaultAccess,
   }
 }

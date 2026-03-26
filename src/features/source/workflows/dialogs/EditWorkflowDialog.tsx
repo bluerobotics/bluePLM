@@ -3,7 +3,12 @@ import { useState } from 'react'
 import { Trash2 } from 'lucide-react'
 import type { EditWorkflowDialogProps } from '../types'
 
-export function EditWorkflowDialog({ workflow, onClose, onSave, onDelete }: EditWorkflowDialogProps) {
+export function EditWorkflowDialog({
+  workflow,
+  onClose,
+  onSave,
+  onDelete,
+}: EditWorkflowDialogProps) {
   const [name, setName] = useState(workflow.name)
   const [description, setDescription] = useState(workflow.description || '')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -18,12 +23,12 @@ export function EditWorkflowDialog({ workflow, onClose, onSave, onDelete }: Edit
       setShowDeleteConfirm(false)
     }
   }
-  
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-plm-sidebar rounded-lg shadow-xl w-96 p-4">
         <h3 className="font-semibold mb-4">Edit Workflow</h3>
-        
+
         <div className="space-y-3">
           <div>
             <label className="block text-xs text-plm-fg-muted mb-1">Name</label>
@@ -35,7 +40,7 @@ export function EditWorkflowDialog({ workflow, onClose, onSave, onDelete }: Edit
               autoFocus
             />
           </div>
-          
+
           <div>
             <label className="block text-xs text-plm-fg-muted mb-1">Description</label>
             <textarea
@@ -45,14 +50,14 @@ export function EditWorkflowDialog({ workflow, onClose, onSave, onDelete }: Edit
               placeholder="Optional description..."
             />
           </div>
-          
+
           {workflow.is_default && (
             <p className="text-xs text-plm-fg-muted bg-plm-bg-light rounded p-2">
               This is the default workflow for new files.
             </p>
           )}
         </div>
-        
+
         <div className="flex justify-between mt-4">
           <button
             onClick={() => setShowDeleteConfirm(true)}
@@ -63,10 +68,7 @@ export function EditWorkflowDialog({ workflow, onClose, onSave, onDelete }: Edit
             Delete
           </button>
           <div className="flex gap-2">
-            <button
-              onClick={onClose}
-              className="px-3 py-1.5 text-sm hover:bg-plm-bg rounded"
-            >
+            <button onClick={onClose} className="px-3 py-1.5 text-sm hover:bg-plm-bg rounded">
               Cancel
             </button>
             <button
@@ -82,14 +84,25 @@ export function EditWorkflowDialog({ workflow, onClose, onSave, onDelete }: Edit
 
       {/* Delete Confirmation Dialog */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center" onClick={() => setShowDeleteConfirm(false)}>
-          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center"
+          onClick={() => setShowDeleteConfirm(false)}
+        >
+          <div
+            className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3 className="text-lg font-medium text-plm-fg mb-4">Delete Workflow</h3>
             <p className="text-base text-plm-fg-muted mb-4">
-              Are you sure you want to delete <strong>{workflow.name}</strong>? This action cannot be undone.
+              Are you sure you want to delete <strong>{workflow.name}</strong>? This action cannot
+              be undone.
             </p>
             <div className="flex gap-2 justify-end">
-              <button onClick={() => setShowDeleteConfirm(false)} className="btn btn-ghost" disabled={isDeleting}>
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="btn btn-ghost"
+                disabled={isDeleting}
+              >
                 Cancel
               </button>
               <button

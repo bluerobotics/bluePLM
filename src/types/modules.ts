@@ -96,8 +96,8 @@ export interface SectionDivider {
 export interface CustomGroup {
   id: string
   name: string
-  icon: string  // Lucide icon name
-  iconColor: string | null  // Custom color or null for default
+  icon: string // Lucide icon name
+  iconColor: string | null // Custom color or null for default
   // Position in the sidebar order (index in combined order)
   position: number
   enabled: boolean
@@ -108,7 +108,7 @@ export interface ModuleDefinition {
   id: ModuleId
   name: string
   group: ModuleGroupId
-  icon: string  // Lucide icon name
+  icon: string // Lucide icon name
   defaultEnabled: boolean
   // If true, this module cannot be disabled when its group is enabled
   required?: boolean
@@ -139,7 +139,7 @@ export type ParentId = ModuleId | string | null
 export interface ModuleConfig {
   enabledModules: Record<ModuleId, boolean>
   enabledGroups: Record<ModuleGroupId, boolean>
-  moduleOrder: ModuleId[]  // Custom order of modules in sidebar
+  moduleOrder: ModuleId[] // Custom order of modules in sidebar
   dividers: SectionDivider[]
   // Custom parent-child relationships (overrides default parentId from ModuleDefinition)
   // Parent can be a ModuleId or a custom group ID (prefixed with "group-")
@@ -271,7 +271,7 @@ export const MODULE_GROUPS: ModuleGroupDefinition[] = [
     id: 'system',
     name: 'System',
     description: 'Core application settings',
-    isMasterToggle: false,  // Cannot disable system modules
+    isMasterToggle: false, // Cannot disable system modules
     defaultEnabled: true,
   },
 ]
@@ -686,7 +686,7 @@ export const MODULES: ModuleDefinition[] = [
     id: 'google-drive',
     name: 'Google Drive',
     group: 'integrations',
-    icon: 'GoogleDrive',  // Custom icon
+    icon: 'GoogleDrive', // Custom icon
     defaultEnabled: true,
     implemented: true,
   },
@@ -699,7 +699,7 @@ export const MODULES: ModuleDefinition[] = [
     name: 'Terminal',
     group: 'system',
     icon: 'Terminal',
-    defaultEnabled: false,  // Hidden by default
+    defaultEnabled: false, // Hidden by default
     implemented: true,
   },
   {
@@ -708,7 +708,7 @@ export const MODULES: ModuleDefinition[] = [
     group: 'system',
     icon: 'Settings',
     defaultEnabled: true,
-    required: true,  // Cannot be disabled
+    required: true, // Cannot be disabled
     implemented: true,
   },
 ]
@@ -716,7 +716,7 @@ export const MODULES: ModuleDefinition[] = [
 // Default section dividers (groups provide visual separation, so minimal dividers)
 export const DEFAULT_DIVIDERS: SectionDivider[] = [
   // Divider before integrations/system
-  { id: 'divider-1', enabled: true, position: 42 },  // After Quality, before google-drive
+  { id: 'divider-1', enabled: true, position: 42 }, // After Quality, before google-drive
 ]
 
 // Default module order
@@ -807,78 +807,127 @@ export function getDefaultEnabledGroups(): Record<ModuleGroupId, boolean> {
 
 // Default custom groups for sidebar organization
 export const DEFAULT_CUSTOM_GROUPS: CustomGroup[] = [
-  { id: 'group-source-files', name: 'Source Files', icon: 'FolderOpen', iconColor: null, position: 0, enabled: true },
-  { id: 'group-products', name: 'Products', icon: 'Package', iconColor: null, position: 5, enabled: true },
-  { id: 'group-change-control', name: 'Change Control', icon: 'GitPullRequest', iconColor: null, position: 8, enabled: true },
-  { id: 'group-supply-chain', name: 'Supply Chain', icon: 'Truck', iconColor: null, position: 14, enabled: true },
-  { id: 'group-production', name: 'Production', icon: 'Factory', iconColor: null, position: 21, enabled: true },
-  { id: 'group-quality', name: 'Quality', icon: 'ShieldCheck', iconColor: null, position: 34, enabled: true },
-  { id: 'group-accounting', name: 'Accounting', icon: 'Calculator', iconColor: null, position: 43, enabled: true },
+  {
+    id: 'group-source-files',
+    name: 'Source Files',
+    icon: 'FolderOpen',
+    iconColor: null,
+    position: 0,
+    enabled: true,
+  },
+  {
+    id: 'group-products',
+    name: 'Products',
+    icon: 'Package',
+    iconColor: null,
+    position: 5,
+    enabled: true,
+  },
+  {
+    id: 'group-change-control',
+    name: 'Change Control',
+    icon: 'GitPullRequest',
+    iconColor: null,
+    position: 8,
+    enabled: true,
+  },
+  {
+    id: 'group-supply-chain',
+    name: 'Supply Chain',
+    icon: 'Truck',
+    iconColor: null,
+    position: 14,
+    enabled: true,
+  },
+  {
+    id: 'group-production',
+    name: 'Production',
+    icon: 'Factory',
+    iconColor: null,
+    position: 21,
+    enabled: true,
+  },
+  {
+    id: 'group-quality',
+    name: 'Quality',
+    icon: 'ShieldCheck',
+    iconColor: null,
+    position: 34,
+    enabled: true,
+  },
+  {
+    id: 'group-accounting',
+    name: 'Accounting',
+    icon: 'Calculator',
+    iconColor: null,
+    position: 43,
+    enabled: true,
+  },
 ]
 
 // Default module-to-group parent assignments
 export const DEFAULT_MODULE_PARENT_MAP: Record<ModuleId, ParentId> = {
   // Source Files group
-  'explorer': 'group-source-files',
-  'pending': 'group-source-files',
-  'history': 'group-source-files',
-  'workflows': 'group-source-files',
-  'trash': 'group-source-files',
+  explorer: 'group-source-files',
+  pending: 'group-source-files',
+  history: 'group-source-files',
+  workflows: 'group-source-files',
+  trash: 'group-source-files',
   // Products group (after Source Files)
-  'products': 'group-products',
-  'items': 'group-products',
-  'boms': 'group-products',
+  products: 'group-products',
+  items: 'group-products',
+  boms: 'group-products',
   // Change Control group
-  'ecr': 'group-change-control',
-  'eco': 'group-change-control',
-  'deviations': 'group-change-control',
+  ecr: 'group-change-control',
+  eco: 'group-change-control',
+  deviations: 'group-change-control',
   'release-schedule': 'group-change-control',
-  'process': 'group-change-control',
+  process: 'group-change-control',
   // Supply Chain group
   'supplier-database': 'group-supply-chain',
   'supplier-portal': 'group-supply-chain',
   'purchase-requests': 'group-supply-chain',
   'purchase-orders': 'group-supply-chain',
-  'invoices': 'group-supply-chain',
-  'shipping': 'group-supply-chain',
-  'receiving': 'group-supply-chain',
+  invoices: 'group-supply-chain',
+  shipping: 'group-supply-chain',
+  receiving: 'group-supply-chain',
   // Production group
   'manufacturing-orders': 'group-production',
-  'travellers': 'group-production',
+  travellers: 'group-production',
   'work-instructions': 'group-production',
   'production-schedule': 'group-production',
-  'routings': 'group-production',
+  routings: 'group-production',
   'work-centers': 'group-production',
   'process-flows': 'group-production',
-  'equipment': 'group-production',
+  equipment: 'group-production',
   // Production - Analytics submenu
   'production-analytics': 'group-production',
   'yield-tracking': 'production-analytics',
   'error-codes': 'production-analytics',
-  'downtime': 'production-analytics',
-  'oee': 'production-analytics',
+  downtime: 'production-analytics',
+  oee: 'production-analytics',
   'scrap-tracking': 'production-analytics',
   // Quality group
-  'fai': 'group-quality',
-  'ncr': 'group-quality',
-  'imr': 'group-quality',
-  'scar': 'group-quality',
-  'capa': 'group-quality',
-  'rma': 'group-quality',
-  'certificates': 'group-quality',
-  'calibration': 'group-quality',
+  fai: 'group-quality',
+  ncr: 'group-quality',
+  imr: 'group-quality',
+  scar: 'group-quality',
+  capa: 'group-quality',
+  rma: 'group-quality',
+  certificates: 'group-quality',
+  calibration: 'group-quality',
   'quality-templates': 'group-quality',
   // Accounting group
   'accounts-payable': 'group-accounting',
   'accounts-receivable': 'group-accounting',
   'general-ledger': 'group-accounting',
   'cost-tracking': 'group-accounting',
-  'budgets': 'group-accounting',
+  budgets: 'group-accounting',
   // Top-level (no parent)
   'google-drive': null,
-  'terminal': null,
-  'reviews': null,
-  'settings': null,
+  terminal: null,
+  reviews: null,
+  settings: null,
 }
 
 // Helper to get default module parents
@@ -909,41 +958,38 @@ export function getDefaultModuleConfig(): ModuleConfig {
 }
 
 // Helper to check if a module should be visible
-export function isModuleVisible(
-  moduleId: ModuleId,
-  config: ModuleConfig
-): boolean {
-  const module = MODULES.find(m => m.id === moduleId)
+export function isModuleVisible(moduleId: ModuleId, config: ModuleConfig): boolean {
+  const module = MODULES.find((m) => m.id === moduleId)
   if (!module) return false
-  
+
   // Check if group is enabled (for master toggle groups)
-  const group = MODULE_GROUPS.find(g => g.id === module.group)
+  const group = MODULE_GROUPS.find((g) => g.id === module.group)
   if (group?.isMasterToggle && !config.enabledGroups[module.group]) {
     return false
   }
-  
+
   // Check parent group if exists
   if (group?.parentGroup) {
-    const parentGroup = MODULE_GROUPS.find(g => g.id === group.parentGroup)
+    const parentGroup = MODULE_GROUPS.find((g) => g.id === group.parentGroup)
     if (parentGroup?.isMasterToggle && !config.enabledGroups[group.parentGroup]) {
       return false
     }
   }
-  
+
   // Check if custom group parent is enabled (if module is in a custom group)
   const customParentId = config.moduleParents?.[moduleId]
   if (customParentId && customParentId.startsWith('group-')) {
-    const customGroup = config.customGroups?.find(g => g.id === customParentId)
+    const customGroup = config.customGroups?.find((g) => g.id === customParentId)
     if (customGroup && customGroup.enabled === false) {
       return false
     }
   }
-  
+
   // Check if module itself is enabled
   if (!config.enabledModules[moduleId]) {
     return false
   }
-  
+
   // Check dependencies
   if (module.dependencies) {
     for (const dep of module.dependencies) {
@@ -952,63 +998,60 @@ export function isModuleVisible(
       }
     }
   }
-  
+
   return true
 }
 
 // Helper to check if a module can be toggled (not required)
-export function canToggleModule(
-  moduleId: ModuleId,
-  _config: ModuleConfig
-): boolean {
-  const module = MODULES.find(m => m.id === moduleId)
+export function canToggleModule(moduleId: ModuleId, _config: ModuleConfig): boolean {
+  const module = MODULES.find((m) => m.id === moduleId)
   if (!module) return false
-  
+
   // Required modules can never be toggled
   if (module.required) {
     return false
   }
-  
+
   return true
 }
 
 // Get modules for a specific group
 export function getModulesForGroup(groupId: ModuleGroupId): ModuleDefinition[] {
-  return MODULES.filter(m => m.group === groupId)
+  return MODULES.filter((m) => m.group === groupId)
 }
 
 // Get a module definition by ID
 export function getModuleById(moduleId: ModuleId): ModuleDefinition | undefined {
-  return MODULES.find(m => m.id === moduleId)
+  return MODULES.find((m) => m.id === moduleId)
 }
 
 // Get a group definition by ID
 export function getGroupById(groupId: ModuleGroupId): ModuleGroupDefinition | undefined {
-  return MODULE_GROUPS.find(g => g.id === groupId)
+  return MODULE_GROUPS.find((g) => g.id === groupId)
 }
 
 // Get child modules of a parent (module or custom group)
 export function getChildModules(parentId: string, config?: ModuleConfig): ModuleDefinition[] {
   if (config) {
-    return MODULES.filter(m => config.moduleParents[m.id] === parentId)
+    return MODULES.filter((m) => config.moduleParents[m.id] === parentId)
   }
-  return MODULES.filter(m => m.parentId === parentId)
+  return MODULES.filter((m) => m.parentId === parentId)
 }
 
 // Check if a module or group has children
 export function hasChildModules(parentId: string, config?: ModuleConfig): boolean {
   if (config) {
-    return MODULES.some(m => config.moduleParents[m.id] === parentId)
+    return MODULES.some((m) => config.moduleParents[m.id] === parentId)
   }
-  return MODULES.some(m => m.parentId === parentId)
+  return MODULES.some((m) => m.parentId === parentId)
 }
 
 // Get only top-level modules (no parent, using config's moduleParents if provided)
 export function getTopLevelModules(config?: ModuleConfig): ModuleDefinition[] {
   if (config) {
-    return MODULES.filter(m => !config.moduleParents[m.id])
+    return MODULES.filter((m) => !config.moduleParents[m.id])
   }
-  return MODULES.filter(m => !m.parentId)
+  return MODULES.filter((m) => !m.parentId)
 }
 
 // Get the parent of a module (using config's moduleParents)
@@ -1023,18 +1066,16 @@ export function isCustomGroupId(id: string): boolean {
 
 // Get a custom group by ID
 export function getCustomGroup(groupId: string, config: ModuleConfig): CustomGroup | undefined {
-  return config.customGroups.find(g => g.id === groupId)
+  return config.customGroups.find((g) => g.id === groupId)
 }
 
 // Get visible custom groups (enabled and in order)
 export function getVisibleCustomGroups(config: ModuleConfig): CustomGroup[] {
-  return config.customGroups
-    .filter(g => g.enabled)
-    .sort((a, b) => a.position - b.position)
+  return config.customGroups.filter((g) => g.enabled).sort((a, b) => a.position - b.position)
 }
 
 // Type for combined order list items
-export type OrderListItem = 
+export type OrderListItem =
   | { type: 'module'; id: ModuleId }
   | { type: 'divider'; id: string }
   | { type: 'group'; id: string }
@@ -1043,43 +1084,43 @@ export type OrderListItem =
 export function buildCombinedOrderList(
   moduleOrder: ModuleId[],
   dividers: SectionDivider[],
-  customGroups: CustomGroup[] = []
+  customGroups: CustomGroup[] = [],
 ): OrderListItem[] {
   const result: OrderListItem[] = []
   const sortedDividers = [...dividers].sort((a, b) => a.position - b.position)
   const sortedGroups = [...customGroups].sort((a, b) => a.position - b.position)
-  
+
   let dividerIdx = 0
   let groupIdx = 0
-  
+
   for (let i = 0; i < moduleOrder.length; i++) {
     // Add any groups that come before this position
     while (groupIdx < sortedGroups.length && sortedGroups[groupIdx].position === i) {
       result.push({ type: 'group', id: sortedGroups[groupIdx].id })
       groupIdx++
     }
-    
+
     result.push({ type: 'module', id: moduleOrder[i] })
-    
+
     // Add any dividers that come after this position
     while (dividerIdx < sortedDividers.length && sortedDividers[dividerIdx].position === i) {
       result.push({ type: 'divider', id: sortedDividers[dividerIdx].id })
       dividerIdx++
     }
   }
-  
+
   // Add any remaining groups at the end
   while (groupIdx < sortedGroups.length) {
     result.push({ type: 'group', id: sortedGroups[groupIdx].id })
     groupIdx++
   }
-  
+
   // Add any remaining dividers at the end
   while (dividerIdx < sortedDividers.length) {
     result.push({ type: 'divider', id: sortedDividers[dividerIdx].id })
     dividerIdx++
   }
-  
+
   return result
 }
 
@@ -1087,12 +1128,12 @@ export function buildCombinedOrderList(
 export function extractFromCombinedList(
   combinedList: OrderListItem[],
   existingDividers: SectionDivider[],
-  existingGroups: CustomGroup[] = []
+  existingGroups: CustomGroup[] = [],
 ): { moduleOrder: ModuleId[]; dividers: SectionDivider[]; customGroups: CustomGroup[] } {
   const moduleOrder: ModuleId[] = []
   const dividers: SectionDivider[] = []
   const customGroups: CustomGroup[] = []
-  
+
   let moduleIndex = -1
   for (const item of combinedList) {
     if (item.type === 'module') {
@@ -1100,23 +1141,23 @@ export function extractFromCombinedList(
       moduleOrder.push(item.id)
     } else if (item.type === 'divider') {
       // Find existing divider to preserve enabled state
-      const existing = existingDividers.find(d => d.id === item.id)
+      const existing = existingDividers.find((d) => d.id === item.id)
       dividers.push({
         id: item.id,
         enabled: existing?.enabled ?? true,
-        position: moduleIndex  // Position is after the last module
+        position: moduleIndex, // Position is after the last module
       })
     } else if (item.type === 'group') {
       // Find existing group to preserve all properties
-      const existing = existingGroups.find(g => g.id === item.id)
+      const existing = existingGroups.find((g) => g.id === item.id)
       if (existing) {
         customGroups.push({
           ...existing,
-          position: moduleIndex + 1  // Position before next module
+          position: moduleIndex + 1, // Position before next module
         })
       }
     }
   }
-  
+
   return { moduleOrder, dividers, customGroups }
 }

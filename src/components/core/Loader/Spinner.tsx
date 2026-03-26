@@ -14,8 +14,8 @@ interface SpinnerProps {
  */
 export function Spinner({ size = 20, className = '', paused = false }: SpinnerProps) {
   return (
-    <Loader2 
-      size={size} 
+    <Loader2
+      size={size}
       className={`animate-spin text-plm-fg-muted ${paused ? 'spinner-paused' : ''} ${className}`}
       style={{
         // Inline styles as backup for GPU acceleration

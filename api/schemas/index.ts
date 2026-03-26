@@ -1,6 +1,6 @@
 /**
  * JSON Schema Barrel Export
- * 
+ *
  * Re-exports all schemas as a single `schemas` object for backwards compatibility
  * with the original server.ts structure.
  */
@@ -26,5 +26,5 @@ export const schemas = {
   vault: vaultSchema,
   webhook: webhookSchema,
   supplier: supplierSchema,
-  partSupplier: partSupplierSchema
+  partSupplier: partSupplierSchema,
 } as const

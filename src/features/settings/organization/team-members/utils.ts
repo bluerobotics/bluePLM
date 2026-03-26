@@ -13,7 +13,7 @@ export function formatLastOnline(dateStr: string | null): string | null {
   const diffMins = Math.floor(diffMs / 60000)
   const diffHours = Math.floor(diffMins / 60)
   const diffDays = Math.floor(diffHours / 24)
-  
+
   if (diffMins < 1) return 'Online now'
   if (diffMins < 60) return `${diffMins}m ago`
   if (diffHours < 24) return `${diffHours}h ago`
@@ -23,7 +23,7 @@ export function formatLastOnline(dateStr: string | null): string | null {
 
 /**
  * Convert a pending member to an OrgUser-like object for permissions modals
- * 
+ *
  * @param pm - The pending member to convert
  * @param teams - All teams in the organization
  * @param workflowRoles - All workflow roles in the organization
@@ -32,18 +32,18 @@ export function formatLastOnline(dateStr: string | null): string | null {
 export function pendingMemberToOrgUser(
   pm: PendingMember,
   teams: TeamWithDetails[],
-  workflowRoles: WorkflowRoleBasic[]
+  workflowRoles: WorkflowRoleBasic[],
 ): OrgUser {
   // Get team details for the pending member's teams
   const memberTeams = teams
-    .filter(t => pm.team_ids.includes(t.id))
-    .map(t => ({ id: t.id, name: t.name, color: t.color, icon: t.icon }))
-  
+    .filter((t) => pm.team_ids.includes(t.id))
+    .map((t) => ({ id: t.id, name: t.name, color: t.color, icon: t.icon }))
+
   // Get workflow role details
   const memberWorkflowRoles = workflowRoles
-    .filter(r => pm.workflow_role_ids.includes(r.id))
-    .map(r => ({ id: r.id, name: r.name, color: r.color, icon: r.icon }))
-  
+    .filter((r) => pm.workflow_role_ids.includes(r.id))
+    .map((r) => ({ id: r.id, name: r.name, color: r.color, icon: r.icon }))
+
   return {
     id: pm.id,
     email: pm.email,
@@ -55,54 +55,54 @@ export function pendingMemberToOrgUser(
     last_online: null,
     teams: memberTeams,
     workflow_roles: memberWorkflowRoles,
-    job_title: null
+    job_title: null,
   }
 }
 
 /**
  * Get vault access count for a pending member (based on their teams)
- * 
+ *
  * @param pm - The pending member
  * @param teamVaultAccessMap - Map of team ID to vault IDs they have access to
  * @returns Number of vaults the user will have access to (0 = unrestricted access)
  */
 export function getPendingMemberVaultAccessCount(
   pm: PendingMember,
-  teamVaultAccessMap: Record<string, string[]>
+  teamVaultAccessMap: Record<string, string[]>,
 ): number {
   // If explicit vault restrictions, use those
   if (pm.vault_ids && pm.vault_ids.length > 0) {
     return pm.vault_ids.length
   }
-  
+
   // Otherwise check team vault access
   const teamVaultIds = new Set<string>()
   let hasUnrestrictedTeam = false
-  
+
   for (const teamId of pm.team_ids) {
     const teamVaults = teamVaultAccessMap[teamId]
     if (!teamVaults || teamVaults.length === 0) {
       // Team has no restrictions = access to all vaults
       hasUnrestrictedTeam = true
     } else {
-      teamVaults.forEach(v => teamVaultIds.add(v))
+      teamVaults.forEach((v) => teamVaultIds.add(v))
     }
   }
-  
+
   // If any team has no restrictions, user has access to all
   if (hasUnrestrictedTeam) return 0
-  
+
   return teamVaultIds.size
 }
 
 // Re-export icon utilities
-export { 
-  getIcon, 
-  getTeamIcon, 
-  getRoleIcon, 
+export {
+  getIcon,
+  getTeamIcon,
+  getRoleIcon,
   getTitleIcon,
   isValidIconName,
   getAvailableIconNames,
   ICON_REGISTRY,
-  type IconName
+  type IconName,
 } from './utils/icons'

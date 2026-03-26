@@ -9,7 +9,11 @@ export interface DiffStatusBadgeProps {
 /**
  * Badge showing file diff status (modified, deleted, outdated, etc.)
  */
-export function DiffStatusBadge({ diffStatus, statusIconSize, hasCheckoutUsers }: DiffStatusBadgeProps) {
+export function DiffStatusBadge({
+  diffStatus,
+  statusIconSize,
+  hasCheckoutUsers,
+}: DiffStatusBadgeProps) {
   // Don't show if there are checkout users displayed
   if (hasCheckoutUsers) return null
 

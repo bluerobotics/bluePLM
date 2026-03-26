@@ -16,7 +16,11 @@ import { useNavigationHistory } from './useNavigationHistory'
 import { useFileSelection } from './useFileSelection'
 import { useFolderMetrics } from './useFolderMetrics'
 import { useSorting } from './useSorting'
-import { getFileProcessingOperation, getFolderProcessingOperation, matchesKeybinding } from '../utils'
+import {
+  getFileProcessingOperation,
+  getFolderProcessingOperation,
+  matchesKeybinding,
+} from '../utils'
 import type { SortColumn, SortDirection } from '../types'
 
 export function useFilePaneView() {
@@ -58,13 +62,13 @@ export function useFilePaneView() {
 
   // Platform
   const [platform, setPlatform] = useState<string>('win32')
-  
+
   // Current machine ID
   const [currentMachineId, setCurrentMachineId] = useState<string | null>(null)
-  
+
   // Custom metadata columns
   const [customMetadataColumns, setCustomMetadataColumns] = useState<FileMetadataColumn[]>([])
-  
+
   // Watch file state
   const [watchingFiles, setWatchingFiles] = useState<Set<string>>(new Set())
   const [isTogglingWatch, setIsTogglingWatch] = useState(false)
@@ -112,38 +116,45 @@ export function useFilePaneView() {
   // Calculate selected updatable files
   const selectedUpdatableFiles = useMemo(() => {
     if (selectedFiles.length <= 1) return []
-    return files.filter(f => 
-      selectedFiles.includes(f.path) && 
-      !f.isDirectory && 
-      f.diffStatus === 'outdated'
+    return files.filter(
+      (f) => selectedFiles.includes(f.path) && !f.isDirectory && f.diffStatus === 'outdated',
     )
   }, [files, selectedFiles])
 
   // Check folder sync status (O(1) lookup)
-  const isFolderSynced = useCallback((folderPath: string): boolean => {
-    const fm = folderMetrics.get(folderPath)
-    if (!fm) return false
-    return fm.isSynced
-  }, [folderMetrics])
+  const isFolderSynced = useCallback(
+    (folderPath: string): boolean => {
+      const fm = folderMetrics.get(folderPath)
+      if (!fm) return false
+      return fm.isSynced
+    },
+    [folderMetrics],
+  )
 
   // Get folder checkout status (O(1) lookup)
-  const getFolderCheckoutStatus = useCallback((folderPath: string): 'mine' | 'others' | 'both' | null => {
-    const fm = folderMetrics.get(folderPath)
-    if (!fm) return null
-    
-    if (fm.hasMyCheckedOutFiles && fm.hasOthersCheckedOutFiles) return 'both'
-    if (fm.hasMyCheckedOutFiles) return 'mine'
-    if (fm.hasOthersCheckedOutFiles) return 'others'
-    return null
-  }, [folderMetrics])
+  const getFolderCheckoutStatus = useCallback(
+    (folderPath: string): 'mine' | 'others' | 'both' | null => {
+      const fm = folderMetrics.get(folderPath)
+      if (!fm) return null
+
+      if (fm.hasMyCheckedOutFiles && fm.hasOthersCheckedOutFiles) return 'both'
+      if (fm.hasMyCheckedOutFiles) return 'mine'
+      if (fm.hasOthersCheckedOutFiles) return 'others'
+      return null
+    },
+    [folderMetrics],
+  )
 
   // Check if path is being processed
-  const isBeingProcessed = useCallback((relativePath: string, isDirectory: boolean = false) => {
-    if (isDirectory) {
-      return getFolderProcessingOperation(relativePath, processingOperations) !== null
-    }
-    return getFileProcessingOperation(relativePath, processingOperations) !== null
-  }, [processingOperations])
+  const isBeingProcessed = useCallback(
+    (relativePath: string, isDirectory: boolean = false) => {
+      if (isDirectory) {
+        return getFolderProcessingOperation(relativePath, processingOperations) !== null
+      }
+      return getFileProcessingOperation(relativePath, processingOperations) !== null
+    },
+    [processingOperations],
+  )
 
   // Load platform
   useEffect(() => {
@@ -171,25 +182,25 @@ export function useFilePaneView() {
         setCustomMetadataColumns([])
         return
       }
-      
+
       try {
         const { data, error } = await supabase
           .from('file_metadata_columns')
           .select('*')
           .eq('org_id', organization.id)
           .order('sort_order')
-        
+
         if (error) {
           log.error('[FilePane]', 'Failed to load custom metadata columns', { error })
           return
         }
-        
+
         setCustomMetadataColumns(data || [])
-      } catch (err) {
-        log.error('[FilePane]', 'Failed to load custom metadata columns', { error: err })
+      } catch (error) {
+        log.error('[FilePane]', 'Failed to load custom metadata columns', { error: error })
       }
     }
-    
+
     loadCustomColumns()
   }, [organization?.id])
 
@@ -199,7 +210,7 @@ export function useFilePaneView() {
     if (contextMenu && user?.id && contextMenu.file.pdmData?.id) {
       isWatchingFile(contextMenu.file.pdmData.id, user.id).then(({ watching }) => {
         if (watching) {
-          setWatchingFiles(prev => new Set(prev).add(contextMenu.file.pdmData!.id))
+          setWatchingFiles((prev) => new Set(prev).add(contextMenu.file.pdmData!.id))
         }
       })
     }
@@ -212,72 +223,72 @@ export function useFilePaneView() {
   }, [])
 
   // Combine columns with custom metadata columns
-  const allColumns = useMemo(() => [
-    ...columns,
-    ...customMetadataColumns
-      .filter(c => c.visible)
-      .map(c => ({
-        id: `custom_${c.name}`,
-        label: c.label,
-        width: c.width,
-        visible: c.visible,
-        sortable: c.sortable
-      }))
-  ], [columns, customMetadataColumns])
-
-  const visibleColumns = useMemo(() => 
-    allColumns.filter(c => c.visible), 
-    [allColumns]
+  const allColumns = useMemo(
+    () => [
+      ...columns,
+      ...customMetadataColumns
+        .filter((c) => c.visible)
+        .map((c) => ({
+          id: `custom_${c.name}`,
+          label: c.label,
+          width: c.width,
+          visible: c.visible,
+          sortable: c.sortable,
+        })),
+    ],
+    [columns, customMetadataColumns],
   )
+
+  const visibleColumns = useMemo(() => allColumns.filter((c) => c.visible), [allColumns])
 
   return {
     // Context menu state
     ...contextMenuState,
-    
+
     // Dialog state
     ...dialogState,
-    
+
     // Rename state
     ...renameState,
-    
+
     // Hover state
     ...hoverState,
-    
+
     // Navigation
     ...navigationHistory,
-    
+
     // File selection
     ...fileSelection,
-    
+
     // Sorted files
     sortedFiles,
     isSearching,
-    
+
     // Folder metrics
     folderMetrics,
     isFolderSynced,
     getFolderCheckoutStatus,
     isBeingProcessed,
     selectedUpdatableFiles,
-    
+
     // Platform and machine
     platform,
     currentMachineId,
-    
+
     // Custom columns
     customMetadataColumns,
     allColumns,
     visibleColumns,
-    
+
     // Watch state
     watchingFiles,
     setWatchingFiles,
     isTogglingWatch,
     setIsTogglingWatch,
-    
+
     // Keybinding check
     checkKeybinding,
-    
+
     // Current path
     currentPath: currentFolder,
   }

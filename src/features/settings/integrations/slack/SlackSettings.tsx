@@ -1,19 +1,19 @@
 import { useState, useEffect } from 'react'
-import { 
-  Loader2, 
-  Check, 
-  Eye, 
-  EyeOff, 
-  Puzzle, 
-  Hash, 
-  Bell, 
-  RefreshCw, 
-  AlertCircle, 
-  Plug, 
+import {
+  Loader2,
+  Check,
+  Eye,
+  EyeOff,
+  Puzzle,
+  Hash,
+  Bell,
+  RefreshCw,
+  AlertCircle,
+  Plug,
   ExternalLink,
   Trash2,
   TestTube2,
-  Send
+  Send,
 } from 'lucide-react'
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
@@ -22,8 +22,17 @@ import { supabase } from '@/lib/supabase'
 // Slack logo SVG component
 function SlackLogo({ size = 24 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zm-1.27 0a2.528 2.528 0 0 1-2.522 2.521 2.528 2.528 0 0 1-2.521-2.521V2.522A2.528 2.528 0 0 1 15.165 0a2.528 2.528 0 0 1 2.521 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.521 2.522A2.528 2.528 0 0 1 15.165 24a2.528 2.528 0 0 1-2.521-2.522v-2.522h2.521zm0-1.27a2.528 2.528 0 0 1-2.521-2.522 2.528 2.528 0 0 1 2.521-2.521h6.313A2.528 2.528 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.521h-6.313z" fill="currentColor"/>
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zm-1.27 0a2.528 2.528 0 0 1-2.522 2.521 2.528 2.528 0 0 1-2.521-2.521V2.522A2.528 2.528 0 0 1 15.165 0a2.528 2.528 0 0 1 2.521 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.521 2.522A2.528 2.528 0 0 1 15.165 24a2.528 2.528 0 0 1-2.521-2.522v-2.522h2.521zm0-1.27a2.528 2.528 0 0 1-2.521-2.522 2.528 2.528 0 0 1 2.521-2.521h6.313A2.528 2.528 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.521h-6.313z"
+        fill="currentColor"
+      />
     </svg>
   )
 }
@@ -53,14 +62,62 @@ interface SlackSettingsData {
 }
 
 const DEFAULT_NOTIFICATION_EVENTS: NotificationEvent[] = [
-  { id: 'eco_created', label: 'ECO Created', description: 'When a new Engineering Change Order is created', enabled: true, channel: '' },
-  { id: 'eco_approved', label: 'ECO Approved', description: 'When an ECO is fully approved', enabled: true, channel: '' },
-  { id: 'eco_rejected', label: 'ECO Rejected', description: 'When an ECO is rejected', enabled: true, channel: '' },
-  { id: 'eco_released', label: 'ECO Released', description: 'When ECO changes are released to production', enabled: true, channel: '' },
-  { id: 'review_requested', label: 'Review Requested', description: 'When someone is assigned to review a file', enabled: true, channel: '' },
-  { id: 'review_completed', label: 'Review Completed', description: 'When a review is approved or rejected', enabled: true, channel: '' },
-  { id: 'file_released', label: 'File Released', description: 'When files are released to a new revision', enabled: false, channel: '' },
-  { id: 'file_obsoleted', label: 'File Obsoleted', description: 'When files are marked as obsolete', enabled: false, channel: '' },
+  {
+    id: 'eco_created',
+    label: 'ECO Created',
+    description: 'When a new Engineering Change Order is created',
+    enabled: true,
+    channel: '',
+  },
+  {
+    id: 'eco_approved',
+    label: 'ECO Approved',
+    description: 'When an ECO is fully approved',
+    enabled: true,
+    channel: '',
+  },
+  {
+    id: 'eco_rejected',
+    label: 'ECO Rejected',
+    description: 'When an ECO is rejected',
+    enabled: true,
+    channel: '',
+  },
+  {
+    id: 'eco_released',
+    label: 'ECO Released',
+    description: 'When ECO changes are released to production',
+    enabled: true,
+    channel: '',
+  },
+  {
+    id: 'review_requested',
+    label: 'Review Requested',
+    description: 'When someone is assigned to review a file',
+    enabled: true,
+    channel: '',
+  },
+  {
+    id: 'review_completed',
+    label: 'Review Completed',
+    description: 'When a review is approved or rejected',
+    enabled: true,
+    channel: '',
+  },
+  {
+    id: 'file_released',
+    label: 'File Released',
+    description: 'When files are released to a new revision',
+    enabled: false,
+    channel: '',
+  },
+  {
+    id: 'file_obsoleted',
+    label: 'File Obsoleted',
+    description: 'When files are marked as obsolete',
+    enabled: false,
+    channel: '',
+  },
 ]
 
 function getApiUrl(organization: { settings?: { api_url?: string } } | null): string | null {
@@ -68,16 +125,18 @@ function getApiUrl(organization: { settings?: { api_url?: string } } | null): st
 }
 
 async function getAuthToken(): Promise<string | null> {
-  const { data: { session } } = await supabase.auth.getSession()
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
   return session?.access_token || null
 }
 
 export function SlackSettings() {
   const { organization, addToast, getEffectiveRole } = usePDMStore()
   const isAdmin = getEffectiveRole() === 'admin'
-  
+
   const apiUrl = getApiUrl(organization)
-  
+
   const [settings, setSettings] = useState<SlackSettingsData | null>(null)
   const [botToken, setBotToken] = useState('')
   const [signingSecret, setSigningSecret] = useState('')
@@ -90,20 +149,22 @@ export function SlackSettings() {
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
   const [enabled, setEnabled] = useState(false)
   const [apiServerOnline, setApiServerOnline] = useState<boolean | null>(null)
-  const [notifications, setNotifications] = useState<NotificationEvent[]>(DEFAULT_NOTIFICATION_EVENTS)
+  const [notifications, setNotifications] = useState<NotificationEvent[]>(
+    DEFAULT_NOTIFICATION_EVENTS,
+  )
   const [channels, setChannels] = useState<SlackChannel[]>([])
   const [defaultChannel, setDefaultChannel] = useState('')
   const [testMessage, setTestMessage] = useState('')
   const [isSendingTest, setIsSendingTest] = useState(false)
-  
+
   // Disconnect confirmation state
   const [showDisconnectDialog, setShowDisconnectDialog] = useState(false)
   const [isDisconnecting, setIsDisconnecting] = useState(false)
-  
+
   useEffect(() => {
     loadSettings()
   }, [])
-  
+
   const checkApiServer = async () => {
     if (!apiUrl) {
       setApiServerOnline(false)
@@ -111,7 +172,7 @@ export function SlackSettings() {
     }
     try {
       const response = await fetch(`${apiUrl}/health`, {
-        signal: AbortSignal.timeout(3000)
+        signal: AbortSignal.timeout(3000),
       })
       setApiServerOnline(response.ok)
       return response.ok
@@ -120,7 +181,7 @@ export function SlackSettings() {
       return false
     }
   }
-  
+
   const loadSettings = async () => {
     setIsLoading(true)
     if (!apiUrl) {
@@ -138,13 +199,13 @@ export function SlackSettings() {
 
       const response = await fetch(`${apiUrl}/integrations/slack`, {
         headers: {
-          'Authorization': `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
-        signal: AbortSignal.timeout(5000)
+        signal: AbortSignal.timeout(5000),
       })
-      
+
       setApiServerOnline(true)
-      
+
       if (response.ok) {
         const data = await response.json()
         setSettings(data)
@@ -167,16 +228,16 @@ export function SlackSettings() {
           }
         }
       }
-    } catch (err) {
-      if (err instanceof TypeError && err.message.includes('fetch')) {
+    } catch (error) {
+      if (error instanceof TypeError && error.message.includes('fetch')) {
         setApiServerOnline(false)
       }
-      log.error('[SlackSettings]', 'Failed to load Slack settings', { error: err })
+      log.error('[SlackSettings]', 'Failed to load Slack settings', { error: error })
     } finally {
       setIsLoading(false)
     }
   }
-  
+
   const handleTest = async () => {
     if (!apiUrl) {
       addToast('error', 'API server not configured. Go to Settings > REST API.')
@@ -201,40 +262,46 @@ export function SlackSettings() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           bot_token: botToken,
-          signing_secret: signingSecret
+          signing_secret: signingSecret,
         }),
-        signal: AbortSignal.timeout(15000)
+        signal: AbortSignal.timeout(15000),
       })
 
       const data = await response.json()
 
       if (response.ok) {
-        setTestResult({ 
-          success: true, 
-          message: `Connected to ${data.workspace_name || 'Slack workspace'}` 
+        setTestResult({
+          success: true,
+          message: `Connected to ${data.workspace_name || 'Slack workspace'}`,
         })
         if (data.channels) {
           setChannels(data.channels)
         }
       } else {
-        setTestResult({ success: false, message: data.message || data.error || 'Connection failed' })
+        setTestResult({
+          success: false,
+          message: data.message || data.error || 'Connection failed',
+        })
       }
-    } catch (err) {
-      if (err instanceof TypeError && err.message.includes('fetch')) {
+    } catch (error) {
+      if (error instanceof TypeError && error.message.includes('fetch')) {
         setApiServerOnline(false)
-        setTestResult({ success: false, message: 'API server is offline. Run "npm run api" locally.' })
+        setTestResult({
+          success: false,
+          message: 'API server is offline. Run "npm run api" locally.',
+        })
       } else {
-        setTestResult({ success: false, message: String(err) })
+        setTestResult({ success: false, message: String(error) })
       }
     } finally {
       setIsTesting(false)
     }
   }
-  
+
   const handleFetchChannels = async () => {
     if (!apiUrl) {
       addToast('error', 'API server not configured. Go to Settings > REST API.')
@@ -247,9 +314,9 @@ export function SlackSettings() {
     try {
       const response = await fetch(`${apiUrl}/integrations/slack/channels`, {
         headers: {
-          'Authorization': `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
-        signal: AbortSignal.timeout(10000)
+        signal: AbortSignal.timeout(10000),
       })
 
       if (response.ok) {
@@ -259,13 +326,13 @@ export function SlackSettings() {
       } else {
         addToast('error', 'Failed to fetch channels')
       }
-    } catch (err) {
-      addToast('error', `Error: ${err}`)
+    } catch (error) {
+      addToast('error', `Error: ${error}`)
     } finally {
       setIsFetchingChannels(false)
     }
   }
-  
+
   const handleSave = async (skipTest: boolean = false) => {
     if (!apiUrl) {
       addToast('error', 'API server not configured. Go to Settings > REST API.')
@@ -289,15 +356,15 @@ export function SlackSettings() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           bot_token: botToken || undefined,
           signing_secret: signingSecret || undefined,
           default_channel: defaultChannel,
           notifications: notifications,
-          skip_test: skipTest
-        })
+          skip_test: skipTest,
+        }),
       })
 
       const data = await response.json()
@@ -316,14 +383,14 @@ export function SlackSettings() {
           addToast('error', data.message || data.error || 'Failed to save configuration')
         }
       }
-    } catch (err) {
-      log.error('[SlackSettings]', 'Error', { error: err })
-      addToast('error', `Error: ${err}`)
+    } catch (error) {
+      log.error('[SlackSettings]', 'Error', { error: error })
+      addToast('error', `Error: ${error}`)
     } finally {
       setIsSaving(false)
     }
   }
-  
+
   const handleSendTestMessage = async () => {
     if (!apiUrl) {
       addToast('error', 'API server not configured. Go to Settings > REST API.')
@@ -347,12 +414,12 @@ export function SlackSettings() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           channel: defaultChannel,
-          message: testMessage || '🔧 Test message from BluePLM!'
-        })
+          message: testMessage || '🔧 Test message from BluePLM!',
+        }),
       })
 
       const data = await response.json()
@@ -363,13 +430,13 @@ export function SlackSettings() {
       } else {
         addToast('error', data.message || 'Failed to send message')
       }
-    } catch (err) {
-      addToast('error', `Error: ${err}`)
+    } catch (error) {
+      addToast('error', `Error: ${error}`)
     } finally {
       setIsSendingTest(false)
     }
   }
-  
+
   const handleDisconnect = async () => {
     if (!apiUrl) {
       addToast('error', 'API server not configured. Go to Settings > REST API.')
@@ -388,8 +455,8 @@ export function SlackSettings() {
       const response = await fetch(`${apiUrl}/integrations/slack`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${token}`
-        }
+          Authorization: `Bearer ${token}`,
+        },
       })
 
       if (response.ok) {
@@ -403,29 +470,27 @@ export function SlackSettings() {
         setDefaultChannel('')
         setNotifications(DEFAULT_NOTIFICATION_EVENTS)
       }
-    } catch (err) {
-      addToast('error', `Error: ${err}`)
+    } catch (error) {
+      addToast('error', `Error: ${error}`)
     } finally {
       setIsDisconnecting(false)
       setShowDisconnectDialog(false)
     }
   }
-  
+
   const toggleNotification = (eventId: string) => {
-    setNotifications(prev => prev.map(n => 
-      n.id === eventId ? { ...n, enabled: !n.enabled } : n
-    ))
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === eventId ? { ...n, enabled: !n.enabled } : n)),
+    )
   }
-  
+
   const setNotificationChannel = (eventId: string, channel: string) => {
-    setNotifications(prev => prev.map(n => 
-      n.id === eventId ? { ...n, channel } : n
-    ))
+    setNotifications((prev) => prev.map((n) => (n.id === eventId ? { ...n, channel } : n)))
   }
-  
+
   const setAllNotificationChannels = (channel: string) => {
     setDefaultChannel(channel)
-    setNotifications(prev => prev.map(n => ({ ...n, channel })))
+    setNotifications((prev) => prev.map((n) => ({ ...n, channel })))
   }
 
   return (
@@ -437,7 +502,7 @@ export function SlackSettings() {
           <span>Only administrators can edit integration settings.</span>
         </div>
       )}
-      
+
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-[#611f69] to-[#4A154B] flex items-center justify-center shadow-lg">
@@ -456,7 +521,7 @@ export function SlackSettings() {
           </span>
         )}
       </div>
-      
+
       <div className="space-y-4 p-4 bg-plm-bg rounded-lg border border-plm-border">
         {/* API Server Offline Warning */}
         {apiServerOnline === false && (
@@ -466,8 +531,11 @@ export function SlackSettings() {
               <div className="font-medium text-plm-warning">API Server Offline</div>
               <p className="text-plm-fg-muted mt-1">
                 Slack integration requires the BluePLM API server.{' '}
-                <span className="text-plm-fg">Run <code className="px-1.5 py-0.5 bg-plm-sidebar rounded">npm run api</code> locally</span>
-                {' '}or configure an external API URL in Settings → REST API.
+                <span className="text-plm-fg">
+                  Run <code className="px-1.5 py-0.5 bg-plm-sidebar rounded">npm run api</code>{' '}
+                  locally
+                </span>{' '}
+                or configure an external API URL in Settings → REST API.
               </p>
               <button
                 onClick={checkApiServer}
@@ -479,7 +547,7 @@ export function SlackSettings() {
             </div>
           </div>
         )}
-        
+
         {/* Enable toggle */}
         <div className="flex items-center justify-between">
           <span className="text-base text-plm-fg">Enable Slack Integration</span>
@@ -490,12 +558,14 @@ export function SlackSettings() {
               enabled ? 'bg-plm-accent' : 'bg-plm-border'
             } ${apiServerOnline === false || !isAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
-            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
-              enabled ? 'translate-x-6' : 'translate-x-1'
-            }`} />
+            <div
+              className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                enabled ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
           </button>
         </div>
-        
+
         {enabled && apiServerOnline !== false && (
           <>
             {/* Status banner if connected */}
@@ -510,7 +580,7 @@ export function SlackSettings() {
                 </span>
               </div>
             )}
-            
+
             {/* Bot Token */}
             <div className="space-y-2">
               <label className="text-sm text-plm-fg-muted">Bot User OAuth Token</label>
@@ -519,7 +589,11 @@ export function SlackSettings() {
                   type={showBotToken ? 'text' : 'password'}
                   value={botToken}
                   onChange={(e) => isAdmin && setBotToken(e.target.value)}
-                  placeholder={settings?.is_connected ? '••••••••••••' : 'xoxb-xxxxxxxxxxxx-xxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxx'}
+                  placeholder={
+                    settings?.is_connected
+                      ? '••••••••••••'
+                      : 'xoxb-xxxxxxxxxxxx-xxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxx'
+                  }
                   readOnly={!isAdmin}
                   className={`w-full px-3 py-2 pr-10 text-base bg-plm-sidebar border border-plm-border rounded-lg focus:outline-none focus:border-plm-accent font-mono ${!isAdmin ? 'opacity-60 cursor-not-allowed' : ''}`}
                 />
@@ -535,7 +609,7 @@ export function SlackSettings() {
                 Found in your Slack App → OAuth & Permissions → Bot User OAuth Token
               </p>
             </div>
-            
+
             {/* Signing Secret (optional, for events) */}
             <div className="space-y-2">
               <label className="text-sm text-plm-fg-muted">
@@ -562,19 +636,21 @@ export function SlackSettings() {
                 Found in your Slack App → Basic Information → App Credentials
               </p>
             </div>
-            
+
             {/* Test result */}
             {testResult && (
-              <div className={`flex items-center gap-2 p-3 rounded-lg text-sm ${
-                testResult.success 
-                  ? 'bg-plm-success/10 text-plm-success border border-plm-success/30' 
-                  : 'bg-plm-error/10 text-plm-error border border-plm-error/30'
-              }`}>
+              <div
+                className={`flex items-center gap-2 p-3 rounded-lg text-sm ${
+                  testResult.success
+                    ? 'bg-plm-success/10 text-plm-success border border-plm-success/30'
+                    : 'bg-plm-error/10 text-plm-error border border-plm-error/30'
+                }`}
+              >
                 {testResult.success ? <Check size={16} /> : <AlertCircle size={16} />}
                 {testResult.message}
               </div>
             )}
-            
+
             {/* Action buttons - only show for admins */}
             {isAdmin && (
               <div className="grid grid-cols-3 gap-2">
@@ -604,7 +680,7 @@ export function SlackSettings() {
                 </button>
               </div>
             )}
-            
+
             {/* Notification Settings (shown when connected) */}
             {settings?.is_connected && (
               <>
@@ -612,7 +688,9 @@ export function SlackSettings() {
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                       <Bell size={18} className="text-plm-fg-muted" />
-                      <span className="text-base font-medium text-plm-fg">Notification Settings</span>
+                      <span className="text-base font-medium text-plm-fg">
+                        Notification Settings
+                      </span>
                     </div>
                     {isAdmin && (
                       <button
@@ -629,13 +707,16 @@ export function SlackSettings() {
                       </button>
                     )}
                   </div>
-                  
+
                   {/* Default channel selector */}
                   <div className="mb-4 p-3 bg-plm-sidebar rounded-lg">
                     <label className="text-sm text-plm-fg-muted block mb-2">Default Channel</label>
                     <div className="flex gap-2">
                       <div className="relative flex-1">
-                        <Hash size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
+                        <Hash
+                          size={16}
+                          className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted"
+                        />
                         <select
                           value={defaultChannel}
                           onChange={(e) => isAdmin && setAllNotificationChannels(e.target.value)}
@@ -643,9 +724,10 @@ export function SlackSettings() {
                           className={`w-full pl-9 pr-3 py-2 text-base bg-plm-bg border border-plm-border rounded-lg focus:outline-none focus:border-plm-accent appearance-none ${!isAdmin ? 'opacity-60 cursor-not-allowed' : ''}`}
                         >
                           <option value="">Select a channel...</option>
-                          {channels.map(ch => (
+                          {channels.map((ch) => (
                             <option key={ch.id} value={ch.id}>
-                              {ch.is_private ? '🔒 ' : ''}{ch.name}
+                              {ch.is_private ? '🔒 ' : ''}
+                              {ch.name}
                             </option>
                           ))}
                         </select>
@@ -655,15 +737,15 @@ export function SlackSettings() {
                       All notifications will be sent to this channel by default
                     </p>
                   </div>
-                  
+
                   {/* Notification events */}
                   <div className="space-y-2">
-                    {notifications.map(event => (
-                      <div 
+                    {notifications.map((event) => (
+                      <div
                         key={event.id}
                         className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
-                          event.enabled 
-                            ? 'bg-plm-sidebar border-plm-border' 
+                          event.enabled
+                            ? 'bg-plm-sidebar border-plm-border'
                             : 'bg-plm-bg/50 border-plm-border/50 opacity-60'
                         }`}
                       >
@@ -674,25 +756,31 @@ export function SlackSettings() {
                             event.enabled ? 'bg-plm-accent' : 'bg-plm-border'
                           } ${!isAdmin ? 'cursor-not-allowed' : ''}`}
                         >
-                          <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
-                            event.enabled ? 'translate-x-5' : 'translate-x-1'
-                          }`} />
+                          <div
+                            className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                              event.enabled ? 'translate-x-5' : 'translate-x-1'
+                            }`}
+                          />
                         </button>
-                        
+
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-medium text-plm-fg">{event.label}</div>
-                          <div className="text-xs text-plm-fg-muted truncate">{event.description}</div>
+                          <div className="text-xs text-plm-fg-muted truncate">
+                            {event.description}
+                          </div>
                         </div>
-                        
+
                         {event.enabled && (
                           <select
                             value={event.channel || defaultChannel}
-                            onChange={(e) => isAdmin && setNotificationChannel(event.id, e.target.value)}
+                            onChange={(e) =>
+                              isAdmin && setNotificationChannel(event.id, e.target.value)
+                            }
                             disabled={!isAdmin}
                             className={`px-2 py-1.5 text-sm bg-plm-bg border border-plm-border rounded focus:outline-none focus:border-plm-accent max-w-[140px] ${!isAdmin ? 'opacity-60 cursor-not-allowed' : ''}`}
                           >
                             <option value="">Use default</option>
-                            {channels.map(ch => (
+                            {channels.map((ch) => (
                               <option key={ch.id} value={ch.id}>
                                 {ch.is_private ? '🔒' : '#'} {ch.name}
                               </option>
@@ -703,7 +791,7 @@ export function SlackSettings() {
                     ))}
                   </div>
                 </div>
-                
+
                 {/* Test message section - admin only */}
                 {isAdmin && (
                   <div className="pt-4 border-t border-plm-border">
@@ -711,7 +799,7 @@ export function SlackSettings() {
                       <TestTube2 size={18} className="text-plm-fg-muted" />
                       <span className="text-base font-medium text-plm-fg">Send Test Message</span>
                     </div>
-                    
+
                     <div className="flex gap-2">
                       <input
                         type="text"
@@ -740,7 +828,7 @@ export function SlackSettings() {
                     )}
                   </div>
                 )}
-                
+
                 {/* Disconnect button - admin only */}
                 {isAdmin && (
                   <div className="flex justify-end pt-4 border-t border-plm-border">
@@ -755,7 +843,7 @@ export function SlackSettings() {
                 )}
               </>
             )}
-            
+
             {/* Setup instructions (when not connected) */}
             {!settings?.is_connected && (
               <div className="p-4 bg-plm-sidebar rounded-lg mt-4">
@@ -763,9 +851,9 @@ export function SlackSettings() {
                 <ol className="text-sm text-plm-fg-muted space-y-2 list-decimal list-inside">
                   <li>
                     Go to{' '}
-                    <a 
-                      href="https://api.slack.com/apps" 
-                      target="_blank" 
+                    <a
+                      href="https://api.slack.com/apps"
+                      target="_blank"
                       rel="noopener noreferrer"
                       className="text-plm-accent hover:underline"
                     >
@@ -774,20 +862,39 @@ export function SlackSettings() {
                     and create a new app
                   </li>
                   <li>Select "From scratch" and choose your workspace</li>
-                  <li>Go to <strong>OAuth & Permissions</strong> and add these Bot Token Scopes:
+                  <li>
+                    Go to <strong>OAuth & Permissions</strong> and add these Bot Token Scopes:
                     <ul className="ml-6 mt-1 space-y-0.5 list-disc">
-                      <li><code className="px-1 py-0.5 bg-plm-bg rounded text-xs">channels:read</code> - View channels</li>
-                      <li><code className="px-1 py-0.5 bg-plm-bg rounded text-xs">chat:write</code> - Send messages</li>
-                      <li><code className="px-1 py-0.5 bg-plm-bg rounded text-xs">groups:read</code> - View private channels</li>
+                      <li>
+                        <code className="px-1 py-0.5 bg-plm-bg rounded text-xs">channels:read</code>{' '}
+                        - View channels
+                      </li>
+                      <li>
+                        <code className="px-1 py-0.5 bg-plm-bg rounded text-xs">chat:write</code> -
+                        Send messages
+                      </li>
+                      <li>
+                        <code className="px-1 py-0.5 bg-plm-bg rounded text-xs">groups:read</code> -
+                        View private channels
+                      </li>
                     </ul>
                   </li>
-                  <li>Click <strong>Install to Workspace</strong> and authorize</li>
-                  <li>Copy the <strong>Bot User OAuth Token</strong> (starts with xoxb-)</li>
-                  <li>Invite the bot to your desired channels: <code className="px-1 py-0.5 bg-plm-bg rounded text-xs">/invite @YourBotName</code></li>
+                  <li>
+                    Click <strong>Install to Workspace</strong> and authorize
+                  </li>
+                  <li>
+                    Copy the <strong>Bot User OAuth Token</strong> (starts with xoxb-)
+                  </li>
+                  <li>
+                    Invite the bot to your desired channels:{' '}
+                    <code className="px-1 py-0.5 bg-plm-bg rounded text-xs">
+                      /invite @YourBotName
+                    </code>
+                  </li>
                 </ol>
               </div>
             )}
-            
+
             {/* Help link */}
             <div className="pt-2">
               <a
@@ -806,14 +913,24 @@ export function SlackSettings() {
 
       {/* Disconnect Slack Confirmation Dialog */}
       {showDisconnectDialog && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={() => setShowDisconnectDialog(false)}>
-          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center"
+          onClick={() => setShowDisconnectDialog(false)}
+        >
+          <div
+            className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3 className="text-lg font-medium text-plm-fg mb-4">Disconnect Slack</h3>
             <p className="text-base text-plm-fg-muted mb-4">
               Are you sure you want to disconnect Slack? This will stop all notifications.
             </p>
             <div className="flex gap-2 justify-end">
-              <button onClick={() => setShowDisconnectDialog(false)} className="btn btn-ghost" disabled={isDisconnecting}>
+              <button
+                onClick={() => setShowDisconnectDialog(false)}
+                className="btn btn-ghost"
+                disabled={isDisconnecting}
+              >
                 Cancel
               </button>
               <button

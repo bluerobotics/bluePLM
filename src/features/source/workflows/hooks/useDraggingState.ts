@@ -10,7 +10,7 @@ export interface DragState {
 export function useDraggingState() {
   const [draggingStateId, setDraggingStateId] = useState<string | null>(null)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
-  
+
   // Refs for drag tracking
   const hasDraggedRef = useRef(false)
   const dragStartPosRef = useRef<{ x: number; y: number } | null>(null)
@@ -18,18 +18,15 @@ export function useDraggingState() {
   /**
    * Start dragging a state
    */
-  const startDragging = useCallback((
-    stateId: string, 
-    offsetX: number, 
-    offsetY: number,
-    clientX: number,
-    clientY: number
-  ) => {
-    setDraggingStateId(stateId)
-    setDragOffset({ x: offsetX, y: offsetY })
-    hasDraggedRef.current = false
-    dragStartPosRef.current = { x: clientX, y: clientY }
-  }, [])
+  const startDragging = useCallback(
+    (stateId: string, offsetX: number, offsetY: number, clientX: number, clientY: number) => {
+      setDraggingStateId(stateId)
+      setDragOffset({ x: offsetX, y: offsetY })
+      hasDraggedRef.current = false
+      dragStartPosRef.current = { x: clientX, y: clientY }
+    },
+    [],
+  )
 
   /**
    * Stop dragging
@@ -45,11 +42,11 @@ export function useDraggingState() {
    */
   const checkDragThreshold = useCallback((clientX: number, clientY: number): boolean => {
     if (!dragStartPosRef.current) return false
-    
+
     const dx = clientX - dragStartPosRef.current.x
     const dy = clientY - dragStartPosRef.current.y
     const distance = Math.sqrt(dx * dx + dy * dy)
-    
+
     return distance >= DRAG_THRESHOLD
   }, [])
 
@@ -94,8 +91,8 @@ export function useDraggingState() {
     markHasDragged,
     didDrag,
     resetDragTracking,
-    
+
     // Constants
-    DRAG_THRESHOLD
+    DRAG_THRESHOLD,
   }
 }

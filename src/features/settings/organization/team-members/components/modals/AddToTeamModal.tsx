@@ -1,9 +1,9 @@
 /**
  * AddToTeamModal - Quick add a user to a team
- * 
+ *
  * Shows a list of available teams and allows quickly adding
  * a user to one of them.
- * 
+ *
  * @module team-members/AddToTeamModal
  */
 
@@ -27,7 +27,7 @@ export function AddToTeamModal({
   teams,
   currentUserId,
   onClose,
-  onSuccess
+  onSuccess,
 }: AddToTeamModalProps) {
   const { addToast } = usePDMStore()
 
@@ -36,33 +36,42 @@ export function AddToTeamModal({
       const { error } = await insertTeamMember({
         team_id: team.id,
         user_id: targetUser.id,
-        added_by: currentUserId ?? null
+        added_by: currentUserId ?? null,
       })
       if (error) throw error
       addToast('success', `Added ${targetUser.full_name || targetUser.email} to ${team.name}`)
       onSuccess()
       onClose()
-    } catch (err) {
+    } catch (error) {
       addToast('error', 'Failed to add user to team')
     }
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={onClose}>
-      <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center"
+      onClick={onClose}
+    >
+      <div
+        className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-sm w-full mx-4"
+        onClick={(e) => e.stopPropagation()}
+      >
         <h3 className="text-lg font-medium text-plm-fg mb-2">Add to Team</h3>
         <p className="text-sm text-plm-fg-muted mb-4">
           Select a team for <strong>{targetUser.full_name || targetUser.email}</strong>
         </p>
-        
+
         {teams.length === 0 ? (
           <div className="text-center py-4 text-sm text-plm-fg-muted bg-plm-bg rounded-lg border border-plm-border">
             No teams available. Create a team first.
           </div>
         ) : (
           <div className="space-y-2 max-h-64 overflow-y-auto">
-            {teams.map(team => {
-              const TeamIcon = (LucideIcons as unknown as Record<string, React.ComponentType<{ size?: number }>>)[team.icon] || Users
+            {teams.map((team) => {
+              const TeamIcon =
+                (LucideIcons as unknown as Record<string, React.ComponentType<{ size?: number }>>)[
+                  team.icon
+                ] || Users
               return (
                 <button
                   key={team.id}
@@ -90,7 +99,7 @@ export function AddToTeamModal({
             })}
           </div>
         )}
-        
+
         <div className="flex justify-end mt-4">
           <button onClick={onClose} className="btn btn-ghost">
             Cancel

@@ -29,13 +29,13 @@ export const ColumnContextMenu = memo(function ColumnContextMenu({
   columns,
   getColumnLabel,
   onToggleVisibility,
-  onClose
+  onClose,
 }: ColumnContextMenuProps) {
   const [showPushConfirm, setShowPushConfirm] = useState(false)
-  const isAdmin = usePDMStore(s => s.getEffectiveRole()) === 'admin'
-  const organization = usePDMStore(s => s.organization)
-  const user = usePDMStore(s => s.user)
-  const addToast = usePDMStore(s => s.addToast)
+  const isAdmin = usePDMStore((s) => s.getEffectiveRole()) === 'admin'
+  const organization = usePDMStore((s) => s.organization)
+  const user = usePDMStore((s) => s.user)
+  const addToast = usePDMStore((s) => s.addToast)
 
   const handleSaveUserDefaults = async () => {
     const result = await usePDMStore.getState().saveUserColumnDefaults()
@@ -97,10 +97,7 @@ export const ColumnContextMenu = memo(function ColumnContextMenu({
     return (
       <>
         <div className="fixed inset-0 z-50" onClick={onClose} />
-        <div
-          className="context-menu w-64"
-          style={{ left: x, top: y }}
-        >
+        <div className="context-menu w-64" style={{ left: x, top: y }}>
           <div className="px-3 py-2 text-sm text-plm-fg">
             Override <strong>every user's</strong> column layout with yours?
           </div>
@@ -125,22 +122,19 @@ export const ColumnContextMenu = memo(function ColumnContextMenu({
 
   return (
     <>
-      <div 
-        className="fixed inset-0 z-50" 
+      <div
+        className="fixed inset-0 z-50"
         onClick={onClose}
         onContextMenu={(e) => {
           e.preventDefault()
         }}
       />
-      <div 
-        className="context-menu max-h-96 overflow-y-auto"
-        style={{ left: x, top: y }}
-      >
+      <div className="context-menu max-h-96 overflow-y-auto" style={{ left: x, top: y }}>
         <div className="px-3 py-1.5 text-xs text-plm-fg-muted uppercase tracking-wide border-b border-plm-border mb-1">
           Show/Hide Columns
         </div>
-        {columns.map(column => (
-          <div 
+        {columns.map((column) => (
+          <div
             key={column.id}
             className="context-menu-item"
             onClick={() => onToggleVisibility(column.id)}
@@ -150,26 +144,22 @@ export const ColumnContextMenu = memo(function ColumnContextMenu({
             ) : (
               <EyeOff size={14} className="text-plm-fg-muted" />
             )}
-            <span className={column.visible ? '' : 'text-plm-fg-muted'}>{getColumnLabel(column.id)}</span>
+            <span className={column.visible ? '' : 'text-plm-fg-muted'}>
+              {getColumnLabel(column.id)}
+            </span>
           </div>
         ))}
 
         {user && (
           <>
             <div className="border-t border-plm-border my-1" />
-            
-            <div
-              className="context-menu-item"
-              onClick={handleSaveUserDefaults}
-            >
+
+            <div className="context-menu-item" onClick={handleSaveUserDefaults}>
               <User size={14} className="text-plm-accent" />
               <span>Save as My Defaults</span>
             </div>
-            
-            <div
-              className="context-menu-item"
-              onClick={handleLoadUserDefaults}
-            >
+
+            <div className="context-menu-item" onClick={handleLoadUserDefaults}>
               <Download size={14} className="text-plm-fg-muted" />
               <span>Load My Defaults</span>
             </div>
@@ -179,39 +169,27 @@ export const ColumnContextMenu = memo(function ColumnContextMenu({
         {organization && (
           <>
             <div className="border-t border-plm-border my-1" />
-            
+
             {isAdmin && (
-              <div
-                className="context-menu-item"
-                onClick={handleSaveOrgDefaults}
-              >
+              <div className="context-menu-item" onClick={handleSaveOrgDefaults}>
                 <Save size={14} className="text-plm-accent" />
                 <span>Save as Org Default</span>
               </div>
             )}
-            
+
             {isAdmin && (
-              <div
-                className="context-menu-item"
-                onClick={() => setShowPushConfirm(true)}
-              >
+              <div className="context-menu-item" onClick={() => setShowPushConfirm(true)}>
                 <Send size={14} className="text-plm-warning" />
                 <span>Push to All Users</span>
               </div>
             )}
-            
-            <div
-              className="context-menu-item"
-              onClick={handleLoadOrgDefaults}
-            >
+
+            <div className="context-menu-item" onClick={handleLoadOrgDefaults}>
               <Download size={14} className="text-plm-fg-muted" />
               <span>Load Org Defaults</span>
             </div>
-            
-            <div
-              className="context-menu-item"
-              onClick={handleResetToDefaults}
-            >
+
+            <div className="context-menu-item" onClick={handleResetToDefaults}>
               <RotateCcw size={14} className="text-plm-fg-muted" />
               <span>Reset to App Defaults</span>
             </div>

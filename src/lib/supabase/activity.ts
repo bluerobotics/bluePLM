@@ -8,14 +8,16 @@ export async function getRecentActivity(orgId: string, limit = 50) {
   const client = getSupabaseClient()
   const { data, error } = await client
     .from('activity')
-    .select(`
+    .select(
+      `
       *,
       file:files(file_name, file_path)
-    `)
+    `,
+    )
     .eq('org_id', orgId)
     .order('created_at', { ascending: false })
     .limit(limit)
-  
+
   return { activity: data, error }
 }
 
@@ -27,6 +29,6 @@ export async function getFileActivity(fileId: string, limit = 20) {
     .eq('file_id', fileId)
     .order('created_at', { ascending: false })
     .limit(limit)
-  
+
   return { activity: data, error }
 }

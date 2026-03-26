@@ -30,13 +30,7 @@ type OutputFn = (type: TerminalOutput['type'], content: string) => void
  * Valid values for the --status flag.
  * Each maps to a specific combination of pdmData / diffStatus / checked_out_by.
  */
-type StatusAssertion =
-  | 'checked-out'
-  | 'synced'
-  | 'cloud'
-  | 'added'
-  | 'deleted'
-  | 'deleted_remote'
+type StatusAssertion = 'checked-out' | 'synced' | 'cloud' | 'added' | 'deleted' | 'deleted_remote'
 
 /**
  * Valid values for the --state flag.
@@ -59,10 +53,7 @@ type WorkflowStateAssertion = 'wip' | 'in_review' | 'released' | 'obsolete'
  * Copied from info.ts to keep this module self-contained per the spec.
  */
 function resolvePathPattern(pattern: string, files: LocalFile[]): LocalFile[] {
-  let normalizedPattern = pattern
-    .replace(/\\/g, '/')
-    .replace(/^\.\//, '')
-    .replace(/\/+$/, '')
+  let normalizedPattern = pattern.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, '')
 
   if (normalizedPattern.includes('*')) {
     const regexPattern = normalizedPattern
@@ -72,23 +63,21 @@ function resolvePathPattern(pattern: string, files: LocalFile[]): LocalFile[] {
       .replace(/<<<DOUBLESTAR>>>/g, '.*')
     const regex = new RegExp(`^${regexPattern}$`)
 
-    return files.filter(f => {
+    return files.filter((f) => {
       const normalizedPath = f.relativePath.replace(/\\/g, '/')
       return regex.test(normalizedPath)
     })
   }
 
   const exactMatch = files.find(
-    f =>
-      f.relativePath.replace(/\\/g, '/').toLowerCase() ===
-      normalizedPattern.toLowerCase()
+    (f) => f.relativePath.replace(/\\/g, '/').toLowerCase() === normalizedPattern.toLowerCase(),
   )
 
   if (exactMatch) {
     return [exactMatch]
   }
 
-  return files.filter(f => {
+  return files.filter((f) => {
     const normalizedPath = f.relativePath.replace(/\\/g, '/').toLowerCase()
     return normalizedPath.startsWith(normalizedPattern.toLowerCase() + '/')
   })
@@ -98,14 +87,7 @@ function resolvePathPattern(pattern: string, files: LocalFile[]): LocalFile[] {
  * Type-guard: check whether a string is a valid StatusAssertion.
  */
 function isStatusAssertion(value: string): value is StatusAssertion {
-  return [
-    'checked-out',
-    'synced',
-    'cloud',
-    'added',
-    'deleted',
-    'deleted_remote',
-  ].includes(value)
+  return ['checked-out', 'synced', 'cloud', 'added', 'deleted', 'deleted_remote'].includes(value)
 }
 
 /**
@@ -145,7 +127,7 @@ function describeFileStatus(file: LocalFile): string {
 export async function handleAssert(
   parsed: ParsedCommand,
   files: LocalFile[],
-  addOutput: OutputFn
+  addOutput: OutputFn,
 ): Promise<void> {
   const path = parsed.args[0]
   if (!path) {
@@ -162,7 +144,10 @@ export async function handleAssert(
     if (matches.length === 0) {
       addOutput('success', `PASS: file does not exist in vault — ${path}`)
     } else {
-      addOutput('error', `FAIL: expected file to NOT exist, but found ${matches.length} match(es) — ${path}`)
+      addOutput(
+        'error',
+        `FAIL: expected file to NOT exist, but found ${matches.length} match(es) — ${path}`,
+      )
     }
     return
   }
@@ -203,7 +188,10 @@ export async function handleAssert(
   if (typeof parsed.flags['status'] === 'string') {
     const expectedStatus = parsed.flags['status']
     if (!isStatusAssertion(expectedStatus)) {
-      addOutput('error', `FAIL: invalid --status value "${expectedStatus}". Valid: checked-out, synced, cloud, added, deleted, deleted_remote`)
+      addOutput(
+        'error',
+        `FAIL: invalid --status value "${expectedStatus}". Valid: checked-out, synced, cloud, added, deleted, deleted_remote`,
+      )
       return
     }
 
@@ -219,46 +207,43 @@ export async function handleAssert(
       `version of ${file.name}`,
       String(expectedVersion),
       String(actualVersion ?? 'undefined'),
-      actualVersion === expectedVersion
+      actualVersion === expectedVersion,
     )
   }
 
   // --part
   if (typeof parsed.flags['part'] === 'string') {
     const expectedPart = parsed.flags['part']
-    const actualPart =
-      file.pendingMetadata?.part_number ?? file.pdmData?.part_number ?? null
+    const actualPart = file.pendingMetadata?.part_number ?? file.pdmData?.part_number ?? null
     check(
       `part_number of ${file.name}`,
       expectedPart,
       String(actualPart ?? 'null'),
-      actualPart === expectedPart
+      actualPart === expectedPart,
     )
   }
 
   // --desc
   if (typeof parsed.flags['desc'] === 'string') {
     const expectedDesc = parsed.flags['desc']
-    const actualDesc =
-      file.pendingMetadata?.description ?? file.pdmData?.description ?? null
+    const actualDesc = file.pendingMetadata?.description ?? file.pdmData?.description ?? null
     check(
       `description of ${file.name}`,
       expectedDesc,
       String(actualDesc ?? 'null'),
-      actualDesc === expectedDesc
+      actualDesc === expectedDesc,
     )
   }
 
   // --rev
   if (typeof parsed.flags['rev'] === 'string') {
     const expectedRev = parsed.flags['rev']
-    const actualRev =
-      file.pendingMetadata?.revision ?? file.pdmData?.revision ?? null
+    const actualRev = file.pendingMetadata?.revision ?? file.pdmData?.revision ?? null
     check(
       `revision of ${file.name}`,
       expectedRev,
       String(actualRev ?? 'null'),
-      actualRev === expectedRev
+      actualRev === expectedRev,
     )
   }
 
@@ -279,24 +264,33 @@ export async function handleAssert(
               `readonly attribute of ${file.name}`,
               'readonly',
               actualReadonly ? 'readonly' : 'writable',
-              actualReadonly
+              actualReadonly,
             )
           } else {
             check(
               `writable attribute of ${file.name}`,
               'writable',
               actualReadonly ? 'readonly' : 'writable',
-              !actualReadonly
+              !actualReadonly,
             )
           }
         } else {
-          addOutput('error', `FAIL: could not read file attributes for ${file.name} — ${result.error ?? 'unknown error'}`)
+          addOutput(
+            'error',
+            `FAIL: could not read file attributes for ${file.name} — ${result.error ?? 'unknown error'}`,
+          )
         }
       } else {
-        addOutput('info', `SKIP: isReadonly IPC not available — cannot verify file attributes for ${file.name}`)
+        addOutput(
+          'info',
+          `SKIP: isReadonly IPC not available — cannot verify file attributes for ${file.name}`,
+        )
       }
-    } catch (err) {
-      addOutput('error', `FAIL: error checking file attributes for ${file.name} — ${err instanceof Error ? err.message : String(err)}`)
+    } catch (error) {
+      addOutput(
+        'error',
+        `FAIL: error checking file attributes for ${file.name} — ${error instanceof Error ? error.message : String(error)}`,
+      )
     }
   }
 
@@ -312,7 +306,7 @@ export async function handleAssert(
         `checked-out-by of ${file.name}`,
         'me (current user)',
         isMe ? 'me (current user)' : String(checkedOutBy ?? 'nobody'),
-        isMe
+        isMe,
       )
     } else {
       // Compare with email — look up the email from the checked_out_user join
@@ -321,7 +315,7 @@ export async function handleAssert(
         `checked-out-by of ${file.name}`,
         expectedBy,
         String(actualEmail ?? checkedOutBy ?? 'nobody'),
-        actualEmail === expectedBy
+        actualEmail === expectedBy,
       )
     }
   }
@@ -330,50 +324,66 @@ export async function handleAssert(
   if (typeof parsed.flags['state'] === 'string') {
     const expectedState = parsed.flags['state']
     if (!isWorkflowState(expectedState)) {
-      addOutput('error', `FAIL: invalid --state value "${expectedState}". Valid: wip, in_review, released, obsolete`)
+      addOutput(
+        'error',
+        `FAIL: invalid --state value "${expectedState}". Valid: wip, in_review, released, obsolete`,
+      )
     } else {
       const actualState = file.pdmData?.workflow_state?.name ?? null
       check(
         `workflow state of ${file.name}`,
         expectedState,
         String(actualState ?? 'null'),
-        actualState === expectedState
+        actualState === expectedState,
       )
     }
   }
 
   // --has-pending / --no-pending
   if (parsed.flags['has-pending'] === true) {
-    const hasPending = file.pendingMetadata !== undefined &&
-      Object.keys(file.pendingMetadata).length > 0
+    const hasPending =
+      file.pendingMetadata !== undefined && Object.keys(file.pendingMetadata).length > 0
     check(
       `pending metadata of ${file.name}`,
       'has pending changes',
       hasPending ? 'has pending changes' : 'no pending changes',
-      hasPending
+      hasPending,
     )
   }
 
   if (parsed.flags['no-pending'] === true) {
-    const hasPending = file.pendingMetadata !== undefined &&
-      Object.keys(file.pendingMetadata).length > 0
+    const hasPending =
+      file.pendingMetadata !== undefined && Object.keys(file.pendingMetadata).length > 0
     check(
       `pending metadata of ${file.name}`,
       'no pending changes',
       hasPending ? 'has pending changes' : 'no pending changes',
-      !hasPending
+      !hasPending,
     )
   }
 
   // If no specific flags were provided, show a helpful message
   const assertionFlags = [
-    'status', 'version', 'part', 'desc', 'rev',
-    'readonly', 'writable', 'exists', 'not-exists',
-    'checked-out-by', 'state', 'has-pending', 'no-pending',
+    'status',
+    'version',
+    'part',
+    'desc',
+    'rev',
+    'readonly',
+    'writable',
+    'exists',
+    'not-exists',
+    'checked-out-by',
+    'state',
+    'has-pending',
+    'no-pending',
   ]
-  const hasAnyFlag = assertionFlags.some(f => parsed.flags[f] !== undefined)
+  const hasAnyFlag = assertionFlags.some((f) => parsed.flags[f] !== undefined)
   if (!hasAnyFlag) {
-    addOutput('error', 'FAIL: no assertion flags provided. Use --status, --version, --part, --desc, --rev, --readonly, --writable, --exists, --not-exists, --checked-out-by, --state, --has-pending, --no-pending')
+    addOutput(
+      'error',
+      'FAIL: no assertion flags provided. Use --status, --version, --part, --desc, --rev, --readonly, --writable, --exists, --not-exists, --checked-out-by, --state, --has-pending, --no-pending',
+    )
   }
 }
 
@@ -391,10 +401,7 @@ export async function handleAssert(
  * @param parsed - Parsed command (args[0] = milliseconds to wait)
  * @param addOutput - Function to emit terminal output
  */
-export async function handleWait(
-  parsed: ParsedCommand,
-  addOutput: OutputFn
-): Promise<void> {
+export async function handleWait(parsed: ParsedCommand, addOutput: OutputFn): Promise<void> {
   const msArg = parsed.args[0]
   if (!msArg) {
     addOutput('error', 'Usage: wait <milliseconds>')
@@ -409,7 +416,7 @@ export async function handleWait(
 
   if (ms > 0) {
     addOutput('info', `Waiting ${ms}ms...`)
-    await new Promise<void>(resolve => setTimeout(resolve, ms))
+    await new Promise<void>((resolve) => setTimeout(resolve, ms))
   }
 
   addOutput('success', `Waited ${ms}ms`)
@@ -423,7 +430,8 @@ registerTerminalCommand(
   {
     aliases: ['assert', 'expect'],
     description: 'Assert file properties (for test scripts)',
-    usage: 'assert <path> --status=<value> [--version=<n>] [--part=<value>] [--desc=<value>] [--rev=<value>] [--readonly] [--writable] [--exists] [--not-exists] [--checked-out-by=<me|email>] [--state=<wip|in_review|released|obsolete>] [--has-pending] [--no-pending]',
+    usage:
+      'assert <path> --status=<value> [--version=<n>] [--part=<value>] [--desc=<value>] [--rev=<value>] [--readonly] [--writable] [--exists] [--not-exists] [--checked-out-by=<me|email>] [--state=<wip|in_review|released|obsolete>] [--has-pending] [--no-pending]',
     examples: [
       'assert Parts/bracket.sldprt --status=synced --version=1',
       'assert Parts/bracket.sldprt --status=checked-out --checked-out-by=me',
@@ -433,7 +441,7 @@ registerTerminalCommand(
   },
   async (parsed, files, addOutput) => {
     await handleAssert(parsed, files, addOutput)
-  }
+  },
 )
 
 registerTerminalCommand(
@@ -446,5 +454,5 @@ registerTerminalCommand(
   },
   async (parsed, _files, addOutput) => {
     await handleWait(parsed, addOutput)
-  }
+  },
 )

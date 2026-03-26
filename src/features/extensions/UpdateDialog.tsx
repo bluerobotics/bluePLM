@@ -1,6 +1,6 @@
 /**
  * UpdateDialog - Extension update dialog with changelog and rollback options
- * 
+ *
  * Shows:
  * - Current and new version
  * - Changelog
@@ -8,9 +8,7 @@
  * - Update and rollback options
  */
 import { useState, useEffect, useMemo } from 'react'
-import {
-  X, RefreshCw, CheckCircle2, XCircle, AlertTriangle, RotateCcw
-} from 'lucide-react'
+import { X, RefreshCw, CheckCircle2, XCircle, AlertTriangle, RotateCcw } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 
 interface UpdateDialogProps {
@@ -21,29 +19,25 @@ interface UpdateDialogProps {
 
 type UpdateState = 'review' | 'updating' | 'rolling-back' | 'success' | 'error'
 
-export function UpdateDialog({
-  extensionId,
-  open,
-  onClose,
-}: UpdateDialogProps) {
+export function UpdateDialog({ extensionId, open, onClose }: UpdateDialogProps) {
   const [updateState, setUpdateState] = useState<UpdateState>('review')
   const [error, setError] = useState<string | null>(null)
   const [action, setAction] = useState<'update' | 'rollback'>('update')
-  
-  const installedExtensions = usePDMStore(s => s.installedExtensions)
-  const availableUpdates = usePDMStore(s => s.availableUpdates)
-  const installProgress = usePDMStore(s => s.installProgress)
-  const updateExtension = usePDMStore(s => s.updateExtension)
-  const rollbackExtension = usePDMStore(s => s.rollbackExtension)
-  const addToast = usePDMStore(s => s.addToast)
+
+  const installedExtensions = usePDMStore((s) => s.installedExtensions)
+  const availableUpdates = usePDMStore((s) => s.availableUpdates)
+  const installProgress = usePDMStore((s) => s.installProgress)
+  const updateExtension = usePDMStore((s) => s.updateExtension)
+  const rollbackExtension = usePDMStore((s) => s.rollbackExtension)
+  const addToast = usePDMStore((s) => s.addToast)
 
   // Find the extension and update info
   const { installed, update } = useMemo(() => {
     if (!extensionId) return { installed: null, update: null }
-    
+
     const installed = installedExtensions[extensionId]
-    const update = availableUpdates.find(u => u.extensionId === extensionId)
-    
+    const update = availableUpdates.find((u) => u.extensionId === extensionId)
+
     return { installed, update }
   }, [extensionId, installedExtensions, availableUpdates])
 
@@ -59,14 +53,14 @@ export function UpdateDialog({
   // Handle update
   const handleUpdate = async () => {
     if (!extensionId) return
-    
+
     setAction('update')
     setUpdateState('updating')
     setError(null)
-    
+
     try {
       const result = await updateExtension(extensionId, update?.newVersion)
-      
+
       if (result.success) {
         setUpdateState('success')
         addToast('success', `${installed?.manifest.name || extensionId} updated successfully`)
@@ -74,8 +68,8 @@ export function UpdateDialog({
         setError(result.error || 'Update failed')
         setUpdateState('error')
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Update failed')
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Update failed')
       setUpdateState('error')
     }
   }
@@ -83,14 +77,14 @@ export function UpdateDialog({
   // Handle rollback
   const handleRollback = async () => {
     if (!extensionId) return
-    
+
     setAction('rollback')
     setUpdateState('rolling-back')
     setError(null)
-    
+
     try {
       const result = await rollbackExtension(extensionId)
-      
+
       if (result.success) {
         setUpdateState('success')
         addToast('success', `${installed?.manifest.name || extensionId} rolled back successfully`)
@@ -98,8 +92,8 @@ export function UpdateDialog({
         setError(result.error || 'Rollback failed')
         setUpdateState('error')
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Rollback failed')
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Rollback failed')
       setUpdateState('error')
     }
   }
@@ -113,10 +107,13 @@ export function UpdateDialog({
   const changelog = update?.changelog
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+      onClick={onClose}
+    >
       <div
         className="w-full max-w-md bg-gray-900 rounded-xl shadow-2xl border border-gray-700 overflow-hidden"
-        onClick={e => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="p-6 border-b border-gray-800">
@@ -127,7 +124,7 @@ export function UpdateDialog({
           >
             <X size={20} />
           </button>
-          
+
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-lg bg-blue-500/20 flex items-center justify-center">
               <RefreshCw size={24} className="text-blue-400" />
@@ -138,7 +135,7 @@ export function UpdateDialog({
             </div>
           </div>
         </div>
-        
+
         {/* Content */}
         <div className="p-6">
           {/* Review state */}
@@ -156,7 +153,7 @@ export function UpdateDialog({
                   <div className="text-lg font-mono text-blue-400">v{newVersion}</div>
                 </div>
               </div>
-              
+
               {/* Breaking changes warning */}
               {isBreaking && (
                 <div className="mb-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
@@ -165,11 +162,12 @@ export function UpdateDialog({
                     Breaking Changes
                   </div>
                   <p className="text-sm text-amber-300">
-                    This update contains breaking changes. Review the changelog carefully before updating.
+                    This update contains breaking changes. Review the changelog carefully before
+                    updating.
                   </p>
                 </div>
               )}
-              
+
               {/* Changelog */}
               {changelog && (
                 <div className="mb-4">
@@ -181,7 +179,7 @@ export function UpdateDialog({
                   </div>
                 </div>
               )}
-              
+
               {/* No changelog */}
               {!changelog && (
                 <div className="mb-4 text-center py-4">
@@ -190,7 +188,7 @@ export function UpdateDialog({
               )}
             </>
           )}
-          
+
           {/* Updating state */}
           {(updateState === 'updating' || updateState === 'rolling-back') && (
             <div className="py-8 text-center">
@@ -213,7 +211,7 @@ export function UpdateDialog({
               )}
             </div>
           )}
-          
+
           {/* Success state */}
           {updateState === 'success' && (
             <div className="py-8 text-center">
@@ -224,11 +222,12 @@ export function UpdateDialog({
                 {action === 'update' ? 'Updated Successfully' : 'Rolled Back Successfully'}
               </h3>
               <p className="text-sm text-gray-400">
-                {name} is now {action === 'update' ? `on version ${newVersion}` : `back to the previous version`}.
+                {name} is now{' '}
+                {action === 'update' ? `on version ${newVersion}` : `back to the previous version`}.
               </p>
             </div>
           )}
-          
+
           {/* Error state */}
           {updateState === 'error' && (
             <div className="py-8 text-center">
@@ -242,7 +241,7 @@ export function UpdateDialog({
             </div>
           )}
         </div>
-        
+
         {/* Footer */}
         <div className="p-6 border-t border-gray-800 flex justify-between">
           {updateState === 'review' && (
@@ -273,7 +272,7 @@ export function UpdateDialog({
               </div>
             </>
           )}
-          
+
           {(updateState === 'updating' || updateState === 'rolling-back') && (
             <div className="w-full flex justify-end">
               <button
@@ -284,7 +283,7 @@ export function UpdateDialog({
               </button>
             </div>
           )}
-          
+
           {(updateState === 'success' || updateState === 'error') && (
             <div className="w-full flex justify-end">
               <button

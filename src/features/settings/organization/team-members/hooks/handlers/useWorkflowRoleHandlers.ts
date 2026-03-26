@@ -1,6 +1,6 @@
 /**
  * useWorkflowRoleHandlers - Workflow role handler functions
- * 
+ *
  * Provides handlers for workflow role CRUD operations.
  */
 import { useCallback } from 'react'
@@ -11,7 +11,7 @@ export interface UseWorkflowRoleHandlersParams {
   hookCreateWorkflowRole: (data: WorkflowRoleFormData) => Promise<boolean>
   hookUpdateWorkflowRole: (roleId: string, data: WorkflowRoleFormData) => Promise<boolean>
   hookDeleteWorkflowRole: (roleId: string) => Promise<boolean>
-  
+
   // Dialog state
   setShowCreateWorkflowRoleDialog: (v: boolean) => void
   setShowEditWorkflowRoleDialog: (v: boolean) => void
@@ -33,12 +33,12 @@ export function useWorkflowRoleHandlers(params: UseWorkflowRoleHandlersParams) {
     setEditingWorkflowRole,
     workflowRoleFormData,
     setWorkflowRoleFormData,
-    setIsSavingWorkflowRole
+    setIsSavingWorkflowRole,
   } = params
 
   const handleCreateWorkflowRole = useCallback(async () => {
     if (!workflowRoleFormData.name.trim()) return
-    
+
     setIsSavingWorkflowRole(true)
     try {
       const success = await hookCreateWorkflowRole(workflowRoleFormData)
@@ -49,11 +49,17 @@ export function useWorkflowRoleHandlers(params: UseWorkflowRoleHandlersParams) {
     } finally {
       setIsSavingWorkflowRole(false)
     }
-  }, [workflowRoleFormData, hookCreateWorkflowRole, setIsSavingWorkflowRole, setShowCreateWorkflowRoleDialog, setWorkflowRoleFormData])
+  }, [
+    workflowRoleFormData,
+    hookCreateWorkflowRole,
+    setIsSavingWorkflowRole,
+    setShowCreateWorkflowRoleDialog,
+    setWorkflowRoleFormData,
+  ])
 
   const handleUpdateWorkflowRole = useCallback(async () => {
     if (!editingWorkflowRole || !workflowRoleFormData.name.trim()) return
-    
+
     setIsSavingWorkflowRole(true)
     try {
       const success = await hookUpdateWorkflowRole(editingWorkflowRole.id, workflowRoleFormData)
@@ -65,15 +71,26 @@ export function useWorkflowRoleHandlers(params: UseWorkflowRoleHandlersParams) {
     } finally {
       setIsSavingWorkflowRole(false)
     }
-  }, [editingWorkflowRole, workflowRoleFormData, hookUpdateWorkflowRole, setIsSavingWorkflowRole, setShowEditWorkflowRoleDialog, setEditingWorkflowRole, setWorkflowRoleFormData])
+  }, [
+    editingWorkflowRole,
+    workflowRoleFormData,
+    hookUpdateWorkflowRole,
+    setIsSavingWorkflowRole,
+    setShowEditWorkflowRoleDialog,
+    setEditingWorkflowRole,
+    setWorkflowRoleFormData,
+  ])
 
-  const handleDeleteWorkflowRole = useCallback(async (role: { id: string; name: string }) => {
-    await hookDeleteWorkflowRole(role.id)
-  }, [hookDeleteWorkflowRole])
+  const handleDeleteWorkflowRole = useCallback(
+    async (role: { id: string; name: string }) => {
+      await hookDeleteWorkflowRole(role.id)
+    },
+    [hookDeleteWorkflowRole],
+  )
 
   return {
     handleCreateWorkflowRole,
     handleUpdateWorkflowRole,
-    handleDeleteWorkflowRole
+    handleDeleteWorkflowRole,
   }
 }

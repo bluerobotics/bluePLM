@@ -1,19 +1,19 @@
 import { useEffect, useState, useMemo } from 'react'
 import { log } from '@/lib/logger'
-import { 
-  ClipboardList, 
-  Plus, 
-  Search, 
-  X, 
-  File, 
-  ChevronRight, 
+import {
+  ClipboardList,
+  Plus,
+  Search,
+  X,
+  File,
+  ChevronRight,
   ChevronDown,
   Tag,
   Calendar,
   Check,
   Clock,
   XCircle,
-  Loader2
+  Loader2,
 } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import type { ECO } from '@/stores/types'
@@ -38,38 +38,41 @@ interface FileECO {
   }
 }
 
-const STATUS_CONFIG: Record<ECOStatus, { icon: React.ReactNode; label: string; color: string; bgColor: string }> = {
-  open: { 
-    icon: <Clock size={12} />, 
-    label: 'Open', 
+const STATUS_CONFIG: Record<
+  ECOStatus,
+  { icon: React.ReactNode; label: string; color: string; bgColor: string }
+> = {
+  open: {
+    icon: <Clock size={12} />,
+    label: 'Open',
     color: 'text-plm-accent',
-    bgColor: 'bg-plm-accent/10'
+    bgColor: 'bg-plm-accent/10',
   },
-  in_progress: { 
-    icon: <Loader2 size={12} className="animate-spin" />, 
-    label: 'In Progress', 
+  in_progress: {
+    icon: <Loader2 size={12} className="animate-spin" />,
+    label: 'In Progress',
     color: 'text-plm-warning',
-    bgColor: 'bg-plm-warning/10'
+    bgColor: 'bg-plm-warning/10',
   },
-  completed: { 
-    icon: <Check size={12} />, 
-    label: 'Completed', 
+  completed: {
+    icon: <Check size={12} />,
+    label: 'Completed',
     color: 'text-plm-success',
-    bgColor: 'bg-plm-success/10'
+    bgColor: 'bg-plm-success/10',
   },
-  cancelled: { 
-    icon: <XCircle size={12} />, 
-    label: 'Cancelled', 
+  cancelled: {
+    icon: <XCircle size={12} />,
+    label: 'Cancelled',
     color: 'text-plm-fg-muted',
-    bgColor: 'bg-plm-fg-muted/10'
+    bgColor: 'bg-plm-fg-muted/10',
   },
 }
 
 export function ECOView() {
-  const { 
-    organization, 
+  const {
+    organization,
     user,
-    isVaultConnected, 
+    isVaultConnected,
     files,
     selectedFiles,
     addToast,
@@ -81,20 +84,20 @@ export function ECOView() {
     setECOsLoading,
     updateECO,
   } = usePDMStore()
-  
+
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<ECOStatus | 'all'>('all')
   const [expandedECO, setExpandedECO] = useState<string | null>(null)
   const [ecoFiles, setEcoFiles] = useState<Record<string, FileECO[]>>({})
   const [loadingFiles, setLoadingFiles] = useState<string | null>(null)
-  
+
   // Create ECO modal state
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [newEcoNumber, setNewEcoNumber] = useState('')
   const [newEcoTitle, setNewEcoTitle] = useState('')
   const [newEcoDescription, setNewEcoDescription] = useState('')
   const [isCreating, setIsCreating] = useState(false)
-  
+
   // Tag files modal state
   const [showTagModal, setShowTagModal] = useState(false)
   const [tagEcoId, setTagEcoId] = useState<string | null>(null)
@@ -106,21 +109,22 @@ export function ECOView() {
       if (!isVaultConnected || !organization) {
         return
       }
-      
+
       // Skip if already loaded (unless it's a refresh)
       if (ecosLoaded && ecos.length > 0) {
         return
       }
-      
+
       setECOsLoading(true)
-      
+
       try {
         const client = getSupabaseClient()
-        
+
         // Fetch ECOs with file count
         const { data, error } = await client
           .from('ecos')
-          .select(`
+          .select(
+            `
             id,
             eco_number,
             title,
@@ -129,10 +133,11 @@ export function ECOView() {
             created_at,
             created_by,
             created_by_user:users!created_by(full_name, email)
-          `)
+          `,
+          )
           .eq('org_id', organization.id)
           .order('created_at', { ascending: false })
-        
+
         if (error) {
           log.error('[ECO]', 'Failed to load ECOs', { error })
           // Don't show error if table doesn't exist yet
@@ -141,42 +146,45 @@ export function ECOView() {
           }
           return
         }
-        
+
         // Get file counts for each ECO
-        const ecoIds = data?.map(e => e.id) || []
+        const ecoIds = data?.map((e) => e.id) || []
         let fileCounts: Record<string, number> = {}
-        
+
         if (ecoIds.length > 0) {
           const { data: countData } = await client
             .from('file_ecos')
             .select('eco_id')
             .in('eco_id', ecoIds)
-          
+
           if (countData) {
-            fileCounts = countData.reduce((acc, item) => {
-              acc[item.eco_id] = (acc[item.eco_id] || 0) + 1
-              return acc
-            }, {} as Record<string, number>)
+            fileCounts = countData.reduce(
+              (acc, item) => {
+                acc[item.eco_id] = (acc[item.eco_id] || 0) + 1
+                return acc
+              },
+              {} as Record<string, number>,
+            )
           }
         }
-        
-        const ecosWithCounts: ECO[] = (data || []).map(eco => ({
+
+        const ecosWithCounts: ECO[] = (data || []).map((eco) => ({
           ...eco,
           file_count: fileCounts[eco.id] || 0,
-          created_by_name: (eco.created_by_user as any)?.full_name,
-          created_by_email: (eco.created_by_user as any)?.email,
+          created_by_name: (eco.created_by_user as any)?.full_name, // TODO: type this
+          created_by_email: (eco.created_by_user as any)?.email, // TODO: type this
         }))
-        
+
         setECOs(ecosWithCounts)
-      } catch (err) {
-        log.error('[ECO]', 'Failed to load ECOs', { error: err })
+      } catch (error) {
+        log.error('[ECO]', 'Failed to load ECOs', { error: error })
       } finally {
         setECOsLoading(false)
       }
     }
 
     loadECOs()
-    
+
     // Refresh every 60 seconds (force refresh by temporarily clearing loaded state)
     const interval = setInterval(() => {
       if (isVaultConnected && organization) {
@@ -185,18 +193,19 @@ export function ECOView() {
     }, 60000)
     return () => clearInterval(interval)
   }, [isVaultConnected, organization, ecosLoaded, ecos.length, setECOs, setECOsLoading, addToast])
-  
+
   // Load files for an ECO when expanded
   const loadECOFiles = async (ecoId: string) => {
     if (ecoFiles[ecoId]) return // Already loaded
-    
+
     setLoadingFiles(ecoId)
-    
+
     try {
       const client = getSupabaseClient()
       const { data, error } = await client
         .from('file_ecos')
-        .select(`
+        .select(
+          `
           id,
           file_id,
           eco_id,
@@ -209,34 +218,35 @@ export function ECOView() {
             part_number,
             revision
           )
-        `)
+        `,
+        )
         .eq('eco_id', ecoId)
         .order('created_at', { ascending: false })
-      
+
       if (error) {
         log.error('[ECO]', 'Failed to load ECO files', { error })
         return
       }
-      
-      setEcoFiles(prev => ({
+
+      setEcoFiles((prev) => ({
         ...prev,
-        [ecoId]: data || []
+        [ecoId]: data || [],
       }))
-    } catch (err) {
-      log.error('[ECO]', 'Failed to load ECO files', { error: err })
+    } catch (error) {
+      log.error('[ECO]', 'Failed to load ECO files', { error: error })
     } finally {
       setLoadingFiles(null)
     }
   }
-  
+
   // Filter ECOs based on search and status
   const filteredECOs = useMemo(() => {
-    return ecos.filter(eco => {
+    return ecos.filter((eco) => {
       // Status filter
       if (statusFilter !== 'all' && eco.status !== statusFilter) {
         return false
       }
-      
+
       // Search filter
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase()
@@ -246,11 +256,11 @@ export function ECOView() {
           eco.description?.toLowerCase().includes(query)
         )
       }
-      
+
       return true
     })
   }, [ecos, searchQuery, statusFilter])
-  
+
   // Toggle ECO expansion
   const toggleECO = (ecoId: string) => {
     if (expandedECO === ecoId) {
@@ -260,13 +270,13 @@ export function ECOView() {
       loadECOFiles(ecoId)
     }
   }
-  
+
   // Create new ECO
   const handleCreateECO = async () => {
     if (!newEcoNumber.trim() || !organization || !user) return
-    
+
     setIsCreating(true)
-    
+
     try {
       const client = getSupabaseClient()
       const { data, error } = await client
@@ -277,11 +287,11 @@ export function ECOView() {
           title: newEcoTitle.trim() || null,
           description: newEcoDescription.trim() || null,
           status: 'open',
-          created_by: user.id
+          created_by: user.id,
         })
         .select()
         .single()
-      
+
       if (error) {
         if (error.message?.includes('unique') || error.message?.includes('duplicate')) {
           addToast('error', 'ECO number already exists')
@@ -291,133 +301,130 @@ export function ECOView() {
         log.error('[ECO]', 'Failed to create ECO', { error })
         return
       }
-      
+
       // Add to store (prepend by updating all ECOs)
       const newEco: ECO = {
         ...data,
         file_count: 0,
         created_by_name: user.full_name,
-        created_by_email: user.email
+        created_by_email: user.email,
       }
       setECOs([newEco, ...ecos])
-      
+
       // Reset form
       setNewEcoNumber('')
       setNewEcoTitle('')
       setNewEcoDescription('')
       setShowCreateModal(false)
-      
+
       addToast('success', `ECO ${data.eco_number} created`)
-    } catch (err) {
-      log.error('[ECO]', 'Failed to create ECO', { error: err })
+    } catch (error) {
+      log.error('[ECO]', 'Failed to create ECO', { error: error })
       addToast('error', 'Failed to create ECO')
     } finally {
       setIsCreating(false)
     }
   }
-  
+
   // Tag selected files with an ECO
   const handleTagFiles = async () => {
     if (!tagEcoId || selectedFiles.length === 0 || !user) return
-    
+
     setIsTagging(true)
-    
+
     try {
       const client = getSupabaseClient()
-      
+
       // Get file IDs for selected paths
       const fileIds: string[] = []
       for (const path of selectedFiles) {
-        const file = files.find(f => f.path === path)
+        const file = files.find((f) => f.path === path)
         if (file?.pdmData?.id) {
           fileIds.push(file.pdmData.id)
         }
       }
-      
+
       if (fileIds.length === 0) {
         addToast('warning', 'No synced files selected. Only synced files can be tagged.')
         setShowTagModal(false)
         return
       }
-      
+
       // Insert file-ECO associations
-      const insertData = fileIds.map(fileId => ({
+      const insertData = fileIds.map((fileId) => ({
         file_id: fileId,
         eco_id: tagEcoId,
-        created_by: user.id
+        created_by: user.id,
       }))
-      
+
       const { error } = await client
         .from('file_ecos')
         .upsert(insertData, { onConflict: 'file_id,eco_id' })
-      
+
       if (error) {
         log.error('[ECO]', 'Failed to tag files', { error })
         addToast('error', 'Failed to tag files with ECO')
         return
       }
-      
+
       // Update file count in store
-      const eco = ecos.find(e => e.id === tagEcoId)
+      const eco = ecos.find((e) => e.id === tagEcoId)
       if (eco) {
         updateECO(tagEcoId, { file_count: (eco.file_count || 0) + fileIds.length })
       }
-      
+
       // Clear cached files for this ECO
-      setEcoFiles(prev => {
+      setEcoFiles((prev) => {
         const { [tagEcoId]: _, ...rest } = prev
         return rest
       })
-      
+
       setShowTagModal(false)
       setTagEcoId(null)
-      
+
       addToast('success', `Tagged ${fileIds.length} file(s) with ECO`)
-    } catch (err) {
-      log.error('[ECO]', 'Failed to tag files', { error: err })
+    } catch (error) {
+      log.error('[ECO]', 'Failed to tag files', { error: error })
       addToast('error', 'Failed to tag files with ECO')
     } finally {
       setIsTagging(false)
     }
   }
-  
+
   // Remove file from ECO
   const handleRemoveFileFromECO = async (fileEcoId: string, ecoId: string) => {
     try {
       const client = getSupabaseClient()
-      const { error } = await client
-        .from('file_ecos')
-        .delete()
-        .eq('id', fileEcoId)
-      
+      const { error } = await client.from('file_ecos').delete().eq('id', fileEcoId)
+
       if (error) {
         log.error('[ECO]', 'Failed to remove file from ECO', { error })
         addToast('error', 'Failed to remove file from ECO')
         return
       }
-      
+
       // Update local state for files list
-      setEcoFiles(prev => ({
+      setEcoFiles((prev) => ({
         ...prev,
-        [ecoId]: prev[ecoId]?.filter(fe => fe.id !== fileEcoId) || []
+        [ecoId]: prev[ecoId]?.filter((fe) => fe.id !== fileEcoId) || [],
       }))
-      
+
       // Update file count in store
-      const eco = ecos.find(e => e.id === ecoId)
+      const eco = ecos.find((e) => e.id === ecoId)
       if (eco) {
         updateECO(ecoId, { file_count: Math.max(0, (eco.file_count || 0) - 1) })
       }
-      
+
       addToast('success', 'File removed from ECO')
-    } catch (err) {
-      log.error('[ECO]', 'Failed to remove file from ECO', { error: err })
+    } catch (error) {
+      log.error('[ECO]', 'Failed to remove file from ECO', { error: error })
     }
   }
-  
+
   // Update ECO status
   const handleUpdateStatus = async (ecoId: string, newStatus: ECOStatus) => {
     if (!user) return
-    
+
     try {
       const client = getSupabaseClient()
       const { error } = await client
@@ -426,39 +433,33 @@ export function ECOView() {
           status: newStatus,
           updated_at: new Date().toISOString(),
           updated_by: user.id,
-          ...(newStatus === 'completed' ? { completed_at: new Date().toISOString() } : {})
+          ...(newStatus === 'completed' ? { completed_at: new Date().toISOString() } : {}),
         })
         .eq('id', ecoId)
-      
+
       if (error) {
         log.error('[ECO]', 'Failed to update ECO status', { error })
         addToast('error', 'Failed to update ECO status')
         return
       }
-      
+
       // Update status in store
       updateECO(ecoId, { status: newStatus })
-      
+
       addToast('success', `ECO status updated to ${STATUS_CONFIG[newStatus].label}`)
-    } catch (err) {
-      log.error('[ECO]', 'Failed to update ECO status', { error: err })
+    } catch (error) {
+      log.error('[ECO]', 'Failed to update ECO status', { error: error })
     }
   }
 
   if (!isVaultConnected) {
     return (
-      <div className="p-4 text-sm text-plm-fg-muted text-center">
-        Open a vault to manage ECOs
-      </div>
+      <div className="p-4 text-sm text-plm-fg-muted text-center">Open a vault to manage ECOs</div>
     )
   }
 
   if (!organization) {
-    return (
-      <div className="p-4 text-sm text-plm-fg-muted text-center">
-        Sign in to manage ECOs
-      </div>
-    )
+    return <div className="p-4 text-sm text-plm-fg-muted text-center">Sign in to manage ECOs</div>
   }
 
   return (
@@ -467,7 +468,10 @@ export function ECOView() {
       <div className="p-3 border-b border-plm-border space-y-3">
         {/* Search bar */}
         <div className="relative">
-          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
+          <Search
+            size={14}
+            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-plm-fg-muted"
+          />
           <input
             type="text"
             value={searchQuery}
@@ -484,7 +488,7 @@ export function ECOView() {
             </button>
           )}
         </div>
-        
+
         {/* Status filter and create button */}
         <div className="flex items-center gap-2">
           <select
@@ -498,7 +502,7 @@ export function ECOView() {
             <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
           </select>
-          
+
           <button
             onClick={() => setShowCreateModal(true)}
             className="flex items-center gap-1 px-2 py-1 text-sm bg-plm-accent text-white rounded hover:bg-plm-accent-hover transition-colors"
@@ -507,7 +511,7 @@ export function ECOView() {
             New ECO
           </button>
         </div>
-        
+
         {/* Tag files button (shown when files are selected) */}
         {selectedFiles.length > 0 && (
           <button
@@ -519,7 +523,7 @@ export function ECOView() {
           </button>
         )}
       </div>
-      
+
       {/* ECO List */}
       <div className="flex-1 overflow-auto">
         {ecosLoading && ecos.length === 0 ? (
@@ -528,7 +532,7 @@ export function ECOView() {
           </div>
         ) : filteredECOs.length === 0 ? (
           <div className="p-4 text-sm text-plm-fg-muted text-center">
-            {searchQuery || statusFilter !== 'all' 
+            {searchQuery || statusFilter !== 'all'
               ? 'No ECOs match your filters'
               : 'No ECOs yet. Create one to get started.'}
           </div>
@@ -539,12 +543,9 @@ export function ECOView() {
               const isExpanded = expandedECO === eco.id
               const filesForEco = ecoFiles[eco.id] || []
               const isLoadingEcoFiles = loadingFiles === eco.id
-              
+
               return (
-                <div
-                  key={eco.id}
-                  className="bg-plm-bg-light rounded border border-plm-border"
-                >
+                <div key={eco.id} className="bg-plm-bg-light rounded border border-plm-border">
                   {/* ECO Header */}
                   <div
                     onClick={() => toggleECO(eco.id)}
@@ -553,24 +554,22 @@ export function ECOView() {
                     <span className="mt-1 text-plm-fg-muted">
                       {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                     </span>
-                    
+
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm text-plm-fg">
-                          {eco.eco_number}
-                        </span>
-                        <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-xs ${statusConfig.color} ${statusConfig.bgColor}`}>
+                        <span className="font-medium text-sm text-plm-fg">{eco.eco_number}</span>
+                        <span
+                          className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-xs ${statusConfig.color} ${statusConfig.bgColor}`}
+                        >
                           {statusConfig.icon}
                           {statusConfig.label}
                         </span>
                       </div>
-                      
+
                       {eco.title && (
-                        <div className="text-sm text-plm-fg-dim truncate mt-0.5">
-                          {eco.title}
-                        </div>
+                        <div className="text-sm text-plm-fg-dim truncate mt-0.5">{eco.title}</div>
                       )}
-                      
+
                       <div className="flex items-center gap-3 text-xs text-plm-fg-muted mt-1">
                         <span className="flex items-center gap-1">
                           <File size={10} />
@@ -578,12 +577,14 @@ export function ECOView() {
                         </span>
                         <span className="flex items-center gap-1">
                           <Calendar size={10} />
-                          {eco.created_at ? formatDistanceToNow(new Date(eco.created_at), { addSuffix: true }) : 'Unknown'}
+                          {eco.created_at
+                            ? formatDistanceToNow(new Date(eco.created_at), { addSuffix: true })
+                            : 'Unknown'}
                         </span>
                       </div>
                     </div>
                   </div>
-                  
+
                   {/* Expanded content */}
                   {isExpanded && (
                     <div className="border-t border-plm-border">
@@ -593,40 +594,42 @@ export function ECOView() {
                           {eco.description}
                         </div>
                       )}
-                      
+
                       {/* Status change buttons */}
                       <div className="p-2 border-b border-plm-border">
                         <div className="text-xs text-plm-fg-muted mb-1.5">Change Status:</div>
                         <div className="flex flex-wrap gap-1">
-                          {(['open', 'in_progress', 'completed', 'cancelled'] as ECOStatus[]).map(status => {
-                            const config = STATUS_CONFIG[status]
-                            const isActive = eco.status === status
-                            return (
-                              <button
-                                key={status}
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  if (!isActive) handleUpdateStatus(eco.id, status)
-                                }}
-                                disabled={isActive}
-                                className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs transition-colors ${
-                                  isActive 
-                                    ? `${config.color} ${config.bgColor} cursor-default`
-                                    : 'text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight'
-                                }`}
-                              >
-                                {config.icon}
-                                {config.label}
-                              </button>
-                            )
-                          })}
+                          {(['open', 'in_progress', 'completed', 'cancelled'] as ECOStatus[]).map(
+                            (status) => {
+                              const config = STATUS_CONFIG[status]
+                              const isActive = eco.status === status
+                              return (
+                                <button
+                                  key={status}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    if (!isActive) handleUpdateStatus(eco.id, status)
+                                  }}
+                                  disabled={isActive}
+                                  className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs transition-colors ${
+                                    isActive
+                                      ? `${config.color} ${config.bgColor} cursor-default`
+                                      : 'text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight'
+                                  }`}
+                                >
+                                  {config.icon}
+                                  {config.label}
+                                </button>
+                              )
+                            },
+                          )}
                         </div>
                       </div>
-                      
+
                       {/* Files list */}
                       <div className="p-2">
                         <div className="text-xs text-plm-fg-muted mb-1.5">Tagged Files:</div>
-                        
+
                         {isLoadingEcoFiles ? (
                           <div className="flex items-center justify-center py-2">
                             <Loader2 size={14} className="animate-spin text-plm-fg-muted" />
@@ -637,7 +640,7 @@ export function ECOView() {
                           </div>
                         ) : (
                           <div className="space-y-1 max-h-48 overflow-auto">
-                            {filesForEco.map(fileEco => (
+                            {filesForEco.map((fileEco) => (
                               <div
                                 key={fileEco.id}
                                 className="flex items-center gap-2 p-1.5 rounded bg-plm-bg hover:bg-plm-highlight group"
@@ -645,11 +648,11 @@ export function ECOView() {
                                 <File size={12} className="text-plm-fg-muted flex-shrink-0" />
                                 <div className="flex-1 min-w-0">
                                   <div className="text-xs truncate">
-                                    {(fileEco.file as any)?.file_name || 'Unknown file'}
+                                    {(fileEco.file as any)?.file_name || 'Unknown file'} // TODO: type this
                                   </div>
-                                  {(fileEco.file as any)?.part_number && (
+                                  {(fileEco.file as any)?.part_number && ( // TODO: type this
                                     <div className="text-xs text-plm-fg-muted truncate">
-                                      {(fileEco.file as any).part_number}
+                                      {(fileEco.file as any).part_number} // TODO: type this
                                     </div>
                                   )}
                                 </div>
@@ -676,7 +679,7 @@ export function ECOView() {
           </div>
         )}
       </div>
-      
+
       {/* Create ECO Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -690,12 +693,10 @@ export function ECOView() {
                 <X size={16} />
               </button>
             </div>
-            
+
             <div className="p-4 space-y-3">
               <div>
-                <label className="block text-xs text-plm-fg-muted mb-1">
-                  ECO Number *
-                </label>
+                <label className="block text-xs text-plm-fg-muted mb-1">ECO Number *</label>
                 <input
                   type="text"
                   value={newEcoNumber}
@@ -705,11 +706,9 @@ export function ECOView() {
                   autoFocus
                 />
               </div>
-              
+
               <div>
-                <label className="block text-xs text-plm-fg-muted mb-1">
-                  Title
-                </label>
+                <label className="block text-xs text-plm-fg-muted mb-1">Title</label>
                 <input
                   type="text"
                   value={newEcoTitle}
@@ -718,11 +717,9 @@ export function ECOView() {
                   className="w-full"
                 />
               </div>
-              
+
               <div>
-                <label className="block text-xs text-plm-fg-muted mb-1">
-                  Description
-                </label>
+                <label className="block text-xs text-plm-fg-muted mb-1">Description</label>
                 <textarea
                   value={newEcoDescription}
                   onChange={(e) => setNewEcoDescription(e.target.value)}
@@ -731,7 +728,7 @@ export function ECOView() {
                 />
               </div>
             </div>
-            
+
             <div className="flex justify-end gap-2 p-3 border-t border-plm-border">
               <button
                 onClick={() => setShowCreateModal(false)}
@@ -751,7 +748,7 @@ export function ECOView() {
           </div>
         </div>
       )}
-      
+
       {/* Tag Files Modal */}
       {showTagModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -768,44 +765,48 @@ export function ECOView() {
                 <X size={16} />
               </button>
             </div>
-            
+
             <div className="p-4">
               <div className="text-sm text-plm-fg-dim mb-3">
-                Select an ECO to tag {selectedFiles.length} file{selectedFiles.length > 1 ? 's' : ''}:
+                Select an ECO to tag {selectedFiles.length} file
+                {selectedFiles.length > 1 ? 's' : ''}:
               </div>
-              
+
               <div className="space-y-1 max-h-64 overflow-auto">
-                {ecos.filter(e => e.status !== 'completed' && e.status !== 'cancelled').map(eco => (
-                  <div
-                    key={eco.id}
-                    onClick={() => setTagEcoId(eco.id)}
-                    className={`flex items-center gap-2 p-2 rounded cursor-pointer transition-colors ${
-                      tagEcoId === eco.id 
-                        ? 'bg-plm-accent/20 border border-plm-accent'
-                        : 'bg-plm-bg-light hover:bg-plm-highlight border border-transparent'
-                    }`}
-                  >
-                    <ClipboardList size={14} className="text-plm-accent flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium">{eco.eco_number}</div>
-                      {eco.title && (
-                        <div className="text-xs text-plm-fg-muted truncate">{eco.title}</div>
+                {ecos
+                  .filter((e) => e.status !== 'completed' && e.status !== 'cancelled')
+                  .map((eco) => (
+                    <div
+                      key={eco.id}
+                      onClick={() => setTagEcoId(eco.id)}
+                      className={`flex items-center gap-2 p-2 rounded cursor-pointer transition-colors ${
+                        tagEcoId === eco.id
+                          ? 'bg-plm-accent/20 border border-plm-accent'
+                          : 'bg-plm-bg-light hover:bg-plm-highlight border border-transparent'
+                      }`}
+                    >
+                      <ClipboardList size={14} className="text-plm-accent flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium">{eco.eco_number}</div>
+                        {eco.title && (
+                          <div className="text-xs text-plm-fg-muted truncate">{eco.title}</div>
+                        )}
+                      </div>
+                      {tagEcoId === eco.id && (
+                        <Check size={14} className="text-plm-accent flex-shrink-0" />
                       )}
                     </div>
-                    {tagEcoId === eco.id && (
-                      <Check size={14} className="text-plm-accent flex-shrink-0" />
-                    )}
-                  </div>
-                ))}
-                
-                {ecos.filter(e => e.status !== 'completed' && e.status !== 'cancelled').length === 0 && (
+                  ))}
+
+                {ecos.filter((e) => e.status !== 'completed' && e.status !== 'cancelled').length ===
+                  0 && (
                   <div className="text-sm text-plm-fg-muted text-center py-4">
                     No active ECOs. Create one first.
                   </div>
                 )}
               </div>
             </div>
-            
+
             <div className="flex justify-end gap-2 p-3 border-t border-plm-border">
               <button
                 onClick={() => {
@@ -831,4 +832,3 @@ export function ECOView() {
     </div>
   )
 }
-

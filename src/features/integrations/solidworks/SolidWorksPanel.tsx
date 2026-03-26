@@ -34,10 +34,12 @@ interface SWServiceStatus {
 
 // Hook to manage SolidWorks service connection
 export function useSolidWorksService() {
-  const [status, setStatus] = useState<SWServiceStatus & { directAccessEnabled?: boolean }>({ running: false })
+  const [status, setStatus] = useState<SWServiceStatus & { directAccessEnabled?: boolean }>({
+    running: false,
+  })
   const [isStarting, setIsStarting] = useState(false)
   const { addToast, organization } = usePDMStore()
-  
+
   // Get DM license key from organization settings
   const dmLicenseKey = organization?.settings?.solidworks_dm_license_key
 
@@ -58,21 +60,19 @@ export function useSolidWorksService() {
       // Pass the DM license key from org settings to enable direct file access
       const result = await window.electronAPI?.solidworks?.startService(dmLicenseKey || undefined)
       if (result?.success) {
-        const directAccessEnabled = (result.data as any)?.fastModeEnabled
-        setStatus({ 
-          running: true, 
-          version: (result.data as any)?.version,
-          directAccessEnabled
+        const directAccessEnabled = (result.data as any)?.fastModeEnabled // TODO: type this
+        setStatus({
+          running: true,
+          version: (result.data as any)?.version, // TODO: type this
+          directAccessEnabled,
         })
-        const modeMsg = directAccessEnabled 
-          ? ' (direct file access)' 
-          : ' (using SolidWorks API)'
+        const modeMsg = directAccessEnabled ? ' (direct file access)' : ' (using SolidWorks API)'
         addToast('success', `SolidWorks service started${modeMsg}`)
       } else {
         addToast('error', result?.error || 'Failed to start SolidWorks service')
       }
-    } catch (err) {
-      addToast('error', `Failed to start service: ${err}`)
+    } catch (error) {
+      addToast('error', `Failed to start service: ${error}`)
     } finally {
       setIsStarting(false)
     }
@@ -101,7 +101,6 @@ function SWFileIcon({ fileType, size = 16 }: { fileType: string; size?: number }
       return <File size={size} className="text-plm-fg-muted" />
   }
 }
-
 
 // Where Used Tab Component - Database-first approach
 // Queries file_references table instead of scanning all local assemblies
@@ -136,21 +135,21 @@ export function WhereUsedTab({ file }: { file: LocalFile }) {
   // Query database for where-used references
   const findWhereUsed = useCallback(async () => {
     if (!fileId) return
-    
+
     setIsLoading(true)
     setError(null)
-    
+
     try {
       const { references, error: queryError } = await getWhereUsed(fileId)
-      
+
       if (queryError) {
         setError(queryError.message || 'Failed to query references')
         return
       }
-      
+
       setUsedIn((references || []) as WhereUsedResult[])
-    } catch (err) {
-      setError(String(err))
+    } catch (error) {
+      setError(String(error))
     } finally {
       setIsLoading(false)
     }
@@ -164,9 +163,10 @@ export function WhereUsedTab({ file }: { file: LocalFile }) {
   }, [isSolidWorks, fileId, findWhereUsed])
 
   const handleNavigate = (filePath: string) => {
-    const targetFile = files.find(f => 
-      f.path.toLowerCase() === filePath.toLowerCase() ||
-      f.relativePath.toLowerCase() === filePath.toLowerCase()
+    const targetFile = files.find(
+      (f) =>
+        f.path.toLowerCase() === filePath.toLowerCase() ||
+        f.relativePath.toLowerCase() === filePath.toLowerCase(),
     )
     if (targetFile) {
       setSelectedFiles([targetFile.relativePath])
@@ -192,8 +192,8 @@ export function WhereUsedTab({ file }: { file: LocalFile }) {
         <Search size={48} className="mb-4 text-plm-fg-muted opacity-50" />
         <div className="text-sm text-plm-fg-muted mb-2">File not synced to cloud</div>
         <div className="text-xs text-plm-fg-muted text-center max-w-xs">
-          Sync this file to the vault to view where-used relationships.
-          Assembly references are extracted during check-in.
+          Sync this file to the vault to view where-used relationships. Assembly references are
+          extracted during check-in.
         </div>
       </div>
     )
@@ -203,7 +203,8 @@ export function WhereUsedTab({ file }: { file: LocalFile }) {
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between mb-3 flex-shrink-0">
         <span className="text-xs text-plm-fg-muted">
-          Used in: <span className="text-plm-accent font-medium">{usedIn.length}</span> {usedIn.length === 1 ? 'assembly' : 'assemblies'}
+          Used in: <span className="text-plm-accent font-medium">{usedIn.length}</span>{' '}
+          {usedIn.length === 1 ? 'assembly' : 'assemblies'}
         </span>
         <button
           onClick={findWhereUsed}
@@ -234,14 +235,14 @@ export function WhereUsedTab({ file }: { file: LocalFile }) {
             <Search size={32} className="mb-2 opacity-30" />
             <div className="text-sm">Not used in any assemblies</div>
             <div className="text-xs mt-2 text-center max-w-xs opacity-70">
-              This file isn't referenced by any assemblies in the database.
-              Check in assemblies to populate relationships.
+              This file isn't referenced by any assemblies in the database. Check in assemblies to
+              populate relationships.
             </div>
           </div>
         ) : (
           <div className="space-y-1">
             {usedIn.map((ref, idx) => (
-              <div 
+              <div
                 key={`${ref.id}-${idx}`}
                 className="flex items-center gap-2 py-2 px-2 hover:bg-plm-bg-light rounded cursor-pointer group"
                 onClick={() => ref.parent?.file_path && handleNavigate(ref.parent.file_path)}
@@ -268,7 +269,10 @@ export function WhereUsedTab({ file }: { file: LocalFile }) {
                 {ref.parent?.revision && (
                   <span className="text-xs text-plm-fg-muted">{ref.parent.revision}</span>
                 )}
-                <ArrowUpRight size={12} className="opacity-0 group-hover:opacity-100 text-plm-fg-muted flex-shrink-0" />
+                <ArrowUpRight
+                  size={12}
+                  className="opacity-0 group-hover:opacity-100 text-plm-fg-muted flex-shrink-0"
+                />
               </div>
             ))}
           </div>
@@ -291,23 +295,98 @@ const STANDARD_SW_PROPERTIES = {
   ],
   // Standard engineering custom properties
   custom: [
-    { key: 'PartNumber', label: 'Part Number', category: 'identification', aliases: ['PartNo', 'Part Number', 'P/N', 'Item Number'] },
-    { key: 'Description', label: 'Description', category: 'identification', aliases: ['Desc', 'DESCRIPTION'] },
-    { key: 'Revision', label: 'Revision', category: 'identification', aliases: ['Rev', 'REV', 'REVISION'] },
-    { key: 'Material', label: 'Material', category: 'physical', aliases: ['MATERIAL', 'Mat', 'MaterialSpec'] },
-    { key: 'Weight', label: 'Weight', category: 'physical', aliases: ['Mass', 'WEIGHT', 'SW-Mass'] },
-    { key: 'Finish', label: 'Finish', category: 'physical', aliases: ['Surface Finish', 'SurfaceFinish', 'FINISH'] },
-    { key: 'Vendor', label: 'Vendor', category: 'procurement', aliases: ['VENDOR', 'Supplier', 'Manufacturer'] },
+    {
+      key: 'PartNumber',
+      label: 'Part Number',
+      category: 'identification',
+      aliases: ['PartNo', 'Part Number', 'P/N', 'Item Number'],
+    },
+    {
+      key: 'Description',
+      label: 'Description',
+      category: 'identification',
+      aliases: ['Desc', 'DESCRIPTION'],
+    },
+    {
+      key: 'Revision',
+      label: 'Revision',
+      category: 'identification',
+      aliases: ['Rev', 'REV', 'REVISION'],
+    },
+    {
+      key: 'Material',
+      label: 'Material',
+      category: 'physical',
+      aliases: ['MATERIAL', 'Mat', 'MaterialSpec'],
+    },
+    {
+      key: 'Weight',
+      label: 'Weight',
+      category: 'physical',
+      aliases: ['Mass', 'WEIGHT', 'SW-Mass'],
+    },
+    {
+      key: 'Finish',
+      label: 'Finish',
+      category: 'physical',
+      aliases: ['Surface Finish', 'SurfaceFinish', 'FINISH'],
+    },
+    {
+      key: 'Vendor',
+      label: 'Vendor',
+      category: 'procurement',
+      aliases: ['VENDOR', 'Supplier', 'Manufacturer'],
+    },
     { key: 'Cost', label: 'Cost', category: 'procurement', aliases: ['COST', 'Price', 'UnitCost'] },
-    { key: 'DrawnBy', label: 'Drawn By', category: 'approval', aliases: ['Drawn By', 'DRAWNBY', 'Designer'] },
-    { key: 'CheckedBy', label: 'Checked By', category: 'approval', aliases: ['Checked By', 'CHECKEDBY', 'Checker'] },
-    { key: 'ApprovedBy', label: 'Approved By', category: 'approval', aliases: ['Approved By', 'APPROVEDBY', 'Approver'] },
-    { key: 'DrawingNumber', label: 'Drawing Number', category: 'documentation', aliases: ['Drawing No', 'DwgNo', 'DRAWINGNO'] },
-    { key: 'Project', label: 'Project', category: 'documentation', aliases: ['PROJECT', 'ProjectName', 'Job'] },
-    { key: 'Status', label: 'Status', category: 'workflow', aliases: ['STATUS', 'State', 'DocStatus'] },
-    { key: 'DateCreated', label: 'Date Created', category: 'dates', aliases: ['Created', 'CreationDate'] },
-    { key: 'DateModified', label: 'Date Modified', category: 'dates', aliases: ['Modified', 'LastModified'] },
-  ]
+    {
+      key: 'DrawnBy',
+      label: 'Drawn By',
+      category: 'approval',
+      aliases: ['Drawn By', 'DRAWNBY', 'Designer'],
+    },
+    {
+      key: 'CheckedBy',
+      label: 'Checked By',
+      category: 'approval',
+      aliases: ['Checked By', 'CHECKEDBY', 'Checker'],
+    },
+    {
+      key: 'ApprovedBy',
+      label: 'Approved By',
+      category: 'approval',
+      aliases: ['Approved By', 'APPROVEDBY', 'Approver'],
+    },
+    {
+      key: 'DrawingNumber',
+      label: 'Drawing Number',
+      category: 'documentation',
+      aliases: ['Drawing No', 'DwgNo', 'DRAWINGNO'],
+    },
+    {
+      key: 'Project',
+      label: 'Project',
+      category: 'documentation',
+      aliases: ['PROJECT', 'ProjectName', 'Job'],
+    },
+    {
+      key: 'Status',
+      label: 'Status',
+      category: 'workflow',
+      aliases: ['STATUS', 'State', 'DocStatus'],
+    },
+    {
+      key: 'DateCreated',
+      label: 'Date Created',
+      category: 'dates',
+      aliases: ['Created', 'CreationDate'],
+    },
+    {
+      key: 'DateModified',
+      label: 'Date Modified',
+      category: 'dates',
+      aliases: ['Modified', 'LastModified'],
+    },
+  ],
 }
 
 // Property category colors
@@ -323,27 +402,32 @@ const CATEGORY_COLORS: Record<string, string> = {
 }
 
 // Mock Datacard Component - shows placeholder UI when service isn't running
-function SWDatacardMock({ file, onStartService, isStarting }: { 
+function SWDatacardMock({
+  file,
+  onStartService,
+  isStarting,
+}: {
   file: LocalFile
   onStartService?: () => void
-  isStarting?: boolean 
+  isStarting?: boolean
 }) {
   const [selectedConfigIndex, setSelectedConfigIndex] = useState(0)
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['identification', 'physical']))
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
+    new Set(['identification', 'physical']),
+  )
   const { organization } = usePDMStore()
-  
+
   const ext = file.extension?.toLowerCase() || ''
   const fileType = ext === '.sldprt' ? 'Part' : ext === '.sldasm' ? 'Assembly' : 'Drawing'
-  
+
   // Mock configurations for demonstration
-  const mockConfigurations = ext === '.sldprt' || ext === '.sldasm' 
-    ? ['Default', 'Machined', 'As-Cast'] 
-    : ['Sheet1']
-  
+  const mockConfigurations =
+    ext === '.sldprt' || ext === '.sldasm' ? ['Default', 'Machined', 'As-Cast'] : ['Sheet1']
+
   const hasApiKey = !!organization?.settings?.solidworks_dm_license_key
-  
+
   const toggleCategory = (category: string) => {
-    setExpandedCategories(prev => {
+    setExpandedCategories((prev) => {
       const next = new Set(prev)
       if (next.has(category)) {
         next.delete(category)
@@ -353,16 +437,19 @@ function SWDatacardMock({ file, onStartService, isStarting }: {
       return next
     })
   }
-  
+
   // Group properties by category
-  const groupedProperties = STANDARD_SW_PROPERTIES.custom.reduce((acc, prop) => {
-    if (!acc[prop.category]) {
-      acc[prop.category] = []
-    }
-    acc[prop.category].push(prop)
-    return acc
-  }, {} as Record<string, typeof STANDARD_SW_PROPERTIES.custom>)
-  
+  const groupedProperties = STANDARD_SW_PROPERTIES.custom.reduce(
+    (acc, prop) => {
+      if (!acc[prop.category]) {
+        acc[prop.category] = []
+      }
+      acc[prop.category].push(prop)
+      return acc
+    },
+    {} as Record<string, typeof STANDARD_SW_PROPERTIES.custom>,
+  )
+
   const categoryLabels: Record<string, string> = {
     identification: 'Identification',
     physical: 'Physical Properties',
@@ -387,20 +474,20 @@ function SWDatacardMock({ file, onStartService, isStarting }: {
           </span>
         )}
       </div>
-      
+
       {/* API Key Notice */}
       {!hasApiKey && (
         <div className="mb-3 p-2 rounded bg-plm-bg border border-plm-border/50 flex-shrink-0">
           <div className="flex items-start gap-2 text-xs">
             <AlertCircle size={14} className="text-amber-400 mt-0.5 flex-shrink-0" />
             <div className="text-plm-fg-muted">
-              <span className="text-plm-fg">No DM License Key configured.</span>{' '}
-              Properties will be populated when a key is added in Settings → SolidWorks.
+              <span className="text-plm-fg">No DM License Key configured.</span> Properties will be
+              populated when a key is added in Settings → SolidWorks.
             </div>
           </div>
         </div>
       )}
-      
+
       {/* Configuration selector (for parts/assemblies) */}
       {(ext === '.sldprt' || ext === '.sldasm') && (
         <div className="flex items-center gap-2 mb-3 flex-shrink-0">
@@ -418,7 +505,7 @@ function SWDatacardMock({ file, onStartService, isStarting }: {
           </select>
         </div>
       )}
-      
+
       {/* Properties Grid - Scrollable */}
       <div className="flex-1 overflow-auto space-y-2">
         {/* File Summary Properties */}
@@ -427,22 +514,32 @@ function SWDatacardMock({ file, onStartService, isStarting }: {
             onClick={() => toggleCategory('summary')}
             className="w-full flex items-center gap-2 px-3 py-2 bg-plm-bg-light hover:bg-plm-bg-lighter transition-colors"
           >
-            {expandedCategories.has('summary') ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-            <span className={`text-xs font-medium ${CATEGORY_COLORS.summary}`}>Document Summary</span>
-            <span className="text-xs text-plm-fg-muted ml-auto">{STANDARD_SW_PROPERTIES.file.length}</span>
+            {expandedCategories.has('summary') ? (
+              <ChevronDown size={14} />
+            ) : (
+              <ChevronRight size={14} />
+            )}
+            <span className={`text-xs font-medium ${CATEGORY_COLORS.summary}`}>
+              Document Summary
+            </span>
+            <span className="text-xs text-plm-fg-muted ml-auto">
+              {STANDARD_SW_PROPERTIES.file.length}
+            </span>
           </button>
           {expandedCategories.has('summary') && (
             <div className="p-2 space-y-1.5 bg-plm-bg/50">
-              {STANDARD_SW_PROPERTIES.file.map(prop => (
+              {STANDARD_SW_PROPERTIES.file.map((prop) => (
                 <div key={prop.key} className="flex items-center gap-2 text-xs group">
-                  <span className="text-plm-fg-muted w-24 truncate" title={prop.key}>{prop.label}:</span>
+                  <span className="text-plm-fg-muted w-24 truncate" title={prop.key}>
+                    {prop.label}:
+                  </span>
                   <span className="flex-1 text-plm-fg-dim italic">—</span>
                 </div>
               ))}
             </div>
           )}
         </div>
-        
+
         {/* Custom Properties by Category */}
         {Object.entries(groupedProperties).map(([category, props]) => (
           <div key={category} className="border border-plm-border rounded overflow-hidden">
@@ -450,7 +547,11 @@ function SWDatacardMock({ file, onStartService, isStarting }: {
               onClick={() => toggleCategory(category)}
               className="w-full flex items-center gap-2 px-3 py-2 bg-plm-bg-light hover:bg-plm-bg-lighter transition-colors"
             >
-              {expandedCategories.has(category) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              {expandedCategories.has(category) ? (
+                <ChevronDown size={14} />
+              ) : (
+                <ChevronRight size={14} />
+              )}
               <span className={`text-xs font-medium ${CATEGORY_COLORS[category] || 'text-plm-fg'}`}>
                 {categoryLabels[category] || category}
               </span>
@@ -458,14 +559,20 @@ function SWDatacardMock({ file, onStartService, isStarting }: {
             </button>
             {expandedCategories.has(category) && (
               <div className="p-2 space-y-1.5 bg-plm-bg/50">
-                {props.map(prop => (
+                {props.map((prop) => (
                   <div key={prop.key} className="flex items-center gap-2 text-xs group">
-                    <span className="text-plm-fg-muted w-28 truncate" title={prop.aliases?.join(', ') || prop.key}>
+                    <span
+                      className="text-plm-fg-muted w-28 truncate"
+                      title={prop.aliases?.join(', ') || prop.key}
+                    >
                       {prop.label}:
                     </span>
                     <span className="flex-1 text-plm-fg-dim italic">—</span>
                     {prop.aliases && prop.aliases.length > 0 && (
-                      <span className="opacity-0 group-hover:opacity-100 text-plm-fg-muted transition-opacity" title={`Aliases: ${prop.aliases.join(', ')}`}>
+                      <span
+                        className="opacity-0 group-hover:opacity-100 text-plm-fg-muted transition-opacity"
+                        title={`Aliases: ${prop.aliases.join(', ')}`}
+                      >
                         <Info size={10} />
                       </span>
                     )}
@@ -475,7 +582,7 @@ function SWDatacardMock({ file, onStartService, isStarting }: {
             )}
           </div>
         ))}
-        
+
         {/* Mass Properties (computed) */}
         {(ext === '.sldprt' || ext === '.sldasm') && (
           <div className="border border-plm-border rounded overflow-hidden">
@@ -483,13 +590,26 @@ function SWDatacardMock({ file, onStartService, isStarting }: {
               onClick={() => toggleCategory('mass')}
               className="w-full flex items-center gap-2 px-3 py-2 bg-plm-bg-light hover:bg-plm-bg-lighter transition-colors"
             >
-              {expandedCategories.has('mass') ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-              <span className="text-xs font-medium text-orange-400">Mass Properties (Computed)</span>
+              {expandedCategories.has('mass') ? (
+                <ChevronDown size={14} />
+              ) : (
+                <ChevronRight size={14} />
+              )}
+              <span className="text-xs font-medium text-orange-400">
+                Mass Properties (Computed)
+              </span>
               <span className="text-xs text-plm-fg-muted ml-auto">6</span>
             </button>
             {expandedCategories.has('mass') && (
               <div className="p-2 space-y-1.5 bg-plm-bg/50">
-                {['Mass', 'Volume', 'Surface Area', 'Center of Mass X', 'Center of Mass Y', 'Center of Mass Z'].map(prop => (
+                {[
+                  'Mass',
+                  'Volume',
+                  'Surface Area',
+                  'Center of Mass X',
+                  'Center of Mass Y',
+                  'Center of Mass Z',
+                ].map((prop) => (
                   <div key={prop} className="flex items-center gap-2 text-xs">
                     <span className="text-plm-fg-muted w-28 truncate">{prop}:</span>
                     <span className="flex-1 text-plm-fg-dim italic">—</span>
@@ -500,7 +620,7 @@ function SWDatacardMock({ file, onStartService, isStarting }: {
           </div>
         )}
       </div>
-      
+
       {/* Start Service Button */}
       {onStartService && (
         <div className="mt-3 pt-3 border-t border-plm-border flex-shrink-0">
@@ -513,10 +633,9 @@ function SWDatacardMock({ file, onStartService, isStarting }: {
             {hasApiKey ? 'Load Properties' : 'Start SolidWorks Service'}
           </button>
           <div className="text-xs text-plm-fg-muted text-center mt-2">
-            {hasApiKey 
+            {hasApiKey
               ? 'Uses Document Manager API for fast reading'
-              : 'Will launch SolidWorks in background'
-            }
+              : 'Will launch SolidWorks in background'}
           </div>
         </div>
       )}
@@ -527,14 +646,14 @@ function SWDatacardMock({ file, onStartService, isStarting }: {
 // Info icon for property tooltips
 function Info({ size = 16 }: { size?: number }) {
   return (
-    <svg 
-      width={size} 
-      height={size} 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="currentColor" 
-      strokeWidth="2" 
-      strokeLinecap="round" 
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
       strokeLinejoin="round"
     >
       <circle cx="12" cy="12" r="10" />
@@ -560,7 +679,7 @@ export function SWPropertiesPanel({ file }: { file: LocalFile }) {
   // Load properties
   useEffect(() => {
     if (!status.running || !file.path || !isSolidWorks) return
-    
+
     const loadProperties = async () => {
       setIsLoading(true)
       setShowMockDatacard(false)
@@ -568,36 +687,36 @@ export function SWPropertiesPanel({ file }: { file: LocalFile }) {
         const result = await window.electronAPI?.solidworks?.getProperties(file.path)
         if (result?.success && result.data) {
           setFileProperties(result.data.fileProperties)
-          
+
           // Get configuration data
           const configResult = await window.electronAPI?.solidworks?.getConfigurations(file.path)
           if (configResult?.success && configResult.data) {
             const configData = configResult.data
             setConfigurations(configData.configurations)
             setSelectedConfig(configData.activeConfiguration)
-            
+
             // Set config-specific properties for active config
             const activeConfig = configData.configurations.find(
-              (c: Configuration) => c.name === configData.activeConfiguration
+              (c: Configuration) => c.name === configData.activeConfiguration,
             )
             if (activeConfig) {
               setConfigProperties(activeConfig.properties)
             }
           }
         }
-      } catch (err) {
-        log.error('[SolidWorks]', 'Failed to load properties', { error: err })
+      } catch (error) {
+        log.error('[SolidWorks]', 'Failed to load properties', { error: error })
       } finally {
         setIsLoading(false)
       }
     }
-    
+
     loadProperties()
   }, [status.running, file.path, isSolidWorks])
 
   // Update config properties when selection changes
   useEffect(() => {
-    const config = configurations.find(c => c.name === selectedConfig)
+    const config = configurations.find((c) => c.name === selectedConfig)
     if (config) {
       setConfigProperties(config.properties)
     }
@@ -611,11 +730,7 @@ export function SWPropertiesPanel({ file }: { file: LocalFile }) {
   if (!status.running || showMockDatacard) {
     return (
       <div className="mt-4 p-3 bg-plm-bg rounded border border-plm-border">
-        <SWDatacardMock 
-          file={file} 
-          onStartService={startService}
-          isStarting={isStarting}
-        />
+        <SWDatacardMock file={file} onStartService={startService} isStarting={isStarting} />
       </div>
     )
   }
@@ -648,7 +763,7 @@ export function SWPropertiesPanel({ file }: { file: LocalFile }) {
             onChange={(e) => setSelectedConfig(e.target.value)}
             className="text-xs bg-plm-panel border border-plm-border rounded px-1 py-0.5"
           >
-            {configurations.map(config => (
+            {configurations.map((config) => (
               <option key={config.name} value={config.name}>
                 {config.name}
               </option>
@@ -656,11 +771,13 @@ export function SWPropertiesPanel({ file }: { file: LocalFile }) {
           </select>
         )}
       </div>
-      
+
       <div className="space-y-1.5">
         {propertyEntries.slice(0, 10).map(([key, value]) => (
           <div key={key} className="flex gap-2 text-xs">
-            <span className="text-plm-fg-muted truncate" style={{ minWidth: '80px' }}>{key}:</span>
+            <span className="text-plm-fg-muted truncate" style={{ minWidth: '80px' }}>
+              {key}:
+            </span>
             <span className="text-plm-fg truncate flex-1">{value || '-'}</span>
           </div>
         ))}
@@ -681,7 +798,9 @@ type ExportConfigMode = 'current' | 'all' | 'selected'
 function CompactProp({ label, value }: { label: string; value: string | null }) {
   return (
     <div className="flex items-baseline gap-1.5 min-w-0">
-      <span className="text-[10px] text-plm-fg-muted uppercase tracking-wide flex-shrink-0">{label}</span>
+      <span className="text-[10px] text-plm-fg-muted uppercase tracking-wide flex-shrink-0">
+        {label}
+      </span>
       <span className="text-xs text-plm-fg truncate">{value || '—'}</span>
     </div>
   )
@@ -713,32 +832,31 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
   // Load properties when service is running
   useEffect(() => {
     if (!status.running || !file.path || !isSolidWorks) return
-    
+
     const loadProperties = async () => {
       setIsLoading(true)
       try {
         const result = await window.electronAPI?.solidworks?.getProperties(file.path)
-        
+
         if (result?.success && result.data) {
           // Handle different possible response formats
           const data = result.data as Record<string, unknown>
-          const props = data.fileProperties || data.customProperties || data.properties || result.data
+          const props =
+            data.fileProperties || data.customProperties || data.properties || result.data
           if (typeof props === 'object' && props !== null) {
             setFileProperties(props as Record<string, string>)
           }
-          
+
           const configResult = await window.electronAPI?.solidworks?.getConfigurations(file.path)
-          
+
           if (configResult?.success && configResult.data) {
             const configs = configResult.data.configurations || configResult.data
             if (Array.isArray(configs)) {
               setConfigurations(configs)
               const activeConfigName = configResult.data.activeConfiguration || configs[0]?.name
               setSelectedConfig(activeConfigName)
-              
-              const activeConfig = configs.find(
-                (c: Configuration) => c.name === activeConfigName
-              )
+
+              const activeConfig = configs.find((c: Configuration) => c.name === activeConfigName)
               if (activeConfig?.properties) {
                 setConfigProperties(activeConfig.properties)
               }
@@ -747,26 +865,26 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
         } else if (result?.error) {
           log.error('[SWPropertiesTab]', 'API error loading properties', { error: result.error })
         }
-      } catch (err) {
-        log.error('[SWPropertiesTab]', 'Failed to load properties', { error: err })
+      } catch (error) {
+        log.error('[SWPropertiesTab]', 'Failed to load properties', { error: error })
       } finally {
         setIsLoading(false)
       }
     }
-    
+
     loadProperties()
   }, [status.running, file.path, isSolidWorks])
 
   // Update config properties when selection changes
   useEffect(() => {
-    const config = configurations.find(c => c.name === selectedConfig)
+    const config = configurations.find((c) => c.name === selectedConfig)
     if (config) {
       setConfigProperties(config.properties)
     }
   }, [selectedConfig, configurations])
 
   const toggleConfigForExport = (configName: string) => {
-    setSelectedConfigsForExport(prev => {
+    setSelectedConfigsForExport((prev) => {
       const next = new Set(prev)
       if (next.has(configName)) {
         next.delete(configName)
@@ -788,32 +906,33 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
     try {
       let result
       const exportAllConfigs = exportConfigMode === 'all'
-      const configsToExport = exportConfigMode === 'selected' 
-        ? Array.from(selectedConfigsForExport) 
-        : exportConfigMode === 'current' 
-          ? [selectedConfig] 
-          : undefined
+      const configsToExport =
+        exportConfigMode === 'selected'
+          ? Array.from(selectedConfigsForExport)
+          : exportConfigMode === 'current'
+            ? [selectedConfig]
+            : undefined
 
       switch (format) {
         case 'pdf':
           result = await window.electronAPI?.solidworks?.exportPdf(file.path)
           break
         case 'step':
-          result = await window.electronAPI?.solidworks?.exportStep(file.path, { 
+          result = await window.electronAPI?.solidworks?.exportStep(file.path, {
             exportAllConfigs,
-            configurations: configsToExport
+            configurations: configsToExport,
           })
           break
         case 'iges':
           result = await window.electronAPI?.solidworks?.exportIges(file.path, {
             exportAllConfigs,
-            configurations: configsToExport
+            configurations: configsToExport,
           })
           break
         case 'stl':
           result = await window.electronAPI?.solidworks?.exportStl?.(file.path, {
             exportAllConfigs,
-            configurations: configsToExport
+            configurations: configsToExport,
           })
           break
         case 'dxf':
@@ -822,17 +941,18 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
       }
 
       if (result?.success) {
-        const configLabel = exportConfigMode === 'all' 
-          ? ' (all configs)' 
-          : exportConfigMode === 'selected' 
-            ? ` (${selectedConfigsForExport.size} configs)`
-            : ''
+        const configLabel =
+          exportConfigMode === 'all'
+            ? ' (all configs)'
+            : exportConfigMode === 'selected'
+              ? ` (${selectedConfigsForExport.size} configs)`
+              : ''
         addToast('success', `Exported to ${format.toUpperCase()}${configLabel}`)
       } else {
         addToast('error', result?.error || `Failed to export ${format.toUpperCase()}`)
       }
-    } catch (err) {
-      addToast('error', `Export failed: ${err}`)
+    } catch (error) {
+      addToast('error', `Export failed: ${error}`)
     } finally {
       setIsExporting(null)
     }
@@ -864,9 +984,10 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
       const allProps: Record<string, string> = { ...data.fileProperties }
       const configProps = data.configurationProperties
       if (configProps) {
-        const configName = Object.keys(configProps).find(k =>
-          k.toLowerCase() === 'default' || k.toLowerCase() === 'standard'
-        ) || Object.keys(configProps)[0]
+        const configName =
+          Object.keys(configProps).find(
+            (k) => k.toLowerCase() === 'default' || k.toLowerCase() === 'standard',
+          ) || Object.keys(configProps)[0]
         if (configName && configProps[configName]) {
           Object.assign(allProps, configProps[configName])
         }
@@ -878,12 +999,23 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
       // legacy or template values that would incorrectly override user edits.
       const partNumberKeys = [
         // Blue Robotics primary - this is what gets written by "Save to File"
-        'Number', 'No', 'No.',
+        'Number',
+        'No',
+        'No.',
         // SolidWorks Document Manager standard property (may be stale)
         'Base Item Number',
-        'PartNumber', 'Part Number', 'Part No', 'Part No.', 'PartNo',
-        'ItemNumber', 'Item Number', 'Item No', 'Item No.', 'ItemNo',
-        'PN', 'P/N'
+        'PartNumber',
+        'Part Number',
+        'Part No',
+        'Part No.',
+        'PartNo',
+        'ItemNumber',
+        'Item Number',
+        'Item No',
+        'Item No.',
+        'ItemNo',
+        'PN',
+        'P/N',
       ]
       let partNumber: string | null = null
       for (const key of partNumberKeys) {
@@ -910,19 +1042,19 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
       // Update PDM database
       const syncResult = await syncSolidWorksFileMetadata(file.pdmData.id, user.id, {
         part_number: newPn,
-        description: newDesc
+        description: newDesc,
       })
 
       if (syncResult.success && syncResult.file) {
         updateFileInStore(file.path, {
-          pdmData: { ...file.pdmData, ...syncResult.file }
+          pdmData: { ...file.pdmData, ...syncResult.file },
         })
         addToast('success', 'Metadata synced from SolidWorks')
       } else {
         addToast('error', syncResult.error || 'Failed to sync metadata')
       }
-    } catch (err) {
-      addToast('error', `Sync failed: ${err}`)
+    } catch (error) {
+      addToast('error', `Sync failed: ${error}`)
     } finally {
       setIsSyncing(false)
     }
@@ -944,7 +1076,7 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
     setIsSyncing(true)
     try {
       const properties: Record<string, string> = {}
-      
+
       // Map PDM metadata to SW properties
       if (file.pdmData.part_number) {
         properties['Base Item Number'] = file.pdmData.part_number
@@ -965,7 +1097,8 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
         const reloadResult = await window.electronAPI?.solidworks?.getProperties(file.path)
         if (reloadResult?.success && reloadResult.data) {
           const data = reloadResult.data as Record<string, unknown>
-          const props = data.fileProperties || data.customProperties || data.properties || reloadResult.data
+          const props =
+            data.fileProperties || data.customProperties || data.properties || reloadResult.data
           if (typeof props === 'object' && props !== null) {
             setFileProperties(props as Record<string, string>)
           }
@@ -973,8 +1106,8 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
       } else {
         addToast('error', result?.error || 'Failed to write to SolidWorks file')
       }
-    } catch (err) {
-      addToast('error', `Write failed: ${err}`)
+    } catch (error) {
+      addToast('error', `Write failed: ${error}`)
     } finally {
       setIsSyncing(false)
     }
@@ -996,16 +1129,27 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
     if (aliases) {
       for (const alias of aliases) {
         if (allProps[alias]) return allProps[alias]
-        const found = Object.entries(allProps).find(([k]) => k.toLowerCase() === alias.toLowerCase())
+        const found = Object.entries(allProps).find(
+          ([k]) => k.toLowerCase() === alias.toLowerCase(),
+        )
         if (found) return found[1]
       }
     }
     return null
   }
 
-  const hasData = status.running && Object.keys({ ...fileProperties, ...configProperties }).length > 0
+  const hasData =
+    status.running && Object.keys({ ...fileProperties, ...configProperties }).length > 0
   const mockConfigs = ['Default', 'Machined', 'As-Cast']
-  const displayConfigs = hasData && configurations.length > 0 ? configurations : mockConfigs.map(name => ({ name, isActive: name === 'Default', description: '', properties: {} }))
+  const displayConfigs =
+    hasData && configurations.length > 0
+      ? configurations
+      : mockConfigs.map((name) => ({
+          name,
+          isActive: name === 'Default',
+          description: '',
+          properties: {},
+        }))
 
   // Key properties to always show at top
   const keyProps = [
@@ -1037,24 +1181,23 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
               className="p-1 rounded hover:bg-plm-accent/20 text-plm-fg-muted hover:text-plm-accent transition-colors"
               title="Refresh metadata from SolidWorks file"
             >
-              {isSyncing ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <RefreshCw size={14} />
-              )}
+              {isSyncing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
             </button>
           )}
           {hasData ? (
             <span className="w-2 h-2 rounded-full bg-plm-success flex-shrink-0" title="Connected" />
           ) : (
-            <span className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" title="Preview mode" />
+            <span
+              className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0"
+              title="Preview mode"
+            />
           )}
         </div>
 
         {/* Key Properties Grid - Always visible */}
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 p-2 rounded bg-plm-bg/50 border border-plm-border/50 mb-2 flex-shrink-0">
-          {keyProps.map(prop => (
-            <CompactProp 
+          {keyProps.map((prop) => (
+            <CompactProp
               key={prop.key}
               label={prop.label}
               value={hasData ? getPropertyValue(prop.key, prop.aliases) : null}
@@ -1066,7 +1209,9 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
         {file.pdmData?.id && status.running && (
           <div className="p-2 rounded bg-plm-panel border border-plm-border/50 mb-2 flex-shrink-0">
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[10px] text-plm-fg-muted uppercase tracking-wide">PDM Metadata</span>
+              <span className="text-[10px] text-plm-fg-muted uppercase tracking-wide">
+                PDM Metadata
+              </span>
               {file.pdmData.checked_out_by === user?.id && (
                 <button
                   onClick={handleWriteToSwFile}
@@ -1074,7 +1219,11 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
                   className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-plm-accent/20 text-plm-accent hover:bg-plm-accent/30 transition-colors disabled:opacity-50"
                   title="Write PDM metadata to SolidWorks file"
                 >
-                  {isSyncing ? <Loader2 size={10} className="animate-spin" /> : <ArrowUpRight size={10} />}
+                  {isSyncing ? (
+                    <Loader2 size={10} className="animate-spin" />
+                  ) : (
+                    <ArrowUpRight size={10} />
+                  )}
                   Write to File
                 </button>
               )}
@@ -1082,19 +1231,25 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
             <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
               <div className="flex items-baseline gap-1">
                 <span className="text-plm-fg-muted">P/N:</span>
-                <span className={`truncate ${file.pdmData.part_number !== getPropertyValue('PartNumber', ['PartNo', 'Part Number', 'Item Number', 'Base Item Number']) ? 'text-plm-warning' : 'text-plm-fg'}`}>
+                <span
+                  className={`truncate ${file.pdmData.part_number !== getPropertyValue('PartNumber', ['PartNo', 'Part Number', 'Item Number', 'Base Item Number']) ? 'text-plm-warning' : 'text-plm-fg'}`}
+                >
                   {file.pdmData.part_number || '—'}
                 </span>
               </div>
               <div className="flex items-baseline gap-1">
                 <span className="text-plm-fg-muted">Desc:</span>
-                <span className={`truncate ${file.pdmData.description !== getPropertyValue('Description', ['DESCRIPTION']) ? 'text-plm-warning' : 'text-plm-fg'}`}>
+                <span
+                  className={`truncate ${file.pdmData.description !== getPropertyValue('Description', ['DESCRIPTION']) ? 'text-plm-warning' : 'text-plm-fg'}`}
+                >
                   {file.pdmData.description || '—'}
                 </span>
               </div>
             </div>
             {!file.pdmData.checked_out_by && (
-              <div className="text-[10px] text-plm-fg-muted mt-1">Check out to write metadata to file</div>
+              <div className="text-[10px] text-plm-fg-muted mt-1">
+                Check out to write metadata to file
+              </div>
             )}
           </div>
         )}
@@ -1108,8 +1263,11 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
               onChange={(e) => setSelectedConfig(e.target.value)}
               className="flex-1 bg-plm-bg border border-plm-border rounded px-1.5 py-1 text-xs text-plm-fg"
             >
-              {displayConfigs.map(config => (
-                <option key={typeof config === 'string' ? config : config.name} value={typeof config === 'string' ? config : config.name}>
+              {displayConfigs.map((config) => (
+                <option
+                  key={typeof config === 'string' ? config : config.name}
+                  value={typeof config === 'string' ? config : config.name}
+                >
                   {typeof config === 'string' ? config : config.name}
                 </option>
               ))}
@@ -1121,7 +1279,10 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
                 className="p-1 rounded hover:bg-plm-bg-light"
                 title="Refresh"
               >
-                <RefreshCw size={12} className={isLoading ? 'animate-spin text-plm-accent' : 'text-plm-fg-muted'} />
+                <RefreshCw
+                  size={12}
+                  className={isLoading ? 'animate-spin text-plm-accent' : 'text-plm-fg-muted'}
+                />
               </button>
             )}
           </div>
@@ -1155,7 +1316,7 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
             {showAllProps ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
             All Properties ({allPropEntries.length || '—'})
           </button>
-          
+
           {showAllProps && (
             <div className="space-y-0.5 pl-2 border-l border-plm-border/30">
               {allPropEntries.length > 0 ? (
@@ -1176,7 +1337,7 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
       {/* Right Column - Export */}
       <div className="w-24 flex flex-col flex-shrink-0 border-l border-plm-border/30 pl-3">
         <span className="text-[10px] text-plm-fg-muted uppercase tracking-wide mb-2">Export</span>
-        
+
         {/* Export buttons - vertical stack */}
         <div className="flex flex-col gap-1.5">
           {isPartOrAsm && (
@@ -1186,7 +1347,11 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
                 disabled={!!isExporting || !status.running}
                 className="flex items-center justify-center gap-1 px-2 py-1.5 rounded text-xs bg-plm-bg border border-plm-border hover:bg-plm-bg-light hover:border-plm-border-light disabled:opacity-40 transition-colors"
               >
-                {isExporting === 'step' ? <Loader2 size={10} className="animate-spin" /> : <Package size={10} />}
+                {isExporting === 'step' ? (
+                  <Loader2 size={10} className="animate-spin" />
+                ) : (
+                  <Package size={10} />
+                )}
                 STEP
               </button>
               <button
@@ -1194,7 +1359,11 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
                 disabled={!!isExporting || !status.running}
                 className="flex items-center justify-center gap-1 px-2 py-1.5 rounded text-xs bg-plm-bg border border-plm-border hover:bg-plm-bg-light hover:border-plm-border-light disabled:opacity-40 transition-colors"
               >
-                {isExporting === 'iges' ? <Loader2 size={10} className="animate-spin" /> : <Package size={10} />}
+                {isExporting === 'iges' ? (
+                  <Loader2 size={10} className="animate-spin" />
+                ) : (
+                  <Package size={10} />
+                )}
                 IGES
               </button>
               <button
@@ -1202,7 +1371,11 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
                 disabled={!!isExporting || !status.running}
                 className="flex items-center justify-center gap-1 px-2 py-1.5 rounded text-xs bg-plm-bg border border-plm-border hover:bg-plm-bg-light hover:border-plm-border-light disabled:opacity-40 transition-colors"
               >
-                {isExporting === 'stl' ? <Loader2 size={10} className="animate-spin" /> : <Package size={10} />}
+                {isExporting === 'stl' ? (
+                  <Loader2 size={10} className="animate-spin" />
+                ) : (
+                  <Package size={10} />
+                )}
                 STL
               </button>
             </>
@@ -1214,7 +1387,11 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
                 disabled={!!isExporting || !status.running}
                 className="flex items-center justify-center gap-1 px-2 py-1.5 rounded text-xs bg-plm-bg border border-plm-border hover:bg-plm-bg-light hover:border-plm-border-light disabled:opacity-40 transition-colors"
               >
-                {isExporting === 'pdf' ? <Loader2 size={10} className="animate-spin" /> : <FileOutput size={10} />}
+                {isExporting === 'pdf' ? (
+                  <Loader2 size={10} className="animate-spin" />
+                ) : (
+                  <FileOutput size={10} />
+                )}
                 PDF
               </button>
               <button
@@ -1222,7 +1399,11 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
                 disabled={!!isExporting || !status.running}
                 className="flex items-center justify-center gap-1 px-2 py-1.5 rounded text-xs bg-plm-bg border border-plm-border hover:bg-plm-bg-light hover:border-plm-border-light disabled:opacity-40 transition-colors"
               >
-                {isExporting === 'dxf' ? <Loader2 size={10} className="animate-spin" /> : <Download size={10} />}
+                {isExporting === 'dxf' ? (
+                  <Loader2 size={10} className="animate-spin" />
+                ) : (
+                  <Download size={10} />
+                )}
                 DXF
               </button>
             </>
@@ -1239,29 +1420,36 @@ export function SWPropertiesTab({ file }: { file: LocalFile }) {
               {showExportOptions ? <ChevronDown size={8} /> : <ChevronRight size={8} />}
               Configs
             </button>
-            
+
             {showExportOptions && (
               <div className="mt-1 space-y-1">
-                {['current', 'all', 'selected'].map(mode => (
+                {['current', 'all', 'selected'].map((mode) => (
                   <button
                     key={mode}
                     onClick={() => setExportConfigMode(mode as ExportConfigMode)}
                     className={`w-full text-[10px] px-1.5 py-0.5 rounded transition-colors ${
-                      exportConfigMode === mode 
-                        ? 'bg-plm-accent/20 text-plm-accent' 
+                      exportConfigMode === mode
+                        ? 'bg-plm-accent/20 text-plm-accent'
                         : 'text-plm-fg-muted hover:bg-plm-bg-light'
                     }`}
                   >
-                    {mode === 'current' ? 'Current' : mode === 'all' ? `All (${displayConfigs.length})` : `Pick...`}
+                    {mode === 'current'
+                      ? 'Current'
+                      : mode === 'all'
+                        ? `All (${displayConfigs.length})`
+                        : `Pick...`}
                   </button>
                 ))}
-                
+
                 {exportConfigMode === 'selected' && (
                   <div className="space-y-0.5 mt-1 max-h-20 overflow-auto">
-                    {displayConfigs.map(config => {
+                    {displayConfigs.map((config) => {
                       const name = typeof config === 'string' ? config : config.name
                       return (
-                        <label key={name} className="flex items-center gap-1 text-[10px] cursor-pointer">
+                        <label
+                          key={name}
+                          className="flex items-center gap-1 text-[10px] cursor-pointer"
+                        >
                           <input
                             type="checkbox"
                             checked={selectedConfigsForExport.has(name)}
@@ -1309,7 +1497,9 @@ export function SWExportActions({ file }: { file: LocalFile }) {
           result = await window.electronAPI?.solidworks?.exportPdf(file.path)
           break
         case 'step':
-          result = await window.electronAPI?.solidworks?.exportStep(file.path, { exportAllConfigs: false })
+          result = await window.electronAPI?.solidworks?.exportStep(file.path, {
+            exportAllConfigs: false,
+          })
           break
         case 'dxf':
           result = await window.electronAPI?.solidworks?.exportDxf(file.path)
@@ -1324,8 +1514,8 @@ export function SWExportActions({ file }: { file: LocalFile }) {
       } else {
         addToast('error', result?.error || `Failed to export ${format.toUpperCase()}`)
       }
-    } catch (err) {
-      addToast('error', `Export failed: ${err}`)
+    } catch (error) {
+      addToast('error', `Export failed: ${error}`)
     } finally {
       setIsExporting(null)
     }
@@ -1340,7 +1530,11 @@ export function SWExportActions({ file }: { file: LocalFile }) {
             disabled={!!isExporting}
             className="btn btn-sm btn-secondary gap-1 flex-1"
           >
-            {isExporting === 'pdf' ? <Loader2 size={12} className="animate-spin" /> : <FileOutput size={12} />}
+            {isExporting === 'pdf' ? (
+              <Loader2 size={12} className="animate-spin" />
+            ) : (
+              <FileOutput size={12} />
+            )}
             PDF
           </button>
           <button
@@ -1348,7 +1542,11 @@ export function SWExportActions({ file }: { file: LocalFile }) {
             disabled={!!isExporting}
             className="btn btn-sm btn-secondary gap-1 flex-1"
           >
-            {isExporting === 'dxf' ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+            {isExporting === 'dxf' ? (
+              <Loader2 size={12} className="animate-spin" />
+            ) : (
+              <Download size={12} />
+            )}
             DXF
           </button>
         </>
@@ -1360,7 +1558,11 @@ export function SWExportActions({ file }: { file: LocalFile }) {
             disabled={!!isExporting}
             className="btn btn-sm btn-secondary gap-1 flex-1"
           >
-            {isExporting === 'step' ? <Loader2 size={12} className="animate-spin" /> : <Package size={12} />}
+            {isExporting === 'step' ? (
+              <Loader2 size={12} className="animate-spin" />
+            ) : (
+              <Package size={12} />
+            )}
             STEP
           </button>
           <button
@@ -1368,7 +1570,11 @@ export function SWExportActions({ file }: { file: LocalFile }) {
             disabled={!!isExporting}
             className="btn btn-sm btn-secondary gap-1 flex-1"
           >
-            {isExporting === 'iges' ? <Loader2 size={12} className="animate-spin" /> : <Package size={12} />}
+            {isExporting === 'iges' ? (
+              <Loader2 size={12} className="animate-spin" />
+            ) : (
+              <Package size={12} />
+            )}
             IGES
           </button>
         </>
@@ -1376,4 +1582,3 @@ export function SWExportActions({ file }: { file: LocalFile }) {
     </div>
   )
 }
-

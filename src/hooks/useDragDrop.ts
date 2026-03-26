@@ -20,34 +20,34 @@ export function useDragDrop(options: UseDragDropOptions) {
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null)
   const draggedFilesRef = useRef<LocalFile[]>([])
 
-  const handleDragStart = useCallback((
-    e: React.DragEvent,
-    filesToDrag: LocalFile[],
-    primaryFile: LocalFile
-  ) => {
-    const draggable = filesToDrag.filter(f => f.diffStatus !== 'cloud')
-    if (draggable.length === 0) {
-      e.preventDefault()
-      return
-    }
+  const handleDragStart = useCallback(
+    (e: React.DragEvent, filesToDrag: LocalFile[], primaryFile: LocalFile) => {
+      const draggable = filesToDrag.filter((f) => f.diffStatus !== 'cloud')
+      if (draggable.length === 0) {
+        e.preventDefault()
+        return
+      }
 
-    draggedFilesRef.current = draggable
-    e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData(PDM_FILES_DATA_TYPE, JSON.stringify(draggable.map(f => f.path)))
-    
-    // Create a custom drag image
-    const dragPreview = document.createElement('div')
-    dragPreview.style.cssText = 'position:absolute;left:-1000px;padding:8px 12px;background:#1e293b;border:1px solid #3b82f6;border-radius:6px;color:white;font-size:13px;display:flex;align-items:center;gap:6px;'
-    const iconSvg = primaryFile.isDirectory 
-      ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>'
-      : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>'
-    const label = draggable.length > 1 ? `${draggable.length} items` : primaryFile.name
-    dragPreview.innerHTML = iconSvg
-    dragPreview.appendChild(document.createTextNode(label))
-    document.body.appendChild(dragPreview)
-    e.dataTransfer.setDragImage(dragPreview, 20, 20)
-    setTimeout(() => dragPreview.remove(), 0)
-  }, [])
+      draggedFilesRef.current = draggable
+      e.dataTransfer.effectAllowed = 'move'
+      e.dataTransfer.setData(PDM_FILES_DATA_TYPE, JSON.stringify(draggable.map((f) => f.path)))
+
+      // Create a custom drag image
+      const dragPreview = document.createElement('div')
+      dragPreview.style.cssText =
+        'position:absolute;left:-1000px;padding:8px 12px;background:#1e293b;border:1px solid #3b82f6;border-radius:6px;color:white;font-size:13px;display:flex;align-items:center;gap:6px;'
+      const iconSvg = primaryFile.isDirectory
+        ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>'
+        : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>'
+      const label = draggable.length > 1 ? `${draggable.length} items` : primaryFile.name
+      dragPreview.innerHTML = iconSvg
+      dragPreview.appendChild(document.createTextNode(label))
+      document.body.appendChild(dragPreview)
+      e.dataTransfer.setDragImage(dragPreview, 20, 20)
+      setTimeout(() => dragPreview.remove(), 0)
+    },
+    [],
+  )
 
   const handleDragEnd = useCallback(() => {
     draggedFilesRef.current = []
@@ -86,9 +86,10 @@ export function useDragDrop(options: UseDragDropOptions) {
     e.stopPropagation()
 
     const dragged = draggedFilesRef.current
-    const isDroppingOnSelf = dragged.some(f =>
-      f.relativePath === folder.relativePath ||
-      folder.relativePath.startsWith(f.relativePath + '/')
+    const isDroppingOnSelf = dragged.some(
+      (f) =>
+        f.relativePath === folder.relativePath ||
+        folder.relativePath.startsWith(f.relativePath + '/'),
     )
 
     if (isDroppingOnSelf) {
@@ -107,24 +108,31 @@ export function useDragDrop(options: UseDragDropOptions) {
     }
   }, [])
 
-  const handleDropOnFolder = useCallback(async (e: React.DragEvent, folder: LocalFile) => {
-    e.preventDefault()
-    e.stopPropagation()
+  const handleDropOnFolder = useCallback(
+    async (e: React.DragEvent, folder: LocalFile) => {
+      e.preventDefault()
+      e.stopPropagation()
 
-    setDragOverFolder(null)
-    setIsDraggingOver(false)
-    setIsExternalDrag(false)
+      setDragOverFolder(null)
+      setIsDraggingOver(false)
+      setIsExternalDrag(false)
 
-    const filesToMove = draggedFilesRef.current
-    if (filesToMove.length > 0) {
-      await executeCommand('move', {
-        files: filesToMove,
-        targetFolder: folder.relativePath
-      }, { onRefresh })
-    }
+      const filesToMove = draggedFilesRef.current
+      if (filesToMove.length > 0) {
+        await executeCommand(
+          'move',
+          {
+            files: filesToMove,
+            targetFolder: folder.relativePath,
+          },
+          { onRefresh },
+        )
+      }
 
-    draggedFilesRef.current = []
-  }, [onRefresh])
+      draggedFilesRef.current = []
+    },
+    [onRefresh],
+  )
 
   return {
     isDraggingOver,
@@ -138,6 +146,6 @@ export function useDragDrop(options: UseDragDropOptions) {
     handleDragLeave,
     handleFolderDragOver,
     handleFolderDragLeave,
-    handleDropOnFolder
+    handleDropOnFolder,
   }
 }

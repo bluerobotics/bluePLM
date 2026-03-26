@@ -4,56 +4,56 @@ import { usePDMStore } from '@/stores/pdmStore'
 import { log } from '@/lib/logger'
 
 export function UpdateModal() {
-  const { 
-    updateAvailable, 
-    updateDownloading, 
-    updateDownloaded, 
+  const {
+    updateAvailable,
+    updateDownloading,
+    updateDownloaded,
     updateProgress,
     setUpdateDownloading,
     setUpdateDownloaded,
     showUpdateModal,
     setShowUpdateModal,
     setInstallerPath,
-    addToast
+    addToast,
   } = usePDMStore()
-  
+
   const [isExiting, setIsExiting] = useState(false)
   const [isRunningInstaller, setIsRunningInstaller] = useState(false)
 
   if (!showUpdateModal || !updateAvailable) return null
-  
+
   const isManualVersion = updateAvailable.isManualVersion
-  const isRollback = updateAvailable.downloadUrl?.includes('rollback') || 
-    (updateAvailable.releaseNotes === 'rollback')
+  const isRollback =
+    updateAvailable.downloadUrl?.includes('rollback') || updateAvailable.releaseNotes === 'rollback'
 
   const handleUpdateNow = async () => {
     if (updateDownloading || updateDownloaded) return
-    
+
     // Clear any existing reminder when user clicks update
     window.electronAPI.clearUpdateReminder()
-    
+
     setUpdateDownloading(true)
-    
+
     try {
       if (isManualVersion && updateAvailable.downloadUrl) {
         // Manual version download from GitHub
         const result = await window.electronAPI.downloadVersionInstaller(
           updateAvailable.version,
-          updateAvailable.downloadUrl
+          updateAvailable.downloadUrl,
         )
-        
+
         if (!result.success) {
           log.error('[Update]', 'Download failed', { error: result.error })
           addToast('error', `Download failed: ${result.error}`)
           setUpdateDownloading(false)
           return
         }
-        
+
         // Store the installer path and mark as downloaded
         setInstallerPath(result.filePath || null)
         setUpdateDownloading(false)
         setUpdateDownloaded(true)
-        
+
         // Auto-run the installer
         if (result.filePath) {
           setIsRunningInstaller(true)
@@ -75,9 +75,9 @@ export function UpdateModal() {
         }
         // After download completes, auto-install will be triggered by onUpdateDownloaded
       }
-    } catch (err) {
-      log.error('[Update]', 'Download error', { error: err })
-      addToast('error', `Download error: ${err instanceof Error ? err.message : String(err)}`)
+    } catch (error) {
+      log.error('[Update]', 'Download error', { error: error })
+      addToast('error', `Download error: ${error instanceof Error ? error.message : String(error)}`)
       setUpdateDownloading(false)
     }
   }
@@ -88,10 +88,13 @@ export function UpdateModal() {
       const version = updateAvailable.version
       if (version) {
         await window.electronAPI.postponeUpdate(version)
-        log.info('[Update]', `Postponed update for version ${version}, will remind on next startup or in 24 hours`)
+        log.info(
+          '[Update]',
+          `Postponed update for version ${version}, will remind on next startup or in 24 hours`,
+        )
       }
     }
-    
+
     // Reset state
     setInstallerPath(null)
     setUpdateDownloaded(false)
@@ -113,21 +116,21 @@ export function UpdateModal() {
   const formatSpeed = (bytesPerSecond: number) => {
     return `${formatBytes(bytesPerSecond)}/s`
   }
-  
+
   // Determine the action label
   const getActionLabel = () => {
     if (isRollback) return 'Rollback Now'
     if (isManualVersion) return 'Install Now'
     return 'Update Now'
   }
-  
+
   // Determine the header label
   const getHeaderLabel = () => {
     if (isRollback) return 'Rollback to Version'
     if (isManualVersion) return 'Install Version'
     return 'Latest Version'
   }
-  
+
   // Determine the description
   const getDescription = () => {
     if (isRollback) {
@@ -140,33 +143,35 @@ export function UpdateModal() {
   }
 
   return (
-    <div 
+    <div
       className={`fixed inset-0 z-[100] flex items-center justify-center transition-opacity duration-200 ${
         isExiting ? 'opacity-0' : 'opacity-100'
       }`}
     >
       {/* Dark blur backdrop - blocks entire app, click to dismiss if not downloading */}
-      <div 
-        className="absolute inset-0 bg-black/80 backdrop-blur-md" 
+      <div
+        className="absolute inset-0 bg-black/80 backdrop-blur-md"
         onClick={() => {
           if (!updateDownloading && !updateDownloaded) {
             handleLater()
           }
         }}
       />
-      
+
       {/* Modal content */}
-      <div 
+      <div
         className={`relative bg-plm-bg-light border border-plm-border rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden transition-transform duration-200 ${
           isExiting ? 'scale-95' : 'scale-100'
         }`}
       >
         {/* Header with gradient */}
-        <div className={`relative p-6 pb-4 ${
-          isRollback 
-            ? 'bg-gradient-to-br from-yellow-500/20 via-orange-500/10 to-transparent'
-            : 'bg-gradient-to-br from-plm-accent/20 via-cyan-500/10 to-transparent'
-        }`}>
+        <div
+          className={`relative p-6 pb-4 ${
+            isRollback
+              ? 'bg-gradient-to-br from-yellow-500/20 via-orange-500/10 to-transparent'
+              : 'bg-gradient-to-br from-plm-accent/20 via-cyan-500/10 to-transparent'
+          }`}
+        >
           {/* Close button - only show if not downloading */}
           {!updateDownloading && !updateDownloaded && (
             <button
@@ -176,13 +181,13 @@ export function UpdateModal() {
               <X size={18} />
             </button>
           )}
-          
+
           {/* Icon */}
-          <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 ${
-            isRollback 
-              ? 'bg-yellow-500/20' 
-              : 'bg-plm-accent/20'
-          }`}>
+          <div
+            className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 ${
+              isRollback ? 'bg-yellow-500/20' : 'bg-plm-accent/20'
+            }`}
+          >
             {isRollback ? (
               <ArrowDownCircle size={32} className="text-yellow-400" />
             ) : isManualVersion ? (
@@ -191,24 +196,22 @@ export function UpdateModal() {
               <Sparkles size={32} className="text-plm-accent" />
             )}
           </div>
-          
+
           {/* Title */}
-          <div className={`text-xs font-bold uppercase tracking-wider mb-1 ${
-            isRollback ? 'text-yellow-400' : 'text-plm-accent'
-          }`}>
+          <div
+            className={`text-xs font-bold uppercase tracking-wider mb-1 ${
+              isRollback ? 'text-yellow-400' : 'text-plm-accent'
+            }`}
+          >
             {getHeaderLabel()}
           </div>
-          <h2 className="text-2xl font-bold text-plm-fg">
-            v{updateAvailable.version}
-          </h2>
+          <h2 className="text-2xl font-bold text-plm-fg">v{updateAvailable.version}</h2>
         </div>
-        
+
         {/* Body */}
         <div className="p-6 pt-4">
-          <p className="text-sm text-plm-fg-muted mb-6">
-            {getDescription()}
-          </p>
-          
+          <p className="text-sm text-plm-fg-muted mb-6">{getDescription()}</p>
+
           {/* Progress bar - show during download */}
           {updateDownloading && updateProgress && (
             <div className="mb-6">
@@ -217,7 +220,7 @@ export function UpdateModal() {
                 <span>{formatSpeed(updateProgress.bytesPerSecond)}</span>
               </div>
               <div className="h-2 bg-plm-bg rounded-full overflow-hidden">
-                <div 
+                <div
                   className={`h-full transition-all duration-200 ease-out ${
                     isRollback ? 'bg-yellow-500' : 'bg-plm-accent'
                   }`}
@@ -229,15 +232,22 @@ export function UpdateModal() {
               </div>
             </div>
           )}
-          
+
           {/* Installing message */}
           {(updateDownloaded || isRunningInstaller) && (
             <div className="mb-6 flex items-center gap-2 text-sm text-plm-fg-muted">
-              <Loader2 size={16} className={`animate-spin ${isRollback ? 'text-yellow-400' : 'text-plm-accent'}`} />
-              <span>{isRunningInstaller ? 'Running installer...' : 'Installing update and restarting...'}</span>
+              <Loader2
+                size={16}
+                className={`animate-spin ${isRollback ? 'text-yellow-400' : 'text-plm-accent'}`}
+              />
+              <span>
+                {isRunningInstaller
+                  ? 'Running installer...'
+                  : 'Installing update and restarting...'}
+              </span>
             </div>
           )}
-          
+
           {/* Action buttons */}
           <div className="flex gap-3">
             {!updateDownloading && !updateDownloaded && (
@@ -261,7 +271,7 @@ export function UpdateModal() {
                 </button>
               </>
             )}
-            
+
             {updateDownloading && !updateDownloaded && (
               <div className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium bg-plm-bg text-plm-fg-muted">
                 <Loader2 size={16} className="animate-spin" />

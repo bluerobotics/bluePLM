@@ -2,12 +2,12 @@
 import { memo } from 'react'
 import { ChevronRight, ChevronDown, Database } from 'lucide-react'
 import { usePDMStore, ConnectedVault } from '@/stores/pdmStore'
-import { 
-  InlineCheckoutButton, 
+import {
+  InlineCheckoutButton,
   InlineSyncButton,
   FolderDownloadButton,
   FolderUploadButton,
-  FolderCheckinButton
+  FolderCheckinButton,
 } from '@/components/shared/InlineActions'
 // CheckoutUser with optional count for FolderCheckinButton
 type CheckoutUserWithCount = {
@@ -57,17 +57,17 @@ interface VaultTreeItemProps {
  */
 function areVaultTreeItemPropsEqual(
   prevProps: VaultTreeItemProps,
-  nextProps: VaultTreeItemProps
+  nextProps: VaultTreeItemProps,
 ): boolean {
   // Compare vault identity
   if (prevProps.vault.id !== nextProps.vault.id) return false
   if (prevProps.vault.name !== nextProps.vault.name) return false
-  
+
   // Compare UI states
   if (prevProps.isActive !== nextProps.isActive) return false
   if (prevProps.isExpanded !== nextProps.isExpanded) return false
   if (prevProps.isDragTarget !== nextProps.isDragTarget) return false
-  
+
   // Compare stats
   if (prevProps.cloudFilesCount !== nextProps.cloudFilesCount) return false
   if (prevProps.outdatedFilesCount !== nextProps.outdatedFilesCount) return false
@@ -75,14 +75,14 @@ function areVaultTreeItemPropsEqual(
   if (prevProps.syncedFilesCount !== nextProps.syncedFilesCount) return false
   if (prevProps.checkedOutByMeCount !== nextProps.checkedOutByMeCount) return false
   if (prevProps.totalCheckouts !== nextProps.totalCheckouts) return false
-  
+
   // Compare processing states
   if (prevProps.isDownloadingAll !== nextProps.isDownloadingAll) return false
   if (prevProps.isCheckingInAll !== nextProps.isCheckingInAll) return false
   if (prevProps.isCheckingInMyCheckouts !== nextProps.isCheckingInMyCheckouts) return false
   if (prevProps.isAnyCloudFileProcessing !== nextProps.isAnyCloudFileProcessing) return false
   if (prevProps.isAnyOutdatedFileProcessing !== nextProps.isAnyOutdatedFileProcessing) return false
-  
+
   // Compare checkout users array (length and content for avatar updates)
   if (prevProps.allCheckoutUsers.length !== nextProps.allCheckoutUsers.length) return false
   for (let i = 0; i < prevProps.allCheckoutUsers.length; i++) {
@@ -92,7 +92,7 @@ function areVaultTreeItemPropsEqual(
     if (prev.avatar_url !== next.avatar_url) return false
     if (prev.name !== next.name) return false
   }
-  
+
   return true
 }
 
@@ -126,13 +126,13 @@ export const VaultTreeItem = memo(function VaultTreeItem({
   onUpdateAllOutdated,
   onFirstCheckinAllLocal,
   onCheckInMyCheckouts,
-  onCheckoutAllSynced
+  onCheckoutAllSynced,
 }: VaultTreeItemProps) {
   // Selective selector: only re-render when isOfflineMode changes
-  const isOfflineMode = usePDMStore(s => s.isOfflineMode)
-  
+  const isOfflineMode = usePDMStore((s) => s.isOfflineMode)
+
   return (
-    <div 
+    <div
       className={`group flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors ${
         isActive ? 'bg-plm-highlight text-plm-fg' : 'text-plm-fg-dim hover:bg-plm-highlight/50'
       } ${isActive && isDragTarget ? 'bg-plm-accent/20 outline outline-2 outline-dashed outline-plm-accent/50' : ''}`}
@@ -144,28 +144,30 @@ export const VaultTreeItem = memo(function VaultTreeItem({
     >
       {/* Expand/collapse chevron */}
       <span className="flex-shrink-0">
-        {isExpanded && isActive
-          ? <ChevronDown size={14} className="text-plm-fg-muted" />
-          : <ChevronRight size={14} className="text-plm-fg-muted" />
-        }
+        {isExpanded && isActive ? (
+          <ChevronDown size={14} className="text-plm-fg-muted" />
+        ) : (
+          <ChevronRight size={14} className="text-plm-fg-muted" />
+        )}
       </span>
-      
+
       {/* Vault icon */}
-      <Database size={16} className={`vault-icon ${isActive ? 'text-plm-accent' : 'text-plm-fg-muted'}`} />
-      
+      <Database
+        size={16}
+        className={`vault-icon ${isActive ? 'text-plm-accent' : 'text-plm-fg-muted'}`}
+      />
+
       {/* Vault name */}
-      <span className="truncate text-sm font-medium">
-        {vault.name}
-      </span>
-      
+      <span className="truncate text-sm font-medium">{vault.name}</span>
+
       {/* Spacer */}
       <div className="flex-1" />
-      
+
       {/* Inline badges and actions - only for active vault */}
       {isActive && (
         <div className="flex items-center gap-1">
           {/* Order from left to right: update, cloud, avatar checkout, green cloud, local */}
-          
+
           {/* 1. Update files (outdated) - only when online */}
           {!isOfflineMode && outdatedFilesCount > 0 && (
             <InlineSyncButton
@@ -174,7 +176,7 @@ export const VaultTreeItem = memo(function VaultTreeItem({
               isProcessing={isDownloadingAll || isAnyOutdatedFileProcessing}
             />
           )}
-          
+
           {/* 2. Cloud files to download - only when online */}
           {!isOfflineMode && cloudFilesCount > 0 && (
             <FolderDownloadButton
@@ -183,7 +185,7 @@ export const VaultTreeItem = memo(function VaultTreeItem({
               isProcessing={isDownloadingAll || isAnyCloudFileProcessing}
             />
           )}
-          
+
           {/* 3. Avatar checkout (users with check-in button) - only when online */}
           {!isOfflineMode && allCheckoutUsers.length > 0 && (
             <FolderCheckinButton
@@ -197,15 +199,12 @@ export const VaultTreeItem = memo(function VaultTreeItem({
               folderName={vault.name}
             />
           )}
-          
+
           {/* 4. Green cloud - synced files ready to checkout - only when online */}
           {!isOfflineMode && syncedFilesCount > 0 && (
-            <InlineCheckoutButton
-              onClick={onCheckoutAllSynced}
-              count={syncedFilesCount}
-            />
+            <InlineCheckoutButton onClick={onCheckoutAllSynced} count={syncedFilesCount} />
           )}
-          
+
           {/* 5. Local files - clickable upload button when online only */}
           {!isOfflineMode && localOnlyFilesCount > 0 && (
             <FolderUploadButton

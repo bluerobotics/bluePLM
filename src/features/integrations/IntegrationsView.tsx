@@ -1,19 +1,21 @@
 import { useState, useEffect } from 'react'
-import { log } from '@/lib/logger'
-import { 
-  Plug, 
-  MessageSquare, 
+import { useShallow } from 'zustand/react/shallow'
+import {
+  Plug,
+  MessageSquare,
   ShoppingCart,
-  Settings, 
-  Check, 
-  X, 
+  Settings,
+  Check,
+  X,
   Loader2,
   RefreshCw,
   ExternalLink,
   Eye,
   EyeOff,
-  AlertCircle
+  AlertCircle,
 } from 'lucide-react'
+
+import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
 
@@ -24,7 +26,9 @@ function getApiUrl(organization: { settings?: { api_url?: string } } | null): st
 
 // Helper to get valid auth token
 async function getAuthToken(): Promise<string | null> {
-  const { data: { session } } = await supabase.auth.getSession()
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
   return session?.access_token || null
 }
 
@@ -60,7 +64,7 @@ function IntegrationCard({ icon, name, description, connected, onClick }: Integr
         {icon}
         {/* Connection status dot */}
         {connected !== undefined && (
-          <div 
+          <div
             className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-plm-highlight ${
               connected ? 'bg-plm-success' : 'bg-plm-fg-muted'
             }`}
@@ -82,18 +86,24 @@ function IntegrationCard({ icon, name, description, connected, onClick }: Integr
   )
 }
 
-function OdooConfigPanel({ 
-  settings, 
-  onClose, 
+function OdooConfigPanel({
+  settings,
+  onClose,
   onSave,
-  onRefresh
-}: { 
+  onRefresh,
+}: {
   settings: OdooSettings | null
   onClose: () => void
   onSave: () => void
   onRefresh: () => void
 }) {
-  const { addToast, organization, getEffectiveRole } = usePDMStore()
+  const { addToast, organization, getEffectiveRole } = usePDMStore(
+    useShallow((s) => ({
+      addToast: s.addToast,
+      organization: s.organization,
+      getEffectiveRole: s.getEffectiveRole,
+    })),
+  )
   const isAdmin = getEffectiveRole() === 'admin'
   const [url, setUrl] = useState(settings?.settings?.url || '')
   const [database, setDatabase] = useState(settings?.settings?.database || '')
@@ -104,7 +114,7 @@ function OdooConfigPanel({
   const [saving, setSaving] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
-  
+
   // Disconnect confirmation state
   const [showDisconnectDialog, setShowDisconnectDialog] = useState(false)
   const [isDisconnecting, setIsDisconnecting] = useState(false)
@@ -135,20 +145,23 @@ function OdooConfigPanel({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ url, database, username, api_key: apiKey })
+        body: JSON.stringify({ url, database, username, api_key: apiKey }),
       })
 
       const data = await response.json()
 
       if (response.ok) {
-        setTestResult({ success: true, message: `Connected! User: ${data.user_name}, Odoo ${data.version}` })
+        setTestResult({
+          success: true,
+          message: `Connected! User: ${data.user_name}, Odoo ${data.version}`,
+        })
       } else {
         setTestResult({ success: false, message: data.message || 'Connection failed' })
       }
-    } catch (err) {
-      setTestResult({ success: false, message: String(err) })
+    } catch (error) {
+      setTestResult({ success: false, message: String(error) })
     } finally {
       setTesting(false)
     }
@@ -180,9 +193,9 @@ function OdooConfigPanel({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ url, database, username, api_key: apiKey, skip_test: skipTest })
+        body: JSON.stringify({ url, database, username, api_key: apiKey, skip_test: skipTest }),
       })
 
       const data = await response.json()
@@ -204,9 +217,9 @@ function OdooConfigPanel({
           addToast('error', data.message || 'Failed to save configuration')
         }
       }
-    } catch (err) {
-      log.error('[Integrations]', 'Error saving integration', { error: err })
-      addToast('error', `Error: ${err}`)
+    } catch (error) {
+      log.error('[Integrations]', 'Error saving integration', { error: error })
+      addToast('error', `Error: ${error}`)
     } finally {
       setSaving(false)
     }
@@ -230,20 +243,23 @@ function OdooConfigPanel({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        }
+          Authorization: `Bearer ${token}`,
+        },
       })
 
       const data = await response.json()
 
       if (response.ok) {
-        addToast('success', `Synced ${data.created} new, ${data.updated} updated suppliers from Odoo`)
+        addToast(
+          'success',
+          `Synced ${data.created} new, ${data.updated} updated suppliers from Odoo`,
+        )
         onRefresh()
       } else {
         addToast('error', data.message || 'Sync failed')
       }
-    } catch (err) {
-      addToast('error', `Sync error: ${err}`)
+    } catch (error) {
+      addToast('error', `Sync error: ${error}`)
     } finally {
       setSyncing(false)
     }
@@ -267,8 +283,8 @@ function OdooConfigPanel({
       const response = await fetch(`${apiUrl}/integrations/odoo`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${token}`
-        }
+          Authorization: `Bearer ${token}`,
+        },
       })
 
       if (response.ok) {
@@ -276,8 +292,8 @@ function OdooConfigPanel({
         onRefresh()
         onClose()
       }
-    } catch (err) {
-      addToast('error', `Error: ${err}`)
+    } catch (error) {
+      addToast('error', `Error: ${error}`)
     } finally {
       setIsDisconnecting(false)
       setShowDisconnectDialog(false)
@@ -297,7 +313,7 @@ function OdooConfigPanel({
             <p className="text-[10px] text-plm-fg-muted">Sync suppliers from your Odoo ERP</p>
           </div>
         </div>
-        <button 
+        <button
           onClick={onClose}
           className="p-1 text-plm-fg-muted hover:text-plm-fg transition-colors"
         >
@@ -391,11 +407,13 @@ function OdooConfigPanel({
 
         {/* Test result */}
         {testResult && (
-          <div className={`flex items-center gap-2 p-2 rounded text-xs ${
-            testResult.success 
-              ? 'bg-plm-success/10 text-plm-success' 
-              : 'bg-plm-error/10 text-plm-error'
-          }`}>
+          <div
+            className={`flex items-center gap-2 p-2 rounded text-xs ${
+              testResult.success
+                ? 'bg-plm-success/10 text-plm-success'
+                : 'bg-plm-error/10 text-plm-error'
+            }`}
+          >
             {testResult.success ? <Check size={14} /> : <AlertCircle size={14} />}
             {testResult.message}
           </div>
@@ -467,14 +485,25 @@ function OdooConfigPanel({
 
       {/* Disconnect Odoo Confirmation Dialog */}
       {showDisconnectDialog && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={() => setShowDisconnectDialog(false)}>
-          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center"
+          onClick={() => setShowDisconnectDialog(false)}
+        >
+          <div
+            className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3 className="text-lg font-medium text-plm-fg mb-4">Disconnect Odoo</h3>
             <p className="text-base text-plm-fg-muted mb-4">
-              Are you sure you want to disconnect Odoo? You will need to reconnect to sync data again.
+              Are you sure you want to disconnect Odoo? You will need to reconnect to sync data
+              again.
             </p>
             <div className="flex gap-2 justify-end">
-              <button onClick={() => setShowDisconnectDialog(false)} className="btn btn-ghost" disabled={isDisconnecting}>
+              <button
+                onClick={() => setShowDisconnectDialog(false)}
+                className="btn btn-ghost"
+                disabled={isDisconnecting}
+              >
                 Cancel
               </button>
               <button
@@ -493,7 +522,7 @@ function OdooConfigPanel({
 }
 
 export function IntegrationsView() {
-  const { organization } = usePDMStore()
+  const organization = usePDMStore((s) => s.organization)
   const [showOdooConfig, setShowOdooConfig] = useState(false)
   const [odooSettings, setOdooSettings] = useState<OdooSettings | null>(null)
   const [odooConnected, setOdooConnected] = useState(false)
@@ -517,14 +546,14 @@ export function IntegrationsView() {
       // Fetch main settings
       const response = await fetch(`${apiUrl}/integrations/odoo`, {
         headers: {
-          'Authorization': `Bearer ${token}`
-        }
+          Authorization: `Bearer ${token}`,
+        },
       })
-      
+
       if (response.ok) {
         const data = await response.json()
         setOdooSettings(data)
-        
+
         // Check if main settings show connected
         if (data.is_connected) {
           setOdooConnected(true)
@@ -533,12 +562,12 @@ export function IntegrationsView() {
           // for last_test_success which is what shows the green indicator in OdooSettings
           try {
             const configsResponse = await fetch(`${apiUrl}/integrations/odoo/configs`, {
-              headers: { 'Authorization': `Bearer ${token}` }
+              headers: { Authorization: `Bearer ${token}` },
             })
             if (configsResponse.ok) {
               const configsData = await configsResponse.json()
               const hasSuccessfulConfig = configsData.configs?.some(
-                (c: { last_test_success: boolean | null }) => c.last_test_success === true
+                (c: { last_test_success: boolean | null }) => c.last_test_success === true,
               )
               setOdooConnected(hasSuccessfulConfig)
             }
@@ -549,8 +578,8 @@ export function IntegrationsView() {
       } else {
         log.warn('[Integrations]', 'Failed to load Odoo settings', { status: response.status })
       }
-    } catch (err) {
-      log.error('[Integrations]', 'Failed to load Odoo settings', { error: err })
+    } catch (error) {
+      log.error('[Integrations]', 'Failed to load Odoo settings', { error: error })
     } finally {
       setLoading(false)
     }
@@ -592,7 +621,7 @@ export function IntegrationsView() {
           description="Custom integrations via HTTP webhooks"
         />
       </div>
-      
+
       <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
         <div className="w-16 h-16 rounded-full bg-plm-highlight flex items-center justify-center mb-4">
           <Plug size={32} className="text-plm-fg-muted" />

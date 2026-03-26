@@ -3,7 +3,7 @@ import { BackupPanel } from '@/features/source/backup'
 
 export function BackupSettings() {
   const { getEffectiveRole } = usePDMStore()
-  
+
   return (
     <div className="h-full -m-6">
       <div className="h-full p-6">
@@ -12,4 +12,3 @@ export function BackupSettings() {
     </div>
   )
 }
-

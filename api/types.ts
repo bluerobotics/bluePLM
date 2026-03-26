@@ -1,6 +1,6 @@
 /**
  * BluePLM API Type Definitions
- * 
+ *
  * Shared types for the API server, routes, and middleware.
  */
 
@@ -60,7 +60,7 @@ export interface Webhook {
   created_by: string
 }
 
-export type WebhookEvent = 
+export type WebhookEvent =
   | 'file.checkout'
   | 'file.checkin'
   | 'file.sync'
@@ -197,7 +197,7 @@ declare module 'fastify' {
     supabase: SupabaseClient | null
     accessToken: string | null
   }
-  
+
   interface FastifyInstance {
     authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>
   }

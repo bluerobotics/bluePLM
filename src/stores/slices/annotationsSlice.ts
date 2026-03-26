@@ -51,14 +51,11 @@ export const createAnnotationsSlice: StateCreator<
 
   setAnnotations: (annotations) => set({ annotations }),
 
-  addAnnotation: (annotation) =>
-    set((s) => ({ annotations: [...s.annotations, annotation] })),
+  addAnnotation: (annotation) => set((s) => ({ annotations: [...s.annotations, annotation] })),
 
   updateAnnotationInStore: (id, updates) =>
     set((s) => ({
-      annotations: s.annotations.map((a) =>
-        a.id === id ? { ...a, ...updates } : a,
-      ),
+      annotations: s.annotations.map((a) => (a.id === id ? { ...a, ...updates } : a)),
     })),
 
   removeAnnotation: (id) =>

@@ -1,6 +1,6 @@
 /**
  * Store Migration System
- * 
+ *
  * Each migration transforms persisted state from one version to the next.
  * Migrations run in order when the app loads with older persisted data.
  */
@@ -25,7 +25,7 @@ export const migrations: StoreMigration[] = [
       ...state,
       autoDownloadCloudFiles: false,
       autoDownloadUpdates: false,
-    })
+    }),
   },
   {
     version: 3,
@@ -33,29 +33,32 @@ export const migrations: StoreMigration[] = [
     migrate: (state) => ({
       ...state,
       autoDiscardOrphanedFiles: true,
-    })
+    }),
   },
   {
     version: 4,
     description: 'Remove contains tab (functionality moved to main view dropdowns)',
     migrate: (state) => {
       const rightPanelTabs = Array.isArray(state.rightPanelTabs)
-        ? (state.rightPanelTabs as string[]).filter(t => t !== 'contains')
+        ? (state.rightPanelTabs as string[]).filter((t) => t !== 'contains')
         : state.rightPanelTabs
       const bottomPanelTabOrder = Array.isArray(state.bottomPanelTabOrder)
-        ? (state.bottomPanelTabOrder as string[]).filter(t => t !== 'contains')
+        ? (state.bottomPanelTabOrder as string[]).filter((t) => t !== 'contains')
         : state.bottomPanelTabOrder
       return {
         ...state,
         rightPanelTabs,
         bottomPanelTabOrder,
         detailsPanelTab: state.detailsPanelTab === 'contains' ? 'preview' : state.detailsPanelTab,
-        rightPanelTab: state.rightPanelTab === 'contains'
-          ? (Array.isArray(rightPanelTabs) && rightPanelTabs.length > 0 ? rightPanelTabs[0] : null)
-          : state.rightPanelTab,
+        rightPanelTab:
+          state.rightPanelTab === 'contains'
+            ? Array.isArray(rightPanelTabs) && rightPanelTabs.length > 0
+              ? rightPanelTabs[0]
+              : null
+            : state.rightPanelTab,
       }
-    }
-  }
+    },
+  },
 ]
 
 /**
@@ -63,19 +66,19 @@ export const migrations: StoreMigration[] = [
  */
 export function runMigrations(
   persistedState: Record<string, unknown>,
-  fromVersion: number
+  fromVersion: number,
 ): Record<string, unknown> {
   let state = { ...persistedState }
-  
+
   for (const migration of migrations) {
     if (migration.version > fromVersion) {
       state = migration.migrate(state)
     }
   }
-  
+
   // Always set current version after migrations
   state._storeVersion = CURRENT_STORE_VERSION
-  
+
   return state
 }
 

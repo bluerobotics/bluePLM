@@ -23,7 +23,7 @@ export class ErrorBoundary extends Component<Props, State> {
       error: null,
       errorInfo: null,
       showDetails: false,
-      copied: false
+      copied: false,
     }
   }
 
@@ -33,19 +33,19 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     this.setState({ errorInfo })
-    
+
     // Log error via unified logger (outputs to both console and Electron)
     log.error('[ErrorBoundary]', 'Application crash', {
       error: error.message,
       stack: error.stack,
-      componentStack: errorInfo.componentStack
+      componentStack: errorInfo.componentStack,
     })
   }
 
   handleCopyLogs = async () => {
     const { error, errorInfo } = this.state
     const timestamp = new Date().toISOString()
-    
+
     const logContent = `BluePLM Crash Report
 ====================
 Timestamp: ${timestamp}
@@ -61,7 +61,7 @@ ${error?.stack || 'No stack trace available'}
 Component Stack:
 ${errorInfo?.componentStack || 'No component stack available'}
 `
-    
+
     const result = await copyToClipboard(logContent)
     if (result.success) {
       this.setState({ copied: true })
@@ -120,16 +120,14 @@ ${errorInfo?.componentStack || 'No component stack available'}
                     onClick={() => this.setState({ showDetails: !showDetails })}
                     className="w-full flex items-center justify-between p-3 bg-slate-900/30 hover:bg-slate-900/50 transition-colors text-left"
                   >
-                    <span className="text-sm font-medium text-slate-400">
-                      Technical Details
-                    </span>
+                    <span className="text-sm font-medium text-slate-400">Technical Details</span>
                     {showDetails ? (
                       <ChevronUp size={16} className="text-slate-500" />
                     ) : (
                       <ChevronDown size={16} className="text-slate-500" />
                     )}
                   </button>
-                  
+
                   {showDetails && (
                     <div className="p-4 bg-slate-950/50 border-t border-slate-700 space-y-4">
                       {/* Stack trace */}
@@ -141,7 +139,7 @@ ${errorInfo?.componentStack || 'No component stack available'}
                           {error?.stack || 'No stack trace available'}
                         </pre>
                       </div>
-                      
+
                       {/* Component stack */}
                       {errorInfo?.componentStack && (
                         <div>
@@ -178,14 +176,15 @@ ${errorInfo?.componentStack || 'No component stack available'}
                 {/* Help text */}
                 <p className="text-xs text-slate-500 text-center pt-2">
                   If this keeps happening, please copy the crash report and{' '}
-                  <a 
-                    href="https://github.com/bluerobotics/bluePLM/issues/new" 
-                    target="_blank" 
+                  <a
+                    href="https://github.com/bluerobotics/bluePLM/issues/new"
+                    target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-400 hover:text-blue-300 underline"
                   >
                     create a GitHub issue
-                  </a>.
+                  </a>
+                  .
                 </p>
               </div>
             </div>
@@ -203,4 +202,3 @@ ${errorInfo?.componentStack || 'No component stack available'}
   }
 }
 
-export default ErrorBoundary

@@ -41,7 +41,7 @@ export function useFilePaneOperations({
     updateFileInStore,
     setStatusMessage,
   } = usePDMStore()
-  
+
   // Dialog state setters - these will be passed from the parent
   const [customConfirm, setCustomConfirm] = useState<{
     title: string
@@ -51,7 +51,7 @@ export function useFilePaneOperations({
     confirmDanger?: boolean
     onConfirm: () => void
   } | null>(null)
-  
+
   const [conflictDialog, setConflictDialog] = useState<{
     conflicts: { sourcePath: string; destPath: string; fileName: string; relativePath: string }[]
     nonConflicts: { sourcePath: string; destPath: string; relativePath: string }[]
@@ -60,8 +60,10 @@ export function useFilePaneOperations({
     onResolve: (resolution: 'overwrite' | 'rename' | 'skip', applyToAll: boolean) => void
   } | null>(null)
 
-  const [undoStack, setUndoStack] = useState<Array<{ type: 'delete'; file: LocalFile; originalPath: string }>>([])
-  
+  const [undoStack, setUndoStack] = useState<
+    Array<{ type: 'delete'; file: LocalFile; originalPath: string }>
+  >([])
+
   // Clipboard is now managed by Zustand store (see usePDMStore.clipboard)
   // Clipboard operations (handleCopy, handleCut, handlePaste) should use useClipboard hook directly
 
@@ -101,7 +103,7 @@ export function useFilePaneOperations({
     addProgressToast,
     updateProgressToast,
     removeToast,
-    setStatusMessage
+    setStatusMessage,
   })
 
   // Delete handler - state managed externally, just expose setters
@@ -124,60 +126,71 @@ export function useFilePaneOperations({
   })
 
   // Bulk state change handler
-  const handleBulkStateChange = useCallback(async (filesToChange: LocalFile[], newState: string) => {
-    if (!user) return
-    
-    const syncedFiles = filesToChange.filter(f => f.pdmData?.id && !f.isDirectory)
-    if (syncedFiles.length === 0) {
-      addToast('info', 'No synced files to update')
-      return
-    }
-    
-    let succeeded = 0
-    let failed = 0
-    
-    setStatusMessage(`Changing state to ${newState}...`)
-    
-    const results = await Promise.all(syncedFiles.map(async (file) => {
-      try {
-        const result = await updateFileMetadata(file.pdmData!.id, user.id, {
-          state: newState as 'not_tracked' | 'wip' | 'in_review' | 'released' | 'obsolete'
-        })
-        
-        if (result.success && result.file) {
-          updateFileInStore(file.path, {
-            pdmData: { ...file.pdmData!, ...result.file }
-          })
-          return true
-        }
-        return false
-      } catch {
-        return false
+  const handleBulkStateChange = useCallback(
+    async (filesToChange: LocalFile[], newState: string) => {
+      if (!user) return
+
+      const syncedFiles = filesToChange.filter((f) => f.pdmData?.id && !f.isDirectory)
+      if (syncedFiles.length === 0) {
+        addToast('info', 'No synced files to update')
+        return
       }
-    }))
-    
-    for (const success of results) {
-      if (success) succeeded++
-      else failed++
-    }
-    
-    setStatusMessage('')
-    
-    if (failed > 0) {
-      addToast('warning', `Updated state for ${succeeded}/${syncedFiles.length} files`)
-    } else {
-      addToast('success', `Changed ${succeeded} file${succeeded > 1 ? 's' : ''} to ${newState}`)
-    }
-  }, [user, addToast, setStatusMessage, updateFileInStore])
+
+      let succeeded = 0
+      let failed = 0
+
+      setStatusMessage(`Changing state to ${newState}...`)
+
+      const results = await Promise.all(
+        syncedFiles.map(async (file) => {
+          try {
+            const result = await updateFileMetadata(file.pdmData!.id, user.id, {
+              state: newState as 'not_tracked' | 'wip' | 'in_review' | 'released' | 'obsolete',
+            })
+
+            if (result.success && result.file) {
+              updateFileInStore(file.path, {
+                pdmData: { ...file.pdmData!, ...result.file },
+              })
+              return true
+            }
+            return false
+          } catch {
+            return false
+          }
+        }),
+      )
+
+      for (const success of results) {
+        if (success) succeeded++
+        else failed++
+      }
+
+      setStatusMessage('')
+
+      if (failed > 0) {
+        addToast('warning', `Updated state for ${succeeded}/${syncedFiles.length} files`)
+      } else {
+        addToast('success', `Changed ${succeeded} file${succeeded > 1 ? 's' : ''} to ${newState}`)
+      }
+    },
+    [user, addToast, setStatusMessage, updateFileInStore],
+  )
 
   // Checkout/checkin folder handlers
-  const handleCheckoutFolder = useCallback((folder: LocalFile) => {
-    executeCommand('checkout', { files: [folder] }, { onRefresh })
-  }, [onRefresh])
+  const handleCheckoutFolder = useCallback(
+    (folder: LocalFile) => {
+      executeCommand('checkout', { files: [folder] }, { onRefresh })
+    },
+    [onRefresh],
+  )
 
-  const handleCheckinFolder = useCallback((folder: LocalFile) => {
-    executeCommand('checkin', { files: [folder] }, { onRefresh })
-  }, [onRefresh])
+  const handleCheckinFolder = useCallback(
+    (folder: LocalFile) => {
+      executeCommand('checkin', { files: [folder] }, { onRefresh })
+    },
+    [onRefresh],
+  )
 
   // NOTE: Clipboard operations (handleCopy, handleCut, handlePaste) have been moved to useClipboard hook
   // which uses Zustand store for unified clipboard state across FilePane and FileTree
@@ -190,12 +203,16 @@ export function useFilePaneOperations({
     }
 
     const lastAction = undoStack[undoStack.length - 1]
-    
+
     if (lastAction.type === 'delete') {
-      addToast('info', `"${lastAction.file.name}" was moved to Recycle Bin. Restore it from there.`, 6000)
+      addToast(
+        'info',
+        `"${lastAction.file.name}" was moved to Recycle Bin. Restore it from there.`,
+        6000,
+      )
     }
-    
-    setUndoStack(prev => prev.slice(0, -1))
+
+    setUndoStack((prev) => prev.slice(0, -1))
   }, [undoStack, addToast])
 
   return {
@@ -209,7 +226,7 @@ export function useFilePaneOperations({
     selectedCheckoutableFiles: fileOps.selectedCheckoutableFiles,
     selectedCheckinableFiles: fileOps.selectedCheckinableFiles,
     selectedUploadableFiles: fileOps.selectedUploadableFiles,
-    
+
     // Drag state
     isDraggingOver: dragOps.isDraggingOver,
     isExternalDrag: dragOps.isExternalDrag,
@@ -230,32 +247,32 @@ export function useFilePaneOperations({
     handleFolderDragOver: dragOps.handleFolderDragOver,
     handleFolderDragLeave: dragOps.handleFolderDragLeave,
     handleDropOnFolder: dragOps.handleDropOnFolder,
-    
+
     // Delete state (DEPRECATED: no longer used - delete operations now use command system)
     // TODO: Remove these unused state variables in future cleanup
     deleteConfirm,
     setDeleteConfirm,
     deleteEverywhere,
     setDeleteEverywhere,
-    
+
     // Dialog state
     customConfirm,
     setCustomConfirm,
     conflictDialog,
     setConflictDialog,
-    
+
     // Add files operations
     handleAddFiles: addOps.handleAddFiles,
     handleAddFolder: addOps.handleAddFolder,
-    
+
     // Bulk operations
     handleBulkStateChange,
     handleCheckoutFolder,
     handleCheckinFolder,
-    
-    // NOTE: Clipboard operations (clipboard, setClipboard, handleCopy, handleCut, handlePaste) 
+
+    // NOTE: Clipboard operations (clipboard, setClipboard, handleCopy, handleCut, handlePaste)
     // are now provided by useClipboard hook which uses Zustand store
-    
+
     // Undo
     undoStack,
     setUndoStack,

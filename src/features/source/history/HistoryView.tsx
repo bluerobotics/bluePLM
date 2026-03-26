@@ -1,5 +1,20 @@
 import { useCallback, useEffect, useState } from 'react'
-import { FileText, User, Clock, ArrowUp, ArrowDown, Trash2, Edit, RefreshCw, FolderPlus, MoveRight, X, FolderOpen, RotateCcw, ExternalLink } from 'lucide-react'
+import {
+  FileText,
+  User,
+  Clock,
+  ArrowUp,
+  ArrowDown,
+  Trash2,
+  Edit,
+  RefreshCw,
+  FolderPlus,
+  MoveRight,
+  X,
+  FolderOpen,
+  RotateCcw,
+  ExternalLink,
+} from 'lucide-react'
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { getRecentActivity } from '@/lib/supabase'
@@ -7,7 +22,16 @@ import { formatDistanceToNow } from 'date-fns'
 
 interface ActivityEntry {
   id: string
-  action: 'checkout' | 'checkin' | 'create' | 'delete' | 'restore' | 'state_change' | 'revision_change' | 'rename' | 'move'
+  action:
+    | 'checkout'
+    | 'checkin'
+    | 'create'
+    | 'delete'
+    | 'restore'
+    | 'state_change'
+    | 'revision_change'
+    | 'rename'
+    | 'move'
   user_email: string
   details: Record<string, unknown>
   created_at: string
@@ -23,47 +47,54 @@ const ACTION_INFO: Record<string, { icon: React.ReactNode; label: string; color:
   create: { icon: <FolderPlus size={14} />, label: 'Created', color: 'text-plm-accent' },
   delete: { icon: <Trash2 size={14} />, label: 'Moved to trash', color: 'text-plm-warning' },
   restore: { icon: <RotateCcw size={14} />, label: 'Restored', color: 'text-plm-success' },
-  state_change: { icon: <RefreshCw size={14} />, label: 'State changed', color: 'text-plm-warning' },
+  state_change: {
+    icon: <RefreshCw size={14} />,
+    label: 'State changed',
+    color: 'text-plm-warning',
+  },
   revision_change: { icon: <Edit size={14} />, label: 'Revision changed', color: 'text-plm-info' },
   rename: { icon: <Edit size={14} />, label: 'Renamed', color: 'text-plm-fg-dim' },
   move: { icon: <MoveRight size={14} />, label: 'Moved', color: 'text-plm-fg-dim' },
 }
 
 export function HistoryView() {
-  const { 
-    organization, 
-    isVaultConnected, 
-    historyFolderFilter, 
+  const {
+    organization,
+    isVaultConnected,
+    historyFolderFilter,
     setHistoryFolderFilter,
     files,
     setCurrentFolder,
     setSelectedFiles,
-    addToast
+    addToast,
   } = usePDMStore()
   const [activity, setActivity] = useState<ActivityEntry[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  
+
   // Navigate to file in file browser (click on history item)
-  const handleNavigateToFile = useCallback((filePath: string | undefined) => {
-    if (!filePath) {
-      addToast('error', 'File path not available')
-      return
-    }
-    
-    // Get the parent folder path
-    const pathParts = filePath.replace(/\\/g, '/').split('/')
-    pathParts.pop() // Remove filename, we only need the parent folder
-    const parentFolder = pathParts.join('/')
-    
-    // Find the full local path
-    const fullPath = files.find(f => f.relativePath.replace(/\\/g, '/') === filePath)?.path
-    
-    // Navigate to folder and select file in file browser pane
-    setCurrentFolder(parentFolder)
-    if (fullPath) {
-      setSelectedFiles([fullPath])
-    }
-  }, [files, setCurrentFolder, setSelectedFiles, addToast])
+  const handleNavigateToFile = useCallback(
+    (filePath: string | undefined) => {
+      if (!filePath) {
+        addToast('error', 'File path not available')
+        return
+      }
+
+      // Get the parent folder path
+      const pathParts = filePath.replace(/\\/g, '/').split('/')
+      pathParts.pop() // Remove filename, we only need the parent folder
+      const parentFolder = pathParts.join('/')
+
+      // Find the full local path
+      const fullPath = files.find((f) => f.relativePath.replace(/\\/g, '/') === filePath)?.path
+
+      // Navigate to folder and select file in file browser pane
+      setCurrentFolder(parentFolder)
+      if (fullPath) {
+        setSelectedFiles([fullPath])
+      }
+    },
+    [files, setCurrentFolder, setSelectedFiles, addToast],
+  )
 
   // Load vault-wide activity
   useEffect(() => {
@@ -72,43 +103,43 @@ export function HistoryView() {
         setActivity([])
         return
       }
-      
+
       setIsLoading(true)
-      
+
       try {
         const { activity: recentActivity, error } = await getRecentActivity(organization.id, 100)
         if (!error && recentActivity) {
           setActivity(recentActivity as ActivityEntry[])
         }
-      } catch (err) {
-        log.error('[History]', 'Failed to load activity', { error: err })
+      } catch (error) {
+        log.error('[History]', 'Failed to load activity', { error: error })
       } finally {
         setIsLoading(false)
       }
     }
 
     loadActivity()
-    
+
     // Refresh every 30 seconds
     const interval = setInterval(loadActivity, 30000)
     return () => clearInterval(interval)
   }, [isVaultConnected, organization])
-  
+
   // Filter activity by folder if filter is set
   const filteredActivity = historyFolderFilter
-    ? activity.filter(entry => {
+    ? activity.filter((entry) => {
         if (!entry.file?.file_path) return false
         // Check if file path starts with the filter path
-        return entry.file.file_path.startsWith(historyFolderFilter + '/') || 
-               entry.file.file_path === historyFolderFilter
+        return (
+          entry.file.file_path.startsWith(historyFolderFilter + '/') ||
+          entry.file.file_path === historyFolderFilter
+        )
       })
     : activity
 
   if (!isVaultConnected) {
     return (
-      <div className="p-4 text-sm text-plm-fg-muted text-center">
-        Open a vault to view activity
-      </div>
+      <div className="p-4 text-sm text-plm-fg-muted text-center">Open a vault to view activity</div>
     )
   }
 
@@ -125,7 +156,7 @@ export function HistoryView() {
       <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-3">
         {historyFolderFilter ? 'Folder History' : 'Vault Activity'}
       </div>
-      
+
       {/* Folder filter indicator */}
       {historyFolderFilter && (
         <div className="flex items-center gap-2 mb-3 p-2 bg-plm-bg-light rounded border border-plm-border">
@@ -154,15 +185,15 @@ export function HistoryView() {
       ) : (
         <div className="space-y-2">
           {filteredActivity.map((entry) => {
-            const actionInfo = ACTION_INFO[entry.action] || { 
-              icon: <FileText size={14} />, 
-              label: entry.action, 
-              color: 'text-plm-fg-muted' 
+            const actionInfo = ACTION_INFO[entry.action] || {
+              icon: <FileText size={14} />,
+              label: entry.action,
+              color: 'text-plm-fg-muted',
             }
-            
+
             const filePath = entry.file?.file_path
             const canNavigate = !!filePath
-            
+
             return (
               <div
                 key={entry.id}
@@ -171,19 +202,17 @@ export function HistoryView() {
                 title={canNavigate ? `Click to reveal in Explorer: ${filePath}` : undefined}
               >
                 <div className="flex items-start gap-2">
-                  <span className={`mt-0.5 ${actionInfo.color}`}>
-                    {actionInfo.icon}
-                  </span>
+                  <span className={`mt-0.5 ${actionInfo.color}`}>{actionInfo.icon}</span>
                   <div className="flex-1 min-w-0 overflow-hidden">
                     <div className="text-sm flex items-center gap-1">
-                      <span className={`${actionInfo.color} whitespace-nowrap flex-shrink-0`}>{actionInfo.label}</span>
+                      <span className={`${actionInfo.color} whitespace-nowrap flex-shrink-0`}>
+                        {actionInfo.label}
+                      </span>
                       {entry.file ? (
+                        <span className="text-plm-fg truncate">{entry.file.file_name}</span>
+                      ) : (entry.details as any)?.file_name ? ( // TODO: type this
                         <span className="text-plm-fg truncate">
-                          {entry.file.file_name}
-                        </span>
-                      ) : (entry.details as any)?.file_name ? (
-                        <span className="text-plm-fg truncate">
-                          {(entry.details as any).file_name}
+                          {(entry.details as any).file_name} // TODO: type this
                         </span>
                       ) : null}
                     </div>

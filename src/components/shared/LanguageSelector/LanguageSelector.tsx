@@ -21,12 +21,15 @@ interface LanguageSelectorProps {
   dropdownPosition?: 'bottom-left' | 'bottom-right' | 'top-left' | 'top-right'
 }
 
-export function LanguageSelector({ compact = false, dropdownPosition = 'bottom-right' }: LanguageSelectorProps) {
+export function LanguageSelector({
+  compact = false,
+  dropdownPosition = 'bottom-right',
+}: LanguageSelectorProps) {
   const { language, setLanguage } = usePDMStore()
   const [isOpen, setIsOpen] = useState(false)
-  
-  const currentLang = languageOptions.find(l => l.value === language) || languageOptions[0]
-  
+
+  const currentLang = languageOptions.find((l) => l.value === language) || languageOptions[0]
+
   // Position classes for dropdown
   const positionClasses = {
     'bottom-left': 'top-full left-0 mt-1',
@@ -34,7 +37,7 @@ export function LanguageSelector({ compact = false, dropdownPosition = 'bottom-r
     'top-left': 'bottom-full left-0 mb-1',
     'top-right': 'bottom-full right-0 mb-1',
   }
-  
+
   return (
     <div className="relative">
       {compact ? (
@@ -52,19 +55,22 @@ export function LanguageSelector({ compact = false, dropdownPosition = 'bottom-r
         >
           <Globe size={16} className="text-plm-fg-muted" />
           <span className="text-plm-fg">{currentLang.nativeLabel}</span>
-          <ChevronDown size={14} className={`text-plm-fg-muted transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+          <ChevronDown
+            size={14}
+            className={`text-plm-fg-muted transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          />
         </button>
       )}
-      
+
       {isOpen && (
         <>
           {/* Backdrop */}
-          <div 
-            className="fixed inset-0 z-40" 
-            onClick={() => setIsOpen(false)} 
-          />
+          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
           {/* Dropdown - data-preserve-font keeps it readable in Elvish mode */}
-          <div data-preserve-font className={`absolute ${positionClasses[dropdownPosition]} z-50 bg-plm-bg-secondary border border-plm-border rounded-lg shadow-xl max-h-[320px] overflow-y-auto min-w-[200px]`}>
+          <div
+            data-preserve-font
+            className={`absolute ${positionClasses[dropdownPosition]} z-50 bg-plm-bg-secondary border border-plm-border rounded-lg shadow-xl max-h-[320px] overflow-y-auto min-w-[200px]`}
+          >
             {languageOptions.map((option) => {
               const isSelected = language === option.value
               return (

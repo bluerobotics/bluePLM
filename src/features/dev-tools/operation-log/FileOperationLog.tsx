@@ -1,8 +1,8 @@
 /**
  * FileOperationLog Component
- * 
+ *
  * Main panel for viewing file operation logs in DevTools.
- * 
+ *
  * Features:
  * - List of operations with: type icon, file count, duration, status badge
  * - Filters: by type, by status, by time range (session/all)
@@ -13,7 +13,7 @@
  */
 
 import { useState, useEffect, useMemo, useRef, useCallback, memo } from 'react'
-import { 
+import {
   Activity,
   Trash2,
   ChevronRight,
@@ -33,7 +33,7 @@ import {
   Link2,
   RefreshCw,
   Clock,
-  AlertTriangle
+  AlertTriangle,
 } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import type { FileOperation, FileOperationType, OperationStatus } from '@/lib/fileOperationTracker'
@@ -49,22 +49,22 @@ const SESSION_START = Date.now()
 
 /** Operation type colors */
 const TYPE_COLORS: Record<FileOperationType, string> = {
-  'checkin': 'text-cyan-400 bg-cyan-400/10',
-  'checkout': 'text-cyan-400 bg-cyan-400/10',
-  'download': 'text-emerald-400 bg-emerald-400/10',
+  checkin: 'text-cyan-400 bg-cyan-400/10',
+  checkout: 'text-cyan-400 bg-cyan-400/10',
+  download: 'text-emerald-400 bg-emerald-400/10',
   'get-latest': 'text-emerald-400 bg-emerald-400/10',
-  'sync': 'text-teal-400 bg-teal-400/10',
-  'discard': 'text-orange-400 bg-orange-400/10',
+  sync: 'text-teal-400 bg-teal-400/10',
+  discard: 'text-orange-400 bg-orange-400/10',
   'force-release': 'text-rose-400 bg-rose-400/10',
-  'delete': 'text-red-400 bg-red-400/10',
+  delete: 'text-red-400 bg-red-400/10',
   'sync-metadata': 'text-indigo-400 bg-indigo-400/10',
-  'extract-references': 'text-purple-400 bg-purple-400/10'
+  'extract-references': 'text-purple-400 bg-purple-400/10',
 }
 
 /** Operation type icons */
 function OperationIcon({ type, size = 14 }: { type: FileOperationType; size?: number }) {
   const color = TYPE_COLORS[type]?.split(' ')[0] || 'text-plm-fg-muted'
-  
+
   switch (type) {
     case 'checkin':
       return <Upload size={size} className={color} />
@@ -105,15 +105,15 @@ type StatusFilter = 'all' | OperationStatus
 /**
  * Status badge component
  */
-const StatusBadge = memo(function StatusBadge({ 
-  status, 
-  small = false 
-}: { 
+const StatusBadge = memo(function StatusBadge({
+  status,
+  small = false,
+}: {
   status: OperationStatus
-  small?: boolean 
+  small?: boolean
 }) {
   const size = small ? 10 : 12
-  
+
   switch (status) {
     case 'completed':
       return <CheckCircle2 size={size} className="text-emerald-400" />
@@ -132,11 +132,13 @@ const StatusBadge = memo(function StatusBadge({
 function calculateStepStats(operation: FileOperation) {
   const steps = operation.steps
   const totalSteps = steps.length
-  const completedSteps = steps.filter(s => s.status === 'completed').length
-  const failedSteps = steps.filter(s => s.status === 'failed').length
-  const slowSteps = steps.filter(s => s.durationMs !== undefined && s.durationMs >= 100).length
-  const verySlowSteps = steps.filter(s => s.durationMs !== undefined && s.durationMs >= 500).length
-  
+  const completedSteps = steps.filter((s) => s.status === 'completed').length
+  const failedSteps = steps.filter((s) => s.status === 'failed').length
+  const slowSteps = steps.filter((s) => s.durationMs !== undefined && s.durationMs >= 100).length
+  const verySlowSteps = steps.filter(
+    (s) => s.durationMs !== undefined && s.durationMs >= 500,
+  ).length
+
   return { totalSteps, completedSteps, failedSteps, slowSteps, verySlowSteps }
 }
 
@@ -154,17 +156,17 @@ function getDurationColor(ms: number | undefined): string {
  * Inline operation details shown when row is expanded
  */
 const InlineOperationDetails = memo(function InlineOperationDetails({
-  operation
+  operation,
 }: {
   operation: FileOperation
 }) {
   const stats = useMemo(() => calculateStepStats(operation), [operation])
-  
+
   // Get sorted top-level steps (no parentStepId) and group substeps by parent
   const { topLevelSteps, substepsByParent } = useMemo(() => {
     const topLevel: typeof operation.steps = []
     const byParent: Record<string, typeof operation.steps> = {}
-    
+
     for (const step of operation.steps) {
       if (step.parentStepId) {
         if (!byParent[step.parentStepId]) {
@@ -175,22 +177,23 @@ const InlineOperationDetails = memo(function InlineOperationDetails({
         topLevel.push(step)
       }
     }
-    
+
     // Sort top-level by start time
     topLevel.sort((a, b) => a.startTime - b.startTime)
-    
+
     // Sort substeps within each parent by duration (longest first) for easier reading
     for (const parentId of Object.keys(byParent)) {
       byParent[parentId].sort((a, b) => (b.durationMs ?? 0) - (a.durationMs ?? 0))
     }
-    
+
     return { topLevelSteps: topLevel, substepsByParent: byParent }
   }, [operation.steps])
-  
+
   // Calculate total operation duration for the timing bars
-  const totalDurationMs = operation.durationMs ?? 
+  const totalDurationMs =
+    operation.durationMs ??
     (operation.endTime ? operation.endTime - operation.startTime : Date.now() - operation.startTime)
-  
+
   return (
     <div className="bg-plm-bg border-b border-plm-border/50">
       {/* Error message if failed */}
@@ -200,7 +203,7 @@ const InlineOperationDetails = memo(function InlineOperationDetails({
           <span className="text-xs text-red-400">{operation.error}</span>
         </div>
       )}
-      
+
       {/* Stats bar */}
       <div className="px-4 py-2 border-b border-plm-border/30 flex items-center gap-4 text-[10px]">
         <div className="flex items-center gap-1.5">
@@ -226,7 +229,7 @@ const InlineOperationDetails = memo(function InlineOperationDetails({
           </div>
         )}
       </div>
-      
+
       {/* File paths (collapsible) */}
       {operation.filePaths.length > 0 && (
         <details className="border-b border-plm-border/30">
@@ -242,7 +245,7 @@ const InlineOperationDetails = memo(function InlineOperationDetails({
           </div>
         </details>
       )}
-      
+
       {/* Steps timeline */}
       <div className="max-h-[300px] overflow-y-auto">
         {topLevelSteps.length === 0 ? (
@@ -259,7 +262,7 @@ const InlineOperationDetails = memo(function InlineOperationDetails({
               <div className="w-16 text-right">Duration</div>
               <div className="w-4" />
             </div>
-            
+
             {/* Step rows with nested substeps */}
             {topLevelSteps.map((step) => (
               <StepTimingRow
@@ -273,7 +276,7 @@ const InlineOperationDetails = memo(function InlineOperationDetails({
           </div>
         )}
       </div>
-      
+
       {/* Footer with timing info */}
       <div className="px-4 py-2 border-t border-plm-border/30 flex items-center justify-between text-[10px] text-plm-fg-muted">
         <div className="flex items-center gap-1">
@@ -294,27 +297,25 @@ const InlineOperationDetails = memo(function InlineOperationDetails({
 const OperationRow = memo(function OperationRow({
   operation,
   isExpanded,
-  onToggle
+  onToggle,
 }: {
   operation: FileOperation
   isExpanded: boolean
   onToggle: (id: string) => void
 }) {
-  const duration = operation.durationMs ?? (operation.endTime 
-    ? operation.endTime - operation.startTime 
-    : Date.now() - operation.startTime)
-  
+  const duration =
+    operation.durationMs ??
+    (operation.endTime ? operation.endTime - operation.startTime : Date.now() - operation.startTime)
+
   // Duration color
   const durationColor = getDurationColor(duration)
-  
+
   return (
     <div className="border-b border-plm-border/30">
       {/* Row header */}
       <div
         className={`flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors ${
-          isExpanded 
-            ? 'bg-plm-accent/10 hover:bg-plm-accent/15' 
-            : 'hover:bg-plm-highlight/50'
+          isExpanded ? 'bg-plm-accent/10 hover:bg-plm-accent/15' : 'hover:bg-plm-highlight/50'
         }`}
         onClick={() => onToggle(operation.id)}
       >
@@ -322,24 +323,28 @@ const OperationRow = memo(function OperationRow({
         {isExpanded ? (
           <ChevronDown size={12} className="text-plm-accent transition-transform flex-shrink-0" />
         ) : (
-          <ChevronRight size={12} className="text-plm-fg-muted transition-transform flex-shrink-0" />
+          <ChevronRight
+            size={12}
+            className="text-plm-fg-muted transition-transform flex-shrink-0"
+          />
         )}
-        
+
         {/* Operation icon */}
         <div className={`p-1 rounded ${TYPE_COLORS[operation.type]?.split(' ')[1] || 'bg-plm-bg'}`}>
           <OperationIcon type={operation.type} size={12} />
         </div>
-        
+
         {/* Operation info */}
         <div className="flex-1 min-w-0">
           <div className="text-xs font-medium text-plm-fg truncate">
             {getOperationDisplayName(operation.type)}
           </div>
           <div className="text-[10px] text-plm-fg-muted">
-            {operation.fileCount} file{operation.fileCount !== 1 ? 's' : ''} · {operation.steps.length} steps
+            {operation.fileCount} file{operation.fileCount !== 1 ? 's' : ''} ·{' '}
+            {operation.steps.length} steps
           </div>
         </div>
-        
+
         {/* Duration */}
         <div className={`text-xs font-mono flex-shrink-0 ${durationColor}`}>
           {operation.status === 'running' ? (
@@ -348,11 +353,11 @@ const OperationRow = memo(function OperationRow({
             formatDuration(duration)
           )}
         </div>
-        
+
         {/* Status */}
         <StatusBadge status={operation.status} small />
       </div>
-      
+
       {/* Inline details when expanded */}
       {isExpanded && <InlineOperationDetails operation={operation} />}
     </div>
@@ -365,9 +370,9 @@ const OperationRow = memo(function OperationRow({
 
 export function FileOperationLog() {
   // Store state
-  const operations = usePDMStore(state => state.operations)
-  const clearOperations = usePDMStore(state => state.clearOperations)
-  
+  const operations = usePDMStore((state) => state.operations)
+  const clearOperations = usePDMStore((state) => state.clearOperations)
+
   // Local state
   const [typeFilter, setTypeFilter] = useState<FileOperationType | 'all'>('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
@@ -375,10 +380,10 @@ export function FileOperationLog() {
   const [autoScroll, setAutoScroll] = useState(true)
   const [showFilters, setShowFilters] = useState(false)
   const [expandedOperations, setExpandedOperations] = useState<Set<string>>(new Set())
-  
+
   const listRef = useRef<HTMLDivElement>(null)
   const prevOperationsLength = useRef(operations.length)
-  
+
   // Auto-scroll to new operations
   useEffect(() => {
     if (autoScroll && operations.length > prevOperationsLength.current && listRef.current) {
@@ -386,36 +391,36 @@ export function FileOperationLog() {
     }
     prevOperationsLength.current = operations.length
   }, [operations.length, autoScroll])
-  
+
   // Filter operations
   const filteredOperations = useMemo(() => {
-    return operations.filter(op => {
+    return operations.filter((op) => {
       // Type filter
       if (typeFilter !== 'all' && op.type !== typeFilter) return false
-      
+
       // Status filter
       if (statusFilter !== 'all' && op.status !== statusFilter) return false
-      
+
       // Time range filter
       if (timeRange === 'session' && op.startTime < SESSION_START) return false
-      
+
       return true
     })
   }, [operations, typeFilter, statusFilter, timeRange])
-  
+
   // Stats for quick view
   const stats = useMemo(() => {
     return {
       total: filteredOperations.length,
-      running: filteredOperations.filter(op => op.status === 'running').length,
-      completed: filteredOperations.filter(op => op.status === 'completed').length,
-      failed: filteredOperations.filter(op => op.status === 'failed').length
+      running: filteredOperations.filter((op) => op.status === 'running').length,
+      completed: filteredOperations.filter((op) => op.status === 'completed').length,
+      failed: filteredOperations.filter((op) => op.status === 'failed').length,
     }
   }, [filteredOperations])
-  
+
   // Handle operation toggle (expand/collapse)
   const handleToggle = useCallback((id: string) => {
-    setExpandedOperations(prev => {
+    setExpandedOperations((prev) => {
       const next = new Set(prev)
       if (next.has(id)) {
         next.delete(id)
@@ -425,19 +430,27 @@ export function FileOperationLog() {
       return next
     })
   }, [])
-  
+
   // Handle clear
   const handleClear = useCallback(() => {
     clearOperations()
     setExpandedOperations(new Set())
   }, [clearOperations])
-  
+
   // All operation types for filter
   const operationTypes: FileOperationType[] = [
-    'checkin', 'checkout', 'download', 'get-latest', 'sync',
-    'discard', 'force-release', 'delete', 'sync-metadata', 'extract-references'
+    'checkin',
+    'checkout',
+    'download',
+    'get-latest',
+    'sync',
+    'discard',
+    'force-release',
+    'delete',
+    'sync-metadata',
+    'extract-references',
   ]
-  
+
   return (
     <div className="space-y-4">
       {/* Header with stats */}
@@ -447,12 +460,10 @@ export function FileOperationLog() {
           <span className="text-[10px] uppercase tracking-wide text-plm-fg-muted">
             File Operation Log
           </span>
-          <span className="text-[9px] text-plm-fg-muted ml-2">
-            ({stats.total} operations)
-          </span>
-          
+          <span className="text-[9px] text-plm-fg-muted ml-2">({stats.total} operations)</span>
+
           <div className="flex-1" />
-          
+
           {/* Quick stats */}
           <div className="flex items-center gap-3 text-xs">
             {stats.running > 0 && (
@@ -473,13 +484,13 @@ export function FileOperationLog() {
             )}
           </div>
         </div>
-        
+
         {/* Stats cards */}
         <div className="grid grid-cols-4 gap-2">
-          {(['checkin', 'checkout', 'download', 'sync'] as FileOperationType[]).map(type => {
-            const count = filteredOperations.filter(op => op.type === type).length
+          {(['checkin', 'checkout', 'download', 'sync'] as FileOperationType[]).map((type) => {
+            const count = filteredOperations.filter((op) => op.type === type).length
             return (
-              <div 
+              <div
                 key={type}
                 className={`rounded p-2 ${TYPE_COLORS[type]?.split(' ')[1] || 'bg-plm-bg-light'} cursor-pointer hover:opacity-80 transition-opacity ${
                   typeFilter === type ? 'ring-1 ring-plm-accent' : ''
@@ -492,7 +503,9 @@ export function FileOperationLog() {
                     {getOperationDisplayName(type)}
                   </span>
                 </div>
-                <div className={`text-lg font-mono tabular-nums ${TYPE_COLORS[type]?.split(' ')[0]}`}>
+                <div
+                  className={`text-lg font-mono tabular-nums ${TYPE_COLORS[type]?.split(' ')[0]}`}
+                >
                   {count}
                 </div>
               </div>
@@ -500,7 +513,7 @@ export function FileOperationLog() {
           })}
         </div>
       </div>
-      
+
       {/* Operations list */}
       <div className="bg-plm-bg-lighter rounded-lg border border-plm-border overflow-hidden">
         {/* Toolbar */}
@@ -509,18 +522,20 @@ export function FileOperationLog() {
             <button
               onClick={() => setShowFilters(!showFilters)}
               className={`flex items-center gap-1 px-2 py-0.5 text-xs rounded transition-colors ${
-                showFilters ? 'bg-plm-accent/20 text-plm-accent' : 'hover:bg-plm-highlight text-plm-fg-muted'
+                showFilters
+                  ? 'bg-plm-accent/20 text-plm-accent'
+                  : 'hover:bg-plm-highlight text-plm-fg-muted'
               }`}
             >
               <Filter size={12} />
               Filters
             </button>
-            
+
             <span className="text-xs text-plm-fg-muted">
               {filteredOperations.length} operation{filteredOperations.length !== 1 ? 's' : ''}
             </span>
           </div>
-          
+
           <div className="flex items-center gap-2">
             {/* Time range */}
             <select
@@ -531,18 +546,20 @@ export function FileOperationLog() {
               <option value="session">This Session</option>
               <option value="all">All Time</option>
             </select>
-            
+
             {/* Auto-scroll toggle */}
             <button
               onClick={() => setAutoScroll(!autoScroll)}
               className={`p-1 rounded transition-colors ${
-                autoScroll ? 'bg-plm-accent/30 text-plm-accent' : 'hover:bg-plm-highlight text-plm-fg-muted'
+                autoScroll
+                  ? 'bg-plm-accent/30 text-plm-accent'
+                  : 'hover:bg-plm-highlight text-plm-fg-muted'
               }`}
               title={autoScroll ? 'Auto-scroll enabled' : 'Auto-scroll disabled'}
             >
               {autoScroll ? <Pin size={12} /> : <PinOff size={12} />}
             </button>
-            
+
             {/* Clear button */}
             <button
               onClick={handleClear}
@@ -554,7 +571,7 @@ export function FileOperationLog() {
             </button>
           </div>
         </div>
-        
+
         {/* Filter bar */}
         {showFilters && (
           <div className="px-3 py-2 border-b border-plm-border bg-plm-bg flex items-center gap-4 flex-wrap">
@@ -567,15 +584,19 @@ export function FileOperationLog() {
                 className="text-xs bg-plm-input border border-plm-border rounded px-2 py-0.5 text-plm-fg"
               >
                 <option value="all">All Types</option>
-                {operationTypes.map(type => (
-                  <option key={type} value={type}>{getOperationDisplayName(type)}</option>
+                {operationTypes.map((type) => (
+                  <option key={type} value={type}>
+                    {getOperationDisplayName(type)}
+                  </option>
                 ))}
               </select>
             </div>
-            
+
             {/* Status filter */}
             <div className="flex items-center gap-2">
-              <span className="text-[10px] text-plm-fg-muted uppercase tracking-wider">Status:</span>
+              <span className="text-[10px] text-plm-fg-muted uppercase tracking-wider">
+                Status:
+              </span>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
@@ -587,7 +608,7 @@ export function FileOperationLog() {
                 <option value="failed">Failed</option>
               </select>
             </div>
-            
+
             {/* Clear filters */}
             {(typeFilter !== 'all' || statusFilter !== 'all') && (
               <button
@@ -602,12 +623,9 @@ export function FileOperationLog() {
             )}
           </div>
         )}
-        
+
         {/* Operations list */}
-        <div 
-          ref={listRef}
-          className="max-h-[500px] overflow-y-auto"
-        >
+        <div ref={listRef} className="max-h-[500px] overflow-y-auto">
           {filteredOperations.length === 0 ? (
             <div className="px-3 py-8 text-center text-sm text-plm-fg-muted">
               <Activity size={24} className="mx-auto mb-2 opacity-30" />
@@ -616,14 +634,16 @@ export function FileOperationLog() {
               <span className="text-xs">Perform file operations to see timing data.</span>
             </div>
           ) : (
-            [...filteredOperations].reverse().map(operation => (
-              <OperationRow
-                key={operation.id}
-                operation={operation}
-                isExpanded={expandedOperations.has(operation.id)}
-                onToggle={handleToggle}
-              />
-            ))
+            [...filteredOperations]
+              .reverse()
+              .map((operation) => (
+                <OperationRow
+                  key={operation.id}
+                  operation={operation}
+                  isExpanded={expandedOperations.has(operation.id)}
+                  onToggle={handleToggle}
+                />
+              ))
           )}
         </div>
       </div>
@@ -631,4 +651,3 @@ export function FileOperationLog() {
   )
 }
 
-export default FileOperationLog

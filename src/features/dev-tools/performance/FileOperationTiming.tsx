@@ -1,12 +1,21 @@
 import { useState, useEffect } from 'react'
-import { Timer, Folder, Database, Eye, Trash2, ChevronDown, ChevronRight, Rocket } from 'lucide-react'
-import { 
-  getMetrics, 
-  getMetricsSummary, 
-  clearMetrics, 
+import {
+  Timer,
+  Folder,
+  Database,
+  Eye,
+  Trash2,
+  ChevronDown,
+  ChevronRight,
+  Rocket,
+} from 'lucide-react'
+import {
+  getMetrics,
+  getMetricsSummary,
+  clearMetrics,
   subscribeToMetrics,
   type PerformanceEntry,
-  type MetricTag
+  type MetricTag,
 } from '@/lib/performanceMetrics'
 
 // Tag colors for visual distinction
@@ -39,80 +48,92 @@ export function FileOperationTiming() {
   const [expanded, setExpanded] = useState(true)
   const [tagFilter, setTagFilter] = useState<MetricTag | 'all'>('all')
   const [timeRange, setTimeRange] = useState<TimeRange>('session') // Default to this session
-  
+
   useEffect(() => {
     // Initial load
     setEntries(getMetrics())
     setSummary(getMetricsSummary())
-    
+
     // Subscribe to updates
     const unsubscribe = subscribeToMetrics(() => {
       setEntries(getMetrics())
       setSummary(getMetricsSummary())
     })
-    
+
     return () => unsubscribe()
   }, [])
-  
+
   // Apply both tag and time range filters
-  const filteredEntries = entries.filter(e => {
+  const filteredEntries = entries.filter((e) => {
     // Tag filter
     if (tagFilter !== 'all' && e.tag !== tagFilter) return false
     // Time range filter
     if (timeRange === 'session' && e.timestamp < SESSION_START) return false
     return true
   })
-  
+
   const handleClear = () => {
     clearMetrics()
   }
-  
+
   const formatTime = (timestamp: number) => {
     const date = new Date(timestamp)
-    const timeStr = date.toLocaleTimeString('en-US', { 
-      hour12: false, 
-      hour: '2-digit', 
-      minute: '2-digit', 
-      second: '2-digit'
+    const timeStr = date.toLocaleTimeString('en-US', {
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
     })
     // Add milliseconds manually
     const ms = date.getMilliseconds().toString().padStart(3, '0')
     return `${timeStr}.${ms}`
   }
-  
+
   const formatDuration = (ms: number | undefined) => {
     if (ms === undefined) return '—'
     if (ms < 1) return `${(ms * 1000).toFixed(0)}μs`
     if (ms < 1000) return `${ms.toFixed(1)}ms`
     return `${(ms / 1000).toFixed(2)}s`
   }
-  
+
   const formatMs = (ms: number | null | undefined) => {
     if (ms === null || ms === undefined) return '—'
     if (ms < 1) return `${(ms * 1000).toFixed(0)}μs`
     if (ms < 1000) return `${ms.toFixed(1)}ms`
     return `${(ms / 1000).toFixed(2)}s`
   }
-  
+
   return (
     <div className="space-y-4">
       {/* Startup Timing Card - Full Width */}
       <div className="bg-plm-bg rounded-lg p-3 border border-plm-border">
         <div className="flex items-center gap-2 mb-3">
           <Rocket size={14} className="text-sky-400" />
-          <span className="text-[10px] uppercase tracking-wide text-plm-fg-muted">App Ready Time</span>
+          <span className="text-[10px] uppercase tracking-wide text-plm-fg-muted">
+            App Ready Time
+          </span>
           <span className="text-[9px] text-plm-fg-muted ml-2">
-            ({entries.filter(e => e.tag === 'Startup').length} startup, {entries.filter(e => e.tag === 'VaultLoad').length} vault metrics)
+            ({entries.filter((e) => e.tag === 'Startup').length} startup,{' '}
+            {entries.filter((e) => e.tag === 'VaultLoad').length} vault metrics)
           </span>
           {summary.startup.totalMs && (
             <span className="ml-auto text-sm font-mono text-plm-fg">
-              Total: <span className={summary.startup.totalMs > 10000 ? 'text-red-400' : summary.startup.totalMs > 5000 ? 'text-amber-400' : 'text-emerald-400'}>
+              Total:{' '}
+              <span
+                className={
+                  summary.startup.totalMs > 10000
+                    ? 'text-red-400'
+                    : summary.startup.totalMs > 5000
+                      ? 'text-amber-400'
+                      : 'text-emerald-400'
+                }
+              >
                 {formatMs(summary.startup.totalMs)}
               </span>
             </span>
           )}
         </div>
-        
+
         {/* Two-row layout: Startup phases, then Vault load phases */}
         <div className="space-y-2">
           {/* Row 1: Startup (splash screen) */}
@@ -136,7 +157,7 @@ export function FileOperationTiming() {
               </div>
             </div>
           </div>
-          
+
           {/* Row 2: Vault Load */}
           <div className="flex items-center gap-2">
             <div className="text-[9px] text-plm-fg-muted w-16 shrink-0">
@@ -146,11 +167,15 @@ export function FileOperationTiming() {
             <div className="flex-1 grid grid-cols-3 gap-2 text-[10px]">
               <div className="bg-plm-bg-light rounded p-2">
                 <div className="text-plm-fg-muted mb-0.5">Local Scan</div>
-                <div className="font-mono text-lime-400">{formatMs(summary.startup.localScanMs)}</div>
+                <div className="font-mono text-lime-400">
+                  {formatMs(summary.startup.localScanMs)}
+                </div>
               </div>
               <div className="bg-plm-bg-light rounded p-2">
                 <div className="text-plm-fg-muted mb-0.5">Server Fetch</div>
-                <div className="font-mono text-lime-400">{formatMs(summary.startup.serverFetchMs)}</div>
+                <div className="font-mono text-lime-400">
+                  {formatMs(summary.startup.serverFetchMs)}
+                </div>
               </div>
               <div className="bg-plm-bg-light rounded p-2">
                 <div className="text-plm-fg-muted mb-0.5">Merge</div>
@@ -160,7 +185,7 @@ export function FileOperationTiming() {
           </div>
         </div>
       </div>
-      
+
       {/* Summary Cards */}
       <div className="grid grid-cols-3 gap-3">
         <SummaryCard
@@ -194,10 +219,10 @@ export function FileOperationTiming() {
           color="text-amber-400"
         />
       </div>
-      
+
       {/* Log Entries */}
       <div className="bg-plm-bg-lighter rounded-lg border border-plm-border overflow-hidden">
-        <div 
+        <div
           className="flex items-center justify-between px-3 py-2 bg-plm-bg-light border-b border-plm-border cursor-pointer"
           onClick={() => setExpanded(!expanded)}
         >
@@ -207,7 +232,7 @@ export function FileOperationTiming() {
             <span className="text-sm font-medium text-plm-fg">Recent Timings</span>
             <span className="text-xs text-plm-fg-muted">({filteredEntries.length} entries)</span>
           </div>
-          
+
           <div className="flex items-center gap-2">
             {/* Time range filter - defaults to This Session */}
             <select
@@ -219,7 +244,7 @@ export function FileOperationTiming() {
               <option value="session">This Session</option>
               <option value="all">All Time</option>
             </select>
-            
+
             {/* Tag filter */}
             <select
               value={tagFilter}
@@ -238,7 +263,7 @@ export function FileOperationTiming() {
               <option value="Checkout">Checkout</option>
               <option value="Checkin">Checkin</option>
             </select>
-            
+
             <button
               onClick={(e) => {
                 e.stopPropagation()
@@ -251,7 +276,7 @@ export function FileOperationTiming() {
             </button>
           </div>
         </div>
-        
+
         {expanded && (
           <div className="max-h-[300px] overflow-y-auto">
             {filteredEntries.length === 0 ? (
@@ -277,16 +302,29 @@ export function FileOperationTiming() {
                         {formatTime(entry.timestamp)}
                       </td>
                       <td className="px-3 py-1.5">
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${TAG_COLORS[entry.tag]}`}>
+                        <span
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${TAG_COLORS[entry.tag]}`}
+                        >
                           {entry.tag}
                         </span>
                       </td>
-                      <td className="px-3 py-1.5 text-plm-fg max-w-[200px] truncate" title={entry.message}>
+                      <td
+                        className="px-3 py-1.5 text-plm-fg max-w-[200px] truncate"
+                        title={entry.message}
+                      >
                         {entry.message}
                       </td>
                       <td className="px-3 py-1.5 font-mono text-right whitespace-nowrap">
                         {entry.durationMs !== undefined ? (
-                          <span className={entry.durationMs > 100 ? 'text-amber-400' : entry.durationMs > 500 ? 'text-red-400' : 'text-emerald-400'}>
+                          <span
+                            className={
+                              entry.durationMs > 100
+                                ? 'text-amber-400'
+                                : entry.durationMs > 500
+                                  ? 'text-red-400'
+                                  : 'text-emerald-400'
+                            }
+                          >
                             {formatDuration(entry.durationMs)}
                           </span>
                         ) : (
@@ -312,7 +350,7 @@ function SummaryCard({
   avgMs,
   lastMs,
   extra,
-  color
+  color,
 }: {
   icon: React.ReactNode
   label: string
@@ -328,7 +366,7 @@ function SummaryCard({
     if (ms < 1000) return `${ms.toFixed(1)}ms`
     return `${(ms / 1000).toFixed(2)}s`
   }
-  
+
   return (
     <div className="bg-plm-bg rounded-lg p-3 border border-plm-border">
       <div className="flex items-center gap-2 mb-1.5">
@@ -351,4 +389,3 @@ function SummaryCard({
   )
 }
 
-export default FileOperationTiming

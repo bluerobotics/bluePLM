@@ -1,9 +1,9 @@
 /**
  * BluePLM Extension Manifest Parser & Validator
- * 
+ *
  * Uses Zod for runtime validation of extension.json manifests.
  * Provides detailed error messages with JSON paths for debugging.
- * 
+ *
  * @module extensions/manifest
  */
 
@@ -30,7 +30,7 @@ const extensionIdSchema = z
   .string()
   .regex(
     /^[a-z][a-z0-9-]*\.[a-z][a-z0-9-]*$/,
-    'Extension ID must be in format "publisher.name" using lowercase letters, numbers, and hyphens'
+    'Extension ID must be in format "publisher.name" using lowercase letters, numbers, and hyphens',
   )
 
 /**
@@ -40,7 +40,7 @@ const semverSchema = z
   .string()
   .regex(
     /^\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?(\+[a-zA-Z0-9.-]+)?$/,
-    'Version must be a valid semantic version (e.g., "1.2.3")'
+    'Version must be a valid semantic version (e.g., "1.2.3")',
   )
 
 /**
@@ -50,7 +50,7 @@ const semverRangeSchema = z
   .string()
   .regex(
     /^[\^~><=]*\d+(\.\d+)?(\.\d+)?(-[a-zA-Z0-9.-]+)?$/,
-    'Version range must be a valid semver range (e.g., "^1.0.0", ">=1.2.0")'
+    'Version range must be a valid semver range (e.g., "^1.0.0", ">=1.2.0")',
   )
 
 /**
@@ -60,7 +60,7 @@ const extensionDependencySchema = z
   .string()
   .regex(
     /^[a-z][a-z0-9-]*\.[a-z][a-z0-9-]*@[\^~><=]*\d+(\.\d+)?(\.\d+)?$/,
-    'Extension dependency must be in format "publisher.name@version-range"'
+    'Extension dependency must be in format "publisher.name@version-range"',
   )
 
 /**
@@ -110,15 +110,13 @@ const clientPermissionSchema = z.enum([
  * Server permissions (with dynamic http:domain: pattern)
  */
 const serverPermissionSchema = z.union([
-  z.enum([
-    'storage:database',
-    'secrets:read',
-    'secrets:write',
-    'http:fetch',
-  ]),
-  z.string().regex(/^http:domain:[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$/, 
-    'http:domain permission must specify a valid domain'
-  ),
+  z.enum(['storage:database', 'secrets:read', 'secrets:write', 'http:fetch']),
+  z
+    .string()
+    .regex(
+      /^http:domain:[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$/,
+      'http:domain permission must specify a valid domain',
+    ),
 ]) as z.ZodType<ServerPermission>
 
 /**
@@ -183,19 +181,21 @@ const configurationPropertySchema: z.ZodType<{
   properties?: Record<string, unknown>
   order?: number
   deprecationMessage?: string
-}> = z.lazy(() => z.object({
-  type: z.enum(['string', 'number', 'boolean', 'array', 'object']),
-  default: z.unknown().optional(),
-  description: z.string().optional(),
-  enum: z.array(z.unknown()).optional(),
-  enumDescriptions: z.array(z.string()).optional(),
-  minimum: z.number().optional(),
-  maximum: z.number().optional(),
-  items: configurationPropertySchema.optional(),
-  properties: z.record(z.string(), configurationPropertySchema).optional(),
-  order: z.number().int().optional(),
-  deprecationMessage: z.string().optional(),
-}))
+}> = z.lazy(() =>
+  z.object({
+    type: z.enum(['string', 'number', 'boolean', 'array', 'object']),
+    default: z.unknown().optional(),
+    description: z.string().optional(),
+    enum: z.array(z.unknown()).optional(),
+    enumDescriptions: z.array(z.string()).optional(),
+    minimum: z.number().optional(),
+    maximum: z.number().optional(),
+    items: configurationPropertySchema.optional(),
+    properties: z.record(z.string(), configurationPropertySchema).optional(),
+    order: z.number().int().optional(),
+    deprecationMessage: z.string().optional(),
+  }),
+)
 
 /**
  * Configuration contribution
@@ -237,66 +237,74 @@ const nativeConfigSchema = z.object({
 /**
  * Complete extension manifest schema
  */
-export const extensionManifestSchema = z.object({
-  // Identity (required)
-  id: extensionIdSchema,
-  name: z.string().min(1, 'Extension name is required').max(100, 'Name too long'),
-  version: semverSchema,
-  publisher: z.string().min(1, 'Publisher is required').regex(
-    /^[a-z][a-z0-9-]*$/,
-    'Publisher must be lowercase with letters, numbers, and hyphens'
-  ),
-  
-  // Metadata
-  description: z.string().max(500, 'Description too long').optional(),
-  icon: z.string().optional(),
-  repository: z.string().url('Repository must be a valid URL').optional(),
-  license: z.string().min(1, 'License is required'),
-  keywords: z.array(z.string()).optional(),
-  categories: z.array(z.string()).optional(),
-  changelog: z.string().optional(),
-  
-  // Category
-  category: categorySchema.optional().default('sandboxed'),
-  native: nativeConfigSchema.optional(),
-  
-  // Dependencies
-  engines: z.object({
-    blueplm: semverRangeSchema,
-  }),
-  extensionDependencies: z.array(extensionDependencySchema).optional(),
-  extensionPack: z.array(extensionIdSchema).optional(),
-  
-  // Entry points
-  main: z.string().optional(),
-  serverMain: z.string().optional(),
-  
-  // Capabilities
-  activationEvents: z.array(activationEventSchema).min(1, 'At least one activation event is required'),
-  contributes: contributionsSchema,
-  permissions: permissionsSchema,
-}).refine(
-  // Native extensions must have native config
-  (data: { category?: string; native?: unknown }) => data.category !== 'native' || data.native !== undefined,
-  {
-    message: 'Native extensions must specify native configuration',
-    path: ['native'],
-  }
-).refine(
-  // Must have at least one entry point
-  (data: { main?: string; serverMain?: string }) => data.main !== undefined || data.serverMain !== undefined,
-  {
-    message: 'Extension must have at least one entry point (main or serverMain)',
-    path: ['main'],
-  }
-).refine(
-  // Validate publisher matches ID
-  (data: { id: string; publisher: string }) => data.id.startsWith(`${data.publisher}.`),
-  {
-    message: 'Extension ID must start with publisher slug',
-    path: ['id'],
-  }
-)
+export const extensionManifestSchema = z
+  .object({
+    // Identity (required)
+    id: extensionIdSchema,
+    name: z.string().min(1, 'Extension name is required').max(100, 'Name too long'),
+    version: semverSchema,
+    publisher: z
+      .string()
+      .min(1, 'Publisher is required')
+      .regex(/^[a-z][a-z0-9-]*$/, 'Publisher must be lowercase with letters, numbers, and hyphens'),
+
+    // Metadata
+    description: z.string().max(500, 'Description too long').optional(),
+    icon: z.string().optional(),
+    repository: z.string().url('Repository must be a valid URL').optional(),
+    license: z.string().min(1, 'License is required'),
+    keywords: z.array(z.string()).optional(),
+    categories: z.array(z.string()).optional(),
+    changelog: z.string().optional(),
+
+    // Category
+    category: categorySchema.optional().default('sandboxed'),
+    native: nativeConfigSchema.optional(),
+
+    // Dependencies
+    engines: z.object({
+      blueplm: semverRangeSchema,
+    }),
+    extensionDependencies: z.array(extensionDependencySchema).optional(),
+    extensionPack: z.array(extensionIdSchema).optional(),
+
+    // Entry points
+    main: z.string().optional(),
+    serverMain: z.string().optional(),
+
+    // Capabilities
+    activationEvents: z
+      .array(activationEventSchema)
+      .min(1, 'At least one activation event is required'),
+    contributes: contributionsSchema,
+    permissions: permissionsSchema,
+  })
+  .refine(
+    // Native extensions must have native config
+    (data: { category?: string; native?: unknown }) =>
+      data.category !== 'native' || data.native !== undefined,
+    {
+      message: 'Native extensions must specify native configuration',
+      path: ['native'],
+    },
+  )
+  .refine(
+    // Must have at least one entry point
+    (data: { main?: string; serverMain?: string }) =>
+      data.main !== undefined || data.serverMain !== undefined,
+    {
+      message: 'Extension must have at least one entry point (main or serverMain)',
+      path: ['main'],
+    },
+  )
+  .refine(
+    // Validate publisher matches ID
+    (data: { id: string; publisher: string }) => data.id.startsWith(`${data.publisher}.`),
+    {
+      message: 'Extension ID must start with publisher slug',
+      path: ['id'],
+    },
+  )
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PARSER FUNCTIONS
@@ -304,30 +312,30 @@ export const extensionManifestSchema = z.object({
 
 /**
  * Parse and validate a manifest from unknown input.
- * 
+ *
  * @param json - Raw JSON object (from JSON.parse or file)
  * @returns Validated ExtensionManifest
  * @throws {ManifestParseError} If validation fails
- * 
+ *
  * @example
  * const manifest = parseManifest(JSON.parse(manifestJson));
  */
 export function parseManifest(json: unknown): ExtensionManifest {
   const result = extensionManifestSchema.safeParse(json)
-  
+
   if (!result.success) {
     throw new ManifestParseError(formatZodErrors(result.error))
   }
-  
+
   return result.data as ExtensionManifest
 }
 
 /**
  * Validate a manifest with detailed error reporting.
- * 
+ *
  * @param json - Raw JSON object
  * @returns Validation result with errors and warnings
- * 
+ *
  * @example
  * const result = validateManifest(manifestData);
  * if (!result.valid) {
@@ -336,7 +344,7 @@ export function parseManifest(json: unknown): ExtensionManifest {
  */
 export function validateManifest(json: unknown): ValidationResult {
   const result = extensionManifestSchema.safeParse(json)
-  
+
   if (result.success) {
     const warnings = collectWarnings(result.data)
     return {
@@ -345,7 +353,7 @@ export function validateManifest(json: unknown): ValidationResult {
       warnings: warnings.length > 0 ? warnings : undefined,
     }
   }
-  
+
   return {
     valid: false,
     errors: formatZodErrors(result.error),
@@ -354,7 +362,7 @@ export function validateManifest(json: unknown): ValidationResult {
 
 /**
  * Parse manifest from JSON string.
- * 
+ *
  * @param jsonString - JSON string content
  * @returns Validated ExtensionManifest
  */
@@ -364,10 +372,12 @@ export function parseManifestString(jsonString: string): ExtensionManifest {
     return parseManifest(json)
   } catch (error) {
     if (error instanceof SyntaxError) {
-      throw new ManifestParseError([{
-        path: '',
-        message: `Invalid JSON: ${error.message}`,
-      }])
+      throw new ManifestParseError([
+        {
+          path: '',
+          message: `Invalid JSON: ${error.message}`,
+        },
+      ])
     }
     throw error
   }
@@ -383,11 +393,14 @@ export function parseManifestString(jsonString: string): ExtensionManifest {
 export class ManifestParseError extends Error {
   /** Validation errors */
   public readonly errors: ValidationError[]
-  
+
   constructor(errors: ValidationError[]) {
-    const summary = errors.slice(0, 3).map(e => `  - ${e.path}: ${e.message}`).join('\n')
+    const summary = errors
+      .slice(0, 3)
+      .map((e) => `  - ${e.path}: ${e.message}`)
+      .join('\n')
     const more = errors.length > 3 ? `\n  ... and ${errors.length - 3} more errors` : ''
-    
+
     super(`Invalid extension manifest:\n${summary}${more}`)
     this.name = 'ManifestParseError'
     this.errors = errors
@@ -411,7 +424,7 @@ function formatZodErrors(zodError: z.ZodError): ValidationError[] {
  */
 function collectWarnings(manifest: z.infer<typeof extensionManifestSchema>): ValidationError[] {
   const warnings: ValidationError[] = []
-  
+
   // Warn if no icon
   if (!manifest.icon) {
     warnings.push({
@@ -419,7 +432,7 @@ function collectWarnings(manifest: z.infer<typeof extensionManifestSchema>): Val
       message: 'No icon specified. Extensions without icons may not display well in the store.',
     })
   }
-  
+
   // Warn if no description
   if (!manifest.description) {
     warnings.push({
@@ -427,7 +440,7 @@ function collectWarnings(manifest: z.infer<typeof extensionManifestSchema>): Val
       message: 'No description provided. A description helps users understand your extension.',
     })
   }
-  
+
   // Warn if no repository (required for store submission)
   if (!manifest.repository) {
     warnings.push({
@@ -435,7 +448,7 @@ function collectWarnings(manifest: z.infer<typeof extensionManifestSchema>): Val
       message: 'No repository URL. This is required for store submission.',
     })
   }
-  
+
   // Warn about deprecated features
   if (manifest.contributes.configuration?.properties) {
     for (const [key, prop] of Object.entries(manifest.contributes.configuration.properties)) {
@@ -448,7 +461,7 @@ function collectWarnings(manifest: z.infer<typeof extensionManifestSchema>): Val
       }
     }
   }
-  
+
   // Warn if native extension doesn't specify electron entry
   if (manifest.category === 'native' && !manifest.native?.electronMain) {
     warnings.push({
@@ -456,15 +469,16 @@ function collectWarnings(manifest: z.infer<typeof extensionManifestSchema>): Val
       message: 'Native extension without electronMain entry point.',
     })
   }
-  
+
   // Warn if using broad network permissions
   if (manifest.permissions.server?.includes('http:fetch')) {
     warnings.push({
       path: 'permissions.server',
-      message: 'Using http:fetch allows requests to any domain. Consider using http:domain: for specific domains.',
+      message:
+        'Using http:fetch allows requests to any domain. Consider using http:domain: for specific domains.',
     })
   }
-  
+
   return warnings
 }
 
@@ -474,7 +488,7 @@ function collectWarnings(manifest: z.infer<typeof extensionManifestSchema>): Val
 
 /**
  * Check if a manifest is valid without throwing.
- * 
+ *
  * @param json - Raw JSON object
  * @returns True if valid
  */
@@ -484,7 +498,7 @@ export function isValidManifest(json: unknown): json is ExtensionManifest {
 
 /**
  * Extract extension ID from manifest string (quick check without full parse).
- * 
+ *
  * @param jsonString - JSON string
  * @returns Extension ID or null
  */
@@ -502,25 +516,25 @@ export function extractExtensionId(jsonString: string): string | null {
 
 /**
  * Get all HTTP domains required by an extension.
- * 
+ *
  * @param manifest - Extension manifest
  * @returns Array of domain strings
  */
 export function getRequiredDomains(manifest: ExtensionManifest): string[] {
   const domains: string[] = []
-  
+
   for (const perm of manifest.permissions.server ?? []) {
     if (perm.startsWith('http:domain:')) {
       domains.push(perm.slice('http:domain:'.length))
     }
   }
-  
+
   return domains
 }
 
 /**
  * Get all activation event types from manifest.
- * 
+ *
  * @param manifest - Extension manifest
  * @returns Object with arrays of each event type
  */
@@ -540,7 +554,7 @@ export function getActivationEventsByType(manifest: ExtensionManifest): {
     views: [] as string[],
     fileTypes: [] as string[],
   }
-  
+
   for (const event of manifest.activationEvents) {
     if (event === 'onExtensionEnabled') {
       result.onExtensionEnabled = true
@@ -556,6 +570,6 @@ export function getActivationEventsByType(manifest: ExtensionManifest): {
       result.fileTypes.push(event.slice('onFileType:'.length))
     }
   }
-  
+
   return result
 }

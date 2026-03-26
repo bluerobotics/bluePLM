@@ -1,6 +1,6 @@
 /**
  * Extension Host Type Definitions
- * 
+ *
  * Types for the Extension Host process that runs isolated client-side extension code.
  */
 
@@ -11,11 +11,11 @@
 /**
  * Extension lifecycle states
  */
-export type ExtensionState = 
+export type ExtensionState =
   | 'not-installed'
-  | 'installed' 
-  | 'loading' 
-  | 'active' 
+  | 'installed'
+  | 'loading'
+  | 'active'
   | 'error'
   | 'killed'
 
@@ -81,17 +81,13 @@ export interface WatchdogConfig {
 export const DEFAULT_WATCHDOG_CONFIG: WatchdogConfig = {
   memoryLimitMB: 50,
   cpuTimeoutMs: 5000,
-  checkIntervalMs: 1000
+  checkIntervalMs: 1000,
 }
 
 /**
  * Watchdog violation types
  */
-export type ViolationType = 
-  | 'memory_exceeded'
-  | 'cpu_timeout'
-  | 'unresponsive'
-  | 'error'
+export type ViolationType = 'memory_exceeded' | 'cpu_timeout' | 'unresponsive' | 'error'
 
 /**
  * Watchdog violation event
@@ -131,7 +127,14 @@ export type HostInboundMessage =
   | { type: 'extension:activate'; extensionId: string }
   | { type: 'extension:deactivate'; extensionId: string }
   | { type: 'extension:kill'; extensionId: string; reason: string }
-  | { type: 'api:call'; callId: string; extensionId: string; api: string; method: string; args: unknown[] }
+  | {
+      type: 'api:call'
+      callId: string
+      extensionId: string
+      api: string
+      method: string
+      args: unknown[]
+    }
   | { type: 'watchdog:config'; extensionId: string; config: Partial<WatchdogConfig> }
   | { type: 'host:shutdown' }
 
@@ -218,13 +221,13 @@ export interface SandboxInstance {
   state: 'idle' | 'running' | 'terminated'
   startedAt: number
   lastActivity: number
-  
+
   /** Execute code in the sandbox */
   execute<T>(code: string, ...args: unknown[]): Promise<T>
-  
+
   /** Terminate the sandbox */
   terminate(): void
-  
+
   /** Get memory usage in bytes */
   getMemoryUsage(): number
 }

@@ -8,8 +8,17 @@ import { log } from '@/lib/logger'
 // ============================================
 
 // Helper to log auth events (uses unified logger)
-export const authLog = (level: 'info' | 'warn' | 'error' | 'debug', message: string, data?: unknown) => {
-  const dataObj = data && typeof data === 'object' ? data as Record<string, unknown> : data !== undefined ? { value: data } : undefined
+export const authLog = (
+  level: 'info' | 'warn' | 'error' | 'debug',
+  message: string,
+  data?: unknown,
+) => {
+  const dataObj =
+    data && typeof data === 'object'
+      ? (data as Record<string, unknown>)
+      : data !== undefined
+        ? { value: data }
+        : undefined
   log[level]('[Auth]', message, dataObj)
 }
 
@@ -31,27 +40,31 @@ function initializeClient() {
   const storedConfig = loadConfig()
   if (storedConfig) {
     currentConfig = storedConfig
-    supabaseClient = createClient<Database>(storedConfig.url, storedConfig.anonKey, getClientOptions())
+    supabaseClient = createClient<Database>(
+      storedConfig.url,
+      storedConfig.anonKey,
+      getClientOptions(),
+    )
     setupSessionListener()
     return
   }
-  
+
   // Fallback to environment variables (for development)
   const envUrl = import.meta.env.VITE_SUPABASE_URL || ''
   const envKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
-  
+
   if (envUrl && envKey) {
     currentConfig = { version: 1, url: envUrl, anonKey: envKey }
     supabaseClient = createClient<Database>(envUrl, envKey, getClientOptions())
     setupSessionListener()
     return
   }
-  
+
   // Not configured - will use placeholder client
   supabaseClient = createClient<Database>(
     'https://placeholder.supabase.co',
     'placeholder-key',
-    getClientOptions()
+    getClientOptions(),
   )
 }
 
@@ -60,13 +73,13 @@ function getClientOptions() {
     auth: {
       autoRefreshToken: true,
       persistSession: true,
-      detectSessionInUrl: true
+      detectSessionInUrl: true,
     },
     realtime: {
       params: {
-        eventsPerSecond: 10
-      }
-    }
+        eventsPerSecond: 10,
+      },
+    },
   }
 }
 
@@ -107,7 +120,7 @@ export const supabase: SupabaseClient<Database> = new Proxy({} as SupabaseClient
       return value.bind(client)
     }
     return value
-  }
+  },
 })
 
 // Initialize on module load
@@ -125,35 +138,36 @@ function setupSessionListener() {
       sessionListenerCleanup()
       sessionListenerCleanup = null
     }
-    
+
     authLog('info', 'Setting up onSetSession listener')
     sessionListenerCleanup = window.electronAPI.onSetSession(async (tokens) => {
       authLog('info', 'Received tokens from main process', {
         hasAccessToken: !!tokens.access_token,
         accessTokenLength: tokens.access_token?.length,
         hasRefreshToken: !!tokens.refresh_token,
-        expiresIn: tokens.expires_in
+        expiresIn: tokens.expires_in,
       })
       try {
         const client = getSupabaseClient()
         const { data, error } = await client.auth.setSession({
           access_token: tokens.access_token,
-          refresh_token: tokens.refresh_token
+          refresh_token: tokens.refresh_token,
         })
-        
+
         if (error) {
           authLog('error', 'Error setting session', { error: error.message, code: error.status })
           sessionResolver?.(false)
         } else {
-          authLog('info', 'Session set successfully', { 
+          authLog('info', 'Session set successfully', {
             email: data.user?.email,
-            userId: data.user?.id?.substring(0, 8) + '...'
+            userId: data.user?.id?.substring(0, 8) + '...',
           })
-          
+
           // Generate CLI token when user authenticates
           if (data.user?.email) {
-            window.electronAPI?.generateCliToken?.(data.user.email)
-              .then(result => {
+            window.electronAPI
+              ?.generateCliToken?.(data.user.email)
+              .then((result) => {
                 if (result?.success) {
                   authLog('debug', 'CLI token generated')
                 }
@@ -162,11 +176,11 @@ function setupSessionListener() {
                 // Ignore CLI token errors - non-critical
               })
           }
-          
+
           sessionResolver?.(true)
         }
-      } catch (err) {
-        authLog('error', 'Failed to set session (exception)', { error: String(err) })
+      } catch (error) {
+        authLog('error', 'Failed to set session (exception)', { error: String(error) })
         sessionResolver?.(false)
       }
     })

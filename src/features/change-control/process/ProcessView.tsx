@@ -9,7 +9,7 @@ export function ProcessView() {
           New Process
         </button>
       </div>
-      
+
       <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
         <div className="w-16 h-16 rounded-full bg-plm-highlight flex items-center justify-center mb-4">
           <Network size={32} className="text-plm-fg-muted" />
@@ -25,4 +25,3 @@ export function ProcessView() {
     </div>
   )
 }
-

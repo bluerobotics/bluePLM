@@ -23,14 +23,15 @@ export function GSDView() {
           </div>
         </div>
       </div>
-      
+
       <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
         <div className="w-16 h-16 rounded-full bg-plm-highlight flex items-center justify-center mb-4">
           <FileText size={32} className="text-plm-fg-muted" />
         </div>
         <h3 className="text-sm font-medium text-plm-fg mb-2">GSD Summary</h3>
         <p className="text-xs text-plm-fg-muted max-w-[200px]">
-          Getting Stuff Done — your ECO dashboard. Track progress, blockers, and what needs attention.
+          Getting Stuff Done — your ECO dashboard. Track progress, blockers, and what needs
+          attention.
         </p>
         <div className="mt-6 px-3 py-1.5 bg-plm-warning/20 text-plm-warning text-[10px] font-medium rounded">
           COMING SOON
@@ -39,4 +40,3 @@ export function GSDView() {
     </div>
   )
 }
-

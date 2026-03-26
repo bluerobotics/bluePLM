@@ -35,7 +35,7 @@ export interface ConnectedVault {
 export type BackupLogLevel = 'debug' | 'info' | 'warn' | 'error' | 'success'
 
 /** Phases of backup/restore operations */
-export type BackupPhase = 
+export type BackupPhase =
   | 'idle'
   | 'repo_check'
   | 'repo_init'

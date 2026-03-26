@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
-import { 
-  Building2, 
-  Plus, 
-  Search, 
-  MapPin, 
+import {
+  Building2,
+  Plus,
+  Search,
+  MapPin,
   RefreshCw,
   ExternalLink,
   Loader2,
@@ -11,7 +11,7 @@ import {
   Globe,
   Mail,
   Phone,
-  ChevronRight
+  ChevronRight,
 } from 'lucide-react'
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
@@ -23,9 +23,9 @@ function getApiUrl(organization: { settings?: { api_url?: string } } | null): st
 }
 
 export function SuppliersView() {
-  const { 
-    organization, 
-    addToast, 
+  const {
+    organization,
+    addToast,
     setActiveView,
     // Suppliers slice state
     suppliers,
@@ -35,7 +35,7 @@ export function SuppliersView() {
     setSuppliers,
     setSuppliersLoading,
   } = usePDMStore()
-  
+
   // Local UI state (not persisted)
   const [syncing, setSyncing] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -46,7 +46,7 @@ export function SuppliersView() {
     if (!organization?.id) return
 
     setSuppliersLoading(true)
-    
+
     try {
       const query = supabase
         .from('suppliers')
@@ -59,8 +59,8 @@ export function SuppliersView() {
 
       if (error) throw error
       setSuppliers(data || [])
-    } catch (err) {
-      log.error('[Suppliers]', 'Failed to load suppliers', { error: err })
+    } catch (error) {
+      log.error('[Suppliers]', 'Failed to load suppliers', { error: error })
     } finally {
       setSuppliersLoading(false)
     }
@@ -77,9 +77,11 @@ export function SuppliersView() {
     setSyncing(true)
 
     try {
-      const { data: { session } } = await supabase.auth.getSession()
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
       const token = session?.access_token
-      
+
       if (!token) {
         addToast('error', 'Session expired. Please log in again.')
         setSyncing(false)
@@ -95,12 +97,12 @@ export function SuppliersView() {
       const response = await fetch(`${apiUrl}/integrations/odoo/sync/suppliers`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`
-        }
+          Authorization: `Bearer ${token}`,
+        },
       })
 
       const data = await response.json()
-      
+
       // Debug info available via log.debug
       log.debug('[Odoo Sync]', 'Sync response', { status: response.status, debug: data.debug })
 
@@ -109,29 +111,36 @@ export function SuppliersView() {
         loadSuppliers()
       } else {
         if (data.message?.includes('not configured')) {
-          addToast('warning', 'Odoo not configured. Go to Settings > Google Drive & ERP to set it up.')
+          addToast(
+            'warning',
+            'Odoo not configured. Go to Settings > Google Drive & ERP to set it up.',
+          )
           setActiveView('settings')
         } else {
           // Show more detailed error
-          const debugInfo = data.debug ? ` (auth: ${data.debug.auth_uid ? 'ok' : 'failed'}, found: ${data.debug.supplier_ids_count})` : ''
+          const debugInfo = data.debug
+            ? ` (auth: ${data.debug.auth_uid ? 'ok' : 'failed'}, found: ${data.debug.supplier_ids_count})`
+            : ''
           addToast('error', (data.message || 'Sync failed') + debugInfo)
         }
       }
-    } catch (err) {
-      addToast('error', `Sync error: ${err}`)
+    } catch (error) {
+      addToast('error', `Sync error: ${error}`)
     } finally {
       setSyncing(false)
     }
   }
 
   // Filter suppliers
-  const filteredSuppliers = suppliers.filter(s => {
+  const filteredSuppliers = suppliers.filter((s) => {
     // Search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase()
-      if (!s.name.toLowerCase().includes(query) &&
-          !s.code?.toLowerCase().includes(query) &&
-          !s.city?.toLowerCase().includes(query)) {
+      if (
+        !s.name.toLowerCase().includes(query) &&
+        !s.code?.toLowerCase().includes(query) &&
+        !s.city?.toLowerCase().includes(query)
+      ) {
         return false
       }
     }
@@ -143,8 +152,8 @@ export function SuppliersView() {
     return true
   })
 
-  const approvedCount = suppliers.filter(s => s.is_approved).length
-  const pendingCount = suppliers.filter(s => !s.is_approved).length
+  const approvedCount = suppliers.filter((s) => s.is_approved).length
+  const pendingCount = suppliers.filter((s) => !s.is_approved).length
   const loading = suppliersLoading
 
   // Supplier detail view
@@ -169,11 +178,13 @@ export function SuppliersView() {
                 <span className="text-xs font-mono text-plm-fg-muted">{selectedSupplier.code}</span>
               )}
               <div className="flex gap-2 mt-2">
-                <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded ${
-                  selectedSupplier.is_approved 
-                    ? 'bg-plm-success/20 text-plm-success' 
-                    : 'bg-plm-warning/20 text-plm-warning'
-                }`}>
+                <span
+                  className={`px-1.5 py-0.5 text-[10px] font-medium rounded ${
+                    selectedSupplier.is_approved
+                      ? 'bg-plm-success/20 text-plm-success'
+                      : 'bg-plm-warning/20 text-plm-warning'
+                  }`}
+                >
                   {selectedSupplier.is_approved ? 'APPROVED' : 'PENDING'}
                 </span>
                 {selectedSupplier.erp_id && (
@@ -190,11 +201,16 @@ export function SuppliersView() {
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {/* Contact */}
           <div className="space-y-2">
-            <h3 className="text-xs font-medium text-plm-fg-muted uppercase tracking-wider">Contact</h3>
+            <h3 className="text-xs font-medium text-plm-fg-muted uppercase tracking-wider">
+              Contact
+            </h3>
             {selectedSupplier.contact_email && (
               <div className="flex items-center gap-2 text-sm">
                 <Mail size={14} className="text-plm-fg-muted" />
-                <a href={`mailto:${selectedSupplier.contact_email}`} className="text-plm-accent hover:underline">
+                <a
+                  href={`mailto:${selectedSupplier.contact_email}`}
+                  className="text-plm-accent hover:underline"
+                >
                   {selectedSupplier.contact_email}
                 </a>
               </div>
@@ -208,8 +224,12 @@ export function SuppliersView() {
             {selectedSupplier.website && (
               <div className="flex items-center gap-2 text-sm">
                 <Globe size={14} className="text-plm-fg-muted" />
-                <a 
-                  href={selectedSupplier.website.startsWith('http') ? selectedSupplier.website : `https://${selectedSupplier.website}`}
+                <a
+                  href={
+                    selectedSupplier.website.startsWith('http')
+                      ? selectedSupplier.website
+                      : `https://${selectedSupplier.website}`
+                  }
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-plm-accent hover:underline flex items-center gap-1"
@@ -224,7 +244,9 @@ export function SuppliersView() {
           {/* Location */}
           {(selectedSupplier.city || selectedSupplier.state || selectedSupplier.country) && (
             <div className="space-y-2">
-              <h3 className="text-xs font-medium text-plm-fg-muted uppercase tracking-wider">Location</h3>
+              <h3 className="text-xs font-medium text-plm-fg-muted uppercase tracking-wider">
+                Location
+              </h3>
               <div className="flex items-center gap-2 text-sm">
                 <MapPin size={14} className="text-plm-fg-muted" />
                 <span className="text-plm-fg">
@@ -239,7 +261,9 @@ export function SuppliersView() {
           {/* Sync info */}
           {selectedSupplier.erp_synced_at && (
             <div className="space-y-2">
-              <h3 className="text-xs font-medium text-plm-fg-muted uppercase tracking-wider">Sync</h3>
+              <h3 className="text-xs font-medium text-plm-fg-muted uppercase tracking-wider">
+                Sync
+              </h3>
               <div className="flex items-center gap-2 text-sm">
                 <Clock size={14} className="text-plm-fg-muted" />
                 <span className="text-plm-fg-muted">
@@ -262,23 +286,22 @@ export function SuppliersView() {
             <Plus size={16} />
             Add Supplier
           </button>
-          <button 
+          <button
             onClick={handleSync}
             disabled={syncing}
             className="flex items-center justify-center gap-2 px-3 py-2 bg-plm-highlight hover:bg-plm-highlight/80 rounded text-sm font-medium text-plm-fg transition-colors disabled:opacity-50"
             title="Sync from Odoo"
           >
-            {syncing ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              <RefreshCw size={16} />
-            )}
+            {syncing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
           </button>
         </div>
-        
+
         {/* Search */}
         <div className="relative">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
+          <Search
+            size={14}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted"
+          />
           <input
             type="text"
             value={searchQuery}
@@ -322,9 +345,7 @@ export function SuppliersView() {
             {suppliers.length === 0 ? (
               <>
                 <p className="text-sm text-plm-fg mb-1">No suppliers yet</p>
-                <p className="text-xs text-plm-fg-muted mb-4">
-                  Sync from Odoo or add manually
-                </p>
+                <p className="text-xs text-plm-fg-muted mb-4">Sync from Odoo or add manually</p>
                 <button
                   onClick={handleSync}
                   disabled={syncing}
@@ -358,23 +379,29 @@ export function SuppliersView() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={`px-1.5 py-0.5 text-[9px] font-medium rounded ${
-                    supplier.is_approved 
-                      ? 'bg-plm-success/20 text-plm-success' 
-                      : 'bg-plm-warning/20 text-plm-warning'
-                  }`}>
+                  <span
+                    className={`px-1.5 py-0.5 text-[9px] font-medium rounded ${
+                      supplier.is_approved
+                        ? 'bg-plm-success/20 text-plm-success'
+                        : 'bg-plm-warning/20 text-plm-warning'
+                    }`}
+                  >
                     {supplier.is_approved ? 'APPROVED' : 'PENDING'}
                   </span>
-                  <ChevronRight size={14} className="text-plm-fg-muted opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <ChevronRight
+                    size={14}
+                    className="text-plm-fg-muted opacity-0 group-hover:opacity-100 transition-opacity"
+                  />
                 </div>
               </div>
-              
+
               {(supplier.city || supplier.website) && (
                 <div className="flex items-center gap-3 text-[11px] text-plm-fg-muted mt-1 ml-10">
                   {supplier.city && (
                     <span className="flex items-center gap-1">
                       <MapPin size={10} />
-                      {supplier.city}{supplier.state ? `, ${supplier.state}` : ''}
+                      {supplier.city}
+                      {supplier.state ? `, ${supplier.state}` : ''}
                     </span>
                   )}
                   {supplier.erp_id && (
@@ -395,7 +422,9 @@ export function SuppliersView() {
         <div className="p-3 border-t border-plm-border bg-plm-bg">
           <div className="flex justify-between text-[11px] text-plm-fg-muted">
             <span>{suppliers.length} suppliers</span>
-            <span>{approvedCount} approved • {pendingCount} pending</span>
+            <span>
+              {approvedCount} approved • {pendingCount} pending
+            </span>
           </div>
         </div>
       )}

@@ -1,6 +1,6 @@
 // Workflow editor toolbar component
-import { 
-  Plus, 
+import {
+  Plus,
   Edit3,
   X,
   ArrowRight,
@@ -15,9 +15,10 @@ import {
   AlignVerticalJustifyCenter,
   Download,
   Upload,
-  BadgeCheck
+  BadgeCheck,
 } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
+import { t } from '@/lib/i18n'
 import type { WorkflowTemplate, WorkflowState, CanvasMode } from '@/types/workflow'
 import type { SnapSettings } from './types'
 
@@ -27,22 +28,22 @@ interface WorkflowToolbarProps {
   selectedWorkflow: WorkflowTemplate | null
   states: WorkflowState[]
   isAdmin: boolean
-  
+
   // Canvas state
   canvasMode: CanvasMode
   zoom: number
   isCreatingTransition: boolean
-  
+
   // Snap settings
   snapSettings: SnapSettings
   showSnapSettings: boolean
-  
+
   // Canvas ref for centering
   canvasRef: React.RefObject<HTMLDivElement | null>
-  
+
   // Import ref
   importInputRef: React.RefObject<HTMLInputElement | null>
-  
+
   // Actions
   selectWorkflow: (workflow: WorkflowTemplate) => void
   setShowCreateWorkflow: (show: boolean) => void
@@ -81,24 +82,23 @@ export function WorkflowToolbar({
   setShowSnapSettings,
   exportWorkflow,
   importWorkflow,
-  addState
+  addState,
 }: WorkflowToolbarProps) {
-  
   const handleResetZoom = () => {
     setZoom(1)
     // Center on content instead of origin
     if (states.length > 0) {
-      const minX = Math.min(...states.map(s => s.position_x))
-      const maxX = Math.max(...states.map(s => s.position_x))
-      const minY = Math.min(...states.map(s => s.position_y))
-      const maxY = Math.max(...states.map(s => s.position_y))
+      const minX = Math.min(...states.map((s) => s.position_x))
+      const maxX = Math.max(...states.map((s) => s.position_x))
+      const minY = Math.min(...states.map((s) => s.position_y))
+      const maxY = Math.max(...states.map((s) => s.position_y))
       const contentCenterX = (minX + maxX) / 2
       const contentCenterY = (minY + maxY) / 2
       const canvasWidth = canvasRef.current?.clientWidth || 800
       const canvasHeight = canvasRef.current?.clientHeight || 600
-      setPan({ 
-        x: (canvasWidth / 2) - contentCenterX, 
-        y: (canvasHeight / 2) - contentCenterY 
+      setPan({
+        x: canvasWidth / 2 - contentCenterX,
+        y: canvasHeight / 2 - contentCenterY,
       })
     } else {
       setPan({ x: 0, y: 0 })
@@ -121,40 +121,40 @@ export function WorkflowToolbar({
       <select
         value={selectedWorkflow?.id || ''}
         onChange={(e) => {
-          const workflow = workflows.find(w => w.id === e.target.value)
+          const workflow = workflows.find((w) => w.id === e.target.value)
           if (workflow) selectWorkflow(workflow)
         }}
         className="bg-plm-input border border-plm-border rounded px-2 py-1 text-sm min-w-[140px]"
-        title={selectedWorkflow?.description || 'Select workflow'}
+        title={selectedWorkflow?.description || t('workflows.toolbar.selectWorkflow')}
       >
-        <option value="">Select workflow...</option>
-        {workflows.map(w => (
+        <option value="">{t('workflows.toolbar.selectWorkflowPlaceholder')}</option>
+        {workflows.map((w) => (
           <option key={w.id} value={w.id}>
-            {w.name} {w.is_default ? '(default)' : ''}
+            {w.name} {w.is_default ? t('workflows.toolbar.defaultSuffix') : ''}
           </option>
         ))}
       </select>
-      
+
       {isAdmin && (
         <button
           onClick={() => setShowCreateWorkflow(true)}
           className="p-1 hover:bg-plm-bg rounded text-plm-accent"
-          title="Create new workflow"
+          title={t('workflows.toolbar.createNewWorkflow')}
         >
           <Plus size={14} />
         </button>
       )}
-      
+
       {isAdmin && selectedWorkflow && (
         <button
           onClick={() => setShowEditWorkflow(true)}
           className="p-1 hover:bg-plm-bg rounded text-plm-fg-muted hover:text-plm-fg"
-          title="Edit workflow name & description"
+          title={t('workflows.toolbar.editWorkflow')}
         >
           <Edit3 size={14} />
         </button>
       )}
-      
+
       {selectedWorkflow && (
         <>
           <div className="w-px h-4 bg-plm-border mx-1" />
@@ -164,7 +164,7 @@ export function WorkflowToolbar({
               cancelConnectMode()
             }}
             className={`p-1.5 rounded ${canvasMode === 'select' && !isCreatingTransition ? 'bg-plm-accent text-white' : 'hover:bg-plm-bg'}`}
-            title="Select mode (Esc)"
+            title={t('workflows.toolbar.selectMode')}
           >
             <MousePointer size={14} />
           </button>
@@ -174,7 +174,7 @@ export function WorkflowToolbar({
               cancelConnectMode()
             }}
             className={`p-1.5 rounded ${canvasMode === 'pan' ? 'bg-plm-accent text-white' : 'hover:bg-plm-bg'}`}
-            title="Pan mode"
+            title={t('workflows.toolbar.panMode')}
           >
             <Move size={14} />
           </button>
@@ -182,29 +182,29 @@ export function WorkflowToolbar({
             <button
               onClick={() => setCanvasMode('connect')}
               className={`p-1.5 rounded ${canvasMode === 'connect' || isCreatingTransition ? 'bg-green-600 text-white' : 'hover:bg-plm-bg'}`}
-              title="Connect mode - draw transitions"
+              title={t('workflows.toolbar.connectMode')}
             >
               <ArrowRight size={14} />
             </button>
           )}
-          
+
           {/* Cancel button when connecting */}
           {isCreatingTransition && (
             <button
               onClick={cancelConnectMode}
               className="p-1.5 rounded bg-red-500/20 hover:bg-red-500/30 text-red-400"
-              title="Cancel (Esc)"
+              title={t('workflows.toolbar.cancelEsc')}
             >
               <X size={14} />
             </button>
           )}
-          
+
           <div className="w-px h-4 bg-plm-border mx-1" />
-          
+
           <button
             onClick={() => setZoom(Math.min(2, zoom * 1.2))}
             className="p-1.5 hover:bg-plm-bg rounded"
-            title="Zoom in"
+            title={t('workflows.toolbar.zoomIn')}
           >
             <ZoomIn size={14} />
           </button>
@@ -214,55 +214,57 @@ export function WorkflowToolbar({
           <button
             onClick={() => setZoom(Math.max(0.25, zoom * 0.8))}
             className="p-1.5 hover:bg-plm-bg rounded"
-            title="Zoom out"
+            title={t('workflows.toolbar.zoomOut')}
           >
             <ZoomOut size={14} />
           </button>
           <button
             onClick={handleResetZoom}
             className="p-1.5 hover:bg-plm-bg rounded text-xs"
-            title="Center on content"
+            title={t('workflows.toolbar.centerOnContent')}
           >
-            1:1
+            {t('workflows.toolbar.resetZoom')}
           </button>
-          
+
           <div className="w-px h-4 bg-plm-border mx-1" />
-          
+
           {/* Snap settings button */}
           <div className="relative overflow-visible">
             <button
               onClick={() => setShowSnapSettings(!showSnapSettings)}
               className={`p-1.5 rounded flex items-center gap-1 ${
-                (snapSettings.snapToGrid || snapSettings.snapToAlignment) 
-                  ? 'bg-plm-accent/20 text-plm-accent' 
+                snapSettings.snapToGrid || snapSettings.snapToAlignment
+                  ? 'bg-plm-accent/20 text-plm-accent'
                   : 'hover:bg-plm-bg'
               }`}
-              title="Snap settings"
+              title={t('workflows.toolbar.snapSettings')}
             >
               <Magnet size={14} />
               <ChevronDown size={10} className={showSnapSettings ? 'rotate-180' : ''} />
             </button>
-            
+
             {/* Snap settings dropdown */}
             {showSnapSettings && (
               <div className="absolute top-full left-0 mt-1 w-52 bg-plm-bg-light border border-plm-border rounded-lg shadow-lg z-[100] p-2.5">
                 <div className="text-xs font-medium text-plm-fg mb-2 flex items-center gap-1.5">
                   <Settings2 size={11} />
-                  Snap Settings
+                  {t('workflows.toolbar.snapSettingsHeading')}
                 </div>
-                
+
                 {/* Snap to Grid */}
                 <label className="flex items-center gap-1.5 mb-1.5 cursor-pointer group">
                   <input
                     type="checkbox"
                     checked={snapSettings.snapToGrid}
-                    onChange={(e) => setSnapSettings(prev => ({ ...prev, snapToGrid: e.target.checked }))}
+                    onChange={(e) =>
+                      setSnapSettings((prev) => ({ ...prev, snapToGrid: e.target.checked }))
+                    }
                     className="rounded border-plm-border bg-plm-bg text-plm-accent focus:ring-plm-accent w-3 h-3"
                   />
                   <Grid size={11} className="text-plm-fg-muted group-hover:text-plm-fg shrink-0" />
-                  <span className="text-[11px] text-plm-fg">Snap to Grid</span>
+                  <span className="text-[11px] text-plm-fg">{t('workflows.toolbar.snapToGrid')}</span>
                 </label>
-                
+
                 {/* Grid Size */}
                 <div className="mb-1.5 pl-4">
                   <div className="flex items-center gap-1.5">
@@ -272,27 +274,36 @@ export function WorkflowToolbar({
                       max="100"
                       step="10"
                       value={snapSettings.gridSize}
-                      onChange={(e) => setSnapSettings(prev => ({ ...prev, gridSize: parseInt(e.target.value) }))}
+                      onChange={(e) =>
+                        setSnapSettings((prev) => ({ ...prev, gridSize: parseInt(e.target.value) }))
+                      }
                       className="flex-1 h-1 bg-plm-border rounded appearance-none cursor-pointer min-w-0"
                     />
-                    <span className="text-[10px] text-plm-fg-muted w-9 text-right shrink-0">{snapSettings.gridSize}px</span>
+                    <span className="text-[10px] text-plm-fg-muted w-9 text-right shrink-0">
+                      {snapSettings.gridSize}px
+                    </span>
                   </div>
                 </div>
-                
+
                 <div className="w-full h-px bg-plm-border my-1.5" />
-                
+
                 {/* Snap to Alignment */}
                 <label className="flex items-center gap-1.5 mb-1.5 cursor-pointer group">
                   <input
                     type="checkbox"
                     checked={snapSettings.snapToAlignment}
-                    onChange={(e) => setSnapSettings(prev => ({ ...prev, snapToAlignment: e.target.checked }))}
+                    onChange={(e) =>
+                      setSnapSettings((prev) => ({ ...prev, snapToAlignment: e.target.checked }))
+                    }
                     className="rounded border-plm-border bg-plm-bg text-plm-accent focus:ring-plm-accent w-3 h-3"
                   />
-                  <AlignVerticalJustifyCenter size={11} className="text-plm-fg-muted group-hover:text-plm-fg shrink-0" />
-                  <span className="text-[11px] text-plm-fg">Snap to Alignment</span>
+                  <AlignVerticalJustifyCenter
+                    size={11}
+                    className="text-plm-fg-muted group-hover:text-plm-fg shrink-0"
+                  />
+                  <span className="text-[11px] text-plm-fg">{t('workflows.toolbar.snapToAlignment')}</span>
                 </label>
-                
+
                 {/* Alignment Threshold */}
                 <div className="pl-4">
                   <div className="flex items-center gap-1.5">
@@ -302,23 +313,30 @@ export function WorkflowToolbar({
                       max="30"
                       step="5"
                       value={snapSettings.alignmentThreshold}
-                      onChange={(e) => setSnapSettings(prev => ({ ...prev, alignmentThreshold: parseInt(e.target.value) }))}
+                      onChange={(e) =>
+                        setSnapSettings((prev) => ({
+                          ...prev,
+                          alignmentThreshold: parseInt(e.target.value),
+                        }))
+                      }
                       className="flex-1 h-1 bg-plm-border rounded appearance-none cursor-pointer min-w-0"
                     />
-                    <span className="text-[10px] text-plm-fg-muted w-9 text-right shrink-0">{snapSettings.alignmentThreshold}px</span>
+                    <span className="text-[10px] text-plm-fg-muted w-9 text-right shrink-0">
+                      {snapSettings.alignmentThreshold}px
+                    </span>
                   </div>
                 </div>
               </div>
             )}
           </div>
-          
+
           <div className="flex-1" />
-          
+
           {/* Export/Import buttons */}
           <button
             onClick={exportWorkflow}
             className="p-1.5 hover:bg-plm-bg rounded"
-            title="Export workflow to JSON"
+            title={t('workflows.toolbar.exportWorkflow')}
           >
             <Download size={14} />
           </button>
@@ -327,7 +345,7 @@ export function WorkflowToolbar({
               <button
                 onClick={() => importInputRef.current?.click()}
                 className="p-1.5 hover:bg-plm-bg rounded"
-                title="Import workflow from JSON"
+                title={t('workflows.toolbar.importWorkflow')}
               >
                 <Upload size={14} />
               </button>
@@ -346,30 +364,30 @@ export function WorkflowToolbar({
               />
             </>
           )}
-          
+
           <div className="w-px h-4 bg-plm-border mx-1" />
-          
+
           {/* Workflow Roles link */}
           {isAdmin && (
             <button
               onClick={navigateToRoles}
               className="flex items-center gap-1 px-2 py-1 hover:bg-plm-bg rounded text-xs text-plm-fg-muted hover:text-plm-fg"
-              title="Manage workflow roles (approval authorities)"
+              title={t('workflows.toolbar.manageRoles')}
             >
               <BadgeCheck size={12} />
-              Roles
+              {t('workflows.toolbar.roles')}
             </button>
           )}
-          
+
           <div className="w-px h-4 bg-plm-border mx-1" />
-          
+
           {isAdmin && (
             <button
               onClick={addState}
               className="flex items-center gap-1 px-2 py-1 bg-plm-accent hover:bg-plm-accent-hover rounded text-white text-xs"
             >
               <Plus size={12} />
-              Add State
+              {t('workflows.toolbar.addState')}
             </button>
           )}
         </>

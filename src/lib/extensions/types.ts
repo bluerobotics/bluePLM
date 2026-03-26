@@ -1,9 +1,9 @@
 /**
  * BluePLM Extension System - Core Type Definitions
- * 
+ *
  * This module defines the complete type system for the extension architecture,
  * following VS Code/Atlassian Forge patterns for enterprise extensibility.
- * 
+ *
  * @module extensions/types
  */
 
@@ -13,7 +13,7 @@
 
 /**
  * Extension category determines execution environment and trust requirements.
- * 
+ *
  * - `sandboxed`: Runs in Extension Host (client) + V8 isolate (server). Default.
  * - `native`: Runs in main Electron process. Verified extensions only.
  */
@@ -21,7 +21,7 @@ export type ExtensionCategory = 'sandboxed' | 'native'
 
 /**
  * Verification status indicates trust level of extension.
- * 
+ *
  * - `verified`: Code reviewed and signed by Blue Robotics.
  * - `community`: Open source, not reviewed. Use at own risk.
  * - `sideloaded`: Installed from local .bpx file. Prominent warning shown.
@@ -45,23 +45,23 @@ export type ExtensionState =
 
 /**
  * Events that trigger extension activation (lazy loading).
- * 
+ *
  * @example
  * // Activate when extension is enabled
  * "onExtensionEnabled"
- * 
+ *
  * @example
  * // Activate on app startup
  * "onStartup"
- * 
+ *
  * @example
  * // Activate when user navigates to specific route
  * "onNavigate:settings/extensions/google-drive"
- * 
+ *
  * @example
  * // Activate when command is executed
  * "onCommand:google-drive.sync"
- * 
+ *
  * @example
  * // Activate when view is opened
  * "onView:google-drive.panel"
@@ -263,10 +263,10 @@ export type Platform = 'win32' | 'darwin' | 'linux'
 
 /**
  * Native extension configuration (verified extensions only).
- * 
+ *
  * Native extensions run in the main Electron process and have
  * full access to Node.js APIs and system resources.
- * 
+ *
  * @example
  * // SolidWorks integration (Windows only)
  * {
@@ -292,10 +292,10 @@ export interface NativeExtensionConfig {
 
 /**
  * Extension manifest (extension.json).
- * 
+ *
  * This is the primary declaration file for an extension, similar to
  * VS Code's package.json extension fields or Atlassian Forge's manifest.yml.
- * 
+ *
  * @example
  * {
  *   "id": "blueplm.google-drive",
@@ -316,91 +316,91 @@ export interface ExtensionManifest {
   // ─────────────────────────────────────────────────────────────────────────────
   // Identity (required)
   // ─────────────────────────────────────────────────────────────────────────────
-  
-  /** 
+
+  /**
    * Unique extension identifier in format `publisher.name`.
    * @example "blueplm.google-drive"
    */
   id: string
-  
+
   /**
    * Human-readable display name.
    * @example "Google Drive"
    */
   name: string
-  
+
   /**
    * Semantic version string.
    * @example "1.2.3"
    */
   version: string
-  
+
   /**
    * Publisher slug (organization or individual).
    * @example "blueplm"
    */
   publisher: string
-  
+
   // ─────────────────────────────────────────────────────────────────────────────
   // Metadata
   // ─────────────────────────────────────────────────────────────────────────────
-  
+
   /**
    * Extension description (shown in store).
    */
   description?: string
-  
+
   /**
    * Path to extension icon (128x128 PNG).
    */
   icon?: string
-  
+
   /**
    * Source repository URL (required for store submission).
    * @example "https://github.com/bluerobotics/blueplm-google-drive"
    */
   repository?: string
-  
+
   /**
    * OSI-approved license identifier (required).
    * @example "MIT"
    */
   license: string
-  
+
   /**
    * Extension keywords for search.
    */
   keywords?: string[]
-  
+
   /**
    * Store categories for filtering.
    */
   categories?: string[]
-  
+
   /**
    * Changelog or release notes.
    */
   changelog?: string
-  
+
   // ─────────────────────────────────────────────────────────────────────────────
   // Category
   // ─────────────────────────────────────────────────────────────────────────────
-  
+
   /**
    * Extension category determines execution environment.
    * @default "sandboxed"
    */
   category?: ExtensionCategory
-  
+
   /**
    * Native extension configuration (category: "native" only).
    */
   native?: NativeExtensionConfig
-  
+
   // ─────────────────────────────────────────────────────────────────────────────
   // Dependencies
   // ─────────────────────────────────────────────────────────────────────────────
-  
+
   /**
    * Required BluePLM app version range.
    * @example { "blueplm": "^1.0.0" }
@@ -408,51 +408,51 @@ export interface ExtensionManifest {
   engines: {
     blueplm: string
   }
-  
+
   /**
    * Other extensions this extension depends on.
    * @example ["blueplm.core-utils@^1.0.0"]
    */
   extensionDependencies?: string[]
-  
+
   /**
    * Extensions bundled together (extension pack).
    * @example ["blueplm.google-drive", "blueplm.dropbox"]
    */
   extensionPack?: string[]
-  
+
   // ─────────────────────────────────────────────────────────────────────────────
   // Entry Points
   // ─────────────────────────────────────────────────────────────────────────────
-  
+
   /**
    * Client-side entry point (Extension Host).
    * Must export `activate(context, api)` and optionally `deactivate()`.
    * @example "client/index.js"
    */
   main?: string
-  
+
   /**
    * Server-side entry point (API sandbox).
    * @example "server/index.js"
    */
   serverMain?: string
-  
+
   // ─────────────────────────────────────────────────────────────────────────────
   // Capabilities
   // ─────────────────────────────────────────────────────────────────────────────
-  
+
   /**
    * Events that trigger extension activation.
    * @example ["onExtensionEnabled", "onNavigate:settings/extensions/google-drive"]
    */
   activationEvents: ActivationEvent[]
-  
+
   /**
    * What the extension contributes (views, commands, settings, etc.).
    */
   contributes: ExtensionContributions
-  
+
   /**
    * Required permissions for client and server execution.
    */
@@ -487,13 +487,13 @@ export interface ExtensionLogger {
 
 /**
  * Extension context passed to activate function.
- * 
+ *
  * Contains extension identity, paths, and lifecycle utilities.
- * 
+ *
  * @example
  * export async function activate(context: ExtensionContext, api: ExtensionClientAPI) {
  *   context.log.info('Extension activating');
- *   
+ *
  *   // Register command (auto-disposed on deactivate)
  *   context.subscriptions.push(
  *     api.commands.registerCommand('my-ext.doThing', () => {
@@ -505,25 +505,25 @@ export interface ExtensionLogger {
 export interface ExtensionContext {
   /** Extension identifier */
   extensionId: string
-  
+
   /** Absolute path to extension installation directory */
   extensionPath: string
-  
+
   /** Absolute path for extension-specific data storage */
   storagePath: string
-  
+
   /**
    * Subscriptions array for automatic cleanup on deactivate.
    * Push Disposable objects here; they'll be disposed when extension deactivates.
    */
   subscriptions: Disposable[]
-  
+
   /** Extension logger (scoped to this extension) */
   log: ExtensionLogger
-  
+
   /** Extension manifest */
   manifest: ExtensionManifest
-  
+
   /** Current extension state */
   state: ExtensionState
 }
@@ -538,22 +538,22 @@ export interface ExtensionContext {
 export interface LoadedExtension {
   /** Extension manifest */
   manifest: ExtensionManifest
-  
+
   /** Current lifecycle state */
   state: ExtensionState
-  
+
   /** Verification status */
   verification: VerificationStatus
-  
+
   /** Error message if state is 'error' */
   error?: string
-  
+
   /** Installation timestamp */
   installedAt?: Date
-  
+
   /** Last activation timestamp */
   activatedAt?: Date
-  
+
   /** Extension context (when active) */
   context?: ExtensionContext
 }
@@ -568,25 +568,25 @@ export interface LoadedExtension {
 export interface PackageContents {
   /** Parsed and validated manifest */
   manifest: ExtensionManifest
-  
+
   /** Client-side bundle (if present) */
   clientBundle?: string
-  
+
   /** Server-side handlers (filename -> code) */
   serverHandlers?: Record<string, string>
-  
+
   /** Ed25519 signature (for verified extensions) */
   signature?: string
-  
+
   /** SHA-256 hash of package contents */
   hash: string
-  
+
   /** Package size in bytes */
   size: number
-  
+
   /** README contents (if present) */
   readme?: string
-  
+
   /** Changelog contents (if present) */
   changelog?: string
 }
@@ -601,19 +601,19 @@ export interface PackageContents {
 export interface SigningKey {
   /** Key identifier */
   keyId: string
-  
+
   /** Public key (base64-encoded) */
   publicKey: string
-  
+
   /** Key issuer (e.g., "Blue Robotics") */
   issuer: string
-  
+
   /** Key creation date */
   createdAt: Date
-  
+
   /** Key expiration date */
   expiresAt: Date
-  
+
   /** Whether key is currently valid */
   isActive: boolean
 }
@@ -624,10 +624,10 @@ export interface SigningKey {
 export interface RevokedKey {
   /** Revoked key identifier */
   keyId: string
-  
+
   /** Revocation timestamp */
   revokedAt: Date
-  
+
   /** Reason for revocation */
   reason: string
 }
@@ -638,13 +638,13 @@ export interface RevokedKey {
 export interface SignatureVerificationResult {
   /** Whether signature is valid */
   valid: boolean
-  
+
   /** Key used for signing (if valid) */
   signingKey?: SigningKey
-  
+
   /** Error message (if invalid) */
   error?: string
-  
+
   /** Whether key was revoked */
   revoked?: boolean
 }
@@ -659,13 +659,13 @@ export interface SignatureVerificationResult {
 export interface ValidationError {
   /** JSON path to error location */
   path: string
-  
+
   /** Error message */
   message: string
-  
+
   /** Expected type or value */
   expected?: string
-  
+
   /** Actual value received */
   received?: string
 }
@@ -676,13 +676,13 @@ export interface ValidationError {
 export interface ValidationResult {
   /** Whether manifest is valid */
   valid: boolean
-  
+
   /** Parsed manifest (if valid) */
   manifest?: ExtensionManifest
-  
+
   /** Validation errors (if invalid) */
   errors?: ValidationError[]
-  
+
   /** Warnings (non-fatal issues) */
   warnings?: ValidationError[]
 }
@@ -697,19 +697,19 @@ export interface ValidationResult {
 export interface ExtensionUpdate {
   /** Extension identifier */
   extensionId: string
-  
+
   /** Currently installed version */
   currentVersion: string
-  
+
   /** Available new version */
   newVersion: string
-  
+
   /** Changelog for new version */
   changelog?: string
-  
+
   /** Whether this is a breaking change (major version bump) */
   breaking: boolean
-  
+
   /** Minimum app version required for update */
   minAppVersion?: string
 }
@@ -724,10 +724,10 @@ export interface ExtensionUpdate {
 export interface StoreExtension {
   /** Store extension UUID */
   id: string
-  
+
   /** Extension manifest ID (e.g., "blueplm.google-drive") */
   extensionId: string
-  
+
   /** Publisher information */
   publisher: {
     id: string
@@ -735,49 +735,49 @@ export interface StoreExtension {
     slug: string
     verified: boolean
   }
-  
+
   /** Display name */
   name: string
-  
+
   /** Description */
   description?: string
-  
+
   /** Icon URL */
   iconUrl?: string
-  
+
   /** Repository URL */
   repositoryUrl: string
-  
+
   /** License */
   license: string
-  
+
   /** Extension category */
   category: ExtensionCategory
-  
+
   /** Store categories */
   categories: string[]
-  
+
   /** Search tags */
   tags: string[]
-  
+
   /** Whether verified by Blue Robotics */
   verified: boolean
-  
+
   /** Whether featured in store */
   featured: boolean
-  
+
   /** Total download count */
   downloadCount: number
-  
+
   /** Latest version */
   latestVersion: string
-  
+
   /** Creation timestamp */
   createdAt: Date
-  
+
   /** Last update timestamp */
   updatedAt: Date
-  
+
   /** Deprecation info (if deprecated) */
   deprecation?: {
     deprecatedAt: Date
@@ -793,31 +793,31 @@ export interface StoreExtension {
 export interface StoreExtensionVersion {
   /** Version UUID */
   id: string
-  
+
   /** Extension UUID */
   extensionId: string
-  
+
   /** Semantic version */
   version: string
-  
+
   /** Changelog */
   changelog?: string
-  
+
   /** Download URL for .bpx file */
   bundleUrl: string
-  
+
   /** SHA-256 hash of bundle */
   bundleHash: string
-  
+
   /** Bundle size in bytes */
   bundleSize: number
-  
+
   /** Minimum app version required */
   minAppVersion?: string
-  
+
   /** Full manifest */
   manifest: ExtensionManifest
-  
+
   /** Publication timestamp */
   publishedAt: Date
 }
@@ -832,12 +832,12 @@ export interface StoreExtensionVersion {
 export interface ExtensionModule {
   /**
    * Called when extension is activated.
-   * 
+   *
    * @param context - Extension context with lifecycle utilities
    * @param api - Client API for UI, storage, network operations
    */
   activate(context: ExtensionContext, api: unknown): void | Promise<void>
-  
+
   /**
    * Called when extension is deactivated (optional).
    * Subscriptions in context.subscriptions are auto-disposed.
@@ -852,11 +852,7 @@ export interface ExtensionModule {
 /**
  * Watchdog violation types.
  */
-export type ViolationType = 
-  | 'memory_exceeded'
-  | 'cpu_timeout'
-  | 'unresponsive'
-  | 'crash'
+export type ViolationType = 'memory_exceeded' | 'cpu_timeout' | 'unresponsive' | 'crash'
 
 /**
  * Watchdog violation report.
@@ -864,13 +860,13 @@ export type ViolationType =
 export interface WatchdogViolation {
   /** Extension that violated limits */
   extensionId: string
-  
+
   /** Type of violation */
   type: ViolationType
-  
+
   /** Violation timestamp */
   timestamp: Date
-  
+
   /** Additional details */
   details: {
     /** Memory usage in bytes (for memory violations) */
@@ -884,7 +880,7 @@ export interface WatchdogViolation {
     /** Error message (for crashes) */
     errorMessage?: string
   }
-  
+
   /** Action taken */
   action: 'warned' | 'killed'
 }
@@ -895,22 +891,22 @@ export interface WatchdogViolation {
 export interface ExtensionStats {
   /** Extension identifier */
   extensionId: string
-  
+
   /** Current memory usage in bytes */
   memoryUsage: number
-  
+
   /** Memory limit in bytes */
   memoryLimit: number
-  
+
   /** CPU time used in current period (ms) */
   cpuTime: number
-  
+
   /** Number of IPC calls in current period */
   ipcCalls: number
-  
+
   /** Number of violations */
   violationCount: number
-  
+
   /** Last activity timestamp */
   lastActivity: Date
 }
@@ -963,7 +959,7 @@ export function getAllPermissions(manifest: ExtensionManifest): {
 } {
   return {
     client: manifest.permissions.client ?? [],
-    server: manifest.permissions.server ?? []
+    server: manifest.permissions.server ?? [],
   }
 }
 
@@ -974,56 +970,56 @@ export type VersionCompare = -1 | 0 | 1
 
 /**
  * Compare two semantic versions.
- * 
+ *
  * @returns -1 if a < b, 0 if a === b, 1 if a > b
  */
 export function compareVersions(a: string, b: string): VersionCompare {
   const partsA = a.replace(/^v/, '').split('.').map(Number)
   const partsB = b.replace(/^v/, '').split('.').map(Number)
-  
+
   for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
     const numA = partsA[i] ?? 0
     const numB = partsB[i] ?? 0
-    
+
     if (numA < numB) return -1
     if (numA > numB) return 1
   }
-  
+
   return 0
 }
 
 /**
  * Check if version satisfies a semver range.
- * 
+ *
  * Supports: ^, ~, >=, >, <=, <, =, exact match
  */
 export function satisfiesVersion(version: string, range: string): boolean {
   const cleanVersion = version.replace(/^v/, '')
   const cleanRange = range.replace(/^v/, '')
-  
+
   // Exact match
   if (!cleanRange.match(/^[\^~><=]/)) {
     return compareVersions(cleanVersion, cleanRange) === 0
   }
-  
+
   // Caret range (^) - compatible with version
   if (cleanRange.startsWith('^')) {
     const rangeVersion = cleanRange.slice(1)
     const [major] = rangeVersion.split('.').map(Number)
     const [vMajor] = cleanVersion.split('.').map(Number)
-    
+
     return vMajor === major && compareVersions(cleanVersion, rangeVersion) >= 0
   }
-  
+
   // Tilde range (~) - patch-level changes
   if (cleanRange.startsWith('~')) {
     const rangeVersion = cleanRange.slice(1)
     const [major, minor] = rangeVersion.split('.').map(Number)
     const [vMajor, vMinor] = cleanVersion.split('.').map(Number)
-    
+
     return vMajor === major && vMinor === minor && compareVersions(cleanVersion, rangeVersion) >= 0
   }
-  
+
   // Comparison operators
   if (cleanRange.startsWith('>=')) {
     return compareVersions(cleanVersion, cleanRange.slice(2)) >= 0
@@ -1040,6 +1036,6 @@ export function satisfiesVersion(version: string, range: string): boolean {
   if (cleanRange.startsWith('=')) {
     return compareVersions(cleanVersion, cleanRange.slice(1)) === 0
   }
-  
+
   return false
 }

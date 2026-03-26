@@ -14,27 +14,31 @@ const LANGUAGES: { code: Language; name: string; nativeName: string; flag: strin
 ]
 
 // Translations for onboarding text (matching languages with full app translations)
-const TRANSLATIONS: Record<string, {
-  welcome: string
-  selectLanguage: string
-  permissions: string
-  usageStatsTitle: string
-  usageStatsDesc: string
-  usageStatsHelp: string
-  enableStats: string
-  noStats: string
-  continue: string
-  getStarted: string
-  step: string
-  of: string
-}> = {
+const TRANSLATIONS: Record<
+  string,
+  {
+    welcome: string
+    selectLanguage: string
+    permissions: string
+    usageStatsTitle: string
+    usageStatsDesc: string
+    usageStatsHelp: string
+    enableStats: string
+    noStats: string
+    continue: string
+    getStarted: string
+    step: string
+    of: string
+  }
+> = {
   en: {
     welcome: 'Welcome to BluePLM',
     selectLanguage: 'Select your language',
     permissions: 'Usage Statistics',
     usageStatsTitle: 'Help improve BluePLM',
     usageStatsDesc: 'Send anonymous usage statistics to help us identify and fix issues faster.',
-    usageStatsHelp: 'Includes error reports and performance data only. No file contents or personal data.',
+    usageStatsHelp:
+      'Includes error reports and performance data only. No file contents or personal data.',
     enableStats: 'Help improve BluePLM',
     noStats: 'No thanks',
     continue: 'Continue',
@@ -75,8 +79,10 @@ const TRANSLATIONS: Record<string, {
     selectLanguage: 'Wählen Sie Ihre Sprache',
     permissions: 'Nutzungsstatistiken',
     usageStatsTitle: 'Helfen Sie BluePLM zu verbessern',
-    usageStatsDesc: 'Senden Sie anonyme Nutzungsstatistiken, um uns zu helfen, Probleme schneller zu erkennen und zu beheben.',
-    usageStatsHelp: 'Enthält nur Fehlerberichte und Leistungsdaten. Keine Dateiinhalte oder persönlichen Daten.',
+    usageStatsDesc:
+      'Senden Sie anonyme Nutzungsstatistiken, um uns zu helfen, Probleme schneller zu erkennen und zu beheben.',
+    usageStatsHelp:
+      'Enthält nur Fehlerberichte und Leistungsdaten. Keine Dateiinhalte oder persönlichen Daten.',
     enableStats: 'BluePLM verbessern helfen',
     noStats: 'Nein, danke',
     continue: 'Weiter',
@@ -87,10 +93,12 @@ const TRANSLATIONS: Record<string, {
   fr: {
     welcome: 'Bienvenue sur BluePLM',
     selectLanguage: 'Sélectionnez votre langue',
-    permissions: 'Statistiques d\'utilisation',
+    permissions: "Statistiques d'utilisation",
     usageStatsTitle: 'Aidez à améliorer BluePLM',
-    usageStatsDesc: 'Envoyez des statistiques d\'utilisation anonymes pour nous aider à identifier et corriger les problèmes plus rapidement.',
-    usageStatsHelp: 'Comprend uniquement les rapports d\'erreurs et les données de performance. Aucun contenu de fichier ni données personnelles.',
+    usageStatsDesc:
+      "Envoyez des statistiques d'utilisation anonymes pour nous aider à identifier et corriger les problèmes plus rapidement.",
+    usageStatsHelp:
+      "Comprend uniquement les rapports d'erreurs et les données de performance. Aucun contenu de fichier ni données personnelles.",
     enableStats: 'Aider à améliorer BluePLM',
     noStats: 'Non merci',
     continue: 'Continuer',
@@ -103,8 +111,10 @@ const TRANSLATIONS: Record<string, {
     selectLanguage: 'Selecciona tu idioma',
     permissions: 'Estadísticas de uso',
     usageStatsTitle: 'Ayuda a mejorar BluePLM',
-    usageStatsDesc: 'Envía estadísticas de uso anónimas para ayudarnos a identificar y solucionar problemas más rápido.',
-    usageStatsHelp: 'Incluye solo reportes de errores y datos de rendimiento. Sin contenido de archivos ni datos personales.',
+    usageStatsDesc:
+      'Envía estadísticas de uso anónimas para ayudarnos a identificar y solucionar problemas más rápido.',
+    usageStatsHelp:
+      'Incluye solo reportes de errores y datos de rendimiento. Sin contenido de archivos ni datos personales.',
     enableStats: 'Ayudar a mejorar BluePLM',
     noStats: 'No, gracias',
     continue: 'Continuar',
@@ -117,8 +127,10 @@ const TRANSLATIONS: Record<string, {
     selectLanguage: 'Selecione o seu idioma',
     permissions: 'Estatísticas de uso',
     usageStatsTitle: 'Ajude a melhorar o BluePLM',
-    usageStatsDesc: 'Envie estatísticas de uso anónimas para nos ajudar a identificar e corrigir problemas mais rapidamente.',
-    usageStatsHelp: 'Inclui apenas relatórios de erros e dados de desempenho. Sem conteúdo de ficheiros ou dados pessoais.',
+    usageStatsDesc:
+      'Envie estatísticas de uso anónimas para nos ajudar a identificar e corrigir problemas mais rapidamente.',
+    usageStatsHelp:
+      'Inclui apenas relatórios de erros e dados de desempenho. Sem conteúdo de ficheiros ou dados pessoais.',
     enableStats: 'Ajudar a melhorar o BluePLM',
     noStats: 'Não, obrigado',
     continue: 'Continuar',
@@ -140,22 +152,22 @@ export function OnboardingScreen() {
   const [step, setStep] = useState<OnboardingStep>('language')
   const [selectedLanguage, setSelectedLanguage] = useState<Language>(language)
   const [logsEnabled, setLogsEnabled] = useState(true)
-  
+
   // Platform/SolidWorks detection for auto-configuration
   const [solidworksEnabled, setSolidworksEnabled] = useState(true)
-  
+
   useEffect(() => {
     // Auto-detect platform and SolidWorks availability
     const detectSolidWorksAvailability = async () => {
       try {
         const platform = await window.electronAPI?.getPlatform()
-        
+
         // On Mac (darwin), always disable SolidWorks integration
         if (platform === 'darwin') {
           setSolidworksEnabled(false)
           return
         }
-        
+
         // On Windows, check if SolidWorks is installed
         if (platform === 'win32') {
           const result = await window.electronAPI?.solidworks?.isInstalled()
@@ -174,17 +186,17 @@ export function OnboardingScreen() {
         setSolidworksEnabled(false)
       }
     }
-    
+
     detectSolidWorksAvailability()
   }, [])
-  
+
   const t = getTranslations(selectedLanguage)
-  
+
   const handleLanguageSelect = (lang: Language) => {
     setSelectedLanguage(lang)
     setLanguage(lang)
   }
-  
+
   const handleContinue = async () => {
     if (step === 'language') {
       setStep('permissions')
@@ -199,8 +211,11 @@ export function OnboardingScreen() {
   return (
     <div className="h-screen flex flex-col bg-plm-bg overflow-hidden">
       {/* Minimal title bar area */}
-      <div className="h-8 flex-shrink-0 bg-plm-bg-header border-b border-plm-border" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties} />
-      
+      <div
+        className="h-8 flex-shrink-0 bg-plm-bg-header border-b border-plm-border"
+        style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+      />
+
       <div className="flex-1 flex items-center justify-center overflow-auto p-8">
         <div className="max-w-lg w-full">
           {/* Logo and Title */}
@@ -210,49 +225,52 @@ export function OnboardingScreen() {
                 {/* Gradient matching app icon */}
                 <defs>
                   <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#0a1929"/>
-                    <stop offset="100%" stopColor="#0d2137"/>
+                    <stop offset="0%" stopColor="#0a1929" />
+                    <stop offset="100%" stopColor="#0d2137" />
                   </linearGradient>
                   <linearGradient id="iconGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" stopColor="#00b4d8"/>
-                    <stop offset="100%" stopColor="#0096c7"/>
+                    <stop offset="0%" stopColor="#00b4d8" />
+                    <stop offset="100%" stopColor="#0096c7" />
                   </linearGradient>
                 </defs>
                 {/* Rounded square background */}
-                <rect x="0" y="0" width="512" height="512" rx="100" fill="url(#bgGradient)"/>
+                <rect x="0" y="0" width="512" height="512" rx="100" fill="url(#bgGradient)" />
                 {/* Top layer - filled */}
-                <path 
-                  d="M256 96L96 176L256 256L416 176L256 96Z" 
-                  fill="url(#iconGradient)"
-                />
+                <path d="M256 96L96 176L256 256L416 176L256 96Z" fill="url(#iconGradient)" />
                 {/* Middle layer - stroked */}
-                <path 
-                  d="M96 256L256 336L416 256" 
-                  stroke="url(#iconGradient)" 
-                  strokeWidth="24" 
-                  strokeLinecap="round" 
+                <path
+                  d="M96 256L256 336L416 256"
+                  stroke="url(#iconGradient)"
+                  strokeWidth="24"
+                  strokeLinecap="round"
                   strokeLinejoin="round"
                   fill="none"
                 />
                 {/* Bottom layer - stroked */}
-                <path 
-                  d="M96 336L256 416L416 336" 
-                  stroke="url(#iconGradient)" 
-                  strokeWidth="24" 
-                  strokeLinecap="round" 
+                <path
+                  d="M96 336L256 416L416 336"
+                  stroke="url(#iconGradient)"
+                  strokeWidth="24"
+                  strokeLinecap="round"
                   strokeLinejoin="round"
                   fill="none"
                 />
               </svg>
             </div>
             <h1 className="text-2xl font-bold text-plm-fg mb-2">{t.welcome}</h1>
-            
+
             {/* Step indicator */}
             <div className="flex items-center justify-center gap-2 text-sm text-plm-fg-muted">
-              <span>{t.step} {step === 'language' ? '1' : '2'} {t.of} 2</span>
+              <span>
+                {t.step} {step === 'language' ? '1' : '2'} {t.of} 2
+              </span>
               <div className="flex gap-1.5">
-                <div className={`w-8 h-1.5 rounded-full transition-colors ${step === 'language' ? 'bg-plm-accent' : 'bg-plm-accent/30'}`} />
-                <div className={`w-8 h-1.5 rounded-full transition-colors ${step === 'permissions' ? 'bg-plm-accent' : 'bg-plm-accent/30'}`} />
+                <div
+                  className={`w-8 h-1.5 rounded-full transition-colors ${step === 'language' ? 'bg-plm-accent' : 'bg-plm-accent/30'}`}
+                />
+                <div
+                  className={`w-8 h-1.5 rounded-full transition-colors ${step === 'permissions' ? 'bg-plm-accent' : 'bg-plm-accent/30'}`}
+                />
               </div>
             </div>
           </div>
@@ -268,7 +286,7 @@ export function OnboardingScreen() {
                   <h2 className="font-semibold text-plm-fg">{t.selectLanguage}</h2>
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-2 max-h-[320px] overflow-y-auto pr-2">
                 {LANGUAGES.map((lang) => (
                   <button
@@ -330,7 +348,7 @@ export function OnboardingScreen() {
                     <span className="font-medium text-plm-fg">{t.enableStats}</span>
                     {logsEnabled && <Check size={18} className="text-plm-accent" />}
                   </button>
-                  
+
                   <button
                     onClick={() => setLogsEnabled(false)}
                     className={`w-full flex items-center justify-between px-4 py-3 rounded-lg border-2 transition-all ${
@@ -367,4 +385,3 @@ export function OnboardingScreen() {
     </div>
   )
 }
-

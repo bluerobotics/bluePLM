@@ -10,7 +10,7 @@ interface GridPatternProps {
 
 export const GridPattern = memo(function GridPattern({ snapSettings }: GridPatternProps) {
   if (!snapSettings.snapToGrid) return null
-  
+
   return (
     <g className="pointer-events-none" opacity="0.15">
       {Array.from({ length: 100 }).map((_, i) => (

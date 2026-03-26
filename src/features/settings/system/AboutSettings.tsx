@@ -1,5 +1,17 @@
 import { useState, useEffect } from 'react'
-import { Github, Heart, ExternalLink, Info, RefreshCw, Loader2, CheckCircle, Download, History, ArrowUpCircle, ArrowDownCircle } from 'lucide-react'
+import {
+  Github,
+  Heart,
+  ExternalLink,
+  Info,
+  RefreshCw,
+  Loader2,
+  CheckCircle,
+  Download,
+  History,
+  ArrowUpCircle,
+  ArrowDownCircle,
+} from 'lucide-react'
 import { log } from '@/lib/logger'
 import { useTranslation } from '@/lib/i18n'
 import { usePDMStore } from '@/stores/pdmStore'
@@ -19,8 +31,10 @@ export function AboutSettings() {
   const [appVersion, setAppVersion] = useState<string>('')
   const [platform, setPlatform] = useState<string>('win32')
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false)
-  const [updateCheckResult, setUpdateCheckResult] = useState<'none' | 'available' | 'error' | null>(null)
-  
+  const [updateCheckResult, setUpdateCheckResult] = useState<'none' | 'available' | 'error' | null>(
+    null,
+  )
+
   // Version selector state
   const [releases, setReleases] = useState<GitHubRelease[]>([])
   const [isLoadingReleases, setIsLoadingReleases] = useState(false)
@@ -35,119 +49,130 @@ export function AboutSettings() {
     // Fetch releases on mount
     fetchReleases()
   }, [])
-  
+
   const fetchReleases = async () => {
     setIsLoadingReleases(true)
     setReleasesError(null)
-    
+
     try {
-      const response = await fetch('https://api.github.com/repos/bluerobotics/bluePLM/releases?per_page=20')
+      const response = await fetch(
+        'https://api.github.com/repos/bluerobotics/bluePLM/releases?per_page=20',
+      )
       if (!response.ok) {
         throw new Error(`GitHub API error: ${response.status}`)
       }
       const data: GitHubRelease[] = await response.json()
       setReleases(data)
-    } catch (err) {
-      log.error('[About]', 'Failed to fetch releases', { error: err })
-      setReleasesError(err instanceof Error ? err.message : 'Failed to fetch releases')
+    } catch (error) {
+      log.error('[About]', 'Failed to fetch releases', { error: error })
+      setReleasesError(error instanceof Error ? error.message : 'Failed to fetch releases')
     } finally {
       setIsLoadingReleases(false)
     }
   }
-  
+
   const handleInstallVersion = async (release: GitHubRelease) => {
     log.info('[About]', 'Installing version', { version: release.tag_name })
-    
-    const { setUpdateAvailable, setShowUpdateModal, setUpdateDownloading, setUpdateDownloaded, setInstallerPath } = usePDMStore.getState()
-    
+
+    const {
+      setUpdateAvailable,
+      setShowUpdateModal,
+      setUpdateDownloading,
+      setUpdateDownloaded,
+      setInstallerPath,
+    } = usePDMStore.getState()
+
     // Determine the correct asset for this platform
     const platformExtensions: Record<string, string[]> = {
       win32: ['.exe'],
       darwin: ['.dmg', '.zip'],
-      linux: ['.AppImage', '.deb']
+      linux: ['.AppImage', '.deb'],
     }
-    
+
     const extensions = platformExtensions[platform] || ['.exe']
-    
+
     // Set loading state
     setFetchingRelease(release.tag_name)
-    
+
     // Fetch release assets with timeout
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 10000)
-    
+
     try {
       const response = await fetch(
         `https://api.github.com/repos/bluerobotics/bluePLM/releases/tags/${release.tag_name}`,
-        { signal: controller.signal }
+        { signal: controller.signal },
       )
       clearTimeout(timeoutId)
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch release: ${response.status}`)
       }
-      
+
       const releaseData = await response.json()
       const assets = releaseData.assets || []
-      
+
       // Find the appropriate asset for this platform
       let downloadUrl: string | null = null
       for (const ext of extensions) {
-        const asset = assets.find((a: { name: string; browser_download_url: string }) => 
-          a.name.toLowerCase().endsWith(ext.toLowerCase())
+        const asset = assets.find((a: { name: string; browser_download_url: string }) =>
+          a.name.toLowerCase().endsWith(ext.toLowerCase()),
         )
         if (asset) {
           downloadUrl = asset.browser_download_url
           break
         }
       }
-      
+
       if (!downloadUrl) {
         // Fallback: open release page
         addToast('warning', `No installer found for ${platformDisplay}. Opening release page...`)
         window.electronAPI?.openFile(release.html_url)
         return
       }
-      
+
       // Determine if this is a rollback or upgrade
       const relation = getVersionRelation(release.tag_name)
-      
+
       // Reset update state
       setUpdateDownloading(false)
       setUpdateDownloaded(false)
       setInstallerPath(null)
-      
+
       // Set up the update modal with the selected version
       setUpdateAvailable({
         version: release.tag_name.replace(/^v/, ''),
         releaseDate: release.published_at,
         releaseNotes: relation === 'older' ? 'rollback' : undefined,
         downloadUrl,
-        isManualVersion: true
+        isManualVersion: true,
       })
-      
+
       // Show the update modal
       setShowUpdateModal(true)
-      
-    } catch (err) {
+    } catch (error) {
       clearTimeout(timeoutId)
-      const isTimeout = err instanceof Error && err.name === 'AbortError'
-      const message = isTimeout 
-        ? 'Request timed out. Please try again.' 
-        : `Failed to get download URL: ${err instanceof Error ? err.message : String(err)}`
-      log.error('[About]', 'Failed to get release assets', { error: err, isTimeout })
+      const isTimeout = error instanceof Error && error.name === 'AbortError'
+      const message = isTimeout
+        ? 'Request timed out. Please try again.'
+        : `Failed to get download URL: ${error instanceof Error ? error.message : String(error)}`
+      log.error('[About]', 'Failed to get release assets', { error: error, isTimeout })
       addToast('error', message)
     } finally {
       setFetchingRelease(null)
     }
   }
-  
+
   // Compare versions: returns -1 if a < b, 0 if equal, 1 if a > b
   const compareVersions = (a: string, b: string): number => {
-    const parseVersion = (v: string) => v.replace(/^v/, '').split('.').map(n => parseInt(n, 10) || 0)
+    const parseVersion = (v: string) =>
+      v
+        .replace(/^v/, '')
+        .split('.')
+        .map((n) => parseInt(n, 10) || 0)
     const aParts = parseVersion(a)
     const bParts = parseVersion(b)
-    
+
     for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
       const aPart = aParts[i] || 0
       const bPart = bParts[i] || 0
@@ -156,7 +181,7 @@ export function AboutSettings() {
     }
     return 0
   }
-  
+
   const getVersionRelation = (releaseVersion: string): 'current' | 'newer' | 'older' => {
     const cleanRelease = releaseVersion.replace(/^v/, '')
     const cleanCurrent = appVersion.replace(/^v/, '')
@@ -169,10 +194,10 @@ export function AboutSettings() {
   // Handle manual update check
   const handleCheckForUpdates = async () => {
     if (!window.electronAPI || isCheckingUpdate) return
-    
+
     setIsCheckingUpdate(true)
     setUpdateCheckResult(null)
-    
+
     try {
       const result = await window.electronAPI.checkForUpdates()
       if (result.success && result.updateInfo) {
@@ -182,8 +207,8 @@ export function AboutSettings() {
       } else {
         setUpdateCheckResult('error')
       }
-    } catch (err) {
-      log.error('[About]', 'Update check error', { error: err })
+    } catch (error) {
+      log.error('[About]', 'Update check error', { error: error })
       setUpdateCheckResult('error')
     } finally {
       setIsCheckingUpdate(false)
@@ -191,11 +216,12 @@ export function AboutSettings() {
     }
   }
 
-  const platformDisplay = {
-    win32: 'Windows',
-    darwin: 'macOS',
-    linux: 'Linux'
-  }[platform] || platform
+  const platformDisplay =
+    {
+      win32: 'Windows',
+      darwin: 'macOS',
+      linux: 'Linux',
+    }[platform] || platform
 
   return (
     <div className="space-y-6">
@@ -204,41 +230,37 @@ export function AboutSettings() {
         {/* Stacked Layers Logo */}
         <div className="w-20 h-20 mx-auto mb-4 flex items-center justify-center">
           <svg width="64" height="64" viewBox="0 0 24 24" fill="none" className="text-plm-accent">
-            <path 
-              d="M12 2L2 7L12 12L22 7L12 2Z" 
-              stroke="currentColor" 
-              strokeWidth="1.5" 
-              strokeLinecap="round" 
+            <path
+              d="M12 2L2 7L12 12L22 7L12 2Z"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
               strokeLinejoin="round"
             />
-            <path 
-              d="M2 17L12 22L22 17" 
-              stroke="currentColor" 
-              strokeWidth="1.5" 
-              strokeLinecap="round" 
+            <path
+              d="M2 17L12 22L22 17"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
               strokeLinejoin="round"
             />
-            <path 
-              d="M2 12L12 17L22 12" 
-              stroke="currentColor" 
-              strokeWidth="1.5" 
-              strokeLinecap="round" 
+            <path
+              d="M2 12L12 17L22 12"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
               strokeLinejoin="round"
             />
           </svg>
         </div>
         <h2 className="text-3xl font-bold text-plm-fg">BluePLM</h2>
         <p className="text-sm text-plm-fg-muted mt-2 max-w-md mx-auto leading-relaxed">
-          Check in/out CAD files, track revisions, manage engineering changes, 
-          control release workflows, and collaborate with your team—all in one place.
+          Check in/out CAD files, track revisions, manage engineering changes, control release
+          workflows, and collaborate with your team—all in one place.
         </p>
-        <p className="text-base text-plm-fg-muted mt-4">
-          Version {appVersion || '...'}
-        </p>
-        <p className="text-sm text-plm-fg-dim mt-1">
-          Platform: {platformDisplay}
-        </p>
-        
+        <p className="text-base text-plm-fg-muted mt-4">Version {appVersion || '...'}</p>
+        <p className="text-sm text-plm-fg-dim mt-1">Platform: {platformDisplay}</p>
+
         {/* Check for Updates */}
         <button
           onClick={handleCheckForUpdates}
@@ -247,8 +269,8 @@ export function AboutSettings() {
             updateCheckResult === 'none'
               ? 'bg-green-600/20 text-green-400 border border-green-600/30'
               : updateCheckResult === 'available'
-              ? 'bg-plm-accent/20 text-plm-accent border border-plm-accent/30'
-              : 'bg-plm-highlight text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight/80'
+                ? 'bg-plm-accent/20 text-plm-accent border border-plm-accent/30'
+                : 'bg-plm-highlight text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight/80'
           }`}
         >
           {isCheckingUpdate ? (
@@ -287,7 +309,7 @@ export function AboutSettings() {
           <History size={18} className="text-plm-fg-muted" />
           <span className="text-sm font-medium text-plm-fg">Version History</span>
         </div>
-        
+
         {isLoadingReleases ? (
           <div className="flex items-center justify-center gap-2 p-6 text-plm-fg-muted">
             <Loader2 size={16} className="animate-spin" />
@@ -296,10 +318,7 @@ export function AboutSettings() {
         ) : releasesError ? (
           <div className="p-4 text-center">
             <p className="text-sm text-plm-error mb-2">{releasesError}</p>
-            <button
-              onClick={fetchReleases}
-              className="text-sm text-plm-accent hover:underline"
-            >
+            <button onClick={fetchReleases} className="text-sm text-plm-accent hover:underline">
               Try again
             </button>
           </div>
@@ -309,7 +328,7 @@ export function AboutSettings() {
               const relation = getVersionRelation(release.tag_name)
               const isCurrent = relation === 'current'
               const isNewer = relation === 'newer'
-              
+
               return (
                 <div
                   key={release.tag_name}
@@ -327,7 +346,9 @@ export function AboutSettings() {
                     )}
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className={`text-sm font-medium ${isCurrent ? 'text-plm-accent' : 'text-plm-fg'}`}>
+                        <span
+                          className={`text-sm font-medium ${isCurrent ? 'text-plm-accent' : 'text-plm-fg'}`}
+                        >
                           {release.tag_name}
                         </span>
                         {release.prerelease && (
@@ -345,12 +366,12 @@ export function AboutSettings() {
                         {new Date(release.published_at).toLocaleDateString(undefined, {
                           month: 'short',
                           day: 'numeric',
-                          year: 'numeric'
+                          year: 'numeric',
                         })}
                       </div>
                     </div>
                   </div>
-                  
+
                   {!isCurrent && (
                     <button
                       onClick={() => handleInstallVersion(release)}
@@ -359,8 +380,8 @@ export function AboutSettings() {
                         fetchingRelease === release.tag_name
                           ? 'bg-plm-highlight text-plm-fg-muted cursor-wait'
                           : isNewer
-                          ? 'bg-green-600/20 text-green-400 hover:bg-green-600/30'
-                          : 'bg-plm-highlight text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight/80'
+                            ? 'bg-green-600/20 text-green-400 hover:bg-green-600/30'
+                            : 'bg-plm-highlight text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight/80'
                       }`}
                     >
                       {fetchingRelease === release.tag_name ? (
@@ -420,10 +441,10 @@ export function AboutSettings() {
       {/* Credits */}
       <div className="pt-4 border-t border-plm-border text-center">
         <p className="text-base text-plm-fg-muted flex items-center justify-center gap-1.5">
-          Made with <Heart size={16} className="text-blue-400 fill-blue-400" /> by Blue Robotics and contributors worldwide
+          Made with <Heart size={16} className="text-blue-400 fill-blue-400" /> by Blue Robotics and
+          contributors worldwide
         </p>
       </div>
     </div>
   )
 }
-

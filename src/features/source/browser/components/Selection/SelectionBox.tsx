@@ -9,9 +9,11 @@ export interface SelectionBoxOverlayProps {
 /**
  * Visual selection box overlay for multi-select
  */
-export const SelectionBoxOverlay = memo(function SelectionBoxOverlay({ box }: SelectionBoxOverlayProps) {
+export const SelectionBoxOverlay = memo(function SelectionBoxOverlay({
+  box,
+}: SelectionBoxOverlayProps) {
   const bounds = getSelectionBoxBounds(box)
-  
+
   return (
     <div
       className="absolute border border-plm-accent bg-plm-accent/10 pointer-events-none z-10"

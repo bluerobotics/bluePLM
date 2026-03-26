@@ -28,9 +28,7 @@ export function TestResultSection({ section }: TestResultSectionProps) {
         ) : (
           <XCircle size={12} className="text-red-400 flex-shrink-0" />
         )}
-        <span className={section.passed ? 'text-slate-300' : 'text-red-300'}>
-          {section.name}
-        </span>
+        <span className={section.passed ? 'text-slate-300' : 'text-red-300'}>{section.name}</span>
         <span className="text-slate-600 ml-auto">
           {section.assertions.length} assertion{section.assertions.length !== 1 ? 's' : ''}
         </span>
@@ -45,10 +43,7 @@ export function TestResultSection({ section }: TestResultSectionProps) {
             </div>
           )}
           {section.assertions.map((assertion, idx) => (
-            <div
-              key={idx}
-              className="flex items-start gap-2 px-2 py-1 text-xs font-mono"
-            >
+            <div key={idx} className="flex items-start gap-2 px-2 py-1 text-xs font-mono">
               {assertion.passed ? (
                 <CheckCircle2 size={11} className="text-emerald-400 mt-0.5 flex-shrink-0" />
               ) : (
@@ -59,9 +54,7 @@ export function TestResultSection({ section }: TestResultSectionProps) {
                   {assertion.command}
                 </div>
                 {!assertion.passed && (
-                  <div className="text-red-400/70 mt-0.5 break-all">
-                    {assertion.message}
-                  </div>
+                  <div className="text-red-400/70 mt-0.5 break-all">{assertion.message}</div>
                 )}
               </div>
             </div>

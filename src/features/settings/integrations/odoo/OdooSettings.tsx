@@ -1,8 +1,21 @@
 import { useState, useEffect } from 'react'
-import { 
-  Loader2, Check, Eye, EyeOff, Puzzle, ShoppingCart, RefreshCw, 
-  AlertCircle, Plug, ExternalLink, Save, FolderOpen, Trash2, 
-  Plus, X, Edit2
+import {
+  Loader2,
+  Check,
+  Eye,
+  EyeOff,
+  Puzzle,
+  ShoppingCart,
+  RefreshCw,
+  AlertCircle,
+  Plug,
+  ExternalLink,
+  Save,
+  FolderOpen,
+  Trash2,
+  Plus,
+  X,
+  Edit2,
 } from 'lucide-react'
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
@@ -55,26 +68,28 @@ function getApiUrl(organization: { settings?: { api_url?: string } } | null): st
 }
 
 async function getAuthToken(): Promise<string | null> {
-  const { data: { session } } = await supabase.auth.getSession()
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
   return session?.access_token || null
 }
 
 export function OdooSettings() {
   const { organization, addToast, getEffectiveRole } = usePDMStore()
   const isAdmin = getEffectiveRole() === 'admin'
-  
+
   const apiUrl = getApiUrl(organization)
-  
+
   // Current active settings
   const [settings, setSettings] = useState<OdooSettingsData | null>(null)
-  
+
   // Form fields
   const [url, setUrl] = useState('')
   const [database, setDatabase] = useState('')
   const [username, setUsername] = useState('')
   const [apiKey, setApiKey] = useState('')
   const [showApiKey, setShowApiKey] = useState(false)
-  
+
   // Saved connections
   const [savedConfigs, setSavedConfigs] = useState<SavedConfig[]>([])
   const [showSaveDialog, setShowSaveDialog] = useState(false)
@@ -82,7 +97,7 @@ export function OdooSettings() {
   const [configDescription, setConfigDescription] = useState('')
   const [configColor, setConfigColor] = useState(CONFIG_COLORS[0].value)
   const [editingConfig, setEditingConfig] = useState<SavedConfig | null>(null)
-  
+
   // Loading states
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -91,22 +106,22 @@ export function OdooSettings() {
   const [isSavingConfig, setIsSavingConfig] = useState(false)
   const [isLoadingConfigs, setIsLoadingConfigs] = useState(false)
   const [activatingConfigId, setActivatingConfigId] = useState<string | null>(null)
-  
+
   // UI state
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
   const [apiServerOnline, setApiServerOnline] = useState<boolean | null>(null)
-  
+
   // Delete/Disconnect confirmation state
   const [deletingConfig, setDeletingConfig] = useState<SavedConfig | null>(null)
   const [isDeletingConfig, setIsDeletingConfig] = useState(false)
   const [showDisconnectDialog, setShowDisconnectDialog] = useState(false)
   const [isDisconnecting, setIsDisconnecting] = useState(false)
-  
+
   useEffect(() => {
     loadSettings()
     loadSavedConfigs()
   }, [])
-  
+
   const checkApiServer = async () => {
     if (!apiUrl) {
       setApiServerOnline(false)
@@ -114,7 +129,7 @@ export function OdooSettings() {
     }
     try {
       const response = await fetch(`${apiUrl}/health`, {
-        signal: AbortSignal.timeout(3000)
+        signal: AbortSignal.timeout(3000),
       })
       setApiServerOnline(response.ok)
       return response.ok
@@ -123,7 +138,7 @@ export function OdooSettings() {
       return false
     }
   }
-  
+
   const loadSettings = async () => {
     setIsLoading(true)
     if (!apiUrl) {
@@ -141,13 +156,13 @@ export function OdooSettings() {
 
       const response = await fetch(`${apiUrl}/integrations/odoo`, {
         headers: {
-          'Authorization': `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
-        signal: AbortSignal.timeout(5000)
+        signal: AbortSignal.timeout(5000),
       })
-      
+
       setApiServerOnline(true)
-      
+
       if (response.ok) {
         const data = await response.json()
         setSettings(data)
@@ -157,16 +172,16 @@ export function OdooSettings() {
           setUsername(data.settings.username || '')
         }
       }
-    } catch (err) {
-      if (err instanceof TypeError && err.message.includes('fetch')) {
+    } catch (error) {
+      if (error instanceof TypeError && error.message.includes('fetch')) {
         setApiServerOnline(false)
       }
-      log.error('[OdooSettings]', 'Failed to load Odoo settings', { error: err })
+      log.error('[OdooSettings]', 'Failed to load Odoo settings', { error: error })
     } finally {
       setIsLoading(false)
     }
   }
-  
+
   const loadSavedConfigs = async () => {
     setIsLoadingConfigs(true)
     if (!apiUrl) {
@@ -176,23 +191,23 @@ export function OdooSettings() {
     try {
       const token = await getAuthToken()
       if (!token) return
-      
+
       const response = await fetch(`${apiUrl}/integrations/odoo/configs`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-        signal: AbortSignal.timeout(5000)
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(5000),
       })
-      
+
       if (response.ok) {
         const data = await response.json()
         setSavedConfigs(data.configs || [])
       }
-    } catch (err) {
-      log.error('[OdooSettings]', 'Failed to load saved connections', { error: err })
+    } catch (error) {
+      log.error('[OdooSettings]', 'Failed to load saved connections', { error: error })
     } finally {
       setIsLoadingConfigs(false)
     }
   }
-  
+
   const handleTest = async () => {
     if (!apiUrl) {
       addToast('error', 'API server not configured. Go to Settings > REST API.')
@@ -217,31 +232,40 @@ export function OdooSettings() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ url, database, username, api_key: apiKey }),
-        signal: AbortSignal.timeout(15000)
+        signal: AbortSignal.timeout(15000),
       })
 
       const data = await response.json()
 
       if (response.ok) {
-        setTestResult({ success: true, message: `Connected! User: ${data.user_name}, Odoo ${data.version}` })
+        setTestResult({
+          success: true,
+          message: `Connected! User: ${data.user_name}, Odoo ${data.version}`,
+        })
       } else {
-        setTestResult({ success: false, message: data.message || data.error || 'Connection failed' })
+        setTestResult({
+          success: false,
+          message: data.message || data.error || 'Connection failed',
+        })
       }
-    } catch (err) {
-      if (err instanceof TypeError && err.message.includes('fetch')) {
+    } catch (error) {
+      if (error instanceof TypeError && error.message.includes('fetch')) {
         setApiServerOnline(false)
-        setTestResult({ success: false, message: 'API server is offline. Run "npm run api" locally.' })
+        setTestResult({
+          success: false,
+          message: 'API server is offline. Run "npm run api" locally.',
+        })
       } else {
-        setTestResult({ success: false, message: String(err) })
+        setTestResult({ success: false, message: String(error) })
       }
     } finally {
       setIsTesting(false)
     }
   }
-  
+
   const handleSave = async (skipTest: boolean = false) => {
     if (!apiUrl) {
       addToast('error', 'API server not configured. Go to Settings > REST API.')
@@ -265,9 +289,9 @@ export function OdooSettings() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ url, database, username, api_key: apiKey, skip_test: skipTest })
+        body: JSON.stringify({ url, database, username, api_key: apiKey, skip_test: skipTest }),
       })
 
       const data = await response.json()
@@ -288,14 +312,14 @@ export function OdooSettings() {
           addToast('error', data.message || data.error || 'Failed to save connection')
         }
       }
-    } catch (err) {
-      log.error('[OdooSettings]', 'Error', { error: err })
-      addToast('error', `Error: ${err}`)
+    } catch (error) {
+      log.error('[OdooSettings]', 'Error', { error: error })
+      addToast('error', `Error: ${error}`)
     } finally {
       setIsSaving(false)
     }
   }
-  
+
   const handleSaveConfig = async (andConnect: boolean = true) => {
     if (!apiUrl) {
       addToast('error', 'API server not configured. Go to Settings > REST API.')
@@ -319,17 +343,17 @@ export function OdooSettings() {
     setIsSavingConfig(true)
 
     try {
-      const endpoint = editingConfig 
+      const endpoint = editingConfig
         ? `${apiUrl}/integrations/odoo/configs/${editingConfig.id}`
         : `${apiUrl}/integrations/odoo/configs`
-      
+
       const method = editingConfig ? 'PUT' : 'POST'
-      
+
       const response = await fetch(endpoint, {
         method,
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           name: configName.trim(),
@@ -339,29 +363,34 @@ export function OdooSettings() {
           username,
           api_key: apiKey,
           color: configColor,
-          skip_test: !andConnect  // Skip connection test when just saving
-        })
+          skip_test: !andConnect, // Skip connection test when just saving
+        }),
       })
 
       const data = await response.json()
 
       if (response.ok) {
         const configId = data.config?.id || editingConfig?.id
-        
+
         // Only activate if andConnect is true
         if (andConnect && configId) {
           try {
-            const activateResponse = await fetch(`${apiUrl}/integrations/odoo/configs/${configId}/activate`, {
-              method: 'POST',
-              headers: { 'Authorization': `Bearer ${token}` }
-            })
+            const activateResponse = await fetch(
+              `${apiUrl}/integrations/odoo/configs/${configId}/activate`,
+              {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` },
+              },
+            )
             const activateData = await activateResponse.json()
-            
+
             if (activateResponse.ok) {
-              addToast(activateData.connected ? 'success' : 'warning', 
-                activateData.connected 
+              addToast(
+                activateData.connected ? 'success' : 'warning',
+                activateData.connected
                   ? `"${configName}" saved and connected!`
-                  : `"${configName}" saved but connection failed: ${activateData.message}`)
+                  : `"${configName}" saved but connection failed: ${activateData.message}`,
+              )
               loadSettings()
             } else {
               addToast('warning', `Connection saved but activation failed: ${activateData.message}`)
@@ -372,7 +401,7 @@ export function OdooSettings() {
         } else {
           addToast('success', data.message || `Connection "${configName}" saved!`)
         }
-        
+
         setShowSaveDialog(false)
         setConfigName('')
         setConfigDescription('')
@@ -382,13 +411,13 @@ export function OdooSettings() {
       } else {
         addToast('error', data.message || 'Failed to save connection')
       }
-    } catch (err) {
-      addToast('error', `Error: ${err}`)
+    } catch (error) {
+      addToast('error', `Error: ${error}`)
     } finally {
       setIsSavingConfig(false)
     }
   }
-  
+
   const handleLoadConfig = async (config: SavedConfig) => {
     if (!apiUrl) {
       addToast('error', 'API server not configured. Go to Settings > REST API.')
@@ -403,7 +432,7 @@ export function OdooSettings() {
     try {
       // Fetch full config with API key
       const response = await fetch(`${apiUrl}/integrations/odoo/configs/${config.id}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       })
 
       if (response.ok) {
@@ -416,11 +445,11 @@ export function OdooSettings() {
       } else {
         addToast('error', 'Failed to load connection')
       }
-    } catch (err) {
-      addToast('error', `Error: ${err}`)
+    } catch (error) {
+      addToast('error', `Error: ${error}`)
     }
   }
-  
+
   const handleActivateConfig = async (config: SavedConfig) => {
     if (!apiUrl) {
       addToast('error', 'API server not configured. Go to Settings > REST API.')
@@ -437,7 +466,7 @@ export function OdooSettings() {
     try {
       const response = await fetch(`${apiUrl}/integrations/odoo/configs/${config.id}/activate`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       })
 
       const data = await response.json()
@@ -449,13 +478,13 @@ export function OdooSettings() {
       } else {
         addToast('error', data.message || 'Failed to activate connection')
       }
-    } catch (err) {
-      addToast('error', `Error: ${err}`)
+    } catch (error) {
+      addToast('error', `Error: ${error}`)
     } finally {
       setActivatingConfigId(null)
     }
   }
-  
+
   const handleDeleteConfig = async () => {
     if (!deletingConfig) return
     if (!apiUrl) {
@@ -475,7 +504,7 @@ export function OdooSettings() {
     try {
       const response = await fetch(`${apiUrl}/integrations/odoo/configs/${deletingConfig.id}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       })
 
       if (response.ok) {
@@ -484,14 +513,14 @@ export function OdooSettings() {
       } else {
         addToast('error', 'Failed to delete connection')
       }
-    } catch (err) {
-      addToast('error', `Error: ${err}`)
+    } catch (error) {
+      addToast('error', `Error: ${error}`)
     } finally {
       setIsDeletingConfig(false)
       setDeletingConfig(null)
     }
   }
-  
+
   const handleEditConfig = (config: SavedConfig) => {
     setEditingConfig(config)
     setConfigName(config.name)
@@ -502,7 +531,7 @@ export function OdooSettings() {
       setShowSaveDialog(true)
     })
   }
-  
+
   const handleSync = async () => {
     if (!apiUrl) {
       addToast('error', 'API server not configured. Go to Settings > REST API.')
@@ -521,25 +550,28 @@ export function OdooSettings() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        }
+          Authorization: `Bearer ${token}`,
+        },
       })
 
       const data = await response.json()
 
       if (response.ok) {
-        addToast('success', `Synced ${data.created} new, ${data.updated} updated suppliers from Odoo`)
+        addToast(
+          'success',
+          `Synced ${data.created} new, ${data.updated} updated suppliers from Odoo`,
+        )
         loadSettings()
       } else {
         addToast('error', data.message || data.error || 'Sync failed')
       }
-    } catch (err) {
-      addToast('error', `Sync error: ${err}`)
+    } catch (error) {
+      addToast('error', `Sync error: ${error}`)
     } finally {
       setIsSyncing(false)
     }
   }
-  
+
   const handleDisconnect = async () => {
     if (!apiUrl) {
       addToast('error', 'API server not configured. Go to Settings > REST API.')
@@ -557,7 +589,7 @@ export function OdooSettings() {
     try {
       const response = await fetch(`${apiUrl}/integrations/odoo`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       })
 
       if (response.ok) {
@@ -569,8 +601,8 @@ export function OdooSettings() {
         setApiKey('')
         setTestResult(null)
       }
-    } catch (err) {
-      addToast('error', `Error: ${err}`)
+    } catch (error) {
+      addToast('error', `Error: ${error}`)
     } finally {
       setIsDisconnecting(false)
       setShowDisconnectDialog(false)
@@ -586,7 +618,7 @@ export function OdooSettings() {
           <span>Only administrators can edit integration settings.</span>
         </div>
       )}
-      
+
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="w-12 h-12 rounded-lg bg-[#714B67] flex items-center justify-center">
@@ -605,7 +637,7 @@ export function OdooSettings() {
           </span>
         )}
       </div>
-      
+
       <div className="space-y-4 p-4 bg-plm-bg rounded-lg border border-plm-border">
         {/* API Server Offline Warning */}
         {apiServerOnline === false && (
@@ -615,8 +647,11 @@ export function OdooSettings() {
               <div className="font-medium text-plm-warning">API Server Offline</div>
               <p className="text-plm-fg-muted mt-1">
                 Odoo integration requires the BluePLM API server.{' '}
-                <span className="text-plm-fg">Run <code className="px-1.5 py-0.5 bg-plm-sidebar rounded">npm run api</code> locally</span>
-                {' '}or configure an external API URL in Settings → REST API.
+                <span className="text-plm-fg">
+                  Run <code className="px-1.5 py-0.5 bg-plm-sidebar rounded">npm run api</code>{' '}
+                  locally
+                </span>{' '}
+                or configure an external API URL in Settings → REST API.
               </p>
               <button
                 onClick={checkApiServer}
@@ -628,7 +663,7 @@ export function OdooSettings() {
             </div>
           </div>
         )}
-        
+
         {/* Odoo Connections Section - Always visible when API is online */}
         {apiServerOnline !== false && (
           <>
@@ -666,7 +701,7 @@ export function OdooSettings() {
                   </button>
                 )}
               </div>
-              
+
               {/* Connection list - always visible */}
               <div className="bg-plm-bg">
                 {isLoadingConfigs ? (
@@ -677,23 +712,25 @@ export function OdooSettings() {
                   <div className="text-center py-6">
                     <FolderOpen size={32} className="mx-auto mb-2 text-plm-fg-muted opacity-40" />
                     <p className="text-sm text-plm-fg-muted">No saved connections yet</p>
-                    <p className="text-xs text-plm-fg-muted mt-1">Click "New Connection" to create one</p>
+                    <p className="text-xs text-plm-fg-muted mt-1">
+                      Click "New Connection" to create one
+                    </p>
                   </div>
                 ) : (
                   <div className="divide-y divide-plm-border max-h-48 overflow-y-auto">
-                    {savedConfigs.map(config => (
-                      <div 
-                        key={config.id} 
+                    {savedConfigs.map((config) => (
+                      <div
+                        key={config.id}
                         className={`flex items-center gap-3 px-3 py-2.5 hover:bg-plm-highlight/50 ${
                           config.is_active ? 'bg-plm-accent/10' : ''
                         }`}
                       >
                         {/* Color indicator */}
-                        <div 
+                        <div
                           className="w-3 h-3 rounded-full flex-shrink-0"
                           style={{ backgroundColor: config.color || '#6b7280' }}
                         />
-                        
+
                         {/* Connection info */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
@@ -716,7 +753,7 @@ export function OdooSettings() {
                             {config.url} • {config.database}
                           </div>
                         </div>
-                        
+
                         {/* Actions */}
                         <div className="flex items-center gap-1 flex-shrink-0">
                           {isAdmin && (
@@ -775,7 +812,7 @@ export function OdooSettings() {
             </div>
           </>
         )}
-        
+
         {/* Status banner if connected */}
         {settings?.is_connected && (
           <div className="flex items-center justify-between p-3 bg-plm-success/10 border border-plm-success/30 rounded-lg text-sm">
@@ -795,7 +832,7 @@ export function OdooSettings() {
             )}
           </div>
         )}
-        
+
         {/* Quick edit form - only show when connected */}
         {settings?.is_connected && apiServerOnline !== false && (
           <>
@@ -810,9 +847,11 @@ export function OdooSettings() {
                 readOnly={!isAdmin}
                 className={`w-full px-3 py-2 text-base bg-plm-sidebar border border-plm-border rounded-lg focus:outline-none focus:border-plm-accent font-mono ${!isAdmin ? 'opacity-60 cursor-not-allowed' : ''}`}
               />
-              <p className="text-xs text-plm-fg-muted">https:// will be added automatically if not provided</p>
+              <p className="text-xs text-plm-fg-muted">
+                https:// will be added automatically if not provided
+              </p>
             </div>
-            
+
             {/* Database */}
             <div className="space-y-2">
               <label className="text-sm text-plm-fg-muted">Database</label>
@@ -828,7 +867,7 @@ export function OdooSettings() {
                 Find at: your-odoo-url/web/database/manager
               </p>
             </div>
-            
+
             {/* Username */}
             <div className="space-y-2">
               <label className="text-sm text-plm-fg-muted">Username (Email)</label>
@@ -841,7 +880,7 @@ export function OdooSettings() {
                 className={`w-full px-3 py-2 text-base bg-plm-sidebar border border-plm-border rounded-lg focus:outline-none focus:border-plm-accent ${!isAdmin ? 'opacity-60 cursor-not-allowed' : ''}`}
               />
             </div>
-            
+
             {/* API Key */}
             <div className="space-y-2">
               <label className="text-sm text-plm-fg-muted">API Key</label>
@@ -866,19 +905,21 @@ export function OdooSettings() {
                 Generate at: Odoo → Settings → Users → [Your User] → API Keys
               </p>
             </div>
-            
+
             {/* Test result */}
             {testResult && (
-              <div className={`flex items-center gap-2 p-3 rounded-lg text-sm ${
-                testResult.success 
-                  ? 'bg-plm-success/10 text-plm-success border border-plm-success/30' 
-                  : 'bg-plm-error/10 text-plm-error border border-plm-error/30'
-              }`}>
+              <div
+                className={`flex items-center gap-2 p-3 rounded-lg text-sm ${
+                  testResult.success
+                    ? 'bg-plm-success/10 text-plm-success border border-plm-success/30'
+                    : 'bg-plm-error/10 text-plm-error border border-plm-error/30'
+                }`}
+              >
                 {testResult.success ? <Check size={16} /> : <AlertCircle size={16} />}
                 {testResult.message}
               </div>
             )}
-            
+
             {/* Action buttons - only show for admins */}
             {isAdmin && (
               <div className="grid grid-cols-3 gap-2">
@@ -910,41 +951,41 @@ export function OdooSettings() {
             )}
           </>
         )}
-        
+
         {/* Sync and disconnect when connected - only show for admins */}
         {settings?.is_connected && isAdmin && (
-              <div className="flex gap-2 pt-2 border-t border-plm-border">
-                <button
-                  onClick={handleSync}
-                  disabled={isSyncing}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-base bg-plm-success/20 hover:bg-plm-success/30 text-plm-success rounded-lg transition-colors disabled:opacity-50"
-                >
-                  {isSyncing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
-                  Sync Suppliers Now
-                </button>
-                <button
-                  onClick={() => setShowDisconnectDialog(true)}
-                  className="px-4 py-2.5 text-base text-plm-error hover:bg-plm-error/10 rounded-lg transition-colors"
-                >
-                  Disconnect
-                </button>
-              </div>
-            )}
-            
-            {/* Help link */}
-            <div className="pt-2">
-              <a
-                href="https://www.odoo.com/documentation/17.0/developer/reference/external_api.html"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 text-sm text-plm-accent hover:underline"
-              >
-                <ExternalLink size={14} />
-                Odoo API Documentation
-              </a>
-            </div>
+          <div className="flex gap-2 pt-2 border-t border-plm-border">
+            <button
+              onClick={handleSync}
+              disabled={isSyncing}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-base bg-plm-success/20 hover:bg-plm-success/30 text-plm-success rounded-lg transition-colors disabled:opacity-50"
+            >
+              {isSyncing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+              Sync Suppliers Now
+            </button>
+            <button
+              onClick={() => setShowDisconnectDialog(true)}
+              className="px-4 py-2.5 text-base text-plm-error hover:bg-plm-error/10 rounded-lg transition-colors"
+            >
+              Disconnect
+            </button>
+          </div>
+        )}
+
+        {/* Help link */}
+        <div className="pt-2">
+          <a
+            href="https://www.odoo.com/documentation/17.0/developer/reference/external_api.html"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 text-sm text-plm-accent hover:underline"
+          >
+            <ExternalLink size={14} />
+            Odoo API Documentation
+          </a>
+        </div>
       </div>
-      
+
       {/* Save Connection Dialog - Full form (admin only) */}
       {showSaveDialog && isAdmin && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -963,7 +1004,7 @@ export function OdooSettings() {
                 <X size={18} />
               </button>
             </div>
-            
+
             <div className="p-4 space-y-4">
               {/* Name & Color row */}
               <div className="flex gap-3">
@@ -981,12 +1022,14 @@ export function OdooSettings() {
                 <div className="space-y-2">
                   <label className="text-sm text-plm-fg-muted">Color</label>
                   <div className="flex gap-1">
-                    {CONFIG_COLORS.slice(0, 4).map(color => (
+                    {CONFIG_COLORS.slice(0, 4).map((color) => (
                       <button
                         key={color.value}
                         onClick={() => setConfigColor(color.value)}
                         className={`w-8 h-8 rounded flex items-center justify-center transition-all ${
-                          configColor === color.value ? 'ring-2 ring-offset-1 ring-offset-plm-bg ring-plm-accent' : 'hover:opacity-80'
+                          configColor === color.value
+                            ? 'ring-2 ring-offset-1 ring-offset-plm-bg ring-plm-accent'
+                            : 'hover:opacity-80'
                         }`}
                         style={{ backgroundColor: color.value }}
                         title={color.name}
@@ -997,15 +1040,17 @@ export function OdooSettings() {
                   </div>
                 </div>
               </div>
-              
+
               {/* More colors */}
               <div className="flex gap-1 -mt-2">
-                {CONFIG_COLORS.slice(4).map(color => (
+                {CONFIG_COLORS.slice(4).map((color) => (
                   <button
                     key={color.value}
                     onClick={() => setConfigColor(color.value)}
                     className={`w-6 h-6 rounded flex items-center justify-center transition-all ${
-                      configColor === color.value ? 'ring-2 ring-offset-1 ring-offset-plm-bg ring-plm-accent' : 'hover:opacity-80'
+                      configColor === color.value
+                        ? 'ring-2 ring-offset-1 ring-offset-plm-bg ring-plm-accent'
+                        : 'hover:opacity-80'
                     }`}
                     style={{ backgroundColor: color.value }}
                     title={color.name}
@@ -1014,7 +1059,7 @@ export function OdooSettings() {
                   </button>
                 ))}
               </div>
-              
+
               {/* Description */}
               <div className="space-y-2">
                 <label className="text-sm text-plm-fg-muted">Description (optional)</label>
@@ -1026,12 +1071,14 @@ export function OdooSettings() {
                   className="w-full px-3 py-2 text-sm bg-plm-sidebar border border-plm-border rounded-lg focus:outline-none focus:border-plm-accent"
                 />
               </div>
-              
+
               <div className="h-px bg-plm-border my-2" />
-              
+
               {/* Connection Details */}
-              <div className="text-xs font-medium text-plm-fg-muted uppercase tracking-wider">Connection Details</div>
-              
+              <div className="text-xs font-medium text-plm-fg-muted uppercase tracking-wider">
+                Connection Details
+              </div>
+
               {/* Odoo URL */}
               <div className="space-y-1">
                 <label className="text-sm text-plm-fg-muted">Odoo URL *</label>
@@ -1043,7 +1090,7 @@ export function OdooSettings() {
                   className="w-full px-3 py-2 text-sm bg-plm-sidebar border border-plm-border rounded-lg focus:outline-none focus:border-plm-accent font-mono"
                 />
               </div>
-              
+
               {/* Database */}
               <div className="space-y-1">
                 <label className="text-sm text-plm-fg-muted">Database *</label>
@@ -1055,7 +1102,7 @@ export function OdooSettings() {
                   className="w-full px-3 py-2 text-sm bg-plm-sidebar border border-plm-border rounded-lg focus:outline-none focus:border-plm-accent font-mono"
                 />
               </div>
-              
+
               {/* Username */}
               <div className="space-y-1">
                 <label className="text-sm text-plm-fg-muted">Username (Email) *</label>
@@ -1067,7 +1114,7 @@ export function OdooSettings() {
                   className="w-full px-3 py-2 text-sm bg-plm-sidebar border border-plm-border rounded-lg focus:outline-none focus:border-plm-accent"
                 />
               </div>
-              
+
               {/* API Key */}
               <div className="space-y-1">
                 <label className="text-sm text-plm-fg-muted">API Key *</label>
@@ -1091,20 +1138,22 @@ export function OdooSettings() {
                   Generate at: Odoo → Settings → Users → [Your User] → API Keys
                 </p>
               </div>
-              
+
               {/* Test result inside dialog */}
               {testResult && (
-                <div className={`flex items-center gap-2 p-3 rounded-lg text-sm ${
-                  testResult.success 
-                    ? 'bg-plm-success/10 text-plm-success border border-plm-success/30' 
-                    : 'bg-plm-error/10 text-plm-error border border-plm-error/30'
-                }`}>
+                <div
+                  className={`flex items-center gap-2 p-3 rounded-lg text-sm ${
+                    testResult.success
+                      ? 'bg-plm-success/10 text-plm-success border border-plm-success/30'
+                      : 'bg-plm-error/10 text-plm-error border border-plm-error/30'
+                  }`}
+                >
                   {testResult.success ? <Check size={14} /> : <AlertCircle size={14} />}
                   <span className="text-xs">{testResult.message}</span>
                 </div>
               )}
             </div>
-            
+
             <div className="flex justify-between gap-2 px-4 py-3 border-t border-plm-border bg-plm-sidebar/50 sticky bottom-0">
               <button
                 onClick={handleTest}
@@ -1126,18 +1175,40 @@ export function OdooSettings() {
                 </button>
                 <button
                   onClick={() => handleSaveConfig(false)}
-                  disabled={isSavingConfig || !configName.trim() || !url || !database || !username || !apiKey}
+                  disabled={
+                    isSavingConfig ||
+                    !configName.trim() ||
+                    !url ||
+                    !database ||
+                    !username ||
+                    !apiKey
+                  }
                   className="flex items-center gap-2 px-4 py-2 text-sm bg-plm-sidebar border border-plm-border text-plm-fg rounded-lg hover:bg-plm-highlight transition-colors disabled:opacity-50"
                 >
-                  {isSavingConfig ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                  {isSavingConfig ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <Save size={14} />
+                  )}
                   {editingConfig ? 'Update' : 'Save'}
                 </button>
                 <button
                   onClick={() => handleSaveConfig(true)}
-                  disabled={isSavingConfig || !configName.trim() || !url || !database || !username || !apiKey}
+                  disabled={
+                    isSavingConfig ||
+                    !configName.trim() ||
+                    !url ||
+                    !database ||
+                    !username ||
+                    !apiKey
+                  }
                   className="flex items-center gap-2 px-4 py-2 text-sm bg-plm-accent text-white rounded-lg hover:bg-plm-accent/90 transition-colors disabled:opacity-50"
                 >
-                  {isSavingConfig ? <Loader2 size={14} className="animate-spin" /> : <Plug size={14} />}
+                  {isSavingConfig ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <Plug size={14} />
+                  )}
                   {editingConfig ? 'Update & Connect' : 'Save & Connect'}
                 </button>
               </div>
@@ -1148,14 +1219,25 @@ export function OdooSettings() {
 
       {/* Delete Config Confirmation Dialog */}
       {deletingConfig && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={() => setDeletingConfig(null)}>
-          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center"
+          onClick={() => setDeletingConfig(null)}
+        >
+          <div
+            className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3 className="text-lg font-medium text-plm-fg mb-4">Delete Connection</h3>
             <p className="text-base text-plm-fg-muted mb-4">
-              Are you sure you want to delete <strong>{deletingConfig.name}</strong>? This cannot be undone.
+              Are you sure you want to delete <strong>{deletingConfig.name}</strong>? This cannot be
+              undone.
             </p>
             <div className="flex gap-2 justify-end">
-              <button onClick={() => setDeletingConfig(null)} className="btn btn-ghost" disabled={isDeletingConfig}>
+              <button
+                onClick={() => setDeletingConfig(null)}
+                className="btn btn-ghost"
+                disabled={isDeletingConfig}
+              >
                 Cancel
               </button>
               <button
@@ -1172,14 +1254,25 @@ export function OdooSettings() {
 
       {/* Disconnect Odoo Confirmation Dialog */}
       {showDisconnectDialog && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={() => setShowDisconnectDialog(false)}>
-          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center"
+          onClick={() => setShowDisconnectDialog(false)}
+        >
+          <div
+            className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3 className="text-lg font-medium text-plm-fg mb-4">Disconnect Odoo</h3>
             <p className="text-base text-plm-fg-muted mb-4">
-              Are you sure you want to disconnect Odoo? You will need to reconnect to sync data again.
+              Are you sure you want to disconnect Odoo? You will need to reconnect to sync data
+              again.
             </p>
             <div className="flex gap-2 justify-end">
-              <button onClick={() => setShowDisconnectDialog(false)} className="btn btn-ghost" disabled={isDisconnecting}>
+              <button
+                onClick={() => setShowDisconnectDialog(false)}
+                className="btn btn-ghost"
+                disabled={isDisconnecting}
+              >
                 Cancel
               </button>
               <button

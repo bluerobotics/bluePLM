@@ -38,7 +38,7 @@ const store = usePDMStore()  // Re-renders on ANY state change
 - Single responsibility: one reason to change
 - Composition over configuration: small, composable pieces
 - Props interface: explicit types, no `any`
-- Default export, one component per file
+- Named export, one primary component per file
 
 ## Styling (Tailwind Only)
 

@@ -105,14 +105,14 @@ function buildThreadTree(flat: FileAnnotation[]): FileAnnotation[] {
  */
 export async function getFileAnnotations(
   fileId: string,
-  version?: number
+  version?: number,
 ): Promise<{ annotations: FileAnnotation[]; error: string | null }> {
   const client = getSupabaseClient()
 
   // Type assertion needed: new columns not yet in auto-generated types (see note at top)
-  let query = (client
-    .from('file_comments') as any)
-    .select(`
+  let query = (client.from('file_comments') as any) // TODO: type this
+    .select(
+      `
       id,
       file_id,
       user_id,
@@ -128,7 +128,8 @@ export async function getFileAnnotations(
       edited_at,
       created_at,
       user:users!user_id(email, full_name, avatar_url)
-    `)
+    `,
+    )
     .eq('file_id', fileId)
     .order('created_at', { ascending: true })
 
@@ -160,13 +161,12 @@ export async function getFileAnnotations(
  * @returns Object with `count` number and optional `error`
  */
 export async function getAnnotationCount(
-  fileId: string
+  fileId: string,
 ): Promise<{ count: number; error: string | null }> {
   const client = getSupabaseClient()
 
   // Type assertion needed: resolved/parent_id not yet in auto-generated types (see note at top)
-  const { count, error } = await (client
-    .from('file_comments') as any)
+  const { count, error } = await (client.from('file_comments') as any) // TODO: type this
     .select('id', { count: 'exact', head: true })
     .eq('file_id', fileId)
     .eq('resolved', false)
@@ -206,7 +206,7 @@ export interface CreateAnnotationParams {
  * @returns Object with the created `annotation` and optional `error`
  */
 export async function createAnnotation(
-  params: CreateAnnotationParams
+  params: CreateAnnotationParams,
 ): Promise<{ annotation: FileAnnotation | null; error: string | null }> {
   const client = getSupabaseClient()
 
@@ -222,10 +222,10 @@ export async function createAnnotation(
     file_version: params.fileVersion ?? null,
   }
 
-  const { data, error } = await (client
-    .from('file_comments') as any)
+  const { data, error } = await (client.from('file_comments') as any) // TODO: type this
     .insert(insertPayload)
-    .select(`
+    .select(
+      `
       id,
       file_id,
       user_id,
@@ -241,7 +241,8 @@ export async function createAnnotation(
       edited_at,
       created_at,
       user:users!user_id(email, full_name, avatar_url)
-    `)
+    `,
+    )
     .single()
 
   if (error) {
@@ -266,7 +267,7 @@ export async function createAnnotation(
  */
 export async function updateAnnotation(
   annotationId: string,
-  comment: string
+  comment: string,
 ): Promise<{ annotation: FileAnnotation | null; error: string | null }> {
   const client = getSupabaseClient()
 
@@ -276,11 +277,11 @@ export async function updateAnnotation(
     edited_at: new Date().toISOString(),
   }
 
-  const { data, error } = await (client
-    .from('file_comments') as any)
+  const { data, error } = await (client.from('file_comments') as any) // TODO: type this
     .update(updatePayload)
     .eq('id', annotationId)
-    .select(`
+    .select(
+      `
       id,
       file_id,
       user_id,
@@ -296,7 +297,8 @@ export async function updateAnnotation(
       edited_at,
       created_at,
       user:users!user_id(email, full_name, avatar_url)
-    `)
+    `,
+    )
     .single()
 
   if (error) {
@@ -319,14 +321,11 @@ export async function updateAnnotation(
  * @returns Object with `success` boolean and optional `error`
  */
 export async function deleteAnnotation(
-  annotationId: string
+  annotationId: string,
 ): Promise<{ success: boolean; error: string | null }> {
   const client = getSupabaseClient()
 
-  const { error } = await client
-    .from('file_comments')
-    .delete()
-    .eq('id', annotationId)
+  const { error } = await client.from('file_comments').delete().eq('id', annotationId)
 
   if (error) {
     log.error('[Annotations]', 'Failed to delete annotation', {
@@ -353,7 +352,7 @@ export async function deleteAnnotation(
  */
 export async function resolveAnnotation(
   annotationId: string,
-  userId: string
+  userId: string,
 ): Promise<{ annotation: FileAnnotation | null; error: string | null }> {
   const client = getSupabaseClient()
 
@@ -364,11 +363,11 @@ export async function resolveAnnotation(
     resolved_at: new Date().toISOString(),
   }
 
-  const { data, error } = await (client
-    .from('file_comments') as any)
+  const { data, error } = await (client.from('file_comments') as any) // TODO: type this
     .update(resolvePayload)
     .eq('id', annotationId)
-    .select(`
+    .select(
+      `
       id,
       file_id,
       user_id,
@@ -384,7 +383,8 @@ export async function resolveAnnotation(
       edited_at,
       created_at,
       user:users!user_id(email, full_name, avatar_url)
-    `)
+    `,
+    )
     .single()
 
   if (error) {
@@ -407,7 +407,7 @@ export async function resolveAnnotation(
  * @returns Object with the updated `annotation` and optional `error`
  */
 export async function unresolveAnnotation(
-  annotationId: string
+  annotationId: string,
 ): Promise<{ annotation: FileAnnotation | null; error: string | null }> {
   const client = getSupabaseClient()
 
@@ -418,11 +418,11 @@ export async function unresolveAnnotation(
     resolved_at: null,
   }
 
-  const { data, error } = await (client
-    .from('file_comments') as any)
+  const { data, error } = await (client.from('file_comments') as any) // TODO: type this
     .update(unresolvePayload)
     .eq('id', annotationId)
-    .select(`
+    .select(
+      `
       id,
       file_id,
       user_id,
@@ -438,7 +438,8 @@ export async function unresolveAnnotation(
       edited_at,
       created_at,
       user:users!user_id(email, full_name, avatar_url)
-    `)
+    `,
+    )
     .single()
 
   if (error) {

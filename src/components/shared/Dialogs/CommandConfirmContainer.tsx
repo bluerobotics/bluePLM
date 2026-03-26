@@ -1,6 +1,6 @@
 /**
  * Container component for Command Confirmation Dialog
- * 
+ *
  * Renders a confirmation dialog when a command handler calls ctx.confirm().
  * The dialog state is managed via the store, and the promise resolution
  * is handled by the executor's resolveCommandConfirm() function.
@@ -14,20 +14,20 @@ import { resolveCommandConfirm } from '@/lib/commands/executor'
 const MAX_VISIBLE_FILES = 5
 
 export const CommandConfirmContainer = memo(function CommandConfirmContainer() {
-  const pendingConfirm = usePDMStore(s => s.pendingCommandConfirm)
-  
+  const pendingConfirm = usePDMStore((s) => s.pendingCommandConfirm)
+
   const handleConfirm = useCallback(() => {
     resolveCommandConfirm(true)
   }, [])
-  
+
   const handleCancel = useCallback(() => {
     resolveCommandConfirm(false)
   }, [])
-  
+
   // Handle keyboard shortcuts
   useEffect(() => {
     if (!pendingConfirm) return
-    
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Enter') {
         e.preventDefault()
@@ -37,15 +37,15 @@ export const CommandConfirmContainer = memo(function CommandConfirmContainer() {
         handleCancel()
       }
     }
-    
+
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [pendingConfirm, handleConfirm, handleCancel])
-  
+
   if (!pendingConfirm) return null
-  
+
   const { title, message, items, confirmText = 'Continue' } = pendingConfirm
-  
+
   return (
     <div
       className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center"
@@ -97,16 +97,10 @@ export const CommandConfirmContainer = memo(function CommandConfirmContainer() {
         )}
 
         <div className="flex justify-end gap-2">
-          <button
-            onClick={handleCancel}
-            className="btn btn-ghost"
-          >
+          <button onClick={handleCancel} className="btn btn-ghost">
             Cancel
           </button>
-          <button
-            onClick={handleConfirm}
-            className="btn btn-primary"
-          >
+          <button onClick={handleConfirm} className="btn btn-primary">
             {confirmText}
           </button>
         </div>

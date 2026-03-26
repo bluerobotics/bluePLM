@@ -2,7 +2,11 @@
 import { ArrowDown, ArrowUp, Undo2, RefreshCw, Network, FileSearch, Package2 } from 'lucide-react'
 import type { LocalFile } from '@/stores/pdmStore'
 import { usePDMStore } from '@/stores/pdmStore'
-import { executeCommand, getSyncedFilesFromSelection, getGhostFilesFromSelection } from '@/lib/commands'
+import {
+  executeCommand,
+  getSyncedFilesFromSelection,
+  getGhostFilesFromSelection,
+} from '@/lib/commands'
 import { checkOperationPermission, getPermissionRequirement } from '@/lib/permissions'
 import { SW_EXTENSIONS, ASSEMBLY_EXTENSIONS } from '../constants'
 import type { DialogName } from '../types'
@@ -58,10 +62,10 @@ export function PDMItems({
   setMatchGhostFile,
   setMatchGhostCandidates,
   onClose,
-  onRefresh
+  onRefresh,
 }: PDMItemsProps) {
   const { hasPermission, addToast } = usePDMStore()
-  
+
   // Permission checks for operations
   const canCheckout = checkOperationPermission('checkout', hasPermission)
   const canCheckin = checkOperationPermission('checkin', hasPermission)
@@ -70,7 +74,7 @@ export function PDMItems({
   const canDiscard = checkOperationPermission('discard', hasPermission)
   const canSyncMetadata = checkOperationPermission('sync-metadata', hasPermission)
   const canExtractRefs = checkOperationPermission('extract-references', hasPermission)
-  
+
   const handleCheckout = () => {
     if (!canCheckout.allowed) {
       addToast('error', canCheckout.reason || getPermissionRequirement('checkout'))
@@ -87,12 +91,12 @@ export function PDMItems({
     }
     // Get files that would be checked in
     const syncedFiles = getSyncedFilesFromSelection(files, contextFiles)
-    const filesToCheckin = syncedFiles.filter(f => f.pdmData?.checked_out_by === userId)
-    
+    const filesToCheckin = syncedFiles.filter((f) => f.pdmData?.checked_out_by === userId)
+
     // Check if any files are checked out on a different machine
     const hasDifferentMachineCheckout = await checkForDifferentMachineCheckout(filesToCheckin)
     if (hasDifferentMachineCheckout) return
-    
+
     onClose()
     executeCommand('checkin', { files: contextFiles }, { onRefresh })
   }
@@ -152,49 +156,50 @@ export function PDMItems({
     onClose()
     executeCommand('bulk-download-assembly', {
       files: contextFiles,
-      rootFileId: firstFile.pdmData.id
+      rootFileId: firstFile.pdmData.id,
     })
   }
 
   // Get SolidWorks files checked out by current user (sync-metadata requires checkout)
-  const checkedOutSwFiles = syncedFilesInSelection.filter(f => 
-    SW_EXTENSIONS.includes(f.extension.toLowerCase()) &&
-    f.pdmData?.checked_out_by === userId
+  const checkedOutSwFiles = syncedFilesInSelection.filter(
+    (f) =>
+      SW_EXTENSIONS.includes(f.extension.toLowerCase()) && f.pdmData?.checked_out_by === userId,
   )
 
   // Get synced assembly files (for BOM/reference extraction)
-  const syncedAssemblyFiles = syncedFilesInSelection.filter(f => 
-    ASSEMBLY_EXTENSIONS.includes(f.extension.toLowerCase())
+  const syncedAssemblyFiles = syncedFilesInSelection.filter((f) =>
+    ASSEMBLY_EXTENSIONS.includes(f.extension.toLowerCase()),
   )
 
   // Single assembly file with database entry (for "Download Referenced Files")
-  const isSingleAssembly = !multiSelect &&
+  const isSingleAssembly =
+    !multiSelect &&
     contextFiles.length === 1 &&
     ASSEMBLY_EXTENSIONS.includes(contextFiles[0].extension?.toLowerCase()) &&
     !!contextFiles[0].pdmData?.id
 
   // Determine disabled state and reason for each operation
   const checkoutDisabled = !canCheckout.allowed || !anySynced || allCheckedOut
-  const checkoutReason = !canCheckout.allowed 
+  const checkoutReason = !canCheckout.allowed
     ? `Requires ${getPermissionRequirement('checkout')}`
-    : !anySynced 
-      ? 'Download files first to enable checkout' 
-      : allCheckedOut 
-        ? 'Already checked out' 
+    : !anySynced
+      ? 'Download files first to enable checkout'
+      : allCheckedOut
+        ? 'Already checked out'
         : ''
-  
+
   const checkinDisabled = !canCheckin.allowed || allCheckedIn || checkinableCount === 0
   const checkinReason = !canCheckin.allowed
     ? `Requires ${getPermissionRequirement('checkin')}`
-    : allCheckedIn 
-      ? 'Already checked in' 
-      : checkinableCount === 0 
-        ? 'No files checked out by you' 
+    : allCheckedIn
+      ? 'Already checked in'
+      : checkinableCount === 0
+        ? 'No files checked out by you'
         : ''
-  
+
   const syncDisabled = !canSync.allowed
   const syncReason = !canSync.allowed ? `Requires ${getPermissionRequirement('sync')}` : ''
-  
+
   const discardDisabled = !canDiscard.allowed
   const discardReason = !canDiscard.allowed ? `Requires ${getPermissionRequirement('discard')}` : ''
 
@@ -204,9 +209,13 @@ export function PDMItems({
 
   const handleMatchGhostFile = () => {
     if (!singleGhostFile) return
-    const ghostDir = singleGhostFile.relativePath.replace(/\\/g, '/').split('/').slice(0, -1).join('/')
+    const ghostDir = singleGhostFile.relativePath
+      .replace(/\\/g, '/')
+      .split('/')
+      .slice(0, -1)
+      .join('/')
     const ghostExt = singleGhostFile.extension?.toLowerCase()
-    const candidates = files.filter(f => {
+    const candidates = files.filter((f) => {
       if (f.isDirectory || f.diffStatus !== 'added') return false
       const fileDir = f.relativePath.replace(/\\/g, '/').split('/').slice(0, -1).join('/')
       return fileDir === ghostDir && f.extension?.toLowerCase() === ghostExt
@@ -220,14 +229,19 @@ export function PDMItems({
     <>
       {/* Download - for cloud-only files - show at TOP for cloud folders */}
       {anyCloudOnly && (
-        <div 
+        <div
           className={`context-menu-item ${!canDownload.allowed ? 'disabled' : ''}`}
           onClick={handleDownload}
           title={!canDownload.allowed ? `Requires ${getPermissionRequirement('download')}` : ''}
         >
-          <ArrowDown size={14} className={canDownload.allowed ? 'text-plm-success' : 'text-plm-fg-muted'} />
+          <ArrowDown
+            size={14}
+            className={canDownload.allowed ? 'text-plm-success' : 'text-plm-fg-muted'}
+          />
           Download {cloudOnlyCount > 0 ? `${cloudOnlyCount} files` : countLabel}
-          {!canDownload.allowed && <span className="text-xs text-plm-fg-muted ml-auto">(no permission)</span>}
+          {!canDownload.allowed && (
+            <span className="text-xs text-plm-fg-muted ml-auto">(no permission)</span>
+          )}
         </div>
       )}
 
@@ -236,14 +250,20 @@ export function PDMItems({
         <div
           className={`context-menu-item ${!canDownload.allowed ? 'disabled' : ''}`}
           onClick={handleDownloadReferencedFiles}
-          title={!canDownload.allowed
-            ? `Requires ${getPermissionRequirement('download')}`
-            : 'Download this assembly and all its referenced parts, sub-assemblies, and drawings'
+          title={
+            !canDownload.allowed
+              ? `Requires ${getPermissionRequirement('download')}`
+              : 'Download this assembly and all its referenced parts, sub-assemblies, and drawings'
           }
         >
-          <Package2 size={14} className={canDownload.allowed ? 'text-plm-success' : 'text-plm-fg-muted'} />
+          <Package2
+            size={14}
+            className={canDownload.allowed ? 'text-plm-success' : 'text-plm-fg-muted'}
+          />
           Download Referenced Files
-          {!canDownload.allowed && <span className="text-xs text-plm-fg-muted ml-auto">(no permission)</span>}
+          {!canDownload.allowed && (
+            <span className="text-xs text-plm-fg-muted ml-auto">(no permission)</span>
+          )}
         </div>
       )}
 
@@ -251,19 +271,24 @@ export function PDMItems({
 
       {/* First Check In - for unsynced files */}
       {anyUnsynced && !allCloudOnly && (
-        <div 
+        <div
           className={`context-menu-item ${syncDisabled ? 'disabled' : ''}`}
           onClick={handleFirstCheckin}
           title={syncReason}
         >
           <ArrowUp size={14} className={syncDisabled ? 'text-plm-fg-muted' : 'text-plm-info'} />
-          First Check In {unsyncedFilesInSelection.length > 0 ? `${unsyncedFilesInSelection.length} file${unsyncedFilesInSelection.length !== 1 ? 's' : ''}` : countLabel}
-          {!canSync.allowed && <span className="text-xs text-plm-fg-muted ml-auto">(no permission)</span>}
+          First Check In{' '}
+          {unsyncedFilesInSelection.length > 0
+            ? `${unsyncedFilesInSelection.length} file${unsyncedFilesInSelection.length !== 1 ? 's' : ''}`
+            : countLabel}
+          {!canSync.allowed && (
+            <span className="text-xs text-plm-fg-muted ml-auto">(no permission)</span>
+          )}
         </div>
       )}
 
       {/* Check Out */}
-      <div 
+      <div
         className={`context-menu-item ${checkoutDisabled ? 'disabled' : ''}`}
         onClick={() => {
           if (checkoutDisabled) return
@@ -271,16 +296,28 @@ export function PDMItems({
         }}
         title={checkoutReason}
       >
-        <ArrowDown size={14} className={checkoutDisabled ? 'text-plm-fg-muted' : 'text-plm-warning'} />
-        Check Out {allFolders && !multiSelect && checkoutableCount > 0 ? `${checkoutableCount} files` : countLabel}
-        {!canCheckout.allowed && <span className="text-xs text-plm-fg-muted ml-auto">(no permission)</span>}
-        {canCheckout.allowed && !anySynced && <span className="text-xs text-plm-fg-muted ml-auto">(download first)</span>}
-        {canCheckout.allowed && anySynced && allCheckedOut && <span className="text-xs text-plm-fg-muted ml-auto">(already out)</span>}
+        <ArrowDown
+          size={14}
+          className={checkoutDisabled ? 'text-plm-fg-muted' : 'text-plm-warning'}
+        />
+        Check Out{' '}
+        {allFolders && !multiSelect && checkoutableCount > 0
+          ? `${checkoutableCount} files`
+          : countLabel}
+        {!canCheckout.allowed && (
+          <span className="text-xs text-plm-fg-muted ml-auto">(no permission)</span>
+        )}
+        {canCheckout.allowed && !anySynced && (
+          <span className="text-xs text-plm-fg-muted ml-auto">(download first)</span>
+        )}
+        {canCheckout.allowed && anySynced && allCheckedOut && (
+          <span className="text-xs text-plm-fg-muted ml-auto">(already out)</span>
+        )}
       </div>
 
       {/* Check In - only for synced files that exist locally (not 'deleted') */}
       {anySynced && (
-        <div 
+        <div
           className={`context-menu-item ${checkinDisabled ? 'disabled' : ''}`}
           onClick={() => {
             if (checkinDisabled) return
@@ -288,23 +325,37 @@ export function PDMItems({
           }}
           title={checkinReason}
         >
-          <ArrowUp size={14} className={checkinDisabled ? 'text-plm-fg-muted' : 'text-plm-success'} />
-          Check In {allFolders && !multiSelect && checkinableCount > 0 ? `${checkinableCount} files` : countLabel}
-          {!canCheckin.allowed && <span className="text-xs text-plm-fg-muted ml-auto">(no permission)</span>}
-          {canCheckin.allowed && allCheckedIn && <span className="text-xs text-plm-fg-muted ml-auto">(already in)</span>}
+          <ArrowUp
+            size={14}
+            className={checkinDisabled ? 'text-plm-fg-muted' : 'text-plm-success'}
+          />
+          Check In{' '}
+          {allFolders && !multiSelect && checkinableCount > 0
+            ? `${checkinableCount} files`
+            : countLabel}
+          {!canCheckin.allowed && (
+            <span className="text-xs text-plm-fg-muted ml-auto">(no permission)</span>
+          )}
+          {canCheckin.allowed && allCheckedIn && (
+            <span className="text-xs text-plm-fg-muted ml-auto">(already in)</span>
+          )}
         </div>
       )}
 
       {/* Discard Checkout - for files checked out by current user */}
       {discardableCount > 0 && (
-        <div 
+        <div
           className={`context-menu-item ${discardDisabled ? '' : 'text-plm-warning'} ${discardDisabled ? 'disabled' : ''}`}
           onClick={handleDiscardCheckout}
-          title={discardDisabled ? discardReason : 'Discard local changes and revert to server version'}
+          title={
+            discardDisabled ? discardReason : 'Discard local changes and revert to server version'
+          }
         >
           <Undo2 size={14} />
           Discard Checkout {discardableCount > 1 ? `(${discardableCount})` : ''}
-          {!canDiscard.allowed && <span className="text-xs text-plm-fg-muted ml-auto">(no permission)</span>}
+          {!canDiscard.allowed && (
+            <span className="text-xs text-plm-fg-muted ml-auto">(no permission)</span>
+          )}
         </div>
       )}
 
@@ -322,33 +373,46 @@ export function PDMItems({
 
       {/* Sync Metadata - for SW files checked out by current user */}
       {checkedOutSwFiles.length > 0 && (
-        <div 
+        <div
           className={`context-menu-item ${!canSyncMetadata.allowed ? 'disabled' : ''}`}
           onClick={handleSyncMetadata}
-          title={!canSyncMetadata.allowed 
-            ? `Requires ${getPermissionRequirement('sync-metadata')}`
-            : 'Sync metadata between BluePLM and SolidWorks files'
+          title={
+            !canSyncMetadata.allowed
+              ? `Requires ${getPermissionRequirement('sync-metadata')}`
+              : 'Sync metadata between BluePLM and SolidWorks files'
           }
         >
-          <RefreshCw size={14} className={canSyncMetadata.allowed ? 'text-plm-accent' : 'text-plm-fg-muted'} />
+          <RefreshCw
+            size={14}
+            className={canSyncMetadata.allowed ? 'text-plm-accent' : 'text-plm-fg-muted'}
+          />
           Sync Metadata {checkedOutSwFiles.length > 1 ? `(${checkedOutSwFiles.length} files)` : ''}
-          {!canSyncMetadata.allowed && <span className="text-xs text-plm-fg-muted ml-auto">(no permission)</span>}
+          {!canSyncMetadata.allowed && (
+            <span className="text-xs text-plm-fg-muted ml-auto">(no permission)</span>
+          )}
         </div>
       )}
 
       {/* Extract Assembly References - for synced assembly files */}
       {syncedAssemblyFiles.length > 0 && (
-        <div 
+        <div
           className={`context-menu-item ${!canExtractRefs.allowed ? 'disabled' : ''}`}
           onClick={handleExtractReferences}
-          title={!canExtractRefs.allowed 
-            ? `Requires ${getPermissionRequirement('extract-references')}`
-            : 'Extract and store assembly component references to enable Contains/Where-Used queries'
+          title={
+            !canExtractRefs.allowed
+              ? `Requires ${getPermissionRequirement('extract-references')}`
+              : 'Extract and store assembly component references to enable Contains/Where-Used queries'
           }
         >
-          <Network size={14} className={canExtractRefs.allowed ? 'text-plm-accent' : 'text-plm-fg-muted'} />
-          Extract References {syncedAssemblyFiles.length > 1 ? `(${syncedAssemblyFiles.length} assemblies)` : ''}
-          {!canExtractRefs.allowed && <span className="text-xs text-plm-fg-muted ml-auto">(no permission)</span>}
+          <Network
+            size={14}
+            className={canExtractRefs.allowed ? 'text-plm-accent' : 'text-plm-fg-muted'}
+          />
+          Extract References{' '}
+          {syncedAssemblyFiles.length > 1 ? `(${syncedAssemblyFiles.length} assemblies)` : ''}
+          {!canExtractRefs.allowed && (
+            <span className="text-xs text-plm-fg-muted ml-auto">(no permission)</span>
+          )}
         </div>
       )}
     </>

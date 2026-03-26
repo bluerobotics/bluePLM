@@ -6,20 +6,26 @@ import { getStateIndicator } from './utils'
 /**
  * Single local file search result item
  */
-export function LocalFileResult({ file, isHighlighted, onSelect, onMouseEnter, onOpenFileLocation }: LocalFileResultProps) {
+export function LocalFileResult({
+  file,
+  isHighlighted,
+  onSelect,
+  onMouseEnter,
+  onOpenFileLocation,
+}: LocalFileResultProps) {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
   // Close context menu when clicking outside
   useEffect(() => {
     if (!contextMenu) return
-    
+
     const handleClickOutside = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setContextMenu(null)
       }
     }
-    
+
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [contextMenu])
@@ -42,13 +48,15 @@ export function LocalFileResult({ file, isHighlighted, onSelect, onMouseEnter, o
         onMouseEnter={onMouseEnter}
         onContextMenu={handleContextMenu}
         className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-left transition-colors ${
-          isHighlighted
-            ? 'bg-plm-accent/20'
-            : 'hover:bg-plm-bg-lighter'
+          isHighlighted ? 'bg-plm-accent/20' : 'hover:bg-plm-bg-lighter'
         }`}
       >
         <span className="text-plm-fg-muted">
-          {file.isDirectory ? <Folder size={16} className="text-plm-warning" /> : <File size={16} />}
+          {file.isDirectory ? (
+            <Folder size={16} className="text-plm-warning" />
+          ) : (
+            <File size={16} />
+          )}
         </span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">

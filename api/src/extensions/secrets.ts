@@ -1,20 +1,21 @@
 /**
  * Extension Secrets Storage
- * 
+ *
  * Provides encrypted secrets storage for extensions with audit logging.
  * Secrets are encrypted using AES-256-GCM before storage.
- * 
+ *
  * Features:
  * - AES-256-GCM encryption for secrets
  * - Secret versioning (keeps last 3 versions)
  * - Access audit logging
  * - Limits: 50 secrets per extension, 10KB per secret
- * 
+ *
  * @module extensions/secrets
  */
 
 import crypto from 'crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { log } from '../infrastructure/logging.js'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SECRETS LIMITS
@@ -33,7 +34,7 @@ export const SECRETS_LIMITS = {
   /** Number of previous versions to keep */
   VERSION_HISTORY: 3,
   /** Grace period for old versions in hours */
-  OLD_VERSION_GRACE_HOURS: 24
+  OLD_VERSION_GRACE_HOURS: 24,
 } as const
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -49,21 +50,14 @@ const IV_LENGTH = 12
 function encrypt(plaintext: string, key: string): string {
   const keyBuffer = crypto.createHash('sha256').update(key).digest()
   const iv = crypto.randomBytes(IV_LENGTH)
-  
+
   const cipher = crypto.createCipheriv(ALGORITHM, keyBuffer, iv)
-  const encrypted = Buffer.concat([
-    cipher.update(plaintext, 'utf8'),
-    cipher.final()
-  ])
-  
+  const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()])
+
   const authTag = cipher.getAuthTag()
-  
+
   // Format: iv:authTag:ciphertext (all base64)
-  return [
-    iv.toString('base64'),
-    authTag.toString('base64'),
-    encrypted.toString('base64')
-  ].join(':')
+  return [iv.toString('base64'), authTag.toString('base64'), encrypted.toString('base64')].join(':')
 }
 
 /**
@@ -72,23 +66,20 @@ function encrypt(plaintext: string, key: string): string {
 function decrypt(ciphertext: string, key: string): string {
   const keyBuffer = crypto.createHash('sha256').update(key).digest()
   const [ivB64, authTagB64, encryptedB64] = ciphertext.split(':')
-  
+
   if (!ivB64 || !authTagB64 || !encryptedB64) {
     throw new SecretsError('Invalid encrypted value format')
   }
-  
+
   const iv = Buffer.from(ivB64, 'base64')
   const authTag = Buffer.from(authTagB64, 'base64')
   const encrypted = Buffer.from(encryptedB64, 'base64')
-  
+
   const decipher = crypto.createDecipheriv(ALGORITHM, keyBuffer, iv)
   decipher.setAuthTag(authTag)
-  
-  const decrypted = Buffer.concat([
-    decipher.update(encrypted),
-    decipher.final()
-  ])
-  
+
+  const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()])
+
   return decrypted.toString('utf8')
 }
 
@@ -98,20 +89,20 @@ function decrypt(ciphertext: string, key: string): string {
 
 /**
  * Extension encrypted secrets storage with audit logging.
- * 
+ *
  * All secret access is logged for security auditing.
  * Secrets are encrypted at rest using AES-256-GCM.
- * 
+ *
  * @example
  * ```typescript
  * const secrets = new ExtensionSecrets(supabase, orgId, extensionId, key, userId);
- * 
+ *
  * // Store a secret
  * await secrets.set('API_KEY', 'sk-1234567890');
- * 
+ *
  * // Retrieve a secret
  * const apiKey = await secrets.get('API_KEY');
- * 
+ *
  * // Delete a secret
  * await secrets.delete('API_KEY');
  * ```
@@ -128,7 +119,7 @@ export class ExtensionSecrets {
     orgId: string,
     extensionId: string,
     encryptionKey: string,
-    accessedBy: string
+    accessedBy: string,
   ) {
     this.supabase = supabase
     this.orgId = orgId
@@ -139,7 +130,7 @@ export class ExtensionSecrets {
 
   /**
    * Get a secret value by name.
-   * 
+   *
    * @param name - Secret name
    * @returns Decrypted secret value or undefined if not found
    */
@@ -170,19 +161,19 @@ export class ExtensionSecrets {
 
     try {
       return decrypt(data.encrypted_value, this.encryptionKey)
-    } catch (err) {
+    } catch (error) {
       throw new SecretsError(
-        `Failed to decrypt secret ${name}: ${err instanceof Error ? err.message : 'Unknown error'}`
+        `Failed to decrypt secret ${name}: ${error instanceof Error ? error.message : 'Unknown error'}`,
       )
     }
   }
 
   /**
    * Set a secret value.
-   * 
+   *
    * Creates a new version, keeping the last 3 versions for rollback.
    * Old versions are accessible for 24 hours after being superseded.
-   * 
+   *
    * @param name - Secret name
    * @param value - Secret value (will be encrypted)
    */
@@ -193,10 +184,10 @@ export class ExtensionSecrets {
     // Check secret count limit
     const count = await this.getSecretCount()
     const existing = await this.exists(name)
-    
+
     if (!existing && count >= SECRETS_LIMITS.MAX_SECRETS) {
       throw new SecretsError(
-        `Secrets limit exceeded: maximum ${SECRETS_LIMITS.MAX_SECRETS} secrets per extension`
+        `Secrets limit exceeded: maximum ${SECRETS_LIMITS.MAX_SECRETS} secrets per extension`,
       )
     }
 
@@ -207,17 +198,18 @@ export class ExtensionSecrets {
       await this.archiveCurrentVersion(name)
     }
 
-    const { error } = await this.supabase
-      .from('extension_secrets')
-      .upsert({
+    const { error } = await this.supabase.from('extension_secrets').upsert(
+      {
         org_id: this.orgId,
         extension_id: this.extensionId,
         name,
         encrypted_value: encryptedValue,
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'org_id,extension_id,name'
-      })
+        updated_at: new Date().toISOString(),
+      },
+      {
+        onConflict: 'org_id,extension_id,name',
+      },
+    )
 
     if (error) {
       throw new SecretsError(`Failed to set secret ${name}: ${error.message}`)
@@ -232,7 +224,7 @@ export class ExtensionSecrets {
 
   /**
    * Delete a secret.
-   * 
+   *
    * @param name - Secret name to delete
    */
   async delete(name: string): Promise<void> {
@@ -311,7 +303,7 @@ export class ExtensionSecrets {
       throw new SecretsError(`Failed to list secrets: ${error.message}`)
     }
 
-    return data?.map(row => row.name) ?? []
+    return data?.map((row) => row.name) ?? []
   }
 
   /**
@@ -327,15 +319,13 @@ export class ExtensionSecrets {
       .single()
 
     if (data?.encrypted_value) {
-      await this.supabase
-        .from('extension_secret_versions')
-        .insert({
-          org_id: this.orgId,
-          extension_id: this.extensionId,
-          name,
-          encrypted_value: data.encrypted_value,
-          archived_at: new Date().toISOString()
-        })
+      await this.supabase.from('extension_secret_versions').insert({
+        org_id: this.orgId,
+        extension_id: this.extensionId,
+        name,
+        encrypted_value: data.encrypted_value,
+        archived_at: new Date().toISOString(),
+      })
     }
   }
 
@@ -358,23 +348,17 @@ export class ExtensionSecrets {
 
     // Delete versions beyond the retention limit
     const toDelete = data.slice(SECRETS_LIMITS.VERSION_HISTORY)
-    const deleteIds = toDelete.map(v => v.id)
+    const deleteIds = toDelete.map((v) => v.id)
 
     if (deleteIds.length > 0) {
-      await this.supabase
-        .from('extension_secret_versions')
-        .delete()
-        .in('id', deleteIds)
+      await this.supabase.from('extension_secret_versions').delete().in('id', deleteIds)
     }
   }
 
   /**
    * Log secret access to audit table.
    */
-  private async logAccess(
-    secretName: string,
-    action: 'read' | 'write' | 'delete'
-  ): Promise<void> {
+  private async logAccess(secretName: string, action: 'read' | 'write' | 'delete'): Promise<void> {
     // Fire-and-forget audit logging (best-effort)
     this.supabase
       .from('extension_secret_access')
@@ -384,9 +368,9 @@ export class ExtensionSecrets {
         secret_name: secretName,
         action,
         accessed_by: this.accessedBy,
-        accessed_at: new Date().toISOString()
+        accessed_at: new Date().toISOString(),
       })
-      .then(() => {}, console.error)
+      .then(() => {}, (err) => log.error({ err }, '[Secrets] Failed to log access'))
   }
 
   /**
@@ -399,14 +383,14 @@ export class ExtensionSecrets {
 
     if (name.length > SECRETS_LIMITS.MAX_NAME_LENGTH) {
       throw new SecretsError(
-        `Secret name too long: max ${SECRETS_LIMITS.MAX_NAME_LENGTH} characters`
+        `Secret name too long: max ${SECRETS_LIMITS.MAX_NAME_LENGTH} characters`,
       )
     }
 
     // Only allow uppercase alphanumeric and underscores (env var style)
     if (!/^[A-Z0-9_]+$/.test(name)) {
       throw new SecretsError(
-        'Secret name must be uppercase alphanumeric with underscores (e.g., API_KEY)'
+        'Secret name must be uppercase alphanumeric with underscores (e.g., API_KEY)',
       )
     }
   }
@@ -422,7 +406,7 @@ export class ExtensionSecrets {
     const size = Buffer.byteLength(value, 'utf8')
     if (size > SECRETS_LIMITS.MAX_VALUE_SIZE) {
       throw new SecretsError(
-        `Secret value too large: ${size} bytes (max ${SECRETS_LIMITS.MAX_VALUE_SIZE} bytes)`
+        `Secret value too large: ${size} bytes (max ${SECRETS_LIMITS.MAX_VALUE_SIZE} bytes)`,
       )
     }
   }

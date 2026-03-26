@@ -8,11 +8,13 @@ interface UseSelectionCategoriesOptions {
   userId?: string
 }
 
-export function useSelectionCategories(options: UseSelectionCategoriesOptions): SelectionCategories {
+export function useSelectionCategories(
+  options: UseSelectionCategoriesOptions,
+): SelectionCategories {
   const { files, selectedFiles, userId } = options
 
   return useMemo(
     () => getSelectionCategories(files, selectedFiles, userId),
-    [files, selectedFiles, userId]
+    [files, selectedFiles, userId],
   )
 }

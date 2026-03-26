@@ -1,6 +1,6 @@
 /**
  * Dev Tools Feature
- * 
+ *
  * Development and debugging utilities
  */
 

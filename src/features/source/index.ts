@@ -1,6 +1,6 @@
 /**
  * Source Files Feature
- * 
+ *
  * Core PDM file management functionality
  */
 
@@ -9,14 +9,14 @@ export * from './browser'
 
 // Sidebar views - only export main components, not types that conflict
 export { FileTree } from './explorer'
-export { 
-  VaultTreeItem, 
-  FolderTreeItem, 
+export {
+  VaultTreeItem,
+  FolderTreeItem,
   PinnedFoldersSection,
   RecentVaultsSection,
   NoVaultAccessMessage,
   FileActionButtons,
-  FolderActionButtons
+  FolderActionButtons,
 } from './explorer'
 
 export { PendingView } from './pending'
@@ -45,7 +45,7 @@ export {
   MENU_PADDING,
   SUBMENU_WIDTH,
   DEFAULT_SHARE_EXPIRY_DAYS,
-  MAX_VISIBLE_FILES
+  MAX_VISIBLE_FILES,
 } from './context-menu'
 
 // Context menu dialogs that don't conflict with pane
@@ -57,7 +57,7 @@ export {
   CheckoutRequestDialog,
   MentionDialog,
   ShareLinkDialog,
-  AddToECODialog
+  AddToECODialog,
 } from './context-menu'
 
 // Workflows feature (File Workflows for source files)

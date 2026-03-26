@@ -2,6 +2,13 @@ import { getSupabaseClient } from './client'
 import { log } from '@/lib/logger'
 
 // ============================================
+// Timing Constants
+// ============================================
+const SESSION_RETRY_DELAYS_MS = [1_000, 2_000, 3_000]
+const ENSURE_ORG_TIMEOUT_MS = 5_000
+const HEARTBEAT_INTERVAL_MS = 30_000
+
+// ============================================
 // User Sessions (Active Device Tracking)
 // ============================================
 
@@ -27,69 +34,73 @@ let heartbeatInterval: NodeJS.Timeout | null = null
  */
 export async function registerDeviceSession(
   userId: string,
-  orgId: string | null
+  orgId: string | null,
 ): Promise<{ success: boolean; session?: UserSession; error?: string; isNewUser?: boolean }> {
   const client = getSupabaseClient()
-  
+
   // Get machine info
   const { getMachineId, getMachineName } = await import('../backup')
   const machineId = await getMachineId()
   const machineName = await getMachineName()
-  const platform = await window.electronAPI?.getPlatform() || 'unknown'
-  const appVersion = await window.electronAPI?.getAppVersion() || 'unknown'
-  
-  
+  const platform = (await window.electronAPI?.getPlatform()) || 'unknown'
+  const appVersion = (await window.electronAPI?.getAppVersion()) || 'unknown'
+
   // Retry logic for new users (user record might not exist yet due to trigger timing)
   const maxRetries = 3
-  const retryDelays = [1000, 2000, 3000]
-  
+  const retryDelays = SESSION_RETRY_DELAYS_MS
+
   // org_id is required, if null skip session creation
   if (!orgId) {
     return { success: false, error: 'No organization ID provided' }
   }
-  
+
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     const { data, error } = await client
       .from('user_sessions')
-      .upsert({
-        user_id: userId,
-        org_id: orgId,
-        machine_id: machineId,
-        machine_name: machineName,
-        platform,
-        app_version: appVersion,
-        last_seen: new Date().toISOString(),
-        is_active: true
-      }, {
-        onConflict: 'user_id,machine_id'
-      })
+      .upsert(
+        {
+          user_id: userId,
+          org_id: orgId,
+          machine_id: machineId,
+          machine_name: machineName,
+          platform,
+          app_version: appVersion,
+          last_seen: new Date().toISOString(),
+          is_active: true,
+        },
+        {
+          onConflict: 'user_id,machine_id',
+        },
+      )
       .select()
       .single()
-    
+
     if (!error) {
       return { success: true, session: data }
     }
-    
+
     // Check if it's a foreign key constraint error (user doesn't exist yet)
     if (error.message?.includes('foreign key constraint') || error.code === '23503') {
       if (attempt < maxRetries - 1) {
-        await new Promise(resolve => setTimeout(resolve, retryDelays[attempt]))
+        await new Promise((resolve) => setTimeout(resolve, retryDelays[attempt]))
         continue
       }
       // After all retries, return a helpful error
-      log.error('[Session]', 'Failed to register session - user record not created', { error: error.message })
-      return { 
-        success: false, 
+      log.error('[Session]', 'Failed to register session - user record not created', {
+        error: error.message,
+      })
+      return {
+        success: false,
         error: 'Your account is still being set up. Please wait a moment and try again.',
-        isNewUser: true
+        isNewUser: true,
       }
     }
-    
+
     // Other errors, don't retry
     log.error('[Session]', 'Failed to register device', { error: error.message })
     return { success: false, error: error.message }
   }
-  
+
   return { success: false, error: 'Failed to register session after retries' }
 }
 
@@ -99,14 +110,14 @@ export async function registerDeviceSession(
  */
 export async function syncUserSessionsOrgId(userId: string, orgId: string): Promise<void> {
   const client = getSupabaseClient()
-  
+
   // Update ALL active sessions for this user to have the correct org_id
   const { error } = await client
     .from('user_sessions')
     .update({ org_id: orgId })
     .eq('user_id', userId)
     .select('id')
-  
+
   if (error) {
     log.error('[Session]', 'Failed to sync session org_ids', { error: error.message })
   }
@@ -116,40 +127,53 @@ export async function syncUserSessionsOrgId(userId: string, orgId: string): Prom
  * Ensure the current user has the correct org_id in the database
  * This calls a database RPC that checks and fixes org_id based on email domain
  * Should be called on every app boot to prevent org_id mismatch issues
- * 
+ *
  * NOTE: This uses Supabase client.rpc() which can sometimes hang. We add a timeout
  * to prevent blocking the auth flow. If it times out, we just skip it - the
  * linkUserToOrganization function will handle setting org_id as a fallback.
  */
-export async function ensureUserOrgId(): Promise<{ success: boolean; fixed: boolean; org_id?: string; error?: string }> {
+export async function ensureUserOrgId(): Promise<{
+  success: boolean
+  fixed: boolean
+  org_id?: string
+  error?: string
+}> {
   const client = getSupabaseClient()
-  
+
   // Wrap in a timeout since client.rpc() can hang
-  const timeoutMs = 5000
-  
   try {
     const rpcPromise = client.rpc('ensure_user_org_id' as never)
-    const timeoutPromise = new Promise<never>((_, reject) => 
-      setTimeout(() => reject(new Error('RPC timeout after 5s')), timeoutMs)
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('RPC timeout after 5s')), ENSURE_ORG_TIMEOUT_MS),
     )
-    
-    const { data, error } = await Promise.race([rpcPromise, timeoutPromise]) as { data: unknown; error: { message: string } | null }
-    
+
+    const { data, error } = (await Promise.race([rpcPromise, timeoutPromise])) as {
+      data: unknown
+      error: { message: string } | null
+    }
+
     if (error) {
       log.warn('[Auth]', 'ensure_user_org_id RPC failed', { error: error.message })
       return { success: false, fixed: false, error: error.message }
     }
-    
-    const result = data as { success: boolean; fixed: boolean; org_id?: string; previous_org_id?: string; new_org_id?: string; error?: string }
-    
-    return { 
-      success: result.success, 
-      fixed: result.fixed, 
-      org_id: result.new_org_id || result.org_id,
-      error: result.error
+
+    const result = data as {
+      success: boolean
+      fixed: boolean
+      org_id?: string
+      previous_org_id?: string
+      new_org_id?: string
+      error?: string
     }
-  } catch (err) {
-    const errorMsg = String(err)
+
+    return {
+      success: result.success,
+      fixed: result.fixed,
+      org_id: result.new_org_id || result.org_id,
+      error: result.error,
+    }
+  } catch (error) {
+    const errorMsg = String(error)
     if (!errorMsg.includes('timeout')) {
       log.error('[Auth]', 'ensureUserOrgId failed', { error: errorMsg })
     }
@@ -163,12 +187,15 @@ export async function ensureUserOrgId(): Promise<{ success: boolean; fixed: bool
  * @param userId - The user's ID
  * @param orgId - The user's current organization ID (to keep session org_id in sync)
  */
-export async function sendSessionHeartbeat(userId: string, orgId?: string | null): Promise<boolean> {
+export async function sendSessionHeartbeat(
+  userId: string,
+  orgId?: string | null,
+): Promise<boolean> {
   const client = getSupabaseClient()
-  
+
   const { getMachineId } = await import('../backup')
   const machineId = await getMachineId()
-  
+
   // First check if our session is still active (also get current org_id for logging)
   const { data: session, error: checkError } = await client
     .from('user_sessions')
@@ -176,51 +203,48 @@ export async function sendSessionHeartbeat(userId: string, orgId?: string | null
     .eq('user_id', userId)
     .eq('machine_id', machineId)
     .single()
-  
+
   if (checkError) {
     log.error('[Session]', 'Failed to check session status', { error: checkError.message })
     return true // Assume still active on error
   }
-  
+
   // If session was deactivated remotely, don't update and signal sign out needed
   if (session && !session.is_active) {
     log.info('[Session]', 'Session was remotely deactivated')
     return false
   }
-  
+
   // Session is active, update the heartbeat
   // Also update org_id to keep it in sync (handles case where user joins/changes org)
-  const updateData: Record<string, unknown> = { 
+  const updateData: Record<string, unknown> = {
     last_seen: new Date().toISOString(),
-    is_active: true
+    is_active: true,
   }
-  
+
   // Only update org_id if provided (to keep session in sync with current org)
   if (orgId !== undefined) {
     updateData.org_id = orgId
   }
-  
+
   const { error } = await client
     .from('user_sessions')
     .update(updateData)
     .eq('user_id', userId)
     .eq('machine_id', machineId)
-  
+
   if (error) {
     log.error('[Session]', 'Heartbeat failed', { error: error.message })
   }
-  
+
   // Also update last_online in users table (throttled - only if more than 1 min since last update)
   // This keeps "last online" in sync with actual activity
   try {
-    await client
-      .from('users')
-      .update({ last_online: new Date().toISOString() })
-      .eq('id', userId)
-  } catch (err) {
+    await client.from('users').update({ last_online: new Date().toISOString() }).eq('id', userId)
+  } catch (error) {
     // Silently ignore - last_online is non-critical
   }
-  
+
   return true
 }
 
@@ -231,15 +255,15 @@ export async function sendSessionHeartbeat(userId: string, orgId?: string | null
  * @param getOrgId - Optional callback to get current org_id (for keeping session org in sync)
  */
 export function startSessionHeartbeat(
-  userId: string, 
+  userId: string,
   onSessionInvalidated?: () => void,
-  getOrgId?: () => string | null | undefined
+  getOrgId?: () => string | null | undefined,
 ): void {
   // Clear any existing interval
   if (heartbeatInterval) {
     clearInterval(heartbeatInterval)
   }
-  
+
   const checkHeartbeat = async () => {
     const orgId = getOrgId?.()
     const isActive = await sendSessionHeartbeat(userId, orgId)
@@ -249,10 +273,10 @@ export function startSessionHeartbeat(
       onSessionInvalidated()
     }
   }
-  
+
   // Send heartbeat every 30 seconds (faster detection of remote sign out)
-  heartbeatInterval = setInterval(checkHeartbeat, 30000)
-  
+  heartbeatInterval = setInterval(checkHeartbeat, HEARTBEAT_INTERVAL_MS)
+
   // Send initial heartbeat
   checkHeartbeat()
 }
@@ -272,34 +296,36 @@ export function stopSessionHeartbeat(): void {
  */
 export async function endDeviceSession(userId: string): Promise<void> {
   const client = getSupabaseClient()
-  
+
   const { getMachineId } = await import('../backup')
   const machineId = await getMachineId()
-  
+
   await client
     .from('user_sessions')
     .update({ is_active: false })
     .eq('user_id', userId)
     .eq('machine_id', machineId)
-  
+
   stopSessionHeartbeat()
 }
 
 /**
  * End a remote session by session ID (for signing out other devices)
  */
-export async function endRemoteSession(sessionId: string): Promise<{ success: boolean; error?: string }> {
+export async function endRemoteSession(
+  sessionId: string,
+): Promise<{ success: boolean; error?: string }> {
   const client = getSupabaseClient()
-  
+
   const { error } = await client
     .from('user_sessions')
     .update({ is_active: false })
     .eq('id', sessionId)
-  
+
   if (error) {
     return { success: false, error: error.message }
   }
-  
+
   return { success: true }
 }
 
@@ -307,12 +333,14 @@ export async function endRemoteSession(sessionId: string): Promise<{ success: bo
  * Get all active sessions for the current user
  * Returns sessions that have been seen in the last 2 minutes
  */
-export async function getActiveSessions(userId: string): Promise<{ sessions: UserSession[]; error?: string }> {
+export async function getActiveSessions(
+  userId: string,
+): Promise<{ sessions: UserSession[]; error?: string }> {
   const client = getSupabaseClient()
-  
+
   // Get sessions active within the last 5 minutes
   const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
-  
+
   const { data, error } = await client
     .from('user_sessions')
     .select('*')
@@ -320,11 +348,11 @@ export async function getActiveSessions(userId: string): Promise<{ sessions: Use
     .eq('is_active', true)
     .gte('last_seen', fiveMinutesAgo)
     .order('last_seen', { ascending: false })
-  
+
   if (error) {
     return { sessions: [], error: error.message }
   }
-  
+
   return { sessions: data || [] }
 }
 
@@ -336,10 +364,10 @@ export async function getActiveSessions(userId: string): Promise<{ sessions: Use
  */
 export async function isMachineOnline(userId: string, machineId: string): Promise<boolean> {
   const client = getSupabaseClient()
-  
+
   // Consider online if active and seen within last 2 minutes
   const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString()
-  
+
   const { data, error } = await client
     .from('user_sessions')
     .select('id')
@@ -348,12 +376,12 @@ export async function isMachineOnline(userId: string, machineId: string): Promis
     .eq('is_active', true)
     .gte('last_seen', twoMinutesAgo)
     .limit(1)
-  
+
   if (error) {
     log.error('[Session]', 'Failed to check machine online status', { error: error.message })
     return false
   }
-  
+
   return (data?.length || 0) > 0
 }
 
@@ -362,10 +390,10 @@ export async function isMachineOnline(userId: string, machineId: string): Promis
  */
 export function subscribeToSessions(
   userId: string,
-  onSessionChange: (sessions: UserSession[]) => void
+  onSessionChange: (sessions: UserSession[]) => void,
 ): () => void {
   const client = getSupabaseClient()
-  
+
   const channel = client
     .channel(`user_sessions:${userId}`)
     .on<UserSession>(
@@ -374,16 +402,16 @@ export function subscribeToSessions(
         event: '*',
         schema: 'public',
         table: 'user_sessions',
-        filter: `user_id=eq.${userId}`
+        filter: `user_id=eq.${userId}`,
       },
       async () => {
         // When any session changes, fetch all active sessions
         const { sessions } = await getActiveSessions(userId)
         onSessionChange(sessions)
-      }
+      },
     )
     .subscribe()
-  
+
   return () => {
     channel.unsubscribe()
   }
@@ -409,15 +437,18 @@ export interface OnlineUser {
  * Get all online users from the organization
  * Returns users who have active sessions within the last 5 minutes
  */
-export async function getOrgOnlineUsers(orgId: string): Promise<{ users: OnlineUser[]; error?: string }> {
+export async function getOrgOnlineUsers(
+  orgId: string,
+): Promise<{ users: OnlineUser[]; error?: string }> {
   const client = getSupabaseClient()
-  
+
   // Get sessions active within the last 5 minutes
   const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
-  
+
   const { data, error } = await client
     .from('user_sessions')
-    .select(`
+    .select(
+      `
       user_id,
       machine_name,
       platform,
@@ -429,17 +460,18 @@ export async function getOrgOnlineUsers(orgId: string): Promise<{ users: OnlineU
         custom_avatar_url,
         role
       )
-    `)
+    `,
+    )
     .eq('org_id', orgId)
     .eq('is_active', true)
     .gte('last_seen', fiveMinutesAgo)
     .order('last_seen', { ascending: false })
-  
+
   if (error) {
     log.error('[OnlineUsers]', 'Failed to fetch online users', { error: error.message })
     return { users: [], error: error.message }
   }
-  
+
   // Transform the data to flatten the user info
   // Supabase v2 nested select type inference is incomplete, requires any
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -452,9 +484,9 @@ export async function getOrgOnlineUsers(orgId: string): Promise<{ users: OnlineU
     role: session.users.role,
     machine_name: session.machine_name,
     platform: session.platform,
-    last_seen: session.last_seen
+    last_seen: session.last_seen,
   }))
-  
+
   // Deduplicate by user_id (keep most recent session per user)
   const uniqueUsers = new Map<string, OnlineUser>()
   for (const user of users) {
@@ -462,7 +494,7 @@ export async function getOrgOnlineUsers(orgId: string): Promise<{ users: OnlineU
       uniqueUsers.set(user.user_id, user)
     }
   }
-  
+
   return { users: Array.from(uniqueUsers.values()) }
 }
 
@@ -471,10 +503,10 @@ export async function getOrgOnlineUsers(orgId: string): Promise<{ users: OnlineU
  */
 export function subscribeToOrgOnlineUsers(
   orgId: string,
-  onUsersChange: (users: OnlineUser[]) => void
+  onUsersChange: (users: OnlineUser[]) => void,
 ): () => void {
   const client = getSupabaseClient()
-  
+
   const channel = client
     .channel(`org_sessions:${orgId}`)
     .on<UserSession>(
@@ -483,15 +515,15 @@ export function subscribeToOrgOnlineUsers(
         event: '*',
         schema: 'public',
         table: 'user_sessions',
-        filter: `org_id=eq.${orgId}`
+        filter: `org_id=eq.${orgId}`,
       },
       async () => {
         const { users } = await getOrgOnlineUsers(orgId)
         onUsersChange(users)
-      }
+      },
     )
     .subscribe()
-  
+
   return () => {
     channel.unsubscribe()
   }
@@ -507,18 +539,20 @@ export function subscribeToOrgOnlineUsers(
  */
 export async function updateLastOnline(): Promise<{ success: boolean; error?: string }> {
   const client = getSupabaseClient()
-  
+
   try {
     const { error } = await client.rpc('update_last_online')
-    
+
     if (error) {
       log.error('[LastOnline]', 'Failed to update', { error: error.message })
       return { success: false, error: error.message }
     }
-    
+
     return { success: true }
-  } catch (err) {
-    log.error('[LastOnline]', 'Error updating', { error: err instanceof Error ? err.message : String(err) })
-    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  } catch (error) {
+    log.error('[LastOnline]', 'Error updating', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
   }
 }

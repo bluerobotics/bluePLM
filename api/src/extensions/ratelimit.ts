@@ -1,11 +1,17 @@
 /**
  * Extension Rate Limiting
- * 
+ *
  * Per-extension rate limiting to prevent abuse and ensure fair usage.
  * Uses a sliding window algorithm with Redis-like in-memory storage.
- * 
+ *
  * @module extensions/ratelimit
  */
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TIMING CONSTANTS
+// ═══════════════════════════════════════════════════════════════════════════════
+const CLEANUP_INTERVAL_MS = 60_000
+const STALE_ENTRY_THRESHOLD_MS = 5 * 60 * 1_000
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CONFIGURATION
@@ -29,7 +35,7 @@ export interface RateLimitConfig {
 export const DEFAULT_RATE_LIMIT: RateLimitConfig = {
   requestsPerMinute: 100,
   requestSizeBytes: 1024 * 1024, // 1MB
-  windowMs: 60000
+  windowMs: 60000,
 }
 
 /**
@@ -70,14 +76,14 @@ interface RateLimitEntry {
 
 /**
  * Per-extension rate limiter.
- * 
+ *
  * Uses a sliding window algorithm to track request rates.
  * In production, this could be backed by Redis for distributed rate limiting.
- * 
+ *
  * @example
  * ```typescript
  * const limiter = new ExtensionRateLimiter();
- * 
+ *
  * const result = await limiter.check('my-org', 'my-extension', 1024);
  * if (!result.allowed) {
  *   throw new Error(`Rate limited. Retry after ${result.retryAfter} seconds`);
@@ -91,7 +97,7 @@ export class ExtensionRateLimiter {
 
   constructor() {
     // Periodically clean up stale entries
-    this.cleanupInterval = setInterval(() => this.cleanup(), 60000)
+    this.cleanupInterval = setInterval(() => this.cleanup(), CLEANUP_INTERVAL_MS)
   }
 
   /**
@@ -106,15 +112,15 @@ export class ExtensionRateLimiter {
    */
   private getEntry(key: string): RateLimitEntry {
     let entry = this.entries.get(key)
-    
+
     if (!entry) {
       entry = {
         requests: [],
-        windowStart: Date.now()
+        windowStart: Date.now(),
       }
       this.entries.set(key, entry)
     }
-    
+
     return entry
   }
 
@@ -127,33 +133,25 @@ export class ExtensionRateLimiter {
 
   /**
    * Set custom rate limit configuration for an extension.
-   * 
+   *
    * @param orgId - Organization ID
    * @param extensionId - Extension ID
    * @param config - Custom rate limit configuration
    */
-  setConfig(
-    orgId: string,
-    extensionId: string,
-    config: Partial<RateLimitConfig>
-  ): void {
+  setConfig(orgId: string, extensionId: string, config: Partial<RateLimitConfig>): void {
     const key = this.getKey(orgId, extensionId)
     this.configs.set(key, { ...DEFAULT_RATE_LIMIT, ...config })
   }
 
   /**
    * Check if a request is allowed under rate limits.
-   * 
+   *
    * @param orgId - Organization ID
    * @param extensionId - Extension ID
    * @param requestSize - Request body size in bytes
    * @returns Rate limit result
    */
-  check(
-    orgId: string,
-    extensionId: string,
-    requestSize: number
-  ): RateLimitResult {
+  check(orgId: string, extensionId: string, requestSize: number): RateLimitResult {
     const key = this.getKey(orgId, extensionId)
     const config = this.getConfig(key)
     const entry = this.getEntry(key)
@@ -167,19 +165,19 @@ export class ExtensionRateLimiter {
         resetIn: 0,
         retryAfter: 0,
         current: entry.requests.length,
-        limit: config.requestsPerMinute
+        limit: config.requestsPerMinute,
       }
     }
 
     // Slide the window - remove requests outside the window
     const windowStart = now - config.windowMs
-    entry.requests = entry.requests.filter(ts => ts > windowStart)
+    entry.requests = entry.requests.filter((ts) => ts > windowStart)
 
     // Calculate remaining capacity
     const current = entry.requests.length
     const remaining = Math.max(0, config.requestsPerMinute - current)
     const oldestRequest = entry.requests[0]
-    const resetIn = oldestRequest 
+    const resetIn = oldestRequest
       ? Math.ceil((oldestRequest + config.windowMs - now) / 1000)
       : Math.ceil(config.windowMs / 1000)
 
@@ -191,7 +189,7 @@ export class ExtensionRateLimiter {
         resetIn,
         retryAfter: resetIn,
         current,
-        limit: config.requestsPerMinute
+        limit: config.requestsPerMinute,
       }
     }
 
@@ -203,13 +201,13 @@ export class ExtensionRateLimiter {
       remaining: remaining - 1,
       resetIn,
       current: current + 1,
-      limit: config.requestsPerMinute
+      limit: config.requestsPerMinute,
     }
   }
 
   /**
    * Get current rate limit status without consuming a request.
-   * 
+   *
    * @param orgId - Organization ID
    * @param extensionId - Extension ID
    * @returns Current rate limit status
@@ -222,12 +220,12 @@ export class ExtensionRateLimiter {
 
     // Slide the window
     const windowStart = now - config.windowMs
-    const activeRequests = entry.requests.filter(ts => ts > windowStart)
-    
+    const activeRequests = entry.requests.filter((ts) => ts > windowStart)
+
     const current = activeRequests.length
     const remaining = Math.max(0, config.requestsPerMinute - current)
     const oldestRequest = activeRequests[0]
-    const resetIn = oldestRequest 
+    const resetIn = oldestRequest
       ? Math.ceil((oldestRequest + config.windowMs - now) / 1000)
       : Math.ceil(config.windowMs / 1000)
 
@@ -236,13 +234,13 @@ export class ExtensionRateLimiter {
       remaining,
       resetIn,
       current,
-      limit: config.requestsPerMinute
+      limit: config.requestsPerMinute,
     }
   }
 
   /**
    * Reset rate limit for an extension.
-   * 
+   *
    * @param orgId - Organization ID
    * @param extensionId - Extension ID
    */
@@ -256,13 +254,12 @@ export class ExtensionRateLimiter {
    */
   private cleanup(): void {
     const now = Date.now()
-    const staleThreshold = 5 * 60 * 1000 // 5 minutes
 
     for (const [key, entry] of this.entries) {
       const config = this.getConfig(key)
       const latestRequest = entry.requests[entry.requests.length - 1]
-      
-      if (!latestRequest || now - latestRequest > staleThreshold + config.windowMs) {
+
+      if (!latestRequest || now - latestRequest > STALE_ENTRY_THRESHOLD_MS + config.windowMs) {
         this.entries.delete(key)
       }
     }
@@ -313,7 +310,7 @@ export function disposeRateLimiter(): void {
 
 /**
  * Check rate limit and throw if exceeded.
- * 
+ *
  * @param orgId - Organization ID
  * @param extensionId - Extension ID
  * @param requestSize - Request body size in bytes
@@ -322,7 +319,7 @@ export function disposeRateLimiter(): void {
 export function checkRateLimit(
   orgId: string,
   extensionId: string,
-  requestSize: number
+  requestSize: number,
 ): RateLimitResult {
   const limiter = getRateLimiter()
   return limiter.check(orgId, extensionId, requestSize)
@@ -330,7 +327,7 @@ export function checkRateLimit(
 
 /**
  * Get rate limit headers for response.
- * 
+ *
  * @param result - Rate limit check result
  * @returns Headers object
  */
@@ -338,7 +335,7 @@ export function getRateLimitHeaders(result: RateLimitResult): Record<string, str
   const headers: Record<string, string> = {
     'X-RateLimit-Limit': String(result.limit),
     'X-RateLimit-Remaining': String(result.remaining),
-    'X-RateLimit-Reset': String(Math.floor(Date.now() / 1000) + result.resetIn)
+    'X-RateLimit-Reset': String(Math.floor(Date.now() / 1000) + result.resetIn),
   }
 
   if (!result.allowed && result.retryAfter) {

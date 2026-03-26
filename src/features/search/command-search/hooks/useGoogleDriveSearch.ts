@@ -8,7 +8,7 @@ import type { SearchFilter, GoogleDriveFileResult } from '../types'
  */
 export function useGoogleDriveSearch(searchTerm: string, filter: SearchFilter) {
   const { gdriveAuthVersion } = usePDMStore()
-  
+
   const [driveResults, setDriveResults] = useState<GoogleDriveFileResult[]>([])
   const [isDriveSearching, setIsDriveSearching] = useState(false)
   const driveSearchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -28,7 +28,7 @@ export function useGoogleDriveSearch(searchTerm: string, filter: SearchFilter) {
       setDriveResults([])
       return
     }
-    
+
     setIsDriveSearching(true)
     try {
       // Use Google Drive API's fullText search
@@ -36,17 +36,17 @@ export function useGoogleDriveSearch(searchTerm: string, filter: SearchFilter) {
       const fields = 'files(id,name,mimeType,webViewLink,iconLink,modifiedTime,owners)'
       const response = await fetch(
         `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=${fields}&pageSize=10&orderBy=modifiedTime desc`,
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${token}` } },
       )
-      
+
       if (response.ok) {
         const data = await response.json()
         setDriveResults(data.files || [])
       } else {
         setDriveResults([])
       }
-    } catch (err) {
-      log.error('[Search]', 'Google Drive search failed', { error: err })
+    } catch (error) {
+      log.error('[Search]', 'Google Drive search failed', { error: error })
       setDriveResults([])
     } finally {
       setIsDriveSearching(false)
@@ -59,22 +59,22 @@ export function useGoogleDriveSearch(searchTerm: string, filter: SearchFilter) {
       setDriveResults([])
       return
     }
-    
+
     const shouldSearchDrive = filter === 'drive' || filter === 'all'
     if (!shouldSearchDrive || !searchTerm) {
       setDriveResults([])
       return
     }
-    
+
     // Debounce the search
     if (driveSearchTimeoutRef.current) {
       clearTimeout(driveSearchTimeoutRef.current)
     }
-    
+
     driveSearchTimeoutRef.current = setTimeout(() => {
       searchGoogleDrive(searchTerm)
     }, 300)
-    
+
     return () => {
       if (driveSearchTimeoutRef.current) {
         clearTimeout(driveSearchTimeoutRef.current)

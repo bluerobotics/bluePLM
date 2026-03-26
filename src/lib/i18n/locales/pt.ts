@@ -94,7 +94,8 @@ export const pt: TranslationDict = {
     useDifferentNumber: 'Usar outro número',
     verificationSent: 'Foi enviado um código de verificação para',
     includeCountryCode: 'Inclua o código do país (ex: +351 para Portugal, +55 para Brasil)',
-    supplierInviteNote: 'Os fornecedores são convidados pelas organizações. Contacte o seu comprador se precisar de acesso.',
+    supplierInviteNote:
+      'Os fornecedores são convidados pelas organizações. Contacte o seu comprador se precisar de acesso.',
 
     connectingToOrg: 'A ligar à sua organização...',
     organizationVaults: 'Cofres da Organização',
@@ -111,7 +112,8 @@ export const pt: TranslationDict = {
     welcome: 'Bem-vindo ao BluePLM',
     connectToBackend: 'Ligue-se ao backend Supabase da sua organização para começar',
     imAdmin: 'Sou Administrador da Organização',
-    imAdminDesc: 'Configure o BluePLM com as credenciais Supabase da sua organização. Receberá um código para partilhar com a sua equipa.',
+    imAdminDesc:
+      'Configure o BluePLM com as credenciais Supabase da sua organização. Receberá um código para partilhar com a sua equipa.',
     haveCode: 'Tenho um Código de Organização',
     haveCodeDesc: 'Introduza o código fornecido pelo administrador da sua organização para ligar.',
     needHelp: 'Precisa de ajuda a configurar o Supabase?',
@@ -129,7 +131,8 @@ export const pt: TranslationDict = {
     connectedSuccess: 'Ligado com Sucesso!',
     shareCode: 'Partilhe este código com os membros da sua equipa para que possam ligar',
     organizationCode: 'Código da Organização',
-    keepCodeSecure: 'Os membros da equipa podem colar este código quando abrirem o BluePLM pela primeira vez. Mantenha este código seguro - contém as suas credenciais Supabase.',
+    keepCodeSecure:
+      'Os membros da equipa podem colar este código quando abrirem o BluePLM pela primeira vez. Mantenha este código seguro - contém as suas credenciais Supabase.',
     continueToBluePLM: 'Continuar para o BluePLM',
 
     joinOrg: 'Juntar-se à Sua Organização',
@@ -192,31 +195,38 @@ export const pt: TranslationDict = {
     language: 'Idioma',
     displayLanguage: 'Idioma de Exibição',
     chooseLanguage: 'Escolha o idioma da interface',
-    translationsNote: 'Nota: Algumas traduções podem estar incompletas. Poderá ser necessário reiniciar.',
+    translationsNote:
+      'Nota: Algumas traduções podem estar incompletas. Poderá ser necessário reiniciar.',
 
     fileExtensions: 'Extensões de Ficheiro',
     lowercaseExtensions: 'Extensões em minúsculas ao carregar',
     lowercaseExtensionsDesc: 'Converter .SLDPRT para .sldprt ao fazer check-in',
 
     ignorePatterns: 'Padrões a Ignorar (Manter Apenas Local)',
-    ignorePatternsDesc: 'Ficheiros que correspondam a estes padrões permanecerão locais e não serão sincronizados.',
+    ignorePatternsDesc:
+      'Ficheiros que correspondam a estes padrões permanecerão locais e não serão sincronizados.',
     ignorePlaceholder: 'ex: *.tmp, .git/*, thumbs.db',
     connectVaultForPatterns: 'Ligue-se a um cofre para gerir padrões a ignorar.',
     noIgnorePatterns: 'Nenhum padrão de exclusão configurado',
 
     syncSettings: 'Configurações de Sincronização',
     autoDownloadCloudFiles: 'Descarregar ficheiros da nuvem automaticamente',
-    autoDownloadCloudFilesDesc: 'Descarregar automaticamente ficheiros que existem no servidor mas não localmente',
+    autoDownloadCloudFilesDesc:
+      'Descarregar automaticamente ficheiros que existem no servidor mas não localmente',
     autoDownloadUpdates: 'Descarregar atualizações automaticamente',
-    autoDownloadUpdatesDesc: 'Descarregar automaticamente quando o servidor tem versões mais recentes',
+    autoDownloadUpdatesDesc:
+      'Descarregar automaticamente quando o servidor tem versões mais recentes',
     excludedFiles: 'Ficheiros excluídos',
-    excludedFilesDesc: '{{count}} ficheiro(s) excluído(s) do download automático (removidos manualmente)',
+    excludedFilesDesc:
+      '{{count}} ficheiro(s) excluído(s) do download automático (removidos manualmente)',
     clearExcludedFiles: 'Limpar lista',
     autoDiscardOrphanedFiles: 'Descartar ficheiros órfãos automaticamente',
-    autoDiscardOrphanedFilesDesc: 'Remover automaticamente ficheiros locais que já não existem no servidor',
+    autoDiscardOrphanedFilesDesc:
+      'Remover automaticamente ficheiros locais que já não existem no servidor',
     discardOrphaned: 'Descartar órfãos',
     discardOrphanedCount: 'Descartar órfãos ({{count}} ficheiro{{plural}})',
-    orphanedFilesDescription: 'Estes ficheiros foram sincronizados anteriormente mas foram eliminados do servidor por outro utilizador',
+    orphanedFilesDescription:
+      'Estes ficheiros foram sincronizados anteriormente mas foram eliminados do servidor por outro utilizador',
   },
 
   sidebar: {
@@ -378,9 +388,11 @@ export const pt: TranslationDict = {
     fileCountSingular: '1 ficheiro',
     totalSize: '{{size}} no total',
     autoDownloadCloudTitle: 'Descarregar ficheiros da nuvem automaticamente',
-    autoDownloadCloudDesc: 'Descarregar automaticamente ficheiros que existem no servidor mas não no seu computador',
+    autoDownloadCloudDesc:
+      'Descarregar automaticamente ficheiros que existem no servidor mas não no seu computador',
     autoDownloadUpdatesTitle: 'Descarregar atualizações de ficheiros automaticamente',
-    autoDownloadUpdatesDesc: 'Descarregar automaticamente versões mais recentes quando os ficheiros são atualizados no servidor',
+    autoDownloadUpdatesDesc:
+      'Descarregar automaticamente versões mais recentes quando os ficheiros são atualizados no servidor',
     summary: 'Após conectar, o BluePLM irá descarregar {{count}} ficheiros ({{size}})',
     summaryNoDownload: 'Os ficheiros só serão descarregados quando os solicitar',
     connect: 'Conectar cofre',

@@ -2,7 +2,7 @@ export const DEFAULT_RETENTION = {
   daily: 14,
   weekly: 10,
   monthly: 12,
-  yearly: 5
+  yearly: 5,
 }
 
 export const TIMEZONE_OPTIONS = [
@@ -23,10 +23,10 @@ export const TIMEZONE_OPTIONS = [
   { value: 'Asia/Tokyo', label: 'Tokyo', group: 'Asia/Pacific' },
   { value: 'Australia/Sydney', label: 'Sydney', group: 'Asia/Pacific' },
   // Other
-  { value: 'UTC', label: 'UTC', group: 'Other' }
+  { value: 'UTC', label: 'UTC', group: 'Other' },
 ] as const
 
-export type TimezoneValue = typeof TIMEZONE_OPTIONS[number]['value']
+export type TimezoneValue = (typeof TIMEZONE_OPTIONS)[number]['value']
 
 // Time slots for schedule picker (every 30 minutes)
 export const TIME_SLOTS = Array.from({ length: 48 }, (_, i) => {
@@ -34,14 +34,14 @@ export const TIME_SLOTS = Array.from({ length: 48 }, (_, i) => {
   const minute = (i % 2) * 30
   return {
     value: `${hour}:${minute}`,
-    label: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+    label: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
   }
 })
 
 export const PROVIDER_OPTIONS = [
   { value: 'backblaze_b2', label: 'Backblaze B2' },
   { value: 'aws_s3', label: 'Amazon S3' },
-  { value: 'google_cloud', label: 'Google Cloud Storage' }
+  { value: 'google_cloud', label: 'Google Cloud Storage' },
 ] as const
 
-export type ProviderValue = typeof PROVIDER_OPTIONS[number]['value']
+export type ProviderValue = (typeof PROVIDER_OPTIONS)[number]['value']

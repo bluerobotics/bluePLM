@@ -158,7 +158,7 @@ export function kebabToCamel(str: string): string {
  * pluralize("person", 3, "people") // "3 people"
  */
 export function pluralize(word: string, count: number, plural?: string): string {
-  const pluralWord = count === 1 ? word : (plural || `${word}s`)
+  const pluralWord = count === 1 ? word : plural || `${word}s`
   return `${count} ${pluralWord}`
 }
 

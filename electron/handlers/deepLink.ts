@@ -1,9 +1,9 @@
 /**
  * Deep Link Protocol Handler
- * 
+ *
  * Handles the blueplm:// protocol for deep linking from external sources
  * (e.g., "Install in BluePLM" button on extensions.blueplm.io)
- * 
+ *
  * Supported URL formats:
  * - blueplm://install/{extension-id} - Install extension from store
  * - blueplm://install/{extension-id}?version={version} - Install specific version
@@ -74,31 +74,31 @@ function isValidVersion(version: string): boolean {
 export function parseDeepLink(url: string): ParsedDeepLink {
   const result: ParsedDeepLink = {
     action: 'unknown',
-    raw: url
+    raw: url,
   }
-  
+
   try {
     // Handle both blueplm:// and blueplm: formats (Windows sometimes drops //)
     const normalizedUrl = url.replace(/^blueplm:(?!\/\/)/, 'blueplm://')
     const parsed = new URL(normalizedUrl)
-    
+
     // Protocol should be blueplm:
     if (parsed.protocol !== 'blueplm:') {
       return result
     }
-    
+
     // Get the path (hostname + pathname for custom protocols)
     // For blueplm://install/ext-id, hostname is 'install', pathname is '/ext-id'
     const action = parsed.hostname || parsed.pathname.split('/')[1]
     const pathParts = parsed.pathname.split('/').filter(Boolean)
-    
+
     if (action === 'install') {
       result.action = 'install'
-      
+
       // Extension ID is the first path segment after action
       // Could be in pathname (blueplm://install/ext-id) or after hostname
       const extensionId = pathParts[0] || pathParts[1]
-      
+
       if (extensionId && isValidExtensionId(extensionId)) {
         result.extensionId = extensionId
       } else if (extensionId) {
@@ -106,7 +106,7 @@ export function parseDeepLink(url: string): ParsedDeepLink {
         deps?.log(`Deep link extension ID may be invalid: ${extensionId}`)
         result.extensionId = extensionId
       }
-      
+
       // Version from query params
       const version = parsed.searchParams.get('version')
       if (version) {
@@ -118,10 +118,10 @@ export function parseDeepLink(url: string): ParsedDeepLink {
         }
       }
     }
-  } catch (err) {
-    deps?.logError('Failed to parse deep link URL', { url, error: String(err) })
+  } catch (error) {
+    deps?.logError('Failed to parse deep link URL', { url, error: String(error) })
   }
-  
+
   return result
 }
 
@@ -135,42 +135,45 @@ export function parseDeepLink(url: string): ParsedDeepLink {
  */
 export async function handleDeepLink(url: string): Promise<DeepLinkResult> {
   deps?.log(`Handling deep link: ${url}`)
-  
+
   const parsed = parseDeepLink(url)
-  
+
   if (parsed.action === 'unknown') {
     deps?.logError('Unknown deep link action', { url })
     return {
       success: false,
-      error: 'Unknown or malformed deep link URL'
+      error: 'Unknown or malformed deep link URL',
     }
   }
-  
+
   if (parsed.action === 'install') {
     if (!parsed.extensionId) {
       deps?.logError('Install deep link missing extension ID', { url })
       return {
         success: false,
         action: 'install',
-        error: 'Missing extension ID'
+        error: 'Missing extension ID',
       }
     }
-    
+
     return handleInstallDeepLink(parsed.extensionId, parsed.version)
   }
-  
+
   return {
     success: false,
-    error: `Unhandled action: ${parsed.action}`
+    error: `Unhandled action: ${parsed.action}`,
   }
 }
 
 /**
  * Handle install action from deep link
  */
-async function handleInstallDeepLink(extensionId: string, version?: string): Promise<DeepLinkResult> {
+async function handleInstallDeepLink(
+  extensionId: string,
+  version?: string,
+): Promise<DeepLinkResult> {
   deps?.log(`Deep link install: ${extensionId}${version ? `@${version}` : ''}`)
-  
+
   // Ensure window exists and is focused
   if (!mainWindow || mainWindow.isDestroyed()) {
     deps?.logError('Cannot handle deep link: main window not available')
@@ -180,25 +183,25 @@ async function handleInstallDeepLink(extensionId: string, version?: string): Pro
       success: false,
       action: 'install',
       extensionId,
-      error: 'Application window not ready'
+      error: 'Application window not ready',
     }
   }
-  
+
   // Focus the window
   focusMainWindow()
-  
+
   // Send IPC to renderer to trigger installation
   // The renderer will handle showing UI, confirmation dialogs, etc.
   mainWindow.webContents.send('deep-link:install-extension', {
     extensionId,
     version,
-    timestamp: Date.now()
+    timestamp: Date.now(),
   })
-  
+
   return {
     success: true,
     action: 'install',
-    extensionId
+    extensionId,
   }
 }
 
@@ -207,7 +210,7 @@ async function handleInstallDeepLink(extensionId: string, version?: string): Pro
  */
 function focusMainWindow(): void {
   if (!mainWindow || mainWindow.isDestroyed()) return
-  
+
   if (mainWindow.isMinimized()) {
     mainWindow.restore()
   }
@@ -249,23 +252,26 @@ export function storePendingDeepLink(url: string): void {
 
 export function registerDeepLinkHandlers(
   window: BrowserWindow,
-  dependencies: DeepLinkHandlerDependencies
+  dependencies: DeepLinkHandlerDependencies,
 ): void {
   deps = dependencies
   mainWindow = window
-  
+
   // Handler for renderer to acknowledge deep link processing
-  ipcMain.handle('deep-link:acknowledge', (_event, extensionId: string, success: boolean, error?: string) => {
-    if (success) {
-      deps?.log(`Deep link install acknowledged: ${extensionId}`)
-    } else {
-      deps?.logError(`Deep link install failed: ${extensionId}`, { error })
-    }
-    return { success: true }
-  })
-  
+  ipcMain.handle(
+    'deep-link:acknowledge',
+    (_event, extensionId: string, success: boolean, error?: string) => {
+      if (success) {
+        deps?.log(`Deep link install acknowledged: ${extensionId}`)
+      } else {
+        deps?.logError(`Deep link install failed: ${extensionId}`, { error })
+      }
+      return { success: true }
+    },
+  )
+
   deps.log('Deep link handlers registered')
-  
+
   // Process any pending deep link now that window is ready
   // Small delay to ensure renderer is fully loaded
   setTimeout(() => {

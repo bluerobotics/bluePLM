@@ -1,16 +1,16 @@
 /**
  * API Version Checking
- * 
+ *
  * Detects mismatches between the app's expected API version
  * and the actual API version running on the server. This helps users understand
  * when their API deployment needs to be updated.
- * 
+ *
  * VERSION HISTORY:
  * - Version 1.0.0: Initial API release (v2.15.0)
  * - Version 1.1.0: Added Odoo integrations (v2.16.0)
  * - Version 1.2.0: Invite flow includes org code, re-invite cleanup (v2.16.8)
  * - Version 2.0.0: Major API refactor with improved architecture
- * 
+ *
  * When making API changes:
  * 1. Increment version in api/package.json
  * 2. Update EXPECTED_API_VERSION here if app requires the new API
@@ -63,13 +63,13 @@ function parseVersion(version: string): { major: number; minor: number; patch: n
 function compareVersions(a: string, b: string): number {
   const vA = parseVersion(a)
   const vB = parseVersion(b)
-  
+
   if (!vA || !vB) return 0
-  
+
   if (vA.major !== vB.major) return vA.major < vB.major ? -1 : 1
   if (vA.minor !== vB.minor) return vA.minor < vB.minor ? -1 : 1
   if (vA.patch !== vB.patch) return vA.patch < vB.patch ? -1 : 1
-  
+
   return 0
 }
 
@@ -84,7 +84,8 @@ export function checkApiCompatibility(apiVersion: string | null): ApiVersionChec
       apiVersion: null,
       expectedVersion: EXPECTED_API_VERSION,
       message: 'API version unknown',
-      details: 'Could not determine the API version. The API may be offline or running an old version.',
+      details:
+        'Could not determine the API version. The API may be offline or running an old version.',
     }
   }
 
@@ -108,7 +109,8 @@ export function checkApiCompatibility(apiVersion: string | null): ApiVersionChec
       apiVersion,
       expectedVersion: EXPECTED_API_VERSION,
       message: 'App update available',
-      details: `Your API (v${apiVersion}) is newer than this app expects (v${EXPECTED_API_VERSION}). ` +
+      details:
+        `Your API (v${apiVersion}) is newer than this app expects (v${EXPECTED_API_VERSION}). ` +
         'Consider updating BluePLM for the best experience.',
     }
   }
@@ -120,7 +122,8 @@ export function checkApiCompatibility(apiVersion: string | null): ApiVersionChec
       apiVersion,
       expectedVersion: EXPECTED_API_VERSION,
       message: 'API update required',
-      details: `Your API (v${apiVersion}) is too old for this app. ` +
+      details:
+        `Your API (v${apiVersion}) is too old for this app. ` +
         `Required: v${MINIMUM_COMPATIBLE_API_VERSION}+. Please redeploy the API with the latest version.`,
     }
   }
@@ -131,7 +134,8 @@ export function checkApiCompatibility(apiVersion: string | null): ApiVersionChec
     apiVersion,
     expectedVersion: EXPECTED_API_VERSION,
     message: 'API update available',
-    details: `Your API is on v${apiVersion}, but v${EXPECTED_API_VERSION} is available. ` +
+    details:
+      `Your API is on v${apiVersion}, but v${EXPECTED_API_VERSION} is available. ` +
       'Some new features may not work until you redeploy the API.',
   }
 }
@@ -145,12 +149,12 @@ export async function fetchApiVersion(apiUrl: string): Promise<string | null> {
       method: 'GET',
       signal: AbortSignal.timeout(5000),
     })
-    
+
     if (response.ok) {
       const data = await response.json()
       return data.version || null
     }
-    
+
     return null
   } catch {
     return null
@@ -174,7 +178,7 @@ export function getApiUrl(): string | null {
 export async function checkApiVersion(): Promise<ApiVersionCheckResult | null> {
   const apiUrl = getApiUrl()
   if (!apiUrl) return null
-  
+
   const version = await fetchApiVersion(apiUrl)
   return checkApiCompatibility(version)
 }

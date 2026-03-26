@@ -10,121 +10,146 @@ import { executeCommand } from '@/lib/commands'
  * - Running the download logic immediately when settings change
  */
 export function useAutoDownload() {
-  const {
-    organization,
-    isOfflineMode,
-    activeVaultId,
-    connectedVaults,
-  } = usePDMStore()
+  const { organization, isOfflineMode, activeVaultId, connectedVaults } = usePDMStore()
 
   // Get current vault ID (from activeVaultId or first connected vault)
   const currentVaultId = activeVaultId || connectedVaults[0]?.id
 
   // Track previous values to detect toggle ON
-  const autoDownloadCloudFiles = usePDMStore(s => s.autoDownloadCloudFiles)
-  const autoDownloadUpdates = usePDMStore(s => s.autoDownloadUpdates)
+  const autoDownloadCloudFiles = usePDMStore((s) => s.autoDownloadCloudFiles)
+  const autoDownloadUpdates = usePDMStore((s) => s.autoDownloadUpdates)
   const prevAutoDownloadCloudFiles = useRef(autoDownloadCloudFiles)
   const prevAutoDownloadUpdates = useRef(autoDownloadUpdates)
-  
+
   useEffect(() => {
     const cloudFilesJustEnabled = autoDownloadCloudFiles && !prevAutoDownloadCloudFiles.current
     const updatesJustEnabled = autoDownloadUpdates && !prevAutoDownloadUpdates.current
-    
+
     // Update refs for next comparison
     prevAutoDownloadCloudFiles.current = autoDownloadCloudFiles
     prevAutoDownloadUpdates.current = autoDownloadUpdates
-    
+
     // Only proceed if a setting was just toggled ON
     if (!cloudFilesJustEnabled && !updatesJustEnabled) return
-    
+
     // Need organization, vault, and not offline to download
     if (!organization || isOfflineMode || !currentVaultId) return
-    
+
     const runAutoDownload = async () => {
-      const { files, autoDownloadExcludedFiles, autoDownloadSizeLimit, addToast, activeVaultId } = usePDMStore.getState()
-      
+      const { files, autoDownloadExcludedFiles, autoDownloadSizeLimit, addToast, activeVaultId } =
+        usePDMStore.getState()
+
       // Get exclusion list for current vault
-      const excludedPaths = activeVaultId ? (autoDownloadExcludedFiles[activeVaultId] || []) : []
+      const excludedPaths = activeVaultId ? autoDownloadExcludedFiles[activeVaultId] || [] : []
       const excludedPathsSet = new Set(excludedPaths)
-      
+
       // Size limit in bytes (0 means no limit)
-      const sizeLimitBytes = autoDownloadSizeLimit > 0 ? autoDownloadSizeLimit * 1024 * 1024 : Infinity
-      
+      const sizeLimitBytes =
+        autoDownloadSizeLimit > 0 ? autoDownloadSizeLimit * 1024 * 1024 : Infinity
+
       // Auto-download cloud-only files and folders (if just enabled)
       if (cloudFilesJustEnabled) {
         // Get cloud-only files (respecting size limit)
-        const cloudOnlyFiles = files.filter(f => 
-          !f.isDirectory && 
-          f.diffStatus === 'cloud' && 
-          f.pdmData?.content_hash &&
-          !excludedPathsSet.has(f.relativePath) &&
-          (f.size === undefined || f.size <= sizeLimitBytes)
+        const cloudOnlyFiles = files.filter(
+          (f) =>
+            !f.isDirectory &&
+            f.diffStatus === 'cloud' &&
+            f.pdmData?.content_hash &&
+            !excludedPathsSet.has(f.relativePath) &&
+            (f.size === undefined || f.size <= sizeLimitBytes),
         )
-        
+
         // Get cloud-only folders
-        const cloudOnlyFolders = files.filter(f => 
-          f.isDirectory && 
-          f.diffStatus === 'cloud' &&
-          !excludedPathsSet.has(f.relativePath)
+        const cloudOnlyFolders = files.filter(
+          (f) => f.isDirectory && f.diffStatus === 'cloud' && !excludedPathsSet.has(f.relativePath),
         )
-        
+
         // Combine files and folders for download
         const itemsToDownload = [...cloudOnlyFiles, ...cloudOnlyFolders]
-        
+
         if (itemsToDownload.length > 0) {
           const fileCount = cloudOnlyFiles.length
           const folderCount = cloudOnlyFolders.length
-          window.electronAPI?.log('info', '[AutoDownload] Setting toggled ON - downloading cloud items', { 
-            files: fileCount, 
-            folders: folderCount 
-          })
+          window.electronAPI?.log(
+            'info',
+            '[AutoDownload] Setting toggled ON - downloading cloud items',
+            {
+              files: fileCount,
+              folders: folderCount,
+            },
+          )
           try {
             const result = await executeCommand('download', { files: itemsToDownload })
             if (result.succeeded > 0) {
-              const message = folderCount > 0 
-                ? `Auto-downloaded ${result.succeeded} cloud file${result.succeeded > 1 ? 's' : ''} (${folderCount} folder${folderCount > 1 ? 's' : ''})`
-                : `Auto-downloaded ${result.succeeded} cloud file${result.succeeded > 1 ? 's' : ''}`
+              const message =
+                folderCount > 0
+                  ? `Auto-downloaded ${result.succeeded} cloud file${result.succeeded > 1 ? 's' : ''} (${folderCount} folder${folderCount > 1 ? 's' : ''})`
+                  : `Auto-downloaded ${result.succeeded} cloud file${result.succeeded > 1 ? 's' : ''}`
               addToast('success', message)
             }
             if (result.failed > 0) {
-              window.electronAPI?.log('warn', '[AutoDownload] Some downloads failed', { failed: result.failed, errors: result.errors })
+              window.electronAPI?.log('warn', '[AutoDownload] Some downloads failed', {
+                failed: result.failed,
+                errors: result.errors,
+              })
             }
-          } catch (err) {
-            window.electronAPI?.log('error', '[AutoDownload] Failed to download cloud files', { error: String(err) })
+          } catch (error) {
+            window.electronAPI?.log('error', '[AutoDownload] Failed to download cloud files', {
+              error: String(error),
+            })
           }
         } else {
-          window.electronAPI?.log('info', '[AutoDownload] Setting toggled ON - no cloud items to download')
+          window.electronAPI?.log(
+            'info',
+            '[AutoDownload] Setting toggled ON - no cloud items to download',
+          )
         }
       }
-      
+
       // Auto-download updates for outdated files (if just enabled)
       if (updatesJustEnabled) {
-        const outdatedFiles = files.filter(f => 
-          !f.isDirectory && 
-          f.diffStatus === 'outdated' && 
-          f.pdmData?.content_hash &&
-          (f.size === undefined || f.size <= sizeLimitBytes)
+        const outdatedFiles = files.filter(
+          (f) =>
+            !f.isDirectory &&
+            f.diffStatus === 'outdated' &&
+            f.pdmData?.content_hash &&
+            (f.size === undefined || f.size <= sizeLimitBytes),
         )
-        
+
         if (outdatedFiles.length > 0) {
-          window.electronAPI?.log('info', '[AutoDownload] Setting toggled ON - updating outdated files', { count: outdatedFiles.length })
+          window.electronAPI?.log(
+            'info',
+            '[AutoDownload] Setting toggled ON - updating outdated files',
+            { count: outdatedFiles.length },
+          )
           try {
             const result = await executeCommand('get-latest', { files: outdatedFiles })
             if (result.succeeded > 0) {
-              addToast('success', `Auto-updated ${result.succeeded} file${result.succeeded > 1 ? 's' : ''}`)
+              addToast(
+                'success',
+                `Auto-updated ${result.succeeded} file${result.succeeded > 1 ? 's' : ''}`,
+              )
             }
             if (result.failed > 0) {
-              window.electronAPI?.log('warn', '[AutoDownload] Some updates failed', { failed: result.failed, errors: result.errors })
+              window.electronAPI?.log('warn', '[AutoDownload] Some updates failed', {
+                failed: result.failed,
+                errors: result.errors,
+              })
             }
-          } catch (err) {
-            window.electronAPI?.log('error', '[AutoDownload] Failed to update outdated files', { error: String(err) })
+          } catch (error) {
+            window.electronAPI?.log('error', '[AutoDownload] Failed to update outdated files', {
+              error: String(error),
+            })
           }
         } else {
-          window.electronAPI?.log('info', '[AutoDownload] Setting toggled ON - no outdated files to update')
+          window.electronAPI?.log(
+            'info',
+            '[AutoDownload] Setting toggled ON - no outdated files to update',
+          )
         }
       }
     }
-    
+
     runAutoDownload()
   }, [autoDownloadCloudFiles, autoDownloadUpdates, organization, isOfflineMode, currentVaultId])
 }

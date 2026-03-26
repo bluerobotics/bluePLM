@@ -12,7 +12,7 @@ interface SystemStatsData {
 
 interface SystemStatsProps {
   condensed?: boolean
-  forceExpanded?: boolean  // Override internal collapsed state
+  forceExpanded?: boolean // Override internal collapsed state
 }
 
 // Tiny progress bar component (kept for future use)
@@ -51,10 +51,10 @@ export function SystemStats({ condensed = false, forceExpanded }: SystemStatsPro
     return saved !== 'false' // Default to true (collapsed)
   })
   const containerRef = useRef<HTMLDivElement>(null)
-  
+
   // Use forceExpanded prop if provided, otherwise use internal state
   const isCollapsed = forceExpanded !== undefined ? !forceExpanded : isCollapsedInternal
-  
+
   // Persist collapsed state
   const toggleCollapsed = () => {
     const newState = !isCollapsedInternal
@@ -65,7 +65,7 @@ export function SystemStats({ condensed = false, forceExpanded }: SystemStatsPro
   useEffect(() => {
     // Initial fetch
     fetchStats()
-    
+
     // Poll every 2 seconds
     const interval = setInterval(fetchStats, 2000)
     return () => clearInterval(interval)
@@ -242,12 +242,26 @@ export function SystemStats({ condensed = false, forceExpanded }: SystemStatsPro
           <Activity size={12} className="text-plm-fg-muted group-hover:text-plm-fg" />
           {/* 4 dots representing CPU, Memory, Disk, Network */}
           <div className="flex items-center gap-1">
-            <div className={`w-1.5 h-1.5 rounded-full ${getDotColor(stats.cpu.usage)}`} title={`CPU: ${stats.cpu.usage}%`} />
-            <div className={`w-1.5 h-1.5 rounded-full ${getDotColor(stats.memory.percent)}`} title={`Memory: ${stats.memory.percent}%`} />
-            <div className={`w-1.5 h-1.5 rounded-full ${getDotColor(stats.disk.percent)}`} title={`Disk: ${stats.disk.percent}%`} />
-            <div className={`w-1.5 h-1.5 rounded-full ${
-              stats.network.rxSpeed >= 1024 || stats.network.txSpeed >= 1024 ? 'bg-sky-500' : 'bg-plm-fg-muted/30'
-            }`} title="Network" />
+            <div
+              className={`w-1.5 h-1.5 rounded-full ${getDotColor(stats.cpu.usage)}`}
+              title={`CPU: ${stats.cpu.usage}%`}
+            />
+            <div
+              className={`w-1.5 h-1.5 rounded-full ${getDotColor(stats.memory.percent)}`}
+              title={`Memory: ${stats.memory.percent}%`}
+            />
+            <div
+              className={`w-1.5 h-1.5 rounded-full ${getDotColor(stats.disk.percent)}`}
+              title={`Disk: ${stats.disk.percent}%`}
+            />
+            <div
+              className={`w-1.5 h-1.5 rounded-full ${
+                stats.network.rxSpeed >= 1024 || stats.network.txSpeed >= 1024
+                  ? 'bg-sky-500'
+                  : 'bg-plm-fg-muted/30'
+              }`}
+              title="Network"
+            />
           </div>
         </button>
 
@@ -377,7 +391,7 @@ export function SystemStats({ condensed = false, forceExpanded }: SystemStatsPro
 
   // Expanded view - full stats
   return (
-    <div 
+    <div
       ref={containerRef}
       className="relative flex items-center gap-2 px-2 flex-shrink-0"
       onMouseEnter={() => setShowTooltip(true)}
@@ -398,7 +412,9 @@ export function SystemStats({ condensed = false, forceExpanded }: SystemStatsPro
         {/* Memory - minimal view (icon + percentage) */}
         <div className="flex items-center gap-1" title="Memory">
           <MemoryStick size={12} className="text-plm-fg-muted" />
-          <span className="text-[10px] text-plm-fg-dim w-5 tabular-nums">{stats.memory.percent}%</span>
+          <span className="text-[10px] text-plm-fg-dim w-5 tabular-nums">
+            {stats.memory.percent}%
+          </span>
         </div>
 
         {/* Network - minimal view (only show if > 1 KB/s) */}

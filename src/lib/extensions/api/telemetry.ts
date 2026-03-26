@@ -1,16 +1,13 @@
 /**
  * Extension Telemetry API Implementation
- * 
+ *
  * Provides anonymous, privacy-respecting analytics for extensions.
  * All telemetry is aggregated and cannot identify individual users.
- * 
+ *
  * @module extensions/api/telemetry
  */
 
-import type {
-  TelemetryAPI,
-  TelemetryProperties,
-} from './types'
+import type { TelemetryAPI, TelemetryProperties } from './types'
 import { checkPermission } from './permissions'
 
 // ============================================
@@ -65,17 +62,17 @@ const eventCounts = new Map<string, { count: number; resetAt: number }>()
 function checkRateLimit(extensionId: string): boolean {
   const now = Date.now()
   const record = eventCounts.get(extensionId)
-  
+
   if (!record || record.resetAt < now) {
     // Reset counter
     eventCounts.set(extensionId, { count: 1, resetAt: now + 60000 })
     return false
   }
-  
+
   if (record.count >= MAX_EVENTS_PER_MINUTE) {
     return true // Rate limited
   }
-  
+
   record.count++
   return false
 }
@@ -88,9 +85,9 @@ function checkRateLimit(extensionId: string): boolean {
  * Send an IPC message to the main process.
  */
 function sendIPC(channel: string, ...args: unknown[]): void {
-  if (typeof window !== 'undefined' && (window as any).__extensionIPC) {
+  if (typeof window !== 'undefined' && (window as any).__extensionIPC) { // TODO: type this
     // Fire and forget for telemetry
-    (window as any).__extensionIPC.invoke(channel, ...args).catch(() => {
+    ;(window as any).__extensionIPC.invoke(channel, ...args).catch(() => { // TODO: type this
       // Silently ignore telemetry failures
     })
   }
@@ -103,7 +100,7 @@ function sanitizeValue(value: unknown): string | number | boolean {
   if (typeof value === 'boolean' || typeof value === 'number') {
     return value
   }
-  
+
   const str = String(value)
   if (str.length > MAX_PROPERTY_VALUE_LENGTH) {
     return str.substring(0, MAX_PROPERTY_VALUE_LENGTH) + '...'
@@ -115,20 +112,22 @@ function sanitizeValue(value: unknown): string | number | boolean {
  * Sanitize telemetry properties.
  */
 function sanitizeProperties(
-  properties: TelemetryProperties | undefined
+  properties: TelemetryProperties | undefined,
 ): TelemetryProperties | undefined {
   if (!properties) return undefined
-  
+
   const entries = Object.entries(properties)
   if (entries.length > MAX_PROPERTIES) {
-    console.warn(`[Telemetry] Too many properties (${entries.length}), truncating to ${MAX_PROPERTIES}`)
+    console.warn(
+      `[Telemetry] Too many properties (${entries.length}), truncating to ${MAX_PROPERTIES}`,
+    )
   }
-  
+
   const sanitized: TelemetryProperties = {}
   for (const [key, value] of entries.slice(0, MAX_PROPERTIES)) {
     sanitized[key] = sanitizeValue(value)
   }
-  
+
   return sanitized
 }
 
@@ -161,21 +160,21 @@ function sanitizeError(error: Error): { message: string; name: string; stack?: s
 
 /**
  * Create the Telemetry API implementation for an extension.
- * 
+ *
  * @param extensionId - The ID of the extension using this API
  * @param grantedPermissions - Permissions granted to the extension
  * @returns The Telemetry API implementation
- * 
+ *
  * @example
  * ```typescript
  * const telemetry = createTelemetryAPI('my-extension', ['telemetry'])
- * 
+ *
  * // Track an event
- * telemetry.trackEvent('sync_completed', { 
- *   fileCount: 42, 
- *   duration: 1500 
+ * telemetry.trackEvent('sync_completed', {
+ *   fileCount: 42,
+ *   duration: 1500
  * })
- * 
+ *
  * // Track timing
  * const start = performance.now()
  * await longOperation()
@@ -184,7 +183,7 @@ function sanitizeError(error: Error): { message: string; name: string; stack?: s
  */
 export function createTelemetryAPI(
   extensionId: string,
-  grantedPermissions: string[]
+  grantedPermissions: string[],
 ): TelemetryAPI {
   return {
     /**
@@ -192,15 +191,15 @@ export function createTelemetryAPI(
      */
     trackEvent(name: string, properties?: TelemetryProperties): void {
       checkPermission(extensionId, 'telemetry.trackEvent', grantedPermissions)
-      
+
       if (checkRateLimit(extensionId)) {
         console.warn(`[Extension:${extensionId}] Telemetry rate limited`)
         return
       }
-      
+
       const sanitizedName = sanitizeEventName(name)
       const sanitizedProperties = sanitizeProperties(properties)
-      
+
       sendIPC(TELEMETRY_IPC_CHANNELS.TRACK_EVENT, {
         extensionId,
         name: sanitizedName,
@@ -214,16 +213,14 @@ export function createTelemetryAPI(
      */
     trackError(error: Error, context?: Record<string, string>): void {
       checkPermission(extensionId, 'telemetry.trackError', grantedPermissions)
-      
+
       if (checkRateLimit(extensionId)) {
         return // Silently drop rate-limited errors
       }
-      
+
       const sanitizedError = sanitizeError(error)
-      const sanitizedContext = context 
-        ? sanitizeProperties(context) 
-        : undefined
-      
+      const sanitizedContext = context ? sanitizeProperties(context) : undefined
+
       sendIPC(TELEMETRY_IPC_CHANNELS.TRACK_ERROR, {
         extensionId,
         error: sanitizedError,
@@ -237,16 +234,16 @@ export function createTelemetryAPI(
      */
     trackTiming(name: string, durationMs: number): void {
       checkPermission(extensionId, 'telemetry.trackTiming', grantedPermissions)
-      
+
       if (checkRateLimit(extensionId)) {
         return
       }
-      
+
       const sanitizedName = sanitizeEventName(name)
-      
+
       // Ensure duration is a reasonable value
       const safeDuration = Math.max(0, Math.min(durationMs, 3600000)) // Max 1 hour
-      
+
       sendIPC(TELEMETRY_IPC_CHANNELS.TRACK_TIMING, {
         extensionId,
         name: sanitizedName,
@@ -263,11 +260,11 @@ export function createTelemetryAPI(
 
 /**
  * Create a timing helper that automatically tracks duration.
- * 
+ *
  * @param telemetry - The telemetry API instance
  * @param name - Name for the timing event
  * @returns Object with start() and stop() methods
- * 
+ *
  * @example
  * ```typescript
  * const timer = createTimer(api.telemetry, 'sync_operation')
@@ -278,10 +275,10 @@ export function createTelemetryAPI(
  */
 export function createTimer(
   telemetry: TelemetryAPI,
-  name: string
+  name: string,
 ): { start: () => void; stop: () => void } {
   let startTime: number | null = null
-  
+
   return {
     start() {
       startTime = performance.now()
@@ -298,12 +295,12 @@ export function createTimer(
 
 /**
  * Wrap an async function with automatic timing.
- * 
+ *
  * @param telemetry - The telemetry API instance
  * @param name - Name for the timing event
  * @param fn - The async function to wrap
  * @returns The wrapped function
- * 
+ *
  * @example
  * ```typescript
  * const timedSync = withTiming(api.telemetry, 'sync', async () => {
@@ -315,7 +312,7 @@ export function createTimer(
 export function withTiming<TArgs extends unknown[], TResult>(
   telemetry: TelemetryAPI,
   name: string,
-  fn: (...args: TArgs) => Promise<TResult>
+  fn: (...args: TArgs) => Promise<TResult>,
 ): (...args: TArgs) => Promise<TResult> {
   return async (...args: TArgs): Promise<TResult> => {
     const start = performance.now()
@@ -329,7 +326,7 @@ export function withTiming<TArgs extends unknown[], TResult>(
 
 /**
  * Track errors with automatic context from function name.
- * 
+ *
  * @param telemetry - The telemetry API instance
  * @param fn - The async function to wrap
  * @param operationName - Name of the operation for context
@@ -338,7 +335,7 @@ export function withTiming<TArgs extends unknown[], TResult>(
 export function withErrorTracking<TArgs extends unknown[], TResult>(
   telemetry: TelemetryAPI,
   fn: (...args: TArgs) => Promise<TResult>,
-  operationName: string
+  operationName: string,
 ): (...args: TArgs) => Promise<TResult> {
   return async (...args: TArgs): Promise<TResult> => {
     try {

@@ -23,17 +23,17 @@ export { useBackupOperations } from './hooks/useBackupOperations'
 export { useBackupLogs } from './hooks/useBackupLogs'
 
 // Type exports
-export type { 
-  BackupPanelProps, 
-  BackupProgress, 
-  DeleteConfirmTarget, 
+export type {
+  BackupPanelProps,
+  BackupProgress,
+  DeleteConfirmTarget,
   ConnectedVault,
   BackupLogEntry,
   BackupLogLevel,
   BackupPhase,
   BackupDetailedProgress,
   BackupOperationStats,
-  BackupLogFilter
+  BackupLogFilter,
 } from './types'
 
 // Utility exports
@@ -45,7 +45,7 @@ export {
   extractVaultNamesFromSnapshots,
   getVaultNameFromTags,
   snapshotHasFiles,
-  snapshotHasMetadata
+  snapshotHasMetadata,
 } from './utils'
 
 // Constant exports

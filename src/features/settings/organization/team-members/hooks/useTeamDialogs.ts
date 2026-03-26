@@ -6,13 +6,13 @@ const DEFAULT_TEAM_FORM: TeamFormData = {
   description: '',
   color: '#3b82f6',
   icon: 'Users',
-  is_default: false
+  is_default: false,
 }
 
 export function useTeamDialogs() {
   // Team selection
   const [selectedTeam, setSelectedTeam] = useState<TeamWithDetails | null>(null)
-  
+
   // Dialog visibility
   const [showCreateTeamDialog, setShowCreateTeamDialog] = useState(false)
   const [showEditTeamDialog, setShowEditTeamDialog] = useState(false)
@@ -22,28 +22,28 @@ export function useTeamDialogs() {
   const [showPermissionsEditor, setShowPermissionsEditor] = useState(false)
   const [showModulesDialog, setShowModulesDialog] = useState(false)
   const [showTeamReviewersDialog, setShowTeamReviewersDialog] = useState(false)
-  
+
   // Form state
   const [teamFormData, setTeamFormData] = useState<TeamFormData>(DEFAULT_TEAM_FORM)
   const [isSavingTeam, setIsSavingTeam] = useState(false)
   const [copyFromTeamId, setCopyFromTeamId] = useState<string | null>(null)
   const [editingTeamFromManage, setEditingTeamFromManage] = useState<TeamWithDetails | null>(null)
-  
+
   // Team vault access state
   const [pendingTeamVaultAccess, setPendingTeamVaultAccess] = useState<string[]>([])
   const [isSavingTeamVaultAccess, setIsSavingTeamVaultAccess] = useState(false)
-  
+
   // Helper functions
   const resetTeamForm = useCallback(() => {
     setTeamFormData(DEFAULT_TEAM_FORM)
     setCopyFromTeamId(null)
   }, [])
-  
+
   const openCreateTeamDialog = useCallback(() => {
     resetTeamForm()
     setShowCreateTeamDialog(true)
   }, [resetTeamForm])
-  
+
   const openEditTeamDialog = useCallback((team: TeamWithDetails) => {
     setSelectedTeam(team)
     setTeamFormData({
@@ -51,32 +51,35 @@ export function useTeamDialogs() {
       description: team.description || '',
       color: team.color,
       icon: team.icon,
-      is_default: team.is_default ?? false
+      is_default: team.is_default ?? false,
     })
     setShowEditTeamDialog(true)
   }, [])
-  
+
   const openDeleteTeamDialog = useCallback((team: TeamWithDetails) => {
     setSelectedTeam(team)
     setShowDeleteTeamDialog(true)
   }, [])
-  
+
   const openTeamMembersDialog = useCallback((team: TeamWithDetails) => {
     setSelectedTeam(team)
     setShowTeamMembersDialog(true)
   }, [])
-  
-  const openTeamVaultAccessDialog = useCallback((team: TeamWithDetails, currentAccess: string[]) => {
-    setSelectedTeam(team)
-    setPendingTeamVaultAccess(currentAccess)
-    setShowTeamVaultAccessDialog(true)
-  }, [])
-  
+
+  const openTeamVaultAccessDialog = useCallback(
+    (team: TeamWithDetails, currentAccess: string[]) => {
+      setSelectedTeam(team)
+      setPendingTeamVaultAccess(currentAccess)
+      setShowTeamVaultAccessDialog(true)
+    },
+    [],
+  )
+
   const openPermissionsEditor = useCallback((team: TeamWithDetails) => {
     setSelectedTeam(team)
     setShowPermissionsEditor(true)
   }, [])
-  
+
   const openModulesDialog = useCallback((team: TeamWithDetails) => {
     setSelectedTeam(team)
     setShowModulesDialog(true)
@@ -86,7 +89,7 @@ export function useTeamDialogs() {
     setSelectedTeam(team)
     setShowTeamReviewersDialog(true)
   }, [])
-  
+
   const closeAllTeamDialogs = useCallback(() => {
     setShowCreateTeamDialog(false)
     setShowEditTeamDialog(false)
@@ -100,7 +103,7 @@ export function useTeamDialogs() {
     setEditingTeamFromManage(null)
     resetTeamForm()
   }, [resetTeamForm])
-  
+
   return {
     // State
     selectedTeam,
@@ -133,7 +136,7 @@ export function useTeamDialogs() {
     setPendingTeamVaultAccess,
     isSavingTeamVaultAccess,
     setIsSavingTeamVaultAccess,
-    
+
     // Actions
     resetTeamForm,
     openCreateTeamDialog,
@@ -144,6 +147,6 @@ export function useTeamDialogs() {
     openPermissionsEditor,
     openModulesDialog,
     openTeamReviewersDialog,
-    closeAllTeamDialogs
+    closeAllTeamDialogs,
   }
 }

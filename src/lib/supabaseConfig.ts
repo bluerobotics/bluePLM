@@ -8,7 +8,7 @@ export interface SupabaseConfig {
   version: number
   url: string
   anonKey: string
-  orgSlug?: string  // Optional: for verification
+  orgSlug?: string // Optional: for verification
 }
 
 // Generate an organization code that can be shared with team members
@@ -19,13 +19,13 @@ export function generateOrgCode(config: SupabaseConfig, orgSlug?: string): strin
     v: CONFIG_VERSION,
     u: config.url,
     k: config.anonKey,
-    s: orgSlug || config.orgSlug || ''
+    s: orgSlug || config.orgSlug || '',
   }
-  
+
   // Encode to base64
   const json = JSON.stringify(payload)
   const base64 = btoa(json)
-  
+
   // Format as readable code with prefix
   // Split into chunks for readability: PDM-XXXX-XXXX-XXXX...
   const chunks = base64.match(/.{1,4}/g) || []
@@ -41,21 +41,21 @@ export function parseOrgCode(code: string): SupabaseConfig | null {
       base64 = base64.substring(4)
     }
     base64 = base64.replace(/-/g, '')
-    
+
     // Decode from base64
     const json = atob(base64)
     const payload = JSON.parse(json)
-    
+
     // Validate required fields
     if (!payload.u || !payload.k) {
       return null
     }
-    
+
     return {
       version: payload.v || CONFIG_VERSION,
       url: payload.u,
       anonKey: payload.k,
-      orgSlug: payload.s || undefined
+      orgSlug: payload.s || undefined,
     }
   } catch {
     return null
@@ -77,15 +77,15 @@ export function loadConfig(): SupabaseConfig | null {
   try {
     const json = localStorage.getItem(STORAGE_KEY)
     if (!json) return null
-    
+
     const config = JSON.parse(json) as SupabaseConfig
-    
+
     // Validate required fields
     if (!config.url || !config.anonKey) {
       clearConfig()
       return null
     }
-    
+
     return config
   } catch {
     return null
@@ -107,32 +107,36 @@ export function hasConfig(): boolean {
 }
 
 // Validate a Supabase configuration by attempting to connect
-export async function validateConfig(config: SupabaseConfig): Promise<{ valid: boolean; error?: string }> {
+export async function validateConfig(
+  config: SupabaseConfig,
+): Promise<{ valid: boolean; error?: string }> {
   try {
     // Import dynamically to avoid circular dependency
     const { createClient } = await import('@supabase/supabase-js')
-    
+
     const testClient = createClient(config.url, config.anonKey, {
       auth: {
         autoRefreshToken: false,
-        persistSession: false
-      }
+        persistSession: false,
+      },
     })
-    
+
     // Try to make a simple query (organizations table should exist)
     const { error } = await testClient.from('organizations').select('id').limit(1)
-    
+
     if (error) {
       // Some errors are expected (like empty results), others indicate bad config
-      if (error.message.includes('Invalid API key') || 
-          error.message.includes('FetchError') ||
-          error.message.includes('Failed to fetch') ||
-          error.code === 'PGRST301') {
+      if (
+        error.message.includes('Invalid API key') ||
+        error.message.includes('FetchError') ||
+        error.message.includes('Failed to fetch') ||
+        error.code === 'PGRST301'
+      ) {
         return { valid: false, error: 'Invalid Supabase credentials or Project ID' }
       }
       // Other errors might just mean empty table, which is fine
     }
-    
+
     return { valid: true }
   } catch (err: unknown) {
     const error = err as Error
@@ -143,4 +147,3 @@ export async function validateConfig(config: SupabaseConfig): Promise<{ valid: b
     return { valid: false, error: error?.message || 'Failed to connect to Supabase' }
   }
 }
-

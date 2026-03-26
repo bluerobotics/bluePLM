@@ -4,11 +4,11 @@ import { createPortal } from 'react-dom'
 import { usePDMStore, type SidebarView } from '@/stores/pdmStore'
 import { useTranslation } from '@/lib/i18n'
 import { logNavigation } from '@/lib/userActionLogger'
-import { 
+import {
   isModuleVisible,
   getChildModules,
   type ModuleId,
-  type ModuleDefinition
+  type ModuleDefinition,
 } from '@/types/modules'
 import { ExpandedContext, HOVER_CLOSE_DELAY } from './ActivityItem'
 import { moduleTranslationKeys } from './constants'
@@ -16,18 +16,25 @@ import { getModuleIcon } from './utils'
 
 export interface CascadingSidebarProps {
   parentRect: DOMRect
-  itemRect?: DOMRect | null  // The rect of the hovered item for vertical positioning
+  itemRect?: DOMRect | null // The rect of the hovered item for vertical positioning
   children: ModuleDefinition[]
   depth: number
   onMouseEnter: () => void
   onMouseLeave: () => void
 }
 
-export function CascadingSidebar({ parentRect, itemRect, children, depth, onMouseEnter, onMouseLeave }: CascadingSidebarProps) {
+export function CascadingSidebar({
+  parentRect,
+  itemRect,
+  children,
+  depth,
+  onMouseEnter,
+  onMouseLeave,
+}: CascadingSidebarProps) {
   // Selective selectors: only re-render when specific values change
-  const activeView = usePDMStore(s => s.activeView)
-  const setActiveView = usePDMStore(s => s.setActiveView)
-  const getEffectiveModuleConfig = usePDMStore(s => s.getEffectiveModuleConfig)
+  const activeView = usePDMStore((s) => s.activeView)
+  const setActiveView = usePDMStore((s) => s.setActiveView)
+  const getEffectiveModuleConfig = usePDMStore((s) => s.getEffectiveModuleConfig)
   const moduleConfig = getEffectiveModuleConfig()
   const { t } = useTranslation()
   const isExpanded = useContext(ExpandedContext)
@@ -40,10 +47,10 @@ export function CascadingSidebar({ parentRect, itemRect, children, depth, onMous
   const [panelHeight, setPanelHeight] = useState<number | null>(null)
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  
+
   // Filter to only show visible children
-  const visibleChildren = children.filter(child => isModuleVisible(child.id, moduleConfig))
-  
+  const visibleChildren = children.filter((child) => isModuleVisible(child.id, moduleConfig))
+
   // Update scroll state
   const updateScrollState = useCallback(() => {
     const container = scrollContainerRef.current
@@ -52,7 +59,7 @@ export function CascadingSidebar({ parentRect, itemRect, children, depth, onMous
       setCanScrollDown(container.scrollTop < container.scrollHeight - container.clientHeight - 1)
     }
   }, [])
-  
+
   useEffect(() => {
     const container = scrollContainerRef.current
     if (container) {
@@ -62,7 +69,7 @@ export function CascadingSidebar({ parentRect, itemRect, children, depth, onMous
     }
     return undefined
   }, [updateScrollState])
-  
+
   // Clear timeouts on unmount
   useEffect(() => {
     return () => {
@@ -70,7 +77,7 @@ export function CascadingSidebar({ parentRect, itemRect, children, depth, onMous
       if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current)
     }
   }, [])
-  
+
   // Close immediately when sidebar collapses to prevent icon drift
   useEffect(() => {
     if (!isExpanded) {
@@ -87,32 +94,32 @@ export function CascadingSidebar({ parentRect, itemRect, children, depth, onMous
       onMouseLeave()
     }
   }, [isExpanded, onMouseLeave])
-  
+
   // Measure content height after render
   useEffect(() => {
     if (panelRef.current) {
       setPanelHeight(panelRef.current.scrollHeight)
     }
   }, [visibleChildren.length])
-  
+
   if (visibleChildren.length === 0) return null
-  
+
   // Calculate position - start at hovered item, fit to content
   const itemHeight = 44 // h-11 = 44px per item
-  const contentHeight = panelHeight || (visibleChildren.length * itemHeight + 16) // items + padding
+  const contentHeight = panelHeight || visibleChildren.length * itemHeight + 16 // items + padding
   const maxHeight = window.innerHeight - 32 // 16px margin top and bottom
   const finalHeight = Math.min(contentHeight, maxHeight)
-  
+
   // Start position: align with hovered item, or use parent top
   let topPosition = itemRect?.top ?? parentRect.top
-  
+
   // Check if would overflow bottom of screen
   const bottomOverflow = topPosition + finalHeight - (window.innerHeight - 16)
   if (bottomOverflow > 0) {
     // Shift up to fit, but don't go above 16px from top
     topPosition = Math.max(16, topPosition - bottomOverflow)
   }
-  
+
   const wrapperStyle: React.CSSProperties = {
     position: 'fixed',
     top: topPosition,
@@ -120,15 +127,15 @@ export function CascadingSidebar({ parentRect, itemRect, children, depth, onMous
     zIndex: 40 + depth,
     maxHeight: maxHeight,
   }
-  
+
   const panelStyle: React.CSSProperties = {
     minWidth: isExpanded ? '200px' : '53px',
     width: isExpanded ? 'fit-content' : '53px',
   }
-  
+
   const handleChildMouseEnter = (childId: ModuleId, e: React.MouseEvent) => {
     const allChildren = getChildModules(childId, moduleConfig)
-    const childModules = allChildren.filter(c => isModuleVisible(c.id, moduleConfig))
+    const childModules = allChildren.filter((c) => isModuleVisible(c.id, moduleConfig))
     if (childModules.length > 0) {
       if (hoverTimeoutRef.current) {
         clearTimeout(hoverTimeoutRef.current)
@@ -138,14 +145,14 @@ export function CascadingSidebar({ parentRect, itemRect, children, depth, onMous
       setChildRect(target.getBoundingClientRect())
     }
   }
-  
+
   const handleChildMouseLeave = () => {
     hoverTimeoutRef.current = setTimeout(() => {
       setHoveredChild(null)
       setChildRect(null)
     }, HOVER_CLOSE_DELAY)
   }
-  
+
   const handlePanelMouseEnter = () => {
     // Clear any pending close timeouts when entering the panel
     if (closeTimeoutRef.current) {
@@ -157,7 +164,7 @@ export function CascadingSidebar({ parentRect, itemRect, children, depth, onMous
     }
     onMouseEnter()
   }
-  
+
   const handlePanelMouseLeave = () => {
     setHoveredChild(null)
     setChildRect(null)
@@ -166,7 +173,7 @@ export function CascadingSidebar({ parentRect, itemRect, children, depth, onMous
       onMouseLeave()
     }, HOVER_CLOSE_DELAY)
   }
-  
+
   return (
     <div
       style={wrapperStyle}
@@ -181,114 +188,123 @@ export function CascadingSidebar({ parentRect, itemRect, children, depth, onMous
       >
         {/* Scrollable area */}
         <div className="flex-1 min-h-0 relative">
-        {/* Top fade gradient */}
-        <div 
-          className={`absolute top-0 left-0 right-0 h-6 bg-gradient-to-b from-plm-activitybar to-transparent z-10 pointer-events-none transition-opacity duration-200 ${
-            canScrollUp ? 'opacity-100' : 'opacity-0'
-          }`}
-        />
-        
-        {/* Scrollable container */}
-        <div 
-          ref={scrollContainerRef}
-          className="h-full overflow-y-auto overflow-x-hidden scrollbar-hidden"
-        >
-          <div className="flex flex-col pt-[4px]">
-            {visibleChildren.map(child => {
-              const childChildren = getChildModules(child.id, moduleConfig).filter(c => isModuleVisible(c.id, moduleConfig))
-              const hasGrandchildren = childChildren.length > 0
-              const translationKey = moduleTranslationKeys[child.id]
-              const childTitle = translationKey ? t(translationKey) : child.name
-              const isActive = activeView === child.id
-              const customIconColor = moduleConfig.moduleIconColors?.[child.id] || null
-              const isComingSoon = !child.implemented
-              
-              return (
-                <div
-                  key={child.id}
-                  className="relative"
-                  onMouseEnter={(e) => handleChildMouseEnter(child.id, e)}
-                  onMouseLeave={handleChildMouseLeave}
-                >
-                  {/* Item button - styled like ActivityItem */}
-                  <button
-                    onClick={() => {
-                      if (isComingSoon) return // Don't navigate for coming soon items
-                      logNavigation(child.id, { title: childTitle })
-                      setActiveView(child.id as SidebarView)
-                    }}
-                    className={`relative w-full h-11 flex items-center gap-3 px-[15px] transition-colors group ${
-                      isComingSoon
-                        ? 'opacity-40 cursor-not-allowed'
-                        : isActive
-                        ? 'text-plm-fg bg-plm-highlight border-l-2 border-plm-accent'
-                        : 'text-plm-fg-dim hover:text-plm-fg hover:bg-plm-highlight border-l-2 border-transparent'
-                    } ${!isComingSoon && !isActive ? 'border-l-2 border-transparent' : ''}`}
-                    title={isComingSoon ? 'In Development' : undefined}
+          {/* Top fade gradient */}
+          <div
+            className={`absolute top-0 left-0 right-0 h-6 bg-gradient-to-b from-plm-activitybar to-transparent z-10 pointer-events-none transition-opacity duration-200 ${
+              canScrollUp ? 'opacity-100' : 'opacity-0'
+            }`}
+          />
+
+          {/* Scrollable container */}
+          <div
+            ref={scrollContainerRef}
+            className="h-full overflow-y-auto overflow-x-hidden scrollbar-hidden"
+          >
+            <div className="flex flex-col pt-[4px]">
+              {visibleChildren.map((child) => {
+                const childChildren = getChildModules(child.id, moduleConfig).filter((c) =>
+                  isModuleVisible(c.id, moduleConfig),
+                )
+                const hasGrandchildren = childChildren.length > 0
+                const translationKey = moduleTranslationKeys[child.id]
+                const childTitle = translationKey ? t(translationKey) : child.name
+                const isActive = activeView === child.id
+                const customIconColor = moduleConfig.moduleIconColors?.[child.id] || null
+                const isComingSoon = !child.implemented
+
+                return (
+                  <div
+                    key={child.id}
+                    className="relative"
+                    onMouseEnter={(e) => handleChildMouseEnter(child.id, e)}
+                    onMouseLeave={handleChildMouseLeave}
                   >
-                    {/* Icon */}
-                    <div className="w-[22px] h-[22px] flex items-center justify-center flex-shrink-0">
-                      {getModuleIcon(child.icon, 22, isComingSoon ? undefined : customIconColor)}
-                    </div>
-                    
-                    {/* Title - only show when expanded */}
-                        {isExpanded && (
-                      <>
-                        <span className={`text-[15px] font-medium whitespace-nowrap flex-1 text-left pr-2 ${isComingSoon ? 'italic' : ''}`}>
-                          {childTitle}
-                          {isComingSoon && <span className="text-[9px] ml-1.5 not-italic px-1 py-0.5 rounded bg-plm-warning/20 text-plm-warning">In Dev</span>}
-                        </span>
-                        {hasGrandchildren && !isComingSoon && (
-                          <ChevronRight 
-                            size={14} 
-                            className={`flex-shrink-0 text-plm-fg-dim transition-transform duration-200 ${hoveredChild === child.id ? 'translate-x-0.5' : ''}`}
-                          />
-                        )}
-                      </>
-                    )}
-                  </button>
-                  
-                  {/* Nested cascade (recursive) - rendered via portal to escape overflow constraints */}
-                  {hoveredChild === child.id && hasGrandchildren && childRect &&
-                    createPortal(
-                      <CascadingSidebar
-                        parentRect={panelRef.current?.getBoundingClientRect() || childRect}
-                        itemRect={childRect}
-                        children={childChildren}
-                        depth={depth + 1}
-                        onMouseEnter={() => {
-                          if (hoverTimeoutRef.current) {
-                            clearTimeout(hoverTimeoutRef.current)
-                            hoverTimeoutRef.current = null
-                          }
-                          setHoveredChild(child.id)
-                        }}
-                        onMouseLeave={() => {
-                          // Delay close to allow moving back to parent
-                          hoverTimeoutRef.current = setTimeout(() => {
-                            setHoveredChild(null)
-                          }, HOVER_CLOSE_DELAY)
-                        }}
-                      />,
-                      document.body
-                    )
-                  }
-                </div>
-              )
-            })}
+                    {/* Item button - styled like ActivityItem */}
+                    <button
+                      onClick={() => {
+                        if (isComingSoon) return // Don't navigate for coming soon items
+                        logNavigation(child.id, { title: childTitle })
+                        setActiveView(child.id as SidebarView)
+                      }}
+                      className={`relative w-full h-11 flex items-center gap-3 px-[15px] transition-colors group ${
+                        isComingSoon
+                          ? 'opacity-40 cursor-not-allowed'
+                          : isActive
+                            ? 'text-plm-fg bg-plm-highlight border-l-2 border-plm-accent'
+                            : 'text-plm-fg-dim hover:text-plm-fg hover:bg-plm-highlight border-l-2 border-transparent'
+                      } ${!isComingSoon && !isActive ? 'border-l-2 border-transparent' : ''}`}
+                      title={isComingSoon ? 'In Development' : undefined}
+                    >
+                      {/* Icon */}
+                      <div className="w-[22px] h-[22px] flex items-center justify-center flex-shrink-0">
+                        {getModuleIcon(child.icon, 22, isComingSoon ? undefined : customIconColor)}
+                      </div>
+
+                      {/* Title - only show when expanded */}
+                      {isExpanded && (
+                        <>
+                          <span
+                            className={`text-[15px] font-medium whitespace-nowrap flex-1 text-left pr-2 ${isComingSoon ? 'italic' : ''}`}
+                          >
+                            {childTitle}
+                            {isComingSoon && (
+                              <span className="text-[9px] ml-1.5 not-italic px-1 py-0.5 rounded bg-plm-warning/20 text-plm-warning">
+                                In Dev
+                              </span>
+                            )}
+                          </span>
+                          {hasGrandchildren && !isComingSoon && (
+                            <ChevronRight
+                              size={14}
+                              className={`flex-shrink-0 text-plm-fg-dim transition-transform duration-200 ${hoveredChild === child.id ? 'translate-x-0.5' : ''}`}
+                            />
+                          )}
+                        </>
+                      )}
+                    </button>
+
+                    {/* Nested cascade (recursive) - rendered via portal to escape overflow constraints */}
+                    {hoveredChild === child.id &&
+                      hasGrandchildren &&
+                      childRect &&
+                      createPortal(
+                        <CascadingSidebar
+                          parentRect={panelRef.current?.getBoundingClientRect() || childRect}
+                          itemRect={childRect}
+                          children={childChildren}
+                          depth={depth + 1}
+                          onMouseEnter={() => {
+                            if (hoverTimeoutRef.current) {
+                              clearTimeout(hoverTimeoutRef.current)
+                              hoverTimeoutRef.current = null
+                            }
+                            setHoveredChild(child.id)
+                          }}
+                          onMouseLeave={() => {
+                            // Delay close to allow moving back to parent
+                            hoverTimeoutRef.current = setTimeout(() => {
+                              setHoveredChild(null)
+                            }, HOVER_CLOSE_DELAY)
+                          }}
+                        />,
+                        document.body,
+                      )}
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Bottom padding */}
+            <div className="h-2" />
           </div>
-          
-          {/* Bottom padding */}
-          <div className="h-2" />
+
+          {/* Bottom fade gradient */}
+          <div
+            className={`absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-plm-activitybar to-transparent z-10 pointer-events-none transition-opacity duration-200 ${
+              canScrollDown ? 'opacity-100' : 'opacity-0'
+            }`}
+          />
         </div>
-        
-        {/* Bottom fade gradient */}
-        <div 
-          className={`absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-plm-activitybar to-transparent z-10 pointer-events-none transition-opacity duration-200 ${
-            canScrollDown ? 'opacity-100' : 'opacity-0'
-          }`}
-        />
-      </div>
       </div>
     </div>
   )

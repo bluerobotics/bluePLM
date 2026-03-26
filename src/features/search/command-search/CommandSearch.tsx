@@ -5,7 +5,12 @@ import { logSearch } from '@/lib/userActionLogger'
 import type { CommandSearchProps, GoogleDriveFileResult, SearchFilter } from './types'
 import { FILTER_OPTIONS } from './constants'
 import { getCurrentFilter, getAvailableFilters } from './utils'
-import { useSearchState, useGoogleDriveSearch, useLocalFileSearch, useKeyboardNavigation } from './hooks'
+import {
+  useSearchState,
+  useGoogleDriveSearch,
+  useLocalFileSearch,
+  useKeyboardNavigation,
+} from './hooks'
 import { FilterButton } from './FilterButton'
 import { FiltersDropdown } from './FiltersDropdown'
 import { SearchInput } from './SearchInput'
@@ -27,7 +32,7 @@ export function CommandSearch({ maxWidth = 'max-w-lg' }: CommandSearchProps) {
     expandedFolders,
     toggleFolder,
   } = usePDMStore(
-    useShallow(s => ({
+    useShallow((s) => ({
       toggleFileSelection: s.toggleFileSelection,
       setGdriveOpenDocument: s.setGdriveOpenDocument,
       setActiveView: s.setActiveView,
@@ -38,7 +43,7 @@ export function CommandSearch({ maxWidth = 'max-w-lg' }: CommandSearchProps) {
       setSelectedFiles: s.setSelectedFiles,
       expandedFolders: s.expandedFolders,
       toggleFolder: s.toggleFolder,
-    }))
+    })),
   )
 
   // Core search state
@@ -63,7 +68,7 @@ export function CommandSearch({ maxWidth = 'max-w-lg' }: CommandSearchProps) {
   // Search hooks
   const { driveResults, isDriveSearching, isGdriveConnected } = useGoogleDriveSearch(
     parsedQuery.searchTerm,
-    parsedQuery.filter
+    parsedQuery.filter,
   )
   const { searchResults } = useLocalFileSearch(parsedQuery.searchTerm, parsedQuery.filter)
 
@@ -76,83 +81,105 @@ export function CommandSearch({ maxWidth = 'max-w-lg' }: CommandSearchProps) {
   const totalResults = searchResults.length + driveResults.length + (recentSearches?.length || 0)
 
   // Handle result selection
-  const handleSelectResult = useCallback((file: LocalFile) => {
-    toggleFileSelection(file.path, false)
-    setIsOpen(false)
-    if (localQuery.trim()) {
-      addRecentSearch?.(localQuery.trim())
-    }
-    logSearch(localQuery, parsedQuery.filter)
-  }, [toggleFileSelection, setIsOpen, localQuery, addRecentSearch, parsedQuery.filter])
+  const handleSelectResult = useCallback(
+    (file: LocalFile) => {
+      toggleFileSelection(file.path, false)
+      setIsOpen(false)
+      if (localQuery.trim()) {
+        addRecentSearch?.(localQuery.trim())
+      }
+      logSearch(localQuery, parsedQuery.filter)
+    },
+    [toggleFileSelection, setIsOpen, localQuery, addRecentSearch, parsedQuery.filter],
+  )
 
-  const handleSelectDriveResult = useCallback((file: GoogleDriveFileResult) => {
-    setIsOpen(false)
-    if (localQuery.trim()) {
-      addRecentSearch?.(localQuery.trim())
-    }
-    logSearch(localQuery, 'drive')
-    
-    // Switch to Google Drive view and open the document
-    setActiveView('google-drive')
-    
-    // For Google Workspace files, open inline; for others, open in new tab
-    const isGoogleWorkspace = file.mimeType.startsWith('application/vnd.google-apps.')
-    if (isGoogleWorkspace && file.mimeType !== 'application/vnd.google-apps.folder') {
-      setGdriveOpenDocument({
-        id: file.id,
-        name: file.name,
-        mimeType: file.mimeType,
-        webViewLink: file.webViewLink
-      })
-    } else if (file.webViewLink) {
-      window.open(file.webViewLink, '_blank')
-    }
-  }, [setIsOpen, localQuery, addRecentSearch, setActiveView, setGdriveOpenDocument])
+  const handleSelectDriveResult = useCallback(
+    (file: GoogleDriveFileResult) => {
+      setIsOpen(false)
+      if (localQuery.trim()) {
+        addRecentSearch?.(localQuery.trim())
+      }
+      logSearch(localQuery, 'drive')
+
+      // Switch to Google Drive view and open the document
+      setActiveView('google-drive')
+
+      // For Google Workspace files, open inline; for others, open in new tab
+      const isGoogleWorkspace = file.mimeType.startsWith('application/vnd.google-apps.')
+      if (isGoogleWorkspace && file.mimeType !== 'application/vnd.google-apps.folder') {
+        setGdriveOpenDocument({
+          id: file.id,
+          name: file.name,
+          mimeType: file.mimeType,
+          webViewLink: file.webViewLink,
+        })
+      } else if (file.webViewLink) {
+        window.open(file.webViewLink, '_blank')
+      }
+    },
+    [setIsOpen, localQuery, addRecentSearch, setActiveView, setGdriveOpenDocument],
+  )
 
   // Handle "Open file location" - navigate to parent folder and select the file
-  const handleOpenFileLocation = useCallback((file: LocalFile) => {
-    setIsOpen(false)
-    
-    // Get the parent folder path from relativePath
-    const parts = file.relativePath.split('/')
-    parts.pop() // Remove the file name
-    const parentPath = parts.join('/')
-    
-    // Expand all ancestor folders so the file is visible in the tree
-    if (parentPath) {
-      for (let i = 1; i <= parts.length; i++) {
-        const ancestorPath = parts.slice(0, i).join('/')
-        if (!expandedFolders.has(ancestorPath)) {
-          toggleFolder(ancestorPath)
+  const handleOpenFileLocation = useCallback(
+    (file: LocalFile) => {
+      setIsOpen(false)
+
+      // Get the parent folder path from relativePath
+      const parts = file.relativePath.split('/')
+      parts.pop() // Remove the file name
+      const parentPath = parts.join('/')
+
+      // Expand all ancestor folders so the file is visible in the tree
+      if (parentPath) {
+        for (let i = 1; i <= parts.length; i++) {
+          const ancestorPath = parts.slice(0, i).join('/')
+          if (!expandedFolders.has(ancestorPath)) {
+            toggleFolder(ancestorPath)
+          }
         }
       }
-    }
-    
-    // Navigate to the parent folder
-    setCurrentFolder(parentPath)
-    
-    // Select/highlight the file
-    setSelectedFiles([file.path])
-  }, [setIsOpen, expandedFolders, toggleFolder, setCurrentFolder, setSelectedFiles])
+
+      // Navigate to the parent folder
+      setCurrentFolder(parentPath)
+
+      // Select/highlight the file
+      setSelectedFiles([file.path])
+    },
+    [setIsOpen, expandedFolders, toggleFolder, setCurrentFolder, setSelectedFiles],
+  )
 
   // Keyboard navigation handlers
-  const handleEnter = useCallback((index: number) => {
-    if (index >= 0) {
-      if (index < searchResults.length) {
-        handleSelectResult(searchResults[index])
-      } else if (index < searchResults.length + driveResults.length) {
-        handleSelectDriveResult(driveResults[index - searchResults.length])
-      } else {
-        const recentIndex = index - searchResults.length - driveResults.length
-        if (recentSearches?.[recentIndex]) {
-          setLocalQuery(recentSearches[recentIndex])
-          setSearchQuery(recentSearches[recentIndex])
+  const handleEnter = useCallback(
+    (index: number) => {
+      if (index >= 0) {
+        if (index < searchResults.length) {
+          handleSelectResult(searchResults[index])
+        } else if (index < searchResults.length + driveResults.length) {
+          handleSelectDriveResult(driveResults[index - searchResults.length])
+        } else {
+          const recentIndex = index - searchResults.length - driveResults.length
+          if (recentSearches?.[recentIndex]) {
+            setLocalQuery(recentSearches[recentIndex])
+            setSearchQuery(recentSearches[recentIndex])
+          }
         }
+      } else if (localQuery.trim()) {
+        executeSearch()
       }
-    } else if (localQuery.trim()) {
-      executeSearch()
-    }
-  }, [searchResults, driveResults, recentSearches, handleSelectResult, handleSelectDriveResult, setLocalQuery, setSearchQuery, localQuery, executeSearch])
+    },
+    [
+      searchResults,
+      driveResults,
+      recentSearches,
+      handleSelectResult,
+      handleSelectDriveResult,
+      setLocalQuery,
+      setSearchQuery,
+      localQuery,
+      executeSearch,
+    ],
+  )
 
   const handleEscape = useCallback(() => {
     if (isOpen) {
@@ -178,26 +205,32 @@ export function CommandSearch({ maxWidth = 'max-w-lg' }: CommandSearchProps) {
   })
 
   // Filter selection handler
-  const handleFilterSelect = useCallback((filter: SearchFilter) => {
-    setActiveFilter(filter)
-    const option = FILTER_OPTIONS.find(f => f.id === filter)
-    if (option?.prefix) {
-      const currentTerm = parsedQuery.searchTerm
-      setLocalQuery(option.prefix + currentTerm)
-    } else {
-      setLocalQuery(parsedQuery.searchTerm)
-    }
-    setShowFilters(false)
-    inputRef.current?.focus()
-  }, [setActiveFilter, parsedQuery.searchTerm, setLocalQuery, setShowFilters])
+  const handleFilterSelect = useCallback(
+    (filter: SearchFilter) => {
+      setActiveFilter(filter)
+      const option = FILTER_OPTIONS.find((f) => f.id === filter)
+      if (option?.prefix) {
+        const currentTerm = parsedQuery.searchTerm
+        setLocalQuery(option.prefix + currentTerm)
+      } else {
+        setLocalQuery(parsedQuery.searchTerm)
+      }
+      setShowFilters(false)
+      inputRef.current?.focus()
+    },
+    [setActiveFilter, parsedQuery.searchTerm, setLocalQuery, setShowFilters],
+  )
 
   // Recent search click handler
-  const handleRecentSearchClick = useCallback((search: string) => {
-    setLocalQuery(search)
-    setSearchQuery(search)
-    addRecentSearch?.(search)
-    logSearch(search, 'recent')
-  }, [setLocalQuery, setSearchQuery, addRecentSearch])
+  const handleRecentSearchClick = useCallback(
+    (search: string) => {
+      setLocalQuery(search)
+      setSearchQuery(search)
+      addRecentSearch?.(search)
+      logSearch(search, 'recent')
+    },
+    [setLocalQuery, setSearchQuery, addRecentSearch],
+  )
 
   // Click outside handler
   useEffect(() => {

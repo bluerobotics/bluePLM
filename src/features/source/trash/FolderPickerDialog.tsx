@@ -24,7 +24,7 @@ function buildFolderTree(folders: Array<{ name: string; relativePath: string }>)
   const nodeMap = new Map<string, FolderNode>()
 
   const sorted = [...folders].sort((a, b) =>
-    a.relativePath.toLowerCase().localeCompare(b.relativePath.toLowerCase())
+    a.relativePath.toLowerCase().localeCompare(b.relativePath.toLowerCase()),
   )
 
   for (const folder of sorted) {
@@ -54,7 +54,7 @@ function FolderTreeNode({
   selectedPath,
   onSelect,
   expanded,
-  onToggleExpand
+  onToggleExpand,
 }: {
   node: FolderNode
   depth: number
@@ -75,12 +75,17 @@ function FolderTreeNode({
         }`}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
         onClick={() => onSelect(node.relativePath)}
-        onDoubleClick={() => { if (hasChildren) onToggleExpand(node.relativePath) }}
+        onDoubleClick={() => {
+          if (hasChildren) onToggleExpand(node.relativePath)
+        }}
       >
         {hasChildren ? (
           <span
             className="shrink-0 cursor-pointer"
-            onClick={(e) => { e.stopPropagation(); onToggleExpand(node.relativePath) }}
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggleExpand(node.relativePath)
+            }}
           >
             {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
           </span>
@@ -94,17 +99,18 @@ function FolderTreeNode({
         )}
         <span className="truncate">{node.name}</span>
       </button>
-      {isExpanded && node.children.map(child => (
-        <FolderTreeNode
-          key={child.relativePath}
-          node={child}
-          depth={depth + 1}
-          selectedPath={selectedPath}
-          onSelect={onSelect}
-          expanded={expanded}
-          onToggleExpand={onToggleExpand}
-        />
-      ))}
+      {isExpanded &&
+        node.children.map((child) => (
+          <FolderTreeNode
+            key={child.relativePath}
+            node={child}
+            depth={depth + 1}
+            selectedPath={selectedPath}
+            onSelect={onSelect}
+            expanded={expanded}
+            onToggleExpand={onToggleExpand}
+          />
+        ))}
     </>
   )
 }
@@ -117,17 +123,17 @@ export function FolderPickerDialog({
   onSelect,
   defaultPath,
   onRecreateFolders,
-  missingPaths
+  missingPaths,
 }: FolderPickerDialogProps) {
   const [selectedPath, setSelectedPath] = useState<string>('')
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
-  const files = usePDMStore(s => s.files)
+  const files = usePDMStore((s) => s.files)
 
   const folderTree = useMemo(() => {
     const folders = files
-      .filter(f => f.isDirectory && f.diffStatus !== 'cloud')
-      .map(f => ({ name: f.name, relativePath: f.relativePath }))
+      .filter((f) => f.isDirectory && f.diffStatus !== 'cloud')
+      .map((f) => ({ name: f.name, relativePath: f.relativePath }))
     return buildFolderTree(folders)
   }, [files])
 
@@ -150,15 +156,18 @@ export function FolderPickerDialog({
     }
   }, [isOpen, defaultPath])
 
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      e.preventDefault()
-      onClose()
-    } else if (e.key === 'Enter') {
-      e.preventDefault()
-      onSelect(selectedPath)
-    }
-  }, [onClose, onSelect, selectedPath])
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onClose()
+      } else if (e.key === 'Enter') {
+        e.preventDefault()
+        onSelect(selectedPath)
+      }
+    },
+    [onClose, onSelect, selectedPath],
+  )
 
   useEffect(() => {
     if (!isOpen) return
@@ -167,7 +176,7 @@ export function FolderPickerDialog({
   }, [isOpen, handleKeyDown])
 
   const toggleExpand = useCallback((path: string) => {
-    setExpanded(prev => {
+    setExpanded((prev) => {
       const next = new Set(prev)
       const key = path.toLowerCase()
       if (next.has(key)) next.delete(key)
@@ -201,7 +210,7 @@ export function FolderPickerDialog({
           <div className="bg-plm-info/10 border border-plm-info/30 rounded px-3 py-2 mb-4">
             <p className="text-xs font-medium text-plm-fg mb-1">Original folder(s) to recreate:</p>
             <ul className="text-xs text-plm-fg-muted space-y-0.5">
-              {missingPaths.map(p => (
+              {missingPaths.map((p) => (
                 <li key={p} className="flex items-center gap-1.5 truncate" title={p}>
                   <FolderPlus size={12} className="shrink-0 text-plm-info" />
                   {p}
@@ -221,7 +230,7 @@ export function FolderPickerDialog({
             <Home size={14} className="shrink-0" />
             <span>Vault Root</span>
           </button>
-          {folderTree.map(node => (
+          {folderTree.map((node) => (
             <FolderTreeNode
               key={node.relativePath}
               node={node}

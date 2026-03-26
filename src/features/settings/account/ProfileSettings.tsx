@@ -1,6 +1,18 @@
 import { useState, useEffect, useRef } from 'react'
 import { log } from '@/lib/logger'
-import { Mail, Loader2, ShoppingCart, GitBranch, Key, Shield, AlertTriangle, Check, RefreshCw, Camera, X } from 'lucide-react'
+import {
+  Mail,
+  Loader2,
+  ShoppingCart,
+  GitBranch,
+  Key,
+  Shield,
+  AlertTriangle,
+  Check,
+  RefreshCw,
+  Camera,
+  X,
+} from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { getSupabaseClient, useAdminRecoveryCode, supabase } from '@/lib/supabase'
 import { getInitials, getEffectiveAvatarUrl } from '@/lib/utils'
@@ -8,7 +20,7 @@ import { ContributionHistory } from '../system/ContributionHistory'
 
 // Supabase v2 client type inference incomplete for RPC/advanced queries
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const getDb = () => getSupabaseClient() as any
+const getDb = () => getSupabaseClient() as any // TODO: type this
 
 interface ECORecord {
   id: string
@@ -30,17 +42,17 @@ interface RFQRecord {
 
 export function ProfileSettings() {
   const { user, organization, setUser, addToast } = usePDMStore()
-  
+
   const [isLoadingECOs, setIsLoadingECOs] = useState(true)
   const [isLoadingRFQs, setIsLoadingRFQs] = useState(true)
   const [userECOs, setUserECOs] = useState<ECORecord[]>([])
   const [userRFQs, setUserRFQs] = useState<RFQRecord[]>([])
-  
+
   // Avatar upload state
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  
+
   // Emergency recovery state
   const [showRecoveryInput, setShowRecoveryInput] = useState(false)
   const [recoveryCode, setRecoveryCode] = useState('')
@@ -76,7 +88,7 @@ export function ProfileSettings() {
       // Upload to vault bucket under _assets/avatars folder
       const ext = file.name.split('.').pop()?.toLowerCase() || 'png'
       const filePath = `${organization.id}/_assets/avatars/${user.id}.${ext}`
-      
+
       const { error: uploadError } = await supabase.storage
         .from('vault')
         .upload(filePath, file, { upsert: true })
@@ -92,8 +104,8 @@ export function ProfileSettings() {
 
       // Update user's custom avatar via RPC (RPC types not inferred in Supabase v2)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: updateError } = await (supabase as any).rpc('update_user_avatar', {
-        p_custom_avatar_url: signedData.signedUrl
+      const { error: updateError } = await (supabase as any).rpc('update_user_avatar', { // TODO: type this
+        p_custom_avatar_url: signedData.signedUrl,
       })
 
       if (updateError) {
@@ -105,8 +117,8 @@ export function ProfileSettings() {
       setUser({ ...user, custom_avatar_url: signedData.signedUrl })
       setAvatarPreview(null) // Clear preview since we now have the real URL
       addToast('success', 'Profile picture updated!')
-    } catch (err) {
-      log.error('[Profile]', 'Failed to upload avatar', { error: err })
+    } catch (error) {
+      log.error('[Profile]', 'Failed to upload avatar', { error: error })
       addToast('error', 'Failed to upload profile picture')
       setAvatarPreview(null) // Clear preview on error
     } finally {
@@ -136,8 +148,8 @@ export function ProfileSettings() {
 
       // Clear custom avatar URL via RPC (RPC types not inferred in Supabase v2)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: updateError } = await (supabase as any).rpc('update_user_avatar', {
-        p_custom_avatar_url: ''  // Empty string clears it
+      const { error: updateError } = await (supabase as any).rpc('update_user_avatar', { // TODO: type this
+        p_custom_avatar_url: '', // Empty string clears it
       })
 
       if (updateError) throw updateError
@@ -145,8 +157,8 @@ export function ProfileSettings() {
       // Update local user state
       setUser({ ...user, custom_avatar_url: null })
       addToast('success', 'Custom profile picture removed')
-    } catch (err) {
-      log.error('[Profile]', 'Failed to remove avatar', { error: err })
+    } catch (error) {
+      log.error('[Profile]', 'Failed to remove avatar', { error: error })
       addToast('error', 'Failed to remove profile picture')
     } finally {
       setUploadingAvatar(false)
@@ -156,12 +168,12 @@ export function ProfileSettings() {
   // Load user's ECOs
   useEffect(() => {
     if (!user || !organization) return
-    
+
     const loadECOs = async () => {
       setIsLoadingECOs(true)
       try {
         const client = getDb()
-        
+
         // Get ECOs where user is creator or involved (via file_ecos)
         const { data: createdECOs, error: createdError } = await client
           .from('ecos')
@@ -170,15 +182,16 @@ export function ProfileSettings() {
           .eq('created_by', user.id)
           .order('created_at', { ascending: false })
           .limit(10)
-        
+
         if (createdError) {
           log.error('[Profile]', 'Error loading created ECOs', { error: createdError })
         }
-        
+
         // Get ECOs where user has files attached
         const { data: involvedECOs, error: involvedError } = await client
           .from('file_ecos')
-          .select(`
+          .select(
+            `
             eco_id,
             ecos!inner (
               id,
@@ -188,18 +201,19 @@ export function ProfileSettings() {
               created_at,
               created_by
             )
-          `)
+          `,
+          )
           .eq('created_by', user.id)
           .limit(20)
-        
+
         if (involvedError) {
           log.error('[Profile]', 'Error loading involved ECOs', { error: involvedError })
         }
-        
+
         // Combine and deduplicate
         const allECOs = [...(createdECOs || [])]
-        const involvedIds = new Set(allECOs.map(e => e.id))
-        
+        const involvedIds = new Set(allECOs.map((e) => e.id))
+
         if (involvedECOs) {
           for (const item of involvedECOs) {
             const eco = item.ecos as unknown as ECORecord
@@ -209,29 +223,29 @@ export function ProfileSettings() {
             }
           }
         }
-        
+
         // Sort by created_at desc
         allECOs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         setUserECOs(allECOs.slice(0, 10))
-      } catch (err) {
-        log.error('[Profile]', 'Error loading ECOs', { error: err })
+      } catch (error) {
+        log.error('[Profile]', 'Error loading ECOs', { error: error })
       } finally {
         setIsLoadingECOs(false)
       }
     }
-    
+
     loadECOs()
   }, [user, organization])
-  
+
   // Load user's RFQs
   useEffect(() => {
     if (!user || !organization) return
-    
+
     const loadRFQs = async () => {
       setIsLoadingRFQs(true)
       try {
         const client = getSupabaseClient()
-        
+
         const { data, error } = await client
           .from('rfqs')
           .select('id, rfq_number, title, status, created_at, created_by')
@@ -239,22 +253,22 @@ export function ProfileSettings() {
           .eq('created_by', user.id)
           .order('created_at', { ascending: false })
           .limit(10)
-        
+
         if (error) {
           log.error('[Profile]', 'Error loading RFQs', { error })
         } else {
           setUserRFQs(data || [])
         }
-      } catch (err) {
-        log.error('[Profile]', 'Error loading RFQs (exception)', { error: err })
+      } catch (error) {
+        log.error('[Profile]', 'Error loading RFQs (exception)', { error: error })
       } finally {
         setIsLoadingRFQs(false)
       }
     }
-    
+
     loadRFQs()
   }, [user, organization])
-  
+
   const getStatusColor = (status: string | null) => {
     if (!status) return 'bg-gray-500/20 text-gray-400'
     switch (status) {
@@ -273,38 +287,38 @@ export function ProfileSettings() {
         return 'bg-plm-fg-muted/20 text-plm-fg-muted'
     }
   }
-  
+
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return 'unknown'
     return new Date(dateStr).toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
-      year: 'numeric'
+      year: 'numeric',
     })
   }
-  
+
   // Handle recovery code submission
   const handleRecoverySubmit = async () => {
     if (!recoveryCode.trim()) {
       addToast('error', 'Please enter a recovery code')
       return
     }
-    
+
     setIsSubmittingRecovery(true)
     setRecoveryResult(null)
-    
+
     try {
       const result = await useAdminRecoveryCode(recoveryCode.trim())
-      
+
       if (result.success) {
         setRecoveryResult('success')
         addToast('success', 'You have been granted admin privileges!')
-        
+
         // Update the local user state to reflect admin role
         if (user) {
           setUser({ ...user, role: 'admin' })
         }
-        
+
         // Reload the page after a short delay to refresh all permissions
         setTimeout(() => {
           window.location.reload()
@@ -313,7 +327,7 @@ export function ProfileSettings() {
         setRecoveryResult('error')
         addToast('error', result.error || 'Invalid or expired recovery code')
       }
-    } catch (err) {
+    } catch (error) {
       setRecoveryResult('error')
       addToast('error', 'Failed to validate recovery code')
     } finally {
@@ -322,11 +336,7 @@ export function ProfileSettings() {
   }
 
   if (!user) {
-    return (
-      <div className="text-center py-12 text-plm-fg-muted text-base">
-        Not signed in
-      </div>
-    )
+    return <div className="text-center py-12 text-plm-fg-muted text-base">Not signed in</div>
   }
 
   return (
@@ -341,7 +351,7 @@ export function ProfileSettings() {
           <div className="relative group">
             {/* Avatar display (preview > custom > google > initials) */}
             {avatarPreview || effectiveAvatarUrl ? (
-              <img 
+              <img
                 src={avatarPreview || effectiveAvatarUrl || ''}
                 alt={user.full_name || user.email}
                 className="w-20 h-20 rounded-full object-cover border-2 border-plm-border"
@@ -353,12 +363,14 @@ export function ProfileSettings() {
                 }}
               />
             ) : null}
-            <div className={`w-20 h-20 rounded-full bg-plm-accent flex items-center justify-center text-2xl text-white font-semibold ${avatarPreview || effectiveAvatarUrl ? 'hidden' : ''}`}>
+            <div
+              className={`w-20 h-20 rounded-full bg-plm-accent flex items-center justify-center text-2xl text-white font-semibold ${avatarPreview || effectiveAvatarUrl ? 'hidden' : ''}`}
+            >
               {getInitials(user.full_name || user.email)}
             </div>
-            
+
             {/* Upload overlay (shows on hover) */}
-            <div 
+            <div
               className="absolute inset-0 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
               onClick={() => fileInputRef.current?.click()}
             >
@@ -368,7 +380,7 @@ export function ProfileSettings() {
                 <Camera size={24} className="text-white" />
               )}
             </div>
-            
+
             {/* Hidden file input */}
             <input
               ref={fileInputRef}
@@ -378,7 +390,7 @@ export function ProfileSettings() {
               disabled={uploadingAvatar}
               className="hidden"
             />
-            
+
             {/* Remove button (only if custom avatar exists) */}
             {user.custom_avatar_url && !uploadingAvatar && (
               <button
@@ -390,16 +402,12 @@ export function ProfileSettings() {
               </button>
             )}
           </div>
-          
+
           <div className="flex-1 min-w-0">
             <div className="text-xl font-medium text-plm-fg truncate">
               {user.full_name || 'No name'}
             </div>
-            {user.job_title && (
-              <div className="text-base text-plm-fg-muted">
-                {user.job_title}
-              </div>
-            )}
+            {user.job_title && <div className="text-base text-plm-fg-muted">{user.job_title}</div>}
             <div className="text-base text-plm-fg-muted truncate flex items-center gap-1.5">
               <Mail size={16} />
               {user.email}
@@ -407,7 +415,7 @@ export function ProfileSettings() {
             <div className="text-sm text-plm-fg-dim mt-1">
               Role: <span className="capitalize">{user.role}</span>
             </div>
-            
+
             {/* Avatar upload help text */}
             <div className="mt-2 text-xs text-plm-fg-dim">
               <button
@@ -440,13 +448,11 @@ export function ProfileSettings() {
               Loading ECOs...
             </div>
           ) : userECOs.length === 0 ? (
-            <div className="text-center py-8 text-plm-fg-muted text-sm">
-              No ECOs found
-            </div>
+            <div className="text-center py-8 text-plm-fg-muted text-sm">No ECOs found</div>
           ) : (
             <div className="divide-y divide-plm-border">
-              {userECOs.map(eco => (
-                <div 
+              {userECOs.map((eco) => (
+                <div
                   key={eco.id}
                   className="flex items-center gap-3 p-3 hover:bg-plm-bg-lighter transition-colors"
                 >
@@ -462,7 +468,9 @@ export function ProfileSettings() {
                       Created {formatDate(eco.created_at)}
                     </div>
                   </div>
-                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(eco.status)}`}>
+                  <span
+                    className={`px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(eco.status)}`}
+                  >
                     {eco.status.replace('_', ' ')}
                   </span>
                 </div>
@@ -485,13 +493,11 @@ export function ProfileSettings() {
               Loading RFQs...
             </div>
           ) : userRFQs.length === 0 ? (
-            <div className="text-center py-8 text-plm-fg-muted text-sm">
-              No RFQs found
-            </div>
+            <div className="text-center py-8 text-plm-fg-muted text-sm">No RFQs found</div>
           ) : (
             <div className="divide-y divide-plm-border">
-              {userRFQs.map(rfq => (
-                <div 
+              {userRFQs.map((rfq) => (
+                <div
                   key={rfq.id}
                   className="flex items-center gap-3 p-3 hover:bg-plm-bg-lighter transition-colors"
                 >
@@ -507,7 +513,9 @@ export function ProfileSettings() {
                       Created {formatDate(rfq.created_at)}
                     </div>
                   </div>
-                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(rfq.status)}`}>
+                  <span
+                    className={`px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(rfq.status)}`}
+                  >
                     {(rfq.status || 'unknown').replace('_', ' ')}
                   </span>
                 </div>
@@ -526,7 +534,7 @@ export function ProfileSettings() {
               Emergency Admin Recovery
             </h2>
           </div>
-          
+
           <div className="bg-plm-bg rounded-lg border border-plm-border p-4">
             {!showRecoveryInput ? (
               <div className="flex items-center justify-between">
@@ -548,16 +556,14 @@ export function ProfileSettings() {
                 <div className="p-3 bg-plm-warning/10 border border-plm-warning/30 rounded flex items-start gap-2">
                   <AlertTriangle size={16} className="text-plm-warning flex-shrink-0 mt-0.5" />
                   <p className="text-xs text-plm-warning">
-                    Recovery codes are single-use and will elevate you to admin immediately. 
-                    Only use if you have a valid code from your organization.
+                    Recovery codes are single-use and will elevate you to admin immediately. Only
+                    use if you have a valid code from your organization.
                   </p>
                 </div>
-                
+
                 {/* Input */}
                 <div>
-                  <label className="block text-sm text-plm-fg-muted mb-2">
-                    Recovery Code
-                  </label>
+                  <label className="block text-sm text-plm-fg-muted mb-2">Recovery Code</label>
                   <input
                     type="text"
                     value={recoveryCode}
@@ -573,7 +579,7 @@ export function ProfileSettings() {
                     }}
                   />
                 </div>
-                
+
                 {/* Result message */}
                 {recoveryResult === 'success' && (
                   <div className="p-3 bg-plm-success/10 border border-plm-success/30 rounded flex items-center gap-2">
@@ -583,7 +589,7 @@ export function ProfileSettings() {
                     </p>
                   </div>
                 )}
-                
+
                 {/* Actions */}
                 <div className="flex justify-end gap-3">
                   <button
@@ -599,7 +605,9 @@ export function ProfileSettings() {
                   </button>
                   <button
                     onClick={handleRecoverySubmit}
-                    disabled={isSubmittingRecovery || !recoveryCode.trim() || recoveryResult === 'success'}
+                    disabled={
+                      isSubmittingRecovery || !recoveryCode.trim() || recoveryResult === 'success'
+                    }
                     className="px-4 py-1.5 text-sm bg-plm-accent text-white rounded hover:bg-plm-accent-hover transition-colors disabled:opacity-50 flex items-center gap-2"
                   >
                     {isSubmittingRecovery ? (

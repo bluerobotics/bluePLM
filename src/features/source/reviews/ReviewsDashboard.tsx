@@ -25,6 +25,7 @@ import {
   Settings2,
 } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
+import { t } from '@/lib/i18n'
 import { useReviewsDashboard } from './hooks/useReviewsDashboard'
 import { ReviewFileRow } from './components/ReviewFileRow'
 import type { StatusFilter, ReviewScope } from './hooks/useReviewsDashboard'
@@ -34,14 +35,21 @@ import type { StatusFilter, ReviewScope } from './hooks/useReviewsDashboard'
 // ============================================================================
 
 /** Stat card for the stats row */
-function StatCard({ label, count, icon, color }: {
+function StatCard({
+  label,
+  count,
+  icon,
+  color,
+}: {
   label: string
   count: number
   icon: React.ReactNode
   color: string
 }) {
   return (
-    <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md bg-plm-bg-light border border-plm-border`}>
+    <div
+      className={`flex items-center gap-1.5 px-2 py-1 rounded-md bg-plm-bg-light border border-plm-border`}
+    >
       <span className={color}>{icon}</span>
       <div className="text-left">
         <span className="text-xs font-semibold text-plm-fg leading-none">{count}</span>
@@ -52,7 +60,10 @@ function StatCard({ label, count, icon, color }: {
 }
 
 /** Scope toggle button pair */
-function ScopeToggle({ scope, onScopeChange }: {
+function ScopeToggle({
+  scope,
+  onScopeChange,
+}: {
   scope: ReviewScope
   onScopeChange: (scope: ReviewScope) => void
 }) {
@@ -66,7 +77,7 @@ function ScopeToggle({ scope, onScopeChange }: {
             : 'bg-plm-bg-light text-plm-fg-muted hover:text-plm-fg'
         }`}
       >
-        My Reviews
+        {t('reviews.myReviews')}
       </button>
       <button
         onClick={() => onScopeChange('all')}
@@ -76,27 +87,30 @@ function ScopeToggle({ scope, onScopeChange }: {
             : 'bg-plm-bg-light text-plm-fg-muted hover:text-plm-fg'
         }`}
       >
-        All Reviews
+        {t('reviews.allReviews')}
       </button>
     </div>
   )
 }
 
 /** Status filter pills */
-function StatusFilterPills({ current, onChange }: {
+function StatusFilterPills({
+  current,
+  onChange,
+}: {
   current: StatusFilter
   onChange: (filter: StatusFilter) => void
 }) {
   const filters: Array<{ value: StatusFilter; label: string }> = [
-    { value: 'all', label: 'All' },
-    { value: 'pending', label: 'Pending' },
-    { value: 'approved', label: 'Approved' },
-    { value: 'rejected', label: 'Rejected' },
+    { value: 'all', label: t('common.all') },
+    { value: 'pending', label: t('reviews.pending') },
+    { value: 'approved', label: t('reviews.approved') },
+    { value: 'rejected', label: t('reviews.rejected') },
   ]
 
   return (
     <div className="flex gap-1">
-      {filters.map(f => (
+      {filters.map((f) => (
         <button
           key={f.value}
           onClick={() => onChange(f.value)}
@@ -125,12 +139,12 @@ function EmptyState({ hasFilters }: { hasFilters: boolean }) {
         )}
       </div>
       <p className="text-sm font-medium text-plm-fg">
-        {hasFilters ? 'No matching reviews' : 'No reviews found'}
+        {hasFilters ? t('reviews.noMatchingReviews') : t('reviews.noReviewsFound')}
       </p>
       <p className="text-xs text-plm-fg-muted mt-1">
         {hasFilters
-          ? 'Try adjusting your filters or search query'
-          : 'Right-click a file in the Explorer to request a review'}
+          ? t('reviews.tryAdjustingFilters')
+          : t('reviews.rightClickToRequestReview')}
       </p>
     </div>
   )
@@ -141,7 +155,7 @@ function LoadingSkeleton() {
   return (
     <div className="flex flex-col items-center justify-center py-12">
       <Loader2 size={24} className="animate-spin text-plm-accent" />
-      <p className="text-xs text-plm-fg-muted mt-2">Loading reviews...</p>
+      <p className="text-xs text-plm-fg-muted mt-2">{t('reviews.loadingReviews')}</p>
     </div>
   )
 }
@@ -153,14 +167,14 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
       <div className="w-14 h-14 rounded-full bg-plm-error/10 flex items-center justify-center mb-3">
         <AlertTriangle size={24} className="text-plm-error" />
       </div>
-      <p className="text-sm font-medium text-plm-fg">Failed to load reviews</p>
+      <p className="text-sm font-medium text-plm-fg">{t('reviews.failedToLoadReviews')}</p>
       <p className="text-xs text-plm-fg-muted mt-1 max-w-[200px]">{message}</p>
       <button
         onClick={onRetry}
         className="mt-3 px-3 py-1.5 text-xs font-medium text-plm-accent hover:text-plm-accent/80 flex items-center gap-1"
       >
         <RefreshCw size={12} />
-        Retry
+        {t('reviews.retry')}
       </button>
     </div>
   )
@@ -173,9 +187,9 @@ function NotAuthenticatedState() {
       <div className="w-14 h-14 rounded-full bg-plm-fg-muted/10 flex items-center justify-center mb-3">
         <MessageSquare size={24} className="text-plm-fg-muted" />
       </div>
-      <p className="text-sm font-medium text-plm-fg">Sign in to view reviews</p>
+      <p className="text-sm font-medium text-plm-fg">{t('reviews.signInToViewReviews')}</p>
       <p className="text-xs text-plm-fg-muted mt-1">
-        Connect to your organization to see file review status
+        {t('reviews.connectToOrgToSeeReviews')}
       </p>
     </div>
   )
@@ -186,8 +200,8 @@ function NotAuthenticatedState() {
 // ============================================================================
 
 export function ReviewsDashboard() {
-  const user = usePDMStore(s => s.user)
-  const activeReviewId = usePDMStore(s => s.reviewPreviewFile?.reviewId ?? null)
+  const user = usePDMStore((s) => s.user)
+  const activeReviewId = usePDMStore((s) => s.reviewPreviewFile?.reviewId ?? null)
 
   const {
     filteredReviews,
@@ -228,7 +242,8 @@ export function ReviewsDashboard() {
   }, [showTeamConfig])
 
   // Whether any filter is actively reducing results
-  const hasActiveFilters = statusFilter !== 'all' || searchQuery.trim() !== '' || activeTeamFilter !== null
+  const hasActiveFilters =
+    statusFilter !== 'all' || searchQuery.trim() !== '' || activeTeamFilter !== null
 
   const handleRefresh = useCallback(() => {
     refresh()
@@ -251,7 +266,7 @@ export function ReviewsDashboard() {
             onClick={handleRefresh}
             disabled={isLoading}
             className="p-1.5 text-plm-fg-muted hover:text-plm-fg rounded transition-colors"
-            title="Refresh reviews"
+            title={t('reviews.refreshReviews')}
           >
             <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
           </button>
@@ -271,11 +286,11 @@ export function ReviewsDashboard() {
                   : 'bg-plm-bg-light text-plm-fg-muted hover:text-plm-fg border border-plm-border'
               }`}
             >
-              All Teams
+              {t('reviews.allTeams')}
             </button>
             {orgTeams
-              .filter(t => visibleTeamIds.has(t.id))
-              .map(team => (
+              .filter((team) => visibleTeamIds.has(team.id))
+              .map((team) => (
                 <button
                   key={team.id}
                   onClick={() => setActiveTeamFilter(activeTeamFilter === team.id ? null : team.id)}
@@ -284,11 +299,15 @@ export function ReviewsDashboard() {
                       ? 'border'
                       : 'bg-plm-bg-light text-plm-fg-muted hover:text-plm-fg border border-plm-border'
                   }`}
-                  style={activeTeamFilter === team.id ? {
-                    backgroundColor: `${team.color}20`,
-                    color: team.color,
-                    borderColor: `${team.color}60`,
-                  } : undefined}
+                  style={
+                    activeTeamFilter === team.id
+                      ? {
+                          backgroundColor: `${team.color}20`,
+                          color: team.color,
+                          borderColor: `${team.color}60`,
+                        }
+                      : undefined
+                  }
                 >
                   <span
                     className="w-1.5 h-1.5 rounded-full flex-shrink-0"
@@ -301,16 +320,16 @@ export function ReviewsDashboard() {
               <button
                 onClick={() => setShowTeamConfig(!showTeamConfig)}
                 className="p-0.5 text-plm-fg-muted hover:text-plm-fg rounded transition-colors"
-                title="Configure visible teams"
+                title={t('reviews.configureVisibleTeams')}
               >
                 <Settings2 size={12} />
               </button>
               {showTeamConfig && (
                 <div className="absolute right-0 top-full mt-1 z-50 bg-plm-bg-light border border-plm-border rounded-lg shadow-xl p-2 min-w-[160px]">
                   <p className="text-[10px] text-plm-fg-muted uppercase tracking-wide mb-1 px-1">
-                    Visible Teams
+                    {t('reviews.visibleTeams')}
                   </p>
-                  {orgTeams.map(team => (
+                  {orgTeams.map((team) => (
                     <label
                       key={team.id}
                       className="flex items-center gap-2 px-1 py-1 text-xs text-plm-fg hover:bg-plm-highlight rounded cursor-pointer"
@@ -345,12 +364,15 @@ export function ReviewsDashboard() {
 
         {/* Search box */}
         <div className="relative">
-          <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
+          <Search
+            size={12}
+            className="absolute left-2 top-1/2 -translate-y-1/2 text-plm-fg-muted"
+          />
           <input
             type="text"
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Search by file name, title, or user..."
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={t('reviews.searchPlaceholder')}
             className="w-full pl-6 pr-2 py-1.5 text-xs bg-plm-bg-light border border-plm-border rounded focus:outline-none focus:border-plm-accent placeholder:text-plm-fg-muted/60"
           />
         </div>
@@ -362,26 +384,26 @@ export function ReviewsDashboard() {
       {!isLoading && !error && (
         <div className="flex items-center gap-1.5 px-3 py-2 border-b border-plm-border overflow-x-auto">
           <StatCard
-            label="Pending"
+            label={t('reviews.pending')}
             count={stats.pending}
             icon={<Clock size={12} />}
             color="text-plm-warning"
           />
           <StatCard
-            label="Approved"
+            label={t('reviews.approved')}
             count={stats.approved}
             icon={<CheckCircle2 size={12} />}
             color="text-plm-success"
           />
           <StatCard
-            label="Rejected"
+            label={t('reviews.rejected')}
             count={stats.rejected}
             icon={<XCircle size={12} />}
             color="text-plm-error"
           />
           {stats.overdue > 0 && (
             <StatCard
-              label="Overdue"
+              label={t('reviews.overdue')}
               count={stats.overdue}
               icon={<AlertTriangle size={12} />}
               color="text-plm-error"
@@ -402,7 +424,7 @@ export function ReviewsDashboard() {
           <EmptyState hasFilters={hasActiveFilters} />
         ) : (
           <div className="space-y-1.5 p-2">
-            {filteredReviews.map(review => (
+            {filteredReviews.map((review) => (
               <ReviewFileRow
                 key={review.id}
                 review={review}

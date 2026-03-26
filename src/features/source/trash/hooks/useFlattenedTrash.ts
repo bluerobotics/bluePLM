@@ -37,10 +37,10 @@ export interface FlattenedTrashItem {
 
 /** Row heights for each item type */
 export const TRASH_ROW_HEIGHT = {
-  file: 72,           // File rows are taller with path and metadata
-  folder: 72,         // Folder rows match file height
-  nestedFolder: 36,   // Nested folder headers are compact
-  nestedFile: 64      // Nested files are slightly shorter (no path)
+  file: 72, // File rows are taller with path and metadata
+  folder: 72, // Folder rows match file height
+  nestedFolder: 36, // Nested folder headers are compact
+  nestedFile: 64, // Nested files are slightly shorter (no path)
 }
 
 interface UseFlattenedTrashOptions {
@@ -67,7 +67,7 @@ interface UseFlattenedTrashOptions {
 
 /**
  * Hook to flatten trash items into a virtualization-friendly array.
- * 
+ *
  * Handles all three view modes:
  * - files: Simple flat list of deleted files
  * - folders: Folder records and aggregated folder stats
@@ -80,7 +80,7 @@ export function useFlattenedTrash({
   topLevelFolders,
   groupedByFolder,
   expandedFolders,
-  getRecursiveFileCount
+  getRecursiveFileCount,
 }: UseFlattenedTrashOptions) {
   const flattenedItems = useMemo((): FlattenedTrashItem[] => {
     const result: FlattenedTrashItem[] = []
@@ -94,7 +94,7 @@ export function useFlattenedTrash({
           type: 'file',
           file,
           depth: 0,
-          flatIndex: currentIndex++
+          flatIndex: currentIndex++,
         })
       }
     } else if (viewMode === 'folders') {
@@ -105,10 +105,10 @@ export function useFlattenedTrash({
           type: 'folder-record',
           file: folder,
           depth: 0,
-          flatIndex: currentIndex++
+          flatIndex: currentIndex++,
         })
       }
-      
+
       // Then add aggregated top-level folders
       for (const folder of topLevelFolders) {
         result.push({
@@ -116,21 +116,19 @@ export function useFlattenedTrash({
           type: 'folder-aggregated',
           folderData: folder,
           depth: 0,
-          flatIndex: currentIndex++
+          flatIndex: currentIndex++,
         })
       }
     } else {
       // Nested view - hierarchical structure
-      const sortedFolders = [...groupedByFolder.entries()].sort((a, b) => 
-        a[0].localeCompare(b[0])
-      )
-      
+      const sortedFolders = [...groupedByFolder.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+
       for (const [folderPath, files] of sortedFolders) {
         const folderName = folderPath === '/' ? '(root)' : folderPath.split('/').pop() || folderPath
         const folderDepth = folderPath === '/' ? 0 : folderPath.split('/').length - 1
         const recursiveCount = getRecursiveFileCount(folderPath)
         const isExpanded = expandedFolders.has(folderPath)
-        
+
         // Add folder header
         result.push({
           key: `nested-${folderPath}`,
@@ -140,12 +138,12 @@ export function useFlattenedTrash({
             name: folderName,
             depth: folderDepth,
             recursiveCount,
-            directFileCount: files.length
+            directFileCount: files.length,
           },
           depth: folderDepth,
-          flatIndex: currentIndex++
+          flatIndex: currentIndex++,
         })
-        
+
         // Add files if folder is expanded
         if (isExpanded) {
           for (const file of files) {
@@ -154,7 +152,7 @@ export function useFlattenedTrash({
               type: 'file',
               file,
               depth: folderDepth + 1,
-              flatIndex: currentIndex++
+              flatIndex: currentIndex++,
             })
           }
         }
@@ -163,13 +161,13 @@ export function useFlattenedTrash({
 
     return result
   }, [
-    viewMode, 
-    filesSortedByTime, 
-    deletedFoldersOnly, 
-    topLevelFolders, 
-    groupedByFolder, 
+    viewMode,
+    filesSortedByTime,
+    deletedFoldersOnly,
+    topLevelFolders,
+    groupedByFolder,
     expandedFolders,
-    getRecursiveFileCount
+    getRecursiveFileCount,
   ])
 
   /**
@@ -178,7 +176,7 @@ export function useFlattenedTrash({
   const getItemSize = (index: number): number => {
     const item = flattenedItems[index]
     if (!item) return TRASH_ROW_HEIGHT.file
-    
+
     switch (item.type) {
       case 'file':
         return viewMode === 'nested' ? TRASH_ROW_HEIGHT.nestedFile : TRASH_ROW_HEIGHT.file
@@ -195,6 +193,6 @@ export function useFlattenedTrash({
   return {
     flattenedItems,
     totalCount: flattenedItems.length,
-    getItemSize
+    getItemSize,
   }
 }

@@ -33,19 +33,17 @@ export function CollaborationItems({
   onQuickShareLink,
   openDialog,
   onClose,
-  addToast
+  addToast,
 }: CollaborationItemsProps) {
   const hasPdmData = firstFile.pdmData?.id
-  const isCheckedOutByOther = firstFile.pdmData?.checked_out_by && firstFile.pdmData.checked_out_by !== userId
+  const isCheckedOutByOther =
+    firstFile.pdmData?.checked_out_by && firstFile.pdmData.checked_out_by !== userId
 
   return (
     <>
       {/* Request Review - only for synced files (not folders) */}
       {!multiSelect && !isFolder && anySynced && hasPdmData && (
-        <div 
-          className="context-menu-item"
-          onClick={() => openDialog('reviewRequest')}
-        >
+        <div className="context-menu-item" onClick={() => openDialog('reviewRequest')}>
           <Send size={14} className="text-plm-accent" />
           Request Review
         </div>
@@ -53,10 +51,7 @@ export function CollaborationItems({
 
       {/* Request Checkout - for files checked out by others */}
       {!multiSelect && !isFolder && anySynced && isCheckedOutByOther && (
-        <div 
-          className="context-menu-item"
-          onClick={() => openDialog('checkoutRequest')}
-        >
+        <div className="context-menu-item" onClick={() => openDialog('checkoutRequest')}>
           <ArrowDown size={14} className="text-plm-warning" />
           Request Checkout
         </div>
@@ -64,10 +59,7 @@ export function CollaborationItems({
 
       {/* Notify / Mention - for synced files */}
       {!multiSelect && !isFolder && anySynced && hasPdmData && (
-        <div 
-          className="context-menu-item"
-          onClick={() => openDialog('mention')}
-        >
+        <div className="context-menu-item" onClick={() => openDialog('mention')}>
           <Users size={14} className="text-plm-fg-dim" />
           Notify Someone
         </div>
@@ -75,7 +67,7 @@ export function CollaborationItems({
 
       {/* Watch/Unwatch - for synced files */}
       {!multiSelect && !isFolder && anySynced && hasPdmData && (
-        <div 
+        <div
           className={`context-menu-item ${isTogglingWatch ? 'opacity-50' : ''}`}
           onClick={onToggleWatch}
         >
@@ -92,7 +84,7 @@ export function CollaborationItems({
 
       {/* Copy Share Link - for synced files and folders */}
       {!multiSelect && anySynced && (isFolder || hasPdmData) && (
-        <div 
+        <div
           className={`context-menu-item ${isCreatingShareLink ? 'opacity-50' : ''}`}
           onClick={() => {
             if (isFolder) {
@@ -114,10 +106,7 @@ export function CollaborationItems({
 
       {/* Add to ECO - for synced files */}
       {!multiSelect && !isFolder && anySynced && hasPdmData && (
-        <div 
-          className="context-menu-item"
-          onClick={() => openDialog('addToECO')}
-        >
+        <div className="context-menu-item" onClick={() => openDialog('addToECO')}>
           <ClipboardList size={14} className="text-plm-fg-dim" />
           Add to ECO
         </div>

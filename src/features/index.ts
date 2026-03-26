@@ -1,9 +1,9 @@
 /**
  * Feature Modules Index
- * 
+ *
  * Import directly from submodules to avoid naming conflicts
  * (e.g., ContextMenuState, OrgUser, EmptyState are defined in multiple modules).
- * 
+ *
  * Example: import { FileTree } from '@/features/source'
  */
 

@@ -8,7 +8,9 @@ interface AlignmentGuidesProps {
   alignmentGuides: AlignmentGuidesType
 }
 
-export const AlignmentGuides = memo(function AlignmentGuides({ alignmentGuides }: AlignmentGuidesProps) {
+export const AlignmentGuides = memo(function AlignmentGuides({
+  alignmentGuides,
+}: AlignmentGuidesProps) {
   return (
     <>
       {alignmentGuides.vertical !== null && (

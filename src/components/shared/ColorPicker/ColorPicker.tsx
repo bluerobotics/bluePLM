@@ -53,57 +53,50 @@ export function ColorPicker({
   additionalPresets = [],
   position = 'right',
   inline = false,
-  className = ''
+  className = '',
 }: ColorPickerProps) {
-  const { 
-    colorSwatches, 
-    orgColorSwatches, 
-    addColorSwatch, 
-    removeColorSwatch,
-    getEffectiveRole 
-  } = usePDMStore()
-  
+  const { colorSwatches, orgColorSwatches, addColorSwatch, removeColorSwatch, getEffectiveRole } =
+    usePDMStore()
+
   const [customColor, setCustomColor] = useState(color || '#3b82f6')
   const inputRef = useRef<HTMLInputElement>(null)
   const isAdmin = getEffectiveRole() === 'admin'
-  
+
   // Combine all presets: default + additional + org swatches
   const allPresets = [...DEFAULT_PRESET_COLORS, ...additionalPresets]
-  
+
   // Get user's personal swatches (non-org)
-  const userSwatches = colorSwatches.filter(s => !s.isOrg)
-  
+  const userSwatches = colorSwatches.filter((s) => !s.isOrg)
+
   const handleApplyCustom = () => {
     onChange(customColor)
     onClose?.()
   }
-  
+
   const handlePresetClick = (presetColor: string) => {
     onChange(presetColor)
     onClose?.()
   }
-  
+
   const handleAddSwatch = (asOrg: boolean) => {
     addColorSwatch(customColor, asOrg)
   }
-  
+
   const handleRemoveSwatch = (swatchId: string, e: React.MouseEvent) => {
     e.stopPropagation()
     e.preventDefault()
     removeColorSwatch(swatchId)
   }
-  
+
   const content = (
     <div className={`${inline ? '' : 'p-4'} space-y-3 ${className}`}>
       {title && (
-        <div className="text-[10px] uppercase tracking-wide text-plm-fg-muted">
-          {title}
-        </div>
+        <div className="text-[10px] uppercase tracking-wide text-plm-fg-muted">{title}</div>
       )}
-      
+
       {/* Preset colors grid */}
       <div className="grid grid-cols-7 gap-2">
-        {allPresets.map(presetColor => (
+        {allPresets.map((presetColor) => (
           <button
             key={presetColor}
             onClick={() => handlePresetClick(presetColor)}
@@ -115,7 +108,7 @@ export function ColorPicker({
           />
         ))}
       </div>
-      
+
       {/* Organization swatches */}
       {orgColorSwatches.length > 0 && (
         <>
@@ -124,7 +117,7 @@ export function ColorPicker({
             <span className="text-plm-fg-dim">({orgColorSwatches.length})</span>
           </div>
           <div className="grid grid-cols-7 gap-2">
-            {orgColorSwatches.map(swatch => (
+            {orgColorSwatches.map((swatch) => (
               <button
                 key={swatch.id}
                 onClick={() => handlePresetClick(swatch.color)}
@@ -134,7 +127,9 @@ export function ColorPicker({
                   }
                 }}
                 className={`relative group w-8 h-8 rounded-md border-2 transition-all hover:scale-110 ${
-                  color === swatch.color ? 'border-plm-fg ring-2 ring-plm-accent' : 'border-transparent'
+                  color === swatch.color
+                    ? 'border-plm-fg ring-2 ring-plm-accent'
+                    : 'border-transparent'
                 }`}
                 style={{ backgroundColor: swatch.color }}
                 title={`${swatch.color}${isAdmin ? ' (right-click to remove)' : ''}`}
@@ -149,7 +144,7 @@ export function ColorPicker({
           </div>
         </>
       )}
-      
+
       {/* User's personal swatches */}
       {userSwatches.length > 0 && (
         <>
@@ -158,13 +153,15 @@ export function ColorPicker({
             <span className="text-plm-fg-dim">({userSwatches.length})</span>
           </div>
           <div className="grid grid-cols-7 gap-2">
-            {userSwatches.map(swatch => (
+            {userSwatches.map((swatch) => (
               <button
                 key={swatch.id}
                 onClick={() => handlePresetClick(swatch.color)}
                 onContextMenu={(e) => handleRemoveSwatch(swatch.id, e)}
                 className={`relative group w-8 h-8 rounded-md border-2 transition-all hover:scale-110 ${
-                  color === swatch.color ? 'border-plm-fg ring-2 ring-plm-accent' : 'border-transparent'
+                  color === swatch.color
+                    ? 'border-plm-fg ring-2 ring-plm-accent'
+                    : 'border-transparent'
                 }`}
                 style={{ backgroundColor: swatch.color }}
                 title={`${swatch.color} (right-click to remove)`}
@@ -177,12 +174,10 @@ export function ColorPicker({
           </div>
         </>
       )}
-      
+
       {/* Custom color picker */}
       <div className="pt-3 border-t border-plm-border">
-        <div className="text-[10px] uppercase tracking-wide text-plm-fg-muted mb-2">
-          Custom
-        </div>
+        <div className="text-[10px] uppercase tracking-wide text-plm-fg-muted mb-2">Custom</div>
         <div className="flex items-center gap-2">
           <input
             ref={inputRef}
@@ -210,7 +205,7 @@ export function ColorPicker({
             Apply
           </button>
         </div>
-        
+
         {/* Save swatch buttons - compact single row */}
         <div className="flex items-center gap-1.5 mt-2.5">
           <button
@@ -233,7 +228,7 @@ export function ColorPicker({
           )}
         </div>
       </div>
-      
+
       {/* Reset to default */}
       {showReset && (
         <button
@@ -251,13 +246,13 @@ export function ColorPicker({
       )}
     </div>
   )
-  
+
   if (inline) {
     return content
   }
-  
+
   return (
-    <div 
+    <div
       className={`absolute ${position === 'right' ? 'right-0' : 'left-0'} top-full mt-1 w-72 bg-plm-bg border border-plm-border rounded-lg shadow-xl z-50`}
       onClick={(e) => e.stopPropagation()}
     >
@@ -286,34 +281,34 @@ export function ColorPickerDropdown({
 }: ColorPickerDropdownProps) {
   const [isOpen, setIsOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
-  
+
   // Close on click outside
   useEffect(() => {
     if (!isOpen) return
-    
+
     const handleClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setIsOpen(false)
       }
     }
-    
+
     // Delay to prevent immediate close
     const timeout = setTimeout(() => {
       document.addEventListener('click', handleClickOutside)
     }, 0)
-    
+
     return () => {
       clearTimeout(timeout)
       document.removeEventListener('click', handleClickOutside)
     }
   }, [isOpen])
-  
+
   const sizeClasses = {
     sm: 'w-5 h-5',
     md: 'w-7 h-7',
-    lg: 'w-9 h-9'
+    lg: 'w-9 h-9',
   }
-  
+
   return (
     <div ref={containerRef} className="relative">
       <button
@@ -325,12 +320,18 @@ export function ColorPickerDropdown({
         title="Set color"
       >
         {trigger || (
-          <div 
+          <div
             className={`${sizeClasses[triggerSize]} rounded border border-plm-border flex items-center justify-center`}
             style={{ backgroundColor: color || 'transparent' }}
           >
             {!color && showPaletteIcon && (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-plm-fg-muted">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="w-4 h-4 text-plm-fg-muted"
+              >
                 <circle cx="12" cy="12" r="10" />
                 <circle cx="12" cy="8" r="2" fill="#ef4444" stroke="none" />
                 <circle cx="16" cy="12" r="2" fill="#3b82f6" stroke="none" />
@@ -341,7 +342,7 @@ export function ColorPickerDropdown({
           </div>
         )}
       </button>
-      
+
       {isOpen && (
         <ColorPicker
           color={color}
@@ -370,14 +371,14 @@ export function ColorSwatchRow({
   onChange,
   colors = DEFAULT_PRESET_COLORS.slice(0, 10),
   showReset = true,
-  size = 'md'
+  size = 'md',
 }: ColorSwatchRowProps) {
   const sizeClasses = {
     sm: 'w-5 h-5',
     md: 'w-6 h-6',
-    lg: 'w-8 h-8'
+    lg: 'w-8 h-8',
   }
-  
+
   return (
     <div className="flex items-center gap-1">
       {showReset && (
@@ -391,7 +392,7 @@ export function ColorSwatchRow({
           ∅
         </button>
       )}
-      {colors.map(c => (
+      {colors.map((c) => (
         <button
           key={c}
           onClick={() => onChange(c)}

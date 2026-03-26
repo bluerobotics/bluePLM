@@ -28,7 +28,7 @@ export function DraggableTab({
   onDragStart,
   onDragEnd,
   onReorder,
-  tooltip
+  tooltip,
 }: DraggableTabProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [dropIndicator, setDropIndicator] = useState<'left' | 'right' | null>(null)
@@ -38,8 +38,11 @@ export function DraggableTab({
     setIsDragging(true)
     // Set drag data
     e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/plain', JSON.stringify({ tabId: id, fromLocation: location, fromIndex: index }))
-    
+    e.dataTransfer.setData(
+      'text/plain',
+      JSON.stringify({ tabId: id, fromLocation: location, fromIndex: index }),
+    )
+
     // Create a custom drag image with a styled clone
     if (dragRef.current) {
       const clone = dragRef.current.cloneNode(true) as HTMLElement
@@ -52,14 +55,14 @@ export function DraggableTab({
       clone.style.padding = '6px 12px'
       clone.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)'
       document.body.appendChild(clone)
-      
+
       const rect = clone.getBoundingClientRect()
       e.dataTransfer.setDragImage(clone, rect.width / 2, rect.height / 2)
-      
+
       // Clean up the clone after a short delay
       setTimeout(() => clone.remove(), 0)
     }
-    
+
     onDragStart(id, location)
   }
 
@@ -72,12 +75,12 @@ export function DraggableTab({
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    
+
     if (!dragRef.current) return
-    
+
     const rect = dragRef.current.getBoundingClientRect()
     const midpoint = rect.left + rect.width / 2
-    
+
     if (e.clientX < midpoint) {
       setDropIndicator('left')
     } else {
@@ -93,14 +96,19 @@ export function DraggableTab({
     e.preventDefault()
     e.stopPropagation()
     setDropIndicator(null)
-    
+
     try {
       const data = JSON.parse(e.dataTransfer.getData('text/plain'))
       if (data.tabId && data.fromLocation === location && onReorder && data.tabId !== id) {
         // Reordering within the same panel - adjust index based on drag direction
-        const adjustedIndex = data.fromIndex < index && dropIndicator === 'right' ? index : 
-                             data.fromIndex < index && dropIndicator === 'left' ? index - 1 :
-                             dropIndicator === 'left' ? index : index + 1
+        const adjustedIndex =
+          data.fromIndex < index && dropIndicator === 'right'
+            ? index
+            : data.fromIndex < index && dropIndicator === 'left'
+              ? index - 1
+              : dropIndicator === 'left'
+                ? index
+                : index + 1
         onReorder(data.tabId, Math.max(0, adjustedIndex))
       }
     } catch {
@@ -126,15 +134,15 @@ export function DraggableTab({
       {dropIndicator === 'left' && (
         <div className="absolute left-0 top-1 bottom-1 w-0.5 bg-plm-accent rounded-full -translate-x-0.5" />
       )}
-      
+
       <span className="flex items-center gap-1">
-        <GripVertical 
-          size={12} 
-          className="text-plm-fg-muted opacity-0 group-hover:opacity-60 hover:opacity-100 cursor-grab active:cursor-grabbing flex-shrink-0 -ml-1 transition-opacity" 
+        <GripVertical
+          size={12}
+          className="text-plm-fg-muted opacity-0 group-hover:opacity-60 hover:opacity-100 cursor-grab active:cursor-grabbing flex-shrink-0 -ml-1 transition-opacity"
         />
         {label}
       </span>
-      
+
       {/* Drop indicator - right */}
       {dropIndicator === 'right' && (
         <div className="absolute right-0 top-1 bottom-1 w-0.5 bg-plm-accent rounded-full translate-x-0.5" />
@@ -145,7 +153,12 @@ export function DraggableTab({
 
 export interface TabDropZoneProps {
   location: PanelLocation
-  onDrop: (tabId: string, fromLocation: PanelLocation, toLocation: PanelLocation, dropIndex?: number) => void
+  onDrop: (
+    tabId: string,
+    fromLocation: PanelLocation,
+    toLocation: PanelLocation,
+    dropIndex?: number,
+  ) => void
   children: React.ReactNode
   className?: string
   tabCount?: number
@@ -156,7 +169,7 @@ export function TabDropZone({
   onDrop,
   children,
   className = '',
-  tabCount = 0
+  tabCount = 0,
 }: TabDropZoneProps) {
   const [isDragOver, setIsDragOver] = useState(false)
   const [isFromOtherPanel, setIsFromOtherPanel] = useState(false)
@@ -179,7 +192,7 @@ export function TabDropZone({
     const rect = e.currentTarget.getBoundingClientRect()
     const x = e.clientX
     const y = e.clientY
-    
+
     if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
       setIsDragOver(false)
       setIsFromOtherPanel(false)
@@ -190,7 +203,7 @@ export function TabDropZone({
     e.preventDefault()
     setIsDragOver(false)
     setIsFromOtherPanel(false)
-    
+
     try {
       const data = JSON.parse(e.dataTransfer.getData('text/plain'))
       if (data.tabId && data.fromLocation) {
@@ -205,7 +218,8 @@ export function TabDropZone({
     }
   }
 
-  const dropMessage = location === 'bottom' ? 'Drop to move to bottom panel' : 'Drop to move to right panel'
+  const dropMessage =
+    location === 'bottom' ? 'Drop to move to bottom panel' : 'Drop to move to right panel'
 
   return (
     <div

@@ -46,13 +46,13 @@ export function FileGridView({
   onDownload,
   onCheckout,
   onCheckin,
-  onUpload
+  onUpload,
 }: FileGridViewProps) {
   return (
-    <div 
+    <div
       className="p-4 grid gap-3"
-      style={{ 
-        gridTemplateColumns: `repeat(auto-fill, minmax(${iconSize + 24}px, 1fr))` 
+      style={{
+        gridTemplateColumns: `repeat(auto-fill, minmax(${iconSize + 24}px, 1fr))`,
       }}
     >
       {files.map((file, index) => (
@@ -61,7 +61,9 @@ export function FileGridView({
           file={file}
           iconSize={iconSize}
           isSelected={selectedFiles.includes(file.path)}
-          isCut={clipboard?.operation === 'cut' && clipboard.files.some(f => f.path === file.path)}
+          isCut={
+            clipboard?.operation === 'cut' && clipboard.files.some((f) => f.path === file.path)
+          }
           allFiles={allFiles}
           processingPaths={processingPaths}
           currentMachineId={currentMachineId}

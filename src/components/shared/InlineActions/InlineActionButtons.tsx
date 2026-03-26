@@ -1,5 +1,17 @@
 import React, { useState, useCallback } from 'react'
-import { Cloud, ArrowDown, ArrowUp, HardDrive, RefreshCw, Loader2, Lock, Clock, Check, X, Bell } from 'lucide-react'
+import {
+  Cloud,
+  ArrowDown,
+  ArrowUp,
+  HardDrive,
+  RefreshCw,
+  Loader2,
+  Lock,
+  Clock,
+  Check,
+  X,
+  Bell,
+} from 'lucide-react'
 import { getInitials, getAvatarColor } from '@/lib/utils'
 import { usePDMStore } from '@/stores/pdmStore'
 import { log } from '@/lib/logger'
@@ -43,17 +55,18 @@ export const InlineCheckoutButton: React.FC<CheckoutButtonProps> = ({
   selectedCount,
   isSelectionHovered,
   onMouseEnter,
-  onMouseLeave
+  onMouseLeave,
 }) => {
   // Show count if multi-select with selectedCount > 1
   const displayCount = selectedCount !== undefined && selectedCount > 1 ? selectedCount : count
   const showCount = displayCount !== undefined && displayCount > 0
-  
-  const defaultTitle = selectedCount && selectedCount > 1
-    ? `Check out ${selectedCount} selected files`
-    : count && count > 0 
-      ? `Check out ${count} file${count > 1 ? 's' : ''}`
-      : 'Check Out'
+
+  const defaultTitle =
+    selectedCount && selectedCount > 1
+      ? `Check out ${selectedCount} selected files`
+      : count && count > 0
+        ? `Check out ${count} file${count > 1 ? 's' : ''}`
+        : 'Check Out'
 
   // Expand if locally hovered OR if selection is hovered (for multi-select)
   const forceExpanded = isSelectionHovered
@@ -71,13 +84,21 @@ export const InlineCheckoutButton: React.FC<CheckoutButtonProps> = ({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      <Cloud size={12} className={`transition-colors duration-200 ${forceExpanded ? 'text-orange-400' : 'group-hover/checkout:text-orange-400'}`} />
+      <Cloud
+        size={12}
+        className={`transition-colors duration-200 ${forceExpanded ? 'text-orange-400' : 'group-hover/checkout:text-orange-400'}`}
+      />
       {showCount && (
-        <span className={`text-[10px] font-medium text-orange-400 overflow-hidden transition-all duration-200 ${forceExpanded ? 'max-w-[2rem]' : 'max-w-0 group-hover/checkout:max-w-[2rem]'}`}>
+        <span
+          className={`text-[10px] font-medium text-orange-400 overflow-hidden transition-all duration-200 ${forceExpanded ? 'max-w-[2rem]' : 'max-w-0 group-hover/checkout:max-w-[2rem]'}`}
+        >
           {displayCount}
         </span>
       )}
-      <ArrowDown size={12} className={`text-orange-400 overflow-hidden transition-all duration-200 ${forceExpanded ? 'max-w-[1rem]' : 'max-w-0 group-hover/checkout:max-w-[1rem]'}`} />
+      <ArrowDown
+        size={12}
+        className={`text-orange-400 overflow-hidden transition-all duration-200 ${forceExpanded ? 'max-w-[1rem]' : 'max-w-0 group-hover/checkout:max-w-[1rem]'}`}
+      />
     </button>
   )
 }
@@ -102,18 +123,19 @@ export const InlineDownloadButton: React.FC<DownloadButtonProps> = ({
   selectedCount,
   isSelectionHovered,
   onMouseEnter,
-  onMouseLeave
+  onMouseLeave,
 }) => {
-  const defaultTitle = selectedCount && selectedCount > 1
-    ? `Download ${selectedCount} selected files`
-    : count && count > 0 
-      ? `Download ${count} cloud file${count > 1 ? 's' : ''}`
-      : 'Download'
+  const defaultTitle =
+    selectedCount && selectedCount > 1
+      ? `Download ${selectedCount} selected files`
+      : count && count > 0
+        ? `Download ${count} cloud file${count > 1 ? 's' : ''}`
+        : 'Download'
 
   // Show count if multi-select with selectedCount > 1
   const displayCount = selectedCount !== undefined && selectedCount > 1 ? selectedCount : count
   const showCount = displayCount !== undefined && displayCount > 1
-  
+
   // Expand if locally hovered OR if selection is hovered (for multi-select)
   const forceExpanded = isSelectionHovered
 
@@ -130,13 +152,21 @@ export const InlineDownloadButton: React.FC<DownloadButtonProps> = ({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      <Cloud size={12} className={`transition-colors duration-200 ${forceExpanded ? 'text-sky-400' : 'text-plm-info group-hover/download:text-sky-400'}`} />
+      <Cloud
+        size={12}
+        className={`transition-colors duration-200 ${forceExpanded ? 'text-sky-400' : 'text-plm-info group-hover/download:text-sky-400'}`}
+      />
       {showCount && (
-        <span className={`text-[10px] font-medium text-sky-400 overflow-hidden transition-all duration-200 ${forceExpanded ? 'max-w-[2rem]' : 'max-w-0 group-hover/download:max-w-[2rem]'}`}>
+        <span
+          className={`text-[10px] font-medium text-sky-400 overflow-hidden transition-all duration-200 ${forceExpanded ? 'max-w-[2rem]' : 'max-w-0 group-hover/download:max-w-[2rem]'}`}
+        >
           {displayCount}
         </span>
       )}
-      <ArrowDown size={12} className={`text-sky-400 overflow-hidden transition-all duration-200 ${forceExpanded ? 'max-w-[1rem]' : 'max-w-0 group-hover/download:max-w-[1rem]'}`} />
+      <ArrowDown
+        size={12}
+        className={`text-sky-400 overflow-hidden transition-all duration-200 ${forceExpanded ? 'max-w-[1rem]' : 'max-w-0 group-hover/download:max-w-[1rem]'}`}
+      />
     </button>
   )
 }
@@ -161,17 +191,18 @@ export const InlineUploadButton: React.FC<UploadButtonProps> = ({
   selectedCount,
   isSelectionHovered,
   onMouseEnter,
-  onMouseLeave
+  onMouseLeave,
 }) => {
   // Show count if multi-select with selectedCount > 1
   const displayCount = selectedCount !== undefined && selectedCount > 1 ? selectedCount : count
   const showCount = displayCount !== undefined && displayCount > 0
-  
-  const defaultTitle = selectedCount && selectedCount > 1
-    ? `First Check In ${selectedCount} selected files`
-    : count && count > 0 
-      ? `First Check In ${count} file${count > 1 ? 's' : ''}`
-      : 'First Check In'
+
+  const defaultTitle =
+    selectedCount && selectedCount > 1
+      ? `First Check In ${selectedCount} selected files`
+      : count && count > 0
+        ? `First Check In ${count} file${count > 1 ? 's' : ''}`
+        : 'First Check In'
 
   // Expand if locally hovered OR if selection is hovered (for multi-select)
   const forceExpanded = isSelectionHovered
@@ -189,13 +220,21 @@ export const InlineUploadButton: React.FC<UploadButtonProps> = ({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      <HardDrive size={12} className={`transition-colors duration-200 ${forceExpanded ? 'text-sky-400' : 'group-hover/upload:text-sky-400'}`} />
+      <HardDrive
+        size={12}
+        className={`transition-colors duration-200 ${forceExpanded ? 'text-sky-400' : 'group-hover/upload:text-sky-400'}`}
+      />
       {showCount && (
-        <span className={`text-[10px] font-medium text-sky-400 overflow-hidden transition-all duration-200 ${forceExpanded ? 'max-w-[2rem]' : 'max-w-0 group-hover/upload:max-w-[2rem]'}`}>
+        <span
+          className={`text-[10px] font-medium text-sky-400 overflow-hidden transition-all duration-200 ${forceExpanded ? 'max-w-[2rem]' : 'max-w-0 group-hover/upload:max-w-[2rem]'}`}
+        >
           {displayCount}
         </span>
       )}
-      <ArrowUp size={12} className={`text-sky-400 overflow-hidden transition-all duration-200 ${forceExpanded ? 'max-w-[1rem]' : 'max-w-0 group-hover/upload:max-w-[1rem]'}`} />
+      <ArrowUp
+        size={12}
+        className={`text-sky-400 overflow-hidden transition-all duration-200 ${forceExpanded ? 'max-w-[1rem]' : 'max-w-0 group-hover/upload:max-w-[1rem]'}`}
+      />
     </button>
   )
 }
@@ -222,20 +261,20 @@ export const InlineStageCheckinButton: React.FC<StageCheckinButtonProps> = ({
   selectedCount,
   isSelectionHovered,
   onMouseEnter,
-  onMouseLeave
+  onMouseLeave,
 }) => {
   const displayCount = selectedCount !== undefined && selectedCount > 1 ? selectedCount : count
   const showCount = displayCount !== undefined && displayCount > 0
-  
+
   const defaultTitle = isStaged
-    ? (selectedCount && selectedCount > 1 
-        ? `${selectedCount} files staged for check-in (click to unstage)`
-        : 'Staged for check-in (click to unstage)')
-    : (selectedCount && selectedCount > 1
-        ? `Stage ${selectedCount} files for check-in when online`
-        : count && count > 0
-          ? `Stage ${count} file${count > 1 ? 's' : ''} for check-in`
-          : 'Stage for check-in when online')
+    ? selectedCount && selectedCount > 1
+      ? `${selectedCount} files staged for check-in (click to unstage)`
+      : 'Staged for check-in (click to unstage)'
+    : selectedCount && selectedCount > 1
+      ? `Stage ${selectedCount} files for check-in when online`
+      : count && count > 0
+        ? `Stage ${count} file${count > 1 ? 's' : ''} for check-in`
+        : 'Stage for check-in when online'
 
   const forceExpanded = isSelectionHovered
 
@@ -257,15 +296,21 @@ export const InlineStageCheckinButton: React.FC<StageCheckinButtonProps> = ({
         <Check size={12} className="transition-colors duration-200 group-hover/staged:hidden" />
         <X size={12} className="hidden group-hover/staged:block text-red-400" />
         {showCount && (
-          <span className={`text-[10px] font-medium overflow-hidden transition-all duration-200 ${forceExpanded ? 'max-w-[2rem]' : 'max-w-0 group-hover/staged:max-w-[2rem]'}`}>
+          <span
+            className={`text-[10px] font-medium overflow-hidden transition-all duration-200 ${forceExpanded ? 'max-w-[2rem]' : 'max-w-0 group-hover/staged:max-w-[2rem]'}`}
+          >
             {displayCount}
           </span>
         )}
         {/* Show "staged" normally, "unstage" on hover */}
-        <span className={`text-[9px] font-medium overflow-hidden transition-all duration-200 group-hover/staged:hidden ${forceExpanded ? 'max-w-[3rem]' : 'max-w-0'}`}>
+        <span
+          className={`text-[9px] font-medium overflow-hidden transition-all duration-200 group-hover/staged:hidden ${forceExpanded ? 'max-w-[3rem]' : 'max-w-0'}`}
+        >
           staged
         </span>
-        <span className={`text-[9px] font-medium text-red-400 overflow-hidden transition-all duration-200 hidden group-hover/staged:block ${forceExpanded ? 'max-w-[3.5rem]' : 'max-w-0 group-hover/staged:max-w-[3.5rem]'}`}>
+        <span
+          className={`text-[9px] font-medium text-red-400 overflow-hidden transition-all duration-200 hidden group-hover/staged:block ${forceExpanded ? 'max-w-[3.5rem]' : 'max-w-0 group-hover/staged:max-w-[3.5rem]'}`}
+        >
           unstage
         </span>
       </button>
@@ -282,13 +327,21 @@ export const InlineStageCheckinButton: React.FC<StageCheckinButtonProps> = ({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      <Clock size={12} className={`transition-colors duration-200 ${forceExpanded ? 'text-amber-400' : 'group-hover/stage:text-amber-400'}`} />
+      <Clock
+        size={12}
+        className={`transition-colors duration-200 ${forceExpanded ? 'text-amber-400' : 'group-hover/stage:text-amber-400'}`}
+      />
       {showCount && (
-        <span className={`text-[10px] font-medium text-amber-400 overflow-hidden transition-all duration-200 ${forceExpanded ? 'max-w-[2rem]' : 'max-w-0 group-hover/stage:max-w-[2rem]'}`}>
+        <span
+          className={`text-[10px] font-medium text-amber-400 overflow-hidden transition-all duration-200 ${forceExpanded ? 'max-w-[2rem]' : 'max-w-0 group-hover/stage:max-w-[2rem]'}`}
+        >
           {displayCount}
         </span>
       )}
-      <ArrowUp size={12} className={`text-amber-400 overflow-hidden transition-all duration-200 ${forceExpanded ? 'max-w-[1rem]' : 'max-w-0 group-hover/stage:max-w-[1rem]'}`} />
+      <ArrowUp
+        size={12}
+        className={`text-amber-400 overflow-hidden transition-all duration-200 ${forceExpanded ? 'max-w-[1rem]' : 'max-w-0 group-hover/stage:max-w-[1rem]'}`}
+      />
     </button>
   )
 }
@@ -313,17 +366,18 @@ export const InlineSyncButton: React.FC<SyncButtonProps> = ({
   selectedCount,
   isSelectionHovered,
   onMouseEnter,
-  onMouseLeave
+  onMouseLeave,
 }) => {
   // Show count if multi-select with selectedCount > 1
   const displayCount = selectedCount !== undefined && selectedCount > 1 ? selectedCount : count
   const showCount = displayCount !== undefined && displayCount > 0
-  
-  const defaultTitle = selectedCount && selectedCount > 1
-    ? `Get updates for ${selectedCount} selected files`
-    : count && count > 0 
-      ? `Get ${count} update${count > 1 ? 's' : ''} from server`
-      : 'Get update from server'
+
+  const defaultTitle =
+    selectedCount && selectedCount > 1
+      ? `Get updates for ${selectedCount} selected files`
+      : count && count > 0
+        ? `Get ${count} update${count > 1 ? 's' : ''} from server`
+        : 'Get update from server'
 
   // Expand if locally hovered OR if selection is hovered (for multi-select)
   const forceExpanded = isSelectionHovered
@@ -341,13 +395,21 @@ export const InlineSyncButton: React.FC<SyncButtonProps> = ({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      <RefreshCw size={12} className={`transition-colors duration-200 ${forceExpanded ? 'text-purple-400' : 'group-hover/sync:text-purple-400'}`} />
+      <RefreshCw
+        size={12}
+        className={`transition-colors duration-200 ${forceExpanded ? 'text-purple-400' : 'group-hover/sync:text-purple-400'}`}
+      />
       {showCount && (
-        <span className={`text-[10px] font-medium text-purple-400 overflow-hidden transition-all duration-200 ${forceExpanded ? 'max-w-[2rem]' : 'max-w-0 group-hover/sync:max-w-[2rem]'}`}>
+        <span
+          className={`text-[10px] font-medium text-purple-400 overflow-hidden transition-all duration-200 ${forceExpanded ? 'max-w-[2rem]' : 'max-w-0 group-hover/sync:max-w-[2rem]'}`}
+        >
           {displayCount}
         </span>
       )}
-      <ArrowDown size={12} className={`text-purple-400 overflow-hidden transition-all duration-200 ${forceExpanded ? 'max-w-[1rem]' : 'max-w-0 group-hover/sync:max-w-[1rem]'}`} />
+      <ArrowDown
+        size={12}
+        className={`text-purple-400 overflow-hidden transition-all duration-200 ${forceExpanded ? 'max-w-[1rem]' : 'max-w-0 group-hover/sync:max-w-[1rem]'}`}
+      />
     </button>
   )
 }
@@ -366,11 +428,12 @@ export const FolderDownloadButton: React.FC<FolderDownloadButtonProps> = ({
   cloudCount,
   title,
   disabled,
-  isProcessing
+  isProcessing,
 }) => {
-  const defaultTitle = cloudCount > 0 
-    ? `Download ${cloudCount} cloud file${cloudCount > 1 ? 's' : ''}`
-    : 'Create folder locally'
+  const defaultTitle =
+    cloudCount > 0
+      ? `Download ${cloudCount} cloud file${cloudCount > 1 ? 's' : ''}`
+      : 'Create folder locally'
 
   if (isProcessing) {
     return <Loader2 size={16} className="text-sky-400 animate-spin" />
@@ -383,11 +446,19 @@ export const FolderDownloadButton: React.FC<FolderDownloadButtonProps> = ({
       title={title || defaultTitle}
       disabled={disabled}
     >
-      <Cloud size={12} className="text-plm-info group-hover/folderdownload:text-sky-400 transition-colors duration-200" />
+      <Cloud
+        size={12}
+        className="text-plm-info group-hover/folderdownload:text-sky-400 transition-colors duration-200"
+      />
       {cloudCount > 0 && (
-        <span className="text-[10px] font-medium text-sky-400 max-w-0 overflow-hidden transition-all duration-200 group-hover/folderdownload:max-w-[2rem]">{cloudCount}</span>
+        <span className="text-[10px] font-medium text-sky-400 max-w-0 overflow-hidden transition-all duration-200 group-hover/folderdownload:max-w-[2rem]">
+          {cloudCount}
+        </span>
       )}
-      <ArrowDown size={12} className="text-sky-400 max-w-0 overflow-hidden group-hover/folderdownload:max-w-[1rem] transition-all duration-200" />
+      <ArrowDown
+        size={12}
+        className="text-sky-400 max-w-0 overflow-hidden group-hover/folderdownload:max-w-[1rem] transition-all duration-200"
+      />
     </button>
   )
 }
@@ -406,7 +477,7 @@ export const FolderUploadButton: React.FC<FolderUploadButtonProps> = ({
   localCount,
   title,
   disabled,
-  isProcessing
+  isProcessing,
 }) => {
   const defaultTitle = `First Check In ${localCount} local file${localCount > 1 ? 's' : ''}`
 
@@ -421,11 +492,17 @@ export const FolderUploadButton: React.FC<FolderUploadButtonProps> = ({
       title={title || defaultTitle}
       disabled={disabled}
     >
-      <HardDrive size={12} className="group-hover/localupload:text-sky-400 transition-colors duration-200" />
+      <HardDrive
+        size={12}
+        className="group-hover/localupload:text-sky-400 transition-colors duration-200"
+      />
       <span className="text-[10px] font-medium text-sky-400 max-w-0 overflow-hidden group-hover/localupload:max-w-[2rem] transition-all duration-200">
         {localCount}
       </span>
-      <ArrowUp size={12} className="text-sky-400 max-w-0 overflow-hidden group-hover/localupload:max-w-[1rem] transition-all duration-200" />
+      <ArrowUp
+        size={12}
+        className="text-sky-400 max-w-0 overflow-hidden group-hover/localupload:max-w-[1rem] transition-all duration-200"
+      />
     </button>
   )
 }
@@ -453,94 +530,105 @@ const NotificationInlineButton: React.FC<NotificationInlineButtonProps> = ({
   showCount,
   folderId,
   folderName,
-  allUsers
+  allUsers,
 }) => {
   const [isSending, setIsSending] = useState(false)
   const [sendingToUser, setSendingToUser] = useState<string | null>(null)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const dropdownRef = React.useRef<HTMLDivElement>(null)
-  
+
   const { user: currentUser, organization, addToast } = usePDMStore()
-  
+
   // Close dropdown when clicking outside
   React.useEffect(() => {
     if (!isDropdownOpen) return
-    
+
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsDropdownOpen(false)
       }
     }
-    
+
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [isDropdownOpen])
-  
+
   // Send notification to a single user
-  const handleNotifyUser = useCallback(async (targetUser: CheckinUser, e: React.MouseEvent) => {
-    e.stopPropagation()
-    e.preventDefault()
-    
-    if (!currentUser?.id || !organization?.id) {
-      addToast('error', 'You must be signed in to send notifications')
-      return
-    }
-    
-    setSendingToUser(targetUser.id)
-    
-    try {
-      addToast('info', `Check-in request noted for ${targetUser.name}`)
-      log.info('[NotificationInlineButton]', 'Check-in request (notifications disabled)', { 
-        toUser: targetUser.id, 
-        folder: folderName
-      })
-    } catch (err) {
-      log.error('[NotificationInlineButton]', 'Error in notification handler', { error: err })
-    } finally {
-      setSendingToUser(null)
-    }
-  }, [currentUser, organization, folderId, folderName, addToast])
-  
+  const handleNotifyUser = useCallback(
+    async (targetUser: CheckinUser, e: React.MouseEvent) => {
+      e.stopPropagation()
+      e.preventDefault()
+
+      if (!currentUser?.id || !organization?.id) {
+        addToast('error', 'You must be signed in to send notifications')
+        return
+      }
+
+      setSendingToUser(targetUser.id)
+
+      try {
+        addToast('info', `Check-in request noted for ${targetUser.name}`)
+        log.info('[NotificationInlineButton]', 'Check-in request (notifications disabled)', {
+          toUser: targetUser.id,
+          folder: folderName,
+        })
+      } catch (error) {
+        log.error('[NotificationInlineButton]', 'Error in notification handler', { error: error })
+      } finally {
+        setSendingToUser(null)
+      }
+    },
+    [currentUser, organization, folderId, folderName, addToast],
+  )
+
   // Send notification to all users
-  const handleNotifyAll = useCallback(async (e: React.MouseEvent) => {
-    e.stopPropagation()
-    e.preventDefault()
-    
-    if (!currentUser?.id || !organization?.id) {
-      addToast('error', 'You must be signed in to send notifications')
-      return
-    }
-    
-    setIsSending(true)
-    
-    try {
-      addToast('info', `Check-in request noted for ${allUsers.length} user${allUsers.length > 1 ? 's' : ''}`)
-      log.info('[NotificationInlineButton]', 'Bulk check-in request (notifications disabled)', { 
-        totalUsers: allUsers.length,
-        folder: folderName
-      })
-    } catch (err) {
-      log.error('[NotificationInlineButton]', 'Error in bulk notification handler', { error: err })
-    } finally {
-      setIsSending(false)
-    }
-  }, [currentUser, organization, allUsers, folderId, folderName, addToast])
-  
+  const handleNotifyAll = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation()
+      e.preventDefault()
+
+      if (!currentUser?.id || !organization?.id) {
+        addToast('error', 'You must be signed in to send notifications')
+        return
+      }
+
+      setIsSending(true)
+
+      try {
+        addToast(
+          'info',
+          `Check-in request noted for ${allUsers.length} user${allUsers.length > 1 ? 's' : ''}`,
+        )
+        log.info('[NotificationInlineButton]', 'Bulk check-in request (notifications disabled)', {
+          totalUsers: allUsers.length,
+          folder: folderName,
+        })
+      } catch (error) {
+        log.error('[NotificationInlineButton]', 'Error in bulk notification handler', {
+          error: error,
+        })
+      } finally {
+        setIsSending(false)
+      }
+    },
+    [currentUser, organization, allUsers, folderId, folderName, addToast],
+  )
+
   // Toggle dropdown
   const handleToggleDropdown = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
     e.preventDefault()
-    setIsDropdownOpen(prev => !prev)
+    setIsDropdownOpen((prev) => !prev)
   }, [])
-  
+
   // If sending to all, show spinner
   if (isSending) {
     return <Loader2 size={16} className="text-red-400 animate-spin" />
   }
-  
+
   // Avatar size: 18px
   const avatarSize = 18
-  
+
   return (
     <div className="relative" ref={dropdownRef}>
       <button
@@ -553,8 +641,8 @@ const NotificationInlineButton: React.FC<NotificationInlineButtonProps> = ({
           {users.map((u) => {
             const avatarColors = getAvatarColor(u.email || u.name)
             return (
-              <div 
-                key={u.id} 
+              <div
+                key={u.id}
                 className="rounded-full overflow-hidden flex-shrink-0"
                 style={{ width: avatarSize, height: avatarSize }}
               >
@@ -566,7 +654,7 @@ const NotificationInlineButton: React.FC<NotificationInlineButtonProps> = ({
                     referrerPolicy="no-referrer"
                   />
                 ) : (
-                  <div 
+                  <div
                     className={`w-full h-full flex items-center justify-center text-[8px] font-medium ${avatarColors.bg} ${avatarColors.text} rounded-full`}
                   >
                     {getInitials(u.name)}
@@ -586,23 +674,32 @@ const NotificationInlineButton: React.FC<NotificationInlineButtonProps> = ({
           )}
         </div>
         {/* Box with lock (turns to bell on hover) + count - RED theme */}
-        <div 
+        <div
           className="flex items-center h-[18px] pr-1.5 rounded-r-md transition-all duration-200 bg-white/10 group-hover/notify:bg-red-500/30 gap-0 group-hover/notify:gap-1 -ml-2"
           style={{ paddingLeft: '12px' }}
         >
-        {/* Lock icon (normal) / Bell icon (hover) */}
-        <Lock size={10} className="flex-shrink-0 transition-all duration-200 text-orange-400 group-hover/notify:hidden" />
-        <Bell size={10} className="flex-shrink-0 transition-all duration-200 text-red-400 hidden group-hover/notify:block" />
-        {showCount && (
-          <span className="text-[10px] font-medium overflow-hidden transition-all duration-200 max-w-0 group-hover/notify:max-w-[2rem] text-red-400">
-            {totalCount}
-          </span>
-        )}
-        {/* Small arrow/send indicator on hover */}
-        <ArrowUp size={12} className="overflow-hidden transition-all duration-200 max-w-0 group-hover/notify:max-w-[1rem] text-red-400" />
-      </div>
-    </button>
-      
+          {/* Lock icon (normal) / Bell icon (hover) */}
+          <Lock
+            size={10}
+            className="flex-shrink-0 transition-all duration-200 text-orange-400 group-hover/notify:hidden"
+          />
+          <Bell
+            size={10}
+            className="flex-shrink-0 transition-all duration-200 text-red-400 hidden group-hover/notify:block"
+          />
+          {showCount && (
+            <span className="text-[10px] font-medium overflow-hidden transition-all duration-200 max-w-0 group-hover/notify:max-w-[2rem] text-red-400">
+              {totalCount}
+            </span>
+          )}
+          {/* Small arrow/send indicator on hover */}
+          <ArrowUp
+            size={12}
+            className="overflow-hidden transition-all duration-200 max-w-0 group-hover/notify:max-w-[1rem] text-red-400"
+          />
+        </div>
+      </button>
+
       {/* Dropdown for individual user notifications */}
       {isDropdownOpen && (
         <div className="absolute top-full right-0 mt-1 z-50 min-w-[200px] bg-plm-bg-elevated border border-plm-border rounded-lg shadow-lg overflow-hidden">
@@ -616,7 +713,7 @@ const NotificationInlineButton: React.FC<NotificationInlineButtonProps> = ({
                 className="flex items-center justify-between px-3 py-2 hover:bg-plm-bg-hover transition-colors"
               >
                 <div className="flex items-center gap-2 min-w-0">
-                  <div 
+                  <div
                     className="rounded-full overflow-hidden flex-shrink-0"
                     style={{ width: 24, height: 24 }}
                   >
@@ -630,7 +727,9 @@ const NotificationInlineButton: React.FC<NotificationInlineButtonProps> = ({
                           referrerPolicy="no-referrer"
                         />
                       ) : (
-                        <div className={`w-full h-full flex items-center justify-center text-[9px] font-medium ${avatarColors.bg} ${avatarColors.text} rounded-full`}>
+                        <div
+                          className={`w-full h-full flex items-center justify-center text-[9px] font-medium ${avatarColors.bg} ${avatarColors.text} rounded-full`}
+                        >
                           {getInitials(u.name)}
                         </div>
                       )
@@ -639,7 +738,8 @@ const NotificationInlineButton: React.FC<NotificationInlineButtonProps> = ({
                   <div className="min-w-0">
                     <div className="text-xs font-medium text-plm-fg truncate">{u.name}</div>
                     <div className="text-[10px] text-plm-fg-muted">
-                      {u.count || u.fileIds?.length || 1} file{(u.count || u.fileIds?.length || 1) > 1 ? 's' : ''}
+                      {u.count || u.fileIds?.length || 1} file
+                      {(u.count || u.fileIds?.length || 1) > 1 ? 's' : ''}
                     </div>
                   </div>
                 </div>
@@ -706,7 +806,7 @@ const CheckinButtonCore: React.FC<CheckinButtonProps> = ({
   onMouseEnter,
   onMouseLeave,
   folderId,
-  folderName
+  folderName,
 }) => {
   // When processing, just show a clean blue spinner - no backgrounds, no avatars, nothing else
   if (isProcessing) {
@@ -717,37 +817,48 @@ const CheckinButtonCore: React.FC<CheckinButtonProps> = ({
   // Show count if: multi-select with selectedCount > 1, OR folder with totalCheckouts > 1
   const displayCount = selectedCount !== undefined ? selectedCount : totalCheckouts
   const showCount = displayCount !== undefined && displayCount > 1
-  const defaultTitle = selectedCount && selectedCount > 1 
-    ? `Check in ${selectedCount} selected files`
-    : users.filter(u => u.isMe).map(u => u.name + (u.count ? `: ${u.count} file${u.count > 1 ? 's' : ''}` : '')).join('\n') + 
-      (canCheckin ? `\nClick to check in your ${myCheckedOutCount} file${myCheckedOutCount > 1 ? 's' : ''}` : '')
+  const defaultTitle =
+    selectedCount && selectedCount > 1
+      ? `Check in ${selectedCount} selected files`
+      : users
+          .filter((u) => u.isMe)
+          .map((u) => u.name + (u.count ? `: ${u.count} file${u.count > 1 ? 's' : ''}` : ''))
+          .join('\n') +
+        (canCheckin
+          ? `\nClick to check in your ${myCheckedOutCount} file${myCheckedOutCount > 1 ? 's' : ''}`
+          : '')
 
   // Separate my users from other users - use ALL users, not sliced
-  const myUser = users.find(u => u.isMe)
-  const otherUsers = users.filter(u => !u.isMe)
-  
+  const myUser = users.find((u) => u.isMe)
+  const otherUsers = users.filter((u) => !u.isMe)
+
   // For fallback mode (no folder info), use old sliced display
   const displayedUsersForFallback = users.slice(0, maxAvatars)
   const hasOverflowFallback = users.length > maxAvatars
-  
+
   // Expand if locally hovered OR if selection is hovered (for multi-select)
   const forceExpanded = isSelectionHovered
-  
+
   // Determine background and content styling based on state
   const isExpanded = forceExpanded
-  const boxBg = isExpanded ? 'bg-emerald-400/30' : 'bg-white/10 group-hover/checkin:bg-emerald-400/30'
+  const boxBg = isExpanded
+    ? 'bg-emerald-400/30'
+    : 'bg-white/10 group-hover/checkin:bg-emerald-400/30'
   const boxGap = isExpanded ? 'gap-1' : 'gap-0 group-hover/checkin:gap-1'
 
   // When we have folder info, show inline buttons for both notification (others) and check-in (me)
   if (folderId && folderName) {
     // Calculate totals for other users
-    const othersCheckoutCount = otherUsers.reduce((sum, u) => sum + (u.count || u.fileIds?.length || 1), 0)
+    const othersCheckoutCount = otherUsers.reduce(
+      (sum, u) => sum + (u.count || u.fileIds?.length || 1),
+      0,
+    )
     const showOthersCount = othersCheckoutCount > 0 // Always show count on hover when there are checkouts
-    
+
     // Displayed other users (limited by maxAvatars)
     const displayedOtherUsers = otherUsers.slice(0, maxAvatars)
     const hasOthersOverflow = otherUsers.length > maxAvatars
-    
+
     return (
       <div className="relative flex items-center gap-1">
         {/* Other users - notification button (red/bell style) */}
@@ -775,7 +886,10 @@ const CheckinButtonCore: React.FC<CheckinButtonProps> = ({
           >
             {/* My avatar - 18px to match other users */}
             <div className="absolute left-0.5 inset-y-0 flex items-center z-10">
-              <div className="rounded-full overflow-hidden flex-shrink-0" style={{ width: 18, height: 18 }}>
+              <div
+                className="rounded-full overflow-hidden flex-shrink-0"
+                style={{ width: 18, height: 18 }}
+              >
                 {(() => {
                   const avatarColors = getAvatarColor(myUser.email || myUser.name)
                   return myUser.avatar_url ? (
@@ -786,7 +900,9 @@ const CheckinButtonCore: React.FC<CheckinButtonProps> = ({
                       referrerPolicy="no-referrer"
                     />
                   ) : (
-                    <div className={`w-full h-full flex items-center justify-center text-[8px] font-medium ${avatarColors.bg} ${avatarColors.text}`}>
+                    <div
+                      className={`w-full h-full flex items-center justify-center text-[8px] font-medium ${avatarColors.bg} ${avatarColors.text}`}
+                    >
                       {getInitials(myUser.name)}
                     </div>
                   )
@@ -794,23 +910,33 @@ const CheckinButtonCore: React.FC<CheckinButtonProps> = ({
               </div>
             </div>
             {/* Box with lock + count */}
-            <div 
+            <div
               className={`flex items-center h-[18px] pr-1.5 rounded-r-md transition-all duration-200 ${boxBg} ${boxGap}`}
               style={{ paddingLeft: '12px', marginLeft: '12px' }}
             >
-              <Lock size={10} className={`flex-shrink-0 transition-colors duration-200 ${
-                isExpanded ? 'text-emerald-400' : 'text-orange-400 group-hover/checkin:text-emerald-400'
-              }`} />
+              <Lock
+                size={10}
+                className={`flex-shrink-0 transition-colors duration-200 ${
+                  isExpanded
+                    ? 'text-emerald-400'
+                    : 'text-orange-400 group-hover/checkin:text-emerald-400'
+                }`}
+              />
               {myCheckedOutCount > 0 && (
-                <span className={`text-[10px] font-medium overflow-hidden transition-all duration-200 ${
-                  isExpanded ? 'max-w-[2rem]' : 'max-w-0 group-hover/checkin:max-w-[2rem]'
-                } text-emerald-400`}>
+                <span
+                  className={`text-[10px] font-medium overflow-hidden transition-all duration-200 ${
+                    isExpanded ? 'max-w-[2rem]' : 'max-w-0 group-hover/checkin:max-w-[2rem]'
+                  } text-emerald-400`}
+                >
                   {myCheckedOutCount}
                 </span>
               )}
-              <ArrowUp size={12} className={`overflow-hidden transition-all duration-200 ${
-                isExpanded ? 'max-w-[1rem]' : 'max-w-0 group-hover/checkin:max-w-[1rem]'
-              } text-emerald-400`} />
+              <ArrowUp
+                size={12}
+                className={`overflow-hidden transition-all duration-200 ${
+                  isExpanded ? 'max-w-[1rem]' : 'max-w-0 group-hover/checkin:max-w-[1rem]'
+                } text-emerald-400`}
+              />
             </div>
           </button>
         )}
@@ -822,8 +948,9 @@ const CheckinButtonCore: React.FC<CheckinButtonProps> = ({
   // Use 18px avatars to match folder avatars
   const fallbackAvatarSize = 18
   const fallbackAvatarCount = displayedUsersForFallback.length + (hasOverflowFallback ? 1 : 0)
-  const fallbackStackWidth = fallbackAvatarCount > 0 ? fallbackAvatarSize + (fallbackAvatarCount - 1) * 4 : 0
-  
+  const fallbackStackWidth =
+    fallbackAvatarCount > 0 ? fallbackAvatarSize + (fallbackAvatarCount - 1) * 4 : 0
+
   return (
     <button
       className={`group/checkin relative flex items-center ${
@@ -841,8 +968,8 @@ const CheckinButtonCore: React.FC<CheckinButtonProps> = ({
           {displayedUsersForFallback.map((u) => {
             const avatarColors = getAvatarColor(u.email || u.name)
             return (
-              <div 
-                key={u.id} 
+              <div
+                key={u.id}
                 className="rounded-full overflow-hidden flex-shrink-0 relative"
                 style={{ width: fallbackAvatarSize, height: fallbackAvatarSize }}
               >
@@ -854,7 +981,9 @@ const CheckinButtonCore: React.FC<CheckinButtonProps> = ({
                     referrerPolicy="no-referrer"
                   />
                 ) : (
-                  <div className={`w-full h-full flex items-center justify-center text-[8px] font-medium ${avatarColors.bg} ${avatarColors.text}`}>
+                  <div
+                    className={`w-full h-full flex items-center justify-center text-[8px] font-medium ${avatarColors.bg} ${avatarColors.text}`}
+                  >
                     {getInitials(u.name)}
                   </div>
                 )}
@@ -862,7 +991,7 @@ const CheckinButtonCore: React.FC<CheckinButtonProps> = ({
             )
           })}
           {hasOverflowFallback && (
-            <div 
+            <div
               className="rounded-full bg-plm-bg-light flex items-center justify-center text-[8px] text-plm-fg-muted flex-shrink-0"
               style={{ width: fallbackAvatarSize, height: fallbackAvatarSize }}
             >
@@ -872,26 +1001,34 @@ const CheckinButtonCore: React.FC<CheckinButtonProps> = ({
         </div>
       </div>
       {/* Box - left edge starts at center of avatar stack */}
-      <div 
+      <div
         className={`flex items-center h-[18px] pr-1.5 rounded-r-md transition-all duration-200 ${boxBg} ${boxGap}`}
-        style={{ 
-          paddingLeft: '12px', 
-          marginLeft: `${fallbackStackWidth > 0 ? fallbackStackWidth - 6 : 0}px` 
+        style={{
+          paddingLeft: '12px',
+          marginLeft: `${fallbackStackWidth > 0 ? fallbackStackWidth - 6 : 0}px`,
         }}
       >
-        <Lock size={10} className={`flex-shrink-0 transition-colors duration-200 ${
-          isExpanded ? 'text-emerald-400' : 'text-orange-400 group-hover/checkin:text-emerald-400'
-        }`} />
+        <Lock
+          size={10}
+          className={`flex-shrink-0 transition-colors duration-200 ${
+            isExpanded ? 'text-emerald-400' : 'text-orange-400 group-hover/checkin:text-emerald-400'
+          }`}
+        />
         {showCount && (
-          <span className={`text-[10px] font-medium overflow-hidden transition-all duration-200 ${
-            isExpanded ? 'max-w-[2rem]' : 'max-w-0 group-hover/checkin:max-w-[2rem]'
-          } ${canCheckin ? 'text-emerald-400' : 'opacity-50'}`}>
+          <span
+            className={`text-[10px] font-medium overflow-hidden transition-all duration-200 ${
+              isExpanded ? 'max-w-[2rem]' : 'max-w-0 group-hover/checkin:max-w-[2rem]'
+            } ${canCheckin ? 'text-emerald-400' : 'opacity-50'}`}
+          >
             {displayCount}
           </span>
         )}
-        <ArrowUp size={12} className={`overflow-hidden transition-all duration-200 ${
-          isExpanded ? 'max-w-[1rem]' : 'max-w-0 group-hover/checkin:max-w-[1rem]'
-        } ${canCheckin ? 'text-emerald-400' : 'opacity-50'}`} />
+        <ArrowUp
+          size={12}
+          className={`overflow-hidden transition-all duration-200 ${
+            isExpanded ? 'max-w-[1rem]' : 'max-w-0 group-hover/checkin:max-w-[1rem]'
+          } ${canCheckin ? 'text-emerald-400' : 'opacity-50'}`}
+        />
       </div>
     </button>
   )
@@ -918,22 +1055,27 @@ export const InlineCheckinButton: React.FC<InlineCheckinButtonProps> = ({
   disabled,
   isProcessing,
   onMouseEnter,
-  onMouseLeave
+  onMouseLeave,
 }) => {
   const user: CheckinUser = {
     id: 'me',
     name: userFullName || userEmail || '',
     avatar_url: userAvatarUrl,
-    isMe: true
+    isMe: true,
   }
-  
+
   return (
     <CheckinButtonCore
       onClick={onClick}
       users={[user]}
       selectedCount={selectedCount}
       isSelectionHovered={isSelectionHovered}
-      title={title || (selectedCount && selectedCount > 1 ? `Check in ${selectedCount} selected files` : 'Check In')}
+      title={
+        title ||
+        (selectedCount && selectedCount > 1
+          ? `Check in ${selectedCount} selected files`
+          : 'Check In')
+      }
       disabled={disabled}
       isProcessing={isProcessing}
       onMouseEnter={onMouseEnter}
@@ -973,7 +1115,7 @@ export const InlineDiscardButton: React.FC<DiscardButtonProps> = ({
   onClick,
   title,
   disabled,
-  isProcessing
+  isProcessing,
 }) => {
   if (isProcessing) {
     return <Loader2 size={16} className="text-red-400 animate-spin" />
@@ -990,4 +1132,3 @@ export const InlineDiscardButton: React.FC<DiscardButtonProps> = ({
     </button>
   )
 }
-

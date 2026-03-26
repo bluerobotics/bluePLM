@@ -7,6 +7,6 @@ export const vaultSchema = {
   properties: {
     id: { type: 'string', format: 'uuid' },
     name: { type: 'string' },
-    org_id: { type: 'string', format: 'uuid' }
-  }
+    org_id: { type: 'string', format: 'uuid' },
+  },
 } as const

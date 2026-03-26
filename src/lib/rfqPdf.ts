@@ -48,7 +48,7 @@ interface RFQPdfOptions {
   rfq: RFQ
   items: RFQItem[]
   org: OrgBranding
-  outputPath?: string  // If provided, saves directly to this path without showing dialog
+  outputPath?: string // If provided, saves directly to this path without showing dialog
 }
 
 // Helper to format an address
@@ -59,85 +59,87 @@ function formatAddress(addr: AddressInfo | null | undefined): string[] {
     addr.address_line1,
     addr.address_line2,
     [addr.city, addr.state, addr.postal_code].filter(Boolean).join(', '),
-    addr.country && addr.country !== 'USA' ? addr.country : null
+    addr.country && addr.country !== 'USA' ? addr.country : null,
   ].filter(Boolean) as string[]
 }
 
 // Generate HTML content for the RFQ
 function generateRFQHtml({ rfq, items, org }: RFQPdfOptions): string {
   const settings = org.rfq_settings || {}
-  
+
   // Build billing address - use specific billing_address if available, else fall back to legacy
-  const billingAddress = org.billing_address || (org.address_line1 ? {
-    address_line1: org.address_line1,
-    address_line2: org.address_line2,
-    city: org.city || '',
-    state: org.state,
-    postal_code: org.postal_code,
-    country: org.country
-  } : null)
-  
+  const billingAddress =
+    org.billing_address ||
+    (org.address_line1
+      ? {
+          address_line1: org.address_line1,
+          address_line2: org.address_line2,
+          city: org.city || '',
+          state: org.state,
+          postal_code: org.postal_code,
+          country: org.country,
+        }
+      : null)
+
   // Build shipping address - use specific shipping_address if available
   const shippingAddress = org.shipping_address
-  
+
   // Legacy address parts for company info header
   const addressParts = [
     org.address_line1,
     org.address_line2,
     [org.city, org.state, org.postal_code].filter(Boolean).join(', '),
-    org.country
+    org.country,
   ].filter(Boolean)
-  
+
   // Build item rows
-  const itemRows = items.map((item, idx) => {
-    const cells = [
-      `<td class="line-num">${idx + 1}</td>`,
-      `<td class="part-num">${escapeHtml(item.part_number)}</td>`,
-      `<td class="desc">${escapeHtml(item.description || '-')}</td>`,
-    ]
-    
-    if (settings.show_revision_column !== false) {
-      cells.push(`<td class="rev">${escapeHtml(item.revision || '-')}</td>`)
-    }
-    
-    cells.push(`<td class="qty">${item.quantity} ${item.unit || 'ea'}</td>`)
-    
-    if (settings.show_material_column !== false) {
-      cells.push(`<td class="material">${escapeHtml(item.material || '-')}</td>`)
-    }
-    
-    if (settings.show_finish_column !== false) {
-      cells.push(`<td class="finish">${escapeHtml(item.finish || '-')}</td>`)
-    }
-    
-    if (settings.show_notes_column !== false) {
-      cells.push(`<td class="notes">${escapeHtml(item.notes || '-')}</td>`)
-    }
-    
-    return `<tr>${cells.join('')}</tr>`
-  }).join('\n')
-  
+  const itemRows = items
+    .map((item, idx) => {
+      const cells = [
+        `<td class="line-num">${idx + 1}</td>`,
+        `<td class="part-num">${escapeHtml(item.part_number)}</td>`,
+        `<td class="desc">${escapeHtml(item.description || '-')}</td>`,
+      ]
+
+      if (settings.show_revision_column !== false) {
+        cells.push(`<td class="rev">${escapeHtml(item.revision || '-')}</td>`)
+      }
+
+      cells.push(`<td class="qty">${item.quantity} ${item.unit || 'ea'}</td>`)
+
+      if (settings.show_material_column !== false) {
+        cells.push(`<td class="material">${escapeHtml(item.material || '-')}</td>`)
+      }
+
+      if (settings.show_finish_column !== false) {
+        cells.push(`<td class="finish">${escapeHtml(item.finish || '-')}</td>`)
+      }
+
+      if (settings.show_notes_column !== false) {
+        cells.push(`<td class="notes">${escapeHtml(item.notes || '-')}</td>`)
+      }
+
+      return `<tr>${cells.join('')}</tr>`
+    })
+    .join('\n')
+
   // Build header cells
-  const headerCells = [
-    '<th>#</th>',
-    '<th>Part Number</th>',
-    '<th>Description</th>',
-  ]
-  
+  const headerCells = ['<th>#</th>', '<th>Part Number</th>', '<th>Description</th>']
+
   if (settings.show_revision_column !== false) {
     headerCells.push('<th>Rev</th>')
   }
-  
+
   headerCells.push('<th>Quantity</th>')
-  
+
   if (settings.show_material_column !== false) {
     headerCells.push('<th>Material</th>')
   }
-  
+
   if (settings.show_finish_column !== false) {
     headerCells.push('<th>Finish</th>')
   }
-  
+
   if (settings.show_notes_column !== false) {
     headerCells.push('<th>Notes</th>')
   }
@@ -405,20 +407,30 @@ function generateRFQHtml({ rfq, items, org }: RFQPdfOptions): string {
     <div class="company-info">
       ${org.logo_url ? `<img src="${org.logo_url}" class="logo" alt="${escapeHtml(org.name)}" />` : ''}
       <div class="company-name">${escapeHtml(org.name)}</div>
-      ${addressParts.length > 0 ? `
+      ${
+        addressParts.length > 0
+          ? `
         <div class="company-address">
-          ${addressParts.map(p => escapeHtml(p!)).join('<br>')}
+          ${addressParts.map((p) => escapeHtml(p!)).join('<br>')}
         </div>
-      ` : ''}
-      ${(org.phone || org.contact_email || org.website) ? `
+      `
+          : ''
+      }
+      ${
+        org.phone || org.contact_email || org.website
+          ? `
         <div class="company-contact">
           ${[
             org.phone ? `Tel: ${escapeHtml(org.phone)}` : '',
             org.contact_email ? `Email: ${escapeHtml(org.contact_email)}` : '',
-            org.website ? escapeHtml(org.website) : ''
-          ].filter(Boolean).join(' • ')}
+            org.website ? escapeHtml(org.website) : '',
+          ]
+            .filter(Boolean)
+            .join(' • ')}
         </div>
-      ` : ''}
+      `
+          : ''
+      }
     </div>
     <div class="rfq-title">
       <div class="rfq-label">Request for Quote</div>
@@ -435,47 +447,75 @@ function generateRFQHtml({ rfq, items, org }: RFQPdfOptions): string {
       <div class="meta-label">Date Issued</div>
       <div class="meta-value">${new Date().toLocaleDateString()}</div>
     </div>
-    ${rfq.due_date ? `
+    ${
+      rfq.due_date
+        ? `
       <div class="meta-group">
         <div class="meta-label">Quote Due By</div>
         <div class="meta-value">${new Date(rfq.due_date).toLocaleDateString()}</div>
       </div>
-    ` : ''}
-    ${rfq.required_date ? `
+    `
+        : ''
+    }
+    ${
+      rfq.required_date
+        ? `
       <div class="meta-group">
         <div class="meta-label">Delivery Required</div>
         <div class="meta-value">${new Date(rfq.required_date).toLocaleDateString()}</div>
       </div>
-    ` : ''}
+    `
+        : ''
+    }
   </div>
   
-  ${rfq.description ? `
+  ${
+    rfq.description
+      ? `
     <div class="notes-section">
       <div class="section-title">Project Description</div>
       <div class="notes-content">${escapeHtml(rfq.description)}</div>
     </div>
-  ` : ''}
+  `
+      : ''
+  }
   
-  ${(billingAddress || shippingAddress) ? `
+  ${
+    billingAddress || shippingAddress
+      ? `
     <div class="addresses-section">
-      ${billingAddress ? `
+      ${
+        billingAddress
+          ? `
         <div class="address-box">
           <div class="address-label">Bill To:</div>
           <div class="address-content">
-            ${formatAddress(billingAddress).map(p => escapeHtml(p)).join('<br>')}
+            ${formatAddress(billingAddress)
+              .map((p) => escapeHtml(p))
+              .join('<br>')}
           </div>
         </div>
-      ` : ''}
-      ${shippingAddress ? `
+      `
+          : ''
+      }
+      ${
+        shippingAddress
+          ? `
         <div class="address-box">
           <div class="address-label">Ship To:</div>
           <div class="address-content">
-            ${formatAddress(shippingAddress).map(p => escapeHtml(p)).join('<br>')}
+            ${formatAddress(shippingAddress)
+              .map((p) => escapeHtml(p))
+              .join('<br>')}
           </div>
         </div>
-      ` : ''}
+      `
+          : ''
+      }
     </div>
-  ` : ''}
+  `
+      : ''
+  }
   
   <div class="section-title">Items (${items.length})</div>
   <table class="items-table">
@@ -489,19 +529,27 @@ function generateRFQHtml({ rfq, items, org }: RFQPdfOptions): string {
     </tbody>
   </table>
   
-  ${rfq.supplier_notes ? `
+  ${
+    rfq.supplier_notes
+      ? `
     <div class="notes-section">
       <div class="section-title">Notes to Supplier</div>
       <div class="notes-content">${escapeHtml(rfq.supplier_notes)}</div>
     </div>
-  ` : ''}
+  `
+      : ''
+  }
   
-  ${settings.terms_and_conditions ? `
+  ${
+    settings.terms_and_conditions
+      ? `
     <div class="terms-section">
       <div class="section-title">Terms and Conditions</div>
       <div class="terms-content">${escapeHtml(settings.terms_and_conditions)}</div>
     </div>
-  ` : ''}
+  `
+      : ''
+  }
   
   <div class="signature-section">
     <div class="signature-box">
@@ -531,14 +579,16 @@ function escapeHtml(str: string): string {
 }
 
 // Generate and save RFQ as PDF
-export async function generateRFQPdf(options: RFQPdfOptions): Promise<{ success: boolean; path?: string; error?: string }> {
+export async function generateRFQPdf(
+  options: RFQPdfOptions,
+): Promise<{ success: boolean; path?: string; error?: string }> {
   const html = generateRFQHtml(options)
-  
+
   // Check if we're in Electron
   const api = window.electronAPI
   if (api) {
     let outputPath: string
-    
+
     // If outputPath is provided, save directly without dialog
     if (options.outputPath) {
       outputPath = options.outputPath
@@ -549,41 +599,41 @@ export async function generateRFQPdf(options: RFQPdfOptions): Promise<{ success:
     } else {
       // Use Electron's save dialog - default to PDF
       const defaultName = `${options.rfq.rfq_number}.pdf`
-      
+
       const saveResult = await api.showSaveDialog(defaultName)
-      
+
       if (!saveResult.success || !saveResult.path) {
         // User cancelled
         return { success: false, error: 'Cancelled' }
       }
-      
+
       // Ensure .pdf extension
       outputPath = saveResult.path
       if (!outputPath.toLowerCase().endsWith('.pdf')) {
         outputPath += '.pdf'
       }
     }
-    
+
     // Generate PDF using Electron's printToPDF
     const pdfResult = await api.generatePdfFromHtml(html, outputPath)
-    
+
     if (!pdfResult.success) {
       log.error('[RFQ PDF]', 'Failed to generate PDF', { error: pdfResult.error })
       throw new Error(pdfResult.error || 'Failed to generate PDF')
     }
-    
+
     // Only open the PDF if it was saved via dialog (user interaction)
     if (!options.outputPath) {
       await api.openFile(outputPath)
     }
-    
+
     return { success: true, path: outputPath }
   } else {
     // Fallback for browser environment - still saves HTML
     // (PDF generation requires Electron)
     const blob = new Blob([html], { type: 'text/html' })
     const url = URL.createObjectURL(blob)
-    
+
     const a = document.createElement('a')
     a.href = url
     a.download = `${options.rfq.rfq_number}.html`
@@ -591,7 +641,7 @@ export async function generateRFQPdf(options: RFQPdfOptions): Promise<{ success:
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
-    
+
     return { success: true }
   }
 }
@@ -601,7 +651,7 @@ export function downloadRFQHtml(options: RFQPdfOptions): void {
   const html = generateRFQHtml(options)
   const blob = new Blob([html], { type: 'text/html' })
   const url = URL.createObjectURL(blob)
-  
+
   const a = document.createElement('a')
   a.href = url
   a.download = `${options.rfq.rfq_number}.html`
@@ -610,4 +660,3 @@ export function downloadRFQHtml(options: RFQPdfOptions): void {
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
 }
-

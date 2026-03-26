@@ -6,7 +6,7 @@ import type { CellRendererBaseProps } from './types'
 
 export function ModifiedTimeCell({ file }: CellRendererBaseProps): React.ReactNode {
   if (!file.modifiedTime) return '-'
-  
+
   try {
     const date = new Date(file.modifiedTime)
     if (isNaN(date.getTime())) return '-'

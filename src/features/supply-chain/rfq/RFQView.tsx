@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import { 
-  FileText, 
-  Plus, 
-  Search, 
+import {
+  FileText,
+  Plus,
+  Search,
   ChevronRight,
   Clock,
   CheckCircle2,
@@ -23,7 +23,7 @@ import {
   ChevronUp,
   Pencil,
   FolderOpen,
-  Archive
+  Archive,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { usePDMStore } from '@/stores/pdmStore'
@@ -33,19 +33,20 @@ import { getRFQStatusInfo, formatCurrency } from '@/types/rfq'
 import { generateRFQPdf, type OrgBranding } from '@/lib/rfqPdf'
 import { buildFullPath } from '@/lib/utils/path'
 import { getInitials } from '@/lib/utils'
+import { t } from '@/lib/i18n'
 
 // Supabase client with any type to bypass strict typing for new tables
 // Supabase v2 type inference incomplete for RFQ tables
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const db = supabase as any
+const db = supabase as any // TODO: type this
 
 // RFQ List View
-function RFQListView({ 
-  onSelectRFQ, 
-  onNewRFQ 
-}: { 
+function RFQListView({
+  onSelectRFQ,
+  onNewRFQ,
+}: {
   onSelectRFQ: (rfq: RFQ) => void
-  onNewRFQ: () => void 
+  onNewRFQ: () => void
 }) {
   const { organization } = usePDMStore()
   const [rfqs, setRfqs] = useState<RFQ[]>([])
@@ -60,19 +61,22 @@ function RFQListView({
     const loadRFQs = async () => {
       setLoading(true)
       try {
-        const { data, error } = await db.from('rfqs')
-          .select(`
+        const { data, error } = await db
+          .from('rfqs')
+          .select(
+            `
             *,
             items:rfq_items(count),
             suppliers:rfq_suppliers(count)
-          `)
+          `,
+          )
           .eq('org_id', organization.id)
           .order('created_at', { ascending: false })
 
         if (error) throw error
         setRfqs((data as RFQ[]) || [])
-      } catch (err) {
-        log.error('[RFQ]', 'Failed to load RFQs', { error: err })
+      } catch (error) {
+        log.error('[RFQ]', 'Failed to load RFQs', { error: error })
       } finally {
         setLoading(false)
       }
@@ -82,8 +86,9 @@ function RFQListView({
   }, [organization?.id])
 
   // Filter RFQs
-  const filteredRFQs = rfqs.filter(rfq => {
-    const matchesSearch = !searchQuery || 
+  const filteredRFQs = rfqs.filter((rfq) => {
+    const matchesSearch =
+      !searchQuery ||
       rfq.rfq_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
       rfq.title.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesStatus = statusFilter === 'all' || rfq.status === statusFilter
@@ -91,10 +96,13 @@ function RFQListView({
   })
 
   // Group by status for summary
-  const statusCounts = rfqs.reduce((acc, rfq) => {
-    acc[rfq.status] = (acc[rfq.status] || 0) + 1
-    return acc
-  }, {} as Record<string, number>)
+  const statusCounts = rfqs.reduce(
+    (acc, rfq) => {
+      acc[rfq.status] = (acc[rfq.status] || 0) + 1
+      return acc
+    },
+    {} as Record<string, number>,
+  )
 
   if (loading) {
     return (
@@ -108,20 +116,23 @@ function RFQListView({
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="p-4 border-b border-plm-border space-y-3">
-        <button 
+        <button
           onClick={onNewRFQ}
           className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-plm-accent hover:bg-plm-accent/90 text-white rounded text-sm font-medium transition-colors"
         >
           <Plus size={16} />
-          New RFQ
+          {t('rfq.newRfq')}
         </button>
-        
+
         {/* Search */}
         <div className="relative">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
+          <Search
+            size={14}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted"
+          />
           <input
             type="text"
-            placeholder="Search RFQs..."
+            placeholder={t('rfq.searchRfqs')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-9 pr-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted focus:outline-none focus:border-plm-accent"
@@ -133,14 +144,14 @@ function RFQListView({
           <button
             onClick={() => setStatusFilter('all')}
             className={`px-2 py-1 text-[10px] rounded transition-colors ${
-              statusFilter === 'all' 
-                ? 'bg-plm-accent text-white' 
+              statusFilter === 'all'
+                ? 'bg-plm-accent text-white'
                 : 'bg-plm-highlight text-plm-fg-muted hover:text-plm-fg'
             }`}
           >
-            All ({rfqs.length})
+            {t('common.all')} ({rfqs.length})
           </button>
-          {(['draft', 'ready', 'sent', 'awaiting_quote', 'quoted'] as RFQStatus[]).map(status => {
+          {(['draft', 'ready', 'sent', 'awaiting_quote', 'quoted'] as RFQStatus[]).map((status) => {
             const count = statusCounts[status] || 0
             if (count === 0) return null
             const info = getRFQStatusInfo(status)
@@ -149,8 +160,8 @@ function RFQListView({
                 key={status}
                 onClick={() => setStatusFilter(status)}
                 className={`px-2 py-1 text-[10px] rounded transition-colors ${
-                  statusFilter === status 
-                    ? 'bg-plm-accent text-white' 
+                  statusFilter === status
+                    ? 'bg-plm-accent text-white'
                     : 'bg-plm-highlight text-plm-fg-muted hover:text-plm-fg'
                 }`}
               >
@@ -165,19 +176,19 @@ function RFQListView({
       <div className="grid grid-cols-3 border-b border-plm-border">
         <div className="p-3 text-center border-r border-plm-border">
           <div className="text-lg font-semibold text-plm-fg">{rfqs.length}</div>
-          <div className="text-[10px] text-plm-fg-muted">Total</div>
+          <div className="text-[10px] text-plm-fg-muted">{t('rfq.total')}</div>
         </div>
         <div className="p-3 text-center border-r border-plm-border">
           <div className="text-lg font-semibold text-plm-warning">
             {statusCounts.awaiting_quote || 0}
           </div>
-          <div className="text-[10px] text-plm-fg-muted">Pending</div>
+          <div className="text-[10px] text-plm-fg-muted">{t('rfq.pending')}</div>
         </div>
         <div className="p-3 text-center">
           <div className="text-lg font-semibold text-plm-success">
             {(statusCounts.quoted || 0) + (statusCounts.awarded || 0)}
           </div>
-          <div className="text-[10px] text-plm-fg-muted">Quoted</div>
+          <div className="text-[10px] text-plm-fg-muted">{t('rfq.quoted')}</div>
         </div>
       </div>
 
@@ -186,13 +197,14 @@ function RFQListView({
         {filteredRFQs.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-32 text-plm-fg-muted">
             <FileText size={32} className="mb-2 opacity-50" />
-            <p className="text-sm">No RFQs found</p>
+            <p className="text-sm">{t('rfq.noRfqsFound')}</p>
           </div>
         ) : (
           filteredRFQs.map((rfq) => {
             const statusInfo = getRFQStatusInfo(rfq.status)
             const creatorUser = rfq.created_by_user
-            const creatorName = creatorUser?.full_name || creatorUser?.email?.split('@')[0] || 'Unknown'
+            const creatorName =
+              creatorUser?.full_name || creatorUser?.email?.split('@')[0] || 'Unknown'
             return (
               <div
                 key={rfq.id}
@@ -202,13 +214,10 @@ function RFQListView({
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex items-start gap-2">
                     {/* Creator Avatar */}
-                    <div 
-                      className="flex-shrink-0 mt-0.5"
-                      title={`Created by ${creatorName}`}
-                    >
+                    <div className="flex-shrink-0 mt-0.5" title={`Created by ${creatorName}`}>
                       {creatorUser?.avatar_url ? (
-                        <img 
-                          src={creatorUser.avatar_url} 
+                        <img
+                          src={creatorUser.avatar_url}
                           alt={creatorName}
                           className="w-6 h-6 rounded-full ring-1 ring-plm-border object-cover"
                           referrerPolicy="no-referrer"
@@ -222,33 +231,38 @@ function RFQListView({
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-mono text-plm-accent">{rfq.rfq_number}</span>
-                        <ChevronRight size={12} className="text-plm-fg-muted opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <ChevronRight
+                          size={12}
+                          className="text-plm-fg-muted opacity-0 group-hover:opacity-100 transition-opacity"
+                        />
                       </div>
                       <div className="text-sm font-medium text-plm-fg mt-0.5">{rfq.title}</div>
                     </div>
                   </div>
-                  <span className={`flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded ${statusInfo.color} ${statusInfo.bgColor}`}>
+                  <span
+                    className={`flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded ${statusInfo.color} ${statusInfo.bgColor}`}
+                  >
                     {rfq.status === 'generating' && <Loader2 size={10} className="animate-spin" />}
                     {rfq.status === 'awaiting_quote' && <Clock size={10} />}
                     {rfq.status === 'quoted' && <CheckCircle2 size={10} />}
                     {statusInfo.label}
                   </span>
                 </div>
-                
+
                 <div className="flex items-center gap-4 text-[11px] text-plm-fg-muted">
                   {rfq.due_date && (
                     <span className="flex items-center gap-1">
                       <Clock size={10} />
-                      Due {new Date(rfq.due_date).toLocaleDateString()}
+                      {t('rfq.due')} {new Date(rfq.due_date).toLocaleDateString()}
                     </span>
                   )}
                   <span className="flex items-center gap-1">
                     <Package size={10} />
-                    {(rfq as any).items?.[0]?.count || 0} items
+                    {(rfq as any).items?.[0]?.count || 0} {t('rfq.itemsLabel')} // TODO: type this
                   </span>
                   <span className="flex items-center gap-1">
                     <Building2 size={10} />
-                    {(rfq as any).suppliers?.[0]?.count || 0} suppliers
+                    {(rfq as any).suppliers?.[0]?.count || 0} {t('rfq.suppliersLabel')} // TODO: type this
                   </span>
                 </div>
               </div>
@@ -277,11 +291,11 @@ interface OrgAddress {
 }
 
 // RFQ Detail View
-function RFQDetailView({ 
-  rfq, 
+function RFQDetailView({
+  rfq,
   onBack,
-  onUpdate
-}: { 
+  onUpdate,
+}: {
   rfq: RFQ
   onBack: () => void
   onUpdate: (rfq: RFQ) => void
@@ -296,22 +310,28 @@ function RFQDetailView({
   const [isDraggingOver, setIsDraggingOver] = useState(false)
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null)
   const [generatingPdf, setGeneratingPdf] = useState(false)
-  
+
   // Supplier management state
-  const [availableSuppliers, setAvailableSuppliers] = useState<Array<{ id: string; name: string; code: string | null }>>([])
+  const [availableSuppliers, setAvailableSuppliers] = useState<
+    Array<{ id: string; name: string; code: string | null }>
+  >([])
   const [showAddSupplier, setShowAddSupplier] = useState(false)
   const [loadingSuppliers, setLoadingSuppliers] = useState(false)
   const [supplierSearch, setSupplierSearch] = useState('')
-  
+
   // Configuration state for SolidWorks files
   const [itemConfigurations, setItemConfigurations] = useState<Record<string, string[]>>({})
   const [loadingConfigs, setLoadingConfigs] = useState<string | null>(null)
-  
+
   // Address state
   const [billingAddresses, setBillingAddresses] = useState<OrgAddress[]>([])
   const [shippingAddresses, setShippingAddresses] = useState<OrgAddress[]>([])
-  const [selectedBillingId, setSelectedBillingId] = useState<string | null>(rfq.billing_address_id || null)
-  const [selectedShippingId, setSelectedShippingId] = useState<string | null>(rfq.shipping_address_id || null)
+  const [selectedBillingId, setSelectedBillingId] = useState<string | null>(
+    rfq.billing_address_id || null,
+  )
+  const [selectedShippingId, setSelectedShippingId] = useState<string | null>(
+    rfq.shipping_address_id || null,
+  )
   // savingAddresses for future use when saving address changes
   const [, setSavingAddresses] = useState(false)
 
@@ -321,11 +341,14 @@ function RFQDetailView({
       setLoading(true)
       try {
         // Load items
-        const { data: itemsData, error: itemsError } = await db.from('rfq_items')
-          .select(`
+        const { data: itemsData, error: itemsError } = await db
+          .from('rfq_items')
+          .select(
+            `
             *,
             file:files(id, file_name, file_path, part_number, description, revision, version, file_type, extension)
-          `)
+          `,
+          )
           .eq('rfq_id', rfq.id)
           .order('line_number')
 
@@ -333,17 +356,20 @@ function RFQDetailView({
         setItems((itemsData as RFQItem[]) || [])
 
         // Load suppliers
-        const { data: suppliersData, error: suppliersError } = await db.from('rfq_suppliers')
-          .select(`
+        const { data: suppliersData, error: suppliersError } = await db
+          .from('rfq_suppliers')
+          .select(
+            `
             *,
             supplier:suppliers(id, name, code, contact_email, contact_name)
-          `)
+          `,
+          )
           .eq('rfq_id', rfq.id)
 
         if (suppliersError) throw suppliersError
         setSuppliers((suppliersData as RFQSupplier[]) || [])
-      } catch (err) {
-        log.error('[RFQ]', 'Failed to load RFQ details', { error: err })
+      } catch (error) {
+        log.error('[RFQ]', 'Failed to load RFQ details', { error: error })
         addToast('error', 'Failed to load RFQ details')
       } finally {
         setLoading(false)
@@ -367,22 +393,24 @@ function RFQDetailView({
           .order('label')
 
         if (error) throw error
-        
+
         const addresses = (data || []) as OrgAddress[]
-        setBillingAddresses(addresses.filter(a => a.address_type === 'billing'))
-        setShippingAddresses(addresses.filter(a => a.address_type === 'shipping'))
-        
+        setBillingAddresses(addresses.filter((a) => a.address_type === 'billing'))
+        setShippingAddresses(addresses.filter((a) => a.address_type === 'shipping'))
+
         // Set defaults if not already selected
         if (!selectedBillingId) {
-          const defaultBilling = addresses.find(a => a.address_type === 'billing' && a.is_default)
+          const defaultBilling = addresses.find((a) => a.address_type === 'billing' && a.is_default)
           if (defaultBilling) setSelectedBillingId(defaultBilling.id)
         }
         if (!selectedShippingId) {
-          const defaultShipping = addresses.find(a => a.address_type === 'shipping' && a.is_default)
+          const defaultShipping = addresses.find(
+            (a) => a.address_type === 'shipping' && a.is_default,
+          )
           if (defaultShipping) setSelectedShippingId(defaultShipping.id)
         }
-      } catch (err) {
-        log.error('[RFQ]', 'Failed to load addresses', { error: err })
+      } catch (error) {
+        log.error('[RFQ]', 'Failed to load addresses', { error: error })
       }
     }
 
@@ -391,13 +419,14 @@ function RFQDetailView({
 
   // Add file to RFQ
   const handleAddFile = async (fileId: string, silent = false) => {
-    const file = files.find(f => f.pdmData?.id === fileId)
+    const file = files.find((f) => f.pdmData?.id === fileId)
     if (!file?.pdmData) return false
 
     const nextLineNumber = items.length + 1
-    
+
     try {
-      const { data, error } = await db.from('rfq_items')
+      const { data, error } = await db
+        .from('rfq_items')
         .insert({
           rfq_id: rfq.id,
           line_number: nextLineNumber,
@@ -405,22 +434,24 @@ function RFQDetailView({
           part_number: file.pdmData.part_number || file.name,
           description: file.pdmData.description,
           revision: file.pdmData.revision,
-          quantity: 1
+          quantity: 1,
         })
-        .select(`
+        .select(
+          `
           *,
           file:files(id, file_name, file_path, part_number, description, revision, version, file_type, extension)
-        `)
+        `,
+        )
         .single()
 
       if (error) throw error
-      setItems(prev => [...prev, data as RFQItem])
+      setItems((prev) => [...prev, data as RFQItem])
       if (!silent) {
         addToast('success', `Added ${file.name} to RFQ`)
       }
       return true
-    } catch (err) {
-      log.error('[RFQ]', 'Failed to add file', { error: err })
+    } catch (error) {
+      log.error('[RFQ]', 'Failed to add file', { error: error })
       if (!silent) {
         addToast('error', 'Failed to add file to RFQ')
       }
@@ -433,14 +464,12 @@ function RFQDetailView({
     if (quantity < 1) return
 
     try {
-      const { error } = await db.from('rfq_items')
-        .update({ quantity })
-        .eq('id', itemId)
+      const { error } = await db.from('rfq_items').update({ quantity }).eq('id', itemId)
 
       if (error) throw error
-      setItems(items.map(i => i.id === itemId ? { ...i, quantity } : i))
-    } catch (err) {
-      log.error('[RFQ]', 'Failed to update quantity', { error: err })
+      setItems(items.map((i) => (i.id === itemId ? { ...i, quantity } : i)))
+    } catch (error) {
+      log.error('[RFQ]', 'Failed to update quantity', { error: error })
       addToast('error', 'Failed to update quantity')
     }
   }
@@ -448,34 +477,33 @@ function RFQDetailView({
   // Remove item
   const handleRemoveItem = async (itemId: string) => {
     try {
-      const { error } = await db.from('rfq_items')
-        .delete()
-        .eq('id', itemId)
+      const { error } = await db.from('rfq_items').delete().eq('id', itemId)
 
       if (error) throw error
-      setItems(items.filter(i => i.id !== itemId))
+      setItems(items.filter((i) => i.id !== itemId))
       addToast('success', 'Item removed from RFQ')
-    } catch (err) {
-      log.error('[RFQ]', 'Failed to remove item', { error: err })
+    } catch (error) {
+      log.error('[RFQ]', 'Failed to remove item', { error: error })
       addToast('error', 'Failed to remove item')
     }
   }
 
   // Update item metadata (material, finish, notes, etc.)
   const handleUpdateItemMeta = async (
-    itemId: string, 
+    itemId: string,
     field: 'material' | 'finish' | 'notes' | 'tolerance_class' | 'special_requirements',
-    value: string
+    value: string,
   ) => {
     try {
-      const { error } = await db.from('rfq_items')
+      const { error } = await db
+        .from('rfq_items')
         .update({ [field]: value || null })
         .eq('id', itemId)
 
       if (error) throw error
-      setItems(items.map(i => i.id === itemId ? { ...i, [field]: value || null } : i))
-    } catch (err) {
-      log.error('[RFQ]', 'Failed to update item', { error: err })
+      setItems(items.map((i) => (i.id === itemId ? { ...i, [field]: value || null } : i)))
+    } catch (error) {
+      log.error('[RFQ]', 'Failed to update item', { error: error })
       addToast('error', 'Failed to update item')
     }
   }
@@ -483,24 +511,24 @@ function RFQDetailView({
   // Load SolidWorks configurations for an item
   const loadItemConfigurations = async (item: RFQItem) => {
     if (!item.file || !vaultPath) return
-    
+
     const ext = item.file.extension?.toLowerCase()
     if (!['.sldprt', '.sldasm'].includes(ext)) return
-    
+
     // Already loaded
     if (itemConfigurations[item.id]) return
-    
+
     setLoadingConfigs(item.id)
     try {
       const filePath = buildFullPath(vaultPath, item.file.file_path)
       const result = await window.electronAPI?.solidworks?.getConfigurations(filePath)
-      
+
       if (result?.success && result.data?.configurations) {
         const configNames = result.data.configurations.map((c: { name: string }) => c.name)
-        setItemConfigurations(prev => ({ ...prev, [item.id]: configNames }))
+        setItemConfigurations((prev) => ({ ...prev, [item.id]: configNames }))
       }
-    } catch (err) {
-      log.error('[RFQ]', 'Failed to load configurations', { error: err })
+    } catch (error) {
+      log.error('[RFQ]', 'Failed to load configurations', { error: error })
     } finally {
       setLoadingConfigs(null)
     }
@@ -509,14 +537,15 @@ function RFQDetailView({
   // Update item configuration selection
   const handleUpdateItemConfig = async (itemId: string, config: string | null) => {
     try {
-      const { error } = await db.from('rfq_items')
+      const { error } = await db
+        .from('rfq_items')
         .update({ sw_configuration: config })
         .eq('id', itemId)
 
       if (error) throw error
-      setItems(items.map(i => i.id === itemId ? { ...i, sw_configuration: config } : i))
-    } catch (err) {
-      log.error('[RFQ]', 'Failed to update configuration', { error: err })
+      setItems(items.map((i) => (i.id === itemId ? { ...i, sw_configuration: config } : i)))
+    } catch (error) {
+      log.error('[RFQ]', 'Failed to update configuration', { error: error })
       addToast('error', 'Failed to update configuration')
     }
   }
@@ -524,27 +553,28 @@ function RFQDetailView({
   // Load available suppliers (not already assigned to this RFQ)
   const loadAvailableSuppliers = async () => {
     if (!organization) return
-    
+
     setLoadingSuppliers(true)
     try {
       // Get all suppliers for this org
-      const { data: allSuppliers, error } = await db.from('suppliers')
+      const { data: allSuppliers, error } = await db
+        .from('suppliers')
         .select('id, name, code')
         .eq('org_id', organization.id)
         .eq('is_active', true)
         .order('name')
 
       if (error) throw error
-      
+
       // Filter out already assigned suppliers
-      const assignedIds = suppliers.map(s => s.supplier_id)
+      const assignedIds = suppliers.map((s) => s.supplier_id)
       const available = (allSuppliers || []).filter(
-        (s: { id: string }) => !assignedIds.includes(s.id)
+        (s: { id: string }) => !assignedIds.includes(s.id),
       )
-      
+
       setAvailableSuppliers(available)
-    } catch (err) {
-      log.error('[RFQ]', 'Failed to load suppliers', { error: err })
+    } catch (error) {
+      log.error('[RFQ]', 'Failed to load suppliers', { error: error })
     } finally {
       setLoadingSuppliers(false)
     }
@@ -553,35 +583,38 @@ function RFQDetailView({
   // Add supplier to RFQ
   const handleAddSupplier = async (supplierId: string) => {
     try {
-      const { data, error } = await db.from('rfq_suppliers')
+      const { data, error } = await db
+        .from('rfq_suppliers')
         .insert({
           rfq_id: rfq.id,
-          supplier_id: supplierId
+          supplier_id: supplierId,
         })
-        .select(`
+        .select(
+          `
           *,
           supplier:suppliers(id, name, code, contact_email, contact_name)
-        `)
+        `,
+        )
         .single()
 
       if (error) throw error
-      
+
       setSuppliers([...suppliers, data as RFQSupplier])
       setShowAddSupplier(false)
       setSupplierSearch('')
-      
+
       // Remove from available list
-      setAvailableSuppliers(availableSuppliers.filter(s => s.id !== supplierId))
-      
+      setAvailableSuppliers(availableSuppliers.filter((s) => s.id !== supplierId))
+
       addToast('success', 'Supplier added to RFQ')
-      
+
       // Update RFQ status if files are generated and this is the first supplier
       if (rfq.release_files_generated && suppliers.length === 0) {
         await db.from('rfqs').update({ status: 'ready' }).eq('id', rfq.id)
         onUpdate({ ...rfq, status: 'ready' })
       }
-    } catch (err) {
-      log.error('[RFQ]', 'Failed to add supplier', { error: err })
+    } catch (error) {
+      log.error('[RFQ]', 'Failed to add supplier', { error: error })
       addToast('error', 'Failed to add supplier')
     }
   }
@@ -589,27 +622,30 @@ function RFQDetailView({
   // Remove supplier from RFQ
   const handleRemoveSupplier = async (rfqSupplierId: string, _supplierId: string) => {
     try {
-      const { error } = await db.from('rfq_suppliers')
-        .delete()
-        .eq('id', rfqSupplierId)
+      const { error } = await db.from('rfq_suppliers').delete().eq('id', rfqSupplierId)
 
       if (error) throw error
-      
-      setSuppliers(suppliers.filter(s => s.id !== rfqSupplierId))
-      
+
+      setSuppliers(suppliers.filter((s) => s.id !== rfqSupplierId))
+
       // Add back to available list
-      const removedSupplier = suppliers.find(s => s.id === rfqSupplierId)?.supplier
+      const removedSupplier = suppliers.find((s) => s.id === rfqSupplierId)?.supplier
       if (removedSupplier) {
-        setAvailableSuppliers([...availableSuppliers, {
-          id: removedSupplier.id,
-          name: removedSupplier.name,
-          code: removedSupplier.code
-        }].sort((a, b) => a.name.localeCompare(b.name)))
+        setAvailableSuppliers(
+          [
+            ...availableSuppliers,
+            {
+              id: removedSupplier.id,
+              name: removedSupplier.name,
+              code: removedSupplier.code,
+            },
+          ].sort((a, b) => a.name.localeCompare(b.name)),
+        )
       }
-      
+
       addToast('success', 'Supplier removed from RFQ')
-    } catch (err) {
-      log.error('[RFQ]', 'Failed to remove supplier', { error: err })
+    } catch (error) {
+      log.error('[RFQ]', 'Failed to remove supplier', { error: error })
       addToast('error', 'Failed to remove supplier')
     }
   }
@@ -617,18 +653,23 @@ function RFQDetailView({
   // Generate PDF
   const handleGeneratePdf = async () => {
     if (!organization) return
-    
+
     setGeneratingPdf(true)
     try {
       // Get org branding info (use db wrapper for new columns)
-      const { data: orgData } = await db.from('organizations')
-        .select('name, logo_url, logo_storage_path, address_line1, address_line2, city, state, postal_code, country, phone, website, contact_email, rfq_settings')
+      const { data: orgData } = await db
+        .from('organizations')
+        .select(
+          'name, logo_url, logo_storage_path, address_line1, address_line2, city, state, postal_code, country, phone, website, contact_email, rfq_settings',
+        )
         .eq('id', organization.id)
         .single()
 
       // Get fresh signed URL for logo if storage path exists
       let logoUrl = (orgData as Record<string, unknown>)?.logo_url as string | null
-      const logoStoragePath = (orgData as Record<string, unknown>)?.logo_storage_path as string | null
+      const logoStoragePath = (orgData as Record<string, unknown>)?.logo_storage_path as
+        | string
+        | null
       if (logoStoragePath) {
         const { data: signedData } = await supabase.storage
           .from('vault')
@@ -641,7 +682,7 @@ function RFQDetailView({
       // Get selected billing address
       let billingAddressData = null
       if (selectedBillingId) {
-        const addr = billingAddresses.find(a => a.id === selectedBillingId)
+        const addr = billingAddresses.find((a) => a.id === selectedBillingId)
         if (addr) {
           billingAddressData = {
             label: addr.label,
@@ -652,7 +693,7 @@ function RFQDetailView({
             state: addr.state,
             postal_code: addr.postal_code,
             country: addr.country,
-            phone: addr.phone
+            phone: addr.phone,
           }
         }
       }
@@ -660,7 +701,7 @@ function RFQDetailView({
       // Get selected shipping address
       let shippingAddressData = null
       if (selectedShippingId) {
-        const addr = shippingAddresses.find(a => a.id === selectedShippingId)
+        const addr = shippingAddresses.find((a) => a.id === selectedShippingId)
         if (addr) {
           shippingAddressData = {
             label: addr.label,
@@ -671,13 +712,13 @@ function RFQDetailView({
             state: addr.state,
             postal_code: addr.postal_code,
             country: addr.country,
-            phone: addr.phone
+            phone: addr.phone,
           }
         }
       }
 
       const orgBranding: OrgBranding = {
-        name: (orgData as Record<string, unknown>)?.name as string || organization.name,
+        name: ((orgData as Record<string, unknown>)?.name as string) || organization.name,
         logo_url: logoUrl,
         address_line1: (orgData as Record<string, unknown>)?.address_line1 as string | null,
         address_line2: (orgData as Record<string, unknown>)?.address_line2 as string | null,
@@ -690,11 +731,12 @@ function RFQDetailView({
         contact_email: (orgData as Record<string, unknown>)?.contact_email as string | null,
         billing_address: billingAddressData,
         shipping_address: shippingAddressData,
-        rfq_settings: (orgData as Record<string, unknown>)?.rfq_settings as OrgBranding['rfq_settings']
+        rfq_settings: (orgData as Record<string, unknown>)
+          ?.rfq_settings as OrgBranding['rfq_settings'],
       }
 
       const result = await generateRFQPdf({ rfq, items, org: orgBranding })
-      
+
       if (result.success && result.path) {
         addToast('success', `RFQ saved to ${result.path}`)
       } else if (result.error === 'Cancelled') {
@@ -702,9 +744,9 @@ function RFQDetailView({
       } else if (result.error) {
         addToast('error', result.error)
       }
-    } catch (err) {
-      log.error('[RFQ]', 'Failed to generate PDF', { error: err })
-      addToast('error', err instanceof Error ? err.message : 'Failed to generate PDF')
+    } catch (error) {
+      log.error('[RFQ]', 'Failed to generate PDF', { error: error })
+      addToast('error', error instanceof Error ? error.message : 'Failed to generate PDF')
     } finally {
       setGeneratingPdf(false)
     }
@@ -728,9 +770,7 @@ function RFQDetailView({
 
     try {
       // Update RFQ status to generating
-      await db.from('rfqs')
-        .update({ status: 'generating' })
-        .eq('id', rfq.id)
+      await db.from('rfqs').update({ status: 'generating' }).eq('id', rfq.id)
 
       for (const item of items) {
         if (!item.file_id || !item.file) continue
@@ -749,18 +789,19 @@ function RFQDetailView({
               exportType: 'step',
               partNumber: item.part_number || item.file?.part_number || undefined,
               revision: item.file?.revision,
-              configuration: item.sw_configuration || undefined
+              configuration: item.sw_configuration || undefined,
             })
             if (result?.success) {
               // Update RFQ item
-              await db.from('rfq_items')
+              await db
+                .from('rfq_items')
                 .update({
                   step_file_generated: true,
                   step_file_path: result.outputPath,
-                  step_file_size: result.fileSize
+                  step_file_size: result.fileSize,
                 })
                 .eq('id', item.id)
-              
+
               // Also save to release_files table for version tracking
               await db.from('release_files').insert({
                 file_id: item.file_id,
@@ -773,16 +814,18 @@ function RFQDetailView({
                 generated_by: user?.id,
                 rfq_id: rfq.id,
                 rfq_item_id: item.id,
-                org_id: rfq.org_id
+                org_id: rfq.org_id,
               })
-              
+
               successCount++
             } else {
-              log.error('[RFQ]', `STEP export failed for ${item.part_number}`, { error: result?.error })
+              log.error('[RFQ]', `STEP export failed for ${item.part_number}`, {
+                error: result?.error,
+              })
               failCount++
             }
-          } catch (err) {
-            log.error('[RFQ]', `STEP export failed for ${item.part_number}`, { error: err })
+          } catch (error) {
+            log.error('[RFQ]', `STEP export failed for ${item.part_number}`, { error: error })
             failCount++
           }
         }
@@ -796,18 +839,19 @@ function RFQDetailView({
               sourceFilePath,
               exportType: 'pdf',
               partNumber: item.part_number || item.file?.part_number || undefined,
-              revision: item.file?.revision
+              revision: item.file?.revision,
             })
             if (result?.success) {
               // Update RFQ item
-              await db.from('rfq_items')
+              await db
+                .from('rfq_items')
                 .update({
                   pdf_file_generated: true,
                   pdf_file_path: result.outputPath,
-                  pdf_file_size: result.fileSize
+                  pdf_file_size: result.fileSize,
                 })
                 .eq('id', item.id)
-              
+
               // Also save to release_files table for version tracking
               await db.from('release_files').insert({
                 file_id: item.file_id,
@@ -820,16 +864,18 @@ function RFQDetailView({
                 generated_by: user?.id,
                 rfq_id: rfq.id,
                 rfq_item_id: item.id,
-                org_id: rfq.org_id
+                org_id: rfq.org_id,
               })
-              
+
               successCount++
             } else {
-              log.error('[RFQ]', `PDF export failed for ${item.part_number}`, { error: result?.error })
+              log.error('[RFQ]', `PDF export failed for ${item.part_number}`, {
+                error: result?.error,
+              })
               failCount++
             }
-          } catch (err) {
-            log.error('[RFQ]', `PDF export failed for ${item.part_number}`, { error: err })
+          } catch (error) {
+            log.error('[RFQ]', `PDF export failed for ${item.part_number}`, { error: error })
             failCount++
           }
         }
@@ -839,24 +885,30 @@ function RFQDetailView({
       // Note: RFQ only becomes 'ready' if files are generated AND at least one supplier is assigned
       const allGenerated = failCount === 0
       const hasSuppliers = suppliers.length > 0
-      const newStatus = allGenerated 
-        ? (hasSuppliers ? 'ready' : 'draft')  // Stay draft if no suppliers, ready if suppliers exist
+      const newStatus = allGenerated
+        ? hasSuppliers
+          ? 'ready'
+          : 'draft' // Stay draft if no suppliers, ready if suppliers exist
         : 'pending_files'
-      
-      await db.from('rfqs')
+
+      await db
+        .from('rfqs')
         .update({
           status: newStatus,
           release_files_generated: allGenerated,
-          release_files_generated_at: allGenerated ? new Date().toISOString() : null
+          release_files_generated_at: allGenerated ? new Date().toISOString() : null,
         })
         .eq('id', rfq.id)
 
       // Reload items to get updated paths
-      const { data: updatedItems } = await db.from('rfq_items')
-        .select(`
+      const { data: updatedItems } = await db
+        .from('rfq_items')
+        .select(
+          `
           *,
           file:files(id, file_name, file_path, part_number, description, revision, version, file_type, extension)
-        `)
+        `,
+        )
         .eq('rfq_id', rfq.id)
         .order('line_number')
 
@@ -866,15 +918,18 @@ function RFQDetailView({
         if (hasSuppliers) {
           addToast('success', `Generated ${successCount} release files - RFQ is ready`)
         } else {
-          addToast('success', `Generated ${successCount} release files. Add suppliers to mark RFQ as ready.`)
+          addToast(
+            'success',
+            `Generated ${successCount} release files. Add suppliers to mark RFQ as ready.`,
+          )
         }
         onUpdate({ ...rfq, status: newStatus as RFQStatus, release_files_generated: true })
       } else {
         addToast('warning', `Generated ${successCount} files, ${failCount} failed`)
         onUpdate({ ...rfq, status: 'pending_files' })
       }
-    } catch (err) {
-      log.error('[RFQ]', 'Generation failed', { error: err })
+    } catch (error) {
+      log.error('[RFQ]', 'Generation failed', { error: error })
       addToast('error', 'Failed to generate release files')
     } finally {
       setGenerating(false)
@@ -892,14 +947,14 @@ function RFQDetailView({
     try {
       // Collect all generated file paths (STEP/PDF exports from parts)
       const files: Array<{ path: string; name: string }> = []
-      
+
       for (const item of items) {
         if (item.step_file_path) {
           const baseName = item.part_number || item.file?.part_number || 'Unknown'
           const revSuffix = item.file?.revision ? `_REV${item.file.revision}` : ''
           files.push({
             path: item.step_file_path,
-            name: `${baseName}${revSuffix}.step`
+            name: `${baseName}${revSuffix}.step`,
           })
         }
         if (item.pdf_file_path) {
@@ -907,7 +962,7 @@ function RFQDetailView({
           const revSuffix = item.file?.revision ? `_REV${item.file.revision}` : ''
           files.push({
             path: item.pdf_file_path,
-            name: `${baseName}${revSuffix}.pdf`
+            name: `${baseName}${revSuffix}.pdf`,
           })
         }
       }
@@ -920,20 +975,25 @@ function RFQDetailView({
         if (!dirResult?.success || !dirResult.path) {
           throw new Error('Could not get RFQ output directory')
         }
-        
+
         // Use platform-appropriate separator
         const sep = dirResult.path.includes('\\') ? '\\' : '/'
         const pdfPath = `${dirResult.path}${sep}${rfq.rfq_number}_RFQ.pdf`
-        
+
         // Get org branding info
-        const { data: orgData } = await db.from('organizations')
-          .select('name, logo_url, logo_storage_path, address_line1, address_line2, city, state, postal_code, country, phone, website, contact_email, rfq_settings')
+        const { data: orgData } = await db
+          .from('organizations')
+          .select(
+            'name, logo_url, logo_storage_path, address_line1, address_line2, city, state, postal_code, country, phone, website, contact_email, rfq_settings',
+          )
           .eq('id', rfq.org_id)
           .single()
 
         // Get fresh signed URL for logo if storage path exists
         let logoUrl = (orgData as Record<string, unknown>)?.logo_url as string | null
-        const logoStoragePath = (orgData as Record<string, unknown>)?.logo_storage_path as string | null
+        const logoStoragePath = (orgData as Record<string, unknown>)?.logo_storage_path as
+          | string
+          | null
         if (logoStoragePath) {
           const { data: signedData } = await supabase.storage
             .from('vault')
@@ -944,7 +1004,7 @@ function RFQDetailView({
         }
 
         const orgBranding: OrgBranding = {
-          name: (orgData as Record<string, unknown>)?.name as string || 'Unknown Company',
+          name: ((orgData as Record<string, unknown>)?.name as string) || 'Unknown Company',
           logo_url: logoUrl,
           address_line1: (orgData as Record<string, unknown>)?.address_line1 as string | null,
           address_line2: (orgData as Record<string, unknown>)?.address_line2 as string | null,
@@ -955,12 +1015,18 @@ function RFQDetailView({
           phone: (orgData as Record<string, unknown>)?.phone as string | null,
           website: (orgData as Record<string, unknown>)?.website as string | null,
           contact_email: (orgData as Record<string, unknown>)?.contact_email as string | null,
-          rfq_settings: (orgData as Record<string, unknown>)?.rfq_settings as OrgBranding['rfq_settings']
+          rfq_settings: (orgData as Record<string, unknown>)
+            ?.rfq_settings as OrgBranding['rfq_settings'],
         }
 
         // Generate PDF directly to the output path (no dialog)
-        const pdfResult = await generateRFQPdf({ rfq, items, org: orgBranding, outputPath: pdfPath })
-        
+        const pdfResult = await generateRFQPdf({
+          rfq,
+          items,
+          org: orgBranding,
+          outputPath: pdfPath,
+        })
+
         if (pdfResult.success && pdfResult.path) {
           rfqPdfPath = pdfResult.path
         } else {
@@ -983,10 +1049,10 @@ function RFQDetailView({
         `${rfq.rfq_number}_ReleasePackage.zip`,
         [
           { name: 'ZIP Archives', extensions: ['zip'] },
-          { name: 'All Files', extensions: ['*'] }
-        ]
+          { name: 'All Files', extensions: ['*'] },
+        ],
       )
-      
+
       if (saveResult.canceled || !saveResult.path) {
         setGenerating(false)
         return
@@ -998,7 +1064,7 @@ function RFQDetailView({
         rfqNumber: rfq.rfq_number,
         files,
         rfqPdfPath,
-        outputPath: saveResult.path
+        outputPath: saveResult.path,
       })
 
       if (result?.success) {
@@ -1006,8 +1072,8 @@ function RFQDetailView({
       } else {
         addToast('error', result?.error || 'Failed to create ZIP package')
       }
-    } catch (err) {
-      log.error('[RFQ]', 'ZIP generation failed', { error: err })
+    } catch (error) {
+      log.error('[RFQ]', 'ZIP generation failed', { error: error })
       addToast('error', 'Failed to create ZIP package')
     } finally {
       setGenerating(false)
@@ -1027,7 +1093,7 @@ function RFQDetailView({
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    
+
     // Check if we have PDM files being dragged
     if (e.dataTransfer.types.includes('application/x-plm-files')) {
       e.dataTransfer.dropEffect = 'copy'
@@ -1052,16 +1118,17 @@ function RFQDetailView({
 
     try {
       const relativePaths: string[] = JSON.parse(pdmFilesData)
-      
+
       // Find matching files in the store and add them
       let addedCount = 0
       for (const relPath of relativePaths) {
-        const file = files.find(f => 
-          f.relativePath.toLowerCase() === relPath.toLowerCase() && 
-          f.pdmData?.id &&
-          !items.some(i => i.file_id === f.pdmData?.id)
+        const file = files.find(
+          (f) =>
+            f.relativePath.toLowerCase() === relPath.toLowerCase() &&
+            f.pdmData?.id &&
+            !items.some((i) => i.file_id === f.pdmData?.id),
         )
-        
+
         if (file?.pdmData?.id) {
           const success = await handleAddFile(file.pdmData.id, true) // silent mode
           if (success) addedCount++
@@ -1073,8 +1140,8 @@ function RFQDetailView({
       } else if (relativePaths.length > 0) {
         addToast('info', 'Files are already in this RFQ or not tracked')
       }
-    } catch (err) {
-      log.error('[RFQ]', 'Failed to handle drop', { error: err })
+    } catch (error) {
+      log.error('[RFQ]', 'Failed to handle drop', { error: error })
       addToast('error', 'Failed to add dropped files')
     }
   }
@@ -1093,19 +1160,21 @@ function RFQDetailView({
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="p-3 border-b border-plm-border">
-        <button 
+        <button
           onClick={onBack}
           className="flex items-center gap-1 text-xs text-plm-fg-muted hover:text-plm-fg mb-2"
         >
           <ArrowLeft size={14} />
-          Back to RFQs
+          {t('rfq.backToRfqs')}
         </button>
-        
+
         <div className="flex items-start justify-between">
           <div>
             <div className="flex items-center gap-2">
               <span className="text-sm font-mono text-plm-accent">{rfq.rfq_number}</span>
-              <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded ${statusInfo.color} ${statusInfo.bgColor}`}>
+              <span
+                className={`px-1.5 py-0.5 text-[10px] font-medium rounded ${statusInfo.color} ${statusInfo.bgColor}`}
+              >
                 {statusInfo.label}
               </span>
             </div>
@@ -1119,42 +1188,42 @@ function RFQDetailView({
         <button
           onClick={() => setActiveTab('items')}
           className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
-            activeTab === 'items' 
-              ? 'text-plm-accent border-b-2 border-plm-accent' 
+            activeTab === 'items'
+              ? 'text-plm-accent border-b-2 border-plm-accent'
               : 'text-plm-fg-muted hover:text-plm-fg'
           }`}
         >
           <Package size={14} className="inline mr-1" />
-          Items ({items.length})
+          {t('rfq.itemsTab')} ({items.length})
         </button>
         <button
           onClick={() => setActiveTab('suppliers')}
           className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
-            activeTab === 'suppliers' 
-              ? 'text-plm-accent border-b-2 border-plm-accent' 
+            activeTab === 'suppliers'
+              ? 'text-plm-accent border-b-2 border-plm-accent'
               : 'text-plm-fg-muted hover:text-plm-fg'
           }`}
         >
           <Building2 size={14} className="inline mr-1" />
-          Suppliers ({suppliers.length})
+          {t('rfq.suppliersTab')} ({suppliers.length})
         </button>
         <button
           onClick={() => setActiveTab('settings')}
           className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
-            activeTab === 'settings' 
-              ? 'text-plm-accent border-b-2 border-plm-accent' 
+            activeTab === 'settings'
+              ? 'text-plm-accent border-b-2 border-plm-accent'
               : 'text-plm-fg-muted hover:text-plm-fg'
           }`}
         >
           <Settings2 size={14} className="inline mr-1" />
-          Settings
+          {t('rfq.settings')}
         </button>
       </div>
 
       {/* Tab Content */}
       <div className="flex-1 overflow-y-auto">
         {activeTab === 'items' && (
-          <div 
+          <div
             className="p-3 space-y-3 h-full"
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
@@ -1163,33 +1232,33 @@ function RFQDetailView({
             {/* Drop zone / Add files button */}
             <div
               className={`w-full flex flex-col items-center justify-center gap-2 px-3 py-4 border-2 border-dashed rounded text-sm transition-all ${
-                isDraggingOver 
-                  ? 'border-plm-accent bg-plm-accent/10 text-plm-accent' 
+                isDraggingOver
+                  ? 'border-plm-accent bg-plm-accent/10 text-plm-accent'
                   : 'border-plm-border hover:border-plm-accent text-plm-fg-muted hover:text-plm-fg'
               }`}
             >
               {isDraggingOver ? (
                 <>
                   <Package size={24} className="animate-bounce" />
-                  <span className="font-medium">Drop files here to add</span>
+                  <span className="font-medium">{t('rfq.dropFilesHere')}</span>
                 </>
               ) : (
                 <>
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-1.5">
                       <Package size={16} />
-                      <span>Drag files here</span>
+                      <span>{t('rfq.dragFilesHere')}</span>
                     </div>
-                    <span className="text-plm-fg-muted">or</span>
+                    <span className="text-plm-fg-muted">{t('rfq.or')}</span>
                     <button
                       onClick={() => setShowAddFiles(!showAddFiles)}
                       className="text-plm-accent hover:underline"
                     >
-                      browse files
+                      {t('rfq.browseFiles')}
                     </button>
                   </div>
                   <span className="text-[10px] text-plm-fg-muted">
-                    Drag from the file browser to add parts
+                    {t('rfq.dragFromFileBrowser')}
                   </span>
                 </>
               )}
@@ -1198,11 +1267,16 @@ function RFQDetailView({
             {/* File picker */}
             {showAddFiles && (
               <div className="border border-plm-border rounded p-2 bg-plm-bg max-h-48 overflow-y-auto">
-                <p className="text-[10px] text-plm-fg-muted mb-2">Select files to add:</p>
+                <p className="text-[10px] text-plm-fg-muted mb-2">{t('rfq.selectFilesToAdd')}</p>
                 {files
-                  .filter(f => !f.isDirectory && f.pdmData?.id && !items.some(i => i.file_id === f.pdmData?.id))
+                  .filter(
+                    (f) =>
+                      !f.isDirectory &&
+                      f.pdmData?.id &&
+                      !items.some((i) => i.file_id === f.pdmData?.id),
+                  )
                   .slice(0, 20)
-                  .map(file => (
+                  .map((file) => (
                     <button
                       key={file.path}
                       onClick={() => {
@@ -1213,7 +1287,9 @@ function RFQDetailView({
                     >
                       <File size={14} className="text-plm-fg-muted" />
                       <span className="text-xs text-plm-fg truncate flex-1">{file.name}</span>
-                      <span className="text-[10px] text-plm-fg-muted">{file.pdmData?.part_number}</span>
+                      <span className="text-[10px] text-plm-fg-muted">
+                        {file.pdmData?.part_number}
+                      </span>
                     </button>
                   ))}
               </div>
@@ -1223,26 +1299,33 @@ function RFQDetailView({
             {items.length === 0 ? (
               <div className="text-center py-8 text-plm-fg-muted">
                 <Package size={32} className="mx-auto mb-2 opacity-50" />
-                <p className="text-sm">No items yet</p>
-                <p className="text-xs">Add files from your vault to get started</p>
+                <p className="text-sm">{t('rfq.noItemsYet')}</p>
+                <p className="text-xs">{t('rfq.addFilesToGetStarted')}</p>
               </div>
             ) : (
               <div className="space-y-2">
                 {items.map((item) => {
                   const isExpanded = expandedItemId === item.id
                   return (
-                    <div key={item.id} className="border border-plm-border rounded bg-plm-bg/50 overflow-hidden hover:bg-plm-highlight/30 hover:border-plm-border-light transition-colors">
+                    <div
+                      key={item.id}
+                      className="border border-plm-border rounded bg-plm-bg/50 overflow-hidden hover:bg-plm-highlight/30 hover:border-plm-border-light transition-colors"
+                    >
                       {/* Item header */}
                       <div className="p-2">
                         <div className="flex items-start justify-between">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
-                              <span className="text-[10px] text-plm-fg-muted">#{item.line_number}</span>
+                              <span className="text-[10px] text-plm-fg-muted">
+                                #{item.line_number}
+                              </span>
                               <span className="text-xs font-medium text-plm-fg truncate">
                                 {item.part_number}
                               </span>
                               {item.revision && (
-                                <span className="text-[10px] text-plm-fg-muted">Rev {item.revision}</span>
+                                <span className="text-[10px] text-plm-fg-muted">
+                                  {t('rfq.rev')} {item.revision}
+                                </span>
                               )}
                             </div>
                             {item.description && (
@@ -1262,20 +1345,20 @@ function RFQDetailView({
                                 }
                               }}
                               className="p-1 text-plm-fg-muted hover:text-plm-fg transition-colors"
-                              title="Edit details"
+                              title={t('rfq.editDetails')}
                             >
                               {isExpanded ? <ChevronUp size={14} /> : <Pencil size={14} />}
                             </button>
                             <button
                               onClick={() => handleRemoveItem(item.id)}
                               className="p-1 text-plm-fg-muted hover:text-plm-error transition-colors"
-                              title="Remove"
+                              title={t('common.remove')}
                             >
                               <Trash2 size={14} />
                             </button>
                           </div>
                         </div>
-                        
+
                         <div className="flex items-center gap-3 mt-2">
                           {/* Quantity */}
                           <div className="flex items-center gap-1">
@@ -1284,7 +1367,9 @@ function RFQDetailView({
                               type="number"
                               min="1"
                               value={item.quantity}
-                              onChange={(e) => handleUpdateQuantity(item.id, parseInt(e.target.value) || 1)}
+                              onChange={(e) =>
+                                handleUpdateQuantity(item.id, parseInt(e.target.value) || 1)
+                              }
                               className="w-16 px-2 py-1 bg-plm-input border border-plm-border rounded text-xs text-plm-fg focus:outline-none focus:border-plm-accent"
                             />
                             <span className="text-[10px] text-plm-fg-muted">{item.unit}</span>
@@ -1305,7 +1390,7 @@ function RFQDetailView({
                               <button
                                 onClick={() => handleShowFileInExplorer(item.step_file_path!)}
                                 className="flex items-center gap-1 text-[10px] text-plm-success hover:text-plm-success/80 transition-colors"
-                                title="Show STEP file in folder"
+                                title={t('rfq.showStepInFolder')}
                               >
                                 <Layers size={10} />
                                 STEP
@@ -1316,7 +1401,7 @@ function RFQDetailView({
                               <button
                                 onClick={() => handleShowFileInExplorer(item.pdf_file_path!)}
                                 className="flex items-center gap-1 text-[10px] text-plm-success hover:text-plm-success/80 transition-colors"
-                                title="Show PDF file in folder"
+                                title={t('rfq.showPdfInFolder')}
                               >
                                 <FileText size={10} />
                                 PDF
@@ -1326,7 +1411,7 @@ function RFQDetailView({
                             {!item.step_file_generated && !item.pdf_file_generated && item.file && (
                               <span className="flex items-center gap-1 text-[10px] text-plm-warning">
                                 <AlertCircle size={10} />
-                                Needs export
+                                {t('rfq.needsExport')}
                               </span>
                             )}
                           </div>
@@ -1337,73 +1422,94 @@ function RFQDetailView({
                       {isExpanded && (
                         <div className="px-2 pb-2 pt-1 border-t border-plm-border bg-plm-highlight/30 space-y-2">
                           {/* SolidWorks Configuration selector - only for parts/assemblies */}
-                          {item.file && ['.sldprt', '.sldasm'].includes(item.file.extension?.toLowerCase()) && (
-                            <div>
-                              <label className="text-[10px] text-plm-fg-muted block mb-1">
-                                STEP Export Configuration
-                              </label>
-                              {loadingConfigs === item.id ? (
-                                <div className="flex items-center gap-2 text-xs text-plm-fg-muted py-1">
-                                  <Loader2 size={12} className="animate-spin" />
-                                  Loading configurations...
-                                </div>
-                              ) : itemConfigurations[item.id]?.length ? (
-                                <select
-                                  value={item.sw_configuration || ''}
-                                  onChange={(e) => handleUpdateItemConfig(item.id, e.target.value || null)}
-                                  className="w-full px-2 py-1 bg-plm-input border border-plm-border rounded text-xs text-plm-fg focus:outline-none focus:border-plm-accent"
-                                >
-                                  <option value="">Default configuration</option>
-                                  {itemConfigurations[item.id].map(config => (
-                                    <option key={config} value={config}>{config}</option>
-                                  ))}
-                                </select>
-                              ) : (
-                                <div className="text-[10px] text-plm-fg-muted italic py-1">
-                                  No configurations available (SolidWorks service may not be running)
-                                </div>
-                              )}
-                            </div>
-                          )}
+                          {item.file &&
+                            ['.sldprt', '.sldasm'].includes(item.file.extension?.toLowerCase()) && (
+                              <div>
+                                <label className="text-[10px] text-plm-fg-muted block mb-1">
+                                  {t('rfq.stepExportConfiguration')}
+                                </label>
+                                {loadingConfigs === item.id ? (
+                                  <div className="flex items-center gap-2 text-xs text-plm-fg-muted py-1">
+                                    <Loader2 size={12} className="animate-spin" />
+                                    {t('rfq.loadingConfigurations')}
+                                  </div>
+                                ) : itemConfigurations[item.id]?.length ? (
+                                  <select
+                                    value={item.sw_configuration || ''}
+                                    onChange={(e) =>
+                                      handleUpdateItemConfig(item.id, e.target.value || null)
+                                    }
+                                    className="w-full px-2 py-1 bg-plm-input border border-plm-border rounded text-xs text-plm-fg focus:outline-none focus:border-plm-accent"
+                                  >
+                                    <option value="">{t('rfq.defaultConfiguration')}</option>
+                                    {itemConfigurations[item.id].map((config) => (
+                                      <option key={config} value={config}>
+                                        {config}
+                                      </option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <div className="text-[10px] text-plm-fg-muted italic py-1">
+                                    {t('rfq.noConfigurationsAvailable')}
+                                  </div>
+                                )}
+                              </div>
+                            )}
 
                           <div className="grid grid-cols-2 gap-2">
                             <div>
-                              <label className="text-[10px] text-plm-fg-muted block mb-1">Material</label>
+                              <label className="text-[10px] text-plm-fg-muted block mb-1">
+                                {t('rfq.material')}
+                              </label>
                               <input
                                 type="text"
                                 value={item.material || ''}
-                                onChange={(e) => handleUpdateItemMeta(item.id, 'material', e.target.value)}
-                                placeholder="e.g., 6061-T6 Aluminum"
+                                onChange={(e) =>
+                                  handleUpdateItemMeta(item.id, 'material', e.target.value)
+                                }
+                                placeholder={t('rfq.materialPlaceholder')}
                                 className="w-full px-2 py-1 bg-plm-input border border-plm-border rounded text-xs text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
                               />
                             </div>
                             <div>
-                              <label className="text-[10px] text-plm-fg-muted block mb-1">Finish</label>
+                              <label className="text-[10px] text-plm-fg-muted block mb-1">
+                                {t('rfq.finish')}
+                              </label>
                               <input
                                 type="text"
                                 value={item.finish || ''}
-                                onChange={(e) => handleUpdateItemMeta(item.id, 'finish', e.target.value)}
-                                placeholder="e.g., Anodized Black"
+                                onChange={(e) =>
+                                  handleUpdateItemMeta(item.id, 'finish', e.target.value)
+                                }
+                                placeholder={t('rfq.finishPlaceholder')}
                                 className="w-full px-2 py-1 bg-plm-input border border-plm-border rounded text-xs text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
                               />
                             </div>
                           </div>
                           <div>
-                            <label className="text-[10px] text-plm-fg-muted block mb-1">Tolerance Class</label>
+                            <label className="text-[10px] text-plm-fg-muted block mb-1">
+                              {t('rfq.toleranceClass')}
+                            </label>
                             <input
                               type="text"
                               value={item.tolerance_class || ''}
-                              onChange={(e) => handleUpdateItemMeta(item.id, 'tolerance_class', e.target.value)}
-                              placeholder="e.g., ISO 2768-mK"
+                              onChange={(e) =>
+                                handleUpdateItemMeta(item.id, 'tolerance_class', e.target.value)
+                              }
+                              placeholder={t('rfq.toleranceClassPlaceholder')}
                               className="w-full px-2 py-1 bg-plm-input border border-plm-border rounded text-xs text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
                             />
                           </div>
                           <div>
-                            <label className="text-[10px] text-plm-fg-muted block mb-1">Notes</label>
+                            <label className="text-[10px] text-plm-fg-muted block mb-1">
+                              {t('rfq.notes')}
+                            </label>
                             <textarea
                               value={item.notes || ''}
-                              onChange={(e) => handleUpdateItemMeta(item.id, 'notes', e.target.value)}
-                              placeholder="Special requirements, instructions..."
+                              onChange={(e) =>
+                                handleUpdateItemMeta(item.id, 'notes', e.target.value)
+                              }
+                              placeholder={t('rfq.notesPlaceholder')}
                               rows={2}
                               className="w-full px-2 py-1 bg-plm-input border border-plm-border rounded text-xs text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent resize-none"
                             />
@@ -1417,31 +1523,32 @@ function RFQDetailView({
             )}
 
             {/* Generate button - show if any item needs export */}
-            {items.length > 0 && items.some(i => {
-              if (!i.file) return false
-              const ext = i.file.extension?.toLowerCase()
-              const needsStep = ['.sldprt', '.sldasm'].includes(ext) && !i.step_file_generated
-              const needsPdf = ext === '.slddrw' && !i.pdf_file_generated
-              return needsStep || needsPdf
-            }) && (
-              <button
-                onClick={handleGenerateReleaseFiles}
-                disabled={generating}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-plm-accent hover:bg-plm-accent/90 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
-              >
-                {generating ? (
-                  <>
-                    <Loader2 size={16} className="animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Cog size={16} />
-                    Generate STEP & PDF Files
-                  </>
-                )}
-              </button>
-            )}
+            {items.length > 0 &&
+              items.some((i) => {
+                if (!i.file) return false
+                const ext = i.file.extension?.toLowerCase()
+                const needsStep = ['.sldprt', '.sldasm'].includes(ext) && !i.step_file_generated
+                const needsPdf = ext === '.slddrw' && !i.pdf_file_generated
+                return needsStep || needsPdf
+              }) && (
+                <button
+                  onClick={handleGenerateReleaseFiles}
+                  disabled={generating}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-plm-accent hover:bg-plm-accent/90 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
+                >
+                  {generating ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      {t('rfq.generating')}
+                    </>
+                  ) : (
+                    <>
+                      <Cog size={16} />
+                      {t('rfq.generateStepPdf')}
+                    </>
+                  )}
+                </button>
+              )}
           </div>
         )}
 
@@ -1452,7 +1559,7 @@ function RFQDetailView({
               {showAddSupplier ? (
                 <div className="border border-plm-border rounded p-2 bg-plm-bg space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-plm-fg-muted">Select supplier to add:</span>
+                    <span className="text-xs text-plm-fg-muted">{t('rfq.selectSupplierToAdd')}</span>
                     <button
                       onClick={() => {
                         setShowAddSupplier(false)
@@ -1469,31 +1576,36 @@ function RFQDetailView({
                     </div>
                   ) : availableSuppliers.length === 0 ? (
                     <p className="text-xs text-plm-fg-muted text-center py-2">
-                      No more suppliers available
+                      {t('rfq.noMoreSuppliers')}
                     </p>
                   ) : (
                     <>
                       {/* Search input */}
                       <div className="relative">
-                        <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
+                        <Search
+                          size={12}
+                          className="absolute left-2 top-1/2 -translate-y-1/2 text-plm-fg-muted"
+                        />
                         <input
                           type="text"
                           value={supplierSearch}
                           onChange={(e) => setSupplierSearch(e.target.value)}
-                          placeholder="Search suppliers..."
+                          placeholder={t('rfq.searchSuppliers')}
                           className="w-full pl-7 pr-2 py-1.5 bg-plm-input border border-plm-border rounded text-xs text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
                           autoFocus
                         />
                       </div>
                       <div className="max-h-40 overflow-y-auto space-y-1">
                         {availableSuppliers
-                          .filter(s => {
+                          .filter((s) => {
                             if (!supplierSearch.trim()) return true
                             const search = supplierSearch.toLowerCase()
-                            return s.name.toLowerCase().includes(search) || 
-                                   (s.code?.toLowerCase().includes(search) ?? false)
+                            return (
+                              s.name.toLowerCase().includes(search) ||
+                              (s.code?.toLowerCase().includes(search) ?? false)
+                            )
                           })
-                          .map(supplier => (
+                          .map((supplier) => (
                             <button
                               key={supplier.id}
                               onClick={() => handleAddSupplier(supplier.id)}
@@ -1502,17 +1614,21 @@ function RFQDetailView({
                               <div>
                                 <div className="text-xs text-plm-fg">{supplier.name}</div>
                                 {supplier.code && (
-                                  <div className="text-[10px] text-plm-fg-muted">{supplier.code}</div>
+                                  <div className="text-[10px] text-plm-fg-muted">
+                                    {supplier.code}
+                                  </div>
                                 )}
                               </div>
                               <Plus size={14} className="text-plm-fg-muted" />
                             </button>
                           ))}
-                        {availableSuppliers.filter(s => {
+                        {availableSuppliers.filter((s) => {
                           if (!supplierSearch.trim()) return true
                           const search = supplierSearch.toLowerCase()
-                          return s.name.toLowerCase().includes(search) || 
-                                 (s.code?.toLowerCase().includes(search) ?? false)
+                          return (
+                            s.name.toLowerCase().includes(search) ||
+                            (s.code?.toLowerCase().includes(search) ?? false)
+                          )
                         }).length === 0 && (
                           <p className="text-xs text-plm-fg-muted text-center py-2">
                             No suppliers match "{supplierSearch}"
@@ -1531,7 +1647,7 @@ function RFQDetailView({
                   className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-plm-accent hover:bg-plm-accent/90 text-white rounded text-sm font-medium transition-colors"
                 >
                   <Plus size={16} />
-                  Add Supplier
+                  {t('rfq.addSupplier')}
                 </button>
               )}
             </div>
@@ -1540,23 +1656,24 @@ function RFQDetailView({
             {suppliers.length === 0 ? (
               <div className="text-center py-6 text-plm-fg-muted">
                 <Building2 size={28} className="mx-auto mb-2 opacity-50" />
-                <p className="text-sm">No suppliers assigned yet</p>
+                <p className="text-sm">{t('rfq.noSuppliersAssigned')}</p>
                 {rfq.release_files_generated && (
                   <div className="mt-3 p-2 bg-plm-warning/10 border border-plm-warning/30 rounded text-plm-warning text-xs">
                     <AlertCircle size={12} className="inline mr-1" />
-                    Add suppliers to mark RFQ as ready
+                    {t('rfq.addSuppliersToMarkReady')}
                   </div>
                 )}
               </div>
             ) : (
               <div className="space-y-2">
                 {suppliers.map((rs) => (
-                  <div key={rs.id} className="border border-plm-border rounded p-2 bg-plm-bg/50 hover:bg-plm-highlight/30 transition-colors">
+                  <div
+                    key={rs.id}
+                    className="border border-plm-border rounded p-2 bg-plm-bg/50 hover:bg-plm-highlight/30 transition-colors"
+                  >
                     <div className="flex items-center justify-between">
                       <div className="flex-1 min-w-0">
-                        <div className="text-xs font-medium text-plm-fg">
-                          {rs.supplier?.name}
-                        </div>
+                        <div className="text-xs font-medium text-plm-fg">{rs.supplier?.name}</div>
                         {rs.supplier?.code && (
                           <div className="text-[10px] text-plm-fg-muted">{rs.supplier.code}</div>
                         )}
@@ -1568,20 +1685,20 @@ function RFQDetailView({
                               {formatCurrency(rs.total_quoted_amount, rs.currency)}
                             </div>
                             <div className="text-[10px] text-plm-fg-muted">
-                              {rs.lead_time_days} days
+                              {rs.lead_time_days} {t('rfq.days')}
                             </div>
                           </div>
                         ) : rs.sent_at ? (
-                          <span className="text-[10px] text-plm-warning">Awaiting quote</span>
+                          <span className="text-[10px] text-plm-warning">{t('rfq.awaitingQuote')}</span>
                         ) : (
-                          <span className="text-[10px] text-plm-fg-muted">Not sent</span>
+                          <span className="text-[10px] text-plm-fg-muted">{t('rfq.notSent')}</span>
                         )}
                         {/* Remove button - only if not yet sent */}
                         {!rs.sent_at && (
                           <button
                             onClick={() => handleRemoveSupplier(rs.id, rs.supplier_id)}
                             className="p-1 text-plm-fg-muted hover:text-plm-error transition-colors"
-                            title="Remove supplier"
+                            title={t('rfq.removeSupplier')}
                           >
                             <Trash2 size={14} />
                           </button>
@@ -1599,9 +1716,13 @@ function RFQDetailView({
           <div className="p-3 space-y-4">
             {/* Addresses Section */}
             <div className="border-b border-plm-border pb-4">
-              <div className="text-[10px] text-plm-fg-muted uppercase tracking-wider mb-2">Billing Address</div>
+              <div className="text-[10px] text-plm-fg-muted uppercase tracking-wider mb-2">
+                {t('rfq.billingAddress')}
+              </div>
               {billingAddresses.length === 0 ? (
-                <div className="text-xs text-plm-fg-muted italic">No billing addresses. Add in Settings → Company Profile.</div>
+                <div className="text-xs text-plm-fg-muted italic">
+                  {t('rfq.noBillingAddresses')}
+                </div>
               ) : (
                 <select
                   value={selectedBillingId || ''}
@@ -1612,39 +1733,48 @@ function RFQDetailView({
                     try {
                       await db.from('rfqs').update({ billing_address_id: newId }).eq('id', rfq.id)
                       onUpdate({ ...rfq, billing_address_id: newId })
-                    } catch (err) {
-                      log.error('[RFQ]', 'Failed to update billing address', { error: err })
+                    } catch (error) {
+                      log.error('[RFQ]', 'Failed to update billing address', { error: error })
                     } finally {
                       setSavingAddresses(false)
                     }
                   }}
                   className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg focus:outline-none focus:border-plm-accent"
                 >
-                  <option value="">Select billing address...</option>
-                  {billingAddresses.map(addr => (
+                  <option value="">{t('rfq.selectBillingAddress')}</option>
+                  {billingAddresses.map((addr) => (
                     <option key={addr.id} value={addr.id}>
-                      {addr.label} {addr.is_default ? '(Default)' : ''} - {addr.city}, {addr.state || addr.country}
+                      {addr.label} {addr.is_default ? t('rfq.defaultLabel') : ''} - {addr.city},{' '}
+                      {addr.state || addr.country}
                     </option>
                   ))}
                 </select>
               )}
-              {selectedBillingId && (() => {
-                const addr = billingAddresses.find(a => a.id === selectedBillingId)
-                return addr ? (
-                  <div className="mt-2 text-[11px] text-plm-fg-muted bg-plm-highlight/50 rounded p-2">
-                    {addr.attention_to && <div>ATTN: {addr.attention_to}</div>}
-                    <div>{addr.address_line1}</div>
-                    {addr.address_line2 && <div>{addr.address_line2}</div>}
-                    <div>{addr.city}{addr.state && `, ${addr.state}`} {addr.postal_code}</div>
-                  </div>
-                ) : null
-              })()}
+              {selectedBillingId &&
+                (() => {
+                  const addr = billingAddresses.find((a) => a.id === selectedBillingId)
+                  return addr ? (
+                    <div className="mt-2 text-[11px] text-plm-fg-muted bg-plm-highlight/50 rounded p-2">
+                      {addr.attention_to && <div>{t('rfq.attn')} {addr.attention_to}</div>}
+                      <div>{addr.address_line1}</div>
+                      {addr.address_line2 && <div>{addr.address_line2}</div>}
+                      <div>
+                        {addr.city}
+                        {addr.state && `, ${addr.state}`} {addr.postal_code}
+                      </div>
+                    </div>
+                  ) : null
+                })()}
             </div>
 
             <div className="border-b border-plm-border pb-4">
-              <div className="text-[10px] text-plm-fg-muted uppercase tracking-wider mb-2">Shipping Address</div>
+              <div className="text-[10px] text-plm-fg-muted uppercase tracking-wider mb-2">
+                {t('rfq.shippingAddress')}
+              </div>
               {shippingAddresses.length === 0 ? (
-                <div className="text-xs text-plm-fg-muted italic">No shipping addresses. Add in Settings → Company Profile.</div>
+                <div className="text-xs text-plm-fg-muted italic">
+                  {t('rfq.noShippingAddresses')}
+                </div>
               ) : (
                 <select
                   value={selectedShippingId || ''}
@@ -1655,38 +1785,45 @@ function RFQDetailView({
                     try {
                       await db.from('rfqs').update({ shipping_address_id: newId }).eq('id', rfq.id)
                       onUpdate({ ...rfq, shipping_address_id: newId })
-                    } catch (err) {
-                      log.error('[RFQ]', 'Failed to update shipping address', { error: err })
+                    } catch (error) {
+                      log.error('[RFQ]', 'Failed to update shipping address', { error: error })
                     } finally {
                       setSavingAddresses(false)
                     }
                   }}
                   className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg focus:outline-none focus:border-plm-accent"
                 >
-                  <option value="">Select shipping address...</option>
-                  {shippingAddresses.map(addr => (
+                  <option value="">{t('rfq.selectShippingAddress')}</option>
+                  {shippingAddresses.map((addr) => (
                     <option key={addr.id} value={addr.id}>
-                      {addr.label} {addr.is_default ? '(Default)' : ''} - {addr.city}, {addr.state || addr.country}
+                      {addr.label} {addr.is_default ? t('rfq.defaultLabel') : ''} - {addr.city},{' '}
+                      {addr.state || addr.country}
                     </option>
                   ))}
                 </select>
               )}
-              {selectedShippingId && (() => {
-                const addr = shippingAddresses.find(a => a.id === selectedShippingId)
-                return addr ? (
-                  <div className="mt-2 text-[11px] text-plm-fg-muted bg-plm-highlight/50 rounded p-2">
-                    {addr.attention_to && <div>ATTN: {addr.attention_to}</div>}
-                    <div>{addr.address_line1}</div>
-                    {addr.address_line2 && <div>{addr.address_line2}</div>}
-                    <div>{addr.city}{addr.state && `, ${addr.state}`} {addr.postal_code}</div>
-                  </div>
-                ) : null
-              })()}
+              {selectedShippingId &&
+                (() => {
+                  const addr = shippingAddresses.find((a) => a.id === selectedShippingId)
+                  return addr ? (
+                    <div className="mt-2 text-[11px] text-plm-fg-muted bg-plm-highlight/50 rounded p-2">
+                      {addr.attention_to && <div>{t('rfq.attn')} {addr.attention_to}</div>}
+                      <div>{addr.address_line1}</div>
+                      {addr.address_line2 && <div>{addr.address_line2}</div>}
+                      <div>
+                        {addr.city}
+                        {addr.state && `, ${addr.state}`} {addr.postal_code}
+                      </div>
+                    </div>
+                  ) : null
+                })()}
             </div>
 
             {/* Dates */}
             <div>
-              <label className="text-[10px] text-plm-fg-muted uppercase tracking-wider">Due Date</label>
+              <label className="text-[10px] text-plm-fg-muted uppercase tracking-wider">
+                {t('rfq.dueDate')}
+              </label>
               <input
                 type="date"
                 value={rfq.due_date || ''}
@@ -1694,7 +1831,9 @@ function RFQDetailView({
               />
             </div>
             <div>
-              <label className="text-[10px] text-plm-fg-muted uppercase tracking-wider">Required Date</label>
+              <label className="text-[10px] text-plm-fg-muted uppercase tracking-wider">
+                {t('rfq.requiredDate')}
+              </label>
               <input
                 type="date"
                 value={rfq.required_date || ''}
@@ -1702,63 +1841,76 @@ function RFQDetailView({
               />
             </div>
             <div>
-              <label className="text-[10px] text-plm-fg-muted uppercase tracking-wider">Notes to Suppliers</label>
+              <label className="text-[10px] text-plm-fg-muted uppercase tracking-wider">
+                {t('rfq.notesToSuppliers')}
+              </label>
               <textarea
                 value={rfq.supplier_notes || ''}
                 rows={3}
                 className="w-full mt-1 px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg focus:outline-none focus:border-plm-accent resize-none"
-                placeholder="Special instructions, requirements, etc."
+                placeholder={t('rfq.supplierNotesPlaceholder')}
               />
             </div>
             <div className="space-y-2 pt-2 border-t border-plm-border">
-              <div className="text-[10px] text-plm-fg-muted uppercase tracking-wider mb-2">Requirements</div>
+              <div className="text-[10px] text-plm-fg-muted uppercase tracking-wider mb-2">
+                {t('rfq.requirements')}
+              </div>
               <label className="flex items-center gap-2 cursor-pointer hover:bg-plm-highlight/30 p-1.5 rounded -mx-1.5 transition-colors">
-                <input 
-                  type="checkbox" 
-                  checked={rfq.requires_samples} 
+                <input
+                  type="checkbox"
+                  checked={rfq.requires_samples}
                   onChange={async (e) => {
                     try {
-                      await db.from('rfqs').update({ requires_samples: e.target.checked }).eq('id', rfq.id)
+                      await db
+                        .from('rfqs')
+                        .update({ requires_samples: e.target.checked })
+                        .eq('id', rfq.id)
                       onUpdate({ ...rfq, requires_samples: e.target.checked })
-                    } catch (err) {
-                      log.error('[RFQ]', 'Failed to update', { error: err })
+                    } catch (error) {
+                      log.error('[RFQ]', 'Failed to update', { error: error })
                     }
                   }}
-                  className="rounded" 
+                  className="rounded"
                 />
-                <span className="text-xs text-plm-fg">Requires samples</span>
+                <span className="text-xs text-plm-fg">{t('rfq.requiresSamples')}</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer hover:bg-plm-highlight/30 p-1.5 rounded -mx-1.5 transition-colors">
-                <input 
-                  type="checkbox" 
-                  checked={rfq.requires_first_article} 
+                <input
+                  type="checkbox"
+                  checked={rfq.requires_first_article}
                   onChange={async (e) => {
                     try {
-                      await db.from('rfqs').update({ requires_first_article: e.target.checked }).eq('id', rfq.id)
+                      await db
+                        .from('rfqs')
+                        .update({ requires_first_article: e.target.checked })
+                        .eq('id', rfq.id)
                       onUpdate({ ...rfq, requires_first_article: e.target.checked })
-                    } catch (err) {
-                      log.error('[RFQ]', 'Failed to update', { error: err })
+                    } catch (error) {
+                      log.error('[RFQ]', 'Failed to update', { error: error })
                     }
                   }}
-                  className="rounded" 
+                  className="rounded"
                 />
-                <span className="text-xs text-plm-fg">Requires first article inspection (FAI)</span>
+                <span className="text-xs text-plm-fg">{t('rfq.requiresFai')}</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer hover:bg-plm-highlight/30 p-1.5 rounded -mx-1.5 transition-colors">
-                <input 
-                  type="checkbox" 
-                  checked={rfq.requires_quality_report ?? false} 
+                <input
+                  type="checkbox"
+                  checked={rfq.requires_quality_report ?? false}
                   onChange={async (e) => {
                     try {
-                      await db.from('rfqs').update({ requires_quality_report: e.target.checked }).eq('id', rfq.id)
+                      await db
+                        .from('rfqs')
+                        .update({ requires_quality_report: e.target.checked })
+                        .eq('id', rfq.id)
                       onUpdate({ ...rfq, requires_quality_report: e.target.checked })
-                    } catch (err) {
-                      log.error('[RFQ]', 'Failed to update', { error: err })
+                    } catch (error) {
+                      log.error('[RFQ]', 'Failed to update', { error: error })
                     }
                   }}
-                  className="rounded" 
+                  className="rounded"
                 />
-                <span className="text-xs text-plm-fg">Requires quality report / CoC</span>
+                <span className="text-xs text-plm-fg">{t('rfq.requiresQualityReport')}</span>
               </label>
             </div>
           </div>
@@ -1770,33 +1922,29 @@ function RFQDetailView({
         <div className="p-3 border-t border-plm-border space-y-2">
           {/* PDF and ZIP row */}
           <div className="flex gap-2">
-            <button 
+            <button
               onClick={handleGeneratePdf}
               disabled={generatingPdf}
               className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-plm-highlight hover:bg-plm-border text-plm-fg rounded text-sm font-medium transition-colors disabled:opacity-50"
-              title="Generate RFQ PDF document"
+              title={t('rfq.generateRfqPdfTitle')}
             >
               {generatingPdf ? (
                 <Loader2 size={14} className="animate-spin" />
               ) : (
                 <Printer size={14} />
               )}
-              RFQ PDF
+              {t('rfq.rfqPdf')}
             </button>
-            
+
             {/* ZIP Package - always available, includes RFQ PDF + any release files */}
             <button
               onClick={handleGenerateZip}
               disabled={generating}
               className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-plm-highlight hover:bg-plm-border text-plm-fg rounded text-sm font-medium transition-colors disabled:opacity-50"
-              title="Create ZIP with RFQ PDF and release files"
+              title={t('rfq.createZipTitle')}
             >
-              {generating ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <Archive size={14} />
-              )}
-              ZIP Package
+              {generating ? <Loader2 size={14} className="animate-spin" /> : <Archive size={14} />}
+              {t('rfq.zipPackage')}
             </button>
           </div>
 
@@ -1804,7 +1952,7 @@ function RFQDetailView({
           {rfq.status === 'ready' && (
             <button className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-plm-success hover:bg-plm-success/80 text-white rounded text-sm font-medium transition-colors">
               <Send size={16} />
-              Send to Suppliers
+              {t('rfq.sendToSuppliers')}
             </button>
           )}
         </div>
@@ -1814,12 +1962,12 @@ function RFQDetailView({
 }
 
 // New RFQ Dialog
-function NewRFQDialog({ 
-  onClose, 
-  onCreate 
-}: { 
+function NewRFQDialog({
+  onClose,
+  onCreate,
+}: {
   onClose: () => void
-  onCreate: (rfq: RFQ) => void 
+  onCreate: (rfq: RFQ) => void
 }) {
   const { organization, user, addToast } = usePDMStore()
   const [title, setTitle] = useState('')
@@ -1836,20 +1984,23 @@ function NewRFQDialog({
     setLoading(true)
     try {
       // Generate RFQ number
-      const { data: rfqNumber, error: numError } = await supabase
-        .rpc('generate_rfq_number' as never, { p_org_id: organization.id } as never)
+      const { data: rfqNumber, error: numError } = await supabase.rpc(
+        'generate_rfq_number' as never,
+        { p_org_id: organization.id } as never,
+      )
 
       if (numError) throw numError
 
       // Create RFQ
-      const { data, error } = await db.from('rfqs')
+      const { data, error } = await db
+        .from('rfqs')
         .insert({
           org_id: organization.id,
           rfq_number: rfqNumber,
           title: title.trim(),
           description: description.trim() || null,
           status: 'draft',
-          created_by: user.id
+          created_by: user.id,
         })
         .select()
         .single()
@@ -1858,8 +2009,8 @@ function NewRFQDialog({
 
       addToast('success', `Created RFQ ${rfqNumber}`)
       onCreate(data as RFQ)
-    } catch (err) {
-      log.error('[RFQ]', 'Failed to create RFQ', { error: err })
+    } catch (error) {
+      log.error('[RFQ]', 'Failed to create RFQ', { error: error })
       addToast('error', 'Failed to create RFQ')
     } finally {
       setLoading(false)
@@ -1870,30 +2021,30 @@ function NewRFQDialog({
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-plm-bg border border-plm-border rounded-lg w-full max-w-md mx-4 shadow-xl">
         <div className="flex items-center justify-between p-4 border-b border-plm-border">
-          <h3 className="text-sm font-medium text-plm-fg">New RFQ</h3>
+          <h3 className="text-sm font-medium text-plm-fg">{t('rfq.newRfq')}</h3>
           <button onClick={onClose} className="text-plm-fg-muted hover:text-plm-fg">
             <X size={16} />
           </button>
         </div>
-        
+
         <div className="p-4 space-y-4">
           <div>
-            <label className="text-xs text-plm-fg-muted block mb-1">Title *</label>
+            <label className="text-xs text-plm-fg-muted block mb-1">{t('rfq.titleRequired')}</label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g., CNC Parts for Assembly XYZ"
+              placeholder={t('rfq.titlePlaceholder')}
               className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted focus:outline-none focus:border-plm-accent"
               autoFocus
             />
           </div>
           <div>
-            <label className="text-xs text-plm-fg-muted block mb-1">Description</label>
+            <label className="text-xs text-plm-fg-muted block mb-1">{t('common.description')}</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Optional details about this RFQ..."
+              placeholder={t('rfq.descriptionPlaceholder')}
               rows={3}
               className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted focus:outline-none focus:border-plm-accent resize-none"
             />
@@ -1905,7 +2056,7 @@ function NewRFQDialog({
             onClick={onClose}
             className="px-4 py-2 text-sm text-plm-fg-muted hover:text-plm-fg transition-colors"
           >
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleCreate}
@@ -1913,7 +2064,7 @@ function NewRFQDialog({
             className="px-4 py-2 bg-plm-accent hover:bg-plm-accent/90 text-white text-sm font-medium rounded disabled:opacity-50 transition-colors flex items-center gap-2"
           >
             {loading && <Loader2 size={14} className="animate-spin" />}
-            Create RFQ
+            {t('rfq.createRfq')}
           </button>
         </div>
       </div>
@@ -1922,10 +2073,10 @@ function NewRFQDialog({
 }
 
 // Main RFQ View Component
-export function RFQView({ 
+export function RFQView({
   initialShowNewDialog = false,
-  onDialogClose
-}: { 
+  onDialogClose,
+}: {
   initialShowNewDialog?: boolean
   onDialogClose?: () => void
 } = {}) {
@@ -1957,25 +2108,16 @@ export function RFQView({
   return (
     <>
       {selectedRFQ ? (
-        <RFQDetailView 
-          rfq={selectedRFQ} 
+        <RFQDetailView
+          rfq={selectedRFQ}
           onBack={() => setSelectedRFQ(null)}
           onUpdate={handleRFQUpdated}
         />
       ) : (
-        <RFQListView 
-          onSelectRFQ={setSelectedRFQ}
-          onNewRFQ={() => setShowNewDialog(true)}
-        />
+        <RFQListView onSelectRFQ={setSelectedRFQ} onNewRFQ={() => setShowNewDialog(true)} />
       )}
 
-      {showNewDialog && (
-        <NewRFQDialog 
-          onClose={handleCloseDialog}
-          onCreate={handleRFQCreated}
-        />
-      )}
+      {showNewDialog && <NewRFQDialog onClose={handleCloseDialog} onCreate={handleRFQCreated} />}
     </>
   )
 }
-

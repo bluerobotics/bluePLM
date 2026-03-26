@@ -1,4 +1,16 @@
-import { Image, ExternalLink, FolderOpen, Info, EyeOff, FileX, FileInput, Hash, FileText, Globe, Loader2 } from 'lucide-react'
+import {
+  Image,
+  ExternalLink,
+  FolderOpen,
+  Info,
+  EyeOff,
+  FileX,
+  FileInput,
+  Hash,
+  FileText,
+  Globe,
+  Loader2,
+} from 'lucide-react'
 import { useSolidWorksSettings } from '../hooks'
 
 export function SettingsTab() {
@@ -57,12 +69,13 @@ export function SettingsTab() {
                 : 'bg-plm-bg border-plm-border text-plm-fg-muted hover:border-plm-fg-muted'
             }`}
           >
-            <ExternalLink size={24} className={cadPreviewMode === 'edrawings' ? 'text-plm-accent' : ''} />
+            <ExternalLink
+              size={24}
+              className={cadPreviewMode === 'edrawings' ? 'text-plm-accent' : ''}
+            />
             <div className="text-left">
               <div className="text-base font-medium">eDrawings (External)</div>
-              <div className="text-sm opacity-70">
-                Open files in external eDrawings application
-              </div>
+              <div className="text-sm opacity-70">Open files in external eDrawings application</div>
             </div>
           </button>
         </div>
@@ -77,11 +90,13 @@ export function SettingsTab() {
           <div className="flex items-start gap-2 text-sm text-plm-fg-muted">
             <Info size={16} className="mt-0.5 flex-shrink-0" />
             <span>
-              SolidWorks creates temporary <code className="px-1.5 py-0.5 bg-plm-bg-secondary rounded">~$filename.sldprt</code> lock files when files are open.
-              These indicate a file is being edited and are automatically deleted when closed.
+              SolidWorks creates temporary{' '}
+              <code className="px-1.5 py-0.5 bg-plm-bg-secondary rounded">~$filename.sldprt</code>{' '}
+              lock files when files are open. These indicate a file is being edited and are
+              automatically deleted when closed.
             </span>
           </div>
-          
+
           {/* Hide toggle */}
           <div className="flex items-center justify-between pt-2 border-t border-plm-border">
             <div className="flex items-center gap-3">
@@ -106,7 +121,7 @@ export function SettingsTab() {
               />
             </button>
           </div>
-          
+
           {/* Ignore toggle */}
           <div className="flex items-center justify-between pt-2 border-t border-plm-border">
             <div className="flex items-center gap-3">
@@ -148,18 +163,20 @@ export function SettingsTab() {
           <div className="flex items-start gap-2 text-sm text-plm-fg-muted">
             <Info size={16} className="mt-0.5 flex-shrink-0" />
             <span>
-              Part (.sldprt) and assembly (.sldasm) revisions are typically controlled at the configuration level,
-              driven by drawings. When disabled, file-level revision editing and workflow auto-increment are blocked
-              for these file types.
+              Part (.sldprt) and assembly (.sldasm) revisions are typically controlled at the
+              configuration level, driven by drawings. When disabled, file-level revision editing
+              and workflow auto-increment are blocked for these file types.
             </span>
           </div>
-          
+
           {/* Allow file-level revision toggle */}
           <div className="flex items-center justify-between pt-2 border-t border-plm-border">
             <div className="flex items-center gap-3">
               <FileInput size={18} className="text-plm-fg-muted" />
               <div>
-                <div className="text-sm text-plm-fg">Allow file-level revisions on parts & assemblies</div>
+                <div className="text-sm text-plm-fg">
+                  Allow file-level revisions on parts & assemblies
+                </div>
                 <div className="text-xs text-plm-fg-muted">
                   When off, revisions are controlled from drawings only
                 </div>
@@ -184,7 +201,7 @@ export function SettingsTab() {
               </button>
             )}
           </div>
-          
+
           {!isAdmin && (
             <div className="flex items-start gap-2 text-xs text-plm-fg-muted/70 pt-1">
               <Globe size={12} className="mt-0.5 flex-shrink-0" />
@@ -203,11 +220,12 @@ export function SettingsTab() {
           <div className="flex items-start gap-2 text-sm text-plm-fg-muted">
             <Info size={16} className="mt-0.5 flex-shrink-0" />
             <span>
-              Drawing files (.slddrw) typically inherit their metadata from the model they reference. 
-              When locked, these fields are read-only and show a <FileInput size={12} className="inline mx-0.5" /> indicator.
+              Drawing files (.slddrw) typically inherit their metadata from the model they
+              reference. When locked, these fields are read-only and show a{' '}
+              <FileInput size={12} className="inline mx-0.5" /> indicator.
             </span>
           </div>
-          
+
           {/* Lock Revision toggle */}
           <div className="flex items-center justify-between pt-2 border-t border-plm-border">
             <div className="flex items-center gap-3">
@@ -232,7 +250,7 @@ export function SettingsTab() {
               />
             </button>
           </div>
-          
+
           {/* Lock Item Number toggle */}
           <div className="flex items-center justify-between pt-2 border-t border-plm-border">
             <div className="flex items-center gap-3">
@@ -257,7 +275,7 @@ export function SettingsTab() {
               />
             </button>
           </div>
-          
+
           {/* Lock Description toggle */}
           <div className="flex items-center justify-between pt-2 border-t border-plm-border">
             <div className="flex items-center gap-3">

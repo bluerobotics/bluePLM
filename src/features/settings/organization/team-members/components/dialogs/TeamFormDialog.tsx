@@ -15,25 +15,31 @@ export function TeamFormDialog({
   existingTeams,
   copyFromTeamId,
   setCopyFromTeamId,
-  disableNameEdit = false
+  disableNameEdit = false,
 }: TeamFormDialogProps) {
   const IconComponent = getTeamIcon(formData.icon)
   const isCreating = title === 'Create Team'
-  
+
   // Use stable callback refs to avoid stale closures
   const handleIconChange = (icon: string) => {
     setFormData({ ...formData, icon })
   }
-  
+
   const handleColorChange = (color: string | null) => {
     if (color) setFormData({ ...formData, color })
   }
-  
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={onCancel}>
-      <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center"
+      onClick={onCancel}
+    >
+      <div
+        className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
         <h3 className="text-lg font-medium text-plm-fg mb-6">{title}</h3>
-        
+
         <div className="space-y-4">
           {/* Copy from existing team */}
           {isCreating && existingTeams && existingTeams.length > 0 && setCopyFromTeamId && (
@@ -44,16 +50,16 @@ export function TeamFormDialog({
               </label>
               <select
                 value={copyFromTeamId || ''}
-                onChange={e => {
+                onChange={(e) => {
                   const teamId = e.target.value || null
                   setCopyFromTeamId(teamId)
                   if (teamId && existingTeams) {
-                    const sourceTeam = existingTeams.find(t => t.id === teamId)
+                    const sourceTeam = existingTeams.find((t) => t.id === teamId)
                     if (sourceTeam) {
                       setFormData({
                         ...formData,
                         color: sourceTeam.color,
-                        icon: sourceTeam.icon
+                        icon: sourceTeam.icon,
                       })
                     }
                   }
@@ -61,7 +67,7 @@ export function TeamFormDialog({
                 className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg focus:outline-none focus:border-plm-accent"
               >
                 <option value="">Start fresh (no copy)</option>
-                {existingTeams.map(team => (
+                {existingTeams.map((team) => (
                   <option key={team.id} value={team.id}>
                     {team.name} ({team.member_count} members, {team.permissions_count} permissions)
                   </option>
@@ -69,33 +75,33 @@ export function TeamFormDialog({
               </select>
             </div>
           )}
-          
+
           {/* Name */}
           <div>
             <label className="block text-sm text-plm-fg-muted mb-1.5">Team Name *</label>
             <input
               type="text"
               value={formData.name}
-              onChange={e => setFormData({ ...formData, name: e.target.value })}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               placeholder="e.g., Engineering, Accounting, Quality"
               className={`w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-dim focus:outline-none focus:border-plm-accent ${disableNameEdit ? 'opacity-50 cursor-not-allowed' : ''}`}
               autoFocus={!disableNameEdit}
               disabled={disableNameEdit}
             />
           </div>
-          
+
           {/* Description */}
           <div>
             <label className="block text-sm text-plm-fg-muted mb-1.5">Description</label>
             <textarea
               value={formData.description}
-              onChange={e => setFormData({ ...formData, description: e.target.value })}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               placeholder="Brief description of this team's purpose..."
               rows={2}
               className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-dim focus:outline-none focus:border-plm-accent resize-none"
             />
           </div>
-          
+
           {/* Color & Icon */}
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -117,7 +123,7 @@ export function TeamFormDialog({
                 </div>
               </div>
             </div>
-            
+
             <div>
               <label className="block text-sm text-plm-fg-muted mb-1.5">Icon</label>
               <IconPicker
@@ -127,24 +133,28 @@ export function TeamFormDialog({
               />
             </div>
           </div>
-          
+
           {/* Default team toggle */}
           <label className="flex items-center gap-3 p-3 bg-plm-bg border border-plm-border rounded-lg cursor-pointer hover:border-plm-accent/50 transition-colors">
             <input
               type="checkbox"
               checked={formData.is_default}
-              onChange={e => setFormData({ ...formData, is_default: e.target.checked })}
+              onChange={(e) => setFormData({ ...formData, is_default: e.target.checked })}
               className="w-4 h-4 rounded border-plm-border text-plm-accent focus:ring-plm-accent"
             />
             <div>
               <div className="text-sm text-plm-fg font-medium">Default Team</div>
-              <div className="text-xs text-plm-fg-muted">New users will automatically be added to this team</div>
+              <div className="text-xs text-plm-fg-muted">
+                New users will automatically be added to this team
+              </div>
             </div>
           </label>
         </div>
-        
+
         <div className="flex gap-2 justify-end mt-6">
-          <button onClick={onCancel} className="btn btn-ghost">Cancel</button>
+          <button onClick={onCancel} className="btn btn-ghost">
+            Cancel
+          </button>
           <button
             onClick={onSave}
             disabled={isSaving || !formData.name.trim()}

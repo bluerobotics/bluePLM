@@ -33,7 +33,7 @@ export function MetadataActions({
 
   // For multi-select, only show if all files are SolidWorks files
   if (multiSelect) {
-    const allSwFiles = contextFiles.every(f => {
+    const allSwFiles = contextFiles.every((f) => {
       const fExt = f.extension?.toLowerCase() || ''
       return ['.sldprt', '.sldasm', '.slddrw'].includes(fExt)
     })
@@ -41,21 +41,21 @@ export function MetadataActions({
   }
 
   // Filter to only SolidWorks files that are checked out by the current user
-  const swFiles = contextFiles.filter(f => {
+  const swFiles = contextFiles.filter((f) => {
     const fExt = f.extension?.toLowerCase() || ''
     return ['.sldprt', '.sldasm', '.slddrw'].includes(fExt)
   })
-  
+
   // Check if any files are checked out by current user
-  const checkedOutFiles = swFiles.filter(f => f.pdmData?.checked_out_by === user?.id)
+  const checkedOutFiles = swFiles.filter((f) => f.pdmData?.checked_out_by === user?.id)
   const hasCheckedOutFiles = checkedOutFiles.length > 0
 
   const handleSyncMetadata = async () => {
     if (!swServiceRunning || isSyncing || !hasCheckedOutFiles) return
-    
+
     setIsSyncing(true)
     onClose()
-    
+
     try {
       await executeCommand('sync-metadata', { files: swFiles }, { onRefresh })
     } finally {
@@ -65,7 +65,7 @@ export function MetadataActions({
 
   const fileCount = checkedOutFiles.length
   const countLabel = fileCount > 1 ? ` (${fileCount})` : ''
-  
+
   // Determine tooltip based on state
   let tooltip = 'Sync metadata between BluePLM and SolidWorks file'
   if (!swServiceRunning) {
@@ -76,7 +76,7 @@ export function MetadataActions({
 
   return (
     <>
-      <div 
+      <div
         className={`context-menu-item ${!swServiceRunning || isSyncing || !hasCheckedOutFiles ? 'opacity-50' : ''}`}
         onClick={handleSyncMetadata}
         title={tooltip}

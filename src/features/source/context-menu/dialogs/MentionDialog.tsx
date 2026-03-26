@@ -21,10 +21,10 @@ export function MentionDialog({
   file,
   organizationId,
   userId,
-  onSuccess
+  onSuccess,
 }: MentionDialogProps) {
   const { addToast } = usePDMStore()
-  
+
   const [orgUsers, setOrgUsers] = useState<OrgUser[]>([])
   const [selectedUsers, setSelectedUsers] = useState<string[]>([])
   const [message, setMessage] = useState('')
@@ -42,10 +42,10 @@ export function MentionDialog({
   }, [isOpen, organizationId, userId])
 
   const handleToggleUser = (targetUserId: string) => {
-    setSelectedUsers(prev => 
+    setSelectedUsers((prev) =>
       prev.includes(targetUserId)
-        ? prev.filter(id => id !== targetUserId)
-        : [...prev, targetUserId]
+        ? prev.filter((id) => id !== targetUserId)
+        : [...prev, targetUserId],
     )
   }
 
@@ -54,23 +54,26 @@ export function MentionDialog({
       addToast('error', 'Missing required information')
       return
     }
-    
+
     if (selectedUsers.length === 0) {
       addToast('warning', 'Please select at least one person to notify')
       return
     }
-    
+
     if (!file.pdmData) {
       addToast('error', 'File must be synced to send notifications')
       return
     }
-    
+
     setIsSubmitting(true)
-    
-    addToast('info', `Mention noted for ${selectedUsers.length} user${selectedUsers.length > 1 ? 's' : ''}`)
+
+    addToast(
+      'info',
+      `Mention noted for ${selectedUsers.length} user${selectedUsers.length > 1 ? 's' : ''}`,
+    )
     handleClose()
     onSuccess()
-    
+
     setIsSubmitting(false)
   }
 
@@ -83,11 +86,11 @@ export function MentionDialog({
   if (!isOpen) return null
 
   return (
-    <div 
+    <div
       className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-center justify-center"
       onClick={handleClose}
     >
-      <div 
+      <div
         className="bg-plm-bg-light border border-plm-border rounded-lg p-6 max-w-md w-full shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
@@ -100,7 +103,7 @@ export function MentionDialog({
             <p className="text-sm text-plm-fg-muted">Send a notification about this file</p>
           </div>
         </div>
-        
+
         {/* File info */}
         <div className="bg-plm-bg rounded border border-plm-border p-3 mb-4">
           <div className="flex items-center gap-2">
@@ -111,7 +114,7 @@ export function MentionDialog({
             )}
           </div>
         </div>
-        
+
         {/* User selection */}
         <div className="mb-4">
           <label className="block text-xs text-plm-fg-muted uppercase tracking-wide mb-2">
@@ -125,8 +128,8 @@ export function MentionDialog({
             <p className="text-sm text-plm-fg-muted p-2">No other users in your organization</p>
           ) : (
             <div className="max-h-48 overflow-y-auto border border-plm-border rounded bg-plm-bg">
-              {orgUsers.map(orgUser => (
-                <label 
+              {orgUsers.map((orgUser) => (
+                <label
                   key={orgUser.id}
                   className="flex items-center gap-3 p-2 hover:bg-plm-highlight cursor-pointer"
                 >
@@ -137,9 +140,9 @@ export function MentionDialog({
                     className="w-4 h-4 rounded border-plm-border text-plm-accent focus:ring-plm-accent"
                   />
                   {orgUser.avatar_url ? (
-                    <img 
-                      src={orgUser.avatar_url} 
-                      alt="" 
+                    <img
+                      src={orgUser.avatar_url}
+                      alt=""
                       className="w-6 h-6 rounded-full"
                       referrerPolicy="no-referrer"
                     />
@@ -153,9 +156,7 @@ export function MentionDialog({
                       {orgUser.full_name || orgUser.email}
                     </div>
                     {orgUser.full_name && (
-                      <div className="text-xs text-plm-fg-muted truncate">
-                        {orgUser.email}
-                      </div>
+                      <div className="text-xs text-plm-fg-muted truncate">{orgUser.email}</div>
                     )}
                   </div>
                   {selectedUsers.includes(orgUser.id) && (
@@ -166,7 +167,7 @@ export function MentionDialog({
             </div>
           )}
         </div>
-        
+
         {/* Message */}
         <div className="mb-4">
           <label className="block text-xs text-plm-fg-muted uppercase tracking-wide mb-2">
@@ -180,7 +181,7 @@ export function MentionDialog({
             rows={3}
           />
         </div>
-        
+
         {/* Actions */}
         <div className="flex justify-end gap-2">
           <button onClick={handleClose} className="btn btn-ghost">
@@ -191,11 +192,7 @@ export function MentionDialog({
             disabled={selectedUsers.length === 0 || isSubmitting}
             className="btn bg-plm-accent hover:bg-plm-accent/90 text-white disabled:opacity-50"
           >
-            {isSubmitting ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <Send size={14} />
-            )}
+            {isSubmitting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
             Send {selectedUsers.length > 0 && `(${selectedUsers.length})`}
           </button>
         </div>

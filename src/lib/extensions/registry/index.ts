@@ -1,28 +1,28 @@
 /**
  * Extension Registry - Public API
- * 
+ *
  * The central module for extension lifecycle management.
- * 
+ *
  * @module extensions/registry
- * 
+ *
  * @example
  * ```typescript
- * import { 
+ * import {
  *   ExtensionRegistry,
  *   getExtensionRegistry,
  * } from '@/lib/extensions/registry'
- * 
+ *
  * // Get the singleton
  * const registry = getExtensionRegistry()
- * 
+ *
  * // Initialize
  * await registry.initialize({
  *   extensionsPath: '/path/to/extensions',
  * })
- * 
+ *
  * // Install extension
  * await registry.install('blueplm.google-drive')
- * 
+ *
  * // Activate startup extensions
  * await registry.activateStartupExtensions()
  * ```
@@ -48,18 +48,18 @@ export {
   // State machine
   ExtensionLifecycle,
   LifecycleManager,
-  
+
   // Transitions
   transition,
   isValidTransition,
   getNextState,
-  
+
   // State helpers
   isActiveState,
   isInstalledState,
   isErrorState,
   getStateDescription,
-  
+
   // Types
   type LifecycleAction,
   type TransitionResult,
@@ -74,21 +74,21 @@ export {
 export {
   // Manager
   ActivationManager,
-  
+
   // Event parsing
   parseActivationEvent,
   eventMatches,
-  
+
   // Event creators
   createNavigateTrigger,
   createCommandTrigger,
   createViewTrigger,
   createFileTypeTrigger,
-  
+
   // Helpers
   getEventTypes,
   shouldActivateOnStartup,
-  
+
   // Types
   type ParsedActivationEvent,
   type ActivationCallback,
@@ -102,7 +102,7 @@ export {
   // Local discovery
   discoverLocalExtensions,
   getExtensionsPath,
-  
+
   // Store discovery
   discoverStoreExtensions,
   getFeaturedExtensions,
@@ -110,13 +110,13 @@ export {
   getExtensionVersions,
   getExtensionDownloadUrl,
   clearStoreCache,
-  
+
   // Search
   searchExtensions,
-  
+
   // Constants
   DEFAULT_STORE_API_URL,
-  
+
   // Types
   type LocalDiscoveryResult,
   type LocalDiscoveryOptions,
@@ -133,11 +133,11 @@ export {
   installFromStore,
   sideloadFromFile,
   uninstallExtension,
-  
+
   // Queries
   isExtensionInstalled,
   getInstalledVersion,
-  
+
   // Types
   type InstallOptions,
   type SideloadOptions,
@@ -156,21 +156,21 @@ export {
   // Update checking
   checkForUpdates,
   checkExtensionUpdate,
-  
+
   // Updating
   updateExtension,
-  
+
   // Rollback
   rollbackExtension,
   canRollback,
   cleanupExpiredRollbacks,
-  
+
   // Version pinning
   pinVersion,
   unpinVersion,
   getVersionPins,
   isPinned,
-  
+
   // Types
   type UpdateOptions,
   type UpdateCheckResult,

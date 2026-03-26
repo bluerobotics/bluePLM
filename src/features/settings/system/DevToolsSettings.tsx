@@ -1,11 +1,23 @@
 import { useState, useEffect, lazy, Suspense } from 'react'
-import { Monitor, RotateCcw, ChevronDown, Layers, ChevronRight, Timer, Activity, FlaskConical, Loader2 } from 'lucide-react'
+import {
+  Monitor,
+  RotateCcw,
+  ChevronDown,
+  Layers,
+  ChevronRight,
+  Timer,
+  Activity,
+  FlaskConical,
+  Loader2,
+} from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { ReferenceDiagnostics } from '@/features/dev-tools/reference-diagnostics'
 import { FileOperationTiming } from '@/features/dev-tools/performance'
 import { FileOperationLog } from '@/features/dev-tools/operation-log'
 
-const TestRunnerView = lazy(() => import('@/features/dev-tools/test-runner').then(m => ({ default: m.TestRunnerView })))
+const TestRunnerView = lazy(() =>
+  import('@/features/dev-tools/test-runner').then((m) => ({ default: m.TestRunnerView })),
+)
 
 interface DevicePreset {
   id: string
@@ -42,7 +54,7 @@ export function DevToolsSettings() {
 
   const handlePresetChange = async (presetId: string) => {
     if (!presetId) return
-    const preset = devicePresets.find(p => p.id === presetId)
+    const preset = devicePresets.find((p) => p.id === presetId)
     if (!preset || !window.electronAPI?.setWindowSize) return
 
     const result = await window.electronAPI.setWindowSize(preset.width, preset.height)
@@ -81,7 +93,7 @@ export function DevToolsSettings() {
                 {currentSize ? `${currentSize.width}×${currentSize.height}` : '—'}
               </span>
             </div>
-            
+
             <div className="relative flex-1 max-w-[200px]">
               <select
                 value={selectedPreset}
@@ -89,13 +101,16 @@ export function DevToolsSettings() {
                 className="w-full appearance-none bg-plm-input border border-plm-border rounded px-3 py-1.5 pr-8 text-sm text-plm-fg focus:outline-none focus:border-plm-accent cursor-pointer"
               >
                 <option value="">Select preset...</option>
-                {devicePresets.map(preset => (
+                {devicePresets.map((preset) => (
                   <option key={preset.id} value={preset.id}>
                     {preset.name} ({preset.width}×{preset.height})
                   </option>
                 ))}
               </select>
-              <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-plm-fg-muted pointer-events-none" />
+              <ChevronDown
+                size={14}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-plm-fg-muted pointer-events-none"
+              />
             </div>
 
             <button
@@ -127,19 +142,21 @@ export function DevToolsSettings() {
                 Run .bptest regression scripts and view structured results
               </div>
             </div>
-            <ChevronRight 
-              size={16} 
-              className={`text-plm-fg-muted transition-transform ${showTestRunner ? 'rotate-90' : ''}`} 
+            <ChevronRight
+              size={16}
+              className={`text-plm-fg-muted transition-transform ${showTestRunner ? 'rotate-90' : ''}`}
             />
           </button>
-          
+
           {showTestRunner && (
             <div className="h-[600px] border-t border-plm-border">
-              <Suspense fallback={
-                <div className="flex items-center justify-center h-full text-plm-fg-muted">
-                  <Loader2 size={20} className="animate-spin" />
-                </div>
-              }>
+              <Suspense
+                fallback={
+                  <div className="flex items-center justify-center h-full text-plm-fg-muted">
+                    <Loader2 size={20} className="animate-spin" />
+                  </div>
+                }
+              >
                 <TestRunnerView />
               </Suspense>
             </div>
@@ -165,12 +182,12 @@ export function DevToolsSettings() {
                 Monitor folderMetrics, store updates, and file watcher events
               </div>
             </div>
-            <ChevronRight 
-              size={16} 
-              className={`text-plm-fg-muted transition-transform ${showTimingDashboard ? 'rotate-90' : ''}`} 
+            <ChevronRight
+              size={16}
+              className={`text-plm-fg-muted transition-transform ${showTimingDashboard ? 'rotate-90' : ''}`}
             />
           </button>
-          
+
           {showTimingDashboard && (
             <div className="p-4 border-t border-plm-border">
               <FileOperationTiming />
@@ -197,12 +214,12 @@ export function DevToolsSettings() {
                 Track file operations with step-by-step timing breakdown
               </div>
             </div>
-            <ChevronRight 
-              size={16} 
-              className={`text-plm-fg-muted transition-transform ${showOperationLog ? 'rotate-90' : ''}`} 
+            <ChevronRight
+              size={16}
+              className={`text-plm-fg-muted transition-transform ${showOperationLog ? 'rotate-90' : ''}`}
             />
           </button>
-          
+
           {showOperationLog && (
             <div className="p-4 border-t border-plm-border">
               <FileOperationLog />
@@ -229,12 +246,12 @@ export function DevToolsSettings() {
                 Debug assembly reference extraction and path matching issues
               </div>
             </div>
-            <ChevronRight 
-              size={16} 
-              className={`text-plm-fg-muted transition-transform ${showRefDiagnostics ? 'rotate-90' : ''}`} 
+            <ChevronRight
+              size={16}
+              className={`text-plm-fg-muted transition-transform ${showRefDiagnostics ? 'rotate-90' : ''}`}
             />
           </button>
-          
+
           {showRefDiagnostics && (
             <div className="h-[600px] border-t border-plm-border">
               <ReferenceDiagnostics />
@@ -245,4 +262,3 @@ export function DevToolsSettings() {
     </div>
   )
 }
-

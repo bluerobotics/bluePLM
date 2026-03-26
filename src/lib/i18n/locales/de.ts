@@ -70,7 +70,8 @@ export const de: TranslationDict = {
     signInWithGoogle: 'Mit Google anmelden',
     tryAgain: 'Erneut versuchen',
     connecting: 'Verbindung wird hergestellt...',
-    roleSetByOrg: 'Ihre Rolle (Admin, Ingenieur, Betrachter) wird von Ihrer Organisation festgelegt',
+    roleSetByOrg:
+      'Ihre Rolle (Admin, Ingenieur, Betrachter) wird von Ihrer Organisation festgelegt',
 
     supplierPortal: 'Lieferantenportal',
     createAccount: 'Erstellen Sie Ihr Lieferantenkonto',
@@ -94,12 +95,14 @@ export const de: TranslationDict = {
     useDifferentNumber: 'Andere Nummer verwenden',
     verificationSent: 'Ein Bestätigungscode wurde gesendet an',
     includeCountryCode: 'Landesvorwahl angeben (z.B. +49 für Deutschland, +1 für USA)',
-    supplierInviteNote: 'Lieferanten werden von Organisationen eingeladen. Kontaktieren Sie Ihren Einkäufer, wenn Sie Zugang benötigen.',
+    supplierInviteNote:
+      'Lieferanten werden von Organisationen eingeladen. Kontaktieren Sie Ihren Einkäufer, wenn Sie Zugang benötigen.',
 
     connectingToOrg: 'Verbindung zu Ihrer Organisation wird hergestellt...',
     organizationVaults: 'Organisations-Tresore',
     noVaultsCreated: 'Keine Tresore erstellt',
-    noVaultsAdminMsg: 'Erstellen Sie einen Tresor unter Einstellungen → Organisation, um zu beginnen.',
+    noVaultsAdminMsg:
+      'Erstellen Sie einen Tresor unter Einstellungen → Organisation, um zu beginnen.',
     noVaultsUserMsg: 'Bitten Sie einen Organisationsadministrator, einen Tresor zu erstellen.',
     advancedOptions: 'Oder verwenden Sie die erweiterten Optionen unten für manuelle Verbindung.',
     localVault: 'Lokaler Tresor',
@@ -109,31 +112,38 @@ export const de: TranslationDict = {
 
   setup: {
     welcome: 'Willkommen bei BluePLM',
-    connectToBackend: 'Verbinden Sie sich mit dem Supabase-Backend Ihrer Organisation, um zu beginnen',
+    connectToBackend:
+      'Verbinden Sie sich mit dem Supabase-Backend Ihrer Organisation, um zu beginnen',
     imAdmin: 'Ich bin Organisationsadministrator',
-    imAdminDesc: 'Richten Sie BluePLM mit den Supabase-Anmeldedaten Ihrer Organisation ein. Sie erhalten einen Code zum Teilen mit Ihrem Team.',
+    imAdminDesc:
+      'Richten Sie BluePLM mit den Supabase-Anmeldedaten Ihrer Organisation ein. Sie erhalten einen Code zum Teilen mit Ihrem Team.',
     haveCode: 'Ich habe einen Organisationscode',
-    haveCodeDesc: 'Geben Sie den Code ein, den Sie von Ihrem Organisationsadministrator erhalten haben.',
+    haveCodeDesc:
+      'Geben Sie den Code ein, den Sie von Ihrem Organisationsadministrator erhalten haben.',
     needHelp: 'Hilfe bei der Einrichtung von Supabase benötigt?',
 
     adminSetup: 'Admin-Einrichtung',
-    enterCredentials: 'Geben Sie Ihre Supabase-Anmeldedaten aus den API-Einstellungen Ihres Projekts ein',
+    enterCredentials:
+      'Geben Sie Ihre Supabase-Anmeldedaten aus den API-Einstellungen Ihres Projekts ein',
     projectId: 'Projekt-ID',
     projectIdHelp: 'Zu finden oben in Ihrem Supabase Dashboard (z.B. vvyhpdzqdizvorrhjhvq)',
     anonKey: 'Anonymer (öffentlicher) Schlüssel',
     orgSlug: 'Organisations-Slug',
     orgSlugHelp: 'Dies hilft, Ihre Organisation im generierten Code zu identifizieren',
     connectToSupabase: 'Mit Supabase verbinden',
-    findInDashboard: 'Finden Sie diese Werte in Ihrem Supabase Dashboard → Projekteinstellungen → API',
+    findInDashboard:
+      'Finden Sie diese Werte in Ihrem Supabase Dashboard → Projekteinstellungen → API',
 
     connectedSuccess: 'Erfolgreich verbunden!',
     shareCode: 'Teilen Sie diesen Code mit Ihren Teammitgliedern, damit sie sich verbinden können',
     organizationCode: 'Organisationscode',
-    keepCodeSecure: 'Teammitglieder können diesen Code einfügen, wenn sie BluePLM zum ersten Mal öffnen. Bewahren Sie diesen Code sicher auf - er enthält Ihre Supabase-Anmeldedaten.',
+    keepCodeSecure:
+      'Teammitglieder können diesen Code einfügen, wenn sie BluePLM zum ersten Mal öffnen. Bewahren Sie diesen Code sicher auf - er enthält Ihre Supabase-Anmeldedaten.',
     continueToBluePLM: 'Weiter zu BluePLM',
 
     joinOrg: 'Ihrer Organisation beitreten',
-    enterCode: 'Geben Sie den Code ein, den Sie von Ihrem Organisationsadministrator erhalten haben',
+    enterCode:
+      'Geben Sie den Code ein, den Sie von Ihrem Organisationsadministrator erhalten haben',
 
     enterBothFields: 'Bitte geben Sie sowohl die Projekt-ID als auch den anonymen Schlüssel ein',
     invalidProjectId: 'Bitte geben Sie eine gültige Projekt-ID ein (nur Buchstaben und Zahlen)',
@@ -192,31 +202,37 @@ export const de: TranslationDict = {
     language: 'Sprache',
     displayLanguage: 'Anzeigesprache',
     chooseLanguage: 'Wählen Sie die Sprache der Benutzeroberfläche',
-    translationsNote: 'Hinweis: Einige Übersetzungen können unvollständig sein. Neustart erforderlich.',
+    translationsNote:
+      'Hinweis: Einige Übersetzungen können unvollständig sein. Neustart erforderlich.',
 
     fileExtensions: 'Dateierweiterungen',
     lowercaseExtensions: 'Erweiterungen beim Hochladen kleinschreiben',
     lowercaseExtensionsDesc: '.SLDPRT zu .sldprt beim Einchecken konvertieren',
 
     ignorePatterns: 'Ignorierte Muster (nur lokal behalten)',
-    ignorePatternsDesc: 'Dateien, die diesen Mustern entsprechen, bleiben lokal und werden nicht synchronisiert.',
+    ignorePatternsDesc:
+      'Dateien, die diesen Mustern entsprechen, bleiben lokal und werden nicht synchronisiert.',
     ignorePlaceholder: 'z.B. *.tmp, .git/*, thumbs.db',
     connectVaultForPatterns: 'Verbinden Sie sich mit einem Tresor, um Ignoriermuster zu verwalten.',
     noIgnorePatterns: 'Keine Ignoriermuster konfiguriert',
 
     syncSettings: 'Synchronisierungseinstellungen',
     autoDownloadCloudFiles: 'Cloud-Dateien automatisch herunterladen',
-    autoDownloadCloudFilesDesc: 'Dateien automatisch herunterladen, die auf dem Server, aber nicht lokal existieren',
+    autoDownloadCloudFilesDesc:
+      'Dateien automatisch herunterladen, die auf dem Server, aber nicht lokal existieren',
     autoDownloadUpdates: 'Datei-Updates automatisch herunterladen',
     autoDownloadUpdatesDesc: 'Automatisch herunterladen, wenn der Server neuere Versionen hat',
     excludedFiles: 'Ausgeschlossene Dateien',
-    excludedFilesDesc: '{{count}} Datei(en) vom automatischen Download ausgeschlossen (manuell entfernt)',
+    excludedFilesDesc:
+      '{{count}} Datei(en) vom automatischen Download ausgeschlossen (manuell entfernt)',
     clearExcludedFiles: 'Liste löschen',
     autoDiscardOrphanedFiles: 'Verwaiste Dateien automatisch verwerfen',
-    autoDiscardOrphanedFilesDesc: 'Lokale Dateien automatisch entfernen, die auf dem Server nicht mehr existieren',
+    autoDiscardOrphanedFilesDesc:
+      'Lokale Dateien automatisch entfernen, die auf dem Server nicht mehr existieren',
     discardOrphaned: 'Verwaiste verwerfen',
     discardOrphanedCount: 'Verwaiste verwerfen ({{count}} Datei{{plural}})',
-    orphanedFilesDescription: 'Diese Dateien wurden zuvor synchronisiert, wurden aber von einem anderen Benutzer vom Server gelöscht',
+    orphanedFilesDescription:
+      'Diese Dateien wurden zuvor synchronisiert, wurden aber von einem anderen Benutzer vom Server gelöscht',
   },
 
   sidebar: {
@@ -378,9 +394,11 @@ export const de: TranslationDict = {
     fileCountSingular: '1 Datei',
     totalSize: '{{size}} gesamt',
     autoDownloadCloudTitle: 'Cloud-Dateien automatisch herunterladen',
-    autoDownloadCloudDesc: 'Dateien automatisch herunterladen, die auf dem Server, aber nicht auf Ihrem Computer existieren',
+    autoDownloadCloudDesc:
+      'Dateien automatisch herunterladen, die auf dem Server, aber nicht auf Ihrem Computer existieren',
     autoDownloadUpdatesTitle: 'Datei-Updates automatisch herunterladen',
-    autoDownloadUpdatesDesc: 'Automatisch neuere Versionen herunterladen, wenn Dateien auf dem Server aktualisiert werden',
+    autoDownloadUpdatesDesc:
+      'Automatisch neuere Versionen herunterladen, wenn Dateien auf dem Server aktualisiert werden',
     summary: 'Nach dem Verbinden wird BluePLM {{count}} Dateien ({{size}}) herunterladen',
     summaryNoDownload: 'Dateien werden nur auf Anfrage heruntergeladen',
     connect: 'Tresor verbinden',

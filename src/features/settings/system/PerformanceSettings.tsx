@@ -7,26 +7,26 @@ import { formatBytes } from '@/lib/utils/format'
 export function PerformanceSettings() {
   const [config, setConfig] = useState<TelemetryConfig>(telemetry.getConfig())
   const [latestSnapshot, setLatestSnapshot] = useState<TelemetrySnapshot | null>(null)
-  
+
   // Load config and subscribe to updates
   useEffect(() => {
     telemetry.loadConfig()
     setConfig(telemetry.getConfig())
-    
+
     // Subscribe to telemetry for live stats (only updates when telemetry is enabled)
     const unsubscribe = telemetry.subscribe((snapshot) => {
       setLatestSnapshot(snapshot)
     })
-    
+
     return () => {
       unsubscribe()
     }
   }, [])
-  
+
   const handlePopOut = () => {
     window.electronAPI?.openPerformanceWindow?.()
   }
-  
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between">
@@ -45,7 +45,7 @@ export function PerformanceSettings() {
           Pop Out
         </button>
       </div>
-      
+
       {/* Quick Stats Bar */}
       <div className="grid grid-cols-5 gap-3">
         <QuickStatCard
@@ -80,18 +80,24 @@ export function PerformanceSettings() {
           icon={<Wifi size={16} />}
           label="Network"
           value={(latestSnapshot?.network.rxSpeed ?? 0) + (latestSnapshot?.network.txSpeed ?? 0)}
-          format={(v) => v < 1024 ? `${v} B/s` : v < 1024 * 1024 ? `${(v/1024).toFixed(0)} KB/s` : `${(v/1024/1024).toFixed(1)} MB/s`}
+          format={(v) =>
+            v < 1024
+              ? `${v} B/s`
+              : v < 1024 * 1024
+                ? `${(v / 1024).toFixed(0)} KB/s`
+                : `${(v / 1024 / 1024).toFixed(1)} MB/s`
+          }
           color="text-cyan-400"
         />
       </div>
-      
+
       {/* Telemetry Dashboard */}
       <TelemetryDashboard />
-      
+
       {/* Configuration Section */}
       <div className="pt-4 border-t border-plm-border">
         <h3 className="text-sm font-medium text-plm-fg mb-3">Settings</h3>
-        
+
         <div className="space-y-4">
           {/* Sample Rate */}
           <div className="flex items-center justify-between">
@@ -112,10 +118,12 @@ export function PerformanceSettings() {
                 }}
                 className="w-24 h-1.5 bg-plm-border rounded-full appearance-none cursor-pointer accent-plm-accent"
               />
-              <span className="text-xs text-plm-fg-muted w-12 text-right">{config.sampleRateHz}Hz</span>
+              <span className="text-xs text-plm-fg-muted w-12 text-right">
+                {config.sampleRateHz}Hz
+              </span>
             </div>
           </div>
-          
+
           {/* Retention Time */}
           <div className="flex items-center justify-between">
             <div>
@@ -136,10 +144,12 @@ export function PerformanceSettings() {
                 }}
                 className="w-24 h-1.5 bg-plm-border rounded-full appearance-none cursor-pointer accent-plm-accent"
               />
-              <span className="text-xs text-plm-fg-muted w-12 text-right">{config.retentionSeconds}s</span>
+              <span className="text-xs text-plm-fg-muted w-12 text-right">
+                {config.retentionSeconds}s
+              </span>
             </div>
           </div>
-          
+
           {/* Buffer Info */}
           <div className="flex items-center justify-between text-xs text-plm-fg-muted">
             <span>Buffer size: {config.sampleRateHz * config.retentionSeconds} samples</span>
@@ -166,7 +176,7 @@ function QuickStatCard({
   label,
   value,
   format,
-  color
+  color,
 }: {
   icon: React.ReactNode
   label: string
@@ -180,12 +190,8 @@ function QuickStatCard({
         <span className={color}>{icon}</span>
         <span className="text-[10px] uppercase tracking-wide text-plm-fg-muted">{label}</span>
       </div>
-      <div className={`text-lg font-mono tabular-nums ${color}`}>
-        {format(value)}
-      </div>
+      <div className={`text-lg font-mono tabular-nums ${color}`}>{format(value)}</div>
     </div>
   )
 }
-
-export default PerformanceSettings
 

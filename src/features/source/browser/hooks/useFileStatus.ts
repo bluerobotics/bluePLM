@@ -14,13 +14,13 @@ export interface FileStatus {
   isModified: boolean
   isIgnored: boolean
   isOrphaned: boolean
-  
+
   // Checkout status
   isCheckedOut: boolean
   isCheckedOutByMe: boolean
   isCheckedOutByOthers: boolean
   checkedOutBy: string | null
-  
+
   // Capabilities
   canCheckout: boolean
   canCheckin: boolean
@@ -30,7 +30,7 @@ export interface FileStatus {
   canRename: boolean
   canDelete: boolean
   canMove: boolean
-  
+
   // State - workflow state name (varies by organization's workflow configuration)
   state: string | null
   isReleased: boolean
@@ -41,7 +41,7 @@ export interface FileStatus {
 
 /**
  * Compute comprehensive file status from a LocalFile
- * 
+ *
  * @param file - The file to analyze
  * @param userId - Current user ID for ownership checks
  * @returns FileStatus object with all status flags
@@ -51,11 +51,11 @@ export function useFileStatus(file: LocalFile | null, userId?: string): FileStat
     if (!file) {
       return getDefaultStatus()
     }
-    
+
     const diffStatus = file.diffStatus
     const pdmData = file.pdmData
     const checkedOutBy = pdmData?.checked_out_by ?? null
-    
+
     // Sync status
     const isCloudOnly = diffStatus === 'cloud'
     const isLocalOnly = !pdmData && diffStatus !== 'ignored'
@@ -64,12 +64,12 @@ export function useFileStatus(file: LocalFile | null, userId?: string): FileStat
     const isModified = diffStatus === 'modified'
     const isIgnored = diffStatus === 'ignored'
     const isOrphaned = diffStatus === 'deleted_remote'
-    
+
     // Checkout status
     const isCheckedOut = !!checkedOutBy
     const isCheckedOutByMe = checkedOutBy === userId
     const isCheckedOutByOthers = isCheckedOut && checkedOutBy !== userId
-    
+
     // State - workflow_state contains the current workflow state object
     const workflowState = pdmData?.workflow_state
     const stateName = workflowState?.name ?? null
@@ -77,7 +77,7 @@ export function useFileStatus(file: LocalFile | null, userId?: string): FileStat
     const isWip = stateName === 'wip'
     const isInReview = stateName === 'in_review'
     const isObsolete = stateName === 'obsolete'
-    
+
     // Capabilities
     const canCheckout = isSynced && !isCloudOnly && !isCheckedOut
     const canCheckin = isCheckedOutByMe && !isCloudOnly
@@ -87,7 +87,7 @@ export function useFileStatus(file: LocalFile | null, userId?: string): FileStat
     const canRename = !isSynced || isCheckedOutByMe
     const canDelete = !isCheckedOutByOthers
     const canMove = !isCheckedOutByOthers
-    
+
     return {
       // Sync status
       isCloudOnly,
@@ -97,13 +97,13 @@ export function useFileStatus(file: LocalFile | null, userId?: string): FileStat
       isModified,
       isIgnored,
       isOrphaned,
-      
+
       // Checkout status
       isCheckedOut,
       isCheckedOutByMe,
       isCheckedOutByOthers,
       checkedOutBy,
-      
+
       // Capabilities
       canCheckout,
       canCheckin,
@@ -113,7 +113,7 @@ export function useFileStatus(file: LocalFile | null, userId?: string): FileStat
       canRename,
       canDelete,
       canMove,
-      
+
       // State
       state: stateName,
       isReleased,
@@ -131,11 +131,11 @@ export function getFileStatus(file: LocalFile | null, userId?: string): FileStat
   if (!file) {
     return getDefaultStatus()
   }
-  
+
   const diffStatus = file.diffStatus
   const pdmData = file.pdmData
   const checkedOutBy = pdmData?.checked_out_by ?? null
-  
+
   // Sync status
   const isCloudOnly = diffStatus === 'cloud'
   const isLocalOnly = !pdmData && diffStatus !== 'ignored'
@@ -144,12 +144,12 @@ export function getFileStatus(file: LocalFile | null, userId?: string): FileStat
   const isModified = diffStatus === 'modified'
   const isIgnored = diffStatus === 'ignored'
   const isOrphaned = diffStatus === 'deleted_remote'
-  
+
   // Checkout status
   const isCheckedOut = !!checkedOutBy
   const isCheckedOutByMe = checkedOutBy === userId
   const isCheckedOutByOthers = isCheckedOut && checkedOutBy !== userId
-  
+
   // State - workflow_state contains the current workflow state object
   const workflowState = pdmData?.workflow_state
   const stateName = workflowState?.name ?? null
@@ -157,7 +157,7 @@ export function getFileStatus(file: LocalFile | null, userId?: string): FileStat
   const isWip = stateName === 'wip'
   const isInReview = stateName === 'in_review'
   const isObsolete = stateName === 'obsolete'
-  
+
   // Capabilities
   const canCheckout = isSynced && !isCloudOnly && !isCheckedOut
   const canCheckin = isCheckedOutByMe && !isCloudOnly
@@ -167,7 +167,7 @@ export function getFileStatus(file: LocalFile | null, userId?: string): FileStat
   const canRename = !isSynced || isCheckedOutByMe
   const canDelete = !isCheckedOutByOthers
   const canMove = !isCheckedOutByOthers
-  
+
   return {
     // Sync status
     isCloudOnly,
@@ -177,13 +177,13 @@ export function getFileStatus(file: LocalFile | null, userId?: string): FileStat
     isModified,
     isIgnored,
     isOrphaned,
-    
+
     // Checkout status
     isCheckedOut,
     isCheckedOutByMe,
     isCheckedOutByOthers,
     checkedOutBy,
-    
+
     // Capabilities
     canCheckout,
     canCheckin,
@@ -193,7 +193,7 @@ export function getFileStatus(file: LocalFile | null, userId?: string): FileStat
     canRename,
     canDelete,
     canMove,
-    
+
     // State
     state: stateName,
     isReleased,

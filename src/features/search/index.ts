@@ -1,6 +1,6 @@
 /**
  * Search Feature
- * 
+ *
  * Command palette and global search
  */
 

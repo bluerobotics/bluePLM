@@ -1,6 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import App from './App'
+import { App } from './App'
 import { ErrorBoundary } from '@/components/core'
 import { initAnalytics, trackError } from '@/lib/analytics'
 import '@/index.css'
@@ -28,11 +28,11 @@ const originalConsoleWarn = console.warn
 console.error = (...args: unknown[]) => {
   // Call original so dev tools still work
   originalConsoleError.apply(console, args)
-  
+
   // Forward to app logs
   try {
     const message = args
-      .map(arg => {
+      .map((arg) => {
         if (arg instanceof Error) {
           return `${arg.name}: ${arg.message}${arg.stack ? `\n${arg.stack}` : ''}`
         }
@@ -46,11 +46,11 @@ console.error = (...args: unknown[]) => {
         return String(arg)
       })
       .join(' ')
-    
+
     window.electronAPI?.log('error', `[Console] ${message}`)
-    
+
     // Also send to Sentry if it's an Error object
-    const errorArg = args.find(arg => arg instanceof Error)
+    const errorArg = args.find((arg) => arg instanceof Error)
     if (errorArg instanceof Error) {
       trackError(errorArg, { source: 'console.error' })
     }
@@ -62,11 +62,11 @@ console.error = (...args: unknown[]) => {
 console.warn = (...args: unknown[]) => {
   // Call original so dev tools still work
   originalConsoleWarn.apply(console, args)
-  
+
   // Forward to app logs
   try {
     const message = args
-      .map(arg => {
+      .map((arg) => {
         if (typeof arg === 'object') {
           try {
             return JSON.stringify(arg)
@@ -77,7 +77,7 @@ console.warn = (...args: unknown[]) => {
         return String(arg)
       })
       .join(' ')
-    
+
     window.electronAPI?.log('warn', `[Console] ${message}`)
   } catch {
     // Silently fail if logging fails
@@ -91,4 +91,3 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     </ErrorBoundary>
   </React.StrictMode>,
 )
-

@@ -1,8 +1,8 @@
 /**
  * Type-safe Lucide icon lookup utility
- * 
+ *
  * This module provides a curated, type-safe registry of icons
- * used in team-members settings. Instead of using `as any` to
+ * used in team-members settings. Instead of using `as any` to // TODO: type this
  * dynamically access Lucide icons, we use a typed registry.
  */
 import type { LucideIcon } from 'lucide-react'
@@ -104,7 +104,7 @@ import {
   PieChart,
   TrendingUp,
   Sparkles,
-  Lightbulb
+  Lightbulb,
 } from 'lucide-react'
 
 /**
@@ -209,7 +209,7 @@ export const ICON_REGISTRY: Record<string, LucideIcon> = {
   PieChart,
   TrendingUp,
   Sparkles,
-  Lightbulb
+  Lightbulb,
 }
 
 /** Type representing all valid icon names */
@@ -218,18 +218,21 @@ export type IconName = keyof typeof ICON_REGISTRY
 /**
  * Get a Lucide icon component by name with type safety.
  * Returns the fallback icon if the name is not in the registry.
- * 
+ *
  * @param iconName - The name of the icon (e.g., 'Users', 'Shield')
  * @param fallback - Fallback icon component (defaults to Users)
  * @returns The Lucide icon component
- * 
+ *
  * @example
  * ```tsx
  * const Icon = getIcon(team.icon, Users)
  * return <Icon size={16} />
  * ```
  */
-export function getIcon(iconName: string | undefined | null, fallback: LucideIcon = Users): LucideIcon {
+export function getIcon(
+  iconName: string | undefined | null,
+  fallback: LucideIcon = Users,
+): LucideIcon {
   if (!iconName) return fallback
   return ICON_REGISTRY[iconName] ?? fallback
 }

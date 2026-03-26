@@ -50,23 +50,27 @@ interface AvatarWithStatusProps extends AvatarProps {
   showStatus?: boolean
 }
 
-export function AvatarWithStatus({ 
-  user, 
-  size = 'md', 
+export function AvatarWithStatus({
+  user,
+  size = 'md',
   className = '',
   isOnline = false,
-  showStatus = true
+  showStatus = true,
 }: AvatarWithStatusProps) {
   return (
     <div className="relative inline-flex flex-shrink-0">
       <Avatar user={user} size={size} className={className} />
       {showStatus && (
-        <div className={`absolute -bottom-0.5 -right-0.5 rounded-full bg-plm-bg flex items-center justify-center ${
-          size === 'xs' ? 'w-2 h-2' : size === 'sm' ? 'w-2.5 h-2.5' : 'w-3 h-3'
-        }`}>
-          <div className={`rounded-full ${isOnline ? 'bg-plm-success' : 'bg-plm-fg-dim'} ${
-            size === 'xs' ? 'w-1.5 h-1.5' : size === 'sm' ? 'w-2 h-2' : 'w-2.5 h-2.5'
-          }`} />
+        <div
+          className={`absolute -bottom-0.5 -right-0.5 rounded-full bg-plm-bg flex items-center justify-center ${
+            size === 'xs' ? 'w-2 h-2' : size === 'sm' ? 'w-2.5 h-2.5' : 'w-3 h-3'
+          }`}
+        >
+          <div
+            className={`rounded-full ${isOnline ? 'bg-plm-success' : 'bg-plm-fg-dim'} ${
+              size === 'xs' ? 'w-1.5 h-1.5' : size === 'sm' ? 'w-2 h-2' : 'w-2.5 h-2.5'
+            }`}
+          />
         </div>
       )}
     </div>

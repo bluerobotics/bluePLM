@@ -151,7 +151,7 @@ export function parseTestScript(content: string, filename?: string): ParsedTestS
           case 'requires':
             requires = value
               .split(/[,\s]+/)
-              .map(s => s.trim())
+              .map((s) => s.trim())
               .filter(Boolean)
             break
           case 'timeout': {
@@ -222,7 +222,7 @@ export function parseTestScript(content: string, filename?: string): ParsedTestS
  */
 function parseMetadataDirective(
   line: string,
-  onParsed: (key: string, value: string) => void
+  onParsed: (key: string, value: string) => void,
 ): void {
   // Remove the leading @
   const withoutAt = line.slice(1)

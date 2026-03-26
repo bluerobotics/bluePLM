@@ -7,57 +7,61 @@ import { supabase } from '@/lib/supabase'
 export function GoogleDriveSettings() {
   const { organization, addToast, getEffectiveRole } = usePDMStore()
   const isAdmin = getEffectiveRole() === 'admin'
-  
+
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
   const [enabled, setEnabled] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [showSecret, setShowSecret] = useState(false)
-  
+
   // Track if we're currently saving to avoid overwriting with stale realtime data
   const savingRef = useRef(false)
-  
+
   useEffect(() => {
     loadSettings()
   }, [organization?.id])
-  
+
   const loadSettings = async () => {
     if (!organization?.id) return
-    
+
     setIsLoading(true)
     try {
-      const { data, error } = await (supabase.rpc as any)('get_google_drive_settings', {
-        p_org_id: organization.id
+      const { data, error } = await (supabase.rpc as any)('get_google_drive_settings', { // TODO: type this
+        p_org_id: organization.id,
       })
-      
+
       if (error) {
         log.error('[GoogleDrive]', 'Error loading settings', { error })
         return
       }
-      
+
       if (data && Array.isArray(data) && data.length > 0) {
-        const settings = data[0] as { client_id?: string; client_secret?: string; enabled?: boolean }
+        const settings = data[0] as {
+          client_id?: string
+          client_secret?: string
+          enabled?: boolean
+        }
         setClientId(settings.client_id || '')
         setClientSecret(settings.client_secret || '')
         setEnabled(settings.enabled || false)
       }
-    } catch (err) {
-      log.error('[GoogleDrive]', 'Error loading settings', { error: err })
+    } catch (error) {
+      log.error('[GoogleDrive]', 'Error loading settings', { error: error })
     } finally {
       setIsLoading(false)
     }
   }
-  
+
   // Sync with realtime organization changes (when another admin updates settings)
   useEffect(() => {
     // Skip if we're currently saving (to avoid overwriting our own changes)
     if (savingRef.current) return
     // Skip if still loading initial data
     if (isLoading) return
-    
+
     // Sync Google Drive fields from realtime organization object
-    const org = organization as any
+    const org = organization as any // TODO: type this
     if (org) {
       if (org.google_drive_enabled !== undefined) {
         setEnabled(org.google_drive_enabled)
@@ -71,38 +75,40 @@ export function GoogleDriveSettings() {
     }
   }, [
     isLoading,
-    (organization as any)?.google_drive_enabled,
-    (organization as any)?.google_drive_client_id,
-    (organization as any)?.google_drive_client_secret
+    (organization as any)?.google_drive_enabled, // TODO: type this
+    (organization as any)?.google_drive_client_id, // TODO: type this
+    (organization as any)?.google_drive_client_secret, // TODO: type this
   ])
-  
+
   const saveSettings = async () => {
     if (!organization?.id || !isAdmin) return
-    
+
     setIsSaving(true)
     savingRef.current = true
     try {
-      const { error } = await (supabase.rpc as any)('update_google_drive_settings', {
+      const { error } = await (supabase.rpc as any)('update_google_drive_settings', { // TODO: type this
         p_org_id: organization.id,
         p_client_id: clientId || null,
         p_client_secret: clientSecret || null,
-        p_enabled: enabled
+        p_enabled: enabled,
       })
-      
+
       if (error) {
         log.error('[GoogleDrive]', 'Error saving settings', { error })
         addToast('error', 'Failed to save: ' + error.message)
         return
       }
-      
+
       addToast('success', 'Google Drive settings saved')
-    } catch (err) {
-      log.error('[GoogleDrive]', 'Error saving settings', { error: err })
+    } catch (error) {
+      log.error('[GoogleDrive]', 'Error saving settings', { error: error })
       addToast('error', 'Failed to save Google Drive settings')
     } finally {
       setIsSaving(false)
       // Small delay before allowing realtime sync again to let the update propagate
-      setTimeout(() => { savingRef.current = false }, 1000)
+      setTimeout(() => {
+        savingRef.current = false
+      }, 1000)
     }
   }
 
@@ -115,7 +121,7 @@ export function GoogleDriveSettings() {
           <span>Only administrators can edit integration settings.</span>
         </div>
       )}
-      
+
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="w-12 h-12 rounded-lg bg-plm-sidebar flex items-center justify-center">
@@ -129,7 +135,7 @@ export function GoogleDriveSettings() {
         </div>
         {isLoading && <Loader2 size={16} className="animate-spin text-plm-fg-muted" />}
       </div>
-      
+
       <div className="space-y-4 p-4 bg-plm-bg rounded-lg border border-plm-border">
         {/* Enable toggle */}
         <div className="flex items-center justify-between">
@@ -141,12 +147,14 @@ export function GoogleDriveSettings() {
               enabled ? 'bg-plm-accent' : 'bg-plm-border'
             } ${!isAdmin ? 'opacity-60 cursor-not-allowed' : ''}`}
           >
-            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
-              enabled ? 'translate-x-6' : 'translate-x-1'
-            }`} />
+            <div
+              className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                enabled ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
           </button>
         </div>
-        
+
         {enabled && (
           <>
             {/* Client ID */}
@@ -161,7 +169,7 @@ export function GoogleDriveSettings() {
                 className={`w-full px-3 py-2 text-base bg-plm-sidebar border border-plm-border rounded-lg focus:outline-none focus:border-plm-accent font-mono ${!isAdmin ? 'opacity-60 cursor-not-allowed' : ''}`}
               />
             </div>
-            
+
             {/* Client Secret */}
             <div className="space-y-2">
               <label className="text-sm text-plm-fg-muted">Client Secret</label>
@@ -183,16 +191,16 @@ export function GoogleDriveSettings() {
                 </button>
               </div>
             </div>
-            
+
             {/* Help text */}
             <div className="p-4 bg-plm-sidebar rounded-lg">
               <p className="text-sm text-plm-fg-muted font-medium mb-2">Setup instructions:</p>
               <ol className="text-sm text-plm-fg-muted space-y-1 list-decimal list-inside">
                 <li>
                   Go to{' '}
-                  <a 
-                    href="https://console.cloud.google.com/apis/credentials" 
-                    target="_blank" 
+                  <a
+                    href="https://console.cloud.google.com/apis/credentials"
+                    target="_blank"
                     rel="noopener noreferrer"
                     className="text-plm-accent hover:underline"
                   >
@@ -205,7 +213,7 @@ export function GoogleDriveSettings() {
                 <li>Copy the Client ID and Client Secret here</li>
               </ol>
             </div>
-            
+
             {/* Save button - only show for admins */}
             {isAdmin && (
               <button
@@ -213,11 +221,7 @@ export function GoogleDriveSettings() {
                 disabled={isSaving}
                 className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-base bg-plm-accent text-white rounded-lg hover:bg-plm-accent/90 transition-colors disabled:opacity-50"
               >
-                {isSaving ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  <Check size={16} />
-                )}
+                {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                 Save Google Drive Settings
               </button>
             )}
@@ -227,4 +231,3 @@ export function GoogleDriveSettings() {
     </div>
   )
 }
-

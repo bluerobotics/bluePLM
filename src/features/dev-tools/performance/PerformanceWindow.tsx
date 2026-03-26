@@ -10,17 +10,17 @@ export function PerformanceWindow() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', 'dark')
   }, [])
-  
+
   return (
     <div className="h-screen flex flex-col bg-plm-bg overflow-hidden">
       {/* Title bar drag region */}
-      <div 
+      <div
         className="h-9 bg-plm-bg-light border-b border-plm-border flex items-center px-4 flex-shrink-0"
         style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
       >
         <span className="text-sm font-medium text-plm-fg">Performance Monitor</span>
       </div>
-      
+
       {/* Content area */}
       <div className="flex-1 overflow-auto p-6">
         <PerformanceSettings />
@@ -28,6 +28,4 @@ export function PerformanceWindow() {
     </div>
   )
 }
-
-export default PerformanceWindow
 

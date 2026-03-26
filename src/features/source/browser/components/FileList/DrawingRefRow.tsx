@@ -21,7 +21,13 @@ export interface DrawingRefRowProps {
  * Icon component for file types in drawing reference rows.
  * Matches the BomFileIcon pattern from ConfigBomRow.
  */
-function DrawingRefFileIcon({ fileType, size = 12 }: { fileType: DrawingRefItem['file_type']; size?: number }) {
+function DrawingRefFileIcon({
+  fileType,
+  size = 12,
+}: {
+  fileType: DrawingRefItem['file_type']
+  size?: number
+}) {
   switch (fileType) {
     case 'part':
       return <FileBox size={size} className="text-plm-accent flex-shrink-0" />
@@ -41,7 +47,7 @@ function DrawingRefFileIcon({ fileType, size = 12 }: { fileType: DrawingRefItem[
  */
 function areDrawingRefRowPropsEqual(
   prevProps: DrawingRefRowProps,
-  nextProps: DrawingRefRowProps
+  nextProps: DrawingRefRowProps,
 ): boolean {
   // Compare item identity and key display properties
   if (prevProps.item.id !== nextProps.item.id) return false
@@ -66,7 +72,8 @@ function areDrawingRefRowPropsEqual(
   // Compare per-config metadata (shallow reference check)
   if (prevProps.item.config_tabs !== nextProps.item.config_tabs) return false
   if (prevProps.item.config_descriptions !== nextProps.item.config_descriptions) return false
-  if (prevProps.item.configuration_revisions !== nextProps.item.configuration_revisions) return false
+  if (prevProps.item.configuration_revisions !== nextProps.item.configuration_revisions)
+    return false
 
   // Compare primitive props
   if (prevProps.depth !== nextProps.depth) return false
@@ -102,7 +109,7 @@ export const DrawingRefRow = memo(function DrawingRefRow({
   onToggleExpand,
 }: DrawingRefRowProps) {
   // Calculate indentation: base indent + depth + offset for nesting directly under file row
-  const indentPx = 24 + (depth * 16) + 16
+  const indentPx = 24 + depth * 16 + 16
   const hasConfigs = item.configurations && item.configurations.length > 0
 
   return (
@@ -112,14 +119,14 @@ export const DrawingRefRow = memo(function DrawingRefRow({
       onClick={onClick}
       onContextMenu={onContextMenu}
     >
-      {visibleColumns.map(column => (
+      {visibleColumns.map((column) => (
         <td key={column.id} style={{ width: column.width }}>
           {column.id === 'name' ? (
             <div
               className="flex items-center gap-1.5"
               style={{
                 minHeight: rowHeight - 8,
-                paddingLeft: `${indentPx}px`
+                paddingLeft: `${indentPx}px`,
               }}
             >
               <span className="text-plm-fg-dim text-[10px]">├</span>
@@ -130,11 +137,7 @@ export const DrawingRefRow = memo(function DrawingRefRow({
                   onClick={onToggleExpand}
                   title={isExpanded ? 'Collapse configurations' : 'Expand configurations'}
                 >
-                  {isExpanded ? (
-                    <ChevronDown size={12} />
-                  ) : (
-                    <ChevronRight size={12} />
-                  )}
+                  {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                 </button>
               ) : null}
               <DrawingRefFileIcon fileType={item.file_type} size={12} />

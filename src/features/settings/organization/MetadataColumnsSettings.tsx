@@ -1,17 +1,17 @@
 import { useState, useEffect } from 'react'
 import { log } from '@/lib/logger'
-import { 
-  Plus, 
-  Trash2, 
-  Pencil, 
-  X, 
+import {
+  Plus,
+  Trash2,
+  Pencil,
+  X,
   Loader2,
   Eye,
   EyeOff,
   ChevronUp,
   ChevronDown,
   AlertTriangle,
-  Send
+  Send,
 } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
@@ -19,14 +19,14 @@ import type { FileMetadataColumn, MetadataColumnType } from '@/types/database'
 
 // Supabase v2 type inference incomplete for metadata column operations
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const db = supabase as any
+const db = supabase as any // TODO: type this
 
 const TYPE_LABELS: Record<MetadataColumnType, string> = {
   text: 'Text',
   number: 'Number',
   date: 'Date',
   boolean: 'Yes/No',
-  select: 'Dropdown'
+  select: 'Dropdown',
 }
 
 interface EditingColumn {
@@ -51,16 +51,16 @@ const DEFAULT_COLUMN: EditingColumn = {
   visible: true,
   sortable: true,
   required: false,
-  default_value: ''
+  default_value: '',
 }
 
 export function MetadataColumnsSettings() {
-  const { 
-    user, 
-    organization, 
-    addToast, 
-    columns: builtinColumns, 
-    toggleColumnVisibility, 
+  const {
+    user,
+    organization,
+    addToast,
+    columns: builtinColumns,
+    toggleColumnVisibility,
     setColumnWidth,
     saveOrgColumnDefaults,
     loadOrgColumnDefaults,
@@ -68,9 +68,9 @@ export function MetadataColumnsSettings() {
     saveUserColumnDefaults,
     loadUserColumnDefaults,
     resetColumnsToDefaults,
-    getEffectiveRole
+    getEffectiveRole,
   } = usePDMStore()
-  
+
   const [columns, setColumns] = useState<FileMetadataColumn[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
@@ -80,76 +80,76 @@ export function MetadataColumnsSettings() {
   const [isLoadingUserDefaults, setIsLoadingUserDefaults] = useState(false)
   const [isPushing, setIsPushing] = useState(false)
   const [showPushConfirm, setShowPushConfirm] = useState(false)
-  
+
   // Editing state
   const [editingColumn, setEditingColumn] = useState<EditingColumn | null>(null)
   const [isCreating, setIsCreating] = useState(false)
   const [deletingColumn, setDeletingColumn] = useState<FileMetadataColumn | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
-  
+
   // Select options editing
   const [newOption, setNewOption] = useState('')
-  
+
   const handleSaveUserDefaults = async () => {
     setIsSavingUserDefaults(true)
     const result = await saveUserColumnDefaults()
     setIsSavingUserDefaults(false)
-    
+
     if (result.success) {
       addToast('success', 'Saved as your personal defaults')
     } else {
       addToast('error', result.error || 'Failed to save defaults')
     }
   }
-  
+
   const handleLoadUserDefaults = async () => {
     setIsLoadingUserDefaults(true)
     const result = await loadUserColumnDefaults()
     setIsLoadingUserDefaults(false)
-    
+
     if (result.success) {
       addToast('success', 'Loaded your personal defaults')
     } else {
       addToast('error', result.error || 'Failed to load defaults')
     }
   }
-  
+
   const handleSaveOrgDefaults = async () => {
     setIsSavingDefaults(true)
     const result = await saveOrgColumnDefaults()
     setIsSavingDefaults(false)
-    
+
     if (result.success) {
       addToast('success', 'Saved as organization defaults')
     } else {
       addToast('error', result.error || 'Failed to save defaults')
     }
   }
-  
+
   const handleLoadOrgDefaults = async () => {
     setIsLoadingDefaults(true)
     const result = await loadOrgColumnDefaults()
     setIsLoadingDefaults(false)
-    
+
     if (result.success) {
       addToast('success', 'Loaded organization defaults')
     } else {
       addToast('error', result.error || 'Failed to load defaults')
     }
   }
-  
+
   const handleResetToDefaults = () => {
     resetColumnsToDefaults()
     addToast('info', 'Reset to application defaults')
   }
-  
+
   // Handle force-push to all users
   const handlePushToAllUsers = async () => {
     setShowPushConfirm(false)
     setIsPushing(true)
     const result = await forceOrgColumnDefaults()
     setIsPushing(false)
-    
+
     if (result.success) {
       addToast('success', 'Column layout pushed to all users')
     } else {
@@ -166,7 +166,7 @@ export function MetadataColumnsSettings() {
 
   const loadColumns = async () => {
     if (!organization) return
-    
+
     setIsLoading(true)
     try {
       const { data, error } = await supabase
@@ -174,15 +174,15 @@ export function MetadataColumnsSettings() {
         .select('*')
         .eq('org_id', organization.id)
         .order('sort_order')
-      
+
       if (error) {
         log.error('[MetadataColumns]', 'Failed to load metadata columns', { error })
         addToast('error', 'Failed to load metadata columns')
       } else {
         setColumns(data || [])
       }
-    } catch (err) {
-      log.error('[MetadataColumns]', 'Failed to load metadata columns', { error: err })
+    } catch (error) {
+      log.error('[MetadataColumns]', 'Failed to load metadata columns', { error: error })
     } finally {
       setIsLoading(false)
     }
@@ -190,7 +190,7 @@ export function MetadataColumnsSettings() {
 
   const handleSaveColumn = async () => {
     if (!editingColumn || !organization || !user) return
-    
+
     // Validate
     if (!editingColumn.name.trim()) {
       addToast('error', 'Column name is required')
@@ -200,16 +200,19 @@ export function MetadataColumnsSettings() {
       addToast('error', 'Column label is required')
       return
     }
-    
+
     // Validate name format (only lowercase letters, numbers, underscores)
     const nameRegex = /^[a-z][a-z0-9_]*$/
     if (!nameRegex.test(editingColumn.name)) {
-      addToast('error', 'Name must start with a letter and contain only lowercase letters, numbers, and underscores')
+      addToast(
+        'error',
+        'Name must start with a letter and contain only lowercase letters, numbers, and underscores',
+      )
       return
     }
-    
+
     setIsSaving(true)
-    
+
     try {
       if (editingColumn.id) {
         // Update existing column
@@ -226,45 +229,41 @@ export function MetadataColumnsSettings() {
             required: editingColumn.required,
             default_value: editingColumn.default_value || null,
             updated_at: new Date().toISOString(),
-            updated_by: user.id
+            updated_by: user.id,
           })
           .eq('id', editingColumn.id)
-        
+
         if (error) throw error
         addToast('success', 'Column updated')
       } else {
         // Create new column
-        const maxSortOrder = columns.length > 0 
-          ? Math.max(...columns.map(c => c.sort_order)) 
-          : -1
-        
-        const { error } = await db
-          .from('file_metadata_columns')
-          .insert({
-            org_id: organization.id,
-            name: editingColumn.name.toLowerCase(),
-            label: editingColumn.label,
-            data_type: editingColumn.data_type,
-            select_options: editingColumn.select_options,
-            width: editingColumn.width,
-            visible: editingColumn.visible,
-            sortable: editingColumn.sortable,
-            required: editingColumn.required,
-            default_value: editingColumn.default_value || null,
-            sort_order: maxSortOrder + 1,
-            created_by: user.id
-          })
-        
+        const maxSortOrder = columns.length > 0 ? Math.max(...columns.map((c) => c.sort_order)) : -1
+
+        const { error } = await db.from('file_metadata_columns').insert({
+          org_id: organization.id,
+          name: editingColumn.name.toLowerCase(),
+          label: editingColumn.label,
+          data_type: editingColumn.data_type,
+          select_options: editingColumn.select_options,
+          width: editingColumn.width,
+          visible: editingColumn.visible,
+          sortable: editingColumn.sortable,
+          required: editingColumn.required,
+          default_value: editingColumn.default_value || null,
+          sort_order: maxSortOrder + 1,
+          created_by: user.id,
+        })
+
         if (error) throw error
         addToast('success', 'Column created')
       }
-      
+
       await loadColumns()
       setEditingColumn(null)
       setIsCreating(false)
-    } catch (err: unknown) {
-      log.error('[MetadataColumns]', 'Failed to save column', { error: err })
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error'
+    } catch (error: unknown) {
+      log.error('[MetadataColumns]', 'Failed to save column', { error: error })
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       if (errorMessage.includes('duplicate key')) {
         addToast('error', 'A column with this name already exists')
       } else {
@@ -277,21 +276,21 @@ export function MetadataColumnsSettings() {
 
   const handleDeleteColumn = async () => {
     if (!deletingColumn) return
-    
+
     setIsDeleting(true)
     try {
       const { error } = await supabase
         .from('file_metadata_columns')
         .delete()
         .eq('id', deletingColumn.id)
-      
+
       if (error) throw error
-      
+
       addToast('success', `Column "${deletingColumn.label}" deleted`)
       await loadColumns()
       setDeletingColumn(null)
-    } catch (err) {
-      log.error('[MetadataColumns]', 'Failed to delete column', { error: err })
+    } catch (error) {
+      log.error('[MetadataColumns]', 'Failed to delete column', { error: error })
       addToast('error', 'Failed to delete column')
     } finally {
       setIsDeleting(false)
@@ -304,26 +303,24 @@ export function MetadataColumnsSettings() {
         .from('file_metadata_columns')
         .update({ visible: !column.visible, updated_at: new Date().toISOString() })
         .eq('id', column.id)
-      
+
       if (error) throw error
-      
-      setColumns(columns.map(c => 
-        c.id === column.id ? { ...c, visible: !c.visible } : c
-      ))
-    } catch (err) {
-      log.error('[MetadataColumns]', 'Failed to toggle visibility', { error: err })
+
+      setColumns(columns.map((c) => (c.id === column.id ? { ...c, visible: !c.visible } : c)))
+    } catch (error) {
+      log.error('[MetadataColumns]', 'Failed to toggle visibility', { error: error })
       addToast('error', 'Failed to update column')
     }
   }
 
   const handleMoveColumn = async (column: FileMetadataColumn, direction: 'up' | 'down') => {
-    const index = columns.findIndex(c => c.id === column.id)
+    const index = columns.findIndex((c) => c.id === column.id)
     if (direction === 'up' && index === 0) return
     if (direction === 'down' && index === columns.length - 1) return
-    
+
     const swapIndex = direction === 'up' ? index - 1 : index + 1
     const otherColumn = columns[swapIndex]
-    
+
     try {
       // Swap sort orders
       await Promise.all([
@@ -334,27 +331,27 @@ export function MetadataColumnsSettings() {
         db
           .from('file_metadata_columns')
           .update({ sort_order: column.sort_order })
-          .eq('id', otherColumn.id)
+          .eq('id', otherColumn.id),
       ])
-      
+
       await loadColumns()
-    } catch (err) {
-      log.error('[MetadataColumns]', 'Failed to reorder columns', { error: err })
+    } catch (error) {
+      log.error('[MetadataColumns]', 'Failed to reorder columns', { error: error })
       addToast('error', 'Failed to reorder columns')
     }
   }
 
   const addSelectOption = () => {
     if (!newOption.trim() || !editingColumn) return
-    
+
     if (editingColumn.select_options.includes(newOption.trim())) {
       addToast('error', 'This option already exists')
       return
     }
-    
+
     setEditingColumn({
       ...editingColumn,
-      select_options: [...editingColumn.select_options, newOption.trim()]
+      select_options: [...editingColumn.select_options, newOption.trim()],
     })
     setNewOption('')
   }
@@ -363,7 +360,7 @@ export function MetadataColumnsSettings() {
     if (!editingColumn) return
     setEditingColumn({
       ...editingColumn,
-      select_options: editingColumn.select_options.filter(o => o !== option)
+      select_options: editingColumn.select_options.filter((o) => o !== option),
     })
   }
 
@@ -378,7 +375,10 @@ export function MetadataColumnsSettings() {
             Built-in Columns
           </h3>
           <p className="text-sm text-plm-fg-dim mt-1">
-            Standard columns. {isAdmin ? 'Set default width and visibility for your organization.' : 'Toggle visibility to show/hide.'}
+            Standard columns.{' '}
+            {isAdmin
+              ? 'Set default width and visibility for your organization.'
+              : 'Toggle visibility to show/hide.'}
           </p>
         </div>
 
@@ -392,18 +392,20 @@ export function MetadataColumnsSettings() {
         {/* Column rows */}
         <div className="space-y-0.5">
           {builtinColumns.map((column) => (
-            <div 
+            <div
               key={column.id}
               className={`grid grid-cols-[1fr_80px_60px] gap-2 px-3 py-2 rounded hover:bg-plm-highlight/50 transition-colors items-center ${!column.visible ? 'opacity-50' : ''}`}
             >
               <span className="text-sm text-plm-fg">{column.label}</span>
-              
+
               {/* Width input (admin only) */}
               {isAdmin ? (
                 <input
                   type="number"
                   value={column.width}
-                  onChange={(e) => setColumnWidth(column.id, Math.max(40, parseInt(e.target.value) || 40))}
+                  onChange={(e) =>
+                    setColumnWidth(column.id, Math.max(40, parseInt(e.target.value) || 40))
+                  }
                   className="w-full bg-plm-bg border border-plm-border rounded px-2 py-1 text-xs text-center focus:border-plm-accent focus:outline-none"
                   min={40}
                   max={500}
@@ -411,7 +413,7 @@ export function MetadataColumnsSettings() {
               ) : (
                 <span className="text-xs text-plm-fg-muted text-center">{column.width}px</span>
               )}
-              
+
               {/* Visibility toggle */}
               <div className="flex justify-center">
                 <button
@@ -442,10 +444,9 @@ export function MetadataColumnsSettings() {
               Custom Columns
             </h3>
             <p className="text-sm text-plm-fg-dim mt-1">
-              {isAdmin 
+              {isAdmin
                 ? 'Define custom properties that appear in the file browser.'
-                : 'Custom properties defined by your organization admin.'
-              }
+                : 'Custom properties defined by your organization admin.'}
             </p>
           </div>
           {isAdmin && !isCreating && !editingColumn && organization && (
@@ -464,217 +465,234 @@ export function MetadataColumnsSettings() {
 
         {/* Create/Edit Form (admin only) */}
         {isAdmin && editingColumn && (
-        <div className="p-4 bg-plm-bg rounded-lg border border-plm-accent space-y-4">
-          <h3 className="font-medium text-plm-fg">
-            {isCreating ? 'New Column' : 'Edit Column'}
-          </h3>
-          
-          <div className="grid grid-cols-2 gap-4">
-            {/* Name */}
-            <div className="space-y-1">
-              <label className="text-sm text-plm-fg-muted">Internal Name</label>
-              <input
-                type="text"
-                value={editingColumn.name}
-                onChange={(e) => setEditingColumn({
-                  ...editingColumn,
-                  name: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '')
-                })}
-                placeholder="e.g., material, weight"
-                className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none font-mono"
-                disabled={!isCreating}
-              />
-              <p className="text-xs text-plm-fg-dim">
-                Used in data storage. Lowercase letters, numbers, underscores only.
-              </p>
-            </div>
-            
-            {/* Label */}
-            <div className="space-y-1">
-              <label className="text-sm text-plm-fg-muted">Display Label</label>
-              <input
-                type="text"
-                value={editingColumn.label}
-                onChange={(e) => setEditingColumn({
-                  ...editingColumn,
-                  label: e.target.value
-                })}
-                placeholder="e.g., Material, Weight (kg)"
-                className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
-              />
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-3 gap-4">
-            {/* Data Type */}
-            <div className="space-y-1">
-              <label className="text-sm text-plm-fg-muted">Data Type</label>
-              <select
-                value={editingColumn.data_type}
-                onChange={(e) => setEditingColumn({
-                  ...editingColumn,
-                  data_type: e.target.value as MetadataColumnType,
-                  select_options: e.target.value === 'select' ? editingColumn.select_options : []
-                })}
-                className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
-              >
-                {Object.entries(TYPE_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>{label}</option>
-                ))}
-              </select>
-            </div>
-            
-            {/* Width */}
-            <div className="space-y-1">
-              <label className="text-sm text-plm-fg-muted">Column Width (px)</label>
-              <input
-                type="number"
-                value={editingColumn.width}
-                onChange={(e) => setEditingColumn({
-                  ...editingColumn,
-                  width: Math.max(50, parseInt(e.target.value) || 120)
-                })}
-                min={50}
-                max={500}
-                className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
-              />
-            </div>
-            
-            {/* Default Value */}
-            <div className="space-y-1">
-              <label className="text-sm text-plm-fg-muted">Default Value</label>
-              <input
-                type="text"
-                value={editingColumn.default_value}
-                onChange={(e) => setEditingColumn({
-                  ...editingColumn,
-                  default_value: e.target.value
-                })}
-                placeholder="Optional"
-                className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
-              />
-            </div>
-          </div>
-          
-          {/* Select Options (only for select type) */}
-          {editingColumn.data_type === 'select' && (
-            <div className="space-y-2">
-              <label className="text-sm text-plm-fg-muted">Dropdown Options</label>
-              <div className="flex gap-2">
+          <div className="p-4 bg-plm-bg rounded-lg border border-plm-accent space-y-4">
+            <h3 className="font-medium text-plm-fg">{isCreating ? 'New Column' : 'Edit Column'}</h3>
+
+            <div className="grid grid-cols-2 gap-4">
+              {/* Name */}
+              <div className="space-y-1">
+                <label className="text-sm text-plm-fg-muted">Internal Name</label>
                 <input
                   type="text"
-                  value={newOption}
-                  onChange={(e) => setNewOption(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      addSelectOption()
-                    }
-                  }}
-                  placeholder="Add an option..."
-                  className="flex-1 bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
+                  value={editingColumn.name}
+                  onChange={(e) =>
+                    setEditingColumn({
+                      ...editingColumn,
+                      name: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''),
+                    })
+                  }
+                  placeholder="e.g., material, weight"
+                  className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none font-mono"
+                  disabled={!isCreating}
                 />
-                <button
-                  onClick={addSelectOption}
-                  disabled={!newOption.trim()}
-                  className="btn btn-primary btn-sm"
-                >
-                  <Plus size={14} />
-                </button>
+                <p className="text-xs text-plm-fg-dim">
+                  Used in data storage. Lowercase letters, numbers, underscores only.
+                </p>
               </div>
-              {editingColumn.select_options.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {editingColumn.select_options.map((option) => (
-                    <span
-                      key={option}
-                      className="inline-flex items-center gap-1 px-2 py-1 bg-plm-bg-light border border-plm-border rounded text-sm"
-                    >
-                      {option}
-                      <button
-                        onClick={() => removeSelectOption(option)}
-                        className="p-0.5 hover:text-plm-error"
-                      >
-                        <X size={12} />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
+
+              {/* Label */}
+              <div className="space-y-1">
+                <label className="text-sm text-plm-fg-muted">Display Label</label>
+                <input
+                  type="text"
+                  value={editingColumn.label}
+                  onChange={(e) =>
+                    setEditingColumn({
+                      ...editingColumn,
+                      label: e.target.value,
+                    })
+                  }
+                  placeholder="e.g., Material, Weight (kg)"
+                  className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
+                />
+              </div>
             </div>
-          )}
-          
-          {/* Toggles */}
-          <div className="flex gap-6">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={editingColumn.visible}
-                onChange={(e) => setEditingColumn({
-                  ...editingColumn,
-                  visible: e.target.checked
-                })}
-                className="w-4 h-4 rounded border-plm-border text-plm-accent focus:ring-plm-accent"
-              />
-              <span className="text-base text-plm-fg">Visible by default</span>
-            </label>
-            
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={editingColumn.sortable}
-                onChange={(e) => setEditingColumn({
-                  ...editingColumn,
-                  sortable: e.target.checked
-                })}
-                className="w-4 h-4 rounded border-plm-border text-plm-accent focus:ring-plm-accent"
-              />
-              <span className="text-base text-plm-fg">Sortable</span>
-            </label>
-            
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={editingColumn.required}
-                onChange={(e) => setEditingColumn({
-                  ...editingColumn,
-                  required: e.target.checked
-                })}
-                className="w-4 h-4 rounded border-plm-border text-plm-accent focus:ring-plm-accent"
-              />
-              <span className="text-base text-plm-fg">Required</span>
-            </label>
+
+            <div className="grid grid-cols-3 gap-4">
+              {/* Data Type */}
+              <div className="space-y-1">
+                <label className="text-sm text-plm-fg-muted">Data Type</label>
+                <select
+                  value={editingColumn.data_type}
+                  onChange={(e) =>
+                    setEditingColumn({
+                      ...editingColumn,
+                      data_type: e.target.value as MetadataColumnType,
+                      select_options:
+                        e.target.value === 'select' ? editingColumn.select_options : [],
+                    })
+                  }
+                  className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
+                >
+                  {Object.entries(TYPE_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Width */}
+              <div className="space-y-1">
+                <label className="text-sm text-plm-fg-muted">Column Width (px)</label>
+                <input
+                  type="number"
+                  value={editingColumn.width}
+                  onChange={(e) =>
+                    setEditingColumn({
+                      ...editingColumn,
+                      width: Math.max(50, parseInt(e.target.value) || 120),
+                    })
+                  }
+                  min={50}
+                  max={500}
+                  className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
+                />
+              </div>
+
+              {/* Default Value */}
+              <div className="space-y-1">
+                <label className="text-sm text-plm-fg-muted">Default Value</label>
+                <input
+                  type="text"
+                  value={editingColumn.default_value}
+                  onChange={(e) =>
+                    setEditingColumn({
+                      ...editingColumn,
+                      default_value: e.target.value,
+                    })
+                  }
+                  placeholder="Optional"
+                  className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Select Options (only for select type) */}
+            {editingColumn.data_type === 'select' && (
+              <div className="space-y-2">
+                <label className="text-sm text-plm-fg-muted">Dropdown Options</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newOption}
+                    onChange={(e) => setNewOption(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        addSelectOption()
+                      }
+                    }}
+                    placeholder="Add an option..."
+                    className="flex-1 bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
+                  />
+                  <button
+                    onClick={addSelectOption}
+                    disabled={!newOption.trim()}
+                    className="btn btn-primary btn-sm"
+                  >
+                    <Plus size={14} />
+                  </button>
+                </div>
+                {editingColumn.select_options.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {editingColumn.select_options.map((option) => (
+                      <span
+                        key={option}
+                        className="inline-flex items-center gap-1 px-2 py-1 bg-plm-bg-light border border-plm-border rounded text-sm"
+                      >
+                        {option}
+                        <button
+                          onClick={() => removeSelectOption(option)}
+                          className="p-0.5 hover:text-plm-error"
+                        >
+                          <X size={12} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Toggles */}
+            <div className="flex gap-6">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={editingColumn.visible}
+                  onChange={(e) =>
+                    setEditingColumn({
+                      ...editingColumn,
+                      visible: e.target.checked,
+                    })
+                  }
+                  className="w-4 h-4 rounded border-plm-border text-plm-accent focus:ring-plm-accent"
+                />
+                <span className="text-base text-plm-fg">Visible by default</span>
+              </label>
+
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={editingColumn.sortable}
+                  onChange={(e) =>
+                    setEditingColumn({
+                      ...editingColumn,
+                      sortable: e.target.checked,
+                    })
+                  }
+                  className="w-4 h-4 rounded border-plm-border text-plm-accent focus:ring-plm-accent"
+                />
+                <span className="text-base text-plm-fg">Sortable</span>
+              </label>
+
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={editingColumn.required}
+                  onChange={(e) =>
+                    setEditingColumn({
+                      ...editingColumn,
+                      required: e.target.checked,
+                    })
+                  }
+                  className="w-4 h-4 rounded border-plm-border text-plm-accent focus:ring-plm-accent"
+                />
+                <span className="text-base text-plm-fg">Required</span>
+              </label>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-2 justify-end pt-2 border-t border-plm-border">
+              <button
+                onClick={() => {
+                  setEditingColumn(null)
+                  setIsCreating(false)
+                }}
+                className="btn btn-ghost btn-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveColumn}
+                disabled={isSaving || !editingColumn.name.trim() || !editingColumn.label.trim()}
+                className="btn btn-primary btn-sm"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    Saving...
+                  </>
+                ) : isCreating ? (
+                  'Create Column'
+                ) : (
+                  'Save Changes'
+                )}
+              </button>
+            </div>
           </div>
-          
-          {/* Actions */}
-          <div className="flex gap-2 justify-end pt-2 border-t border-plm-border">
-            <button
-              onClick={() => {
-                setEditingColumn(null)
-                setIsCreating(false)
-              }}
-              className="btn btn-ghost btn-sm"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSaveColumn}
-              disabled={isSaving || !editingColumn.name.trim() || !editingColumn.label.trim()}
-              className="btn btn-primary btn-sm"
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 size={14} className="animate-spin" />
-                  Saving...
-                </>
-              ) : isCreating ? (
-                'Create Column'
-              ) : (
-                'Save Changes'
-              )}
-            </button>
-          </div>
-        </div>
-      )}
+        )}
 
         {/* Custom Columns List */}
         {!organization ? (
@@ -689,7 +707,9 @@ export function MetadataColumnsSettings() {
           <div className="text-center py-6 text-plm-fg-muted text-sm border border-dashed border-plm-border rounded-lg">
             <p>No custom columns defined</p>
             {isAdmin && (
-              <p className="text-xs mt-1 text-plm-fg-dim">Click "Add Column" to create custom properties like Material, Weight, etc.</p>
+              <p className="text-xs mt-1 text-plm-fg-dim">
+                Click "Add Column" to create custom properties like Material, Weight, etc.
+              </p>
             )}
           </div>
         ) : (
@@ -706,7 +726,7 @@ export function MetadataColumnsSettings() {
             {/* Column rows */}
             <div className="space-y-0.5">
               {columns.map((column, index) => (
-                <div 
+                <div
                   key={column.id}
                   className={`grid grid-cols-[1fr_80px_80px_60px_auto] gap-2 px-3 py-2 rounded hover:bg-plm-highlight/50 transition-colors items-center group ${!column.visible ? 'opacity-50' : ''}`}
                 >
@@ -732,16 +752,20 @@ export function MetadataColumnsSettings() {
                     )}
                     <span className="text-sm text-plm-fg">{column.label}</span>
                     {column.required && (
-                      <span className="text-[10px] px-1 py-0.5 bg-plm-warning/20 text-plm-warning rounded">req</span>
+                      <span className="text-[10px] px-1 py-0.5 bg-plm-warning/20 text-plm-warning rounded">
+                        req
+                      </span>
                     )}
                   </div>
-                  
+
                   {/* Type */}
-                  <span className="text-xs text-plm-fg-muted text-center">{TYPE_LABELS[column.data_type]}</span>
-                  
+                  <span className="text-xs text-plm-fg-muted text-center">
+                    {TYPE_LABELS[column.data_type]}
+                  </span>
+
                   {/* Width */}
                   <span className="text-xs text-plm-fg-muted text-center">{column.width}px</span>
-                  
+
                   {/* Visibility toggle */}
                   <div className="flex justify-center">
                     <button
@@ -756,7 +780,7 @@ export function MetadataColumnsSettings() {
                       )}
                     </button>
                   </div>
-                  
+
                   {/* Actions (admin only) */}
                   {isAdmin && (
                     <div className="flex items-center justify-center gap-1 w-20">
@@ -772,7 +796,7 @@ export function MetadataColumnsSettings() {
                             visible: column.visible,
                             sortable: column.sortable,
                             required: column.required,
-                            default_value: column.default_value || ''
+                            default_value: column.default_value || '',
                           })
                           setIsCreating(false)
                         }}
@@ -824,7 +848,7 @@ export function MetadataColumnsSettings() {
             </button>
           </div>
         )}
-        
+
         {/* Org defaults - admin only for save/push, all users can load */}
         {organization && (
           <div className="flex flex-wrap gap-2">
@@ -865,17 +889,24 @@ export function MetadataColumnsSettings() {
             </button>
           </div>
         )}
-        
+
         <p className="text-xs text-plm-fg-dim">
           "Save as My Defaults" saves your column layout to the cloud so it syncs across devices.
-          {isAdmin && ' "Save as Org Defaults" sets the starting configuration for new team members. "Push to All Users" overrides every user\'s current column layout.'}
+          {isAdmin &&
+            ' "Save as Org Defaults" sets the starting configuration for new team members. "Push to All Users" overrides every user\'s current column layout.'}
         </p>
       </div>
 
       {/* Delete Confirmation Dialog */}
       {deletingColumn && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={() => setDeletingColumn(null)}>
-          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center"
+          onClick={() => setDeletingColumn(null)}
+        >
+          <div
+            className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center gap-3 mb-4">
               <div className="p-2 bg-plm-error/20 rounded-full">
                 <AlertTriangle size={20} className="text-plm-error" />
@@ -886,8 +917,8 @@ export function MetadataColumnsSettings() {
               Are you sure you want to delete the column <strong>"{deletingColumn.label}"</strong>?
             </p>
             <p className="text-sm text-plm-fg-dim mb-4">
-              This will remove the column from the file browser. Existing file metadata using this column 
-              will remain in storage but won't be displayed.
+              This will remove the column from the file browser. Existing file metadata using this
+              column will remain in storage but won't be displayed.
             </p>
             <div className="flex gap-2 justify-end">
               <button onClick={() => setDeletingColumn(null)} className="btn btn-ghost">
@@ -907,8 +938,14 @@ export function MetadataColumnsSettings() {
 
       {/* Push to All Users Confirmation Dialog */}
       {showPushConfirm && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={() => setShowPushConfirm(false)}>
-          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center"
+          onClick={() => setShowPushConfirm(false)}
+        >
+          <div
+            className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center gap-3 mb-4">
               <div className="p-2 bg-plm-warning/20 rounded-full">
                 <Send size={20} className="text-plm-warning" />
@@ -916,11 +953,12 @@ export function MetadataColumnsSettings() {
               <h3 className="text-lg font-medium text-plm-fg">Push to All Users</h3>
             </div>
             <p className="text-base text-plm-fg-muted mb-4">
-              This will override <strong>every user's</strong> column layout with your current configuration.
+              This will override <strong>every user's</strong> column layout with your current
+              configuration.
             </p>
             <p className="text-sm text-plm-fg-dim mb-4">
-              All connected users will receive the update immediately. Users who are offline
-              will receive it when they next open the app.
+              All connected users will receive the update immediately. Users who are offline will
+              receive it when they next open the app.
             </p>
             <div className="flex gap-2 justify-end">
               <button onClick={() => setShowPushConfirm(false)} className="btn btn-ghost">
@@ -939,4 +977,3 @@ export function MetadataColumnsSettings() {
     </div>
   )
 }
-

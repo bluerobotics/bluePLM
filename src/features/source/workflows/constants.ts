@@ -23,7 +23,7 @@ export const DEFAULT_SNAP_SETTINGS = {
   gridSize: 40,
   snapToGrid: false,
   snapToAlignment: true,
-  alignmentThreshold: 10
+  alignmentThreshold: 10,
 }
 
 // History limits
@@ -32,7 +32,7 @@ export const MAX_HISTORY = 50
 // Default preset colors for the color picker toolbar
 export const DEFAULT_PRESET_COLORS = [
   '#ef4444', // Red
-  '#f97316', // Orange  
+  '#f97316', // Orange
   '#f59e0b', // Amber
   '#84cc16', // Lime
   '#22c55e', // Green

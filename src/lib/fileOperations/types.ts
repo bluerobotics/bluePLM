@@ -8,11 +8,11 @@ export interface Clipboard {
 
 // Selection categories for multi-select operations
 export interface SelectionCategories {
-  downloadable: LocalFile[]    // cloud-only or outdated
-  checkoutable: LocalFile[]    // synced, not checked out
-  checkinable: LocalFile[]     // checked out by current user
-  uploadable: LocalFile[]      // local-only, not synced
-  updatable: LocalFile[]       // outdated (subset of downloadable)
+  downloadable: LocalFile[] // cloud-only or outdated
+  checkoutable: LocalFile[] // synced, not checked out
+  checkinable: LocalFile[] // checked out by current user
+  uploadable: LocalFile[] // local-only, not synced
+  updatable: LocalFile[] // outdated (subset of downloadable)
 }
 
 // Checkout user info for avatars

@@ -1,13 +1,17 @@
 /**
  * ExtensionCard - Display an extension in a card format
- * 
+ *
  * Used in the extension store and installed extensions list.
  * Shows extension metadata, verification status, and action buttons.
  */
 import { useState } from 'react'
 import { Download, Trash2, RefreshCw, Power, PowerOff, ExternalLink, Star } from 'lucide-react'
 import { VerificationBadge, NativeBadge } from './VerificationBadge'
-import type { InstalledExtension, StoreExtensionListing, ExtensionUpdateAvailable } from '@/stores/types'
+import type {
+  InstalledExtension,
+  StoreExtensionListing,
+  ExtensionUpdateAvailable,
+} from '@/stores/types'
 import { usePDMStore } from '@/stores/pdmStore'
 
 interface ExtensionCardProps {
@@ -39,13 +43,13 @@ export function ExtensionCard({
   className = '',
 }: ExtensionCardProps) {
   const [actionLoading, setActionLoading] = useState<string | null>(null)
-  const isExtensionInstalled = usePDMStore(s => s.isExtensionInstalled)
-  
+  const isExtensionInstalled = usePDMStore((s) => s.isExtensionInstalled)
+
   // Determine source of data
   const manifest = extension?.manifest
   const isInstalled = !!extension
   const isFromStore = !!storeExtension
-  
+
   // Extract common properties
   const name = manifest?.name || storeExtension?.name || 'Unknown Extension'
   const description = manifest?.description || storeExtension?.description || ''
@@ -57,17 +61,17 @@ export function ExtensionCard({
   const isFeatured = storeExtension?.featured
   const downloadCount = storeExtension?.downloadCount
   const deprecation = storeExtension?.deprecation
-  
+
   // Extension state
   const state = extension?.state || 'not-installed'
   const isActive = state === 'active'
   const isDisabled = state === 'disabled'
   const hasError = state === 'error'
   const verification = extension?.verification || (isVerified ? 'verified' : 'community')
-  
+
   // Check if we can install (not already installed)
   const canInstall = isFromStore && !isExtensionInstalled(storeExtension.extensionId)
-  
+
   // Handle action with loading state
   const handleAction = async (action: string, handler?: () => void | Promise<void>) => {
     if (!handler) return
@@ -94,7 +98,7 @@ export function ExtensionCard({
             <span className="text-lg font-bold text-gray-400">{name[0]}</span>
           )}
         </div>
-        
+
         {/* Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
@@ -103,15 +107,21 @@ export function ExtensionCard({
           </div>
           <div className="text-xs text-gray-400">v{version}</div>
         </div>
-        
+
         {/* State indicator */}
         {isInstalled && (
-          <div className={`w-2 h-2 rounded-full shrink-0 ${
-            isActive ? 'bg-green-500' :
-            isDisabled ? 'bg-gray-500' :
-            hasError ? 'bg-red-500' :
-            'bg-yellow-500'
-          }`} title={state} />
+          <div
+            className={`w-2 h-2 rounded-full shrink-0 ${
+              isActive
+                ? 'bg-green-500'
+                : isDisabled
+                  ? 'bg-gray-500'
+                  : hasError
+                    ? 'bg-red-500'
+                    : 'bg-yellow-500'
+            }`}
+            title={state}
+          />
         )}
       </div>
     )
@@ -124,20 +134,22 @@ export function ExtensionCard({
     >
       {/* Featured badge */}
       {isFeatured && (
-        <div className="absolute -top-2 -right-2 bg-amber-500 text-black text-[10px] font-bold 
-          px-2 py-0.5 rounded-full flex items-center gap-1">
+        <div
+          className="absolute -top-2 -right-2 bg-amber-500 text-black text-[10px] font-bold 
+          px-2 py-0.5 rounded-full flex items-center gap-1"
+        >
           <Star size={10} fill="currentColor" />
           Featured
         </div>
       )}
-      
+
       {/* Deprecation warning */}
       {deprecation && (
         <div className="mb-3 p-2 rounded bg-red-500/10 border border-red-500/30 text-red-400 text-xs">
           <strong>Deprecated:</strong> {deprecation.reason}
         </div>
       )}
-      
+
       {/* Header */}
       <div className="flex gap-3">
         {/* Icon */}
@@ -148,7 +160,7 @@ export function ExtensionCard({
             <span className="text-2xl font-bold text-gray-400">{name[0]}</span>
           )}
         </div>
-        
+
         {/* Title & Publisher */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -172,14 +184,14 @@ export function ExtensionCard({
           </div>
         </div>
       </div>
-      
+
       {/* Description */}
       <p className="mt-3 text-sm text-gray-400 line-clamp-2">{description}</p>
-      
+
       {/* Categories/Tags */}
       {storeExtension?.categories && storeExtension.categories.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-1">
-          {storeExtension.categories.slice(0, 3).map(cat => (
+          {storeExtension.categories.slice(0, 3).map((cat) => (
             <span
               key={cat}
               className="px-2 py-0.5 text-[10px] rounded-full bg-gray-700/50 text-gray-400"
@@ -189,7 +201,7 @@ export function ExtensionCard({
           ))}
         </div>
       )}
-      
+
       {/* Update available badge */}
       {update && (
         <div className="mt-3 p-2 rounded bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs">
@@ -197,14 +209,14 @@ export function ExtensionCard({
           {update.breaking && <span className="ml-2 text-amber-400">(Breaking changes)</span>}
         </div>
       )}
-      
+
       {/* Error state */}
       {hasError && extension?.error && (
         <div className="mt-3 p-2 rounded bg-red-500/10 border border-red-500/30 text-red-400 text-xs">
           Error: {extension.error}
         </div>
       )}
-      
+
       {/* Actions */}
       <div className="mt-4 flex items-center gap-2">
         {/* View Details */}
@@ -215,7 +227,7 @@ export function ExtensionCard({
         >
           Details
         </button>
-        
+
         {/* Install button (for store extensions) */}
         {canInstall && (
           <button
@@ -232,7 +244,7 @@ export function ExtensionCard({
             Install
           </button>
         )}
-        
+
         {/* Update button */}
         {update && (
           <button
@@ -249,7 +261,7 @@ export function ExtensionCard({
             Update
           </button>
         )}
-        
+
         {/* Enable/Disable toggle (for installed extensions) */}
         {isInstalled && !hasError && (
           <>
@@ -284,7 +296,7 @@ export function ExtensionCard({
             )}
           </>
         )}
-        
+
         {/* Uninstall button */}
         {isInstalled && (
           <button
@@ -301,7 +313,7 @@ export function ExtensionCard({
             Uninstall
           </button>
         )}
-        
+
         {/* Repository link */}
         {(manifest?.repository || storeExtension?.repositoryUrl) && (
           <a
@@ -311,7 +323,7 @@ export function ExtensionCard({
             className="ml-auto p-1.5 rounded-lg hover:bg-gray-700/50 text-gray-400 
               hover:text-gray-300 transition-colors"
             title="View source"
-            onClick={e => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
           >
             <ExternalLink size={16} />
           </a>

@@ -5,11 +5,11 @@ export interface UseShareModalReturn {
   // Modal visibility
   showShareModal: boolean
   setShowShareModal: (show: boolean) => void
-  
+
   // File being shared
   shareFile: LocalFile | null
   setShareFile: (file: LocalFile | null) => void
-  
+
   // Form state
   shareExpiresInDays: number | null
   setShareExpiresInDays: (days: number | null) => void
@@ -17,7 +17,7 @@ export interface UseShareModalReturn {
   setShareMaxDownloads: (max: number | null) => void
   shareRequireAuth: boolean
   setShareRequireAuth: (require: boolean) => void
-  
+
   // Generated link state
   generatedShareLink: string | null
   setGeneratedShareLink: (link: string | null) => void
@@ -56,6 +56,6 @@ export function useShareModal(): UseShareModalReturn {
     isCreatingShareLink,
     setIsCreatingShareLink,
     copiedLink,
-    setCopiedLink
+    setCopiedLink,
   }
 }

@@ -11,7 +11,7 @@ const MAX_RETRY_ATTEMPTS = 3
 const RETRY_BASE_DELAY_MS = 2000
 
 /** Reason for auto-start failure - used for debugging */
-type FailureReason = 
+type FailureReason =
   | 'not_installed'
   | 'status_check_failed'
   | 'start_failed'
@@ -28,45 +28,47 @@ interface AutoStartAttempt {
 
 /**
  * Auto-start SolidWorks service if enabled and SolidWorks is installed.
- * 
+ *
  * This hook handles:
  * - Waiting for Zustand hydration before reading persisted settings
  * - Checking if SolidWorks is installed on the machine
  * - Auto-starting the service with the organization's DM license key
  * - Retry logic with exponential backoff (max 3 attempts)
  * - User-visible toast notifications for failures
- * 
+ *
  * ## Race Condition Fix
- * 
+ *
  * Previously, this hook could run before Zustand hydrated user preferences
  * from localStorage, causing it to use default values (autoStart=true) instead
  * of the user's actual settings. Now it waits for hydration via `useHasHydrated()`.
- * 
+ *
  * ## Retry Logic
- * 
+ *
  * If an attempt fails due to a transient error (network, process startup),
  * the hook will retry up to 3 times with exponential backoff (2s, 4s, 8s).
  * The retry counter resets when:
  * - The organization changes
  * - The `autoStartSolidworksService` setting is toggled
- * 
+ *
  * @param organization - The current organization (from auth), or null if not loaded
  */
 export function useSolidWorksAutoStart(organization: Organization | null) {
   const hasHydrated = useHasHydrated()
-  const autoStartSolidworksService = usePDMStore(state => state.autoStartSolidworksService)
-  const solidworksIntegrationEnabled = usePDMStore(state => state.solidworksIntegrationEnabled)
-  const solidworksServiceVerboseLogging = usePDMStore(state => state.solidworksServiceVerboseLogging)
-  
+  const autoStartSolidworksService = usePDMStore((state) => state.autoStartSolidworksService)
+  const solidworksIntegrationEnabled = usePDMStore((state) => state.solidworksIntegrationEnabled)
+  const solidworksServiceVerboseLogging = usePDMStore(
+    (state) => state.solidworksServiceVerboseLogging,
+  )
+
   // Track auto-start attempts per organization
   const attemptStateRef = useRef<AutoStartAttempt | null>(null)
-  
+
   // Track setting changes to reset retry counter
   const lastAutoStartSettingRef = useRef<boolean | null>(null)
-  
+
   // Track if we have an in-flight retry scheduled
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  
+
   const log = useCallback((level: 'info' | 'warn' | 'error', message: string) => {
     // Extract category and message from prefixed message format "[SolidWorks] ..."
     const match = message.match(/^(\[[^\]]+\])\s*(.*)$/)
@@ -77,11 +79,14 @@ export function useSolidWorksAutoStart(organization: Organization | null) {
       logger[level]('[SolidWorks]', message)
     }
   }, [])
-  
-  const showToast = useCallback((type: 'warning' | 'error' | 'info', message: string, duration?: number) => {
-    usePDMStore.getState().addToast(type, message, duration)
-  }, [])
-  
+
+  const showToast = useCallback(
+    (type: 'warning' | 'error' | 'info', message: string, duration?: number) => {
+      usePDMStore.getState().addToast(type, message, duration)
+    },
+    [],
+  )
+
   /**
    * Check service version after successful start and warn if mismatched
    */
@@ -91,20 +96,23 @@ export function useSolidWorksAutoStart(organization: Organization | null) {
       if (statusResult?.success && statusResult.data) {
         const version = (statusResult.data as { version?: string }).version
         const versionCheck = checkSwServiceCompatibility(version || null)
-        
-        log('info', `[SolidWorks] Service version: ${version || 'unknown'}, status: ${versionCheck.status}`)
-        
+
+        log(
+          'info',
+          `[SolidWorks] Service version: ${version || 'unknown'}, status: ${versionCheck.status}`,
+        )
+
         if (versionCheck.status === 'incompatible') {
           showToast('error', `${versionCheck.message}: ${versionCheck.details}`, 15000)
         } else if (versionCheck.status === 'outdated' || versionCheck.status === 'unknown') {
           showToast('warning', `${versionCheck.message}: ${versionCheck.details}`, 10000)
         }
       }
-    } catch (err) {
-      log('warn', `[SolidWorks] Failed to check service version: ${err}`)
+    } catch (error) {
+      log('warn', `[SolidWorks] Failed to check service version: ${error}`)
     }
   }, [log, showToast])
-  
+
   useEffect(() => {
     // Cleanup any pending retry on unmount or dependency change
     return () => {
@@ -114,61 +122,69 @@ export function useSolidWorksAutoStart(organization: Organization | null) {
       }
     }
   }, [organization, autoStartSolidworksService, solidworksIntegrationEnabled])
-  
+
   useEffect(() => {
     const dmLicenseKey = organization?.settings?.solidworks_dm_license_key
     const orgId = organization?.id
-    
+
     // =========================================================================
     // Pre-condition checks
     // =========================================================================
-    
+
     if (!hasHydrated) {
       log('info', '[SolidWorks] Waiting for store hydration, deferring auto-start')
       return
     }
-    
+
     // Detect setting change and reset retry counter
-    if (lastAutoStartSettingRef.current !== null && 
-        lastAutoStartSettingRef.current !== autoStartSolidworksService) {
-      log('info', '[SolidWorks] autoStartSolidworksService setting changed, resetting retry counter')
+    if (
+      lastAutoStartSettingRef.current !== null &&
+      lastAutoStartSettingRef.current !== autoStartSolidworksService
+    ) {
+      log(
+        'info',
+        '[SolidWorks] autoStartSolidworksService setting changed, resetting retry counter',
+      )
       attemptStateRef.current = null
     }
     lastAutoStartSettingRef.current = autoStartSolidworksService
-    
+
     if (!solidworksIntegrationEnabled) {
       log('info', '[SolidWorks] Integration disabled, skipping auto-start')
       return
     }
-    
+
     if (!autoStartSolidworksService) {
       log('info', '[SolidWorks] Auto-start setting is disabled, skipping')
       return
     }
-    
+
     if (!window.electronAPI?.solidworks) {
-      log('warn', '[SolidWorks] Electron API not available (running in browser?), skipping auto-start')
+      log(
+        'warn',
+        '[SolidWorks] Electron API not available (running in browser?), skipping auto-start',
+      )
       return
     }
-    
+
     if (!orgId) {
       log('info', '[SolidWorks] Organization not loaded yet, deferring auto-start')
       return
     }
-    
+
     // Check existing attempt state
     const existingAttempt = attemptStateRef.current
     if (existingAttempt?.orgId === orgId && existingAttempt.succeeded) {
       log('info', `[SolidWorks] Already successfully started for org ${orgId}, skipping`)
       return
     }
-    
+
     if (existingAttempt?.orgId === orgId && existingAttempt.attemptCount >= MAX_RETRY_ATTEMPTS) {
       log('warn', `[SolidWorks] Exhausted ${MAX_RETRY_ATTEMPTS} attempts for org ${orgId}`)
       log('warn', `[SolidWorks] Last failure reason: ${existingAttempt.lastFailureReason}`)
       return
     }
-    
+
     // Initialize or get attempt state
     if (!existingAttempt || existingAttempt.orgId !== orgId) {
       attemptStateRef.current = {
@@ -178,32 +194,35 @@ export function useSolidWorksAutoStart(organization: Organization | null) {
         succeeded: false,
       }
     }
-    
+
     const state = attemptStateRef.current!
-    
+
     // =========================================================================
     // Main auto-start logic with retry
     // =========================================================================
-    
+
     const attemptAutoStart = async (): Promise<void> => {
       state.attemptCount++
       const attemptNum = state.attemptCount
-      
-      log('info', `[SolidWorks] Auto-start attempt ${attemptNum}/${MAX_RETRY_ATTEMPTS} for org ${orgId}`)
-      
+
+      log(
+        'info',
+        `[SolidWorks] Auto-start attempt ${attemptNum}/${MAX_RETRY_ATTEMPTS} for org ${orgId}`,
+      )
+
       // Set flag to prevent integration status checks from overwriting our results
       usePDMStore.getState().setSolidworksAutoStartInProgress(true)
-      
+
       /**
        * Handle failure: set reason, schedule retry or show toast
        */
       const handleFailure = (reason: FailureReason, userMessage: string) => {
         state.lastFailureReason = reason
-        
+
         if (state.attemptCount < MAX_RETRY_ATTEMPTS) {
           const delay = RETRY_BASE_DELAY_MS * Math.pow(2, state.attemptCount - 1)
           log('info', `[SolidWorks] Scheduling retry in ${delay}ms`)
-          
+
           retryTimeoutRef.current = setTimeout(() => {
             retryTimeoutRef.current = null
             // Only retry if state hasn't changed
@@ -218,107 +237,125 @@ export function useSolidWorksAutoStart(organization: Organization | null) {
           usePDMStore.getState().setSolidworksAutoStartInProgress(false)
         }
       }
-      
+
       try {
         // Step 1: Check service status
         const result = await window.electronAPI!.solidworks!.getServiceStatus()
-        
+
         if (!result?.success) {
           const errorMsg = result?.error || 'Unknown error'
           log('error', `[SolidWorks] getServiceStatus failed: ${errorMsg}`)
           handleFailure('status_check_failed', `SolidWorks service check failed: ${errorMsg}`)
           return
         }
-        
+
         // Step 2: Check if SolidWorks is installed
         if (!result.data?.installed) {
           log('warn', '[SolidWorks] SolidWorks is not installed on this machine')
           state.lastFailureReason = 'not_installed'
           // Don't retry - permanent condition
-          showToast('info', 'SolidWorks auto-start enabled but SolidWorks is not installed on this machine')
+          showToast(
+            'info',
+            'SolidWorks auto-start enabled but SolidWorks is not installed on this machine',
+          )
           // Clear the in-progress flag
           usePDMStore.getState().setSolidworksAutoStartInProgress(false)
           return
         }
-        
+
         const data = result.data as {
           installed: boolean
           running: boolean
           documentManagerAvailable?: boolean
         }
-        
-        log('info', `[SolidWorks] Status: installed=${data.installed}, running=${data.running}, dmAvailable=${data.documentManagerAvailable}`)
-        
+
+        log(
+          'info',
+          `[SolidWorks] Status: installed=${data.installed}, running=${data.running}, dmAvailable=${data.documentManagerAvailable}`,
+        )
+
         // Step 3: Start service or send license key
         if (!data.running) {
           log('info', '[SolidWorks] Service not running, starting...')
-          
-          const startResult = await window.electronAPI!.solidworks!.startService(dmLicenseKey || undefined, false, solidworksServiceVerboseLogging)
-          
+
+          const startResult = await window.electronAPI!.solidworks!.startService(
+            dmLicenseKey || undefined,
+            false,
+            solidworksServiceVerboseLogging,
+          )
+
           if (!startResult?.success) {
             const errorMsg = startResult?.error || 'Unknown error'
             log('error', `[SolidWorks] startService failed: ${errorMsg}`)
             handleFailure('start_failed', `SolidWorks auto-start failed: ${errorMsg}`)
             return
           }
-          
-          const modeMsg = (startResult.data as { fastModeEnabled?: boolean })?.fastModeEnabled ? ' (fast mode)' : ''
+
+          const modeMsg = (startResult.data as { fastModeEnabled?: boolean })?.fastModeEnabled
+            ? ' (fast mode)'
+            : ''
           log('info', `[SolidWorks] Service auto-started successfully${modeMsg}`)
           state.succeeded = true
           state.lastFailureReason = null
-          
+
           // Sync with integrations slice so UI shows correct status immediately
           usePDMStore.getState().setIntegrationStatus('solidworks', 'online')
           usePDMStore.getState().setSolidworksAutoStartInProgress(false)
-          
+
           // Check service version and warn if mismatched
           checkServiceVersion()
-          
         } else if (dmLicenseKey && !data.documentManagerAvailable) {
-          log('info', '[SolidWorks] Service running but DM API not available, sending license key...')
-          
-          const setKeyResult = await window.electronAPI!.solidworks!.startService(dmLicenseKey, false, solidworksServiceVerboseLogging)
-          
+          log(
+            'info',
+            '[SolidWorks] Service running but DM API not available, sending license key...',
+          )
+
+          const setKeyResult = await window.electronAPI!.solidworks!.startService(
+            dmLicenseKey,
+            false,
+            solidworksServiceVerboseLogging,
+          )
+
           if (!setKeyResult?.success) {
             const errorMsg = setKeyResult?.error || 'Unknown error'
             log('error', `[SolidWorks] Failed to set license key: ${errorMsg}`)
-            handleFailure('license_key_failed', `Failed to set SolidWorks DM license key: ${errorMsg}`)
+            handleFailure(
+              'license_key_failed',
+              `Failed to set SolidWorks DM license key: ${errorMsg}`,
+            )
             return
           }
-          
+
           log('info', '[SolidWorks] License key sent to running service successfully')
           state.succeeded = true
           state.lastFailureReason = null
-          
+
           // Sync with integrations slice so UI shows correct status immediately
           usePDMStore.getState().setIntegrationStatus('solidworks', 'online')
           usePDMStore.getState().setSolidworksAutoStartInProgress(false)
-          
+
           // Check service version and warn if mismatched
           checkServiceVersion()
-          
         } else {
           log('info', '[SolidWorks] Service already running, no action needed')
           state.succeeded = true
           state.lastFailureReason = null
-          
+
           // Sync with integrations slice so UI shows correct status immediately
           usePDMStore.getState().setIntegrationStatus('solidworks', 'online')
           usePDMStore.getState().setSolidworksAutoStartInProgress(false)
-          
+
           // Check service version and warn if mismatched
           checkServiceVersion()
         }
-        
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
         log('error', `[SolidWorks] Auto-start exception: ${message}`)
         handleFailure('unknown_error', `SolidWorks auto-start error: ${message}`)
       }
     }
-    
+
     attemptAutoStart()
-    
   }, [
     organization,
     hasHydrated,
@@ -326,6 +363,6 @@ export function useSolidWorksAutoStart(organization: Organization | null) {
     solidworksIntegrationEnabled,
     log,
     showToast,
-    checkServiceVersion
+    checkServiceVersion,
   ])
 }

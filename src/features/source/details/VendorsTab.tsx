@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
+import { t } from '@/lib/i18n'
 import { usePDMStore, LocalFile } from '@/stores/pdmStore'
 import type { PartSupplier } from '@/stores/types'
-import { 
-  getPartSuppliers, 
-  addPartSupplier, 
-  updatePartSupplier, 
+import {
+  getPartSuppliers,
+  addPartSupplier,
+  updatePartSupplier,
   removePartSupplier,
-  setPreferredPartSupplier 
+  setPreferredPartSupplier,
 } from '@/lib/supabase'
 import { supabase } from '@/lib/supabase'
 import { log } from '@/lib/logger'
@@ -30,7 +31,7 @@ import {
   AlertCircle,
   Search,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
 } from 'lucide-react'
 
 interface VendorsTabProps {
@@ -38,8 +39,17 @@ interface VendorsTabProps {
 }
 
 export function VendorsTab({ file }: VendorsTabProps) {
-  const { organization, user, addToast, suppliers, setSuppliers, addSupplier, suppliersLoaded, setSuppliersLoading } = usePDMStore()
-  
+  const {
+    organization,
+    user,
+    addToast,
+    suppliers,
+    setSuppliers,
+    addSupplier,
+    suppliersLoaded,
+    setSuppliersLoading,
+  } = usePDMStore()
+
   const [partSuppliers, setPartSuppliers] = useState<PartSupplier[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isAdding, setIsAdding] = useState(false)
@@ -49,7 +59,7 @@ export function VendorsTab({ file }: VendorsTabProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [newVendorName, setNewVendorName] = useState('')
   const [isCreatingVendor, setIsCreatingVendor] = useState(false)
-  
+
   // Form state for add/edit
   const [formData, setFormData] = useState({
     supplier_id: '',
@@ -60,7 +70,7 @@ export function VendorsTab({ file }: VendorsTabProps) {
     min_order_qty: '1',
     lead_time_days: '',
     notes: '',
-    price_breaks: [] as Array<{ qty: number; price: number }>
+    price_breaks: [] as Array<{ qty: number; price: number }>,
   })
   const [showVendorDropdown, setShowVendorDropdown] = useState(false)
 
@@ -70,7 +80,7 @@ export function VendorsTab({ file }: VendorsTabProps) {
   // Load part suppliers for this file
   const loadPartSuppliers = useCallback(async () => {
     if (!fileId) return
-    
+
     setIsLoading(true)
     try {
       const { data, error } = await getPartSuppliers(fileId)
@@ -79,8 +89,8 @@ export function VendorsTab({ file }: VendorsTabProps) {
       } else {
         setPartSuppliers(data || [])
       }
-    } catch (err) {
-      log.error('[VendorsTab]', 'Exception loading vendors', { error: err })
+    } catch (error) {
+      log.error('[VendorsTab]', 'Exception loading vendors', { error: error })
     } finally {
       setIsLoading(false)
     }
@@ -89,7 +99,7 @@ export function VendorsTab({ file }: VendorsTabProps) {
   // Load org suppliers if not already loaded
   const loadOrgSuppliers = useCallback(async () => {
     if (!organization?.id || suppliersLoaded) return
-    
+
     setSuppliersLoading(true)
     try {
       const { data, error } = await supabase
@@ -98,12 +108,12 @@ export function VendorsTab({ file }: VendorsTabProps) {
         .eq('org_id', organization.id)
         .eq('is_active', true)
         .order('name')
-      
+
       if (!error && data) {
         setSuppliers(data)
       }
-    } catch (err) {
-      log.error('[VendorsTab]', 'Failed to load suppliers', { error: err })
+    } catch (error) {
+      log.error('[VendorsTab]', 'Failed to load suppliers', { error: error })
     } finally {
       setSuppliersLoading(false)
     }
@@ -125,7 +135,7 @@ export function VendorsTab({ file }: VendorsTabProps) {
       min_order_qty: '1',
       lead_time_days: '',
       notes: '',
-      price_breaks: []
+      price_breaks: [],
     })
     setShowAddForm(false)
     setShowNewVendorForm(false)
@@ -138,7 +148,7 @@ export function VendorsTab({ file }: VendorsTabProps) {
   // Create a new vendor in the database
   const handleCreateNewVendor = async () => {
     if (!organization?.id || !user?.id || !newVendorName.trim()) {
-      addToast('error', 'Please enter a vendor name')
+      addToast('error', t('source.vendors.pleaseEnterVendorName'))
       return
     }
 
@@ -151,7 +161,7 @@ export function VendorsTab({ file }: VendorsTabProps) {
           name: newVendorName.trim(),
           is_active: true,
           is_approved: false,
-          created_by: user.id
+          created_by: user.id,
         })
         .select('*')
         .single()
@@ -162,14 +172,17 @@ export function VendorsTab({ file }: VendorsTabProps) {
         // Add to suppliers list
         addSupplier(data)
         // Select the new vendor
-        setFormData(prev => ({ ...prev, supplier_id: data.id }))
+        setFormData((prev) => ({ ...prev, supplier_id: data.id }))
         setSearchQuery(data.name)
         setShowNewVendorForm(false)
         setNewVendorName('')
-        addToast('success', 'Vendor created')
+        addToast('success', t('source.vendors.vendorCreated'))
       }
-    } catch (err) {
-      addToast('error', `Failed to create vendor: ${err instanceof Error ? err.message : String(err)}`)
+    } catch (error) {
+      addToast(
+        'error',
+        `Failed to create vendor: ${error instanceof Error ? error.message : String(error)}`,
+      )
     } finally {
       setIsCreatingVendor(false)
     }
@@ -178,7 +191,7 @@ export function VendorsTab({ file }: VendorsTabProps) {
   // Handle add vendor
   const handleAddVendor = async () => {
     if (!fileId || !organization?.id || !user?.id || !formData.supplier_id) {
-      addToast('error', 'Please select a vendor')
+      addToast('error', t('source.vendors.pleaseSelectVendor'))
       return
     }
 
@@ -187,7 +200,7 @@ export function VendorsTab({ file }: VendorsTabProps) {
       // Get base price from qty=1 break (or lowest qty break)
       const sortedBreaks = [...formData.price_breaks].sort((a, b) => a.qty - b.qty)
       const basePrice = sortedBreaks.length > 0 ? sortedBreaks[0].price : null
-      
+
       const { data, error } = await addPartSupplier(
         organization.id,
         fileId,
@@ -202,20 +215,20 @@ export function VendorsTab({ file }: VendorsTabProps) {
           lead_time_days: formData.lead_time_days ? parseInt(formData.lead_time_days) : null,
           notes: formData.notes || null,
           price_breaks: formData.price_breaks.length > 0 ? formData.price_breaks : null,
-          is_preferred: partSuppliers.length === 0 // First vendor is preferred
+          is_preferred: partSuppliers.length === 0, // First vendor is preferred
         },
-        user.id
+        user.id,
       )
 
       if (error) {
         addToast('error', `Failed to add vendor: ${error}`)
       } else if (data) {
-        setPartSuppliers(prev => [...prev, data])
-        addToast('success', 'Vendor added')
+        setPartSuppliers((prev) => [...prev, data])
+        addToast('success', t('source.vendors.vendorAdded'))
         resetForm()
       }
-    } catch (err) {
-      addToast('error', `Failed to add vendor: ${err instanceof Error ? err.message : String(err)}`)
+    } catch (error) {
+      addToast('error', `Failed to add vendor: ${error instanceof Error ? error.message : String(error)}`)
     } finally {
       setIsAdding(false)
     }
@@ -229,7 +242,7 @@ export function VendorsTab({ file }: VendorsTabProps) {
       // Get base price from qty=1 break (or lowest qty break)
       const sortedBreaks = [...formData.price_breaks].sort((a, b) => a.qty - b.qty)
       const basePrice = sortedBreaks.length > 0 ? sortedBreaks[0].price : null
-      
+
       const { success, error } = await updatePartSupplier(
         editingId,
         {
@@ -241,9 +254,9 @@ export function VendorsTab({ file }: VendorsTabProps) {
           min_order_qty: formData.min_order_qty ? parseInt(formData.min_order_qty) : 1,
           lead_time_days: formData.lead_time_days ? parseInt(formData.lead_time_days) : null,
           notes: formData.notes || null,
-          price_breaks: formData.price_breaks.length > 0 ? formData.price_breaks : null
+          price_breaks: formData.price_breaks.length > 0 ? formData.price_breaks : null,
         },
-        user.id
+        user.id,
       )
 
       if (!success) {
@@ -251,11 +264,14 @@ export function VendorsTab({ file }: VendorsTabProps) {
       } else {
         // Reload to get updated data
         loadPartSuppliers()
-        addToast('success', 'Vendor updated')
+        addToast('success', t('source.vendors.vendorUpdated'))
         resetForm()
       }
-    } catch (err) {
-      addToast('error', `Failed to update vendor: ${err instanceof Error ? err.message : String(err)}`)
+    } catch (error) {
+      addToast(
+        'error',
+        `Failed to update vendor: ${error instanceof Error ? error.message : String(error)}`,
+      )
     }
   }
 
@@ -269,14 +285,19 @@ export function VendorsTab({ file }: VendorsTabProps) {
         addToast('error', `Failed to set preferred: ${error}`)
       } else {
         // Update local state
-        setPartSuppliers(prev => prev.map(ps => ({
-          ...ps,
-          is_preferred: ps.id === partSupplierId
-        })))
-        addToast('success', 'Preferred vendor updated')
+        setPartSuppliers((prev) =>
+          prev.map((ps) => ({
+            ...ps,
+            is_preferred: ps.id === partSupplierId,
+          })),
+        )
+        addToast('success', t('source.vendors.preferredVendorUpdated'))
       }
-    } catch (err) {
-      addToast('error', `Failed to set preferred: ${err instanceof Error ? err.message : String(err)}`)
+    } catch (error) {
+      addToast(
+        'error',
+        `Failed to set preferred: ${error instanceof Error ? error.message : String(error)}`,
+      )
     }
   }
 
@@ -289,24 +310,27 @@ export function VendorsTab({ file }: VendorsTabProps) {
       if (!success) {
         addToast('error', `Failed to remove vendor: ${error}`)
       } else {
-        setPartSuppliers(prev => prev.filter(ps => ps.id !== partSupplierId))
-        addToast('success', 'Vendor removed')
+        setPartSuppliers((prev) => prev.filter((ps) => ps.id !== partSupplierId))
+        addToast('success', t('source.vendors.vendorRemoved'))
       }
-    } catch (err) {
-      addToast('error', `Failed to remove vendor: ${err instanceof Error ? err.message : String(err)}`)
+    } catch (error) {
+      addToast(
+        'error',
+        `Failed to remove vendor: ${error instanceof Error ? error.message : String(error)}`,
+      )
     }
   }
 
   // Start editing a vendor
   const startEdit = (ps: PartSupplier) => {
     setEditingId(ps.id)
-    
+
     // Build price breaks - if we have unit_price but no price_breaks, create one
     let breaks = ps.price_breaks || []
     if (breaks.length === 0 && ps.unit_price !== null) {
       breaks = [{ qty: 1, price: ps.unit_price }]
     }
-    
+
     setFormData({
       supplier_id: ps.supplier_id,
       supplier_part_number: ps.supplier_part_number || '',
@@ -316,18 +340,19 @@ export function VendorsTab({ file }: VendorsTabProps) {
       min_order_qty: ps.min_order_qty?.toString() || '1',
       lead_time_days: ps.lead_time_days?.toString() || '',
       notes: ps.notes || '',
-      price_breaks: breaks
+      price_breaks: breaks,
     })
     setShowAddForm(false)
   }
 
   // Filter available suppliers (not already added)
-  const existingSupplierIds = new Set(partSuppliers.map(ps => ps.supplier_id))
-  const availableSuppliers = suppliers.filter(s => 
-    !existingSupplierIds.has(s.id) &&
-    (searchQuery === '' || 
-      s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.code?.toLowerCase().includes(searchQuery.toLowerCase()))
+  const existingSupplierIds = new Set(partSuppliers.map((ps) => ps.supplier_id))
+  const availableSuppliers = suppliers.filter(
+    (s) =>
+      !existingSupplierIds.has(s.id) &&
+      (searchQuery === '' ||
+        s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        s.code?.toLowerCase().includes(searchQuery.toLowerCase())),
   )
 
   // Format currency
@@ -338,7 +363,7 @@ export function VendorsTab({ file }: VendorsTabProps) {
       style: 'currency',
       currency: currencyCode,
       minimumFractionDigits: 2,
-      maximumFractionDigits: 4
+      maximumFractionDigits: 4,
     }).format(price)
   }
 
@@ -347,9 +372,9 @@ export function VendorsTab({ file }: VendorsTabProps) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center p-8">
         <AlertCircle size={48} className="text-plm-fg-muted opacity-50 mb-4" />
-        <div className="text-lg font-medium mb-2">File Not Synced</div>
+        <div className="text-lg font-medium mb-2">{t('source.vendors.fileNotSynced')}</div>
         <div className="text-sm text-plm-fg-muted max-w-xs">
-          Sync this file to the cloud to manage vendors
+          {t('source.vendors.syncToManageVendors')}
         </div>
       </div>
     )
@@ -374,12 +399,12 @@ export function VendorsTab({ file }: VendorsTabProps) {
             className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium bg-plm-accent hover:bg-plm-accent/90 text-white rounded transition-colors"
           >
             <Plus size={10} />
-            Add Vendor
+            {t('source.vendors.addVendor')}
           </button>
         )}
         <div className="text-[10px] text-plm-fg-muted">
-          {partSuppliers.length === 0 
-            ? 'No vendors assigned' 
+          {partSuppliers.length === 0
+            ? t('source.vendors.noVendorsAssigned')
             : `${partSuppliers.length} vendor${partSuppliers.length === 1 ? '' : 's'}`}
         </div>
       </div>
@@ -388,7 +413,7 @@ export function VendorsTab({ file }: VendorsTabProps) {
       {showAddForm && (
         <div className="p-3 bg-plm-bg-light border border-plm-border rounded-lg space-y-2.5 max-w-sm">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium">Add Vendor</span>
+            <span className="text-xs font-medium">{t('source.vendors.addVendor')}</span>
             <button onClick={resetForm} className="text-plm-fg-muted hover:text-plm-fg">
               <X size={14} />
             </button>
@@ -396,43 +421,46 @@ export function VendorsTab({ file }: VendorsTabProps) {
 
           {/* Vendor selector with search and dropdown */}
           <div className="space-y-1.5">
-            <label className="text-[10px] text-plm-fg-muted">Select Vendor</label>
-            
+            <label className="text-[10px] text-plm-fg-muted">{t('source.vendors.selectVendor')}</label>
+
             {/* Selected vendor display */}
             {formData.supplier_id && !showNewVendorForm && (
               <div className="flex items-center gap-1.5 p-1.5 bg-plm-accent/10 border border-plm-accent/30 rounded">
                 <Building2 size={12} className="text-plm-accent" />
                 <span className="text-xs font-medium">
-                  {suppliers.find(s => s.id === formData.supplier_id)?.name}
+                  {suppliers.find((s) => s.id === formData.supplier_id)?.name}
                 </span>
-                <button 
+                <button
                   onClick={() => {
-                    setFormData(prev => ({ ...prev, supplier_id: '' }))
+                    setFormData((prev) => ({ ...prev, supplier_id: '' }))
                     setShowVendorDropdown(true)
                   }}
                   className="ml-auto text-plm-fg-muted hover:text-plm-fg"
-                  title="Change vendor"
+                  title={t('source.vendors.changeVendor')}
                 >
                   <X size={10} />
                 </button>
               </div>
             )}
-            
+
             {/* Vendor selector */}
             {!formData.supplier_id && !showNewVendorForm && (
               <div className="relative">
                 <div className="flex gap-1">
                   <div className="relative flex-1">
-                    <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
+                    <Search
+                      size={12}
+                      className="absolute left-2 top-1/2 -translate-y-1/2 text-plm-fg-muted"
+                    />
                     <input
                       type="text"
                       value={searchQuery}
-                      onChange={e => {
+                      onChange={(e) => {
                         setSearchQuery(e.target.value)
                         setShowVendorDropdown(true)
                       }}
                       onFocus={() => setShowVendorDropdown(true)}
-                      placeholder="Search or select vendor..."
+                      placeholder={t('source.vendors.searchOrSelectVendor')}
                       className="w-full pl-7 pr-7 py-1 bg-plm-input border border-plm-border rounded text-xs focus:outline-none focus:border-plm-accent"
                     />
                     <button
@@ -449,25 +477,25 @@ export function VendorsTab({ file }: VendorsTabProps) {
                       setShowVendorDropdown(false)
                     }}
                     className="px-1.5 py-1 bg-plm-highlight hover:bg-plm-highlight/80 border border-plm-border rounded text-plm-fg-muted hover:text-plm-fg transition-colors"
-                    title="Create new vendor"
+                    title={t('source.vendors.createNewVendor')}
                   >
                     <Plus size={12} />
                   </button>
                 </div>
-                
+
                 {/* Vendor dropdown list */}
                 {showVendorDropdown && (
                   <div className="absolute z-10 w-full mt-1 max-h-40 overflow-y-auto bg-plm-bg border border-plm-border rounded shadow-lg">
                     {availableSuppliers.length === 0 ? (
                       <div className="p-2 text-[10px] text-plm-fg-muted text-center">
-                        {searchQuery ? 'No vendors found' : 'No available vendors'}
+                        {searchQuery ? t('source.vendors.noVendorsFound') : t('source.vendors.noAvailableVendors')}
                       </div>
                     ) : (
-                      availableSuppliers.map(vendor => (
+                      availableSuppliers.map((vendor) => (
                         <button
                           key={vendor.id}
                           onClick={() => {
-                            setFormData(prev => ({ ...prev, supplier_id: vendor.id }))
+                            setFormData((prev) => ({ ...prev, supplier_id: vendor.id }))
                             setSearchQuery('')
                             setShowVendorDropdown(false)
                           }}
@@ -477,7 +505,9 @@ export function VendorsTab({ file }: VendorsTabProps) {
                           <div className="flex-1 min-w-0">
                             <div className="text-xs truncate">{vendor.name}</div>
                             {vendor.code && (
-                              <div className="text-[9px] text-plm-fg-muted font-mono">{vendor.code}</div>
+                              <div className="text-[9px] text-plm-fg-muted font-mono">
+                                {vendor.code}
+                              </div>
                             )}
                           </div>
                         </button>
@@ -487,20 +517,23 @@ export function VendorsTab({ file }: VendorsTabProps) {
                 )}
               </div>
             )}
-            
+
             {/* New vendor inline form */}
             {showNewVendorForm && (
               <div className="p-2 bg-plm-bg border border-plm-accent rounded space-y-1.5">
-                <div className="text-[10px] text-plm-fg-muted">New Vendor</div>
+                <div className="text-[10px] text-plm-fg-muted">{t('source.vendors.newVendor')}</div>
                 <input
                   type="text"
                   value={newVendorName}
-                  onChange={e => setNewVendorName(e.target.value)}
-                  placeholder="Vendor name"
+                  onChange={(e) => setNewVendorName(e.target.value)}
+                  placeholder={t('source.vendors.vendorName')}
                   autoFocus
-                  onKeyDown={e => {
+                  onKeyDown={(e) => {
                     if (e.key === 'Enter') handleCreateNewVendor()
-                    if (e.key === 'Escape') { setShowNewVendorForm(false); setNewVendorName('') }
+                    if (e.key === 'Escape') {
+                      setShowNewVendorForm(false)
+                      setNewVendorName('')
+                    }
                   }}
                   className="w-full px-2 py-1 bg-plm-input border border-plm-border rounded text-xs focus:outline-none focus:border-plm-accent"
                 />
@@ -510,14 +543,21 @@ export function VendorsTab({ file }: VendorsTabProps) {
                     disabled={isCreatingVendor || !newVendorName.trim()}
                     className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium bg-plm-accent hover:bg-plm-accent/90 text-white rounded transition-colors disabled:opacity-50"
                   >
-                    {isCreatingVendor ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />}
-                    Create
+                    {isCreatingVendor ? (
+                      <Loader2 size={10} className="animate-spin" />
+                    ) : (
+                      <Check size={10} />
+                    )}
+                    {t('source.vendors.create')}
                   </button>
                   <button
-                    onClick={() => { setShowNewVendorForm(false); setNewVendorName('') }}
+                    onClick={() => {
+                      setShowNewVendorForm(false)
+                      setNewVendorName('')
+                    }}
                     className="px-2 py-0.5 text-[10px] text-plm-fg-muted hover:text-plm-fg"
                   >
-                    Cancel
+                    {t('common.cancel')}
                   </button>
                 </div>
               </div>
@@ -533,13 +573,13 @@ export function VendorsTab({ file }: VendorsTabProps) {
               className="flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-medium bg-plm-accent hover:bg-plm-accent/90 text-white rounded transition-colors disabled:opacity-50"
             >
               {isAdding ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
-              Add
+              {t('common.add')}
             </button>
             <button
               onClick={resetForm}
               className="px-3 py-1.5 text-xs font-medium bg-plm-highlight hover:bg-plm-highlight/80 rounded transition-colors"
             >
-              Cancel
+              {t('common.cancel')}
             </button>
           </div>
         </div>
@@ -547,7 +587,7 @@ export function VendorsTab({ file }: VendorsTabProps) {
 
       {/* Vendor List */}
       <div className="space-y-2">
-        {partSuppliers.map(ps => (
+        {partSuppliers.map((ps) => (
           <VendorCard
             key={ps.id}
             partSupplier={ps}
@@ -569,7 +609,7 @@ export function VendorsTab({ file }: VendorsTabProps) {
         <div className="py-4 text-center">
           <Building2 size={20} className="mx-auto text-plm-fg-muted opacity-40 mb-2" />
           <p className="text-xs text-plm-fg-muted">
-            Click "Add Vendor" to assign vendors to this part
+            {t('source.vendors.clickAddVendorHint')}
           </p>
         </div>
       )}
@@ -588,7 +628,7 @@ function PriceBreaksEditor({
   priceBreaks,
   currency,
   onChangeCurrency,
-  onChange
+  onChange,
 }: {
   priceBreaks: PriceBreak[]
   currency: string
@@ -601,25 +641,25 @@ function PriceBreaksEditor({
   const handleAddBreak = () => {
     const qty = parseInt(newQty)
     const price = parseFloat(newPrice)
-    
+
     if (isNaN(qty) || qty <= 0 || isNaN(price) || price < 0) return
-    
+
     // Check if quantity already exists
-    if (priceBreaks.some(b => b.qty === qty)) {
+    if (priceBreaks.some((b) => b.qty === qty)) {
       // Update existing
-      onChange(priceBreaks.map(b => b.qty === qty ? { qty, price } : b))
+      onChange(priceBreaks.map((b) => (b.qty === qty ? { qty, price } : b)))
     } else {
       // Add new and sort by quantity
       const updated = [...priceBreaks, { qty, price }].sort((a, b) => a.qty - b.qty)
       onChange(updated)
     }
-    
+
     setNewQty('')
     setNewPrice('')
   }
 
   const handleRemoveBreak = (qty: number) => {
-    onChange(priceBreaks.filter(b => b.qty !== qty))
+    onChange(priceBreaks.filter((b) => b.qty !== qty))
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -634,7 +674,7 @@ function PriceBreaksEditor({
       style: 'currency',
       currency: currency || 'USD',
       minimumFractionDigits: 2,
-      maximumFractionDigits: 4
+      maximumFractionDigits: 4,
     }).format(price)
   }
 
@@ -644,11 +684,11 @@ function PriceBreaksEditor({
       <div className="flex items-center justify-between px-2 py-1.5 border-b border-plm-border bg-plm-highlight/30">
         <div className="flex items-center gap-1.5">
           <DollarSign size={10} className="text-plm-fg-muted" />
-          <span className="text-[10px] font-medium">Cost Breaks</span>
+          <span className="text-[10px] font-medium">{t('source.vendors.costBreaks')}</span>
         </div>
         <select
           value={currency}
-          onChange={e => onChangeCurrency(e.target.value)}
+          onChange={(e) => onChangeCurrency(e.target.value)}
           className="px-1.5 py-0.5 bg-plm-input border border-plm-border rounded text-[10px] focus:outline-none focus:border-plm-accent"
         >
           <option value="USD">USD</option>
@@ -664,7 +704,10 @@ function PriceBreaksEditor({
         {priceBreaks.length > 0 && (
           <div className="space-y-1">
             {priceBreaks.map((pb, idx) => (
-              <div key={idx} className="flex items-center gap-2 py-1 px-1.5 bg-plm-bg rounded text-[10px]">
+              <div
+                key={idx}
+                className="flex items-center gap-2 py-1 px-1.5 bg-plm-bg rounded text-[10px]"
+              >
                 <span className="text-plm-fg-muted">@</span>
                 <span className="font-medium w-12">{pb.qty.toLocaleString()}+</span>
                 <span className="text-plm-fg-muted">→</span>
@@ -688,9 +731,9 @@ function PriceBreaksEditor({
             type="number"
             min="1"
             value={newQty}
-            onChange={e => setNewQty(e.target.value)}
+            onChange={(e) => setNewQty(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={priceBreaks.length === 0 ? "1" : "Qty"}
+            placeholder={priceBreaks.length === 0 ? '1' : t('source.vendors.qty')}
             className="w-14 px-1.5 py-1 bg-plm-input border border-plm-border rounded text-xs focus:outline-none focus:border-plm-accent"
           />
           <span className="text-[10px] text-plm-fg-muted">→</span>
@@ -699,9 +742,9 @@ function PriceBreaksEditor({
             min="0"
             step="0.01"
             value={newPrice}
-            onChange={e => setNewPrice(e.target.value)}
+            onChange={(e) => setNewPrice(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Price"
+            placeholder={t('source.vendors.price')}
             className="w-20 px-1.5 py-1 bg-plm-input border border-plm-border rounded text-xs focus:outline-none focus:border-plm-accent"
           />
           <button
@@ -713,15 +756,15 @@ function PriceBreaksEditor({
             <Plus size={12} />
           </button>
         </div>
-        
+
         {priceBreaks.length === 0 && (
           <div className="text-[9px] text-plm-fg-muted">
-            Add your first price break (e.g., @ 1+ → $10.00)
+            {t('source.vendors.addFirstPriceBreak')}
           </div>
         )}
         {priceBreaks.length > 0 && (
           <div className="text-[9px] text-plm-fg-muted">
-            Add more quantity tiers for volume discounts
+            {t('source.vendors.addMoreQuantityTiers')}
           </div>
         )}
       </div>
@@ -730,10 +773,10 @@ function PriceBreaksEditor({
 }
 
 // Vendor form fields component
-function VendorFormFields({ 
-  formData, 
-  setFormData 
-}: { 
+function VendorFormFields({
+  formData,
+  setFormData,
+}: {
   formData: {
     supplier_part_number: string
     supplier_description: string
@@ -752,13 +795,15 @@ function VendorFormFields({
       <div>
         <label className="text-[10px] text-plm-fg-muted flex items-center gap-1 mb-0.5">
           <Hash size={9} />
-          Vendor P/N
+          {t('source.vendors.vendorPartNumber')}
         </label>
         <input
           type="text"
           value={formData.supplier_part_number}
-          onChange={e => setFormData(prev => ({ ...prev, supplier_part_number: e.target.value }))}
-          placeholder="e.g. ABC-123"
+          onChange={(e) =>
+            setFormData((prev) => ({ ...prev, supplier_part_number: e.target.value }))
+          }
+          placeholder={t('source.vendors.vendorPartNumberPlaceholder')}
           className="w-full px-2 py-1 bg-plm-input border border-plm-border rounded text-xs focus:outline-none focus:border-plm-accent"
         />
       </div>
@@ -767,8 +812,8 @@ function VendorFormFields({
       <PriceBreaksEditor
         priceBreaks={formData.price_breaks}
         currency={formData.currency}
-        onChangeCurrency={(currency) => setFormData(prev => ({ ...prev, currency }))}
-        onChange={(breaks) => setFormData(prev => ({ ...prev, price_breaks: breaks }))}
+        onChangeCurrency={(currency) => setFormData((prev) => ({ ...prev, currency }))}
+        onChange={(breaks) => setFormData((prev) => ({ ...prev, price_breaks: breaks }))}
       />
 
       {/* MOQ + Lead Time */}
@@ -776,31 +821,31 @@ function VendorFormFields({
         <div>
           <label className="text-[10px] text-plm-fg-muted flex items-center gap-1 mb-0.5">
             <Package size={9} />
-            Min Qty
+            {t('source.vendors.minQty')}
           </label>
           <input
             type="number"
             min="1"
             value={formData.min_order_qty}
-            onChange={e => setFormData(prev => ({ ...prev, min_order_qty: e.target.value }))}
+            onChange={(e) => setFormData((prev) => ({ ...prev, min_order_qty: e.target.value }))}
             className="w-20 px-2 py-1 bg-plm-input border border-plm-border rounded text-xs focus:outline-none focus:border-plm-accent"
           />
         </div>
         <div>
           <label className="text-[10px] text-plm-fg-muted flex items-center gap-1 mb-0.5">
             <Clock size={9} />
-            Lead Time
+            {t('source.vendors.leadTime')}
           </label>
           <div className="flex items-center gap-1">
             <input
               type="number"
               min="0"
               value={formData.lead_time_days}
-              onChange={e => setFormData(prev => ({ ...prev, lead_time_days: e.target.value }))}
+              onChange={(e) => setFormData((prev) => ({ ...prev, lead_time_days: e.target.value }))}
               placeholder="—"
               className="w-16 px-2 py-1 bg-plm-input border border-plm-border rounded text-xs focus:outline-none focus:border-plm-accent"
             />
-            <span className="text-[10px] text-plm-fg-muted">days</span>
+            <span className="text-[10px] text-plm-fg-muted">{t('source.vendors.days')}</span>
           </div>
         </div>
       </div>
@@ -809,13 +854,15 @@ function VendorFormFields({
       <div>
         <label className="text-[10px] text-plm-fg-muted flex items-center gap-1 mb-0.5">
           <FileText size={9} />
-          Description
+          {t('common.description')}
         </label>
         <input
           type="text"
           value={formData.supplier_description}
-          onChange={e => setFormData(prev => ({ ...prev, supplier_description: e.target.value }))}
-          placeholder="Description for this part"
+          onChange={(e) =>
+            setFormData((prev) => ({ ...prev, supplier_description: e.target.value }))
+          }
+          placeholder={t('source.vendors.descriptionPlaceholder')}
           className="w-full px-2 py-1 bg-plm-input border border-plm-border rounded text-xs focus:outline-none focus:border-plm-accent"
         />
       </div>
@@ -824,25 +871,25 @@ function VendorFormFields({
       <div>
         <label className="text-[10px] text-plm-fg-muted flex items-center gap-1 mb-0.5">
           <Link2 size={9} />
-          Part Link
+          {t('source.vendors.partLink')}
         </label>
         <input
           type="url"
           value={formData.supplier_url}
-          onChange={e => setFormData(prev => ({ ...prev, supplier_url: e.target.value }))}
-          placeholder="https://..."
+          onChange={(e) => setFormData((prev) => ({ ...prev, supplier_url: e.target.value }))}
+          placeholder={t('source.vendors.urlPlaceholder')}
           className="w-full px-2 py-1 bg-plm-input border border-plm-border rounded text-xs focus:outline-none focus:border-plm-accent"
         />
       </div>
 
       {/* Row 5: Notes */}
       <div>
-        <label className="text-[10px] text-plm-fg-muted mb-0.5 block">Notes</label>
+        <label className="text-[10px] text-plm-fg-muted mb-0.5 block">{t('source.vendors.notes')}</label>
         <textarea
           value={formData.notes}
-          onChange={e => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+          onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
           rows={2}
-          placeholder="Internal notes..."
+          placeholder={t('source.vendors.notesPlaceholder')}
           className="w-full px-2 py-1 bg-plm-input border border-plm-border rounded text-xs focus:outline-none focus:border-plm-accent resize-none"
         />
       </div>
@@ -861,7 +908,7 @@ function VendorCard({
   onCancel,
   onSetPreferred,
   onRemove,
-  formatPrice
+  formatPrice,
 }: {
   partSupplier: PartSupplier
   isEditing: boolean
@@ -907,13 +954,13 @@ function VendorCard({
             className="flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-medium bg-plm-accent hover:bg-plm-accent/90 text-white rounded transition-colors"
           >
             <Check size={12} />
-            Save
+            {t('common.save')}
           </button>
           <button
             onClick={onCancel}
             className="px-3 py-1.5 text-xs font-medium bg-plm-highlight hover:bg-plm-highlight/80 rounded transition-colors"
           >
-            Cancel
+            {t('common.cancel')}
           </button>
         </div>
       </div>
@@ -921,11 +968,13 @@ function VendorCard({
   }
 
   return (
-    <div className={`p-2.5 border rounded-lg transition-colors max-w-sm ${
-      partSupplier.is_preferred 
-        ? 'bg-plm-accent/5 border-plm-accent' 
-        : 'bg-plm-bg-light border-plm-border hover:border-plm-border-light'
-    }`}>
+    <div
+      className={`p-2.5 border rounded-lg transition-colors max-w-sm ${
+        partSupplier.is_preferred
+          ? 'bg-plm-accent/5 border-plm-accent'
+          : 'bg-plm-bg-light border-plm-border hover:border-plm-border-light'
+      }`}
+    >
       {/* Header */}
       <div className="flex items-start justify-between mb-1.5">
         <div className="flex items-center gap-1.5 min-w-0">
@@ -934,7 +983,7 @@ function VendorCard({
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-1">
-              <span className="text-xs font-medium truncate">{supplier?.name || 'Unknown'}</span>
+              <span className="text-xs font-medium truncate">{supplier?.name || t('source.vendors.unknown')}</span>
               {partSupplier.is_preferred && (
                 <Star size={10} className="text-amber-400 fill-amber-400 flex-shrink-0" />
               )}
@@ -950,25 +999,29 @@ function VendorCard({
           <button
             onClick={onSetPreferred}
             className={`p-1 rounded transition-colors ${
-              partSupplier.is_preferred 
-                ? 'text-amber-400 hover:text-amber-300' 
+              partSupplier.is_preferred
+                ? 'text-amber-400 hover:text-amber-300'
                 : 'text-plm-fg-muted hover:text-amber-400'
             }`}
-            title={partSupplier.is_preferred ? 'Preferred vendor' : 'Set as preferred'}
+            title={partSupplier.is_preferred ? t('source.vendors.preferredVendor') : t('source.vendors.setAsPreferred')}
           >
-            {partSupplier.is_preferred ? <Star size={12} className="fill-current" /> : <StarOff size={12} />}
+            {partSupplier.is_preferred ? (
+              <Star size={12} className="fill-current" />
+            ) : (
+              <StarOff size={12} />
+            )}
           </button>
           <button
             onClick={onEdit}
             className="p-1 text-plm-fg-muted hover:text-plm-fg rounded transition-colors"
-            title="Edit"
+            title={t('common.edit')}
           >
             <Edit2 size={12} />
           </button>
           <button
             onClick={onRemove}
             className="p-1 text-plm-fg-muted hover:text-plm-error rounded transition-colors"
-            title="Remove"
+            title={t('common.remove')}
           >
             <Trash2 size={12} />
           </button>
@@ -979,19 +1032,19 @@ function VendorCard({
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] ml-7">
         {partSupplier.supplier_part_number && (
           <div className="flex items-center gap-1">
-            <span className="text-plm-fg-muted">Vendor P/N:</span>
+            <span className="text-plm-fg-muted">{t('source.vendors.vendorPartNumberLabel')}</span>
             <span className="font-mono">{partSupplier.supplier_part_number}</span>
           </div>
         )}
         {partSupplier.lead_time_days && (
           <div className="flex items-center gap-1">
-            <span className="text-plm-fg-muted">Lead:</span>
+            <span className="text-plm-fg-muted">{t('source.vendors.leadLabel')}</span>
             <span>{partSupplier.lead_time_days}d</span>
           </div>
         )}
         {partSupplier.min_order_qty && partSupplier.min_order_qty > 1 && (
           <div className="flex items-center gap-1">
-            <span className="text-plm-fg-muted">MOQ:</span>
+            <span className="text-plm-fg-muted">{t('source.vendors.moqLabel')}</span>
             <span>{partSupplier.min_order_qty}</span>
           </div>
         )}
@@ -1001,13 +1054,13 @@ function VendorCard({
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-0.5 text-plm-accent hover:underline"
-            onClick={e => {
+            onClick={(e) => {
               e.preventDefault()
               window.electronAPI?.openFile(partSupplier.supplier_url!)
             }}
           >
             <Link2 size={8} />
-            Link
+            {t('source.vendors.link')}
             <ExternalLink size={6} />
           </a>
         )}
@@ -1016,27 +1069,30 @@ function VendorCard({
       {/* Cost Breaks Display - unified pricing */}
       {(() => {
         // Use price_breaks if available, otherwise fallback to unit_price
-        const breaks = partSupplier.price_breaks && partSupplier.price_breaks.length > 0 
-          ? partSupplier.price_breaks 
-          : partSupplier.unit_price !== null 
-            ? [{ qty: 1, price: partSupplier.unit_price }]
-            : []
-        
+        const breaks =
+          partSupplier.price_breaks && partSupplier.price_breaks.length > 0
+            ? partSupplier.price_breaks
+            : partSupplier.unit_price !== null
+              ? [{ qty: 1, price: partSupplier.unit_price }]
+              : []
+
         if (breaks.length === 0) return null
-        
+
         return (
           <div className="mt-1.5 ml-7">
             <div className="flex flex-wrap gap-1.5">
               {breaks.map((pb, idx) => (
-                <div 
-                  key={idx} 
+                <div
+                  key={idx}
                   className={`px-1.5 py-0.5 rounded text-[9px] flex items-center gap-1 ${
                     idx === 0 ? 'bg-plm-accent/10 border border-plm-accent/30' : 'bg-plm-highlight'
                   }`}
                 >
                   <span className="font-medium">{pb.qty.toLocaleString()}+</span>
                   <span className="text-plm-fg-muted">→</span>
-                  <span className={`font-medium ${idx === 0 ? 'text-plm-accent' : 'text-plm-success'}`}>
+                  <span
+                    className={`font-medium ${idx === 0 ? 'text-plm-accent' : 'text-plm-success'}`}
+                  >
                     {formatPrice(pb.price, partSupplier.currency)}
                   </span>
                 </div>
@@ -1048,7 +1104,10 @@ function VendorCard({
 
       {/* Notes */}
       {partSupplier.notes && (
-        <div className="mt-1.5 ml-7 text-[9px] text-plm-fg-muted italic truncate" title={partSupplier.notes}>
+        <div
+          className="mt-1.5 ml-7 text-[9px] text-plm-fg-muted italic truncate"
+          title={partSupplier.notes}
+        >
           {partSupplier.notes}
         </div>
       )}

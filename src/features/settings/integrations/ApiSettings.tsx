@@ -1,30 +1,34 @@
 import { useState, useEffect } from 'react'
-import { 
-  Shield, 
-  RefreshCw, 
-  Loader2, 
-  Circle, 
-  Key, 
-  Eye, 
-  EyeOff, 
-  Copy, 
+import {
+  Shield,
+  RefreshCw,
+  Loader2,
+  Circle,
+  Key,
+  Eye,
+  EyeOff,
+  Copy,
   Check,
   Clock,
   Trash2,
   Activity,
   ExternalLink,
   Edit2,
-  AlertTriangle
+  AlertTriangle,
 } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
 import { copyToClipboard } from '@/lib/clipboard'
-import { checkApiCompatibility, EXPECTED_API_VERSION, type ApiVersionCheckResult } from '@/lib/apiVersion'
+import {
+  checkApiCompatibility,
+  EXPECTED_API_VERSION,
+  type ApiVersionCheckResult,
+} from '@/lib/apiVersion'
 import { log } from '@/lib/logger'
 
 // Supabase v2 type inference incomplete for API key operations
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const db = supabase as any
+const db = supabase as any // TODO: type this
 
 interface ApiCallRecord {
   id: string
@@ -38,9 +42,16 @@ interface ApiCallRecord {
 const API_HISTORY_KEY = 'blueplm_api_history'
 
 export function ApiSettings() {
-  const { organization, setOrganization, addToast, getEffectiveRole, apiServerUrl, setApiServerUrl } = usePDMStore()
+  const {
+    organization,
+    setOrganization,
+    addToast,
+    getEffectiveRole,
+    apiServerUrl,
+    setApiServerUrl,
+  } = usePDMStore()
   const isAdmin = getEffectiveRole() === 'admin'
-  
+
   const [apiToken, setApiToken] = useState<string | null>(null)
   const [showToken, setShowToken] = useState(false)
   const [tokenCopied, setTokenCopied] = useState(false)
@@ -54,7 +65,7 @@ export function ApiSettings() {
     // Check if we have a URL from org settings or store on initial render
     const orgUrl = organization?.settings?.api_url
     const storeUrl = apiServerUrl
-    return (orgUrl || storeUrl) ? 'checking' : 'unknown'
+    return orgUrl || storeUrl ? 'checking' : 'unknown'
   })
   const [apiVersion, setApiVersion] = useState<string | null>(null)
   const [apiBuild, setApiBuild] = useState<string | null>(null)
@@ -68,24 +79,28 @@ export function ApiSettings() {
     }
   })
   const [lastChecked, setLastChecked] = useState<Date | null>(null)
-  
+
   // Get API token from Supabase session
   useEffect(() => {
     const getToken = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
       if (session?.access_token) {
         setApiToken(session.access_token)
       }
     }
     getToken()
-    
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       setApiToken(session?.access_token || null)
     })
-    
+
     return () => subscription.unsubscribe()
   }, [])
-  
+
   // Sync API URL from org settings to store (handles persistence)
   // Org value takes precedence - this handles both setting and clearing the URL
   // Only sync when organization is actually loaded (has an id)
@@ -94,22 +109,22 @@ export function ApiSettings() {
     if (!organization?.id) {
       return
     }
-    
+
     const orgApiUrl = organization?.settings?.api_url || null
     const currentApiUrl = apiServerUrl || null
-    
+
     if (orgApiUrl !== currentApiUrl) {
       setApiServerUrl(orgApiUrl)
     }
   }, [organization?.id, organization?.settings?.api_url, apiServerUrl, setApiServerUrl])
-  
+
   // Check API status when organization loads or URL changes
   // This ensures we wait for org to be ready before checking status
   useEffect(() => {
     // If org settings have api_url but store doesn't yet, wait for sync
     const orgApiUrl = organization?.settings?.api_url
     const effectiveUrl = apiUrl || orgApiUrl
-    
+
     if (effectiveUrl) {
       // Small delay to ensure URL sync has happened
       const timeout = setTimeout(() => {
@@ -125,22 +140,22 @@ export function ApiSettings() {
       return undefined
     }
   }, [organization?.id, organization?.settings?.api_url, apiUrl])
-  
+
   const checkApiStatus = async () => {
     if (!apiUrl) {
       setApiStatus('unknown')
       return
     }
-    
+
     setApiStatus('checking')
     const start = Date.now()
     try {
-      const response = await fetch(`${apiUrl}/health`, { 
+      const response = await fetch(`${apiUrl}/health`, {
         method: 'GET',
-        signal: AbortSignal.timeout(5000)
+        signal: AbortSignal.timeout(5000),
       })
       const duration = Date.now() - start
-      
+
       if (response.ok) {
         const data = await response.json()
         setApiStatus('online')
@@ -157,14 +172,14 @@ export function ApiSettings() {
         setApiStatus('offline')
         addApiCall('GET', '/health', response.status, duration)
       }
-    } catch (err) {
+    } catch (error) {
       const duration = Date.now() - start
       setApiStatus('offline')
       addApiCall('GET', '/health', 0, duration)
     }
     setLastChecked(new Date())
   }
-  
+
   const addApiCall = (method: string, endpoint: string, status: number, duration: number) => {
     const newCall: ApiCallRecord = {
       id: crypto.randomUUID(),
@@ -172,20 +187,20 @@ export function ApiSettings() {
       method,
       endpoint,
       status,
-      duration
+      duration,
     }
-    setApiHistory(prev => {
+    setApiHistory((prev) => {
       const updated = [newCall, ...prev].slice(0, 50)
       localStorage.setItem(API_HISTORY_KEY, JSON.stringify(updated))
       return updated
     })
   }
-  
+
   const clearApiHistory = () => {
     setApiHistory([])
     localStorage.removeItem(API_HISTORY_KEY)
   }
-  
+
   const handleSaveApiUrl = async () => {
     let url = apiUrlInput.trim()
     if (url) {
@@ -197,10 +212,10 @@ export function ApiSettings() {
       url = url.trim()
       // Add https:// (always use https for production)
       url = 'https://' + url
-      
+
       // Update store (which also syncs to localStorage for backward compatibility)
       setApiUrl(url)
-      
+
       // Save org-wide for all members when admin sets external URL
       if (organization && isAdmin) {
         try {
@@ -211,20 +226,20 @@ export function ApiSettings() {
             .select('settings')
             .eq('id', organization.id)
             .single()
-          
+
           if (fetchError) {
             log.error('[API]', 'Failed to fetch current settings', { error: fetchError })
           }
-          
+
           // Merge with current database settings (not local state which may be stale)
           const currentSettings = currentOrg?.settings || organization.settings || {}
           const newSettings = { ...currentSettings, api_url: url }
-          
+
           const { error } = await db
             .from('organizations')
             .update({ settings: newSettings })
             .eq('id', organization.id)
-          
+
           if (error) {
             log.error('[API]', 'Failed to save API URL to org', { error })
             addToast('error', `Saved locally, but failed to sync: ${error.message}`)
@@ -232,12 +247,12 @@ export function ApiSettings() {
             // Update local state
             setOrganization({
               ...organization,
-              settings: newSettings
+              settings: newSettings,
             })
             addToast('success', 'API URL saved for organization')
           }
-        } catch (err) {
-          log.error('[API]', 'Failed to save API URL to org', { error: err })
+        } catch (error) {
+          log.error('[API]', 'Failed to save API URL to org', { error: error })
           addToast('error', 'Saved locally, but failed to sync to organization')
         }
       } else {
@@ -247,7 +262,7 @@ export function ApiSettings() {
     setEditingApiUrl(false)
     setTimeout(checkApiStatus, 100)
   }
-  
+
   const handleCopyToken = async () => {
     if (!apiToken) return
     const result = await copyToClipboard(apiToken)
@@ -258,7 +273,7 @@ export function ApiSettings() {
       log.error('[API]', 'Failed to copy token', { error: result.error })
     }
   }
-  
+
   const testApiEndpoint = async (endpoint: string) => {
     if (!apiToken) {
       return
@@ -266,12 +281,12 @@ export function ApiSettings() {
     const start = Date.now()
     try {
       const response = await fetch(`${apiUrl}${endpoint}`, {
-        headers: { 'Authorization': `Bearer ${apiToken}` },
-        signal: AbortSignal.timeout(10000)
+        headers: { Authorization: `Bearer ${apiToken}` },
+        signal: AbortSignal.timeout(10000),
       })
       const duration = Date.now() - start
       addApiCall('GET', endpoint, response.status, duration)
-    } catch (err) {
+    } catch (error) {
       const duration = Date.now() - start
       addApiCall('GET', endpoint, 0, duration)
     }
@@ -310,8 +325,8 @@ export function ApiSettings() {
               <button onClick={handleSaveApiUrl} className="btn btn-primary btn-sm">
                 Save
               </button>
-              <button 
-                onClick={() => setEditingApiUrl(false)} 
+              <button
+                onClick={() => setEditingApiUrl(false)}
                 className="btn btn-sm bg-plm-bg border border-plm-border hover:border-plm-fg-muted"
               >
                 Cancel
@@ -322,7 +337,7 @@ export function ApiSettings() {
             </p>
           </div>
         ) : apiUrl ? (
-          <div 
+          <div
             className={`p-3 bg-plm-bg rounded-lg border border-plm-border flex items-center justify-between ${
               isAdmin ? 'cursor-pointer hover:border-plm-accent group' : ''
             } transition-colors`}
@@ -334,25 +349,26 @@ export function ApiSettings() {
           >
             <code className="text-base text-plm-fg font-mono">{apiUrl}</code>
             {isAdmin && (
-              <Edit2 size={14} className="text-plm-fg-muted opacity-0 group-hover:opacity-100 transition-opacity" />
+              <Edit2
+                size={14}
+                className="text-plm-fg-muted opacity-0 group-hover:opacity-100 transition-opacity"
+              />
             )}
           </div>
+        ) : isAdmin ? (
+          <button
+            onClick={() => {
+              setApiUrlInput('')
+              setEditingApiUrl(true)
+            }}
+            className="w-full p-4 bg-plm-bg rounded-lg border border-dashed border-plm-border hover:border-plm-accent transition-colors text-plm-fg-muted"
+          >
+            + Set API Server URL
+          </button>
         ) : (
-          isAdmin ? (
-            <button
-              onClick={() => {
-                setApiUrlInput('')
-                setEditingApiUrl(true)
-              }}
-              className="w-full p-4 bg-plm-bg rounded-lg border border-dashed border-plm-border hover:border-plm-accent transition-colors text-plm-fg-muted"
-            >
-              + Set API Server URL
-            </button>
-          ) : (
-            <div className="p-3 bg-plm-bg rounded-lg border border-plm-border text-plm-fg-muted">
-              No API server configured
-            </div>
-          )
+          <div className="p-3 bg-plm-bg rounded-lg border border-plm-border text-plm-fg-muted">
+            No API server configured
+          </div>
         )}
       </div>
 
@@ -374,20 +390,30 @@ export function ApiSettings() {
           </div>
           <div className="p-4 bg-plm-bg rounded-lg border border-plm-border">
             <div className="flex items-center gap-3">
-              <div className={`p-2.5 rounded-full ${
-                apiStatus === 'online' ? 'bg-green-500/20' :
-                apiStatus === 'offline' ? 'bg-red-500/20' :
-                apiStatus === 'checking' ? 'bg-yellow-500/20' :
-                'bg-plm-fg-muted/20'
-              }`}>
+              <div
+                className={`p-2.5 rounded-full ${
+                  apiStatus === 'online'
+                    ? 'bg-green-500/20'
+                    : apiStatus === 'offline'
+                      ? 'bg-red-500/20'
+                      : apiStatus === 'checking'
+                        ? 'bg-yellow-500/20'
+                        : 'bg-plm-fg-muted/20'
+                }`}
+              >
                 {apiStatus === 'checking' ? (
                   <Loader2 size={18} className="animate-spin text-yellow-400" />
                 ) : (
-                  <Circle size={18} className={`${
-                    apiStatus === 'online' ? 'text-green-400 fill-green-400' :
-                    apiStatus === 'offline' ? 'text-red-400' :
-                    'text-plm-fg-muted'
-                  }`} />
+                  <Circle
+                    size={18}
+                    className={`${
+                      apiStatus === 'online'
+                        ? 'text-green-400 fill-green-400'
+                        : apiStatus === 'offline'
+                          ? 'text-red-400'
+                          : 'text-plm-fg-muted'
+                    }`}
+                  />
                 )}
               </div>
               <div className="flex-1">
@@ -416,34 +442,59 @@ export function ApiSettings() {
                   {lastChecked && <span>• Checked {lastChecked.toLocaleTimeString()}</span>}
                 </div>
                 {/* Version mismatch warning */}
-                {versionCheck && versionCheck.status !== 'current' && versionCheck.status !== 'unknown' && (
-                  <div className={`mt-2 text-xs p-2 rounded flex items-start gap-2 ${
-                    versionCheck.status === 'incompatible' 
-                      ? 'bg-pdm-error/10 text-pdm-error border border-pdm-error/20' 
-                      : 'bg-pdm-warning/10 text-pdm-warning border border-pdm-warning/20'
-                  }`}>
-                    <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <div className="font-medium">{versionCheck.message}</div>
-                      {versionCheck.details && <div className="opacity-80 mt-0.5">{versionCheck.details}</div>}
+                {versionCheck &&
+                  versionCheck.status !== 'current' &&
+                  versionCheck.status !== 'unknown' && (
+                    <div
+                      className={`mt-2 text-xs p-2 rounded flex items-start gap-2 ${
+                        versionCheck.status === 'incompatible'
+                          ? 'bg-pdm-error/10 text-pdm-error border border-pdm-error/20'
+                          : 'bg-pdm-warning/10 text-pdm-warning border border-pdm-warning/20'
+                      }`}
+                    >
+                      <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <div className="font-medium">{versionCheck.message}</div>
+                        {versionCheck.details && (
+                          <div className="opacity-80 mt-0.5">{versionCheck.details}</div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
               </div>
             </div>
-            
+
             {apiStatus === 'offline' && (
               <div className="mt-4 p-3 bg-plm-bg-secondary rounded-lg text-sm space-y-2">
                 <div className="font-medium text-plm-fg">🚀 Need to deploy?</div>
-                <p className="text-plm-fg-muted">
-                  Deploy to Railway or Render in 5 min.
-                </p>
+                <p className="text-plm-fg-muted">Deploy to Railway or Render in 5 min.</p>
                 <div className="flex gap-2">
-                  <a href="https://railway.app/new" target="_blank" rel="noopener noreferrer" className="text-plm-accent hover:underline">Railway</a>
+                  <a
+                    href="https://railway.app/new"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-plm-accent hover:underline"
+                  >
+                    Railway
+                  </a>
                   <span className="text-plm-fg-muted">•</span>
-                  <a href="https://render.com/deploy" target="_blank" rel="noopener noreferrer" className="text-plm-accent hover:underline">Render</a>
+                  <a
+                    href="https://render.com/deploy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-plm-accent hover:underline"
+                  >
+                    Render
+                  </a>
                   <span className="text-plm-fg-muted">•</span>
-                  <a href="https://github.com/bluerobotics/bluePLM/blob/main/api/README.md#deployment" target="_blank" rel="noopener noreferrer" className="text-plm-accent hover:underline">Guide</a>
+                  <a
+                    href="https://github.com/bluerobotics/bluePLM/blob/main/api/README.md#deployment"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-plm-accent hover:underline"
+                  >
+                    Guide
+                  </a>
                 </div>
               </div>
             )}
@@ -461,10 +512,7 @@ export function ApiSettings() {
           <div className="p-4 bg-plm-bg rounded-lg border border-plm-border space-y-3">
             <div className="flex items-center gap-2">
               <code className="flex-1 text-sm font-mono text-plm-fg-muted overflow-hidden text-ellipsis">
-                {showToken 
-                  ? apiToken 
-                  : `${apiToken.substring(0, 20)}${'•'.repeat(30)}`
-                }
+                {showToken ? apiToken : `${apiToken.substring(0, 20)}${'•'.repeat(30)}`}
               </code>
               <button
                 onClick={() => setShowToken(!showToken)}
@@ -476,8 +524,8 @@ export function ApiSettings() {
               <button
                 onClick={handleCopyToken}
                 className={`p-2 rounded transition-colors ${
-                  tokenCopied 
-                    ? 'text-green-400 bg-green-400/10' 
+                  tokenCopied
+                    ? 'text-green-400 bg-green-400/10'
                     : 'text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight'
                 }`}
                 title="Copy token"
@@ -507,7 +555,7 @@ export function ApiSettings() {
             Quick Test
           </label>
           <div className="flex flex-wrap gap-2">
-            {['/vaults', '/files?limit=5', '/checkouts', '/activity?limit=5'].map(endpoint => (
+            {['/vaults', '/files?limit=5', '/checkouts', '/activity?limit=5'].map((endpoint) => (
               <button
                 key={endpoint}
                 onClick={() => testApiEndpoint(endpoint)}
@@ -539,24 +587,24 @@ export function ApiSettings() {
         </div>
         <div className="bg-plm-bg rounded-lg border border-plm-border overflow-hidden">
           {apiHistory.length === 0 ? (
-            <div className="p-4 text-base text-plm-fg-muted text-center">
-              No API calls recorded
-            </div>
+            <div className="p-4 text-base text-plm-fg-muted text-center">No API calls recorded</div>
           ) : (
             <div className="max-h-48 overflow-y-auto">
-              {apiHistory.slice(0, 20).map(call => (
-                <div 
+              {apiHistory.slice(0, 20).map((call) => (
+                <div
                   key={call.id}
                   className="flex items-center gap-2 px-4 py-2 border-b border-plm-border last:border-0 text-sm"
                 >
-                  <span className={`px-2 py-0.5 rounded font-medium ${
-                    call.status >= 200 && call.status < 300 
-                      ? 'bg-green-500/20 text-green-400' 
-                      : call.status === 0
-                      ? 'bg-red-500/20 text-red-400'
-                      : 'bg-yellow-500/20 text-yellow-400'
-                  }`}>
-                    {call.status || 'ERR'}
+                  <span
+                    className={`px-2 py-0.5 rounded font-medium ${
+                      call.status >= 200 && call.status < 300
+                        ? 'bg-green-500/20 text-green-400'
+                        : call.status === 0
+                          ? 'bg-red-500/20 text-red-400'
+                          : 'bg-yellow-500/20 text-yellow-400'
+                    }`}
+                  >
+                    {call.status || 'error'}
                   </span>
                   <span className="text-plm-fg-muted">{call.method}</span>
                   <span className="text-plm-fg font-mono flex-1 truncate">{call.endpoint}</span>

@@ -1,3 +1,9 @@
+// TODO(decompose): Extract to swProcessManager.ts — process lifecycle, orphan watchdog, and process helpers (lines ~164–512)
+// TODO(decompose): Extract to swCommandQueue.ts — request queue, sendSWCommand, executeCommandDirect, response parsing (lines ~514–1085)
+// TODO(decompose): Extract to swServiceLifecycle.ts — startSWService, stopSWService, pollServiceUntilReady, installation detection (lines ~1087–1331)
+// TODO(decompose): Extract to swThumbnails.ts — thumbnail/preview extraction via DM API and CFB/OLE fallback (lines ~1333–1527)
+// TODO(decompose): Extract to swRegistry.ts — registry helpers for file locations, license operations, and version detection (lines ~1528–2143)
+
 // SolidWorks handlers for Electron main process
 import { app, ipcMain, BrowserWindow, shell } from 'electron'
 import fs from 'fs'
@@ -17,7 +23,7 @@ import {
   createErrorNotification,
   DEFAULT_RETRY_CONFIG,
   type SwServiceResult,
-  type SwParsedError
+  type SwParsedError,
 } from './solidworksErrors'
 
 // ============================================
@@ -53,7 +59,10 @@ let logWarn: (message: string, data?: unknown) => void = console.warn
 // SolidWorks service state
 let swServiceProcess: ChildProcess | null = null
 let swServiceBuffer = ''
-let swPendingRequests: Map<number, { resolve: (value: SWServiceResult) => void; reject: (err: Error) => void }> = new Map()
+let swPendingRequests: Map<
+  number,
+  { resolve: (value: SWServiceResult) => void; reject: (error: Error) => void }
+> = new Map()
 let swRequestId = 0
 let solidWorksInstalled: boolean | null = null
 
@@ -114,7 +123,7 @@ let orphanWatchdogTimer: ReturnType<typeof setInterval> | null = null
  * Counter for active Document Manager operations (getBom, getReferences).
  * When > 0, the watchdog skips orphan cleanup because the DM API may have
  * spawned a SolidWorks process with __wgldummywindowfodder window title.
- * 
+ *
  * After the DM operation completes, the counter decrements and orphaned
  * processes from previous runs will be cleaned up on the next watchdog cycle.
  */
@@ -134,7 +143,7 @@ export function recordSolidWorksFileOpen(): void {
 /**
  * Find processes locking a file using the Windows Restart Manager API
  * (via the SolidWorks .NET service). Does NOT require SolidWorks to be running.
- * 
+ *
  * Returns the first process name found, or null if no lock or service unavailable.
  * Exported for use by fs.ts lock detection as a replacement for handle.exe.
  */
@@ -143,7 +152,7 @@ export async function findLockingProcessViaService(filePath: string): Promise<st
     // sendSWCommand is defined later in this module but is hoisted as a function declaration
     const result = await sendSWCommand(
       { action: 'findLockingProcesses', filePath },
-      { timeoutMs: 5000 }
+      { timeoutMs: 5000 },
     )
     if (result?.success && result.data?.count > 0 && result.data?.processes?.length > 0) {
       // Return the first process name (e.g., "SLDWORKS" or "excel")
@@ -188,21 +197,24 @@ function findSolidWorksProcesses(): { pid: number; name: string; windowTitle: st
   if (process.platform !== 'win32') {
     return []
   }
-  
+
   try {
     // Use tasklist with verbose output to get window titles
     // This helps distinguish between active SolidWorks with documents open vs orphaned
     const output = execSync('tasklist /V /FI "IMAGENAME eq SLDWORKS.exe" /FO CSV /NH', {
       encoding: 'utf8',
       stdio: ['pipe', 'pipe', 'pipe'],
-      timeout: 5000
+      timeout: 5000,
     })
-    
+
     const processes: { pid: number; name: string; windowTitle: string }[] = []
-    
+
     // Parse CSV output: "Image Name","PID","Session Name","Session#","Mem Usage","Status","User Name","CPU Time","Window Title"
-    const lines = output.trim().split('\n').filter(line => line.includes('SLDWORKS.exe'))
-    
+    const lines = output
+      .trim()
+      .split('\n')
+      .filter((line) => line.includes('SLDWORKS.exe'))
+
     for (const line of lines) {
       try {
         // Parse CSV - handle quoted fields
@@ -212,7 +224,7 @@ function findSolidWorksProcesses(): { pid: number; name: string; windowTitle: st
           const pid = parseInt(fields[1].replace(/"/g, ''), 10)
           // Window title is the last field
           const windowTitle = fields.length >= 9 ? fields[8].replace(/"/g, '') : 'N/A'
-          
+
           if (!isNaN(pid)) {
             processes.push({ pid, name, windowTitle })
           }
@@ -221,11 +233,11 @@ function findSolidWorksProcesses(): { pid: number; name: string; windowTitle: st
         // Skip malformed lines
       }
     }
-    
+
     return processes
-  } catch (err) {
+  } catch (error) {
     // tasklist may fail if no matching processes (returns error)
-    const errStr = String(err)
+    const errStr = String(error)
     if (!errStr.includes('No tasks are running')) {
       log('[SolidWorks] Error finding SLDWORKS processes: ' + errStr)
     }
@@ -263,47 +275,49 @@ async function killOrphanedSolidWorksProcesses(forceAll: boolean = false): Promi
   // The DM API may spawn a __wgldummywindowfodder process that we shouldn't kill
   // After DM operations complete, orphans from previous runs will be cleaned up next cycle
   if (!forceAll && activeDmOperations > 0) {
-    log(`[SolidWorks Watchdog] Skipping orphan check - ${activeDmOperations} DM operation(s) in progress`)
+    log(
+      `[SolidWorks Watchdog] Skipping orphan check - ${activeDmOperations} DM operation(s) in progress`,
+    )
     return { found: 0, orphaned: 0, killed: 0, errors: [] }
   }
-  
+
   log(`[SolidWorks] [SCAN] SCANNING FOR ${forceAll ? 'ALL' : 'ORPHANED'} SLDWORKS PROCESSES`)
-  
+
   const processes = findSolidWorksProcesses()
   log(`[SolidWorks] Found ${processes.length} SLDWORKS.exe process(es)`)
-  
+
   const result = {
     found: processes.length,
     orphaned: 0,
     killed: 0,
-    errors: [] as string[]
+    errors: [] as string[],
   }
-  
+
   if (processes.length === 0) {
     log('[SolidWorks] No SLDWORKS.exe processes found')
     return result
   }
-  
+
   for (const proc of processes) {
     log(`[SolidWorks] Process: PID=${proc.pid}, Window="${proc.windowTitle}"`)
-    
+
     const shouldKill = forceAll || isOrphanedProcess(proc)
     if (isOrphanedProcess(proc)) {
       result.orphaned++
     }
-    
+
     if (shouldKill) {
       try {
         log(`[SolidWorks] Killing PID ${proc.pid}...`)
         execSync(`taskkill /PID ${proc.pid} /F`, {
           encoding: 'utf8',
           stdio: ['pipe', 'pipe', 'pipe'],
-          timeout: 10000
+          timeout: 10000,
         })
         result.killed++
         log(`[SolidWorks] [OK] Killed PID ${proc.pid}`)
-      } catch (err) {
-        const errMsg = `Failed to kill PID ${proc.pid}: ${String(err)}`
+      } catch (error) {
+        const errMsg = `Failed to kill PID ${proc.pid}: ${String(error)}`
         logError(`[SolidWorks] [FAIL] ${errMsg}`)
         result.errors.push(errMsg)
       }
@@ -311,8 +325,10 @@ async function killOrphanedSolidWorksProcesses(forceAll: boolean = false): Promi
       log(`[SolidWorks] Skipping PID ${proc.pid} (appears active with document open)`)
     }
   }
-  
-  log(`[SolidWorks] Cleanup complete: ${result.killed}/${result.orphaned} orphaned processes killed`)
+
+  log(
+    `[SolidWorks] Cleanup complete: ${result.killed}/${result.orphaned} orphaned processes killed`,
+  )
   return result
 }
 
@@ -331,13 +347,13 @@ function getSolidWorksProcessStatus(): {
     total: processes.length,
     orphaned: 0,
     active: 0,
-    processes: processes.map(p => ({
+    processes: processes.map((p) => ({
       pid: p.pid,
       windowTitle: p.windowTitle,
-      isOrphaned: isOrphanedProcess(p)
-    }))
+      isOrphaned: isOrphanedProcess(p),
+    })),
   }
-  
+
   for (const proc of result.processes) {
     if (proc.isOrphaned) {
       result.orphaned++
@@ -345,7 +361,7 @@ function getSolidWorksProcessStatus(): {
       result.active++
     }
   }
-  
+
   return result
 }
 
@@ -362,12 +378,16 @@ function startOrphanWatchdog(): void {
     log('[SolidWorks Watchdog] Already running')
     return
   }
-  
-  log('[SolidWorks Watchdog] Starting orphaned process watchdog (interval: ' + ORPHAN_CHECK_INTERVAL_MS + 'ms)')
-  
+
+  log(
+    '[SolidWorks Watchdog] Starting orphaned process watchdog (interval: ' +
+      ORPHAN_CHECK_INTERVAL_MS +
+      'ms)',
+  )
+
   // Run immediately once
   runOrphanCheck()
-  
+
   // Then run periodically
   orphanWatchdogTimer = setInterval(() => {
     runOrphanCheck()
@@ -393,30 +413,30 @@ function stopOrphanWatchdog(): void {
 async function runOrphanCheck(): Promise<void> {
   try {
     const status = getSolidWorksProcessStatus()
-    
+
     if (status.orphaned === 0) {
       // No orphans, nothing to do (don't log to avoid spam)
       return
     }
-    
+
     log(`[SolidWorks Watchdog] Detected ${status.orphaned} orphaned SLDWORKS.exe process(es)`)
-    
+
     // Kill orphaned processes
     const result = await killOrphanedSolidWorksProcesses(false)
-    
+
     if (result.killed > 0) {
       log(`[SolidWorks Watchdog] [OK] Cleaned up ${result.killed} orphaned process(es)`)
-      
+
       // Notify the renderer about the cleanup
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('solidworks:orphans-cleaned', {
           killed: result.killed,
-          timestamp: Date.now()
+          timestamp: Date.now(),
         })
       }
     }
-  } catch (err) {
-    logError(`[SolidWorks Watchdog] Error during orphan check: ${String(err)}`)
+  } catch (error) {
+    logError(`[SolidWorks Watchdog] Error during orphan check: ${String(error)}`)
   }
 }
 
@@ -427,7 +447,7 @@ function logServiceState(context: string): void {
   const processAlive = lastKnownServicePid ? checkProcessExists(lastKnownServicePid) : false
   const hasProcess = swServiceProcess !== null
   const hasStdin = swServiceProcess?.stdin !== null
-  
+
   log(`[SolidWorks State] ${context}`, {
     hasProcessRef: hasProcess,
     pid: lastKnownServicePid,
@@ -436,7 +456,7 @@ function logServiceState(context: string): void {
     pendingRequests: swPendingRequests.size,
     queueDepth: commandQueue.length,
     activeCommands: activeCommandCount,
-    pingCacheValid: pingCache ? (Date.now() - pingCache.timestamp < PING_CACHE_TTL_MS) : false
+    pingCacheValid: pingCache ? Date.now() - pingCache.timestamp < PING_CACHE_TTL_MS : false,
   })
 }
 
@@ -449,38 +469,40 @@ function logServiceState(context: string): void {
 function clearServiceState(reason: string, force: boolean = false): void {
   // Log state before clearing
   logServiceState(`Before clearServiceState (reason: ${reason}, force: ${force})`)
-  
+
   // Before clearing, verify the process is actually dead (unless forced)
   // This prevents clearing state when stdio errors occur but process is still alive
   if (!force && lastKnownServicePid) {
     const stillAlive = checkProcessExists(lastKnownServicePid)
     if (stillAlive) {
-      log(`[SolidWorks] NOT clearing service state - process ${lastKnownServicePid} is still alive (reason was: ${reason})`)
+      log(
+        `[SolidWorks] NOT clearing service state - process ${lastKnownServicePid} is still alive (reason was: ${reason})`,
+      )
       // Don't clear the reference - the process is still running
       // Just log the issue for debugging
       return
     }
   }
-  
+
   // Stop the orphaned process watchdog since service is no longer running
   stopOrphanWatchdog()
-  
+
   logWarn(`[SolidWorks] [WARN] CLEARING SERVICE STATE: ${reason}`)
   log(`[SolidWorks] Pending requests to reject: ${swPendingRequests.size}`)
   log(`[SolidWorks] Queued commands to cancel: ${commandQueue.length}`)
-  
+
   swServiceProcess = null
   swServiceBuffer = ''
   lastKnownServicePid = null
   cachedServiceVersion = null
-  
+
   // Reject all pending requests with descriptive error
   for (const [id, req] of swPendingRequests) {
     log(`[SolidWorks] Rejecting pending request ${id}: ${reason}`)
     req.reject(new Error(reason))
   }
   swPendingRequests.clear()
-  
+
   // Clear queued commands
   for (const queued of commandQueue) {
     log(`[SolidWorks] Canceling queued command: ${queued.command.action}`)
@@ -488,10 +510,10 @@ function clearServiceState(reason: string, force: boolean = false): void {
   }
   commandQueue.length = 0
   activeCommandCount = 0
-  
+
   // Invalidate ping cache
   pingCache = null
-  
+
   log(`[SolidWorks] Service state cleared completely`)
 }
 
@@ -505,7 +527,7 @@ function clearServiceState(reason: string, force: boolean = false): void {
 function getQueueStats(): { queueDepth: number; activeCommands: number } {
   return {
     queueDepth: commandQueue.length,
-    activeCommands: activeCommandCount
+    activeCommands: activeCommandCount,
   }
 }
 
@@ -514,43 +536,51 @@ function getQueueStats(): { queueDepth: number; activeCommands: number } {
  * Used before moving folders to prevent EPERM errors from open file handles.
  * Returns info about what was cancelled and what's still active.
  */
-function cancelPreviewsForFolder(folderPath: string): { 
+function cancelPreviewsForFolder(folderPath: string): {
   cancelledCount: number
   activeCount: number
   activePaths: string[]
 } {
   const normalizedFolder = folderPath.replace(/\\/g, '/').toLowerCase()
-  
+
   // Cancel queued getPreview commands for files in this folder
   let cancelledCount = 0
   for (let i = commandQueue.length - 1; i >= 0; i--) {
     const queued = commandQueue[i]
     const filePath = queued.command.filePath as string | undefined
     const action = queued.command.action as string | undefined
-    
+
     if (filePath && (action === 'getPreview' || action === 'getThumbnail')) {
       const normalizedFile = filePath.replace(/\\/g, '/').toLowerCase()
-      if (normalizedFile.startsWith(normalizedFolder + '/') || normalizedFile === normalizedFolder) {
+      if (
+        normalizedFile.startsWith(normalizedFolder + '/') ||
+        normalizedFile === normalizedFolder
+      ) {
         commandQueue.splice(i, 1)
         queued.resolve({ success: false, error: 'Cancelled: folder being moved' })
         cancelledCount++
       }
     }
   }
-  
+
   // Check for active thumbnail extractions in this folder
   const activePaths: string[] = []
   for (const activePath of thumbnailsInProgress) {
     const normalizedActive = activePath.replace(/\\/g, '/').toLowerCase()
-    if (normalizedActive.startsWith(normalizedFolder + '/') || normalizedActive === normalizedFolder) {
+    if (
+      normalizedActive.startsWith(normalizedFolder + '/') ||
+      normalizedActive === normalizedFolder
+    ) {
       activePaths.push(activePath)
     }
   }
-  
+
   if (cancelledCount > 0 || activePaths.length > 0) {
-    log(`[SolidWorks] Cancelled ${cancelledCount} queued previews for folder move, ${activePaths.length} still active`)
+    log(
+      `[SolidWorks] Cancelled ${cancelledCount} queued previews for folder move, ${activePaths.length} still active`,
+    )
   }
-  
+
   return { cancelledCount, activeCount: activePaths.length, activePaths }
 }
 
@@ -563,13 +593,15 @@ function processQueue(): void {
     const queued = commandQueue.shift()!
     const waitTime = Date.now() - queued.queuedAt
     const action = queued.command.action as string
-    
+
     if (waitTime > 100) {
-      log(`[SolidWorks Queue] ${action} waited ${waitTime}ms in queue (now active: ${activeCommandCount + 1}, remaining: ${commandQueue.length})`)
+      log(
+        `[SolidWorks Queue] ${action} waited ${waitTime}ms in queue (now active: ${activeCommandCount + 1}, remaining: ${commandQueue.length})`,
+      )
     }
-    
+
     activeCommandCount++
-    
+
     // Execute the command directly (bypassing queue since we're already processing)
     executeCommandDirect(queued.command, queued.options)
       .then((result) => {
@@ -578,9 +610,9 @@ function processQueue(): void {
         // Continue processing queue
         processQueue()
       })
-      .catch((err) => {
+      .catch((error) => {
         activeCommandCount--
-        logError(`[SolidWorks Queue] ${action} execution failed: ${err}`)
+        logError(`[SolidWorks Queue] ${action} execution failed: ${error}`)
         queued.resolve({ success: false, error: 'Command execution failed' })
         processQueue()
       })
@@ -593,7 +625,7 @@ const MAX_AUTO_RETRIES = 2
 /**
  * Internal function that directly sends a command to the service.
  * Use sendSWCommand for queued execution.
- * 
+ *
  * Includes:
  * - Operation-specific timeouts via getOperationTimeout()
  * - Error classification via parseServiceError()
@@ -603,48 +635,48 @@ const MAX_AUTO_RETRIES = 2
 async function executeCommandDirect(
   command: Record<string, unknown>,
   options?: { timeoutMs?: number },
-  attemptNumber: number = 0
+  attemptNumber: number = 0,
 ): Promise<SwServiceResult> {
   const action = command.action as string
   const filePath = command.filePath as string | undefined
-  
+
   if (!swServiceProcess?.stdin) {
     logError(`[SolidWorks Cmd] [FAIL] ${action} - service not running`, { filePath })
     return { success: false, error: 'SolidWorks service not running. Start it first.' }
   }
-  
+
   // Use operation-specific timeout if not explicitly provided
   const timeoutMs = options?.timeoutMs ?? getOperationTimeout(action)
   const startTime = Date.now()
   const id = ++swRequestId
-  
+
   // Log command being sent (skip verbose logging for polling operations)
   const isQuietOperation = action === 'ping' || action === 'getSelectedFiles'
   if (!isQuietOperation) {
     const retryInfo = attemptNumber > 0 ? ` [retry ${attemptNumber}/${MAX_AUTO_RETRIES}]` : ''
-    log(`[SolidWorks Cmd] -> ${action} (id: ${id}, timeout: ${timeoutMs}ms)${retryInfo}`, { 
+    log(`[SolidWorks Cmd] -> ${action} (id: ${id}, timeout: ${timeoutMs}ms)${retryInfo}`, {
       filePath: filePath ? path.basename(filePath) : undefined,
       pendingRequests: swPendingRequests.size + 1,
-      activeCommands: activeCommandCount
+      activeCommands: activeCommandCount,
     })
   }
-  
+
   const result = await new Promise<SwServiceResult>((resolve) => {
     const timeout = setTimeout(() => {
       swPendingRequests.delete(id)
       const elapsed = Date.now() - startTime
       logError(`[SolidWorks Cmd] [TIMEOUT] TIMEOUT: ${action} (id: ${id}) after ${elapsed}ms`, {
         filePath: filePath ? path.basename(filePath) : undefined,
-        remainingPendingRequests: swPendingRequests.size
+        remainingPendingRequests: swPendingRequests.size,
       })
       resolve({ success: false, error: 'Command timed out', errorCode: 'TIMEOUT' })
     }, timeoutMs)
-    
+
     swPendingRequests.set(id, {
       resolve: (rawResult) => {
         clearTimeout(timeout)
         const elapsed = Date.now() - startTime
-        
+
         // Log command completion (skip verbose logging for fast polling operations)
         if (!isQuietOperation || elapsed > 500 || !rawResult.success) {
           const status = rawResult.success ? '[OK]' : '[FAIL]'
@@ -652,22 +684,22 @@ async function executeCommandDirect(
             success: rawResult.success,
             error: rawResult.error,
             errorCode: rawResult.errorCode,
-            filePath: filePath ? path.basename(filePath) : undefined
+            filePath: filePath ? path.basename(filePath) : undefined,
           })
         }
-        
+
         resolve(rawResult)
       },
       reject: () => {
         clearTimeout(timeout)
         const elapsed = Date.now() - startTime
         logError(`[SolidWorks Cmd] [FAIL] ${action} (id: ${id}) REJECTED after ${elapsed}ms`, {
-          filePath: filePath ? path.basename(filePath) : undefined
+          filePath: filePath ? path.basename(filePath) : undefined,
         })
         resolve({ success: false, error: 'Request rejected' })
-      }
+      },
     })
-    
+
     // Include requestId in command for response correlation
     const commandWithId = { ...command, requestId: id }
     const json = JSON.stringify(commandWithId) + '\n'
@@ -677,26 +709,30 @@ async function executeCommandDirect(
   // If command failed, parse the error and potentially retry
   if (!result.success) {
     const parsedError = parseServiceError(result)
-    
+
     // Log structured error information
     if (action !== 'ping') {
-      logError(formatErrorForLogging(parsedError, { 
-        operation: action, 
-        filePath: filePath || undefined,
-        additionalInfo: `attempt ${attemptNumber + 1}/${MAX_AUTO_RETRIES + 1}`
-      }))
+      logError(
+        formatErrorForLogging(parsedError, {
+          operation: action,
+          filePath: filePath || undefined,
+          additionalInfo: `attempt ${attemptNumber + 1}/${MAX_AUTO_RETRIES + 1}`,
+        }),
+      )
     }
-    
+
     // Check if we should auto-retry
     const retryConfig = { ...DEFAULT_RETRY_CONFIG, maxRetries: MAX_AUTO_RETRIES }
     if (shouldRetry(parsedError, attemptNumber, retryConfig)) {
       const delay = calculateRetryDelay(attemptNumber, retryConfig)
-      log(`[SolidWorks Cmd] [RETRY] ${action}: Retrying in ${delay}ms (attempt ${attemptNumber + 1}/${MAX_AUTO_RETRIES})`)
-      
-      await new Promise(r => setTimeout(r, delay))
+      log(
+        `[SolidWorks Cmd] [RETRY] ${action}: Retrying in ${delay}ms (attempt ${attemptNumber + 1}/${MAX_AUTO_RETRIES})`,
+      )
+
+      await new Promise((r) => setTimeout(r, delay))
       return executeCommandDirect(command, options, attemptNumber + 1)
     }
-    
+
     // No more retries - send notification to renderer for user-facing errors
     if (mainWindow && !mainWindow.isDestroyed() && action !== 'ping') {
       const notification = createErrorNotification(parsedError)
@@ -704,11 +740,11 @@ async function executeCommandDirect(
         ...notification,
         operation: action,
         filePath: filePath || undefined,
-        errorCode: parsedError.code
+        errorCode: parsedError.code,
       })
     }
   }
-  
+
   return result
 }
 
@@ -720,54 +756,58 @@ async function executeCommandDirect(
  */
 async function pollServiceUntilReady(
   timeoutMs: number = SERVICE_STARTUP_TIMEOUT_MS,
-  pollIntervalMs: number = SERVICE_STARTUP_POLL_INTERVAL_MS
+  pollIntervalMs: number = SERVICE_STARTUP_POLL_INTERVAL_MS,
 ): Promise<SWServiceResult> {
   const startTime = Date.now()
   let attemptCount = 0
-  
-  log(`[SolidWorks] Starting service startup polling (timeout: ${timeoutMs}ms, interval: ${pollIntervalMs}ms)`)
-  
+
+  log(
+    `[SolidWorks] Starting service startup polling (timeout: ${timeoutMs}ms, interval: ${pollIntervalMs}ms)`,
+  )
+
   while (Date.now() - startTime < timeoutMs) {
     attemptCount++
-    
+
     // Check if process is still alive
     if (!swServiceProcess) {
       const elapsed = Date.now() - startTime
-      log(`[SolidWorks] Service process died during startup after ${elapsed}ms (${attemptCount} attempts)`)
+      log(
+        `[SolidWorks] Service process died during startup after ${elapsed}ms (${attemptCount} attempts)`,
+      )
       return {
         success: false,
         error: 'Service process terminated unexpectedly',
-        errorDetails: `The SolidWorks service process exited during startup after ${attemptCount} ping attempts over ${elapsed}ms.`
+        errorDetails: `The SolidWorks service process exited during startup after ${attemptCount} ping attempts over ${elapsed}ms.`,
       }
     }
-    
+
     try {
       // Quick ping with short timeout (slightly less than poll interval)
       const pingResult = await sendSWCommand({ action: 'ping' }, { timeoutMs: pollIntervalMs - 50 })
-      
+
       if (pingResult.success) {
         const elapsed = Date.now() - startTime
         log(`[SolidWorks] Service ready after ${elapsed}ms (${attemptCount} ping attempts)`)
         return pingResult
       }
-      
+
       logError(`[SolidWorks] Ping attempt ${attemptCount} failed, retrying...`)
-    } catch (err) {
-      logError(`[SolidWorks] Ping attempt ${attemptCount} threw error: ${String(err)}`)
+    } catch (error) {
+      logError(`[SolidWorks] Ping attempt ${attemptCount} threw error: ${String(error)}`)
     }
-    
+
     // Wait before next attempt
-    await new Promise(resolve => setTimeout(resolve, pollIntervalMs))
+    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs))
   }
-  
+
   // Timeout reached
   const elapsed = Date.now() - startTime
   log(`[SolidWorks] Service startup timed out after ${elapsed}ms (${attemptCount} attempts)`)
-  
+
   return {
     success: false,
     error: 'Service startup timed out',
-    errorDetails: `The SolidWorks service did not respond to ping within ${timeoutMs / 1000} seconds (${attemptCount} attempts). The service may have failed to initialize properly.`
+    errorDetails: `The SolidWorks service did not respond to ping within ${timeoutMs / 1000} seconds (${attemptCount} attempts). The service may have failed to initialize properly.`,
   }
 }
 
@@ -783,10 +823,10 @@ function isSolidWorksInstalled(): boolean {
   }
 
   try {
-    const result = execSync(
-      'reg query "HKEY_CLASSES_ROOT\\SldWorks.Application" /ve',
-      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
-    )
+    const result = execSync('reg query "HKEY_CLASSES_ROOT\\SldWorks.Application" /ve', {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
     solidWorksInstalled = result.includes('SldWorks.Application')
     log('[SolidWorks] Installation detected: ' + solidWorksInstalled)
     return solidWorksInstalled
@@ -796,7 +836,7 @@ function isSolidWorksInstalled(): boolean {
       'C:\\Program Files\\SolidWorks Corp\\SolidWorks\\SLDWORKS.exe',
       'C:\\Program Files (x86)\\SOLIDWORKS Corp\\SOLIDWORKS\\SLDWORKS.exe',
     ]
-    
+
     for (const swPath of commonPaths) {
       if (fs.existsSync(swPath)) {
         solidWorksInstalled = true
@@ -804,7 +844,7 @@ function isSolidWorksInstalled(): boolean {
         return true
       }
     }
-    
+
     solidWorksInstalled = false
     log('[SolidWorks] Not installed on this machine')
     return false
@@ -814,67 +854,139 @@ function isSolidWorksInstalled(): boolean {
 // Get the path to the SolidWorks service executable
 function getSWServicePath(): { path: string; isProduction: boolean } {
   const isPackaged = app.isPackaged
-  
+
   const possiblePaths = [
     // Production: bundled with packaged app
-    { path: path.join(process.resourcesPath || '', 'bin', 'BluePLM.SolidWorksService.exe'), isProduction: true },
+    {
+      path: path.join(process.resourcesPath || '', 'bin', 'BluePLM.SolidWorksService.exe'),
+      isProduction: true,
+    },
     // Development: csproj OutputPath ensures consistent bin\{Configuration}\ output
-    { path: path.join(app.getAppPath(), 'solidworks-service', 'BluePLM.SolidWorksService', 'bin', 'Release', 'BluePLM.SolidWorksService.exe'), isProduction: false },
-    { path: path.join(app.getAppPath(), 'solidworks-service', 'BluePLM.SolidWorksService', 'bin', 'Debug', 'BluePLM.SolidWorksService.exe'), isProduction: false },
+    {
+      path: path.join(
+        app.getAppPath(),
+        'solidworks-service',
+        'BluePLM.SolidWorksService',
+        'bin',
+        'Release',
+        'BluePLM.SolidWorksService.exe',
+      ),
+      isProduction: false,
+    },
+    {
+      path: path.join(
+        app.getAppPath(),
+        'solidworks-service',
+        'BluePLM.SolidWorksService',
+        'bin',
+        'Debug',
+        'BluePLM.SolidWorksService.exe',
+      ),
+      isProduction: false,
+    },
   ]
-  
+
   for (const p of possiblePaths) {
     if (fs.existsSync(p.path)) {
       return p
     }
   }
-  
+
   return isPackaged ? possiblePaths[0] : possiblePaths[1]
 }
 
 // Handle output from the service
 function handleSWServiceOutput(data: string): void {
   swServiceBuffer += data
-  
+
   const lines = swServiceBuffer.split('\n')
   swServiceBuffer = lines.pop() || ''
-  
+
   // #region agent log - Buffer processing
   const fs = require('fs')
   const debugLogPath = 'c:\\Users\\emill\\Documents\\GitHub\\bluePLM\\.cursor\\debug.log'
   const writeDebugLog = (entry: Record<string, unknown>) => {
-    try { fs.appendFileSync(debugLogPath, JSON.stringify(entry) + '\n') } catch {}
+    try {
+      fs.appendFileSync(debugLogPath, JSON.stringify(entry) + '\n')
+    } catch {}
   }
   if (lines.length > 0) {
-    writeDebugLog({location:'solidworks.ts:BUFFER_RECV',message:'Buffer processing',data:{lineCount:lines.length,bufferRemaining:swServiceBuffer.length,pendingRequestIds:Array.from(swPendingRequests.keys())},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'BUFFER_PROCESSING'})
+    writeDebugLog({
+      location: 'solidworks.ts:BUFFER_RECV',
+      message: 'Buffer processing',
+      data: {
+        lineCount: lines.length,
+        bufferRemaining: swServiceBuffer.length,
+        pendingRequestIds: Array.from(swPendingRequests.keys()),
+      },
+      timestamp: Date.now(),
+      sessionId: 'debug-session',
+      hypothesisId: 'BUFFER_PROCESSING',
+    })
   }
   // #endregion
-  
+
   for (const line of lines) {
     if (!line.trim()) continue
-    
+
     try {
       const result = JSON.parse(line) as SWServiceResult & { requestId?: number }
-      
+
       // Match response to request by requestId (if present) or fall back to FIFO
       const requestId = result.requestId
       if (requestId !== undefined && swPendingRequests.has(requestId)) {
         const handlers = swPendingRequests.get(requestId)!
         swPendingRequests.delete(requestId)
         // #region agent log - Direct match
-        writeDebugLog({location:'solidworks.ts:DIRECT_MATCH',message:'Response matched by requestId',data:{requestId,success:result.success,hasData:!!result.data,dataKeys:result.data ? Object.keys(result.data) : []},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'DIRECT_MATCH'})
+        writeDebugLog({
+          location: 'solidworks.ts:DIRECT_MATCH',
+          message: 'Response matched by requestId',
+          data: {
+            requestId,
+            success: result.success,
+            hasData: !!result.data,
+            dataKeys: result.data ? Object.keys(result.data) : [],
+          },
+          timestamp: Date.now(),
+          sessionId: 'debug-session',
+          hypothesisId: 'DIRECT_MATCH',
+        })
         // #endregion
         handlers.resolve(result)
       } else {
         // #region agent log - FIFO fallback WARNING
-        writeDebugLog({location:'solidworks.ts:FIFO_FALLBACK',message:'FIFO fallback triggered - no matching requestId',data:{responseRequestId:requestId,responseSuccess:result.success,responseError:result.error,pendingRequestIds:Array.from(swPendingRequests.keys()),responseDataKeys:result.data ? Object.keys(result.data) : []},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'FIFO_FALLBACK'})
+        writeDebugLog({
+          location: 'solidworks.ts:FIFO_FALLBACK',
+          message: 'FIFO fallback triggered - no matching requestId',
+          data: {
+            responseRequestId: requestId,
+            responseSuccess: result.success,
+            responseError: result.error,
+            pendingRequestIds: Array.from(swPendingRequests.keys()),
+            responseDataKeys: result.data ? Object.keys(result.data) : [],
+          },
+          timestamp: Date.now(),
+          sessionId: 'debug-session',
+          hypothesisId: 'FIFO_FALLBACK',
+        })
         // #endregion
         // Fallback to FIFO for backwards compatibility
         const entry = swPendingRequests.entries().next().value
         if (entry) {
           const [id, handlers] = entry
           // #region agent log - FIFO match details
-          writeDebugLog({location:'solidworks.ts:FIFO_MATCH',message:'FIFO matched response to wrong request',data:{matchedToRequestId:id,responseRequestId:requestId,responseSuccess:result.success},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'FIFO_FALLBACK'})
+          writeDebugLog({
+            location: 'solidworks.ts:FIFO_MATCH',
+            message: 'FIFO matched response to wrong request',
+            data: {
+              matchedToRequestId: id,
+              responseRequestId: requestId,
+              responseSuccess: result.success,
+            },
+            timestamp: Date.now(),
+            sessionId: 'debug-session',
+            hypothesisId: 'FIFO_FALLBACK',
+          })
           // #endregion
           swPendingRequests.delete(id)
           handlers.resolve(result)
@@ -883,7 +995,18 @@ function handleSWServiceOutput(data: string): void {
     } catch (parseError) {
       log('[SolidWorks Service] Failed to parse output: ' + line)
       // #region agent log - Parse error
-      writeDebugLog({location:'solidworks.ts:PARSE_ERROR',message:'Failed to parse JSON response',data:{lineLength:line.length,linePreview:line.substring(0,200),error:String(parseError)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'BUFFER_CORRUPTION'})
+      writeDebugLog({
+        location: 'solidworks.ts:PARSE_ERROR',
+        message: 'Failed to parse JSON response',
+        data: {
+          lineLength: line.length,
+          linePreview: line.substring(0, 200),
+          error: String(parseError),
+        },
+        timestamp: Date.now(),
+        sessionId: 'debug-session',
+        hypothesisId: 'BUFFER_CORRUPTION',
+      })
       // #endregion
     }
   }
@@ -898,27 +1021,27 @@ function handleSWServiceOutput(data: string): void {
  */
 async function sendSWCommand(
   command: Record<string, unknown>,
-  options?: { timeoutMs?: number; bypassQueue?: boolean }
+  options?: { timeoutMs?: number; bypassQueue?: boolean },
 ): Promise<SWServiceResult> {
   const action = command.action as string
   const isDmOperation = DM_OPERATIONS.has(action)
-  
+
   if (!swServiceProcess?.stdin) {
     if (action !== 'ping') {
       logError(`[SolidWorks] Command ${action} failed - service not running`)
     }
     return { success: false, error: 'SolidWorks service not running. Start it first.' }
   }
-  
+
   // Track DM operations to prevent watchdog from killing their spawned processes
   if (isDmOperation) {
     activeDmOperations++
     log(`[SolidWorks] DM operation ${action} started (active: ${activeDmOperations})`)
   }
-  
+
   // Ping commands bypass queue for immediate status checks
   const bypassQueue = options?.bypassQueue || command.action === 'ping'
-  
+
   if (bypassQueue) {
     try {
       return await executeCommandDirect(command, options)
@@ -929,19 +1052,23 @@ async function sendSWCommand(
       }
     }
   }
-  
+
   // Queue the command and process
   return new Promise((resolve) => {
     const stats = getQueueStats()
-    
+
     if (stats.queueDepth > 5) {
-      log(`[SolidWorks Queue] Queuing ${action} - depth: ${stats.queueDepth + 1}, active: ${stats.activeCommands}`)
+      log(
+        `[SolidWorks Queue] Queuing ${action} - depth: ${stats.queueDepth + 1}, active: ${stats.activeCommands}`,
+      )
     }
-    
+
     if (stats.queueDepth > 15) {
-      logWarn(`[SolidWorks Queue] [WARN] HIGH QUEUE DEPTH: ${stats.queueDepth + 1} pending commands!`)
+      logWarn(
+        `[SolidWorks Queue] [WARN] HIGH QUEUE DEPTH: ${stats.queueDepth + 1} pending commands!`,
+      )
     }
-    
+
     // Wrap resolve to decrement DM counter when command completes
     const wrappedResolve = (result: SWServiceResult) => {
       if (isDmOperation) {
@@ -950,14 +1077,14 @@ async function sendSWCommand(
       }
       resolve(result)
     }
-    
+
     commandQueue.push({
       command,
       options,
       resolve: wrappedResolve,
-      queuedAt: Date.now()
+      queuedAt: Date.now(),
     })
-    
+
     // Trigger queue processing
     processQueue()
   })
@@ -971,11 +1098,15 @@ async function sendSWCommand(
  * @param verboseLogging - If true, enable verbose diagnostic logging in the service
  * @returns Promise resolving to service start result
  */
-async function startSWService(dmLicenseKey?: string, cleanupOrphans?: boolean, verboseLogging?: boolean): Promise<SWServiceResult> {
+async function startSWService(
+  dmLicenseKey?: string,
+  cleanupOrphans?: boolean,
+  verboseLogging?: boolean,
+): Promise<SWServiceResult> {
   const startTime = Date.now()
   log('[SolidWorks] [START] START SERVICE REQUESTED')
   logServiceState('startSWService called')
-  
+
   // Optionally cleanup orphaned SLDWORKS.exe processes before starting
   if (cleanupOrphans) {
     log('[SolidWorks] Checking for orphaned SLDWORKS.exe processes...')
@@ -984,7 +1115,7 @@ async function startSWService(dmLicenseKey?: string, cleanupOrphans?: boolean, v
       log(`[SolidWorks] [OK] Cleaned up ${cleanupResult.killed} orphaned process(es)`)
     }
   }
-  
+
   // Allow service to start without SolidWorks - Document Manager API can work independently
   // The service will report its capabilities (dmApiAvailable, swInstalled) via ping response
   const swInstalled = isSolidWorksInstalled()
@@ -996,9 +1127,11 @@ async function startSWService(dmLicenseKey?: string, cleanupOrphans?: boolean, v
     // First check if the process is still alive at the OS level
     const pid = swServiceProcess.pid
     const processAlive = pid && !swServiceProcess.killed && checkProcessExists(pid)
-    
-    log(`[SolidWorks] Existing process check: PID=${pid}, alive=${processAlive}, killed=${swServiceProcess.killed}`)
-    
+
+    log(
+      `[SolidWorks] Existing process check: PID=${pid}, alive=${processAlive}, killed=${swServiceProcess.killed}`,
+    )
+
     if (!processAlive) {
       // Process is truly dead - clean up state (force since we verified it's dead)
       log('[SolidWorks] [WARN] Existing process is dead, cleaning up stale state')
@@ -1007,17 +1140,19 @@ async function startSWService(dmLicenseKey?: string, cleanupOrphans?: boolean, v
       // Process exists - verify it's responsive with a health ping (15 second timeout for busy service)
       log('[SolidWorks] Checking existing process health with ping...')
       const pingResult = await sendSWCommand({ action: 'ping' }, { timeoutMs: 15000 })
-      
+
       if (!pingResult.success) {
         // Ping failed but process is alive - service may be busy, not stale
-        log('[SolidWorks] [WARN] Service process alive (PID: ' + pid + ') but not responding to ping')
+        log(
+          '[SolidWorks] [WARN] Service process alive (PID: ' + pid + ') but not responding to ping',
+        )
         log('[SolidWorks] Service may be busy processing commands - not killing')
-        return { 
-          success: true, 
-          data: { 
+        return {
+          success: true,
+          data: {
             message: 'Service running but busy, please wait',
-            busy: true
-          } 
+            busy: true,
+          },
         }
       } else {
         // Process is alive and responsive
@@ -1034,27 +1169,28 @@ async function startSWService(dmLicenseKey?: string, cleanupOrphans?: boolean, v
       }
     }
   }
-  
+
   const serviceInfo = getSWServicePath()
   const servicePath = serviceInfo.path
   log('[SolidWorks] Service path: ' + servicePath)
-  
+
   if (!fs.existsSync(servicePath)) {
     if (serviceInfo.isProduction) {
-      return { 
-        success: false, 
+      return {
+        success: false,
         error: 'SolidWorks service not bundled',
-        errorDetails: 'The SolidWorks service executable was not included in this build. Please reinstall the application.'
+        errorDetails:
+          'The SolidWorks service executable was not included in this build. Please reinstall the application.',
       }
     } else {
-      return { 
-        success: false, 
+      return {
+        success: false,
         error: 'SolidWorks service not built',
-        errorDetails: `Expected at: ${servicePath}\n\nBuild it with: dotnet build solidworks-service/BluePLM.SolidWorksService -c Release`
+        errorDetails: `Expected at: ${servicePath}\n\nBuild it with: dotnet build solidworks-service/BluePLM.SolidWorksService -c Release`,
       }
     }
   }
-  
+
   const args: string[] = []
   if (dmLicenseKey) {
     args.push('--dm-license', dmLicenseKey)
@@ -1062,33 +1198,34 @@ async function startSWService(dmLicenseKey?: string, cleanupOrphans?: boolean, v
   if (verboseLogging) {
     args.push('--verbose')
   }
-  
+
   return new Promise((resolve) => {
     try {
       log('[SolidWorks] Spawning new service process...')
       log(`[SolidWorks] Executable: ${servicePath}`)
       log(`[SolidWorks] DM License: ${dmLicenseKey ? 'provided' : 'not provided'}`)
-      
+
       swServiceProcess = spawn(servicePath, args, {
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: true,
       })
-      
+
       const pid = swServiceProcess.pid
       // Save PID separately so we can detect if process is alive even if reference is lost
       lastKnownServicePid = pid ?? null
       log(`[SolidWorks] [OK] Process spawned with PID: ${pid}`)
-      
+
       swServiceProcess.stdout?.on('data', (data: Buffer) => {
         handleSWServiceOutput(data.toString())
       })
-      
+
       swServiceProcess.stderr?.on('data', (data: Buffer) => {
         const stderr = data.toString().trim()
         if (stderr) {
           // Filter out verbose ping-related messages to reduce log spam
           // Pings happen every 5 seconds and generate 6-7 lines each
-          const isPingMessage = stderr.includes('Ping received') ||
+          const isPingMessage =
+            stderr.includes('Ping received') ||
             stderr.includes('Received command: {"action":"ping"') ||
             stderr.includes('DM API instance:') ||
             stderr.includes('DM API IsAvailable:') ||
@@ -1096,28 +1233,28 @@ async function startSWService(dmLicenseKey?: string, cleanupOrphans?: boolean, v
             stderr.includes('SW API IsSolidWorksAvailable:') ||
             (stderr.includes('Sending response') && stderr.includes('chars)')) ||
             stderr.includes('Response sent, waiting for next command')
-          
+
           if (!isPingMessage) {
             log('[SolidWorks Service stderr] ' + stderr)
           }
         }
       })
-      
-      swServiceProcess.on('error', (err) => {
+
+      swServiceProcess.on('error', (error) => {
         // Error event can fire for IPC issues without the process dying
-        logError(`[SolidWorks] [FAIL] PROCESS ERROR EVENT: ${String(err)}`)
+        logError(`[SolidWorks] [FAIL] PROCESS ERROR EVENT: ${String(error)}`)
         logServiceState('After process error event')
         // Don't force clear - let clearServiceState verify process is dead
-        clearServiceState(`Process error: ${String(err)}`, false)
+        clearServiceState(`Process error: ${String(error)}`, false)
       })
-      
+
       swServiceProcess.on('close', (code, signal) => {
         // Close event means process actually exited - force clear state
         log(`[SolidWorks] [DEAD] PROCESS EXITED (code: ${code}, signal: ${signal})`)
         logServiceState('After process close event')
         clearServiceState(`Process exited (code: ${code}, signal: ${signal})`, true)
       })
-      
+
       swServiceProcess.on('disconnect', () => {
         // Disconnect can happen due to stdio issues without process dying
         log('[SolidWorks] [WARN] PROCESS DISCONNECTED')
@@ -1125,40 +1262,43 @@ async function startSWService(dmLicenseKey?: string, cleanupOrphans?: boolean, v
         // Don't force clear - let clearServiceState verify process is dead
         clearServiceState('Process disconnected', false)
       })
-      
+
       // Use polling to wait for service readiness instead of fixed delay
       log('[SolidWorks] Waiting for service to become ready...')
-      pollServiceUntilReady().then((result) => {
-        const totalTime = Date.now() - startTime
-        if (result.success) {
-          log(`[SolidWorks] [OK] SERVICE STARTED SUCCESSFULLY (${totalTime}ms, PID: ${pid})`)
-          logServiceState('After successful startup')
-          
-          // Start the orphaned process watchdog
-          startOrphanWatchdog()
-        } else {
-          logError(`[SolidWorks] [FAIL] SERVICE FAILED TO START: ${result.error} (${totalTime}ms)`)
-          logServiceState('After failed startup')
-        }
-        resolve(result)
-      }).catch((err) => {
-        const totalTime = Date.now() - startTime
-        logError(`[SolidWorks] [FAIL] SERVICE STARTUP EXCEPTION: ${String(err)} (${totalTime}ms)`)
-        logServiceState('After startup exception')
-        resolve({ 
-          success: false, 
-          error: 'Service startup failed',
-          errorDetails: `An unexpected error occurred while starting the service: ${String(err)}`
+      pollServiceUntilReady()
+        .then((result) => {
+          const totalTime = Date.now() - startTime
+          if (result.success) {
+            log(`[SolidWorks] [OK] SERVICE STARTED SUCCESSFULLY (${totalTime}ms, PID: ${pid})`)
+            logServiceState('After successful startup')
+
+            // Start the orphaned process watchdog
+            startOrphanWatchdog()
+          } else {
+            logError(
+              `[SolidWorks] [FAIL] SERVICE FAILED TO START: ${result.error} (${totalTime}ms)`,
+            )
+            logServiceState('After failed startup')
+          }
+          resolve(result)
         })
-      })
-      
-    } catch (err) {
-      const errorMsg = String(err)
+        .catch((error) => {
+          const totalTime = Date.now() - startTime
+          logError(`[SolidWorks] [FAIL] SERVICE STARTUP EXCEPTION: ${String(error)} (${totalTime}ms)`)
+          logServiceState('After startup exception')
+          resolve({
+            success: false,
+            error: 'Service startup failed',
+            errorDetails: `An unexpected error occurred while starting the service: ${String(error)}`,
+          })
+        })
+    } catch (error) {
+      const errorMsg = String(error)
       log('[SolidWorks] [FAIL] Failed to spawn service process: ' + errorMsg)
-      resolve({ 
-        success: false, 
+      resolve({
+        success: false,
         error: 'Failed to start service',
-        errorDetails: `Could not spawn service process: ${errorMsg}`
+        errorDetails: `Could not spawn service process: ${errorMsg}`,
       })
     }
   })
@@ -1170,25 +1310,25 @@ async function stopSWService(): Promise<void> {
   log('[SolidWorks] 🛑 STOP SERVICE REQUESTED')
   log('[SolidWorks] =======================================')
   logServiceState('stopSWService called')
-  
+
   // Stop the orphaned process watchdog
   stopOrphanWatchdog()
-  
+
   if (!swServiceProcess) {
     log('[SolidWorks] No service process to stop')
     return
   }
-  
+
   const pid = swServiceProcess.pid
   log(`[SolidWorks] Sending quit command to service (PID: ${pid})...`)
-  
+
   try {
     await sendSWCommand({ action: 'quit' }, { timeoutMs: 5000 })
     log('[SolidWorks] [OK] Quit command sent successfully')
-  } catch (err) {
-    logWarn(`[SolidWorks] [WARN] Quit command failed: ${err}`)
+  } catch (error) {
+    logWarn(`[SolidWorks] [WARN] Quit command failed: ${error}`)
   }
-  
+
   log('[SolidWorks] Killing process...')
   swServiceProcess.kill()
   swServiceProcess = null
@@ -1198,28 +1338,30 @@ async function stopSWService(): Promise<void> {
 
 // Extract SolidWorks thumbnail from file
 // For SW 2020+ files, uses Document Manager API as primary method (CFB/OLE doesn't work for new format)
-async function extractSolidWorksThumbnail(filePath: string): Promise<{ success: boolean; data?: string; error?: string }> {
+async function extractSolidWorksThumbnail(
+  filePath: string,
+): Promise<{ success: boolean; data?: string; error?: string }> {
   const fileName = path.basename(filePath)
   const ext = path.extname(filePath).toLowerCase()
-  
+
   // Only attempt SW thumbnail extraction for SolidWorks files
   const swExtensions = ['.sldprt', '.sldasm', '.slddrw']
   if (!swExtensions.includes(ext)) {
     return { success: false, error: 'Not a SolidWorks file' }
   }
-  
+
   thumbnailsInProgress.add(filePath)
-  
+
   try {
     // Primary method: Use Document Manager API (works for SW 2020+ files)
     // The SW service should be auto-started on app launch
     if (swServiceProcess?.stdin) {
       try {
         const dmResult = await sendSWCommand(
-          { action: 'getPreview', filePath }, 
-          { timeoutMs: 10000 } // 10 second timeout for thumbnails
+          { action: 'getPreview', filePath },
+          { timeoutMs: 10000 }, // 10 second timeout for thumbnails
         )
-        
+
         if (dmResult.success && dmResult.data) {
           const previewData = dmResult.data as { imageData?: string; mimeType?: string }
           if (previewData.imageData) {
@@ -1233,34 +1375,34 @@ async function extractSolidWorksThumbnail(filePath: string): Promise<{ success: 
         log(`[SWThumbnail] DM API failed for ${fileName}, trying CFB: ${dmErr}`)
       }
     }
-    
+
     // Fallback: Try CFB/OLE extraction (for older pre-2015 files)
     try {
       const fileBuffer = fs.readFileSync(filePath)
       const cfb = CFB.read(fileBuffer, { type: 'buffer' })
-      
+
       // Look for preview streams
       for (const entry of cfb.FileIndex) {
         if (!entry || !entry.content || entry.content.length < 100) continue
-        
+
         // Check for PNG signature
-        const pngSignature = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+        const pngSignature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
         const contentBuffer = Buffer.from(entry.content as number[] | Uint8Array)
         if (contentBuffer.slice(0, 8).equals(pngSignature)) {
           log(`[SWThumbnail] Found PNG in entry "${entry.name}"`)
           const base64 = Buffer.from(entry.content).toString('base64')
           return { success: true, data: `data:image/png;base64,${base64}` }
         }
-        
+
         // Check for JPEG signature
-        if (entry.content[0] === 0xFF && entry.content[1] === 0xD8 && entry.content[2] === 0xFF) {
+        if (entry.content[0] === 0xff && entry.content[1] === 0xd8 && entry.content[2] === 0xff) {
           log(`[SWThumbnail] Found JPEG in entry "${entry.name}"`)
           const base64 = Buffer.from(entry.content).toString('base64')
           return { success: true, data: `data:image/jpeg;base64,${base64}` }
         }
-        
+
         // Check for BMP
-        if (entry.content[0] === 0x42 && entry.content[1] === 0x4D) {
+        if (entry.content[0] === 0x42 && entry.content[1] === 0x4d) {
           log(`[SWThumbnail] Found BMP in entry "${entry.name}"`)
           const base64 = Buffer.from(entry.content).toString('base64')
           return { success: true, data: `data:image/bmp;base64,${base64}` }
@@ -1274,7 +1416,7 @@ async function extractSolidWorksThumbnail(filePath: string): Promise<{ success: 
         logError(`[SWThumbnail] CFB extraction failed for ${fileName}: ${cfbErr}`)
       }
     }
-    
+
     log(`[SWThumbnail] No thumbnail found in ${fileName}`)
     return { success: false, error: 'No thumbnail found' }
   } finally {
@@ -1283,14 +1425,16 @@ async function extractSolidWorksThumbnail(filePath: string): Promise<{ success: 
 }
 
 // Extract high-quality preview from SolidWorks file
-async function extractSolidWorksPreview(filePath: string): Promise<{ success: boolean; data?: string; error?: string }> {
+async function extractSolidWorksPreview(
+  filePath: string,
+): Promise<{ success: boolean; data?: string; error?: string }> {
   const fileName = path.basename(filePath)
   log(`[SWPreview] Extracting preview from: ${fileName}`)
-  
+
   try {
     const fileBuffer = fs.readFileSync(filePath)
     const cfb = CFB.read(fileBuffer, { type: 'buffer' })
-    
+
     const previewStreamNames = [
       'PreviewPNG',
       'Preview',
@@ -1299,44 +1443,49 @@ async function extractSolidWorksPreview(filePath: string): Promise<{ success: bo
       'Thumbnails/thumbnail.png',
       'PackageContents',
     ]
-    
+
     // Try named streams first
     for (const streamName of previewStreamNames) {
       try {
         const entry = CFB.find(cfb, streamName)
         if (entry && entry.content && entry.content.length > 100) {
           log(`[SWPreview] Found stream "${streamName}" with ${entry.content.length} bytes`)
-          
+
           // Check PNG
-          const pngSignature = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+          const pngSignature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
           const contentBuf = Buffer.from(entry.content as number[] | Uint8Array)
           if (contentBuf.slice(0, 8).equals(pngSignature)) {
             log(`[SWPreview] Found PNG preview in "${streamName}"!`)
             const base64 = contentBuf.toString('base64')
             return { success: true, data: `data:image/png;base64,${base64}` }
           }
-          
+
           // Check BMP
-          if (contentBuf[0] === 0x42 && contentBuf[1] === 0x4D) {
+          if (contentBuf[0] === 0x42 && contentBuf[1] === 0x4d) {
             log(`[SWPreview] Found BMP preview in "${streamName}"!`)
             const base64 = contentBuf.toString('base64')
             return { success: true, data: `data:image/bmp;base64,${base64}` }
           }
-          
+
           // Check DIB (convert to BMP)
-          if (contentBuf[0] === 0x28 && contentBuf[1] === 0x00 && contentBuf[2] === 0x00 && contentBuf[3] === 0x00) {
+          if (
+            contentBuf[0] === 0x28 &&
+            contentBuf[1] === 0x00 &&
+            contentBuf[2] === 0x00 &&
+            contentBuf[3] === 0x00
+          ) {
             log(`[SWPreview] Found DIB preview in "${streamName}", converting to BMP...`)
             const dibData = contentBuf
             const headerSize = dibData.readInt32LE(0)
             const pixelOffset = 14 + headerSize
             const fileSize = 14 + dibData.length
-            
+
             const bmpHeader = Buffer.alloc(14)
             bmpHeader.write('BM', 0)
             bmpHeader.writeInt32LE(fileSize, 2)
             bmpHeader.writeInt32LE(0, 6)
             bmpHeader.writeInt32LE(pixelOffset, 10)
-            
+
             const bmpData = Buffer.concat([bmpHeader, Buffer.from(dibData)])
             const base64 = bmpData.toString('base64')
             return { success: true, data: `data:image/bmp;base64,${base64}` }
@@ -1346,31 +1495,30 @@ async function extractSolidWorksPreview(filePath: string): Promise<{ success: bo
         // Stream doesn't exist
       }
     }
-    
+
     // Try all entries
     for (const entry of cfb.FileIndex) {
       if (!entry || !entry.content || entry.content.length < 100) continue
-      
-      const pngSignature = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+
+      const pngSignature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
       if (Buffer.from(entry.content.slice(0, 8)).equals(pngSignature)) {
         log(`[SWPreview] Found PNG in entry "${entry.name}"!`)
         const base64 = Buffer.from(entry.content).toString('base64')
         return { success: true, data: `data:image/png;base64,${base64}` }
       }
-      
-      if (entry.content[0] === 0xFF && entry.content[1] === 0xD8 && entry.content[2] === 0xFF) {
+
+      if (entry.content[0] === 0xff && entry.content[1] === 0xd8 && entry.content[2] === 0xff) {
         log(`[SWPreview] Found JPEG in entry "${entry.name}"!`)
         const base64 = Buffer.from(entry.content).toString('base64')
         return { success: true, data: `data:image/jpeg;base64,${base64}` }
       }
     }
-    
+
     log(`[SWPreview] No preview stream found in ${fileName}`)
     return { success: false, error: 'No preview stream found in file' }
-    
-  } catch (err) {
-    logError(`[SWPreview] Failed to extract preview from ${fileName}: ${err}`)
-    return { success: false, error: String(err) }
+  } catch (error) {
+    logError(`[SWPreview] Failed to extract preview from ${fileName}: ${error}`)
+    return { success: false, error: String(error) }
   }
 }
 
@@ -1410,46 +1558,52 @@ interface FileLocationsResult {
 /**
  * Get all installed SOLIDWORKS versions by scanning the registry.
  * Supports SOLIDWORKS 2020 and newer.
- * 
+ *
  * Registry structure:
  * - HKEY_CURRENT_USER\Software\SolidWorks\SOLIDWORKS {year}\ExtReferences
  *   Contains template folder paths for that version.
- * 
+ *
  * Some older versions may use different key names (e.g., "SolidWorks 2020" vs "SOLIDWORKS 2020"),
  * so we check for both patterns.
  */
-function getInstalledSolidWorksVersions(): { success: boolean; versions?: SolidWorksVersion[]; error?: string } {
+function getInstalledSolidWorksVersions(): {
+  success: boolean
+  versions?: SolidWorksVersion[]
+  error?: string
+} {
   if (process.platform !== 'win32') {
     return { success: false, error: 'SOLIDWORKS is only available on Windows' }
   }
 
   try {
     // Query SolidWorks root to find installed versions
-    const result = execSync(
-      'reg query "HKEY_CURRENT_USER\\Software\\SolidWorks"',
-      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
-    )
+    const result = execSync('reg query "HKEY_CURRENT_USER\\Software\\SolidWorks"', {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
 
     const versions: SolidWorksVersion[] = []
     const lines = result.split('\n')
-    
+
     for (const line of lines) {
       // Match patterns:
       // - SOLIDWORKS 2024 (newer versions, all caps)
       // - SolidWorks 2020 (some older versions, mixed case)
       // Both formats: HKEY_CURRENT_USER\Software\SolidWorks\{SOLIDWORKS|SolidWorks} {year}
-      const match = line.match(/HKEY_CURRENT_USER\\Software\\SolidWorks\\((SOLIDWORKS|SolidWorks)\s+(\d{4}))/i)
+      const match = line.match(
+        /HKEY_CURRENT_USER\\Software\\SolidWorks\\((SOLIDWORKS|SolidWorks)\s+(\d{4}))/i,
+      )
       if (match) {
         const fullVersion = match[1]
         const year = parseInt(match[3])
-        
+
         // Only include versions 2020 and newer
         if (year >= 2020) {
           // ExtReferences contains the template folder paths
           versions.push({
             version: fullVersion,
             year: year,
-            registryPath: `HKEY_CURRENT_USER\\Software\\SolidWorks\\${fullVersion}\\ExtReferences`
+            registryPath: `HKEY_CURRENT_USER\\Software\\SolidWorks\\${fullVersion}\\ExtReferences`,
           })
         }
       }
@@ -1459,13 +1613,13 @@ function getInstalledSolidWorksVersions(): { success: boolean; versions?: SolidW
     versions.sort((a, b) => b.year - a.year)
 
     if (versions.length > 0) {
-      log('[SolidWorks Registry] Found versions: ' + versions.map(v => v.version).join(', '))
+      log('[SolidWorks Registry] Found versions: ' + versions.map((v) => v.version).join(', '))
     } else {
       log('[SolidWorks Registry] No SOLIDWORKS 2020+ versions found')
     }
     return { success: true, versions }
-  } catch (err) {
-    log('[SolidWorks Registry] Failed to query versions: ' + String(err))
+  } catch (error) {
+    log('[SolidWorks Registry] Failed to query versions: ' + String(error))
     return { success: true, versions: [] } // Not an error if no SW installed
   }
 }
@@ -1475,10 +1629,10 @@ function getInstalledSolidWorksVersions(): { success: boolean; versions?: SolidW
  */
 function readRegistryValue(keyPath: string, valueName: string): string[] {
   try {
-    const result = execSync(
-      `reg query "${keyPath}" /v "${valueName}"`,
-      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
-    )
+    const result = execSync(`reg query "${keyPath}" /v "${valueName}"`, {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
 
     // Parse the output - format is: ValueName    REG_SZ    Value
     const lines = result.split('\n')
@@ -1489,7 +1643,10 @@ function readRegistryValue(keyPath: string, valueName: string): string[] {
         if (match) {
           const value = match[1].trim()
           // SOLIDWORKS uses semicolon-separated paths
-          return value.split(';').map(p => p.trim()).filter(p => p.length > 0)
+          return value
+            .split(';')
+            .map((p) => p.trim())
+            .filter((p) => p.length > 0)
         }
       }
     }
@@ -1505,13 +1662,13 @@ function readRegistryValue(keyPath: string, valueName: string): string[] {
 function writeRegistryValue(keyPath: string, valueName: string, paths: string[]): boolean {
   try {
     const value = paths.join(';')
-    execSync(
-      `reg add "${keyPath}" /v "${valueName}" /t REG_SZ /d "${value}" /f`,
-      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
-    )
+    execSync(`reg add "${keyPath}" /v "${valueName}" /t REG_SZ /d "${value}" /f`, {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
     return true
-  } catch (err) {
-    logError(`[SolidWorks Registry] Failed to write ${valueName}: ${String(err)}`)
+  } catch (error) {
+    logError(`[SolidWorks Registry] Failed to write ${valueName}: ${String(error)}`)
     return false
   }
 }
@@ -1521,10 +1678,10 @@ function writeRegistryValue(keyPath: string, valueName: string, paths: string[])
  */
 function readRegistryDword(keyPath: string, valueName: string): number | null {
   try {
-    const result = execSync(
-      `reg query "${keyPath}" /v "${valueName}"`,
-      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
-    )
+    const result = execSync(`reg query "${keyPath}" /v "${valueName}"`, {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
 
     // Parse the output - format is: ValueName    REG_DWORD    0x1
     const lines = result.split('\n')
@@ -1547,13 +1704,13 @@ function readRegistryDword(keyPath: string, valueName: string): number | null {
  */
 function writeRegistryDword(keyPath: string, valueName: string, value: number): boolean {
   try {
-    execSync(
-      `reg add "${keyPath}" /v "${valueName}" /t REG_DWORD /d ${value} /f`,
-      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
-    )
+    execSync(`reg add "${keyPath}" /v "${valueName}" /t REG_DWORD /d ${value} /f`, {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
     return true
-  } catch (err) {
-    logError(`[SolidWorks Registry] Failed to write DWORD ${valueName}: ${String(err)}`)
+  } catch (error) {
+    logError(`[SolidWorks Registry] Failed to write DWORD ${valueName}: ${String(error)}`)
     return false
   }
 }
@@ -1563,10 +1720,7 @@ function writeRegistryDword(keyPath: string, valueName: string, value: number): 
  */
 function registryKeyExists(keyPath: string): boolean {
   try {
-    execSync(
-      `reg query "${keyPath}"`,
-      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
-    )
+    execSync(`reg query "${keyPath}"`, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] })
     return true
   } catch {
     return false
@@ -1588,7 +1742,7 @@ function getDocumentTemplatesRegistryPath(version: string): string {
  * - Sheet Format Folders
  * - BOM Template Folders
  * - Custom Property Folders
- * 
+ *
  * The "Prompt for template" setting is stored in Document Templates:
  * - Use Default Document Templates (0 = prompt, 1 = use default)
  */
@@ -1599,13 +1753,13 @@ function getSolidWorksFileLocations(): FileLocationsResult {
   }
 
   const locations = versionsResult.versions
-    .filter(v => registryKeyExists(v.registryPath)) // Only include versions with ExtReferences
-    .map(v => {
+    .filter((v) => registryKeyExists(v.registryPath)) // Only include versions with ExtReferences
+    .map((v) => {
       const docTemplates = readRegistryValue(v.registryPath, 'Document Template Folders')
       const sheetFormats = readRegistryValue(v.registryPath, 'Sheet Format Folders')
       const bomTemplates = readRegistryValue(v.registryPath, 'BOM Template Folders')
       const customProps = readRegistryValue(v.registryPath, 'Custom Property Folders')
-      
+
       // Read the "Use Default Document Templates" setting
       // Value 0 = prompt user, Value 1 = use default (don't prompt)
       const docTemplatesPath = getDocumentTemplatesRegistryPath(v.version)
@@ -1618,7 +1772,7 @@ function getSolidWorksFileLocations(): FileLocationsResult {
         sheetFormats: sheetFormats,
         bomTemplates: bomTemplates,
         customPropertyFolders: customProps,
-        promptForTemplate: promptForTemplate
+        promptForTemplate: promptForTemplate,
       }
     })
 
@@ -1634,10 +1788,10 @@ function getSolidWorksFileLocations(): FileLocationsResult {
  * - Sheet Format Folders
  * - BOM Template Folders
  * - Custom Property Folders
- * 
+ *
  * Also sets the "Prompt for template" option in Document Templates:
  * - Use Default Document Templates (0 = prompt, 1 = use default)
- * 
+ *
  * The new path is prepended to existing paths so it takes priority.
  */
 function setSolidWorksFileLocations(settings: {
@@ -1672,7 +1826,10 @@ function setSolidWorksFileLocations(settings: {
     if (settings.documentTemplates !== undefined) {
       // Get existing paths and prepend new path (SOLIDWORKS uses first match)
       const existing = readRegistryValue(v.registryPath, 'Document Template Folders')
-      const newPaths = [settings.documentTemplates, ...existing.filter(p => p !== settings.documentTemplates)]
+      const newPaths = [
+        settings.documentTemplates,
+        ...existing.filter((p) => p !== settings.documentTemplates),
+      ]
       if (writeRegistryValue(v.registryPath, 'Document Template Folders', newPaths)) {
         versionUpdated = true
       } else {
@@ -1682,7 +1839,10 @@ function setSolidWorksFileLocations(settings: {
 
     if (settings.sheetFormats !== undefined) {
       const existing = readRegistryValue(v.registryPath, 'Sheet Format Folders')
-      const newPaths = [settings.sheetFormats, ...existing.filter(p => p !== settings.sheetFormats)]
+      const newPaths = [
+        settings.sheetFormats,
+        ...existing.filter((p) => p !== settings.sheetFormats),
+      ]
       if (writeRegistryValue(v.registryPath, 'Sheet Format Folders', newPaths)) {
         versionUpdated = true
       } else {
@@ -1692,7 +1852,10 @@ function setSolidWorksFileLocations(settings: {
 
     if (settings.bomTemplates !== undefined) {
       const existing = readRegistryValue(v.registryPath, 'BOM Template Folders')
-      const newPaths = [settings.bomTemplates, ...existing.filter(p => p !== settings.bomTemplates)]
+      const newPaths = [
+        settings.bomTemplates,
+        ...existing.filter((p) => p !== settings.bomTemplates),
+      ]
       if (writeRegistryValue(v.registryPath, 'BOM Template Folders', newPaths)) {
         versionUpdated = true
       } else {
@@ -1702,7 +1865,10 @@ function setSolidWorksFileLocations(settings: {
 
     if (settings.customPropertyFolders !== undefined) {
       const existing = readRegistryValue(v.registryPath, 'Custom Property Folders')
-      const newPaths = [settings.customPropertyFolders, ...existing.filter(p => p !== settings.customPropertyFolders)]
+      const newPaths = [
+        settings.customPropertyFolders,
+        ...existing.filter((p) => p !== settings.customPropertyFolders),
+      ]
       if (writeRegistryValue(v.registryPath, 'Custom Property Folders', newPaths)) {
         versionUpdated = true
       } else {
@@ -1719,7 +1885,9 @@ function setSolidWorksFileLocations(settings: {
       const value = settings.promptForTemplate ? 0 : 1 // Invert: prompt=true means value=0
       if (writeRegistryDword(docTemplatesPath, 'Use Default Document Templates', value)) {
         versionUpdated = true
-        log(`[SolidWorks Registry] Set promptForTemplate=${settings.promptForTemplate} for ${v.version}`)
+        log(
+          `[SolidWorks Registry] Set promptForTemplate=${settings.promptForTemplate} for ${v.version}`,
+        )
       } else {
         errors.push(`Failed to set Use Default Document Templates for ${v.version}`)
       }
@@ -1731,15 +1899,17 @@ function setSolidWorksFileLocations(settings: {
   }
 
   if (skippedVersions.length > 0) {
-    log('[SolidWorks Registry] Skipped versions without ExtReferences: ' + skippedVersions.join(', '))
+    log(
+      '[SolidWorks Registry] Skipped versions without ExtReferences: ' + skippedVersions.join(', '),
+    )
   }
 
   if (updatedVersions.length > 0) {
     log('[SolidWorks Registry] Updated file locations for: ' + updatedVersions.join(', '))
-    return { 
-      success: true, 
+    return {
+      success: true,
       updatedVersions,
-      error: errors.length > 0 ? errors.join('; ') : undefined
+      error: errors.length > 0 ? errors.join('; ') : undefined,
     }
   } else {
     return { success: false, error: errors.join('; ') || 'No versions updated' }
@@ -1754,7 +1924,8 @@ function setSolidWorksFileLocations(settings: {
  * Registry path for SOLIDWORKS license serial numbers.
  * Writing to HKLM requires administrator privileges.
  */
-const SW_LICENSE_REGISTRY_PATH = 'HKEY_LOCAL_MACHINE\\Software\\SolidWorks\\Licenses\\Serial Numbers'
+const SW_LICENSE_REGISTRY_PATH =
+  'HKEY_LOCAL_MACHINE\\Software\\SolidWorks\\Licenses\\Serial Numbers'
 
 interface LicenseRegistryResult {
   success: boolean
@@ -1777,7 +1948,7 @@ interface LicenseCheckResult {
 /**
  * Get all SOLIDWORKS serial numbers from the registry.
  * Reads from HKLM\Software\SolidWorks\Licenses\Serial Numbers
- * 
+ *
  * Serial numbers are stored as value names under this key.
  */
 function getSolidWorksLicenseFromRegistry(): LicenseRegistryResult {
@@ -1787,19 +1958,19 @@ function getSolidWorksLicenseFromRegistry(): LicenseRegistryResult {
 
   try {
     // Query all values under the Serial Numbers key
-    const result = execSync(
-      `reg query "${SW_LICENSE_REGISTRY_PATH}"`,
-      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
-    )
+    const result = execSync(`reg query "${SW_LICENSE_REGISTRY_PATH}"`, {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
 
     const serialNumbers: string[] = []
     const lines = result.split('\n')
-    
+
     for (const line of lines) {
       // Skip empty lines and the key path line
       const trimmed = line.trim()
       if (!trimmed || trimmed.startsWith('HKEY_')) continue
-      
+
       // Value format: "SerialNumber    REG_SZ    (some value or empty)"
       // We want the value name (serial number), not the data
       const match = trimmed.match(/^(\S+)\s+REG_/)
@@ -1814,8 +1985,8 @@ function getSolidWorksLicenseFromRegistry(): LicenseRegistryResult {
 
     log(`[SolidWorks License] Found ${serialNumbers.length} serial number(s) in registry`)
     return { success: true, serialNumbers }
-  } catch (err) {
-    const errorStr = String(err)
+  } catch (error) {
+    const errorStr = String(error)
     // "The system was unable to find the specified registry key" - key doesn't exist
     if (errorStr.includes('unable to find') || errorStr.includes('cannot find')) {
       log('[SolidWorks License] Registry key does not exist (no licenses installed)')
@@ -1830,7 +2001,7 @@ function getSolidWorksLicenseFromRegistry(): LicenseRegistryResult {
  * Write a SOLIDWORKS serial number to the registry.
  * Creates a value with the serial number as the name under:
  * HKLM\Software\SolidWorks\Licenses\Serial Numbers
- * 
+ *
  * Requires administrator privileges. Returns requiresAdmin: true if elevation needed.
  */
 function setSolidWorksLicenseInRegistry(serialNumber: string): LicenseWriteResult {
@@ -1846,30 +2017,34 @@ function setSolidWorksLicenseInRegistry(serialNumber: string): LicenseWriteResul
 
   try {
     // First, ensure the key exists by creating it (won't error if exists)
-    execSync(
-      `reg add "${SW_LICENSE_REGISTRY_PATH}" /f`,
-      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
-    )
+    execSync(`reg add "${SW_LICENSE_REGISTRY_PATH}" /f`, {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
 
     // Add the serial number as a value name with empty string data
-    execSync(
-      `reg add "${SW_LICENSE_REGISTRY_PATH}" /v "${cleanSerial}" /t REG_SZ /d "" /f`,
-      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
-    )
+    execSync(`reg add "${SW_LICENSE_REGISTRY_PATH}" /v "${cleanSerial}" /t REG_SZ /d "" /f`, {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
 
-    log(`[SolidWorks License] Successfully added serial number to registry: ${cleanSerial.slice(-4).padStart(cleanSerial.length, '*')}`)
+    log(
+      `[SolidWorks License] Successfully added serial number to registry: ${cleanSerial.slice(-4).padStart(cleanSerial.length, '*')}`,
+    )
     return { success: true }
-  } catch (err) {
-    const errorStr = String(err)
+  } catch (error) {
+    const errorStr = String(error)
     // Check for access denied errors
-    if (errorStr.includes('Access is denied') || 
-        errorStr.includes('requires elevation') ||
-        errorStr.includes('administrator')) {
+    if (
+      errorStr.includes('Access is denied') ||
+      errorStr.includes('requires elevation') ||
+      errorStr.includes('administrator')
+    ) {
       log('[SolidWorks License] Admin privileges required to write license registry')
-      return { 
-        success: false, 
-        error: 'Administrator privileges required to modify SOLIDWORKS license registry', 
-        requiresAdmin: true 
+      return {
+        success: false,
+        error: 'Administrator privileges required to modify SOLIDWORKS license registry',
+        requiresAdmin: true,
       }
     }
     logError(`[SolidWorks License] Failed to write registry: ${errorStr}`)
@@ -1881,7 +2056,7 @@ function setSolidWorksLicenseInRegistry(serialNumber: string): LicenseWriteResul
  * Remove a SOLIDWORKS serial number from the registry.
  * Deletes the value with the given serial number name from:
  * HKLM\Software\SolidWorks\Licenses\Serial Numbers
- * 
+ *
  * Requires administrator privileges. Returns requiresAdmin: true if elevation needed.
  */
 function removeSolidWorksLicenseFromRegistry(serialNumber: string): LicenseWriteResult {
@@ -1896,29 +2071,35 @@ function removeSolidWorksLicenseFromRegistry(serialNumber: string): LicenseWrite
   const cleanSerial = serialNumber.trim().toUpperCase()
 
   try {
-    execSync(
-      `reg delete "${SW_LICENSE_REGISTRY_PATH}" /v "${cleanSerial}" /f`,
-      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
-    )
+    execSync(`reg delete "${SW_LICENSE_REGISTRY_PATH}" /v "${cleanSerial}" /f`, {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
 
-    log(`[SolidWorks License] Successfully removed serial number from registry: ${cleanSerial.slice(-4).padStart(cleanSerial.length, '*')}`)
+    log(
+      `[SolidWorks License] Successfully removed serial number from registry: ${cleanSerial.slice(-4).padStart(cleanSerial.length, '*')}`,
+    )
     return { success: true }
-  } catch (err) {
-    const errorStr = String(err)
+  } catch (error) {
+    const errorStr = String(error)
     // Check for access denied errors
-    if (errorStr.includes('Access is denied') || 
-        errorStr.includes('requires elevation') ||
-        errorStr.includes('administrator')) {
+    if (
+      errorStr.includes('Access is denied') ||
+      errorStr.includes('requires elevation') ||
+      errorStr.includes('administrator')
+    ) {
       log('[SolidWorks License] Admin privileges required to remove license from registry')
-      return { 
-        success: false, 
-        error: 'Administrator privileges required to modify SOLIDWORKS license registry', 
-        requiresAdmin: true 
+      return {
+        success: false,
+        error: 'Administrator privileges required to modify SOLIDWORKS license registry',
+        requiresAdmin: true,
       }
     }
     // Check if value doesn't exist
     if (errorStr.includes('unable to find') || errorStr.includes('cannot find')) {
-      log(`[SolidWorks License] Serial number not found in registry: ${cleanSerial.slice(-4).padStart(cleanSerial.length, '*')}`)
+      log(
+        `[SolidWorks License] Serial number not found in registry: ${cleanSerial.slice(-4).padStart(cleanSerial.length, '*')}`,
+      )
       return { success: true } // Treat as success - it's already gone
     }
     logError(`[SolidWorks License] Failed to remove from registry: ${errorStr}`)
@@ -1931,7 +2112,11 @@ function removeSolidWorksLicenseFromRegistry(serialNumber: string): LicenseWrite
  */
 function checkLicenseInRegistry(serialNumber: string): LicenseCheckResult {
   if (process.platform !== 'win32') {
-    return { success: false, found: false, error: 'SOLIDWORKS license registry is only available on Windows' }
+    return {
+      success: false,
+      found: false,
+      error: 'SOLIDWORKS license registry is only available on Windows',
+    }
   }
 
   if (!serialNumber || serialNumber.trim().length === 0) {
@@ -1941,18 +2126,22 @@ function checkLicenseInRegistry(serialNumber: string): LicenseCheckResult {
   const cleanSerial = serialNumber.trim().toUpperCase()
 
   try {
-    execSync(
-      `reg query "${SW_LICENSE_REGISTRY_PATH}" /v "${cleanSerial}"`,
-      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
+    execSync(`reg query "${SW_LICENSE_REGISTRY_PATH}" /v "${cleanSerial}"`, {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
+
+    log(
+      `[SolidWorks License] Serial number found in registry: ${cleanSerial.slice(-4).padStart(cleanSerial.length, '*')}`,
     )
-    
-    log(`[SolidWorks License] Serial number found in registry: ${cleanSerial.slice(-4).padStart(cleanSerial.length, '*')}`)
     return { success: true, found: true }
-  } catch (err) {
-    const errorStr = String(err)
+  } catch (error) {
+    const errorStr = String(error)
     // Value not found is expected when serial doesn't exist
     if (errorStr.includes('unable to find') || errorStr.includes('cannot find')) {
-      log(`[SolidWorks License] Serial number not found in registry: ${cleanSerial.slice(-4).padStart(cleanSerial.length, '*')}`)
+      log(
+        `[SolidWorks License] Serial number not found in registry: ${cleanSerial.slice(-4).padStart(cleanSerial.length, '*')}`,
+      )
       return { success: true, found: false }
     }
     logError(`[SolidWorks License] Failed to check registry: ${errorStr}`)
@@ -1966,7 +2155,10 @@ export interface SolidWorksHandlerDependencies {
   logWarn: (message: string, data?: unknown) => void
 }
 
-export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWorksHandlerDependencies): void {
+export function registerSolidWorksHandlers(
+  window: BrowserWindow,
+  deps: SolidWorksHandlerDependencies,
+): void {
   mainWindow = window
   log = deps.log
   logError = deps.logError
@@ -1983,10 +2175,15 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
   })
 
   // Service management
-  ipcMain.handle('solidworks:start-service', async (_, dmLicenseKey?: string, cleanupOrphans?: boolean, verboseLogging?: boolean) => {
-    log(`[SolidWorks] IPC: start-service received (cleanupOrphans: ${cleanupOrphans}, verboseLogging: ${verboseLogging})`)
-    return startSWService(dmLicenseKey, cleanupOrphans, verboseLogging)
-  })
+  ipcMain.handle(
+    'solidworks:start-service',
+    async (_, dmLicenseKey?: string, cleanupOrphans?: boolean, verboseLogging?: boolean) => {
+      log(
+        `[SolidWorks] IPC: start-service received (cleanupOrphans: ${cleanupOrphans}, verboseLogging: ${verboseLogging})`,
+      )
+      return startSWService(dmLicenseKey, cleanupOrphans, verboseLogging)
+    },
+  )
 
   ipcMain.handle('solidworks:stop-service', async () => {
     await stopSWService()
@@ -2003,7 +2200,7 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
     log('[SolidWorks] [RESTART] FORCE RESTART REQUESTED')
     log('[SolidWorks] =======================================')
     logServiceState('Before force restart')
-    
+
     // Kill existing process if any
     if (swServiceProcess) {
       const pid = swServiceProcess.pid
@@ -2011,14 +2208,14 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
       try {
         swServiceProcess.kill('SIGKILL')
         log('[SolidWorks] [OK] SIGKILL sent')
-      } catch (err) {
-        logWarn(`[SolidWorks] [WARN] Kill failed: ${err}`)
+      } catch (error) {
+        logWarn(`[SolidWorks] [WARN] Kill failed: ${error}`)
       }
       swServiceProcess = null
     } else {
       log('[SolidWorks] No existing process to kill')
     }
-    
+
     // Reject all pending requests
     const pendingCount = swPendingRequests.size
     log(`[SolidWorks] Rejecting ${pendingCount} pending requests...`)
@@ -2027,7 +2224,7 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
       req.reject(new Error('Service force-restarted'))
     }
     swPendingRequests.clear()
-    
+
     log('[SolidWorks] Starting fresh service...')
     return startSWService(dmLicenseKey)
   })
@@ -2035,55 +2232,57 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
   ipcMain.handle('solidworks:service-status', async () => {
     const swInstalled = isSolidWorksInstalled()
     const queueStats = getQueueStats()
-    
+
     // Helper to determine operational mode
     const getMode = (dmAvailable: boolean, swApiAvailable: boolean): string => {
       if (dmAvailable && swApiAvailable) return 'full'
       if (dmAvailable) return 'dm-only'
       return 'limited'
     }
-    
+
     // If we don't have a process reference, check if we have a saved PID
     // This handles the case where the reference was lost but process is still running
     if (!swServiceProcess) {
       if (lastKnownServicePid && checkProcessExists(lastKnownServicePid)) {
-        log(`[SolidWorks] Status: No process reference but PID ${lastKnownServicePid} is alive - service is running but reference lost`)
+        log(
+          `[SolidWorks] Status: No process reference but PID ${lastKnownServicePid} is alive - service is running but reference lost`,
+        )
         // Process is alive but we lost the reference (likely due to IPC errors)
         // Report as running but busy (we can't communicate with it reliably)
-        return { 
-          success: true, 
-          data: { 
-            running: true, 
-            busy: true, 
+        return {
+          success: true,
+          data: {
+            running: true,
+            busy: true,
             installed: swInstalled,
             referenceRecoveryNeeded: true,
             message: 'Service running but IPC connection lost - restart recommended',
-            ...queueStats 
-          } 
+            ...queueStats,
+          },
         }
       }
       return { success: true, data: { running: false, installed: swInstalled, ...queueStats } }
     }
-    
+
     // First check if process is alive at OS level
     const pid = swServiceProcess.pid
     const processAlive = pid ? checkProcessExists(pid) : false
-    
+
     if (!processAlive) {
       log('[SolidWorks] Status check: process not alive at OS level, cleaning up')
       clearServiceState('Process no longer exists (detected during status check)', true)
       return { success: true, data: { running: false, installed: swInstalled, ...queueStats } }
     }
-    
+
     // Check ping cache to avoid redundant checks
     const now = Date.now()
-    if (pingCache && (now - pingCache.timestamp) < PING_CACHE_TTL_MS) {
+    if (pingCache && now - pingCache.timestamp < PING_CACHE_TTL_MS) {
       const cachedData = pingCache.result.data as Record<string, unknown> | undefined
-      const dmAvailable = cachedData?.documentManagerAvailable as boolean ?? false
-      const swApiAvailable = (cachedData?.swInstalled as boolean ?? false) && swInstalled
-      return { 
-        success: true, 
-        data: { 
+      const dmAvailable = (cachedData?.documentManagerAvailable as boolean) ?? false
+      const swApiAvailable = ((cachedData?.swInstalled as boolean) ?? false) && swInstalled
+      return {
+        success: true,
+        data: {
           running: pingCache.result.success,
           busy: !pingCache.result.success,
           installed: swInstalled,
@@ -2095,43 +2294,45 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
           documentManagerError: cachedData?.documentManagerError,
           fastModeEnabled: cachedData?.fastModeEnabled,
           mode: getMode(dmAvailable, swApiAvailable),
-          ...queueStats
-        } 
+          ...queueStats,
+        },
       }
     }
-    
+
     // Ping with short timeout (2s) to avoid blocking status checks
     const result = await sendSWCommand(
-      { action: 'ping' }, 
-      { timeoutMs: STATUS_PING_TIMEOUT_MS, bypassQueue: true }
+      { action: 'ping' },
+      { timeoutMs: STATUS_PING_TIMEOUT_MS, bypassQueue: true },
     )
-    
+
     // Cache the ping result
     pingCache = { result, timestamp: now }
-    
+
     const data = result.data as Record<string, unknown> | undefined
-    
+
     // Cache version from successful ping response
     if (result.success && data?.version) {
       cachedServiceVersion = data.version as string
     }
-    
+
     // If ping failed but process is alive, it's busy - not offline
     const isBusy = !result.success && processAlive
-    
+
     if (isBusy) {
-      log(`[SolidWorks] Status check: process alive but ping failed - marking as busy (queue: ${queueStats.queueDepth}, active: ${queueStats.activeCommands})`)
+      log(
+        `[SolidWorks] Status check: process alive but ping failed - marking as busy (queue: ${queueStats.queueDepth}, active: ${queueStats.activeCommands})`,
+      )
     }
-    
-    const dmAvailable = data?.documentManagerAvailable as boolean ?? false
-    const swApiAvailable = (data?.swInstalled as boolean ?? false) && swInstalled
-    
-    return { 
-      success: true, 
-      data: { 
+
+    const dmAvailable = (data?.documentManagerAvailable as boolean) ?? false
+    const swApiAvailable = ((data?.swInstalled as boolean) ?? false) && swInstalled
+
+    return {
+      success: true,
+      data: {
         running: result.success,
         busy: isBusy,
-        installed: swInstalled, 
+        installed: swInstalled,
         // Use cached version when ping times out (busy service)
         version: data?.version || cachedServiceVersion,
         swInstalled: data?.swInstalled,
@@ -2140,8 +2341,8 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
         documentManagerError: data?.documentManagerError,
         fastModeEnabled: data?.fastModeEnabled,
         mode: getMode(dmAvailable, swApiAvailable),
-        ...queueStats
-      } 
+        ...queueStats,
+      },
     }
   })
 
@@ -2159,9 +2360,9 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
   ipcMain.handle('solidworks:kill-orphaned-processes', async (_, forceAll?: boolean) => {
     log(`[SolidWorks] IPC: kill-orphaned-processes received (forceAll: ${forceAll})`)
     const result = await killOrphanedSolidWorksProcesses(forceAll ?? false)
-    return { 
+    return {
       success: result.errors.length === 0 || result.killed > 0,
-      data: result
+      data: result,
     }
   })
 
@@ -2182,37 +2383,53 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
   // This is useful for detecting if SolidWorks is open BEFORE attempting file operations
   ipcMain.handle('sw:is-process-running', async () => {
     try {
-      const result = execSync('tasklist /FI "IMAGENAME eq SLDWORKS.exe" /FO CSV /NH', { 
+      const result = execSync('tasklist /FI "IMAGENAME eq SLDWORKS.exe" /FO CSV /NH', {
         encoding: 'utf8',
         timeout: 5000,
-        windowsHide: true
+        windowsHide: true,
       })
       const isRunning = result.toLowerCase().includes('sldworks.exe')
       log(`[SolidWorks] Process check: SLDWORKS.exe ${isRunning ? 'IS running' : 'is NOT running'}`)
       return isRunning
-    } catch (err) {
+    } catch (error) {
       // If tasklist fails, assume SW is not running
-      logWarn(`[SolidWorks] Process check failed: ${err}`)
+      logWarn(`[SolidWorks] Process check failed: ${error}`)
       return false
     }
   })
 
   // Document operations
-  ipcMain.handle('solidworks:get-bom', async (_, filePath: string, options?: { includeChildren?: boolean; configuration?: string }) => {
-    return sendSWCommand({ action: 'getBom', filePath, ...options })
-  })
+  ipcMain.handle(
+    'solidworks:get-bom',
+    async (
+      _,
+      filePath: string,
+      options?: { includeChildren?: boolean; configuration?: string },
+    ) => {
+      return sendSWCommand({ action: 'getBom', filePath, ...options })
+    },
+  )
 
-  ipcMain.handle('solidworks:get-properties', async (_, filePath: string, configuration?: string) => {
-    return sendSWCommand({ action: 'getProperties', filePath, configuration })
-  })
+  ipcMain.handle(
+    'solidworks:get-properties',
+    async (_, filePath: string, configuration?: string) => {
+      return sendSWCommand({ action: 'getProperties', filePath, configuration })
+    },
+  )
 
-  ipcMain.handle('solidworks:set-properties', async (_, filePath: string, properties: Record<string, string>, configuration?: string) => {
-    return sendSWCommand({ action: 'setProperties', filePath, properties, configuration })
-  })
+  ipcMain.handle(
+    'solidworks:set-properties',
+    async (_, filePath: string, properties: Record<string, string>, configuration?: string) => {
+      return sendSWCommand({ action: 'setProperties', filePath, properties, configuration })
+    },
+  )
 
-  ipcMain.handle('solidworks:set-properties-batch', async (_, filePath: string, configProperties: Record<string, Record<string, string>>) => {
-    return sendSWCommand({ action: 'setPropertiesBatch', filePath, configProperties })
-  })
+  ipcMain.handle(
+    'solidworks:set-properties-batch',
+    async (_, filePath: string, configProperties: Record<string, Record<string, string>>) => {
+      return sendSWCommand({ action: 'setPropertiesBatch', filePath, configProperties })
+    },
+  )
 
   ipcMain.handle('solidworks:get-configurations', async (_, filePath: string) => {
     return sendSWCommand({ action: 'getConfigurations', filePath })
@@ -2226,71 +2443,156 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
     return sendSWCommand({ action: 'getPreview', filePath, configuration })
   })
 
-  ipcMain.handle('solidworks:get-mass-properties', async (_, filePath: string, configuration?: string) => {
-    return sendSWCommand({ action: 'getMassProperties', filePath, configuration })
-  })
+  ipcMain.handle(
+    'solidworks:get-mass-properties',
+    async (_, filePath: string, configuration?: string) => {
+      return sendSWCommand({ action: 'getMassProperties', filePath, configuration })
+    },
+  )
 
   // Document creation
-  ipcMain.handle('solidworks:create-document-from-template', async (_, templatePath: string, outputPath: string) => {
-    log(`[SolidWorks] IPC: create-document-from-template - template: ${templatePath}, output: ${outputPath}`)
-    return sendSWCommand({ action: 'createDocumentFromTemplate', templatePath, outputPath })
-  })
+  ipcMain.handle(
+    'solidworks:create-document-from-template',
+    async (_, templatePath: string, outputPath: string) => {
+      log(
+        `[SolidWorks] IPC: create-document-from-template - template: ${templatePath}, output: ${outputPath}`,
+      )
+      return sendSWCommand({ action: 'createDocumentFromTemplate', templatePath, outputPath })
+    },
+  )
 
   // Export operations
-  ipcMain.handle('solidworks:export-pdf', async (_, filePath: string, options?: { 
-    outputPath?: string; 
-    filenamePattern?: string; 
-    pdmMetadata?: { partNumber?: string; tabNumber?: string; revision?: string; description?: string } 
-  }) => {
-    return sendSWCommand({ action: 'exportPdf', filePath, ...options })
-  })
+  ipcMain.handle(
+    'solidworks:export-pdf',
+    async (
+      _,
+      filePath: string,
+      options?: {
+        outputPath?: string
+        filenamePattern?: string
+        pdmMetadata?: {
+          partNumber?: string
+          tabNumber?: string
+          revision?: string
+          description?: string
+        }
+      },
+    ) => {
+      return sendSWCommand({ action: 'exportPdf', filePath, ...options })
+    },
+  )
 
-  ipcMain.handle('solidworks:export-step', async (_, filePath: string, options?: { outputPath?: string; configuration?: string; exportAllConfigs?: boolean; configurations?: string[]; filenamePattern?: string; pdmMetadata?: { partNumber?: string; revision?: string; description?: string }; pdmMetadataOverride?: boolean }) => {
-    return sendSWCommand({ action: 'exportStep', filePath, ...options })
-  })
+  ipcMain.handle(
+    'solidworks:export-step',
+    async (
+      _,
+      filePath: string,
+      options?: {
+        outputPath?: string
+        configuration?: string
+        exportAllConfigs?: boolean
+        configurations?: string[]
+        filenamePattern?: string
+        pdmMetadata?: { partNumber?: string; revision?: string; description?: string }
+        pdmMetadataOverride?: boolean
+      },
+    ) => {
+      return sendSWCommand({ action: 'exportStep', filePath, ...options })
+    },
+  )
 
   ipcMain.handle('solidworks:export-dxf', async (_, filePath: string, outputPath?: string) => {
     return sendSWCommand({ action: 'exportDxf', filePath, outputPath })
   })
 
-  ipcMain.handle('solidworks:export-iges', async (_, filePath: string, options?: { outputPath?: string; exportAllConfigs?: boolean; configurations?: string[] }) => {
-    return sendSWCommand({ action: 'exportIges', filePath, ...options })
-  })
+  ipcMain.handle(
+    'solidworks:export-iges',
+    async (
+      _,
+      filePath: string,
+      options?: { outputPath?: string; exportAllConfigs?: boolean; configurations?: string[] },
+    ) => {
+      return sendSWCommand({ action: 'exportIges', filePath, ...options })
+    },
+  )
 
-  ipcMain.handle('solidworks:export-stl', async (_, filePath: string, options?: { 
-    outputPath?: string; 
-    exportAllConfigs?: boolean; 
-    configurations?: string[]; 
-    resolution?: 'coarse' | 'fine' | 'custom';
-    binaryFormat?: boolean;
-    customDeviation?: number;  // mm, for custom resolution
-    customAngle?: number;      // degrees, for custom resolution
-    filenamePattern?: string;
-    pdmMetadata?: { partNumber?: string; tabNumber?: string; revision?: string; description?: string };
-  }) => {
-    return sendSWCommand({ action: 'exportStl', filePath, ...options })
-  })
+  ipcMain.handle(
+    'solidworks:export-stl',
+    async (
+      _,
+      filePath: string,
+      options?: {
+        outputPath?: string
+        exportAllConfigs?: boolean
+        configurations?: string[]
+        resolution?: 'coarse' | 'fine' | 'custom'
+        binaryFormat?: boolean
+        customDeviation?: number // mm, for custom resolution
+        customAngle?: number // degrees, for custom resolution
+        filenamePattern?: string
+        pdmMetadata?: {
+          partNumber?: string
+          tabNumber?: string
+          revision?: string
+          description?: string
+        }
+      },
+    ) => {
+      return sendSWCommand({ action: 'exportStl', filePath, ...options })
+    },
+  )
 
-  ipcMain.handle('solidworks:export-image', async (_, filePath: string, options?: { outputPath?: string; width?: number; height?: number }) => {
-    return sendSWCommand({ action: 'exportImage', filePath, ...options })
-  })
+  ipcMain.handle(
+    'solidworks:export-image',
+    async (
+      _,
+      filePath: string,
+      options?: { outputPath?: string; width?: number; height?: number },
+    ) => {
+      return sendSWCommand({ action: 'exportImage', filePath, ...options })
+    },
+  )
 
-  ipcMain.handle('solidworks:replace-component', async (_, assemblyPath: string, oldComponent: string, newComponent: string) => {
-    return sendSWCommand({ action: 'replaceComponent', filePath: assemblyPath, oldComponent, newComponent })
-  })
+  ipcMain.handle(
+    'solidworks:replace-component',
+    async (_, assemblyPath: string, oldComponent: string, newComponent: string) => {
+      return sendSWCommand({
+        action: 'replaceComponent',
+        filePath: assemblyPath,
+        oldComponent,
+        newComponent,
+      })
+    },
+  )
 
-  ipcMain.handle('solidworks:pack-and-go', async (_, filePath: string, outputFolder: string, options?: { prefix?: string; suffix?: string }) => {
-    return sendSWCommand({ action: 'packAndGo', filePath, outputFolder, ...options })
-  })
+  ipcMain.handle(
+    'solidworks:pack-and-go',
+    async (
+      _,
+      filePath: string,
+      outputFolder: string,
+      options?: { prefix?: string; suffix?: string },
+    ) => {
+      return sendSWCommand({ action: 'packAndGo', filePath, outputFolder, ...options })
+    },
+  )
 
-  ipcMain.handle('solidworks:add-component', async (_, assemblyPath: string | null, componentPath: string, coordinates?: { x: number; y: number; z: number }) => {
-    return sendSWCommand({ 
-      action: 'addComponent', 
-      filePath: assemblyPath, 
-      componentPath,
-      coordinates: coordinates ? [coordinates.x, coordinates.y, coordinates.z] : null
-    })
-  })
+  ipcMain.handle(
+    'solidworks:add-component',
+    async (
+      _,
+      assemblyPath: string | null,
+      componentPath: string,
+      coordinates?: { x: number; y: number; z: number },
+    ) => {
+      return sendSWCommand({
+        action: 'addComponent',
+        filePath: assemblyPath,
+        componentPath,
+        coordinates: coordinates ? [coordinates.x, coordinates.y, coordinates.z] : null,
+      })
+    },
+  )
 
   // File lock detection (uses Windows Restart Manager API, does NOT require SolidWorks)
   ipcMain.handle('solidworks:find-locking-processes', async (_, filePath: string) => {
@@ -2298,9 +2600,15 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
   })
 
   // Open document management
-  ipcMain.handle('solidworks:get-open-documents', async (_, options?: { includeComponents?: boolean }) => {
-    return sendSWCommand({ action: 'getOpenDocuments', includeComponents: options?.includeComponents ?? false })
-  })
+  ipcMain.handle(
+    'solidworks:get-open-documents',
+    async (_, options?: { includeComponents?: boolean }) => {
+      return sendSWCommand({
+        action: 'getOpenDocuments',
+        includeComponents: options?.includeComponents ?? false,
+      })
+    },
+  )
 
   ipcMain.handle('solidworks:is-document-open', async (_, filePath: string) => {
     return sendSWCommand({ action: 'isDocumentOpen', filePath })
@@ -2312,17 +2620,29 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
     return sendSWCommand({ action: 'getDocumentInfo', filePath }, { timeoutMs: 10000 }) // 10 sec timeout
   })
 
-  ipcMain.handle('solidworks:set-document-readonly', async (_, filePath: string, readOnly: boolean) => {
-    return sendSWCommand({ action: 'setDocumentReadOnly', filePath, readOnly }, { timeoutMs: 10000 }) // 10 sec timeout
-  })
+  ipcMain.handle(
+    'solidworks:set-document-readonly',
+    async (_, filePath: string, readOnly: boolean) => {
+      return sendSWCommand(
+        { action: 'setDocumentReadOnly', filePath, readOnly },
+        { timeoutMs: 10000 },
+      ) // 10 sec timeout
+    },
+  )
 
   ipcMain.handle('solidworks:save-document', async (_, filePath: string) => {
     return sendSWCommand({ action: 'saveDocument', filePath }, { timeoutMs: 30000 }) // 30 sec timeout for saves
   })
 
-  ipcMain.handle('solidworks:set-document-properties', async (_, filePath: string, properties: Record<string, string>, configuration?: string) => {
-    return sendSWCommand({ action: 'setDocumentProperties', filePath, properties, configuration }, { timeoutMs: 30000 })
-  })
+  ipcMain.handle(
+    'solidworks:set-document-properties',
+    async (_, filePath: string, properties: Record<string, string>, configuration?: string) => {
+      return sendSWCommand(
+        { action: 'setDocumentProperties', filePath, properties, configuration },
+        { timeoutMs: 30000 },
+      )
+    },
+  )
 
   // Selection tracking - get currently selected components in the active assembly
   ipcMain.handle('solidworks:get-selected-files', async () => {
@@ -2335,15 +2655,15 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
       'C:\\Program Files\\SOLIDWORKS Corp\\eDrawings\\eDrawings.exe',
       'C:\\Program Files\\eDrawings\\eDrawings.exe',
       'C:\\Program Files (x86)\\eDrawings\\eDrawings.exe',
-      'C:\\Program Files\\SOLIDWORKS Corp\\SOLIDWORKS\\eDrawings\\eDrawings.exe'
+      'C:\\Program Files\\SOLIDWORKS Corp\\SOLIDWORKS\\eDrawings\\eDrawings.exe',
     ]
-    
+
     for (const ePath of paths) {
       if (fs.existsSync(ePath)) {
         return { installed: true, path: ePath }
       }
     }
-    
+
     return { installed: false, path: null }
   })
 
@@ -2356,9 +2676,9 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
       'C:\\Program Files\\SOLIDWORKS Corp\\eDrawings\\eDrawings.exe',
       'C:\\Program Files\\eDrawings\\eDrawings.exe',
       'C:\\Program Files (x86)\\eDrawings\\eDrawings.exe',
-      'C:\\Program Files\\SOLIDWORKS Corp\\SOLIDWORKS\\eDrawings\\eDrawings.exe'
+      'C:\\Program Files\\SOLIDWORKS Corp\\SOLIDWORKS\\eDrawings\\eDrawings.exe',
     ]
-    
+
     let eDrawingsPath: string | null = null
     for (const ePath of eDrawingsPaths) {
       if (fs.existsSync(ePath)) {
@@ -2366,7 +2686,7 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
         break
       }
     }
-    
+
     if (!eDrawingsPath) {
       try {
         await shell.openPath(filePath)
@@ -2375,15 +2695,15 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
         return { success: false, error: 'eDrawings not found' }
       }
     }
-    
+
     try {
-      spawn(eDrawingsPath, [filePath], { 
+      spawn(eDrawingsPath, [filePath], {
         detached: true,
-        stdio: 'ignore'
+        stdio: 'ignore',
       }).unref()
       return { success: true }
-    } catch (err) {
-      return { success: false, error: String(err) }
+    } catch (error) {
+      return { success: false, error: String(error) }
     }
   })
 
@@ -2434,20 +2754,26 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
     return getSolidWorksFileLocations()
   })
 
-  ipcMain.handle('solidworks:set-file-locations', async (_, settings: {
-    documentTemplates?: string
-    sheetFormats?: string
-    bomTemplates?: string
-    customPropertyFolders?: string
-    promptForTemplate?: boolean
-  }) => {
-    return setSolidWorksFileLocations(settings)
-  })
+  ipcMain.handle(
+    'solidworks:set-file-locations',
+    async (
+      _,
+      settings: {
+        documentTemplates?: string
+        sheetFormats?: string
+        bomTemplates?: string
+        customPropertyFolders?: string
+        promptForTemplate?: boolean
+      },
+    ) => {
+      return setSolidWorksFileLocations(settings)
+    },
+  )
 
   // ===== License Registry Operations =====
   // These operate on HKLM\Software\SolidWorks\Licenses\Serial Numbers
   // Writing requires administrator privileges
-  
+
   ipcMain.handle('solidworks:get-license-registry', async () => {
     return getSolidWorksLicenseFromRegistry()
   })
@@ -2472,22 +2798,22 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
 
     // Build list of possible paths including year-specific versions
     const possiblePaths: string[] = []
-    
+
     // Check for year-specific installations (2020-2030)
     for (let year = 2030; year >= 2020; year--) {
       possiblePaths.push(
         `C:\\Program Files\\SOLIDWORKS Corp\\SOLIDWORKS ${year}\\swlmwiz.exe`,
-        `C:\\Program Files\\SolidWorks Corp\\SolidWorks ${year}\\swlmwiz.exe`
+        `C:\\Program Files\\SolidWorks Corp\\SolidWorks ${year}\\swlmwiz.exe`,
       )
     }
-    
+
     // Generic paths (no year)
     possiblePaths.push(
       'C:\\Program Files\\SOLIDWORKS Corp\\SOLIDWORKS\\swlmwiz.exe',
       'C:\\Program Files\\SolidWorks Corp\\SolidWorks\\swlmwiz.exe',
       'C:\\Program Files (x86)\\SOLIDWORKS Corp\\SOLIDWORKS\\swlmwiz.exe',
       'C:\\Program Files\\SOLIDWORKS Corp\\SOLIDWORKS SolidNetWork License Manager\\SolidNetWork License Manager.exe',
-      'C:\\Program Files\\SOLIDWORKS Corp\\SolidNetWork License Manager\\SolidNetWork License Manager.exe'
+      'C:\\Program Files\\SOLIDWORKS Corp\\SolidNetWork License Manager\\SolidNetWork License Manager.exe',
     )
 
     let licenseMgrPath: string | null = null
@@ -2504,7 +2830,7 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
       try {
         const regResult = execSync(
           'reg query "HKEY_LOCAL_MACHINE\\SOFTWARE\\SolidWorks\\SOLIDWORKS" /v "SolidWorks Folder" 2>nul',
-          { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
+          { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] },
         )
         const match = regResult.match(/SolidWorks Folder\s+REG_SZ\s+(.+)/i)
         if (match) {
@@ -2522,9 +2848,10 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
 
     if (!licenseMgrPath) {
       log('[SolidWorks] License Manager not found in any known location')
-      return { 
-        success: false, 
-        error: 'SOLIDWORKS License Manager not found. Open it from Start Menu -> SOLIDWORKS Tools -> SOLIDWORKS License Manager.' 
+      return {
+        success: false,
+        error:
+          'SOLIDWORKS License Manager not found. Open it from Start Menu -> SOLIDWORKS Tools -> SOLIDWORKS License Manager.',
       }
     }
 
@@ -2532,35 +2859,74 @@ export function registerSolidWorksHandlers(window: BrowserWindow, deps: SolidWor
       log(`[SolidWorks] Opening License Manager: ${licenseMgrPath}`)
       spawn(licenseMgrPath, [], {
         detached: true,
-        stdio: 'ignore'
+        stdio: 'ignore',
       }).unref()
       return { success: true }
-    } catch (err) {
-      logError(`[SolidWorks] Failed to open License Manager: ${String(err)}`)
-      return { success: false, error: String(err) }
+    } catch (error) {
+      logError(`[SolidWorks] Failed to open License Manager: ${String(error)}`)
+      return { success: false, error: String(error) }
     }
   })
 }
 
 export function unregisterSolidWorksHandlers(): void {
   const handlers = [
-    'solidworks:extract-thumbnail', 'solidworks:extract-preview',
-    'solidworks:start-service', 'solidworks:stop-service', 'solidworks:force-restart', 'solidworks:reset-com-connection', 'solidworks:service-status', 'solidworks:is-installed',
-    'solidworks:get-process-status', 'solidworks:kill-orphaned-processes', 'sw:cancel-previews-for-folder', 'sw:release-handles',
-    'solidworks:get-bom', 'solidworks:get-properties', 'solidworks:set-properties', 'solidworks:set-properties-batch',
-    'solidworks:get-configurations', 'solidworks:get-references', 'solidworks:get-preview', 'solidworks:get-mass-properties',
-    'solidworks:export-pdf', 'solidworks:export-step', 'solidworks:export-dxf', 'solidworks:export-iges', 'solidworks:export-stl', 'solidworks:export-image',
-    'solidworks:replace-component', 'solidworks:pack-and-go',
-    'solidworks:get-open-documents', 'solidworks:is-document-open', 'solidworks:get-document-info',
-    'solidworks:set-document-readonly', 'solidworks:save-document', 'solidworks:set-document-properties',
+    'solidworks:extract-thumbnail',
+    'solidworks:extract-preview',
+    'solidworks:start-service',
+    'solidworks:stop-service',
+    'solidworks:force-restart',
+    'solidworks:reset-com-connection',
+    'solidworks:service-status',
+    'solidworks:is-installed',
+    'solidworks:get-process-status',
+    'solidworks:kill-orphaned-processes',
+    'sw:cancel-previews-for-folder',
+    'sw:release-handles',
+    'solidworks:get-bom',
+    'solidworks:get-properties',
+    'solidworks:set-properties',
+    'solidworks:set-properties-batch',
+    'solidworks:get-configurations',
+    'solidworks:get-references',
+    'solidworks:get-preview',
+    'solidworks:get-mass-properties',
+    'solidworks:export-pdf',
+    'solidworks:export-step',
+    'solidworks:export-dxf',
+    'solidworks:export-iges',
+    'solidworks:export-stl',
+    'solidworks:export-image',
+    'solidworks:replace-component',
+    'solidworks:pack-and-go',
+    'solidworks:get-open-documents',
+    'solidworks:is-document-open',
+    'solidworks:get-document-info',
+    'solidworks:set-document-readonly',
+    'solidworks:save-document',
+    'solidworks:set-document-properties',
     'solidworks:get-selected-files',
-    'solidworks:get-installed-versions', 'solidworks:get-file-locations', 'solidworks:set-file-locations',
-    'solidworks:get-license-registry', 'solidworks:set-license-registry', 'solidworks:remove-license-registry', 'solidworks:check-license-registry', 'solidworks:open-license-manager',
-    'edrawings:check-installed', 'edrawings:native-available', 'edrawings:open-file', 'edrawings:get-window-handle',
-    'edrawings:create-preview', 'edrawings:attach-preview', 'edrawings:load-file', 'edrawings:set-bounds',
-    'edrawings:show-preview', 'edrawings:hide-preview', 'edrawings:destroy-preview'
+    'solidworks:get-installed-versions',
+    'solidworks:get-file-locations',
+    'solidworks:set-file-locations',
+    'solidworks:get-license-registry',
+    'solidworks:set-license-registry',
+    'solidworks:remove-license-registry',
+    'solidworks:check-license-registry',
+    'solidworks:open-license-manager',
+    'edrawings:check-installed',
+    'edrawings:native-available',
+    'edrawings:open-file',
+    'edrawings:get-window-handle',
+    'edrawings:create-preview',
+    'edrawings:attach-preview',
+    'edrawings:load-file',
+    'edrawings:set-bounds',
+    'edrawings:show-preview',
+    'edrawings:hide-preview',
+    'edrawings:destroy-preview',
   ]
-  
+
   for (const handler of handlers) {
     ipcMain.removeHandler(handler)
   }
@@ -2576,38 +2942,38 @@ export async function cleanupSolidWorksService(): Promise<void> {
   log('[SolidWorks] [CLEANUP] APP QUIT - CLEANUP STARTED')
   log('[SolidWorks] =======================================')
   logServiceState('App quit cleanup')
-  
+
   // Stop the orphaned process watchdog
   stopOrphanWatchdog()
-  
+
   if (!swServiceProcess) {
     log('[SolidWorks] No service process to clean up')
     return
   }
-  
+
   const pid = swServiceProcess.pid
   log(`[SolidWorks] Gracefully stopping service (PID: ${pid})...`)
-  
+
   try {
     // Try to send quit command gracefully (short timeout)
     log('[SolidWorks] Sending quit command...')
     await sendSWCommand({ action: 'quit' }, { timeoutMs: 2000 })
     log('[SolidWorks] [OK] Quit command sent')
-  } catch (err) {
-    logWarn(`[SolidWorks] [WARN] Quit command failed: ${err}`)
+  } catch (error) {
+    logWarn(`[SolidWorks] [WARN] Quit command failed: ${error}`)
   }
-  
+
   // Force kill if still running
   if (swServiceProcess) {
     try {
       log('[SolidWorks] Force killing process...')
       swServiceProcess.kill('SIGKILL')
       log('[SolidWorks] [OK] SIGKILL sent')
-    } catch (err) {
-      log('[SolidWorks] [FAIL] Error killing process: ' + String(err))
+    } catch (error) {
+      log('[SolidWorks] [FAIL] Error killing process: ' + String(error))
     }
   }
-  
+
   clearServiceState('App quit cleanup', true)
   log('[SolidWorks] Service cleanup complete')
 }

@@ -1,13 +1,13 @@
 /**
  * useSelectionBox - Reusable hook for marquee/drag-box selection
- * 
+ *
  * Provides selection box functionality for multi-selecting items by
  * clicking and dragging to draw a selection rectangle.
- * 
+ *
  * Used by:
  * - FilePane (file browser list view)
  * - FileTree (explorer tree view)
- * 
+ *
  * @example
  * const { selectionBox, selectionHandlers } = useSelectionBox({
  *   containerRef: tableRef,
@@ -16,7 +16,7 @@
  *   setSelectedFiles,
  *   clearSelection
  * })
- * 
+ *
  * return (
  *   <div ref={containerRef} {...selectionHandlers}>
  *     {selectionBox && <SelectionBoxOverlay box={selectionBox} />}
@@ -75,86 +75,92 @@ export function useSelectionBox(options: UseSelectionBoxOptions): UseSelectionBo
     rowSelector,
     setSelectedFiles,
     clearSelection,
-    excludeSelector
+    excludeSelector,
   } = options
 
   const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null)
-  
+
   // Ref to track selection intent immediately on mousedown (before state updates)
   // This prevents race condition where dragstart fires before selectionBox state updates
   const isSelectingRef = useRef(false)
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    // Only start selection box on left click
-    if (e.button !== 0) return
-    
-    const target = e.target as HTMLElement
-    
-    // Don't start selection if clicking on an actual row/item
-    if (target.closest(rowSelector)) return
-    
-    // Don't start selection if clicking on excluded elements
-    if (excludeSelector && target.closest(excludeSelector)) return
-    
-    const container = containerRef.current
-    if (!container) return
-    
-    const rect = container.getBoundingClientRect()
-    const startX = e.clientX - rect.left + container.scrollLeft
-    const startY = e.clientY - rect.top + container.scrollTop
-    
-    // Mark selection intent immediately (synchronous, before state update)
-    isSelectingRef.current = true
-    
-    setSelectionBox({ startX, startY, currentX: startX, currentY: startY })
-    
-    // Clear selection unless modifier keys are held
-    if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
-      clearSelection()
-    }
-  }, [containerRef, rowSelector, excludeSelector, clearSelection])
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      // Only start selection box on left click
+      if (e.button !== 0) return
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!selectionBox) return
-    
-    const container = containerRef.current
-    if (!container) return
-    
-    const rect = container.getBoundingClientRect()
-    const currentX = e.clientX - rect.left + container.scrollLeft
-    const currentY = e.clientY - rect.top + container.scrollTop
-    
-    setSelectionBox(prev => prev ? { ...prev, currentX, currentY } : null)
-    
-    // Calculate selection box bounds
-    const top = Math.min(selectionBox.startY, currentY)
-    const bottom = Math.max(selectionBox.startY, currentY)
-    
-    // Find rows that intersect with selection box
-    // Use data-path attributes to identify files instead of array indexing
-    // This handles virtualization spacer rows, config rows, and other non-file rows correctly
-    const rows = container.querySelectorAll(rowSelector)
-    const selectedPaths: string[] = []
-    
-    rows.forEach((row) => {
-      const rowRect = row.getBoundingClientRect()
-      const containerRect = container.getBoundingClientRect()
-      
-      const rowTop = rowRect.top - containerRect.top + container.scrollTop
-      const rowBottom = rowTop + rowRect.height
-      
-      // Check if row intersects with selection box
-      if (rowBottom > top && rowTop < bottom) {
-        // Get file path from data attribute (rows without data-path are ignored)
-        const path = row.getAttribute('data-path')
-        if (path) {
-          selectedPaths.push(path)
-        }
+      const target = e.target as HTMLElement
+
+      // Don't start selection if clicking on an actual row/item
+      if (target.closest(rowSelector)) return
+
+      // Don't start selection if clicking on excluded elements
+      if (excludeSelector && target.closest(excludeSelector)) return
+
+      const container = containerRef.current
+      if (!container) return
+
+      const rect = container.getBoundingClientRect()
+      const startX = e.clientX - rect.left + container.scrollLeft
+      const startY = e.clientY - rect.top + container.scrollTop
+
+      // Mark selection intent immediately (synchronous, before state update)
+      isSelectingRef.current = true
+
+      setSelectionBox({ startX, startY, currentX: startX, currentY: startY })
+
+      // Clear selection unless modifier keys are held
+      if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        clearSelection()
       }
-    })
-    
-    setSelectedFiles(selectedPaths)
-  }, [selectionBox, containerRef, rowSelector, setSelectedFiles])
+    },
+    [containerRef, rowSelector, excludeSelector, clearSelection],
+  )
+
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      if (!selectionBox) return
+
+      const container = containerRef.current
+      if (!container) return
+
+      const rect = container.getBoundingClientRect()
+      const currentX = e.clientX - rect.left + container.scrollLeft
+      const currentY = e.clientY - rect.top + container.scrollTop
+
+      setSelectionBox((prev) => (prev ? { ...prev, currentX, currentY } : null))
+
+      // Calculate selection box bounds
+      const top = Math.min(selectionBox.startY, currentY)
+      const bottom = Math.max(selectionBox.startY, currentY)
+
+      // Find rows that intersect with selection box
+      // Use data-path attributes to identify files instead of array indexing
+      // This handles virtualization spacer rows, config rows, and other non-file rows correctly
+      const rows = container.querySelectorAll(rowSelector)
+      const selectedPaths: string[] = []
+
+      rows.forEach((row) => {
+        const rowRect = row.getBoundingClientRect()
+        const containerRect = container.getBoundingClientRect()
+
+        const rowTop = rowRect.top - containerRect.top + container.scrollTop
+        const rowBottom = rowTop + rowRect.height
+
+        // Check if row intersects with selection box
+        if (rowBottom > top && rowTop < bottom) {
+          // Get file path from data attribute (rows without data-path are ignored)
+          const path = row.getAttribute('data-path')
+          if (path) {
+            selectedPaths.push(path)
+          }
+        }
+      })
+
+      setSelectedFiles(selectedPaths)
+    },
+    [selectionBox, containerRef, rowSelector, setSelectedFiles],
+  )
 
   const handleMouseUp = useCallback(() => {
     isSelectingRef.current = false
@@ -169,13 +175,16 @@ export function useSelectionBox(options: UseSelectionBoxOptions): UseSelectionBo
   }, [selectionBox])
 
   // Prevent native drag from interfering with selection box
-  const handleDragStart = useCallback((e: React.DragEvent) => {
-    // If we're in selection mode (mousedown occurred on empty space),
-    // prevent native drag from taking over
-    if (isSelectingRef.current || selectionBox) {
-      e.preventDefault()
-    }
-  }, [selectionBox])
+  const handleDragStart = useCallback(
+    (e: React.DragEvent) => {
+      // If we're in selection mode (mousedown occurred on empty space),
+      // prevent native drag from taking over
+      if (isSelectingRef.current || selectionBox) {
+        e.preventDefault()
+      }
+    },
+    [selectionBox],
+  )
 
   return {
     selectionBox,
@@ -185,7 +194,7 @@ export function useSelectionBox(options: UseSelectionBoxOptions): UseSelectionBo
       onMouseMove: handleMouseMove,
       onMouseUp: handleMouseUp,
       onMouseLeave: handleMouseLeave,
-      onDragStart: handleDragStart
-    }
+      onDragStart: handleDragStart,
+    },
   }
 }

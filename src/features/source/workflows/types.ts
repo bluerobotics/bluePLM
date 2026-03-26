@@ -1,27 +1,27 @@
 // Types specific to the workflow editor canvas
-import type { 
-  WorkflowTemplate, 
-  WorkflowState, 
-  WorkflowTransition, 
+import type {
+  WorkflowTemplate,
+  WorkflowState,
+  WorkflowTransition,
   WorkflowGate,
   TransitionLineStyle,
   TransitionPathType,
   TransitionArrowHead,
   TransitionLineThickness,
-  CanvasMode 
+  CanvasMode,
 } from '@/types/workflow'
 
 // Re-export commonly used types for convenience
-export type { 
-  WorkflowTemplate, 
-  WorkflowState, 
-  WorkflowTransition, 
+export type {
+  WorkflowTemplate,
+  WorkflowState,
+  WorkflowTransition,
   WorkflowGate,
   TransitionLineStyle,
   TransitionPathType,
   TransitionArrowHead,
   TransitionLineThickness,
-  CanvasMode
+  CanvasMode,
 }
 
 // Editor state types

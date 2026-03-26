@@ -10,7 +10,7 @@ export function useSidebarScroll(containerRef: RefObject<HTMLDivElement | null>)
   const updateScrollState = useCallback(() => {
     const container = containerRef.current
     if (!container) return
-    
+
     const { scrollTop, scrollHeight, clientHeight } = container
     setCanScrollUp(scrollTop > 0)
     setCanScrollDown(scrollTop + clientHeight < scrollHeight - 1)
@@ -23,11 +23,11 @@ export function useSidebarScroll(containerRef: RefObject<HTMLDivElement | null>)
 
     updateScrollState()
     container.addEventListener('scroll', updateScrollState)
-    
+
     // Also check on resize
     const resizeObserver = new ResizeObserver(updateScrollState)
     resizeObserver.observe(container)
-    
+
     return () => {
       container.removeEventListener('scroll', updateScrollState)
       resizeObserver.disconnect()

@@ -54,26 +54,23 @@ export function TeamReviewersDialog({
 
   useEffect(() => {
     async function loadTeamMembers() {
-      const { data } = await supabase
-        .from('team_members')
-        .select('user_id')
-        .eq('team_id', team.id)
+      const { data } = await supabase.from('team_members').select('user_id').eq('team_id', team.id)
       setTeamMemberIds((data || []).map((m: { user_id: string }) => m.user_id))
     }
     loadTeamMembers()
   }, [team.id])
 
-  const teamUsers = orgUsers.filter(u => teamMemberIds.includes(u.id))
+  const teamUsers = orgUsers.filter((u) => teamMemberIds.includes(u.id))
 
   const existingUserIds = new Set(
-    reviewers.filter(r => r.reviewer_type === 'user').map(r => r.user_id)
+    reviewers.filter((r) => r.reviewer_type === 'user').map((r) => r.user_id),
   )
   const existingWorkflowRoleIds = new Set(
-    reviewers.filter(r => r.reviewer_type === 'workflow_role').map(r => r.workflow_role_id)
+    reviewers.filter((r) => r.reviewer_type === 'workflow_role').map((r) => r.workflow_role_id),
   )
 
-  const availableUsers = teamUsers.filter(u => !existingUserIds.has(u.id))
-  const availableWorkflowRoles = workflowRoles.filter(r => !existingWorkflowRoleIds.has(r.id))
+  const availableUsers = teamUsers.filter((u) => !existingUserIds.has(u.id))
+  const availableWorkflowRoles = workflowRoles.filter((r) => !existingWorkflowRoleIds.has(r.id))
 
   const handleAddUser = async (user: OrgUser) => {
     if (!userId) return
@@ -126,10 +123,13 @@ export function TeamReviewersDialog({
   const IconComponent = getTeamIcon(team.icon)
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center"
+      onClick={onClose}
+    >
       <div
         className="bg-plm-bg-light border border-plm-border rounded-xl w-full max-w-2xl mx-4 max-h-[80vh] flex flex-col"
-        onClick={e => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="p-4 border-b border-plm-border flex items-center gap-3">
@@ -195,7 +195,7 @@ export function TeamReviewersDialog({
                     : 'All roles are already added'}
                 </div>
               ) : (
-                availableWorkflowRoles.map(wr => {
+                availableWorkflowRoles.map((wr) => {
                   const WRIcon = getRoleIcon(wr.icon)
                   return (
                     <button
@@ -234,7 +234,7 @@ export function TeamReviewersDialog({
                   All team members are already reviewers
                 </div>
               ) : (
-                availableUsers.map(u => (
+                availableUsers.map((u) => (
                   <button
                     key={u.id}
                     onClick={() => handleAddUser(u)}
@@ -288,7 +288,7 @@ export function TeamReviewersDialog({
             </div>
           ) : (
             <div className="space-y-2">
-              {reviewers.map(reviewer => (
+              {reviewers.map((reviewer) => (
                 <ReviewerRulePill
                   key={reviewer.id}
                   reviewer={reviewer}
@@ -341,7 +341,7 @@ function ReviewerRulePill({
     label = reviewer.user.full_name || reviewer.user.email
     sublabel = 'Individual user'
   } else if (reviewer.reviewer_type === 'workflow_role' && reviewer.workflow_role_id) {
-    const wr = workflowRoles.find(r => r.id === reviewer.workflow_role_id)
+    const wr = workflowRoles.find((r) => r.id === reviewer.workflow_role_id)
     if (wr) {
       const WRIcon = getRoleIcon(wr.icon)
       icon = (

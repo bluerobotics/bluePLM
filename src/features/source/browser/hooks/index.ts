@@ -1,9 +1,9 @@
 /**
  * FilePane Hooks - Barrel Export
- * 
+ *
  * This module provides all hooks for the FilePane component organized by category.
  * Each hook is designed for a specific responsibility following the single-responsibility principle.
- * 
+ *
  * ## State Management Hooks
  * Local UI state management:
  * - `useContextMenuState` - Context menu visibility and position
@@ -11,19 +11,19 @@
  * - `useRenameState` - File rename and inline cell editing
  * - `useInlineActionHover` - Multi-select action button hover states
  * - `useDragState` - Drag-and-drop state and handlers
- * 
+ *
  * Note: SolidWorks configuration state (expandedConfigFiles, selectedConfigs, etc.)
  * is now in Zustand store (usePDMStore) following the same pattern as expandedFolders/selectedFiles.
- * 
+ *
  * ## File Operation Hooks
  * PDM file operations:
  * - `useFileOperations` - Download, upload, checkout, checkin, discard, move
  * - `useFileSelection` - Row click, shift-select, range selection
  * - `useAddFiles` - Add files/folders with conflict resolution
- * 
+ *
  * Note: Download operations use the command system (executeCommand('download')) for
  * consistent incremental store updates and immediate UI feedback.
- * 
+ *
  * ## Handler Hooks
  * Event handlers for UI interactions:
  * - `useColumnHandlers` - Column resize, drag-drop reorder, context menu
@@ -32,7 +32,7 @@
  * - `useConfigHandlers` - SolidWorks configuration management
  * - `useModalHandlers` - Review, checkout request, mention, share, ECO modals
  * - `useKeyboardNav` - Keyboard shortcuts and navigation
- * 
+ *
  * ## Modal State Hooks
  * State for collaboration modals:
  * - `useReviewModal` - Review request modal state
@@ -40,34 +40,34 @@
  * - `useMentionModal` - Mention/notify modal state
  * - `useShareModal` - Share link modal state
  * - `useECOModal` - ECO assignment modal state
- * 
+ *
  * ## Performance Hooks
  * Optimizations for large file lists:
  * - `useFolderMetrics` - Pre-computed folder stats (O(n) vs O(n²))
  * - `useSorting` - Memoized file sorting and filtering
- * 
+ *
  * ## Utility Hooks
  * General-purpose utilities:
  * - `useFileStatus` - Centralized file status computation
  * - `useNavigationHistory` - Back/forward folder navigation
- * 
+ *
  * ## Composite Hooks
  * Convenience hooks that compose others:
  * - `useFilePaneOperations` - Groups operation-related hooks
  * - `useFilePaneView` - Groups view-related state hooks
- * 
+ *
  * @module features/source/browser/hooks
  */
 
 // Context menu state management
 export { useContextMenuState } from './useContextMenuState'
-export type { 
+export type {
   UseContextMenuStateReturn,
   ContextMenuState,
   EmptyContextMenuState,
   ColumnContextMenuState,
   ConfigContextMenuState,
-  RefRowContextMenuState 
+  RefRowContextMenuState,
 } from './useContextMenuState'
 
 // Dialog state management
@@ -77,7 +77,7 @@ export type {
   CustomConfirmState,
   DeleteLocalCheckoutConfirmState,
   ConflictDialogState,
-  FolderConflictDialogState
+  FolderConflictDialogState,
 } from './useDialogState'
 
 // Configuration expansion state is now in Zustand store (usePDMStore.expandedConfigFiles, etc.)
@@ -129,7 +129,10 @@ export type { UseECOModalReturn, ECO } from './useECOModal'
 
 // Navigation history (back/forward)
 export { useNavigationHistory } from './useNavigationHistory'
-export type { UseNavigationHistoryOptions, UseNavigationHistoryReturn } from './useNavigationHistory'
+export type {
+  UseNavigationHistoryOptions,
+  UseNavigationHistoryReturn,
+} from './useNavigationHistory'
 
 // Column handlers (resize, drag-drop reorder, context menu)
 export { useColumnHandlers } from './useColumnHandlers'
@@ -137,7 +140,10 @@ export type { ColumnHandlersDeps, UseColumnHandlersReturn } from './useColumnHan
 
 // Context menu handlers (file and empty area)
 export { useContextMenuHandlers } from './useContextMenuHandlers'
-export type { ContextMenuHandlersDeps, UseContextMenuHandlersReturn } from './useContextMenuHandlers'
+export type {
+  ContextMenuHandlersDeps,
+  UseContextMenuHandlersReturn,
+} from './useContextMenuHandlers'
 
 // File edit handlers (create folder, rename, inline cell editing)
 export { useFileEditHandlers } from './useFileEditHandlers'

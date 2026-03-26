@@ -19,16 +19,19 @@ export function CreatingTransition({
   mousePos,
   stateDimensions,
   DEFAULT_STATE_WIDTH,
-  DEFAULT_STATE_HEIGHT
+  DEFAULT_STATE_HEIGHT,
 }: CreatingTransitionProps) {
   // Determine end point - snap to hovered state edge or use mouse position
   let endX = mousePos.x
   let endY = mousePos.y
-  
+
   if (hoveredStateId && hoveredStateId !== fromState.id) {
-    const hoverState = states.find(s => s.id === hoveredStateId)
+    const hoverState = states.find((s) => s.id === hoveredStateId)
     if (hoverState) {
-      const hoverDims = stateDimensions[hoverState.id] || { width: DEFAULT_STATE_WIDTH, height: DEFAULT_STATE_HEIGHT }
+      const hoverDims = stateDimensions[hoverState.id] || {
+        width: DEFAULT_STATE_WIDTH,
+        height: DEFAULT_STATE_HEIGHT,
+      }
       // Snap end point to nearest of 4 handle positions
       const hw = hoverDims.width / 2
       const hh = hoverDims.height / 2
@@ -51,9 +54,12 @@ export function CreatingTransition({
       endY = nearestHandle.y
     }
   }
-  
+
   // Snap start point to nearest of 4 handle positions on source box
-  const fromDims = stateDimensions[fromState.id] || { width: DEFAULT_STATE_WIDTH, height: DEFAULT_STATE_HEIGHT }
+  const fromDims = stateDimensions[fromState.id] || {
+    width: DEFAULT_STATE_WIDTH,
+    height: DEFAULT_STATE_HEIGHT,
+  }
   const fhw = fromDims.width / 2
   const fhh = fromDims.height / 2
   const fromHandlePositions = [
@@ -71,23 +77,23 @@ export function CreatingTransition({
       startPoint = hp
     }
   }
-  
+
   // Calculate midpoint for curved path
   const midX = (startPoint.x + endX) / 2
   const midY = (startPoint.y + endY) / 2
   const curveOffset = 30
-  
+
   // Curve the line slightly
   let controlX = midX
   let controlY = midY - curveOffset
-  
+
   if (startPoint.edge === 'bottom' || startPoint.edge === 'top') {
     controlX = midX + curveOffset
     controlY = midY
   }
-  
+
   const pathD = `M ${startPoint.x} ${startPoint.y} Q ${controlX} ${controlY} ${endX} ${endY}`
-  
+
   return (
     <path
       d={pathD}
@@ -101,4 +107,3 @@ export function CreatingTransition({
   )
 }
 
-export default CreatingTransition

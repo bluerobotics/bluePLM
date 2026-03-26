@@ -2,9 +2,9 @@
 export { CommandSearch } from './CommandSearch'
 
 // Type exports
-export type { 
-  CommandSearchProps, 
-  SearchFilter, 
+export type {
+  CommandSearchProps,
+  SearchFilter,
   GoogleDriveFileResult,
   FilterOption,
   ParsedQuery,
@@ -23,21 +23,21 @@ export { EmptyState } from './EmptyState'
 export { KeyboardHints } from './KeyboardHints'
 
 // Hooks (for advanced customization)
-export { 
-  useSearchState, 
-  useGoogleDriveSearch, 
-  useLocalFileSearch, 
-  useKeyboardNavigation 
+export {
+  useSearchState,
+  useGoogleDriveSearch,
+  useLocalFileSearch,
+  useKeyboardNavigation,
 } from './hooks'
 
 // Constants
 export { FILTER_OPTIONS } from './constants'
 
 // Utils
-export { 
-  parseQuery, 
-  getCurrentFilter, 
-  getDriveFileIcon, 
-  getStateIndicator, 
-  getAvailableFilters 
+export {
+  parseQuery,
+  getCurrentFilter,
+  getDriveFileIcon,
+  getStateIndicator,
+  getAvailableFilters,
 } from './utils'

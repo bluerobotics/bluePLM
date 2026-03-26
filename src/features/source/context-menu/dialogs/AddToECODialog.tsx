@@ -20,20 +20,14 @@ export function AddToECODialog({
   file,
   organizationId,
   userId,
-  onSuccess
+  onSuccess,
 }: AddToECODialogProps) {
-  const { 
-    addToast,
-    ecosLoaded,
-    getActiveECOs,
-    setECOs,
-    setECOsLoading,
-    ecosLoading
-  } = usePDMStore()
-  
+  const { addToast, ecosLoaded, getActiveECOs, setECOs, setECOsLoading, ecosLoading } =
+    usePDMStore()
+
   // Get active ECOs from store
   const activeECOs = getActiveECOs()
-  
+
   const [selectedECO, setSelectedECO] = useState<string | null>(null)
   const [notes, setNotes] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -47,12 +41,14 @@ export function AddToECODialog({
         // Since getActiveECOs from supabase returns only active ones,
         // we need to set them with the loaded flag
         // For now, just set what we have - full load happens in ECOView
-        setECOs(ecos.map(eco => ({
-          ...eco,
-          description: eco.description ?? null,
-          status: eco.status ?? null,
-          created_at: eco.created_at ?? null,
-        })))
+        setECOs(
+          ecos.map((eco) => ({
+            ...eco,
+            description: eco.description ?? null,
+            status: eco.status ?? null,
+            created_at: eco.created_at ?? null,
+          })),
+        )
         setECOsLoading(false)
       })
     }
@@ -63,30 +59,30 @@ export function AddToECODialog({
       addToast('warning', 'Please select an ECO')
       return
     }
-    
+
     if (!file.pdmData) {
       addToast('error', 'File must be synced to add to ECO')
       return
     }
-    
+
     setIsSubmitting(true)
-    
+
     const { success, error } = await addFileToECO(
       file.pdmData.id,
       selectedECO,
       userId,
-      notes || undefined
+      notes || undefined,
     )
-    
+
     if (success) {
-      const eco = activeECOs.find(e => e.id === selectedECO)
+      const eco = activeECOs.find((e) => e.id === selectedECO)
       addToast('success', `Added to ${eco?.eco_number || 'ECO'}`)
       handleClose()
       onSuccess()
     } else {
       addToast('error', error || 'Failed to add to ECO')
     }
-    
+
     setIsSubmitting(false)
   }
 
@@ -99,11 +95,11 @@ export function AddToECODialog({
   if (!isOpen) return null
 
   return (
-    <div 
+    <div
       className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-center justify-center"
       onClick={handleClose}
     >
-      <div 
+      <div
         className="bg-plm-bg-light border border-plm-border rounded-lg p-6 max-w-md w-full shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
@@ -116,7 +112,7 @@ export function AddToECODialog({
             <p className="text-sm text-plm-fg-muted">Add file to Engineering Change Order</p>
           </div>
         </div>
-        
+
         {/* File info */}
         <div className="bg-plm-bg rounded border border-plm-border p-3 mb-4">
           <div className="flex items-center gap-2">
@@ -124,7 +120,7 @@ export function AddToECODialog({
             <span className="text-plm-fg font-medium truncate">{file.name}</span>
           </div>
         </div>
-        
+
         {/* ECO selection */}
         <div className="mb-4">
           <label className="block text-xs text-plm-fg-muted uppercase tracking-wide mb-2">
@@ -135,11 +131,13 @@ export function AddToECODialog({
               <Loader2 size={20} className="animate-spin text-plm-accent" />
             </div>
           ) : activeECOs.length === 0 ? (
-            <p className="text-sm text-plm-fg-muted p-2">No active ECOs found. Create one in the ECO Manager first.</p>
+            <p className="text-sm text-plm-fg-muted p-2">
+              No active ECOs found. Create one in the ECO Manager first.
+            </p>
           ) : (
             <div className="max-h-48 overflow-y-auto border border-plm-border rounded bg-plm-bg">
-              {activeECOs.map(eco => (
-                <label 
+              {activeECOs.map((eco) => (
+                <label
                   key={eco.id}
                   className="flex items-center gap-3 p-2 hover:bg-plm-highlight cursor-pointer"
                 >
@@ -152,13 +150,9 @@ export function AddToECODialog({
                     className="w-4 h-4 border-plm-border text-plm-accent focus:ring-plm-accent"
                   />
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm text-plm-fg font-medium">
-                      {eco.eco_number}
-                    </div>
+                    <div className="text-sm text-plm-fg font-medium">{eco.eco_number}</div>
                     {eco.title && (
-                      <div className="text-xs text-plm-fg-muted truncate">
-                        {eco.title}
-                      </div>
+                      <div className="text-xs text-plm-fg-muted truncate">{eco.title}</div>
                     )}
                   </div>
                 </label>
@@ -166,7 +160,7 @@ export function AddToECODialog({
             </div>
           )}
         </div>
-        
+
         {/* Notes */}
         <div className="mb-4">
           <label className="block text-xs text-plm-fg-muted uppercase tracking-wide mb-2">
@@ -180,7 +174,7 @@ export function AddToECODialog({
             rows={2}
           />
         </div>
-        
+
         {/* Actions */}
         <div className="flex justify-end gap-2">
           <button onClick={handleClose} className="btn btn-ghost">

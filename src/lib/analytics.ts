@@ -6,7 +6,9 @@
 import * as Sentry from '@sentry/browser'
 
 // Sentry DSN for error tracking
-const SENTRY_DSN = import.meta.env.VITE_SENTRY_DSN || 'https://cbbd3e20a9a48e7f20d25966cfd838c1@o4510557909417984.ingest.us.sentry.io/4510557922263040'
+const SENTRY_DSN =
+  import.meta.env.VITE_SENTRY_DSN ||
+  'https://cbbd3e20a9a48e7f20d25966cfd838c1@o4510557909417984.ingest.us.sentry.io/4510557922263040'
 
 let initialized = false
 
@@ -25,7 +27,7 @@ export function initAnalytics(enabled: boolean): boolean {
 
   // Get app version from package.json (injected by Vite)
   const appVersion = import.meta.env.PACKAGE_VERSION || 'unknown'
-  
+
   try {
     Sentry.init({
       dsn: SENTRY_DSN,
@@ -36,9 +38,7 @@ export function initAnalytics(enabled: boolean): boolean {
       // Sample rate for performance monitoring (0.1 = 10% of transactions)
       tracesSampleRate: 0.1,
       // Capture unhandled promise rejections
-      integrations: [
-        Sentry.browserTracingIntegration(),
-      ],
+      integrations: [Sentry.browserTracingIntegration()],
       // Filter out sensitive data
       beforeSend(event) {
         // Remove any potential file paths from the event
@@ -73,11 +73,11 @@ export function initAnalytics(enabled: boolean): boolean {
  */
 export function setAnalyticsUser(userId: string, orgId?: string): void {
   if (!initialized) return
-  
+
   // Use hashed IDs for privacy
   const hashedUserId = hashId(userId)
   const hashedOrgId = orgId ? hashId(orgId) : undefined
-  
+
   Sentry.setUser({
     id: hashedUserId,
     ...(hashedOrgId && { org_id: hashedOrgId }),
@@ -116,7 +116,7 @@ export function trackMessage(message: string, level: 'info' | 'warning' | 'error
 export function addBreadcrumb(
   category: string,
   message: string,
-  data?: Record<string, unknown>
+  data?: Record<string, unknown>,
 ): void {
   if (!initialized) return
   Sentry.addBreadcrumb({
@@ -147,9 +147,8 @@ function hashId(id: string): string {
   let hash = 0
   for (let i = 0; i < id.length; i++) {
     const char = id.charCodeAt(i)
-    hash = ((hash << 5) - hash) + char
+    hash = (hash << 5) - hash + char
     hash = hash & hash // Convert to 32bit integer
   }
   return Math.abs(hash).toString(16)
 }
-

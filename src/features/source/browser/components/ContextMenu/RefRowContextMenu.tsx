@@ -15,7 +15,7 @@ export interface RefRowContextMenuProps {
 export function RefRowContextMenu({
   refRowContextMenu,
   onNavigateToFile,
-  onClose
+  onClose,
 }: RefRowContextMenuProps) {
   return (
     <>

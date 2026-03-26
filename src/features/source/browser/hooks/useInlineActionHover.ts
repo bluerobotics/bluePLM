@@ -11,7 +11,7 @@ export interface UseInlineActionHoverReturn {
   setIsCheckinHovered: (hovered: boolean) => void
   isUpdateHovered: boolean
   setIsUpdateHovered: (hovered: boolean) => void
-  
+
   // Reset all hover states
   resetHoverStates: () => void
 }
@@ -26,7 +26,7 @@ export function useInlineActionHover(): UseInlineActionHoverReturn {
   const [isCheckoutHovered, setIsCheckoutHovered] = useState(false)
   const [isCheckinHovered, setIsCheckinHovered] = useState(false)
   const [isUpdateHovered, setIsUpdateHovered] = useState(false)
-  
+
   const resetHoverStates = useCallback(() => {
     setIsDownloadHovered(false)
     setIsUploadHovered(false)
@@ -34,7 +34,7 @@ export function useInlineActionHover(): UseInlineActionHoverReturn {
     setIsCheckinHovered(false)
     setIsUpdateHovered(false)
   }, [])
-  
+
   return {
     isDownloadHovered,
     setIsDownloadHovered,

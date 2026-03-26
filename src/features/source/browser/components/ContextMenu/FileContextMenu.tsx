@@ -1,7 +1,7 @@
 /**
  * File context menu component
  * Composes action components for a clean, maintainable structure
- * 
+ *
  * Menu Structure:
  * - Primary actions (always visible): Open, Download, Check In/Out
  * - Grouped submenus: File Actions, Edit, Export
@@ -37,33 +37,33 @@ export interface FileContextMenuProps {
   contextMenu: { x: number; y: number; file: LocalFile }
   contextMenuAdjustedPos: { x: number; y: number } | null
   onClose: () => void
-  
+
   // Ref for positioning (from useContextMenuState)
   contextMenuRef: React.RefObject<HTMLDivElement | null>
-  
+
   // Files and context
   getContextMenuFiles: () => LocalFile[]
-  
+
   // Platform (not in context)
   platform: string
-  
+
   // Handlers for file operations
   onRefresh: (silent?: boolean) => void
   navigateToFolder: (path: string) => void
   startRenaming: (file: LocalFile) => void
-  
+
   // Clipboard operations
   handleCopy: () => void
   handleCut: () => void
   handlePaste: () => void
-  
+
   // Checkout folder operations
   handleCheckoutFolder: (folder: LocalFile) => void
   handleCheckinFolder: (folder: LocalFile) => void
-  
+
   // State change
   handleBulkStateChange: (files: LocalFile[], newState: string) => void
-  
+
   // Modals and panels
   setDetailsPanelTab: (tab: 'properties' | 'whereused') => void
   setDetailsPanelVisible: (visible: boolean) => void
@@ -71,33 +71,37 @@ export interface FileContextMenuProps {
   handleOpenCheckoutRequestModal: (file: LocalFile) => void
   handleOpenMentionModal: (file: LocalFile) => void
   handleOpenECOModal: (file: LocalFile) => void
-  
+
   // Watch and share
   watchingFiles: Set<string>
   isTogglingWatch: boolean
   handleToggleWatch: (file: LocalFile) => void
   isCreatingShareLink: boolean
   handleQuickShareLink: (file: LocalFile) => void
-  
+
   // Delete operations
-  setCustomConfirm: (state: {
-    title: string
-    message: string
-    warning?: string
-    confirmText: string
-    confirmDanger?: boolean
-    onConfirm: () => void
-  } | null) => void
-  setDeleteLocalCheckoutConfirm: (state: {
-    checkedOutFiles: LocalFile[]
-    allFilesToProcess: LocalFile[]
-    contextFiles: LocalFile[]
-  } | null) => void
-  
+  setCustomConfirm: (
+    state: {
+      title: string
+      message: string
+      warning?: string
+      confirmText: string
+      confirmDanger?: boolean
+      onConfirm: () => void
+    } | null,
+  ) => void
+  setDeleteLocalCheckoutConfirm: (
+    state: {
+      checkedOutFiles: LocalFile[]
+      allFilesToProcess: LocalFile[]
+      contextFiles: LocalFile[]
+    } | null,
+  ) => void
+
   // Undo
   undoStack: Array<{ type: 'delete'; file: LocalFile; originalPath: string }>
   handleUndo: () => void
-  
+
   // Submenu state
   showIgnoreSubmenu: boolean
   setShowIgnoreSubmenu: (value: boolean) => void
@@ -105,7 +109,7 @@ export interface FileContextMenuProps {
   setShowStateSubmenu: (value: boolean) => void
   ignoreSubmenuTimeoutRef: React.MutableRefObject<NodeJS.Timeout | null>
   stateSubmenuTimeoutRef: React.MutableRefObject<NodeJS.Timeout | null>
-  
+
   // Files currently saving metadata
   savingConfigsToSW?: Set<string>
 }
@@ -153,43 +157,56 @@ export function FileContextMenu({
 }: FileContextMenuProps) {
   // Get user and other values from store
   const { user, files, getEffectiveRole, solidworksIntegrationEnabled } = usePDMStore()
-  
+
   // State for expandable section
   const [isExpanded, setIsExpanded] = useState(false)
-  
+
   // Get context files
   const contextFiles = getContextMenuFiles()
   const multiSelect = contextFiles.length > 1
   const firstFile = contextFiles[0]
   // Use the selection state hook to compute counts and state
-  const { counts, state, syncedFilesInSelection, unsyncedFilesInSelection } = 
+  const { counts, state, syncedFilesInSelection, unsyncedFilesInSelection } =
     useContextMenuSelectionState({
       contextFiles,
       userId: user?.id,
     })
-  
+
   // Compute whether to show expandable "More Actions" section
   // Only show when total menu items exceed threshold, otherwise show all items inline
-  const menuCountProps = useMemo(() => ({
-    contextFiles,
-    multiSelect,
-    firstFile,
-    counts,
-    state,
-    userId: user?.id,
-    isAdmin: getEffectiveRole() === 'admin',
-    solidworksEnabled: solidworksIntegrationEnabled,
-    allFiles: files,
-  }), [contextFiles, multiSelect, firstFile, counts, state, user?.id, getEffectiveRole, solidworksIntegrationEnabled, files])
-  
-  const showExpandable = useMemo(() => 
-    shouldShowExpandableSection(menuCountProps), 
-    [menuCountProps]
+  const menuCountProps = useMemo(
+    () => ({
+      contextFiles,
+      multiSelect,
+      firstFile,
+      counts,
+      state,
+      userId: user?.id,
+      isAdmin: getEffectiveRole() === 'admin',
+      solidworksEnabled: solidworksIntegrationEnabled,
+      allFiles: files,
+    }),
+    [
+      contextFiles,
+      multiSelect,
+      firstFile,
+      counts,
+      state,
+      user?.id,
+      getEffectiveRole,
+      solidworksIntegrationEnabled,
+      files,
+    ],
   )
-  
-  const collaborationItemCount = useMemo(() => 
-    countCollaborationActions(menuCountProps),
-    [menuCountProps]
+
+  const showExpandable = useMemo(
+    () => shouldShowExpandableSection(menuCountProps),
+    [menuCountProps],
+  )
+
+  const collaborationItemCount = useMemo(
+    () => countCollaborationActions(menuCountProps),
+    [menuCountProps],
   )
 
   // Close menu and clear submenus
@@ -207,15 +224,15 @@ export function FileContextMenu({
 
   // Check if we have items for the File Actions submenu (always true - Copy Name works for all files)
   const hasFileSystemActions = true
-  
+
   // Export: SolidWorks sources and/or PDF & STEP (metadata table)
   const swExtensions = ['.sldprt', '.sldasm', '.slddrw']
   const pdfStepExtensions = new Set(['.pdf', '.step', '.stp', '.stpz', '.p21'])
-  const hasSwExportActions = contextFiles.some(f => {
+  const hasSwExportActions = contextFiles.some((f) => {
     const ext = f.extension?.toLowerCase() || ''
     return swExtensions.includes(ext) && !f.isDirectory
   })
-  const hasPdfStepTableExport = contextFiles.some(f => {
+  const hasPdfStepTableExport = contextFiles.some((f) => {
     const ext = f.extension?.toLowerCase() || ''
     return !f.isDirectory && pdfStepExtensions.has(ext)
   })
@@ -224,26 +241,26 @@ export function FileContextMenu({
   return (
     <>
       {/* Overlay to close menu on click */}
-      <div 
-        className="fixed inset-0 z-50" 
+      <div
+        className="fixed inset-0 z-50"
         onClick={handleCloseMenu}
         onContextMenu={(e) => {
           e.preventDefault()
           handleCloseMenu()
         }}
       />
-      
+
       {/* Context menu */}
-      <div 
+      <div
         ref={contextMenuRef}
         className="context-menu z-[60]"
-        style={{ 
-          left: contextMenuAdjustedPos?.x ?? contextMenu.x, 
-          top: contextMenuAdjustedPos?.y ?? contextMenu.y 
+        style={{
+          left: contextMenuAdjustedPos?.x ?? contextMenu.x,
+          top: contextMenuAdjustedPos?.y ?? contextMenu.y,
         }}
       >
         {/* ===== PRIMARY ACTIONS (always visible) ===== */}
-        
+
         {/* Open actions (open file, open folder, open all) */}
         <OpenActions
           contextFiles={contextFiles}
@@ -252,7 +269,7 @@ export function FileContextMenu({
           onClose={onClose}
           navigateToFolder={navigateToFolder}
         />
-        
+
         {/* Assembly actions (insert into open SolidWorks assembly) */}
         <AssemblyActions
           contextFiles={contextFiles}
@@ -260,7 +277,7 @@ export function FileContextMenu({
           firstFile={firstFile}
           onClose={onClose}
         />
-        
+
         {/* Bulk assembly actions (download/checkout/checkin all related files) */}
         <BulkAssemblyActions
           contextFiles={contextFiles}
@@ -268,7 +285,7 @@ export function FileContextMenu({
           firstFile={firstFile}
           onClose={onClose}
         />
-        
+
         {/* Sync actions (download, ignore, first check in) */}
         <SyncActions
           contextFiles={contextFiles}
@@ -283,7 +300,7 @@ export function FileContextMenu({
           setShowIgnoreSubmenu={setShowIgnoreSubmenu}
           ignoreSubmenuTimeoutRef={ignoreSubmenuTimeoutRef}
         />
-        
+
         {/* Checkout actions (checkout, checkin, discard, force release, change state) */}
         <CheckoutActions
           contextFiles={contextFiles}
@@ -302,16 +319,12 @@ export function FileContextMenu({
           stateSubmenuTimeoutRef={stateSubmenuTimeoutRef}
           savingConfigsToSW={savingConfigsToSW}
         />
-        
+
         {/* ===== GROUPED SUBMENUS ===== */}
         <div className="context-menu-separator" />
-        
+
         {/* File Actions submenu (show in explorer, copy path, pin, rename) */}
-        <ContextMenuGroup 
-          label="File Actions" 
-          icon={FolderOpen}
-          hasItems={hasFileSystemActions}
-        >
+        <ContextMenuGroup label="File Actions" icon={FolderOpen} hasItems={hasFileSystemActions}>
           <FileSystemActions
             contextFiles={contextFiles}
             multiSelect={multiSelect}
@@ -322,12 +335,9 @@ export function FileContextMenu({
             userId={user?.id}
           />
         </ContextMenuGroup>
-        
+
         {/* Edit submenu (copy, cut, paste) */}
-        <ContextMenuGroup 
-          label="Edit" 
-          icon={Clipboard}
-        >
+        <ContextMenuGroup label="Edit" icon={Clipboard}>
           <ClipboardActions
             contextFiles={contextFiles}
             multiSelect={multiSelect}
@@ -338,13 +348,9 @@ export function FileContextMenu({
             handlePaste={handlePaste}
           />
         </ContextMenuGroup>
-        
+
         {/* Export submenu (SolidWorks STEP, IGES, STL, PDF, DXF) */}
-        <ContextMenuGroup 
-          label="Export" 
-          icon={FileOutput}
-          hasItems={hasExportActions}
-        >
+        <ContextMenuGroup label="Export" icon={FileOutput} hasItems={hasExportActions}>
           <ExportMetadataTableActions
             contextFiles={contextFiles}
             multiSelect={multiSelect}
@@ -358,7 +364,7 @@ export function FileContextMenu({
             onClose={onClose}
           />
         </ContextMenuGroup>
-        
+
         {/* ===== DELETE ACTIONS (always visible) ===== */}
         <DeleteActions
           contextFiles={contextFiles}
@@ -373,7 +379,7 @@ export function FileContextMenu({
           undoStack={undoStack}
           handleUndo={handleUndo}
         />
-        
+
         {/* ===== COLLABORATION ACTIONS ===== */}
         {/* Show in expandable section only when total items exceed threshold */}
         {showExpandable ? (

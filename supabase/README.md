@@ -11,7 +11,7 @@ supabase/
 │   ├── 10-source-files.sql     # Files, vaults, workflows, backups
 │   ├── 20-change-control.sql   # ECOs, reviews, deviations, process templates
 │   ├── 30-supply-chain.sql     # Suppliers, RFQs, pricing
-│   ├── 40-integrations.sql     # Webhooks, Odoo, WooCommerce
+│   ├── 40-integrations.sql     # Webhooks, Odoo
 │   └── README.md               # Module documentation
 ├── tools/
 │   ├── reset.sql               # ⚠️ Nuclear reset (deletes all data)
@@ -100,7 +100,7 @@ Run `tools/verify-schema.sql` after installation to check:
 | 10-source-files.sql | 25+ | 20+ | File management, workflows, backups |
 | 20-change-control.sql | 10+ | 5+ | ECOs, reviews, deviations |
 | 30-supply-chain.sql | 6+ | 5+ | Suppliers, RFQs, pricing |
-| 40-integrations.sql | 6+ | 5+ | Webhooks, Odoo, WooCommerce |
+| 40-integrations.sql | 6+ | 5+ | Webhooks, Odoo |
 
 ## Related Documentation
 

@@ -25,10 +25,10 @@ export function FileOperationItems({
   onRename,
   onNewFolder,
   onClose,
-  onRefresh
+  onRefresh,
 }: FileOperationItemsProps) {
   const { files } = usePDMStore()
-  
+
   const handleOpen = () => {
     onClose()
     executeCommand('open', { file: firstFile }, { onRefresh })
@@ -44,20 +44,19 @@ export function FileOperationItems({
     if (isFolder) {
       // Folders: block only if another user has files checked out inside
       const folderPath = firstFile.relativePath.replace(/\\/g, '/')
-      const nestedFiles = files.filter(f => {
+      const nestedFiles = files.filter((f) => {
         if (f.isDirectory) return false
         return f.relativePath.replace(/\\/g, '/').startsWith(folderPath + '/')
       })
-      return !nestedFiles.some(f =>
-        f.pdmData?.checked_out_by &&
-        f.pdmData.checked_out_by !== userId
+      return !nestedFiles.some(
+        (f) => f.pdmData?.checked_out_by && f.pdmData.checked_out_by !== userId,
       )
     }
     const isSynced = !!firstFile.pdmData
     const isCheckedOutByMe = firstFile.pdmData?.checked_out_by === userId
     return !isSynced || isCheckedOutByMe
   })()
-  
+
   // Check if the specific file/folder exists locally (not cloud-only)
   // This is different from allCloudOnly which derives folder status from children,
   // causing empty local folders to be incorrectly treated as cloud-only
@@ -72,7 +71,7 @@ export function FileOperationItems({
           {isFolder ? 'Open Folder' : 'Open'}
         </div>
       )}
-      
+
       {/* Show in Explorer/Finder */}
       {isLocalItem && (
         <div className="context-menu-item" onClick={handleShowInExplorer}>
@@ -80,18 +79,24 @@ export function FileOperationItems({
           {platform === 'darwin' ? 'Reveal in Finder' : 'Show in Explorer'}
         </div>
       )}
-      
+
       {/* Rename - right after pin */}
       {onRename && !multiSelect && (isLocalItem || isFolder) && (
-        <div 
+        <div
           className={`context-menu-item ${!canRename ? 'disabled' : ''}`}
-          onClick={() => { 
+          onClick={() => {
             if (canRename) {
               onRename(firstFile)
               onClose()
             }
           }}
-          title={!canRename ? (isFolder ? 'Another user has files checked out in this folder' : 'Check out file first to rename') : ''}
+          title={
+            !canRename
+              ? isFolder
+                ? 'Another user has files checked out in this folder'
+                : 'Check out file first to rename'
+              : ''
+          }
         >
           <Edit size={14} />
           Rename
@@ -100,12 +105,18 @@ export function FileOperationItems({
           </span>
         </div>
       )}
-      
+
       {/* New Folder */}
       {onNewFolder && isFolder && !multiSelect && isLocalItem && (
         <>
           <div className="context-menu-separator" />
-          <div className="context-menu-item" onClick={() => { onNewFolder(); onClose(); }}>
+          <div
+            className="context-menu-item"
+            onClick={() => {
+              onNewFolder()
+              onClose()
+            }}
+          >
             <FolderPlus size={14} />
             New Folder
           </div>

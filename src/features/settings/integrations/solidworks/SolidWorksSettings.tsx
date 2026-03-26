@@ -14,7 +14,7 @@ const tabs: Tab[] = [
   { id: 'service', label: 'Service', icon: Activity },
   { id: 'licenses', label: 'Licenses', icon: Key },
   { id: 'templates', label: 'Templates', icon: FolderOpen },
-  { id: 'settings', label: 'Settings', icon: Settings }
+  { id: 'settings', label: 'Settings', icon: Settings },
 ]
 
 export function SolidWorksSettings() {
@@ -63,9 +63,7 @@ export function SolidWorksSettings() {
       </div>
 
       {/* Tab Content */}
-      <div className="min-h-[400px]">
-        {renderTabContent()}
-      </div>
+      <div className="min-h-[400px]">{renderTabContent()}</div>
     </div>
   )
 }

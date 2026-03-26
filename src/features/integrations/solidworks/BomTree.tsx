@@ -15,7 +15,7 @@ import {
   Check,
   CheckCircle,
   XCircle,
-  AlertTriangle
+  AlertTriangle,
 } from 'lucide-react'
 import { log } from '@/lib/logger'
 import type { BomNodePathStatus } from '@/lib/solidworks'
@@ -25,7 +25,7 @@ import type { BomNodePathStatus } from '@/lib/solidworks'
 // ============================================
 
 export interface BomNode {
-  fileId: string | null  // null if not in database
+  fileId: string | null // null if not in database
   filePath: string
   fileName: string
   fileType: 'part' | 'assembly' | 'drawing' | 'other'
@@ -38,7 +38,7 @@ export interface BomNode {
   children: BomNode[]
   inDatabase: boolean
   material?: string
-  level?: number  // Computed during flattening
+  level?: number // Computed during flattening
   /** Path validation status (when SW service is running) */
   pathStatus?: BomNodePathStatus
 }
@@ -79,28 +79,24 @@ function SWFileIcon({ fileType, size = 16 }: { fileType: BomNode['fileType']; si
 
 function StateIndicator({ state }: { state: string | null }) {
   if (!state) return null
-  
+
   const stateColors: Record<string, string> = {
     'work-in-progress': 'bg-amber-500/20 text-amber-400',
     'in-review': 'bg-sky-500/20 text-sky-400',
-    'released': 'bg-emerald-500/20 text-emerald-400',
-    'obsolete': 'bg-rose-500/20 text-rose-400',
+    released: 'bg-emerald-500/20 text-emerald-400',
+    obsolete: 'bg-rose-500/20 text-rose-400',
   }
-  
+
   const colorClass = stateColors[state.toLowerCase()] || 'bg-plm-bg text-plm-fg-muted'
-  const displayState = state.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
-  
-  return (
-    <span className={`text-[10px] px-1.5 py-0.5 rounded ${colorClass}`}>
-      {displayState}
-    </span>
-  )
+  const displayState = state.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+
+  return <span className={`text-[10px] px-1.5 py-0.5 rounded ${colorClass}`}>{displayState}</span>
 }
 
 /**
  * Path status indicator for BOM tree nodes.
  * Shows visual indicator for path validation results from SolidWorks service.
- * 
+ *
  * - Green checkmark: Path matched (exact or suffix match)
  * - Red X: Path broken - file not found in vault
  * - Amber warning: Matched by filename only (path may differ)
@@ -108,25 +104,22 @@ function StateIndicator({ state }: { state: string | null }) {
  */
 function PathStatusIndicator({ pathStatus }: { pathStatus?: BomNodePathStatus }) {
   if (!pathStatus) return null
-  
+
   const { status, matchMethod, tooltip } = pathStatus
-  
+
   // Map status and match method to visual indicator
   if (status === 'valid') {
     if (matchMethod === 'exact' || matchMethod === 'suffix') {
       return (
-        <span 
-          className="flex items-center" 
-          title={tooltip || 'Path verified'}
-        >
+        <span className="flex items-center" title={tooltip || 'Path verified'}>
           <CheckCircle size={12} className="text-emerald-400" />
         </span>
       )
     }
     if (matchMethod === 'filename') {
       return (
-        <span 
-          className="flex items-center" 
+        <span
+          className="flex items-center"
           title={tooltip || 'Matched by filename only - path may differ'}
         >
           <AlertTriangle size={12} className="text-amber-400" />
@@ -134,29 +127,26 @@ function PathStatusIndicator({ pathStatus }: { pathStatus?: BomNodePathStatus })
       )
     }
   }
-  
+
   if (status === 'broken') {
     return (
-      <span 
-        className="flex items-center" 
-        title={tooltip || 'Path not found in vault'}
-      >
+      <span className="flex items-center" title={tooltip || 'Path not found in vault'}>
         <XCircle size={12} className="text-red-400" />
       </span>
     )
   }
-  
+
   if (status === 'not_in_vault') {
     return (
-      <span 
-        className="flex items-center gap-0.5 text-[10px] text-amber-400" 
+      <span
+        className="flex items-center gap-0.5 text-[10px] text-amber-400"
         title={tooltip || 'File exists in SolidWorks but not synced to vault'}
       >
         <CloudOff size={10} />
       </span>
     )
   }
-  
+
   // unknown status - no indicator
   return null
 }
@@ -174,13 +164,13 @@ interface BomTreeRowProps {
   isFlat: boolean
 }
 
-function BomTreeRow({ 
-  node, 
-  level, 
-  isExpanded, 
-  onToggleExpand, 
+function BomTreeRow({
+  node,
+  level,
+  isExpanded,
+  onToggleExpand,
   onNavigate,
-  isFlat
+  isFlat,
 }: BomTreeRowProps) {
   const hasChildren = node.children.length > 0
   const indentPx = isFlat ? 0 : level * 20
@@ -189,9 +179,7 @@ function BomTreeRow({
   return (
     <div
       className={`flex items-center gap-2 py-1.5 px-2 rounded cursor-pointer group border-b border-plm-border/20 last:border-b-0 ${
-        isBroken 
-          ? 'bg-red-500/10 hover:bg-red-500/15' 
-          : 'hover:bg-plm-bg-light'
+        isBroken ? 'bg-red-500/10 hover:bg-red-500/15' : 'hover:bg-plm-bg-light'
       }`}
       style={{ paddingLeft: `${indentPx + 8}px` }}
       onClick={() => onNavigate?.(node)}
@@ -221,9 +209,7 @@ function BomTreeRow({
 
       {/* Level indicator in flat mode */}
       {isFlat && (
-        <span className="w-6 text-[10px] text-plm-fg-muted text-center flex-shrink-0">
-          {level}
-        </span>
+        <span className="w-6 text-[10px] text-plm-fg-muted text-center flex-shrink-0">{level}</span>
       )}
 
       {/* File Icon */}
@@ -233,12 +219,10 @@ function BomTreeRow({
       <PathStatusIndicator pathStatus={node.pathStatus} />
 
       {/* File Name */}
-      <span className="flex-1 min-w-0 truncate text-sm text-plm-fg">
-        {node.fileName}
-      </span>
+      <span className="flex-1 min-w-0 truncate text-sm text-plm-fg">{node.fileName}</span>
 
       {/* Description - hidden on narrow panels via @container query fallback */}
-      <span 
+      <span
         className="hidden sm:block w-[120px] text-xs text-plm-fg-muted truncate flex-shrink-0"
         title={node.description || undefined}
       >
@@ -251,7 +235,7 @@ function BomTreeRow({
       </span>
 
       {/* Part Number */}
-      <span 
+      <span
         className="w-[90px] text-xs text-plm-accent font-mono flex-shrink-0 truncate"
         title={node.partNumber || undefined}
       >
@@ -265,7 +249,10 @@ function BomTreeRow({
 
       {/* Not in database indicator */}
       {!node.inDatabase && (
-        <span className="flex items-center gap-0.5 text-[10px] text-amber-400" title="Not synced to vault">
+        <span
+          className="flex items-center gap-0.5 text-[10px] text-amber-400"
+          title="Not synced to vault"
+        >
           <CloudOff size={10} />
         </span>
       )}
@@ -300,7 +287,14 @@ interface TreeNodeProps {
   isFlat: boolean
 }
 
-function TreeNode({ node, level, expandedNodes, toggleExpanded, onNavigate, isFlat }: TreeNodeProps) {
+function TreeNode({
+  node,
+  level,
+  expandedNodes,
+  toggleExpanded,
+  onNavigate,
+  isFlat,
+}: TreeNodeProps) {
   const nodeKey = `${node.filePath}-${level}`
   const isExpanded = expandedNodes.has(nodeKey)
 
@@ -314,17 +308,19 @@ function TreeNode({ node, level, expandedNodes, toggleExpanded, onNavigate, isFl
         onNavigate={onNavigate}
         isFlat={isFlat}
       />
-      {isExpanded && !isFlat && node.children.map((child, idx) => (
-        <TreeNode
-          key={`${child.filePath}-${idx}`}
-          node={child}
-          level={level + 1}
-          expandedNodes={expandedNodes}
-          toggleExpanded={toggleExpanded}
-          onNavigate={onNavigate}
-          isFlat={isFlat}
-        />
-      ))}
+      {isExpanded &&
+        !isFlat &&
+        node.children.map((child, idx) => (
+          <TreeNode
+            key={`${child.filePath}-${idx}`}
+            node={child}
+            level={level + 1}
+            expandedNodes={expandedNodes}
+            toggleExpanded={toggleExpanded}
+            onNavigate={onNavigate}
+            isFlat={isFlat}
+          />
+        ))}
     </>
   )
 }
@@ -335,14 +331,14 @@ function TreeNode({ node, level, expandedNodes, toggleExpanded, onNavigate, isFl
 
 function flattenBom(nodes: BomNode[], level = 1): Array<BomNode & { level: number }> {
   const result: Array<BomNode & { level: number }> = []
-  
+
   for (const node of nodes) {
     result.push({ ...node, level })
     if (node.children.length > 0) {
       result.push(...flattenBom(node.children, level + 1))
     }
   }
-  
+
   return result
 }
 
@@ -369,20 +365,31 @@ function calculateSummary(nodes: BomNode[]): {
   }
 
   traverse(nodes)
-  
+
   return {
     uniqueParts: partSet.size,
     totalQuantity,
     missingCount,
-    partSet
+    partSet,
   }
 }
 
 function bomToCsv(nodes: BomNode[], _assemblyName?: string): string {
   const flatList = flattenBom(nodes)
-  const headers = ['Level', 'File Name', 'Part Number', 'Description', 'Revision', 'Quantity', 'State', 'Material', 'In Database', 'File Path']
-  
-  const rows = flatList.map(node => [
+  const headers = [
+    'Level',
+    'File Name',
+    'Part Number',
+    'Description',
+    'Revision',
+    'Quantity',
+    'State',
+    'Material',
+    'In Database',
+    'File Path',
+  ]
+
+  const rows = flatList.map((node) => [
     node.level.toString(),
     node.fileName,
     node.partNumber || '',
@@ -392,12 +399,12 @@ function bomToCsv(nodes: BomNode[], _assemblyName?: string): string {
     node.state || '',
     node.material || '',
     node.inDatabase ? 'Yes' : 'No',
-    node.filePath
+    node.filePath,
   ])
 
   const csvContent = [
     headers.join(','),
-    ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')),
   ].join('\n')
 
   return csvContent
@@ -414,7 +421,7 @@ export function BomTree({
   emptyMessage = 'No components found',
   className = '',
   showExport = true,
-  assemblyName
+  assemblyName,
 }: BomTreeProps) {
   const [isFlat, setIsFlat] = useState(false)
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => {
@@ -431,7 +438,7 @@ export function BomTree({
   const [copied, setCopied] = useState(false)
 
   const toggleExpanded = useCallback((key: string) => {
-    setExpandedNodes(prev => {
+    setExpandedNodes((prev) => {
       const next = new Set(prev)
       if (next.has(key)) {
         next.delete(key)
@@ -445,7 +452,7 @@ export function BomTree({
   const expandAll = useCallback(() => {
     const allKeys = new Set<string>()
     function addKeys(nodeList: BomNode[], level: number) {
-      nodeList.forEach(node => {
+      nodeList.forEach((node) => {
         allKeys.add(`${node.filePath}-${level}`)
         if (node.children.length > 0) {
           addKeys(node.children, level + 1)
@@ -462,10 +469,7 @@ export function BomTree({
 
   const summary = useMemo(() => calculateSummary(nodes), [nodes])
 
-  const flatNodes = useMemo(() => 
-    isFlat ? flattenBom(nodes) : [], 
-    [nodes, isFlat]
-  )
+  const flatNodes = useMemo(() => (isFlat ? flattenBom(nodes) : []), [nodes, isFlat])
 
   const handleExportCsv = useCallback(() => {
     const csv = bomToCsv(nodes, assemblyName)
@@ -486,8 +490,8 @@ export function BomTree({
       await navigator.clipboard.writeText(csv)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-    } catch (err) {
-      log.error('[SolidWorks]', 'Failed to copy BOM', { error: err })
+    } catch (error) {
+      log.error('[SolidWorks]', 'Failed to copy BOM', { error: error })
     }
   }, [nodes, assemblyName])
 
@@ -502,7 +506,9 @@ export function BomTree({
 
   if (nodes.length === 0) {
     return (
-      <div className={`flex flex-col items-center justify-center py-8 text-plm-fg-muted ${className}`}>
+      <div
+        className={`flex flex-col items-center justify-center py-8 text-plm-fg-muted ${className}`}
+      >
         <Layers size={32} className="mb-3 opacity-30" />
         <div className="text-sm">{emptyMessage}</div>
       </div>
@@ -585,7 +591,7 @@ export function BomTree({
         {isFlat ? (
           <span className="w-6 text-center flex-shrink-0">Lvl</span>
         ) : (
-          <span className="w-5 flex-shrink-0" /> 
+          <span className="w-5 flex-shrink-0" />
         )}
         <span className="w-4 flex-shrink-0" /> {/* Icon */}
         <span className="flex-1 min-w-0">File Name</span>
@@ -598,33 +604,31 @@ export function BomTree({
 
       {/* BOM Content */}
       <div className="flex-1 overflow-auto">
-        {isFlat ? (
-          // Flat view
-          flatNodes.map((node, idx) => (
-            <BomTreeRow
-              key={`${node.filePath}-${idx}`}
-              node={node}
-              level={node.level}
-              isExpanded={false}
-              onToggleExpand={() => {}}
-              onNavigate={onNavigate}
-              isFlat={true}
-            />
-          ))
-        ) : (
-          // Tree view
-          nodes.map((node, idx) => (
-            <TreeNode
-              key={`${node.filePath}-${idx}`}
-              node={node}
-              level={0}
-              expandedNodes={expandedNodes}
-              toggleExpanded={toggleExpanded}
-              onNavigate={onNavigate}
-              isFlat={false}
-            />
-          ))
-        )}
+        {isFlat
+          ? // Flat view
+            flatNodes.map((node, idx) => (
+              <BomTreeRow
+                key={`${node.filePath}-${idx}`}
+                node={node}
+                level={node.level}
+                isExpanded={false}
+                onToggleExpand={() => {}}
+                onNavigate={onNavigate}
+                isFlat={true}
+              />
+            ))
+          : // Tree view
+            nodes.map((node, idx) => (
+              <TreeNode
+                key={`${node.filePath}-${idx}`}
+                node={node}
+                level={0}
+                expandedNodes={expandedNodes}
+                toggleExpanded={toggleExpanded}
+                onNavigate={onNavigate}
+                isFlat={false}
+              />
+            ))}
       </div>
 
       {/* Summary Footer */}
@@ -678,7 +682,7 @@ export interface LegacyBomItem {
 }
 
 export function convertLegacyBomToBomNodes(items: LegacyBomItem[]): BomNode[] {
-  return items.map(item => ({
+  return items.map((item) => ({
     fileId: item.fileId || null,
     filePath: item.filePath,
     fileName: item.fileName,
@@ -691,8 +695,7 @@ export function convertLegacyBomToBomNodes(items: LegacyBomItem[]): BomNode[] {
     configuration: item.configuration || null,
     children: [], // Flat list, no children
     inDatabase: item.inDatabase ?? true,
-    material: item.material
+    material: item.material,
   }))
 }
 
-export default BomTree

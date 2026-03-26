@@ -22,7 +22,7 @@ export interface ConfigDrawingRowProps {
  */
 function areConfigDrawingRowPropsEqual(
   prevProps: ConfigDrawingRowProps,
-  nextProps: ConfigDrawingRowProps
+  nextProps: ConfigDrawingRowProps,
 ): boolean {
   // Compare item identity and key display properties
   if (prevProps.item.id !== nextProps.item.id) return false
@@ -66,7 +66,7 @@ export const ConfigDrawingRow = memo(function ConfigDrawingRow({
   onContextMenu,
 }: ConfigDrawingRowProps) {
   // Calculate indentation: base indent + parent config depth + item depth + extra for nesting under config
-  const indentPx = 24 + (configDepth * 16) + (depth * 16) + 32
+  const indentPx = 24 + configDepth * 16 + depth * 16 + 32
 
   return (
     <tr
@@ -75,14 +75,14 @@ export const ConfigDrawingRow = memo(function ConfigDrawingRow({
       onClick={onClick}
       onContextMenu={onContextMenu}
     >
-      {visibleColumns.map(column => (
+      {visibleColumns.map((column) => (
         <td key={column.id} style={{ width: column.width }}>
           {column.id === 'name' ? (
             <div
               className="flex items-center gap-1.5"
               style={{
                 minHeight: rowHeight - 8,
-                paddingLeft: `${indentPx}px`
+                paddingLeft: `${indentPx}px`,
               }}
             >
               <span className="text-plm-fg-dim text-[10px]">├</span>

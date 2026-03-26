@@ -128,26 +128,45 @@ export interface TestRunResult {
  * Commands not in this list pass through unchanged (e.g., `wait`, `help`).
  */
 const PATH_REWRITE_COMMANDS = new Set([
-  'mkdir', 'md', 'new-folder',
+  'mkdir',
+  'md',
+  'new-folder',
   'touch',
-  'sync', 'upload', 'add',
-  'checkout', 'co',
-  'checkin', 'ci',
-  'assert', 'expect',
-  'delete', 'rm',
-  'remove', 'rm-local',
-  'discard', 'revert',
-  'download', 'dl',
-  'get-latest', 'gl', 'update',
-  'info', 'props', 'properties',
+  'sync',
+  'upload',
+  'add',
+  'checkout',
+  'co',
+  'checkin',
+  'ci',
+  'assert',
+  'expect',
+  'delete',
+  'rm',
+  'remove',
+  'rm-local',
+  'discard',
+  'revert',
+  'download',
+  'dl',
+  'get-latest',
+  'gl',
+  'update',
+  'info',
+  'props',
+  'properties',
   'metadata',
   'set-metadata',
   'set-state',
   'status',
-  'open', 'o',
-  'reveal', 'show',
+  'open',
+  'o',
+  'reveal',
+  'show',
   'force-release',
-  'sync-metadata', 'sync-sw-metadata', 'sw-sync',
+  'sync-metadata',
+  'sync-sw-metadata',
+  'sw-sync',
   'rename',
   'move',
   'copy',
@@ -281,7 +300,7 @@ function tokenize(input: string): string[] {
  */
 export async function runTestScript(
   script: ParsedTestScript,
-  options: TestRunnerOptions
+  options: TestRunnerOptions,
 ): Promise<ScriptResult> {
   const startTime = Date.now()
   const scriptName = script.metadata.name
@@ -309,11 +328,7 @@ export async function runTestScript(
       continue
     }
 
-    const sectionResult = await executeSection(
-      section,
-      scriptName,
-      options
-    )
+    const sectionResult = await executeSection(section, scriptName, options)
 
     sectionResults.push(sectionResult)
 
@@ -349,7 +364,7 @@ export async function runTestScript(
 async function executeSection(
   section: TestSection,
   scriptName: string,
-  options: TestRunnerOptions
+  options: TestRunnerOptions,
 ): Promise<SectionResult> {
   options.onSectionStart?.(scriptName, section.name)
 
@@ -375,17 +390,19 @@ async function executeSection(
     let outputs: TerminalOutput[]
     try {
       outputs = await executeTerminalCommand(rewrittenCommand)
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : String(err)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
       sectionError = `Command threw: ${errorMessage} (line ${command.line})`
       sectionPassed = false
 
-      options.onCommandExecute?.(scriptName, rewrittenCommand, [{
-        id: `error-${Date.now()}`,
-        type: 'error',
-        content: errorMessage,
-        timestamp: new Date(),
-      }])
+      options.onCommandExecute?.(scriptName, rewrittenCommand, [
+        {
+          id: `error-${Date.now()}`,
+          type: 'error',
+          content: errorMessage,
+          timestamp: new Date(),
+        },
+      ])
       break
     }
 
@@ -404,11 +421,11 @@ async function executeSection(
       }
     } else {
       // For non-assert commands, check for errors but don't stop
-      const hasError = outputs.some(o => o.type === 'error')
+      const hasError = outputs.some((o) => o.type === 'error')
       if (hasError) {
         const errorMessages = outputs
-          .filter(o => o.type === 'error')
-          .map(o => o.content)
+          .filter((o) => o.type === 'error')
+          .map((o) => o.content)
           .join('; ')
 
         // Log the error but continue — non-assert errors are non-fatal
@@ -442,9 +459,7 @@ async function executeSection(
  * @param outputs - Terminal output from the assertion command
  * @returns Object with `passed` boolean and aggregated `message`
  */
-function evaluateAssertOutput(
-  outputs: TerminalOutput[]
-): { passed: boolean; message: string } {
+function evaluateAssertOutput(outputs: TerminalOutput[]): { passed: boolean; message: string } {
   const passMessages: string[] = []
   const failMessages: string[] = []
 
@@ -472,7 +487,7 @@ function evaluateAssertOutput(
   }
 
   // No PASS or FAIL markers found — treat as failure
-  const allContent = outputs.map(o => o.content).join('\n')
+  const allContent = outputs.map((o) => o.content).join('\n')
   return {
     passed: false,
     message: `No assertion result found in output: ${allContent}`,
@@ -498,7 +513,7 @@ function evaluateAssertOutput(
  */
 export async function runAll(
   scripts: ParsedTestScript[],
-  options: TestRunnerOptions
+  options: TestRunnerOptions,
 ): Promise<TestRunResult> {
   const startTime = Date.now()
   const results: ScriptResult[] = []

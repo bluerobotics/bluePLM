@@ -12,13 +12,13 @@ const INITIAL_DELAY_MS = 500
 
 /**
  * Orchestration hook for integration status checks
- * 
+ *
  * This hook handles the lifecycle of status checks:
  * - Waits for organization to load before checking
  * - Triggers initial status checks
  * - Sets up polling interval (5s) for ongoing checks
  * - Handles offline/online transitions
- * 
+ *
  * The actual status checking logic is delegated to the IntegrationsSlice
  * in the store. This hook only orchestrates WHEN checks happen.
  */
@@ -27,13 +27,13 @@ export function useIntegrationStatus() {
   const hasInitialCheckRef = useRef(false)
   const isOnlineRef = useRef(navigator.onLine)
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
-  
+
   // Subscribe to relevant store values
-  const organization = usePDMStore(state => state.organization)
-  const solidworksIntegrationEnabled = usePDMStore(state => state.solidworksIntegrationEnabled)
-  const solidworksPath = usePDMStore(state => state.solidworksPath)
-  const isOfflineMode = usePDMStore(state => state.isOfflineMode)
-  
+  const organization = usePDMStore((state) => state.organization)
+  const solidworksIntegrationEnabled = usePDMStore((state) => state.solidworksIntegrationEnabled)
+  const solidworksPath = usePDMStore((state) => state.solidworksPath)
+  const isOfflineMode = usePDMStore((state) => state.isOfflineMode)
+
   // Get store actions (static references)
   const setIntegrationStatus = usePDMStore.getState().setIntegrationStatus
   const setBackupStatus = usePDMStore.getState().setBackupStatus
@@ -43,21 +43,21 @@ export function useIntegrationStatus() {
   const checkBackup = useCallback(async () => {
     const currentOrg = usePDMStore.getState().organization
     const connectedVaults = usePDMStore.getState().connectedVaults
-    
+
     if (!currentOrg?.id) {
       setBackupStatus('not-configured')
       return
     }
-    
+
     // No vaults connected = nothing to back up, show warning (yellow)
     if (connectedVaults.length === 0) {
       setBackupStatus('partial')
       return
     }
-    
+
     try {
       const status = await getBackupStatus(currentOrg.id)
-      
+
       if (!status.isConfigured) {
         setBackupStatus('partial')
       } else if (status.error) {
@@ -67,33 +67,36 @@ export function useIntegrationStatus() {
       } else {
         setBackupStatus('partial')
       }
-    } catch (err) {
-      log.warn('[IntegrationStatus]', 'Failed to check backup status', { error: err })
+    } catch (error) {
+      log.warn('[IntegrationStatus]', 'Failed to check backup status', { error: error })
       setBackupStatus('not-configured')
     }
   }, [setBackupStatus])
 
   // Main check function - delegates to slice for integration checks
   // silent=true skips the 'checking' visual state to avoid UI flickering during polling
-  const checkAllIntegrations = useCallback(async (silent = false) => {
-    const currentOrg = usePDMStore.getState().organization
-    
-    // Don't check if organization isn't loaded yet
-    if (!currentOrg?.id) {
-      return
-    }
-    
-    // Don't check in offline mode
-    if (usePDMStore.getState().isOfflineMode) {
-      return
-    }
-    
-    // Delegate to slice for all integration checks
-    await usePDMStore.getState().checkAllIntegrations(silent)
-    
-    // Check backup separately (not in integrations slice)
-    checkBackup()
-  }, [checkBackup])
+  const checkAllIntegrations = useCallback(
+    async (silent = false) => {
+      const currentOrg = usePDMStore.getState().organization
+
+      // Don't check if organization isn't loaded yet
+      if (!currentOrg?.id) {
+        return
+      }
+
+      // Don't check in offline mode
+      if (usePDMStore.getState().isOfflineMode) {
+        return
+      }
+
+      // Delegate to slice for all integration checks
+      await usePDMStore.getState().checkAllIntegrations(silent)
+
+      // Check backup separately (not in integrations slice)
+      checkBackup()
+    },
+    [checkBackup],
+  )
 
   // Handle online/offline transitions
   useEffect(() => {
@@ -101,19 +104,19 @@ export function useIntegrationStatus() {
       isOnlineRef.current = true
       checkAllIntegrations()
     }
-    
+
     const handleOffline = () => {
       isOnlineRef.current = false
       // Mark all network-dependent integrations as offline
       const offlineIntegrations: IntegrationId[] = ['supabase', 'google-drive', 'api', 'odoo']
-      offlineIntegrations.forEach(id => {
+      offlineIntegrations.forEach((id) => {
         setIntegrationStatus(id, 'offline', 'No network connection')
       })
     }
-    
+
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
-    
+
     return () => {
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
@@ -126,19 +129,19 @@ export function useIntegrationStatus() {
     if (!organization?.id) {
       return
     }
-    
+
     // Skip if in offline mode
     if (isOfflineMode) {
       return
     }
-    
+
     hasInitialCheckRef.current = true
-    
+
     // Delay initial check slightly to let other initialization complete
     const initialTimeout = setTimeout(() => {
       checkAllIntegrations()
     }, INITIAL_DELAY_MS)
-    
+
     return () => {
       clearTimeout(initialTimeout)
     }
@@ -154,7 +157,7 @@ export function useIntegrationStatus() {
       }
       return
     }
-    
+
     // Set up polling with silent mode to avoid UI flickering
     pollIntervalRef.current = setInterval(() => {
       // Only poll if browser is online
@@ -163,7 +166,7 @@ export function useIntegrationStatus() {
         checkAllIntegrations(true)
       }
     }, POLLING_INTERVAL_MS)
-    
+
     return () => {
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current)
@@ -178,7 +181,7 @@ export function useIntegrationStatus() {
     if (!hasInitialCheckRef.current || !organization?.id) {
       return
     }
-    
+
     // Delegate to slice's individual check
     usePDMStore.getState().checkIntegration('solidworks')
   }, [solidworksIntegrationEnabled, solidworksPath, organization?.id])
@@ -195,6 +198,6 @@ export function useIntegrationStatus() {
   // Return function to manually trigger a check
   return {
     checkAllIntegrations,
-    resetIntegrationStatuses
+    resetIntegrationStatuses,
   }
 }

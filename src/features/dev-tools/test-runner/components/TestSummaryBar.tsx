@@ -16,15 +16,9 @@ export function TestSummaryBar({ results }: TestSummaryBarProps) {
 
   return (
     <div className="flex items-center gap-4 px-3 py-2 bg-[#161b22] border-b border-[#30363d] text-xs font-mono">
-      <span className="text-emerald-400 font-medium">
-        {totalPassed} passed
-      </span>
-      <span className="text-red-400 font-medium">
-        {totalFailed} failed
-      </span>
-      <span className="text-slate-500 font-medium">
-        {totalSkipped} skipped
-      </span>
+      <span className="text-emerald-400 font-medium">{totalPassed} passed</span>
+      <span className="text-red-400 font-medium">{totalFailed} failed</span>
+      <span className="text-slate-500 font-medium">{totalSkipped} skipped</span>
       <span className="text-[#30363d]">|</span>
       <span className="flex items-center gap-1 text-slate-400">
         <Clock size={11} />

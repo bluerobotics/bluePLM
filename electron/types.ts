@@ -1,10 +1,22 @@
 // Electron-specific types used across handler modules
 
+export interface LocalFileInfo {
+  name: string
+  path: string
+  relativePath: string
+  isDirectory: boolean
+  extension: string
+  size: number
+  modifiedTime: string
+  hash?: string
+  ino?: number
+}
+
 export interface LogRetentionSettings {
-  maxFiles: number           // Max number of log files to keep (0 = unlimited)
-  maxAgeDays: number         // Max age in days (0 = unlimited)
-  maxSizeMb: number          // Max size per log file in MB
-  maxTotalSizeMb: number     // Max total size of all log files in MB (0 = unlimited)
+  maxFiles: number // Max number of log files to keep (0 = unlimited)
+  maxAgeDays: number // Max age in days (0 = unlimited)
+  maxSizeMb: number // Max size per log file in MB
+  maxTotalSizeMb: number // Max total size of all log files in MB (0 = unlimited)
 }
 
 export interface LogEntry {
@@ -24,7 +36,7 @@ export interface WindowState {
 
 export interface UpdateReminder {
   version: string
-  postponedAt: number  // timestamp
+  postponedAt: number // timestamp
 }
 
 // SolidWorks service types

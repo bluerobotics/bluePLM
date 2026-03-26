@@ -1,14 +1,14 @@
 /**
  * WorkflowDialogs - Renders all workflow editor dialogs
- * 
+ *
  * Consolidates Create/Edit workflow dialogs and Edit state/transition dialogs.
  */
 import { log } from '@/lib/logger'
-import { 
-  CreateWorkflowDialog, 
-  EditWorkflowDialog, 
-  EditStateDialog, 
-  EditTransitionDialog 
+import {
+  CreateWorkflowDialog,
+  EditWorkflowDialog,
+  EditStateDialog,
+  EditTransitionDialog,
 } from '../dialogs'
 import { stateService, transitionService } from '../services'
 import type { WorkflowTemplate, WorkflowState, WorkflowTransition } from '../types'
@@ -19,25 +19,25 @@ interface WorkflowDialogsProps {
   showEditWorkflow: boolean
   showEditState: boolean
   showEditTransition: boolean
-  
+
   // Data
   selectedWorkflow: WorkflowTemplate | null
   editingState: WorkflowState | null
   editingTransition: WorkflowTransition | null
-  
+
   // Actions
   createWorkflow: (name: string, description: string) => Promise<boolean>
   updateWorkflow: (id: string, updates: { name: string; description: string }) => Promise<boolean>
   deleteWorkflow: (id: string) => Promise<boolean>
   setStates: React.Dispatch<React.SetStateAction<WorkflowState[]>>
   setTransitions: React.Dispatch<React.SetStateAction<WorkflowTransition[]>>
-  
+
   // Close handlers
   setShowCreateWorkflow: (v: boolean) => void
   setShowEditWorkflow: (v: boolean) => void
   closeEditState: () => void
   closeEditTransition: () => void
-  
+
   // Toast
   addToast: (type: 'success' | 'error' | 'warning' | 'info', message: string) => void
 }
@@ -59,7 +59,7 @@ export function WorkflowDialogs({
   setShowEditWorkflow,
   closeEditState,
   closeEditTransition,
-  addToast
+  addToast,
 }: WorkflowDialogsProps) {
   return (
     <>
@@ -72,7 +72,7 @@ export function WorkflowDialogs({
           }}
         />
       )}
-      
+
       {showEditWorkflow && selectedWorkflow && (
         <EditWorkflowDialog
           workflow={selectedWorkflow}
@@ -87,7 +87,7 @@ export function WorkflowDialogs({
           }}
         />
       )}
-      
+
       {showEditState && editingState && (
         <EditStateDialog
           state={editingState}
@@ -99,15 +99,15 @@ export function WorkflowDialogs({
               addToast('error', 'Failed to update state')
               return
             }
-            setStates(prev => prev.map(s => 
-              s.id === editingState.id ? { ...s, ...updates } : s
-            ))
+            setStates((prev) =>
+              prev.map((s) => (s.id === editingState.id ? { ...s, ...updates } : s)),
+            )
             closeEditState()
             addToast('success', 'State updated')
           }}
         />
       )}
-      
+
       {showEditTransition && editingTransition && (
         <EditTransitionDialog
           transition={editingTransition}
@@ -119,9 +119,9 @@ export function WorkflowDialogs({
               addToast('error', 'Failed to update transition')
               return
             }
-            setTransitions(prev => prev.map(t => 
-              t.id === editingTransition.id ? { ...t, ...updates } : t
-            ))
+            setTransitions((prev) =>
+              prev.map((t) => (t.id === editingTransition.id ? { ...t, ...updates } : t)),
+            )
             closeEditTransition()
             addToast('success', 'Transition updated')
           }}

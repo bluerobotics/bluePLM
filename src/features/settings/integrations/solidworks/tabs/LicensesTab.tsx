@@ -27,7 +27,8 @@ export function LicensesTab() {
           {isAdmin ? (
             <>
               <p className="text-sm text-plm-fg-muted">
-                Enter your organization's Document Manager API license key to enable direct file reading.
+                Enter your organization's Document Manager API license key to enable direct file
+                reading.
               </p>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
@@ -84,9 +85,9 @@ export function LicensesTab() {
                 </div>
                 <p className="text-sm text-plm-fg-dim">
                   Free with SolidWorks subscription.{' '}
-                  <a 
-                    href="https://customerportal.solidworks.com/" 
-                    target="_blank" 
+                  <a
+                    href="https://customerportal.solidworks.com/"
+                    target="_blank"
                     rel="noopener noreferrer"
                     className="text-plm-accent hover:underline"
                     onClick={(e) => {
@@ -104,18 +105,20 @@ export function LicensesTab() {
                   </div>
                 )}
                 {hasUnsavedLicenseKey && (
-                  <div className="text-sm text-yellow-400">
-                    Unsaved changes
-                  </div>
+                  <div className="text-sm text-yellow-400">Unsaved changes</div>
                 )}
               </div>
             </>
           ) : (
             <>
               <div className="flex items-center gap-3">
-                <Key 
-                  size={22} 
-                  className={organization?.settings?.solidworks_dm_license_key ? 'text-green-400' : 'text-plm-fg-muted'} 
+                <Key
+                  size={22}
+                  className={
+                    organization?.settings?.solidworks_dm_license_key
+                      ? 'text-green-400'
+                      : 'text-plm-fg-muted'
+                  }
                 />
                 <span className="text-base text-plm-fg">
                   {organization?.settings?.solidworks_dm_license_key ? (

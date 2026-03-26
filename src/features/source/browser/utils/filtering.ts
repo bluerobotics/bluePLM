@@ -19,7 +19,7 @@ export function fuzzyMatch(text: string | undefined | null, query: string): bool
   if (!text) return false
   const lowerText = text.toLowerCase()
   const lowerQuery = query.toLowerCase()
-  
+
   // Simple fuzzy: check if all characters in query appear in order
   let queryIndex = 0
   for (let i = 0; i < lowerText.length && queryIndex < lowerQuery.length; i++) {
@@ -38,9 +38,9 @@ export function fuzzyMatch(text: string | undefined | null, query: string): bool
 export function getSearchScore(file: LocalFile, query: string): number {
   const q = query.toLowerCase().trim()
   if (!q) return 0
-  
+
   let score = 0
-  
+
   // Priority 1: Filename matches (highest scores)
   const nameLower = file.name.toLowerCase()
   if (nameLower === q) {
@@ -52,7 +52,7 @@ export function getSearchScore(file: LocalFile, query: string): number {
   } else if (fuzzyMatch(file.name, q)) {
     score = 700 // Fuzzy match on name
   }
-  
+
   // Priority 2: Description matches
   if (file.pdmData?.description) {
     const descLower = file.pdmData.description.toLowerCase()
@@ -60,31 +60,43 @@ export function getSearchScore(file: LocalFile, query: string): number {
       score = Math.max(score, 500)
     }
   }
-  
+
   // Priority 3: Part number matches
   if (file.pdmData?.part_number?.toLowerCase().includes(q)) {
     score = Math.max(score, 400)
   }
-  
+
   // Priority 4: Path matches
   if (file.relativePath.toLowerCase().includes(q)) {
     score = Math.max(score, 300)
   }
-  
+
   // Priority 5: Other metadata matches
   if (file.pdmData) {
     if (file.pdmData.revision?.toLowerCase().includes(q)) score = Math.max(score, 200)
     const customProps = file.pdmData.custom_properties as Record<string, unknown> | null
-    if (typeof customProps?.['material'] === 'string' && customProps['material'].toLowerCase().includes(q)) score = Math.max(score, 200)
-    if (typeof customProps?.['vendor'] === 'string' && customProps['vendor'].toLowerCase().includes(q)) score = Math.max(score, 200)
-    if (typeof customProps?.['project'] === 'string' && customProps['project'].toLowerCase().includes(q)) score = Math.max(score, 200)
+    if (
+      typeof customProps?.['material'] === 'string' &&
+      customProps['material'].toLowerCase().includes(q)
+    )
+      score = Math.max(score, 200)
+    if (
+      typeof customProps?.['vendor'] === 'string' &&
+      customProps['vendor'].toLowerCase().includes(q)
+    )
+      score = Math.max(score, 200)
+    if (
+      typeof customProps?.['project'] === 'string' &&
+      customProps['project'].toLowerCase().includes(q)
+    )
+      score = Math.max(score, 200)
   }
-  
+
   // Extension match (lowest priority)
   if (file.extension?.toLowerCase().includes(q)) {
     score = Math.max(score, 100)
   }
-  
+
   return score
 }
 
@@ -114,11 +126,11 @@ export function isSolidworksTempFile(file: LocalFile): boolean {
  */
 export function filterValidFiles(
   files: LocalFile[],
-  options: { hideSolidworksTempFiles?: boolean } = {}
+  options: { hideSolidworksTempFiles?: boolean } = {},
 ): LocalFile[] {
   const { hideSolidworksTempFiles = false } = options
-  
-  return files.filter(f => {
+
+  return files.filter((f) => {
     if (!isValidFile(f)) return false
     if (hideSolidworksTempFiles && isSolidworksTempFile(f)) return false
     return true
@@ -128,14 +140,11 @@ export function filterValidFiles(
 /**
  * Get files in the current folder path (direct children only)
  */
-export function getFilesInFolder(
-  files: LocalFile[],
-  currentPath: string
-): LocalFile[] {
+export function getFilesInFolder(files: LocalFile[], currentPath: string): LocalFile[] {
   // Normalize path separators for cross-platform compatibility (Windows uses \, Unix uses /)
   const normalizedCurrentPath = currentPath.replace(/\\/g, '/')
 
-  return files.filter(file => {
+  return files.filter((file) => {
     const normalizedPath = file.relativePath.replace(/\\/g, '/')
     const fileParts = normalizedPath.split('/')
 
@@ -165,9 +174,9 @@ export function getFilesInFolder(
 export function filterBySearch(
   files: LocalFile[],
   query: string,
-  searchType: 'all' | 'files' | 'folders' = 'all'
+  searchType: 'all' | 'files' | 'folders' = 'all',
 ): LocalFile[] {
-  return files.filter(file => {
+  return files.filter((file) => {
     // Filter by search type
     if (searchType === 'files' && file.isDirectory) return false
     if (searchType === 'folders' && !file.isDirectory) return false
@@ -178,30 +187,27 @@ export function filterBySearch(
 /**
  * Apply all filters to get the final file list
  */
-export function applyFilters(
-  files: LocalFile[],
-  filter: FileFilter
-): LocalFile[] {
+export function applyFilters(files: LocalFile[], filter: FileFilter): LocalFile[] {
   let result = filterValidFiles(files, {
-    hideSolidworksTempFiles: filter.hideSolidworksTempFiles
+    hideSolidworksTempFiles: filter.hideSolidworksTempFiles,
   })
-  
+
   if (filter.search && filter.search.trim()) {
     result = filterBySearch(result, filter.search, filter.searchType)
   }
-  
+
   if (filter.extensions && filter.extensions.length > 0) {
-    result = result.filter(f => 
-      f.isDirectory || filter.extensions!.includes(f.extension.toLowerCase())
+    result = result.filter(
+      (f) => f.isDirectory || filter.extensions!.includes(f.extension.toLowerCase()),
     )
   }
-  
+
   if (filter.states && filter.states.length > 0) {
-    result = result.filter(f => {
+    result = result.filter((f) => {
       const state = f.pdmData?.workflow_state?.name
       return f.isDirectory || (state && filter.states!.includes(state))
     })
   }
-  
+
   return result
 }

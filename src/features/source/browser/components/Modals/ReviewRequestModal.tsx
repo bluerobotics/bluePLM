@@ -19,12 +19,8 @@ import { log } from '@/lib/logger'
 // Types
 // ============================================
 
-export interface OrgUser {
-  id: string
-  email: string
-  full_name?: string | null
-  avatar_url?: string | null
-}
+export type { OrgUser } from '@/types/database'
+import type { OrgUser } from '@/types/database'
 
 /** Selection tab mode */
 type SelectionTab = 'individuals' | 'teams'
@@ -61,7 +57,7 @@ export interface ReviewRequestModalProps {
 function useTeamSelection(
   teams: TeamWithMembers[],
   selectedReviewers: string[],
-  onToggleReviewer: (userId: string) => void
+  onToggleReviewer: (userId: string) => void,
 ) {
   const [selectedTeamIds, setSelectedTeamIds] = useState<Set<string>>(new Set())
   const [expandedTeamIds, setExpandedTeamIds] = useState<Set<string>>(new Set())
@@ -99,7 +95,7 @@ function useTeamSelection(
           next.delete(teamId)
           for (const uid of resolvedIds) {
             const inOtherSelectedTeam = teams.some(
-              (t) => t.id !== teamId && next.has(t.id) && resolveTeamReviewers(t).includes(uid)
+              (t) => t.id !== teamId && next.has(t.id) && resolveTeamReviewers(t).includes(uid),
             )
             if (!inOtherSelectedTeam && selectedReviewers.includes(uid)) {
               onToggleReviewer(uid)
@@ -117,7 +113,7 @@ function useTeamSelection(
         return next
       })
     },
-    [teams, selectedReviewers, onToggleReviewer]
+    [teams, selectedReviewers, onToggleReviewer],
   )
 
   /** Toggle expand/collapse for a team card */
@@ -178,7 +174,7 @@ export const ReviewRequestModal = memo(function ReviewRequestModal({
   onClose,
 }: ReviewRequestModalProps) {
   // ── Store fallback for organizationId ────────────────────────────────
-  const storeOrgId = usePDMStore(s => s.organization?.id)
+  const storeOrgId = usePDMStore((s) => s.organization?.id)
   const resolvedOrgId = organizationId ?? storeOrgId
 
   // ── Local state ──────────────────────────────────────────────────────
@@ -193,21 +189,23 @@ export const ReviewRequestModal = memo(function ReviewRequestModal({
     let cancelled = false
     setLoadingTeams(true)
 
-    getOrgTeamsWithMembers(resolvedOrgId).then(({ teams: fetchedTeams, error }) => {
-      if (!cancelled) {
-        if (error) {
-          log.error('[ReviewRequestModal]', 'Failed to fetch teams', { error })
+    getOrgTeamsWithMembers(resolvedOrgId)
+      .then(({ teams: fetchedTeams, error }) => {
+        if (!cancelled) {
+          if (error) {
+            log.error('[ReviewRequestModal]', 'Failed to fetch teams', { error })
+          }
+          setTeams(fetchedTeams)
+          setLoadingTeams(false)
         }
-        setTeams(fetchedTeams)
-        setLoadingTeams(false)
-      }
-    }).catch((err) => {
-      if (!cancelled) {
-        log.error('[ReviewRequestModal]', 'Error fetching teams', { error: err })
-        setTeams([])
-        setLoadingTeams(false)
-      }
-    })
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          log.error('[ReviewRequestModal]', 'Error fetching teams', { error: err })
+          setTeams([])
+          setLoadingTeams(false)
+        }
+      })
 
     return () => {
       cancelled = true
@@ -215,19 +213,11 @@ export const ReviewRequestModal = memo(function ReviewRequestModal({
   }, [resolvedOrgId])
 
   // ── Team selection helpers ───────────────────────────────────────────
-  const {
-    selectedTeamIds,
-    expandedTeamIds,
-    toggleTeam,
-    toggleExpand,
-    lastSelectedTeamId,
-  } = useTeamSelection(teams, selectedReviewers, onToggleReviewer)
+  const { selectedTeamIds, expandedTeamIds, toggleTeam, toggleExpand, lastSelectedTeamId } =
+    useTeamSelection(teams, selectedReviewers, onToggleReviewer)
 
   // ── Unique reviewer count (handles deduplication) ────────────────────
-  const uniqueReviewerCount = useMemo(
-    () => new Set(selectedReviewers).size,
-    [selectedReviewers]
-  )
+  const uniqueReviewerCount = useMemo(() => new Set(selectedReviewers).size, [selectedReviewers])
 
   // ── Whether teams tab is available ───────────────────────────────────
   const teamsAvailable = resolvedOrgId !== undefined
@@ -385,8 +375,7 @@ export const ReviewRequestModal = memo(function ReviewRequestModal({
             className="btn bg-plm-accent hover:bg-plm-accent/90 text-white disabled:opacity-50"
           >
             {isSubmitting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-            Send Request{' '}
-            {uniqueReviewerCount > 0 && `(${uniqueReviewerCount})`}
+            Send Request {uniqueReviewerCount > 0 && `(${uniqueReviewerCount})`}
           </button>
         </div>
       </div>
@@ -440,9 +429,7 @@ function IndividualsPanel({
             <Users size={12} className="text-plm-accent" />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-sm text-plm-fg truncate">
-              {orgUser.full_name || orgUser.email}
-            </div>
+            <div className="text-sm text-plm-fg truncate">{orgUser.full_name || orgUser.email}</div>
             {orgUser.full_name && (
               <div className="text-xs text-plm-fg-muted truncate">{orgUser.email}</div>
             )}
@@ -499,7 +486,7 @@ function TeamsPanel({
         const memberCount = team.members.length
         // Count how many of this team's members are currently selected (for partial indicator)
         const selectedMemberCount = team.members.filter((m) =>
-          selectedReviewers.includes(m.id)
+          selectedReviewers.includes(m.id),
         ).length
 
         return (
@@ -559,9 +546,7 @@ function TeamsPanel({
                       <div className="w-4 h-4 rounded-full bg-plm-accent/10 flex items-center justify-center">
                         <UserCircle size={10} className="text-plm-accent" />
                       </div>
-                      <span className="truncate">
-                        {member.full_name || member.email}
-                      </span>
+                      <span className="truncate">{member.full_name || member.email}</span>
                       {selectedReviewers.includes(member.id) && (
                         <Check size={12} className="text-plm-accent ml-auto flex-shrink-0" />
                       )}

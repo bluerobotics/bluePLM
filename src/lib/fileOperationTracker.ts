@@ -1,24 +1,24 @@
 /**
  * File Operation Tracker
- * 
+ *
  * Provides hierarchical tracking of file operations with timing for each step.
  * Used by command handlers (checkin, checkout, download, etc.) to capture
  * detailed performance metrics for display in DevTools.
- * 
+ *
  * @example
  * ```typescript
  * const tracker = FileOperationTracker.start('checkin', files.length, paths)
- * 
+ *
  * // Track a step manually
  * const stepId = tracker.startStep('Hash file', { fileName: 'part.sldprt' })
  * const hash = await hashFile(path)
  * tracker.endStep(stepId, 'completed', { hash })
- * 
+ *
  * // Or use the withStep helper
  * const result = await tracker.withStep('Upload to storage', { size }, async () => {
  *   return await uploadFile(file)
  * })
- * 
+ *
  * tracker.endOperation('completed')
  * ```
  */
@@ -102,7 +102,7 @@ export interface FileOperation {
 
 /**
  * Tracks a single file operation with multiple steps.
- * 
+ *
  * Create via `FileOperationTracker.start()` static method.
  * Each tracker instance represents one operation (e.g., checking in 5 files).
  */
@@ -117,7 +117,7 @@ export class FileOperationTracker {
 
   /**
    * Start tracking a new file operation.
-   * 
+   *
    * @param type - The operation type (checkin, checkout, etc.)
    * @param fileCount - Number of files being processed
    * @param filePaths - Relative paths of files being processed
@@ -126,10 +126,10 @@ export class FileOperationTracker {
   static start(
     type: FileOperationType,
     fileCount: number,
-    filePaths: string[]
+    filePaths: string[],
   ): FileOperationTracker {
     const id = `${type}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
-    
+
     const operation: FileOperation = {
       id,
       type,
@@ -137,7 +137,7 @@ export class FileOperationTracker {
       filePaths,
       status: 'running',
       startTime: Date.now(),
-      steps: []
+      steps: [],
     }
 
     // Add to store
@@ -155,25 +155,27 @@ export class FileOperationTracker {
 
   /**
    * Start tracking a new step within this operation.
-   * 
+   *
    * @param name - Human-readable step name (e.g., "Hash file", "Upload to storage")
    * @param metadata - Optional metadata to associate with the step
    * @returns The step ID (use to end the step later)
    */
   startStep(name: string, metadata?: Record<string, unknown>): string {
     if (this.hasEnded) {
-      console.warn(`[FileOperationTracker] Cannot start step "${name}" - operation ${this.operationId} has already ended`)
+      console.warn(
+        `[FileOperationTracker] Cannot start step "${name}" - operation ${this.operationId} has already ended`,
+      )
       return ''
     }
 
     const stepId = `step-${++this.stepCounter}`
-    
+
     const step: OperationStep = {
       id: stepId,
       name,
       startTime: Date.now(),
       status: 'running',
-      metadata
+      metadata,
     }
 
     usePDMStore.getState().addStep(this.operationId, step)
@@ -182,7 +184,7 @@ export class FileOperationTracker {
 
   /**
    * End a step that was previously started.
-   * 
+   *
    * @param stepId - The step ID returned from startStep
    * @param status - Final status ('completed' or 'failed')
    * @param metadata - Additional metadata to merge with existing
@@ -190,27 +192,27 @@ export class FileOperationTracker {
   endStep(
     stepId: string,
     status: 'completed' | 'failed',
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown>,
   ): void {
     if (!stepId) return
 
     const endTime = Date.now()
-    
+
     usePDMStore.getState().updateStep(this.operationId, stepId, {
       endTime,
       status,
-      ...(metadata && { metadata })
+      ...(metadata && { metadata }),
     })
   }
 
   /**
    * Convenience method to track an async function as a step.
    * Automatically records start/end times and handles errors.
-   * 
+   *
    * @param name - Human-readable step name
    * @param fn - Async function to execute
    * @returns The result of the function
-   * 
+   *
    * @example
    * ```typescript
    * const hash = await tracker.withStep('Hash file', { fileName }, async () => {
@@ -218,32 +220,29 @@ export class FileOperationTracker {
    * })
    * ```
    */
-  async withStep<T>(
-    name: string,
-    fn: () => Promise<T>
-  ): Promise<T>
+  async withStep<T>(name: string, fn: () => Promise<T>): Promise<T>
   async withStep<T>(
     name: string,
     metadata: Record<string, unknown>,
-    fn: () => Promise<T>
+    fn: () => Promise<T>,
   ): Promise<T>
   async withStep<T>(
     name: string,
     metadataOrFn: Record<string, unknown> | (() => Promise<T>),
-    maybeFn?: () => Promise<T>
+    maybeFn?: () => Promise<T>,
   ): Promise<T> {
     const metadata = typeof metadataOrFn === 'function' ? undefined : metadataOrFn
     const fn = typeof metadataOrFn === 'function' ? metadataOrFn : maybeFn!
 
     const stepId = this.startStep(name, metadata)
-    
+
     try {
       const result = await fn()
       this.endStep(stepId, 'completed')
       return result
     } catch (error) {
       this.endStep(stepId, 'failed', {
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       })
       throw error
     }
@@ -251,7 +250,7 @@ export class FileOperationTracker {
 
   /**
    * Convenience method to track a synchronous function as a step.
-   * 
+   *
    * @param name - Human-readable step name
    * @param fn - Sync function to execute
    * @returns The result of the function
@@ -261,20 +260,20 @@ export class FileOperationTracker {
   withStepSync<T>(
     name: string,
     metadataOrFn: Record<string, unknown> | (() => T),
-    maybeFn?: () => T
+    maybeFn?: () => T,
   ): T {
     const metadata = typeof metadataOrFn === 'function' ? undefined : metadataOrFn
     const fn = typeof metadataOrFn === 'function' ? metadataOrFn : maybeFn!
 
     const stepId = this.startStep(name, metadata)
-    
+
     try {
       const result = fn()
       this.endStep(stepId, 'completed')
       return result
     } catch (error) {
       this.endStep(stepId, 'failed', {
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       })
       throw error
     }
@@ -282,7 +281,7 @@ export class FileOperationTracker {
 
   /**
    * Mark the operation as complete.
-   * 
+   *
    * @param status - Final status ('completed' or 'failed')
    * @param error - Error message if status is 'failed'
    */
@@ -298,16 +297,16 @@ export class FileOperationTracker {
     usePDMStore.getState().updateOperation(this.operationId, {
       status,
       endTime,
-      error
+      error,
     })
   }
 
   /**
    * Add metadata to the operation without ending it.
    * Useful for adding summary information during processing.
-   * 
+   *
    * Creates a virtual step with the metadata attached.
-   * 
+   *
    * @param name - Name for the metadata entry
    * @param metadata - Metadata to add to the operation
    */
@@ -319,7 +318,7 @@ export class FileOperationTracker {
   /**
    * Add a substep with timing information under a parent step.
    * Used for aggregate timing data (e.g., "checkoutAPI (252 calls)").
-   * 
+   *
    * @param parentStepId - The parent step ID this substep belongs to
    * @param name - Substep name (e.g., "checkoutAPI (252 calls)")
    * @param durationMs - Total duration in milliseconds
@@ -329,16 +328,18 @@ export class FileOperationTracker {
     parentStepId: string,
     name: string,
     durationMs: number,
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown>,
   ): void {
     if (this.hasEnded) {
-      console.warn(`[FileOperationTracker] Cannot add substep "${name}" - operation ${this.operationId} has already ended`)
+      console.warn(
+        `[FileOperationTracker] Cannot add substep "${name}" - operation ${this.operationId} has already ended`,
+      )
       return
     }
 
     const stepId = `substep-${++this.stepCounter}`
     const now = Date.now()
-    
+
     const step: OperationStep = {
       id: stepId,
       name,
@@ -347,7 +348,7 @@ export class FileOperationTracker {
       durationMs,
       status: 'completed',
       metadata,
-      parentStepId
+      parentStepId,
     }
 
     usePDMStore.getState().addStep(this.operationId, step)
@@ -360,7 +361,7 @@ export class FileOperationTracker {
 
 /**
  * Format duration in milliseconds to a human-readable string.
- * 
+ *
  * @param ms - Duration in milliseconds
  * @returns Formatted string (e.g., "1.23s", "456ms")
  */
@@ -376,22 +377,22 @@ export function formatDuration(ms: number | undefined): string {
 
 /**
  * Get display name for an operation type.
- * 
+ *
  * @param type - The operation type
  * @returns Human-readable display name
  */
 export function getOperationDisplayName(type: FileOperationType): string {
   const names: Record<FileOperationType, string> = {
-    'checkin': 'Check In',
-    'checkout': 'Check Out',
-    'download': 'Download',
+    checkin: 'Check In',
+    checkout: 'Check Out',
+    download: 'Download',
     'get-latest': 'Get Latest',
-    'sync': 'Sync',
-    'discard': 'Discard',
+    sync: 'Sync',
+    discard: 'Discard',
     'force-release': 'Force Release',
-    'delete': 'Delete',
+    delete: 'Delete',
     'sync-metadata': 'Sync Metadata',
-    'extract-references': 'Extract References'
+    'extract-references': 'Extract References',
   }
   return names[type] ?? type
 }

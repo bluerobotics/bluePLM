@@ -36,7 +36,11 @@ interface ReviewFileRowProps {
   /** Open the file externally (e.g., in SolidWorks) */
   onOpenExternal: (filePath: string | undefined) => void
   /** Respond to a review response (approve/kick back) */
-  onRespond: (reviewResponseId: string, status: 'approved' | 'rejected' | 'kicked_back', comment?: string) => Promise<boolean>
+  onRespond: (
+    reviewResponseId: string,
+    status: 'approved' | 'rejected' | 'kicked_back',
+    comment?: string,
+  ) => Promise<boolean>
   /** Cancel a review (requester only) */
   onCancel: (reviewId: string) => Promise<boolean>
   /** Whether this review row is currently active/selected */
@@ -48,7 +52,11 @@ interface ReviewFileRowProps {
 // ============================================================================
 
 /** Small avatar circle for reviewer chip display */
-function AvatarChip({ user, status, size = 22 }: {
+function AvatarChip({
+  user,
+  status,
+  size = 22,
+}: {
   user?: { email: string; full_name: string | null; avatar_url: string | null } | null
   status?: ReviewStatus
   size?: number
@@ -56,14 +64,22 @@ function AvatarChip({ user, status, size = 22 }: {
   if (!user) return null
 
   const initials = user.full_name
-    ? user.full_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+    ? user.full_name
+        .split(' ')
+        .map((n) => n[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2)
     : user.email[0].toUpperCase()
 
   const statusBorderColor =
-    status === 'approved' ? 'ring-plm-success' :
-    status === 'rejected' ? 'ring-plm-error' :
-    status === 'kicked_back' ? 'ring-plm-warning' :
-    'ring-plm-warning'
+    status === 'approved'
+      ? 'ring-plm-success'
+      : status === 'rejected'
+        ? 'ring-plm-error'
+        : status === 'kicked_back'
+          ? 'ring-plm-warning'
+          : 'ring-plm-warning'
 
   if (user.avatar_url) {
     return (
@@ -79,10 +95,17 @@ function AvatarChip({ user, status, size = 22 }: {
   }
 
   const colors = [
-    'bg-blue-500', 'bg-green-500', 'bg-yellow-500', 'bg-red-500',
-    'bg-purple-500', 'bg-pink-500', 'bg-indigo-500', 'bg-teal-500',
+    'bg-blue-500',
+    'bg-green-500',
+    'bg-yellow-500',
+    'bg-red-500',
+    'bg-purple-500',
+    'bg-pink-500',
+    'bg-indigo-500',
+    'bg-teal-500',
   ]
-  const colorIndex = user.email.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length
+  const colorIndex =
+    user.email.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length
 
   return (
     <div
@@ -97,37 +120,40 @@ function AvatarChip({ user, status, size = 22 }: {
 
 /** Overall status badge */
 function StatusBadge({ status }: { status: ReviewStatus }) {
-  const config: Record<ReviewStatus, { label: string; className: string; icon: React.ReactNode }> = {
-    pending: {
-      label: 'Pending',
-      className: 'bg-plm-warning/15 text-plm-warning border-plm-warning/30',
-      icon: <Clock size={10} />,
-    },
-    approved: {
-      label: 'Approved',
-      className: 'bg-plm-success/15 text-plm-success border-plm-success/30',
-      icon: <CheckCircle2 size={10} />,
-    },
-    rejected: {
-      label: 'Rejected',
-      className: 'bg-plm-error/15 text-plm-error border-plm-error/30',
-      icon: <XCircle size={10} />,
-    },
-    kicked_back: {
-      label: 'Kicked Back',
-      className: 'bg-plm-warning/15 text-plm-warning border-plm-warning/30',
-      icon: <Undo2 size={10} />,
-    },
-    cancelled: {
-      label: 'Cancelled',
-      className: 'bg-plm-fg-muted/15 text-plm-fg-muted border-plm-fg-muted/30',
-      icon: <X size={10} />,
-    },
-  }
+  const config: Record<ReviewStatus, { label: string; className: string; icon: React.ReactNode }> =
+    {
+      pending: {
+        label: 'Pending',
+        className: 'bg-plm-warning/15 text-plm-warning border-plm-warning/30',
+        icon: <Clock size={10} />,
+      },
+      approved: {
+        label: 'Approved',
+        className: 'bg-plm-success/15 text-plm-success border-plm-success/30',
+        icon: <CheckCircle2 size={10} />,
+      },
+      rejected: {
+        label: 'Rejected',
+        className: 'bg-plm-error/15 text-plm-error border-plm-error/30',
+        icon: <XCircle size={10} />,
+      },
+      kicked_back: {
+        label: 'Kicked Back',
+        className: 'bg-plm-warning/15 text-plm-warning border-plm-warning/30',
+        icon: <Undo2 size={10} />,
+      },
+      cancelled: {
+        label: 'Cancelled',
+        className: 'bg-plm-fg-muted/15 text-plm-fg-muted border-plm-fg-muted/30',
+        icon: <X size={10} />,
+      },
+    }
 
   const c = config[status] || config.pending
   return (
-    <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${c.className}`}>
+    <span
+      className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${c.className}`}
+    >
       {c.icon}
       {c.label}
     </span>
@@ -170,7 +196,9 @@ function DueDateBadge({ dueDate }: { dueDate?: string | null }) {
       : 'text-plm-fg-muted bg-plm-fg-muted/10'
 
   return (
-    <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full ${className}`}>
+    <span
+      className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full ${className}`}
+    >
       <Clock size={9} />
       {isOverdue && <AlertTriangle size={9} />}
       {due.toLocaleDateString()}
@@ -209,7 +237,7 @@ export const ReviewFileRow = memo(function ReviewFileRow({
   onCancel,
   isActive,
 }: ReviewFileRowProps) {
-  const userId = usePDMStore(s => s.user?.id)
+  const userId = usePDMStore((s) => s.user?.id)
 
   // Right-click context menu state
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
@@ -219,7 +247,9 @@ export const ReviewFileRow = memo(function ReviewFileRow({
   useEffect(() => {
     if (!contextMenu) return
     const handleClose = () => setContextMenu(null)
-    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') setContextMenu(null) }
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setContextMenu(null)
+    }
     document.addEventListener('click', handleClose)
     document.addEventListener('keydown', handleKeyDown)
     return () => {
@@ -238,51 +268,72 @@ export const ReviewFileRow = memo(function ReviewFileRow({
     setContextMenu({ x: e.clientX, y: e.clientY })
   }, [])
 
-  const handleOpenInBluePLM = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation()
-    setContextMenu(null)
-    onNavigate(review.file?.file_path)
-  }, [review.file?.file_path, onNavigate])
+  const handleOpenInBluePLM = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      setContextMenu(null)
+      onNavigate(review.file?.file_path)
+    },
+    [review.file?.file_path, onNavigate],
+  )
 
-  const handleOpenExternally = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation()
-    setContextMenu(null)
-    onOpenExternal(review.file?.file_path)
-  }, [review.file?.file_path, onOpenExternal])
+  const handleOpenExternally = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      setContextMenu(null)
+      onOpenExternal(review.file?.file_path)
+    },
+    [review.file?.file_path, onOpenExternal],
+  )
 
-  const handleCancelClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation()
-    onCancel(review.id)
-  }, [review.id, onCancel])
+  const handleCancelClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      onCancel(review.id)
+    },
+    [review.id, onCancel],
+  )
 
   const isRequester = userId === review.requested_by
   const isPending = review.status === 'pending'
   const responses = review.responses ?? []
-  const approvedCount = responses.filter(r => r.status === 'approved').length
+  const approvedCount = responses.filter((r) => r.status === 'approved').length
   const totalCount = responses.length
 
   const myPendingResponse = responses.find(
-    r => (r.reviewer_id === userId || r.reviewer?.id === userId) && (r.status === 'pending' || r.status === 'kicked_back')
+    (r) =>
+      (r.reviewer_id === userId || r.reviewer?.id === userId) &&
+      (r.status === 'pending' || r.status === 'kicked_back'),
   )
 
-  const handleApprove = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (myPendingResponse) onRespond(myPendingResponse.id, 'approved')
-  }, [myPendingResponse, onRespond])
+  const handleApprove = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      if (myPendingResponse) onRespond(myPendingResponse.id, 'approved')
+    },
+    [myPendingResponse, onRespond],
+  )
 
-  const handleKickBack = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (myPendingResponse) onRespond(myPendingResponse.id, 'kicked_back')
-  }, [myPendingResponse, onRespond])
+  const handleKickBack = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      if (myPendingResponse) onRespond(myPendingResponse.id, 'kicked_back')
+    },
+    [myPendingResponse, onRespond],
+  )
 
   const borderColor = isActive
     ? 'border-plm-accent bg-plm-accent/5'
-    : review.status === 'approved' ? 'border-plm-success/30 hover:border-plm-success/50' :
-      review.status === 'rejected' ? 'border-plm-error/30 hover:border-plm-error/50' :
-      'border-plm-border hover:border-plm-accent/50'
+    : review.status === 'approved'
+      ? 'border-plm-success/30 hover:border-plm-success/50'
+      : review.status === 'rejected'
+        ? 'border-plm-error/30 hover:border-plm-error/50'
+        : 'border-plm-border hover:border-plm-accent/50'
 
   return (
-    <div className={`bg-plm-bg-light border rounded-lg overflow-hidden transition-colors ${borderColor} relative`}>
+    <div
+      className={`bg-plm-bg-light border rounded-lg overflow-hidden transition-colors ${borderColor} relative`}
+    >
       <div
         className="p-2 cursor-pointer select-none"
         onClick={handleClick}
@@ -310,9 +361,7 @@ export const ReviewFileRow = memo(function ReviewFileRow({
                 </span>
               )}
               {review.file?.description && (
-                <span className="text-[11px] text-plm-fg truncate">
-                  {review.file.description}
-                </span>
+                <span className="text-[11px] text-plm-fg truncate">{review.file.description}</span>
               )}
             </div>
 
@@ -328,7 +377,8 @@ export const ReviewFileRow = memo(function ReviewFileRow({
                 </span>
               </div>
               <span className="text-[10px] text-plm-fg-muted">
-                by {review.requester?.full_name || review.requester?.email?.split('@')[0] || 'Unknown'}
+                by{' '}
+                {review.requester?.full_name || review.requester?.email?.split('@')[0] || 'Unknown'}
               </span>
               <span className="text-plm-fg-muted text-[10px]">&middot;</span>
               <span className="text-[10px] text-plm-fg-muted">
@@ -338,7 +388,7 @@ export const ReviewFileRow = memo(function ReviewFileRow({
                 <>
                   <span className="text-plm-fg-muted text-[10px]">&middot;</span>
                   <div className="flex -space-x-1.5 items-center">
-                    {responses.slice(0, 4).map(resp => (
+                    {responses.slice(0, 4).map((resp) => (
                       <AvatarChip
                         key={resp.id}
                         user={resp.reviewer}
@@ -359,7 +409,7 @@ export const ReviewFileRow = memo(function ReviewFileRow({
           </div>
 
           {/* Action buttons - right side */}
-          {(isPending && myPendingResponse || isRequester && review.status !== 'cancelled') && (
+          {((isPending && myPendingResponse) || (isRequester && review.status !== 'cancelled')) && (
             <div className="flex flex-col gap-1.5 flex-shrink-0 ml-1">
               {isPending && myPendingResponse && (
                 <>

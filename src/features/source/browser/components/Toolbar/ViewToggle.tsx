@@ -13,7 +13,7 @@ export interface ViewToggleProps {
  */
 export const ViewToggle = memo(function ViewToggle({
   viewMode,
-  onViewModeChange
+  onViewModeChange,
 }: ViewToggleProps) {
   return (
     <div className="flex items-center gap-1">

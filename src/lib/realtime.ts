@@ -1,11 +1,11 @@
 /**
  * BluePLM Realtime Subscriptions
- * 
+ *
  * Provides instant updates across all connected clients for:
  * - Checkout locks (critical for conflict prevention)
  * - Version changes (know when your copy is stale)
  * - State changes (see releases in real-time)
- * 
+ *
  * New files require manual refresh (F5) - less critical.
  */
 
@@ -17,7 +17,7 @@ import type { Organization } from '../types/pdm'
 type FileChangeCallback = (
   eventType: 'INSERT' | 'UPDATE' | 'DELETE',
   file: PDMFile,
-  oldFile?: PDMFile
+  oldFile?: PDMFile,
 ) => void
 
 type ActivityCallback = (activity: {
@@ -31,18 +31,24 @@ type ActivityCallback = (activity: {
 type OrganizationChangeCallback = (
   eventType: 'UPDATE',
   org: Organization,
-  oldOrg?: Organization
+  oldOrg?: Organization,
 ) => void
 
 type ColorSwatchChangeCallback = (
   eventType: 'INSERT' | 'DELETE',
-  swatch: { id: string; color: string; org_id: string | null; user_id: string | null; created_at: string }
+  swatch: {
+    id: string
+    color: string
+    org_id: string | null
+    user_id: string | null
+    created_at: string
+  },
 ) => void
 
 type VaultChangeCallback = (
   eventType: 'INSERT' | 'UPDATE' | 'DELETE',
   vault: { id: string; name: string; slug: string; org_id: string; is_default: boolean | null },
-  oldVault?: { id: string; name: string; slug: string; org_id: string; is_default: boolean | null }
+  oldVault?: { id: string; name: string; slug: string; org_id: string; is_default: boolean | null },
 ) => void
 
 let filesChannel: RealtimeChannel | null = null
@@ -55,31 +61,35 @@ let memberChangesChannel: RealtimeChannel | null = null
 
 // Callback type for permission/access changes
 type PermissionChangeCallback = (
-  changeType: 'vault_access' | 'team_vault_access' | 'team_members' | 'user_permissions' | 'teams' | 'workflow_roles' | 'job_titles',
+  changeType:
+    | 'vault_access'
+    | 'team_vault_access'
+    | 'team_members'
+    | 'user_permissions'
+    | 'teams'
+    | 'workflow_roles'
+    | 'job_titles',
   eventType: 'INSERT' | 'UPDATE' | 'DELETE',
-  userId?: string
+  userId?: string,
 ) => void
 
 // Callback type for member attribute changes (org-wide, for admin views)
 type MemberChangeCallback = (
   changeType: 'team_member' | 'workflow_role' | 'job_title',
   eventType: 'INSERT' | 'UPDATE' | 'DELETE',
-  userId: string
+  userId: string,
 ) => void
 
 /**
  * Subscribe to real-time file changes for an organization
- * 
+ *
  * Updates are instant (<100ms) for:
  * - checked_out_by changes (lock acquired/released)
  * - version increments (new version checked in)
  * - state changes (WIP → Released)
  * - revision changes
  */
-export function subscribeToFiles(
-  orgId: string,
-  onFileChange: FileChangeCallback
-): () => void {
+export function subscribeToFiles(orgId: string, onFileChange: FileChangeCallback): () => void {
   // Unsubscribe from previous channel if exists
   if (filesChannel) {
     filesChannel.unsubscribe()
@@ -93,14 +103,14 @@ export function subscribeToFiles(
         event: '*', // INSERT, UPDATE, DELETE
         schema: 'public',
         table: 'files',
-        filter: `org_id=eq.${orgId}`
+        filter: `org_id=eq.${orgId}`,
       },
       (payload: RealtimePostgresChangesPayload<PDMFile>) => {
         const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE'
         const newFile = payload.new as PDMFile
         const oldFile = payload.old as PDMFile | undefined
         onFileChange(eventType, newFile, oldFile)
-      }
+      },
     )
     .subscribe()
 
@@ -115,16 +125,13 @@ export function subscribeToFiles(
 
 /**
  * Subscribe to activity feed for real-time notifications
- * 
+ *
  * Shows toast/notifications when:
  * - Someone checks out a file you're watching
  * - A file you care about gets a new version
  * - Files change state
  */
-export function subscribeToActivity(
-  orgId: string,
-  onActivity: ActivityCallback
-): () => void {
+export function subscribeToActivity(orgId: string, onActivity: ActivityCallback): () => void {
   if (activityChannel) {
     activityChannel.unsubscribe()
   }
@@ -137,17 +144,19 @@ export function subscribeToActivity(
         event: 'INSERT',
         schema: 'public',
         table: 'activity',
-        filter: `org_id=eq.${orgId}`
+        filter: `org_id=eq.${orgId}`,
       },
       (payload) => {
-        onActivity(payload.new as {
-          action: string
-          file_id: string | null
-          user_email: string
-          details: Record<string, unknown>
-          created_at: string
-        })
-      }
+        onActivity(
+          payload.new as {
+            action: string
+            file_id: string | null
+            user_email: string
+            details: Record<string, unknown>
+            created_at: string
+          },
+        )
+      },
     )
     .subscribe()
 
@@ -161,19 +170,19 @@ export function subscribeToActivity(
 
 /**
  * Subscribe to organization settings changes for real-time sync
- * 
+ *
  * Updates are instant for:
  * - Integration settings (API URLs, license keys)
  * - Google Drive configuration
  * - RFQ settings
  * - Any other org-level settings
- * 
+ *
  * This ensures all users in an org see settings changes immediately
  * without needing to refresh.
  */
 export function subscribeToOrganization(
   orgId: string,
-  onOrgChange: OrganizationChangeCallback
+  onOrgChange: OrganizationChangeCallback,
 ): () => void {
   // Unsubscribe from previous channel if exists
   if (organizationChannel) {
@@ -188,13 +197,13 @@ export function subscribeToOrganization(
         event: 'UPDATE',
         schema: 'public',
         table: 'organizations',
-        filter: `id=eq.${orgId}`
+        filter: `id=eq.${orgId}`,
       },
       (payload: RealtimePostgresChangesPayload<Organization>) => {
         const newOrg = payload.new as Organization
         const oldOrg = payload.old as Organization | undefined
         onOrgChange('UPDATE', newOrg, oldOrg)
-      }
+      },
     )
     .subscribe()
 
@@ -209,16 +218,16 @@ export function subscribeToOrganization(
 
 /**
  * Subscribe to org color swatch changes for real-time sync
- * 
+ *
  * Updates are instant for:
  * - New org colors added by admins
  * - Org colors deleted by admins
- * 
+ *
  * This ensures all users see shared color palette changes immediately.
  */
 export function subscribeToColorSwatches(
   orgId: string,
-  onSwatchChange: ColorSwatchChangeCallback
+  onSwatchChange: ColorSwatchChangeCallback,
 ): () => void {
   // Unsubscribe from previous channel if exists
   if (colorSwatchesChannel) {
@@ -233,11 +242,20 @@ export function subscribeToColorSwatches(
         event: 'INSERT',
         schema: 'public',
         table: 'color_swatches',
-        filter: `org_id=eq.${orgId}`
+        filter: `org_id=eq.${orgId}`,
       },
       (payload) => {
-        onSwatchChange('INSERT', payload.new as { id: string; color: string; org_id: string | null; user_id: string | null; created_at: string })
-      }
+        onSwatchChange(
+          'INSERT',
+          payload.new as {
+            id: string
+            color: string
+            org_id: string | null
+            user_id: string | null
+            created_at: string
+          },
+        )
+      },
     )
     .on(
       'postgres_changes',
@@ -245,11 +263,20 @@ export function subscribeToColorSwatches(
         event: 'DELETE',
         schema: 'public',
         table: 'color_swatches',
-        filter: `org_id=eq.${orgId}`
+        filter: `org_id=eq.${orgId}`,
       },
       (payload) => {
-        onSwatchChange('DELETE', payload.old as { id: string; color: string; org_id: string | null; user_id: string | null; created_at: string })
-      }
+        onSwatchChange(
+          'DELETE',
+          payload.old as {
+            id: string
+            color: string
+            org_id: string | null
+            user_id: string | null
+            created_at: string
+          },
+        )
+      },
     )
     .subscribe()
 
@@ -264,19 +291,16 @@ export function subscribeToColorSwatches(
 
 /**
  * Subscribe to vault CRUD changes for an organization
- * 
+ *
  * Updates are instant for:
  * - Vault created
  * - Vault renamed
  * - Vault deleted
  * - Default vault changed
- * 
+ *
  * This ensures all admins see vault changes immediately.
  */
-export function subscribeToVaults(
-  orgId: string,
-  onVaultChange: VaultChangeCallback
-): () => void {
+export function subscribeToVaults(orgId: string, onVaultChange: VaultChangeCallback): () => void {
   // Unsubscribe from previous channel if exists
   if (vaultsChannel) {
     vaultsChannel.unsubscribe()
@@ -290,14 +314,22 @@ export function subscribeToVaults(
         event: '*',
         schema: 'public',
         table: 'vaults',
-        filter: `org_id=eq.${orgId}`
+        filter: `org_id=eq.${orgId}`,
       },
       (payload) => {
         const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE'
-        const newVault = payload.new as { id: string; name: string; slug: string; org_id: string; is_default: boolean | null }
-        const oldVault = payload.old as { id: string; name: string; slug: string; org_id: string; is_default: boolean | null } | undefined
+        const newVault = payload.new as {
+          id: string
+          name: string
+          slug: string
+          org_id: string
+          is_default: boolean | null
+        }
+        const oldVault = payload.old as
+          | { id: string; name: string; slug: string; org_id: string; is_default: boolean | null }
+          | undefined
         onVaultChange(eventType, newVault, oldVault)
-      }
+      },
     )
     .subscribe()
 
@@ -312,19 +344,19 @@ export function subscribeToVaults(
 
 /**
  * Subscribe to org-wide member attribute changes
- * 
+ *
  * Used by admin views (e.g., TeamMembersSettings) to see real-time updates when:
  * - Users are added/removed from teams
  * - Users are assigned/unassigned workflow roles
  * - Users are assigned/unassigned job titles
- * 
+ *
  * Note: These tables don't have org_id directly, so we subscribe to all changes
  * and let the callback handler filter/refresh as needed. The subscription is
  * scoped by channel name to avoid conflicts with other orgs.
  */
 export function subscribeToMemberChanges(
   orgId: string,
-  onMemberChange: MemberChangeCallback
+  onMemberChange: MemberChangeCallback,
 ): () => void {
   // Unsubscribe from previous channel if exists
   if (memberChangesChannel) {
@@ -339,7 +371,7 @@ export function subscribeToMemberChanges(
       {
         event: '*',
         schema: 'public',
-        table: 'team_members'
+        table: 'team_members',
       },
       (payload) => {
         const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE'
@@ -347,7 +379,7 @@ export function subscribeToMemberChanges(
         if (record?.user_id) {
           onMemberChange('team_member', eventType, record.user_id)
         }
-      }
+      },
     )
     // Workflow role assignment changes (all users)
     .on(
@@ -355,7 +387,7 @@ export function subscribeToMemberChanges(
       {
         event: '*',
         schema: 'public',
-        table: 'user_workflow_roles'
+        table: 'user_workflow_roles',
       },
       (payload) => {
         const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE'
@@ -363,7 +395,7 @@ export function subscribeToMemberChanges(
         if (record?.user_id) {
           onMemberChange('workflow_role', eventType, record.user_id)
         }
-      }
+      },
     )
     // Job title assignment changes (all users)
     .on(
@@ -371,7 +403,7 @@ export function subscribeToMemberChanges(
       {
         event: '*',
         schema: 'public',
-        table: 'user_job_titles'
+        table: 'user_job_titles',
       },
       (payload) => {
         const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE'
@@ -379,7 +411,7 @@ export function subscribeToMemberChanges(
         if (record?.user_id) {
           onMemberChange('job_title', eventType, record.user_id)
         }
-      }
+      },
     )
     .subscribe()
 
@@ -401,7 +433,7 @@ export function isMemberChangesRealtimeConnected(): boolean {
 
 /**
  * Subscribe to permission-related changes for a user
- * 
+ *
  * Updates are instant for:
  * - vault_access: Individual user vault access grants/revocations
  * - team_vault_access: Team-level vault access changes
@@ -410,14 +442,14 @@ export function isMemberChangesRealtimeConnected(): boolean {
  * - teams: Team created/renamed/deleted
  * - workflow_roles: User workflow role assignments
  * - job_titles: User job title assignments
- * 
+ *
  * This ensures users see access changes immediately without refreshing.
  * The callback is fired with the change type so the app can reload the appropriate data.
  */
 export function subscribeToPermissions(
   userId: string,
   orgId: string,
-  onPermissionChange: PermissionChangeCallback
+  onPermissionChange: PermissionChangeCallback,
 ): () => void {
   // Unsubscribe from previous channel if exists
   if (permissionsChannel) {
@@ -435,12 +467,12 @@ export function subscribeToPermissions(
         event: '*',
         schema: 'public',
         table: 'vault_access',
-        filter: `user_id=eq.${userId}`
+        filter: `user_id=eq.${userId}`,
       },
       (payload) => {
         const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE'
         onPermissionChange('vault_access', eventType, userId)
-      }
+      },
     )
     // Team vault access changes (affects user if they're in that team)
     .on(
@@ -448,12 +480,12 @@ export function subscribeToPermissions(
       {
         event: '*',
         schema: 'public',
-        table: 'team_vault_access'
+        table: 'team_vault_access',
       },
       (payload) => {
         const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE'
         onPermissionChange('team_vault_access', eventType)
-      }
+      },
     )
     // Team membership changes for this user
     .on(
@@ -462,12 +494,12 @@ export function subscribeToPermissions(
         event: '*',
         schema: 'public',
         table: 'team_members',
-        filter: `user_id=eq.${userId}`
+        filter: `user_id=eq.${userId}`,
       },
       (payload) => {
         const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE'
         onPermissionChange('team_members', eventType, userId)
-      }
+      },
     )
     // Individual permission changes for this user
     .on(
@@ -476,12 +508,12 @@ export function subscribeToPermissions(
         event: '*',
         schema: 'public',
         table: 'user_permissions',
-        filter: `user_id=eq.${userId}`
+        filter: `user_id=eq.${userId}`,
       },
       (payload) => {
         const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE'
         onPermissionChange('user_permissions', eventType, userId)
-      }
+      },
     )
     // Workflow role assignment changes for this user
     .on(
@@ -490,12 +522,12 @@ export function subscribeToPermissions(
         event: '*',
         schema: 'public',
         table: 'user_workflow_roles',
-        filter: `user_id=eq.${userId}`
+        filter: `user_id=eq.${userId}`,
       },
       (payload) => {
         const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE'
         onPermissionChange('workflow_roles', eventType, userId)
-      }
+      },
     )
     // Job title assignment changes for this user
     .on(
@@ -504,12 +536,12 @@ export function subscribeToPermissions(
         event: '*',
         schema: 'public',
         table: 'user_job_titles',
-        filter: `user_id=eq.${userId}`
+        filter: `user_id=eq.${userId}`,
       },
       (payload) => {
         const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE'
         onPermissionChange('job_titles', eventType, userId)
-      }
+      },
     )
     // Also listen for user role changes (admin making someone engineer, etc)
     .on(
@@ -518,7 +550,7 @@ export function subscribeToPermissions(
         event: 'UPDATE',
         schema: 'public',
         table: 'users',
-        filter: `id=eq.${userId}`
+        filter: `id=eq.${userId}`,
       },
       (payload) => {
         const newUser = payload.new as { role?: string }
@@ -526,7 +558,7 @@ export function subscribeToPermissions(
         if (newUser?.role !== oldUser?.role) {
           onPermissionChange('user_permissions', 'UPDATE', userId)
         }
-      }
+      },
     )
     // Team CRUD changes (team created/renamed/deleted)
     .on(
@@ -535,12 +567,12 @@ export function subscribeToPermissions(
         event: '*',
         schema: 'public',
         table: 'teams',
-        filter: `org_id=eq.${orgId}`
+        filter: `org_id=eq.${orgId}`,
       },
       (payload) => {
         const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE'
         onPermissionChange('teams', eventType)
-      }
+      },
     )
     .subscribe()
 

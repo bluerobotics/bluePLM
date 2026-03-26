@@ -1,6 +1,6 @@
 /**
  * Extension Updater
- * 
+ *
  * Handles:
  * - Auto-update checks on app startup
  * - Update notification
@@ -8,7 +8,7 @@
  * - Version pinning for enterprise orgs
  * - Breaking update detection (major version bump)
  * - Rollback: keeps previous version for 7 days
- * 
+ *
  * @module extensions/registry/updater
  */
 
@@ -107,7 +107,7 @@ export interface UpdateOptions {
 
 /**
  * Check for available updates for installed extensions.
- * 
+ *
  * @param installedExtensions - Map of extension ID to manifest
  * @param options - Check options
  * @returns Update check result
@@ -118,21 +118,17 @@ export async function checkForUpdates(
     storeApiUrl?: string
     versionPins?: Map<string, VersionPin>
     appVersion?: string
-  } = {}
+  } = {},
 ): Promise<UpdateCheckResult> {
-  const { 
-    storeApiUrl = DEFAULT_STORE_API_URL,
-    versionPins = new Map(),
-    appVersion,
-  } = options
-  
+  const { storeApiUrl = DEFAULT_STORE_API_URL, versionPins = new Map(), appVersion } = options
+
   const updates: ExtensionUpdate[] = []
   const checked: string[] = []
   const errors: Array<{ extensionId: string; error: string }> = []
-  
+
   for (const [extensionId, manifest] of installedExtensions) {
     checked.push(extensionId)
-    
+
     try {
       // Check if version is pinned
       const pin = versionPins.get(extensionId)
@@ -140,23 +136,21 @@ export async function checkForUpdates(
         // Pinned extensions don't get update notifications
         continue
       }
-      
+
       // Fetch available versions from store
       const versions = await getExtensionVersions(extensionId, storeApiUrl)
-      
+
       if (versions.length === 0) {
         // Not in store (sideloaded or removed)
         continue
       }
-      
+
       // Sort versions by semver (newest first)
-      const sortedVersions = [...versions].sort((a, b) => 
-        compareVersions(b.version, a.version)
-      )
-      
+      const sortedVersions = [...versions].sort((a, b) => compareVersions(b.version, a.version))
+
       // Find latest compatible version
       let latestCompatible: StoreExtensionVersion | undefined
-      
+
       for (const version of sortedVersions) {
         // Check app version compatibility
         if (appVersion && version.minAppVersion) {
@@ -164,24 +158,24 @@ export async function checkForUpdates(
             continue
           }
         }
-        
+
         latestCompatible = version
         break
       }
-      
+
       if (!latestCompatible) {
         continue
       }
-      
+
       // Check if newer than installed
       const comparison = compareVersions(latestCompatible.version, manifest.version)
-      
+
       if (comparison > 0) {
         // Determine if breaking change
         const [currentMajor] = manifest.version.split('.').map(Number)
         const [newMajor] = latestCompatible.version.split('.').map(Number)
         const breaking = newMajor > currentMajor
-        
+
         updates.push({
           extensionId,
           currentVersion: manifest.version,
@@ -191,7 +185,6 @@ export async function checkForUpdates(
           minAppVersion: latestCompatible.minAppVersion,
         })
       }
-      
     } catch (error) {
       errors.push({
         extensionId,
@@ -199,7 +192,7 @@ export async function checkForUpdates(
       })
     }
   }
-  
+
   return {
     updates,
     checked,
@@ -217,7 +210,7 @@ export async function checkExtensionUpdate(
   options: {
     storeApiUrl?: string
     appVersion?: string
-  } = {}
+  } = {},
 ): Promise<ExtensionUpdate | null> {
   const manifest: ExtensionManifest = {
     id: extensionId,
@@ -230,12 +223,9 @@ export async function checkExtensionUpdate(
     contributes: {},
     permissions: {},
   }
-  
-  const result = await checkForUpdates(
-    new Map([[extensionId, manifest]]),
-    options
-  )
-  
+
+  const result = await checkForUpdates(new Map([[extensionId, manifest]]), options)
+
   return result.updates[0] || null
 }
 
@@ -245,7 +235,7 @@ export async function checkExtensionUpdate(
 
 /**
  * Update an extension to a new version.
- * 
+ *
  * @param extensionId - Extension to update
  * @param extensionsPath - Local extensions directory
  * @param options - Update options
@@ -254,7 +244,7 @@ export async function checkExtensionUpdate(
 export async function updateExtension(
   extensionId: string,
   extensionsPath: string,
-  options: UpdateOptions = {}
+  options: UpdateOptions = {},
 ): Promise<{
   success: boolean
   previousVersion?: string
@@ -270,21 +260,21 @@ export async function updateExtension(
     orgApiUrl,
     authToken,
   } = options
-  
+
   try {
     // Get current version
     const currentVersion = await getInstalledVersion(extensionId, extensionsPath)
-    
+
     if (!currentVersion) {
       return {
         success: false,
         error: `Extension ${extensionId} is not installed`,
       }
     }
-    
+
     // Get target version
     let targetVersion = version
-    
+
     if (!targetVersion) {
       // Get latest version from store
       const versions = await getExtensionVersions(extensionId, storeApiUrl)
@@ -294,14 +284,12 @@ export async function updateExtension(
           error: 'No versions available in store',
         }
       }
-      
+
       // Sort and get latest
-      const sorted = [...versions].sort((a, b) => 
-        compareVersions(b.version, a.version)
-      )
+      const sorted = [...versions].sort((a, b) => compareVersions(b.version, a.version))
       targetVersion = sorted[0].version
     }
-    
+
     // Check if already at this version
     if (compareVersions(currentVersion, targetVersion) === 0) {
       return {
@@ -310,12 +298,12 @@ export async function updateExtension(
         newVersion: targetVersion,
       }
     }
-    
+
     // Check for breaking change
     if (!allowBreaking) {
       const [currentMajor] = currentVersion.split('.').map(Number)
       const [targetMajor] = targetVersion.split('.').map(Number)
-      
+
       if (targetMajor > currentMajor) {
         return {
           success: false,
@@ -324,7 +312,7 @@ export async function updateExtension(
         }
       }
     }
-    
+
     // Create rollback entry before update
     if (createRollback) {
       await saveRollbackEntry({
@@ -334,7 +322,7 @@ export async function updateExtension(
         updatedAt: new Date().toISOString(),
       })
     }
-    
+
     // Install new version (will overwrite)
     const result = await installFromStore(extensionId, extensionsPath, {
       version: targetVersion,
@@ -344,26 +332,25 @@ export async function updateExtension(
       orgApiUrl,
       authToken,
     })
-    
+
     if (!result.success) {
       // Remove rollback entry on failure
       if (createRollback) {
         await removeRollbackEntry(extensionId)
       }
-      
+
       return {
         success: false,
         previousVersion: currentVersion,
         error: result.error,
       }
     }
-    
+
     return {
       success: true,
       previousVersion: currentVersion,
       newVersion: targetVersion,
     }
-    
   } catch (error) {
     return {
       success: false,
@@ -378,7 +365,7 @@ export async function updateExtension(
 
 /**
  * Rollback an extension to its previous version.
- * 
+ *
  * @param extensionId - Extension to rollback
  * @param extensionsPath - Local extensions directory
  * @param options - Rollback options
@@ -392,29 +379,29 @@ export async function rollbackExtension(
     storeApiUrl?: string
     orgApiUrl?: string
     authToken?: string
-  } = {}
+  } = {},
 ): Promise<{
   success: boolean
   rolledBackTo?: string
   error?: string
 }> {
   const { onProgress, storeApiUrl, orgApiUrl, authToken } = options
-  
+
   try {
     // Get rollback entry
     const entry = await getRollbackEntry(extensionId)
-    
+
     if (!entry) {
       return {
         success: false,
         error: 'No rollback entry found for this extension',
       }
     }
-    
+
     // Check if rollback entry is expired
     const updatedAt = new Date(entry.updatedAt)
     const expiresAt = new Date(updatedAt.getTime() + ROLLBACK_RETENTION_DAYS * 24 * 60 * 60 * 1000)
-    
+
     if (new Date() > expiresAt) {
       await removeRollbackEntry(extensionId)
       return {
@@ -422,7 +409,7 @@ export async function rollbackExtension(
         error: 'Rollback entry has expired',
       }
     }
-    
+
     // Install previous version
     const result = await installFromStore(extensionId, extensionsPath, {
       version: entry.previousVersion,
@@ -432,22 +419,21 @@ export async function rollbackExtension(
       orgApiUrl,
       authToken,
     })
-    
+
     if (!result.success) {
       return {
         success: false,
         error: result.error,
       }
     }
-    
+
     // Remove rollback entry after successful rollback
     await removeRollbackEntry(extensionId)
-    
+
     return {
       success: true,
       rolledBackTo: entry.previousVersion,
     }
-    
   } catch (error) {
     return {
       success: false,
@@ -465,18 +451,18 @@ export async function canRollback(extensionId: string): Promise<{
   expiresAt?: Date
 }> {
   const entry = await getRollbackEntry(extensionId)
-  
+
   if (!entry) {
     return { canRollback: false }
   }
-  
+
   const updatedAt = new Date(entry.updatedAt)
   const expiresAt = new Date(updatedAt.getTime() + ROLLBACK_RETENTION_DAYS * 24 * 60 * 60 * 1000)
-  
+
   if (new Date() > expiresAt) {
     return { canRollback: false }
   }
-  
+
   return {
     canRollback: true,
     previousVersion: entry.previousVersion,
@@ -498,7 +484,7 @@ export async function pinVersion(
   options: {
     pinnedBy?: string
     reason?: string
-  } = {}
+  } = {},
 ): Promise<void> {
   const pin: VersionPin = {
     extensionId,
@@ -507,7 +493,7 @@ export async function pinVersion(
     pinnedBy: options.pinnedBy,
     reason: options.reason,
   }
-  
+
   const pins = await getVersionPins()
   pins.set(extensionId, pin)
   await saveVersionPins(pins)
@@ -527,7 +513,7 @@ export async function unpinVersion(extensionId: string): Promise<void> {
  */
 export async function getVersionPins(): Promise<Map<string, VersionPin>> {
   const pins = new Map<string, VersionPin>()
-  
+
   if (typeof localStorage !== 'undefined') {
     const data = localStorage.getItem('extension-version-pins')
     if (data) {
@@ -541,7 +527,7 @@ export async function getVersionPins(): Promise<Map<string, VersionPin>> {
       }
     }
   }
-  
+
   return pins
 }
 
@@ -559,10 +545,7 @@ export async function isPinned(extensionId: string): Promise<VersionPin | undefi
 
 async function saveRollbackEntry(entry: RollbackEntry): Promise<void> {
   if (typeof localStorage !== 'undefined') {
-    localStorage.setItem(
-      `${ROLLBACK_STORAGE_PREFIX}${entry.extensionId}`,
-      JSON.stringify(entry)
-    )
+    localStorage.setItem(`${ROLLBACK_STORAGE_PREFIX}${entry.extensionId}`, JSON.stringify(entry))
   }
 }
 
@@ -603,24 +586,26 @@ export async function cleanupExpiredRollbacks(): Promise<number> {
   if (typeof localStorage === 'undefined') {
     return 0
   }
-  
+
   let cleaned = 0
   const now = new Date()
-  
+
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i)
     if (!key?.startsWith(ROLLBACK_STORAGE_PREFIX)) {
       continue
     }
-    
+
     const data = localStorage.getItem(key)
     if (!data) continue
-    
+
     try {
       const entry = JSON.parse(data) as RollbackEntry
       const updatedAt = new Date(entry.updatedAt)
-      const expiresAt = new Date(updatedAt.getTime() + ROLLBACK_RETENTION_DAYS * 24 * 60 * 60 * 1000)
-      
+      const expiresAt = new Date(
+        updatedAt.getTime() + ROLLBACK_RETENTION_DAYS * 24 * 60 * 60 * 1000,
+      )
+
       if (now > expiresAt) {
         localStorage.removeItem(key)
         cleaned++
@@ -631,6 +616,6 @@ export async function cleanupExpiredRollbacks(): Promise<number> {
       cleaned++
     }
   }
-  
+
   return cleaned
 }

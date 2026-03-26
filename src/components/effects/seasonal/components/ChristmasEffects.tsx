@@ -14,7 +14,7 @@ import {
   calculateWindForces,
   updateSnowflake,
   renderSnowflake,
-  manageDensity
+  manageDensity,
 } from '../utils/snowPhysics'
 
 // 🎄 CHRISTMAS EFFECTS COMPONENT 🎅
@@ -31,28 +31,27 @@ interface Star {
   twinkleSpeed: number
 }
 
-
 export function ChristmasEffects() {
-  const theme = usePDMStore(s => s.theme)
-  const snowOpacity = usePDMStore(s => s.christmasSnowOpacity)
-  const snowDensity = usePDMStore(s => s.christmasSnowDensity)
-  const snowSize = usePDMStore(s => s.christmasSnowSize)
-  const blusteryness = usePDMStore(s => s.christmasBlusteryness)
-  const useLocalWeather = usePDMStore(s => s.christmasUseLocalWeather)
-  const sleighEnabled = usePDMStore(s => s.christmasSleighEnabled)
-  const sleighDirection = usePDMStore(s => s.christmasSleighDirection) ?? 'push' // Default to push for users with old persisted state
-  const setSnowOpacity = usePDMStore(s => s.setChristmasSnowOpacity)
-  const setSnowDensity = usePDMStore(s => s.setChristmasSnowDensity)
-  const setSnowSize = usePDMStore(s => s.setChristmasSnowSize)
-  const setBlusteryness = usePDMStore(s => s.setChristmasBlusteryness)
-  const setUseLocalWeather = usePDMStore(s => s.setChristmasUseLocalWeather)
-  const setSleighEnabled = usePDMStore(s => s.setChristmasSleighEnabled)
-  const setSleighDirection = usePDMStore(s => s.setChristmasSleighDirection)
-  
+  const theme = usePDMStore((s) => s.theme)
+  const snowOpacity = usePDMStore((s) => s.christmasSnowOpacity)
+  const snowDensity = usePDMStore((s) => s.christmasSnowDensity)
+  const snowSize = usePDMStore((s) => s.christmasSnowSize)
+  const blusteryness = usePDMStore((s) => s.christmasBlusteryness)
+  const useLocalWeather = usePDMStore((s) => s.christmasUseLocalWeather)
+  const sleighEnabled = usePDMStore((s) => s.christmasSleighEnabled)
+  const sleighDirection = usePDMStore((s) => s.christmasSleighDirection) ?? 'push' // Default to push for users with old persisted state
+  const setSnowOpacity = usePDMStore((s) => s.setChristmasSnowOpacity)
+  const setSnowDensity = usePDMStore((s) => s.setChristmasSnowDensity)
+  const setSnowSize = usePDMStore((s) => s.setChristmasSnowSize)
+  const setBlusteryness = usePDMStore((s) => s.setChristmasBlusteryness)
+  const setUseLocalWeather = usePDMStore((s) => s.setChristmasUseLocalWeather)
+  const setSleighEnabled = usePDMStore((s) => s.setChristmasSleighEnabled)
+  const setSleighDirection = usePDMStore((s) => s.setChristmasSleighDirection)
+
   // Use refs for snowflakes to avoid React re-renders - Canvas handles all rendering
   const snowflakesRef = useRef<Snowflake[]>([])
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  
+
   const [stars, setStars] = useState<Star[]>([])
   const [sleighPosition, setSleighPosition] = useState({ x: -300, y: 80, visible: false })
   const [showControls, setShowControls] = useState(false)
@@ -60,13 +59,18 @@ export function ChristmasEffects() {
   const sleighTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const sleighAnimationRef = useRef<number | null>(null)
   const sleighEnabledRef = useRef(sleighEnabled) // Ref to track current value in callbacks
-  
+
   // Wind state - using refs to avoid re-renders on every frame
   const windRef = useRef<WindState>(createWindState())
   const gustRef = useRef<GustState>(createGustState())
-  const windForcesRef = useRef<WindForces>({ baseWindX: 0, baseWindY: 0, weatherWindX: 0, weatherWindY: 0 })
+  const windForcesRef = useRef<WindForces>({
+    baseWindX: 0,
+    baseWindY: 0,
+    weatherWindX: 0,
+    weatherWindY: 0,
+  })
   const timeRef = useRef(0)
-  
+
   // Use refs for slider values to avoid re-renders during animation
   // The actual state is used for the UI display, refs are used in animation loop
   const blusterynessRef = useRef(blusteryness)
@@ -75,54 +79,56 @@ export function ChristmasEffects() {
   const snowSizeRef = useRef(snowSize)
   const useLocalWeatherRef = useRef(useLocalWeather)
   const nextFlakeIdRef = useRef({ current: 200 }) // For generating unique IDs when adding flakes
-  const [weatherStatus, setWeatherStatus] = useState<'loading' | 'success' | 'error' | 'disabled'>('loading')
+  const [weatherStatus, setWeatherStatus] = useState<'loading' | 'success' | 'error' | 'disabled'>(
+    'loading',
+  )
   const [displayWindSpeed, setDisplayWindSpeed] = useState<number | null>(null) // Wind speed in km/h for UI
   const [weatherUpdatedAt, setWeatherUpdatedAt] = useState<number | null>(null) // Timestamp of last update
   const [minutesAgo, setMinutesAgo] = useState<number>(0) // Minutes since last update
   const weatherFetchRef = useRef<(() => Promise<void>) | null>(null) // Ref to fetch function for manual refresh
-  
+
   // Keep refs in sync with state
   useEffect(() => {
     sleighEnabledRef.current = sleighEnabled
   }, [sleighEnabled])
-  
+
   useEffect(() => {
     blusterynessRef.current = blusteryness
   }, [blusteryness])
-  
+
   useEffect(() => {
     snowOpacityRef.current = snowOpacity
   }, [snowOpacity])
-  
+
   useEffect(() => {
     snowDensityRef.current = snowDensity
   }, [snowDensity])
-  
+
   useEffect(() => {
     snowSizeRef.current = snowSize
   }, [snowSize])
-  
+
   useEffect(() => {
     useLocalWeatherRef.current = useLocalWeather
   }, [useLocalWeather])
-  
+
   // Only render if Christmas theme is active - must be defined before useEffects that use it
   const isChristmas = theme === 'christmas'
-  
+
   // Fetch local weather data using shared weather library
   useEffect(() => {
     if (!isChristmas) return
-    
+
     const loadWeather = async () => {
       if (!useLocalWeatherRef.current) {
         setWeatherStatus('disabled')
         windRef.current.weatherWind = 0
         return
       }
-      
+
       setWeatherStatus('loading')
       const weather = await fetchWeather() // Uses shared weather library with caching
-      
+
       if (weather) {
         // Normalize wind speed: 0-1 scale (50 km/h = max effect)
         windRef.current.weatherWind = Math.min(weather.windSpeed / 50, 1)
@@ -138,37 +144,37 @@ export function ChristmasEffects() {
         setWeatherStatus('error')
       }
     }
-    
+
     // Store fetch function in ref for manual refresh
     weatherFetchRef.current = loadWeather
-    
+
     loadWeather()
-    
+
     // Refresh every 10 minutes (weather library also caches for 15 min)
     const interval = setInterval(loadWeather, 600000)
-    
+
     return () => clearInterval(interval)
   }, [isChristmas, useLocalWeather])
-  
+
   // Update "minutes ago" display
   useEffect(() => {
     if (!weatherUpdatedAt) return
-    
+
     const updateMinutesAgo = () => {
       const mins = Math.floor((Date.now() - weatherUpdatedAt) / 60000)
       setMinutesAgo(mins)
     }
-    
+
     updateMinutesAgo()
     const interval = setInterval(updateMinutesAgo, 30000) // Update every 30 seconds
-    
+
     return () => clearInterval(interval)
   }, [weatherUpdatedAt])
-  
+
   // Initialize stars
   useEffect(() => {
     if (!isChristmas) return
-    
+
     const newStars: Star[] = []
     for (let i = 0; i < 50; i++) {
       newStars.push({
@@ -182,23 +188,23 @@ export function ChristmasEffects() {
     }
     setStars(newStars)
   }, [isChristmas])
-  
+
   // Note: createSnowflake, updateWind, and other snow physics functions
   // are imported from shared snowPhysics.ts library
-  
+
   // Canvas-based snowflake animation - no React re-renders, pure GPU rendering
   useEffect(() => {
     if (!isChristmas) {
       snowflakesRef.current = []
       return
     }
-    
+
     const canvas = canvasRef.current
     if (!canvas) return
-    
+
     const ctx = canvas.getContext('2d')
     if (!ctx) return
-    
+
     // Set canvas size to window size
     const resizeCanvas = () => {
       canvas.width = window.innerWidth
@@ -206,7 +212,7 @@ export function ChristmasEffects() {
     }
     resizeCanvas()
     window.addEventListener('resize', resizeCanvas)
-    
+
     // Create initial snowflakes based on density setting
     const initialCount = snowDensityRef.current
     snowflakesRef.current = []
@@ -214,16 +220,16 @@ export function ChristmasEffects() {
       snowflakesRef.current.push(createSnowflake(i))
     }
     nextFlakeIdRef.current.current = initialCount
-    
+
     let lastTime = performance.now()
-    
+
     // Main animation loop - updates physics AND renders to canvas
     // Uses shared snow physics from snowPhysics.ts
     const animate = (currentTime: number) => {
       const deltaTime = Math.min(currentTime - lastTime, 50) // Cap delta to avoid jumps
       lastTime = currentTime
       timeRef.current += deltaTime
-      
+
       const wind = windRef.current
       const gust = gustRef.current
       const bluster = blusterynessRef.current / 100
@@ -232,10 +238,10 @@ export function ChristmasEffects() {
       const sizeMult = snowSizeRef.current / 100
       const useWeather = useLocalWeatherRef.current
       const time = timeRef.current
-      
+
       // Update wind using shared physics
       updateWind(wind, gust, time, deltaTime, bluster)
-      
+
       // Determine effective bluster based on weather vs manual setting
       let effectiveBluster: number
       if (useWeather && wind.weatherWind > 0) {
@@ -243,33 +249,37 @@ export function ChristmasEffects() {
       } else {
         effectiveBluster = bluster
       }
-      
+
       // Calculate wind forces using shared physics (reuses output object to avoid GC)
       calculateWindForces(
-        wind, time, effectiveBluster, useWeather && wind.weatherWind > 0, windForcesRef.current
+        wind,
+        time,
+        effectiveBluster,
+        useWeather && wind.weatherWind > 0,
+        windForcesRef.current,
       )
       const { baseWindX, baseWindY } = windForcesRef.current
-      
+
       // Handle density changes using shared function
       manageDensity(snowflakesRef.current, targetDensity, nextFlakeIdRef.current)
-      
+
       // Clear canvas
       ctx.clearRect(0, 0, canvas.width, canvas.height)
-      
+
       // Update and render each flake using shared physics
       for (const flake of snowflakesRef.current) {
         // Update flake physics
         updateSnowflake(flake, deltaTime, baseWindX, baseWindY, effectiveBluster, time)
-        
+
         // Render with Christmas-specific size multiplier
         renderSnowflake(ctx, flake, canvas.width, canvas.height, opacity, sizeMult)
       }
-      
+
       animationRef.current = requestAnimationFrame(animate)
     }
-    
+
     animationRef.current = requestAnimationFrame(animate)
-    
+
     return () => {
       window.removeEventListener('resize', resizeCanvas)
       if (animationRef.current) {
@@ -277,7 +287,7 @@ export function ChristmasEffects() {
       }
     }
   }, [isChristmas])
-  
+
   // Sleigh animation - flies across periodically
   useEffect(() => {
     // Clean up any existing animations/timeouts first
@@ -289,23 +299,23 @@ export function ChristmasEffects() {
       cancelAnimationFrame(sleighAnimationRef.current)
       sleighAnimationRef.current = null
     }
-    
+
     if (!isChristmas || !sleighEnabled) {
       setSleighPosition({ x: -300, y: 80, visible: false })
       return
     }
-    
+
     const scheduleSleigh = () => {
       // Random delay between 30-90 seconds
       const delay = Math.random() * 60000 + 30000
-      
+
       sleighTimeoutRef.current = setTimeout(() => {
         // Check ref for current value (not stale closure)
         if (!sleighEnabledRef.current) return
-        
+
         // Start sleigh animation
         setSleighPosition({ x: -300, y: 50 + Math.random() * 60, visible: true })
-        
+
         // Animate sleigh across screen
         let x = -300
         const animateSleigh = () => {
@@ -314,10 +324,10 @@ export function ChristmasEffects() {
             setSleighPosition({ x: -300, y: 80, visible: false })
             return
           }
-          
+
           x += 3
-          setSleighPosition(prev => ({ ...prev, x }))
-          
+          setSleighPosition((prev) => ({ ...prev, x }))
+
           if (x < window.innerWidth + 300) {
             sleighAnimationRef.current = requestAnimationFrame(animateSleigh)
           } else {
@@ -328,14 +338,14 @@ export function ChristmasEffects() {
         sleighAnimationRef.current = requestAnimationFrame(animateSleigh)
       }, delay)
     }
-    
+
     // Initial sleigh after 10 seconds
     sleighTimeoutRef.current = setTimeout(() => {
       // Check ref for current value
       if (!sleighEnabledRef.current) return
-      
+
       setSleighPosition({ x: -300, y: 60, visible: true })
-      
+
       let x = -300
       const animateSleigh = () => {
         // Check ref each frame
@@ -343,10 +353,10 @@ export function ChristmasEffects() {
           setSleighPosition({ x: -300, y: 80, visible: false })
           return
         }
-        
+
         x += 3
-        setSleighPosition(prev => ({ ...prev, x }))
-        
+        setSleighPosition((prev) => ({ ...prev, x }))
+
         if (x < window.innerWidth + 300) {
           sleighAnimationRef.current = requestAnimationFrame(animateSleigh)
         } else {
@@ -356,7 +366,7 @@ export function ChristmasEffects() {
       }
       sleighAnimationRef.current = requestAnimationFrame(animateSleigh)
     }, 10000)
-    
+
     return () => {
       if (sleighTimeoutRef.current) {
         clearTimeout(sleighTimeoutRef.current)
@@ -366,13 +376,13 @@ export function ChristmasEffects() {
       }
     }
   }, [isChristmas, sleighEnabled])
-  
+
   if (!isChristmas) return null
-  
+
   return (
     <>
       {/* Background gradient with aurora effect - z-index negative to go behind everything */}
-      <div 
+      <div
         className="fixed inset-0 pointer-events-none"
         style={{
           zIndex: -10,
@@ -384,10 +394,10 @@ export function ChristmasEffects() {
           `,
         }}
       />
-      
+
       {/* Twinkling stars - behind content */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden" style={{ zIndex: -9 }}>
-        {stars.map(star => (
+        {stars.map((star) => (
           <div
             key={star.id}
             className="absolute rounded-full bg-white"
@@ -403,15 +413,14 @@ export function ChristmasEffects() {
           />
         ))}
       </div>
-      
-      
+
       {/* Falling snowflakes - Canvas for GPU-accelerated rendering, no React re-renders */}
       <canvas
         ref={canvasRef}
         className="fixed inset-0 pointer-events-none"
         style={{ zIndex: 9999 }}
       />
-      
+
       {/* Santa's Sleigh with Reindeer - flies over everything! */}
       {sleighPosition.visible && sleighEnabled && (
         <div
@@ -425,19 +434,18 @@ export function ChristmasEffects() {
           }}
         >
           {/* Reindeer Team (4 reindeer) */}
-          <svg 
-            width="200" 
-            height="60" 
+          <svg
+            width="200"
+            height="60"
             viewBox="0 0 200 60"
-            style={{ 
-              position: 'absolute', 
+            style={{
+              position: 'absolute',
               top: '50%',
               transform: 'translateY(-50%)',
               // Push mode: reindeer behind sleigh (funny), Pull mode: reindeer in front (normal)
-              ...(sleighDirection === 'pull' 
-                ? { left: '100%', marginLeft: '-20px' }  // In front, facing direction of travel
-                : { right: '100%', marginRight: '-20px' }  // Behind, facing toward sleigh (pushing)
-              ),
+              ...(sleighDirection === 'pull'
+                ? { left: '100%', marginLeft: '-20px' } // In front, facing direction of travel
+                : { right: '100%', marginRight: '-20px' }), // Behind, facing toward sleigh (pushing)
             }}
           >
             {/* Reindeer silhouettes */}
@@ -448,7 +456,12 @@ export function ChristmasEffects() {
                 {/* Head */}
                 <circle cx="38" cy="28" r="6" fill="#8B4513" />
                 {/* Antlers */}
-                <path d="M36 22 L34 12 L30 15 M36 22 L38 12 L42 15" stroke="#654321" strokeWidth="2" fill="none" />
+                <path
+                  d="M36 22 L34 12 L30 15 M36 22 L38 12 L42 15"
+                  stroke="#654321"
+                  strokeWidth="2"
+                  fill="none"
+                />
                 {/* Nose (Rudolph for lead reindeer) */}
                 <circle cx="42" cy="28" r="2" fill={i === 3 ? '#ff0000' : '#000'} />
                 {/* Legs */}
@@ -458,34 +471,38 @@ export function ChristmasEffects() {
               </g>
             ))}
             {/* Harness lines */}
-            <path d="M45 30 L95 32 L145 30 L195 32" stroke="#8B0000" strokeWidth="1.5" fill="none" />
+            <path
+              d="M45 30 L95 32 L145 30 L195 32"
+              stroke="#8B0000"
+              strokeWidth="1.5"
+              fill="none"
+            />
           </svg>
-          
+
           {/* Sleigh */}
-          <svg 
-            width="120" 
-            height="80" 
+          <svg
+            width="120"
+            height="80"
             viewBox="0 0 120 80"
             style={sleighDirection === 'pull' ? { transform: 'scaleX(-1)' } : undefined}
           >
             {/* Sleigh body */}
-            <path 
-              d="M10 30 Q0 30 5 50 L15 65 Q20 70 30 70 L100 70 Q110 70 110 60 L110 35 Q110 25 100 25 L30 25 Q20 25 10 30" 
-              fill="#8B0000" 
+            <path
+              d="M10 30 Q0 30 5 50 L15 65 Q20 70 30 70 L100 70 Q110 70 110 60 L110 35 Q110 25 100 25 L30 25 Q20 25 10 30"
+              fill="#8B0000"
               stroke="#5a0000"
               strokeWidth="2"
             />
             {/* Sleigh runners */}
-            <path 
-              d="M5 65 Q0 75 10 75 L115 75 Q125 75 120 65" 
-              fill="none" 
-              stroke="#C0C0C0" 
+            <path
+              d="M5 65 Q0 75 10 75 L115 75 Q125 75 120 65"
+              fill="none"
+              stroke="#C0C0C0"
               strokeWidth="3"
             />
             {/* Decorative trim */}
             <path d="M25 25 L25 70" stroke="#FFD700" strokeWidth="2" />
             <path d="M100 25 L100 70" stroke="#FFD700" strokeWidth="2" />
-            
             {/* Santa silhouette */}
             <circle cx="60" cy="15" r="12" fill="#8B0000" /> {/* Hat */}
             <circle cx="60" cy="28" r="10" fill="#FFE4C4" /> {/* Face */}
@@ -496,16 +513,15 @@ export function ChristmasEffects() {
             {/* Belt */}
             <rect x="45" y="45" width="30" height="6" fill="black" />
             <rect x="55" y="43" width="10" height="10" rx="1" fill="#FFD700" />
-            
             {/* Gift bag */}
             <ellipse cx="95" cy="45" rx="12" ry="18" fill="#228B22" />
             <path d="M88 32 Q95 25 102 32" stroke="#FFD700" strokeWidth="2" fill="none" />
           </svg>
         </div>
       )}
-      
+
       {/* Christmas controls button - always on top */}
-      <div 
+      <div
         className="fixed bottom-4 right-4"
         style={{ zIndex: 10001 }}
         onMouseEnter={() => setShowControls(true)}
@@ -514,7 +530,7 @@ export function ChristmasEffects() {
         {showControls && (
           <div className="mb-2 p-2.5 bg-plm-bg-lighter rounded-lg border border-plm-border shadow-lg text-xs min-w-[160px]">
             <div className="text-plm-fg-muted mb-2">🎄 Christmas Effects</div>
-            
+
             {/* Snow opacity slider */}
             <div className="mb-2 px-1">
               <div className="flex items-center justify-between mb-1">
@@ -530,7 +546,7 @@ export function ChristmasEffects() {
                 className="w-full h-1.5 bg-plm-border rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#c41e3a] [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-sm [&::-webkit-slider-thumb]:border [&::-webkit-slider-thumb]:border-white/30"
               />
             </div>
-            
+
             {/* Snow density slider */}
             <div className="mb-2 px-1">
               <div className="flex items-center justify-between mb-1">
@@ -546,7 +562,7 @@ export function ChristmasEffects() {
                 className="w-full h-1.5 bg-plm-border rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#c41e3a] [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-sm [&::-webkit-slider-thumb]:border [&::-webkit-slider-thumb]:border-white/30"
               />
             </div>
-            
+
             {/* Snow size slider */}
             <div className="mb-2 px-1">
               <div className="flex items-center justify-between mb-1">
@@ -562,7 +578,7 @@ export function ChristmasEffects() {
                 className="w-full h-1.5 bg-plm-border rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#c41e3a] [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-sm [&::-webkit-slider-thumb]:border [&::-webkit-slider-thumb]:border-white/30"
               />
             </div>
-            
+
             {/* Wind slider */}
             <div className={`mb-2 px-1 ${useLocalWeather ? 'opacity-40' : ''}`}>
               <div className="flex items-center justify-between mb-1">
@@ -581,23 +597,31 @@ export function ChristmasEffects() {
                 className={`w-full h-1.5 bg-plm-border rounded-full appearance-none ${useLocalWeather ? 'cursor-not-allowed' : 'cursor-pointer'} [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#c41e3a] [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-sm [&::-webkit-slider-thumb]:border [&::-webkit-slider-thumb]:border-white/30`}
               />
             </div>
-            
+
             {/* Local weather toggle */}
             <div className="px-1 mb-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
                   <span className="text-plm-fg">🌍 Local Wind</span>
                   {useLocalWeather && (
-                    <span className={`text-[10px] px-1 rounded ${
-                      weatherStatus === 'success' ? 'bg-[#2ea043]/30 text-[#4ade80]' :
-                      weatherStatus === 'loading' ? 'bg-[#d4a72c]/30 text-[#fbbf24]' :
-                      weatherStatus === 'error' ? 'bg-[#c41e3a]/30 text-[#f87171]' :
-                      'bg-plm-border text-plm-fg-muted'
-                    }`}>
-                      {weatherStatus === 'success' && displayWindSpeed !== null 
-                        ? `${displayWindSpeed} km/h` 
-                        : weatherStatus === 'loading' ? '...' 
-                        : weatherStatus === 'error' ? '✗' : '–'}
+                    <span
+                      className={`text-[10px] px-1 rounded ${
+                        weatherStatus === 'success'
+                          ? 'bg-[#2ea043]/30 text-[#4ade80]'
+                          : weatherStatus === 'loading'
+                            ? 'bg-[#d4a72c]/30 text-[#fbbf24]'
+                            : weatherStatus === 'error'
+                              ? 'bg-[#c41e3a]/30 text-[#f87171]'
+                              : 'bg-plm-border text-plm-fg-muted'
+                      }`}
+                    >
+                      {weatherStatus === 'success' && displayWindSpeed !== null
+                        ? `${displayWindSpeed} km/h`
+                        : weatherStatus === 'loading'
+                          ? '...'
+                          : weatherStatus === 'error'
+                            ? '✗'
+                            : '–'}
                     </span>
                   )}
                 </div>
@@ -633,7 +657,7 @@ export function ChristmasEffects() {
                 </div>
               )}
             </div>
-            
+
             {/* Sleigh toggle */}
             <div className="flex items-center justify-between px-1 mb-2">
               <span className="text-plm-fg">🛷 Sleigh</span>
@@ -650,15 +674,21 @@ export function ChristmasEffects() {
                 />
               </button>
             </div>
-            
+
             {/* Sleigh direction toggle */}
-            <div className={`flex items-center justify-between px-1 ${!sleighEnabled ? 'opacity-50' : ''}`}>
+            <div
+              className={`flex items-center justify-between px-1 ${!sleighEnabled ? 'opacity-50' : ''}`}
+            >
               <span className="text-plm-fg">🦌 Polarity</span>
               <button
                 onClick={() => setSleighDirection(sleighDirection === 'push' ? 'pull' : 'push')}
                 disabled={!sleighEnabled}
                 className={`px-2 py-0.5 rounded text-[10px] bg-plm-border transition-colors ${sleighEnabled ? 'hover:bg-plm-border/80 cursor-pointer' : 'cursor-not-allowed'}`}
-                title={sleighDirection === 'push' ? 'Reindeer pushing (funny!)' : 'Reindeer pulling (normal)'}
+                title={
+                  sleighDirection === 'push'
+                    ? 'Reindeer pushing (funny!)'
+                    : 'Reindeer pulling (normal)'
+                }
               >
                 {sleighDirection === 'push' ? '← Push' : 'Pull →'}
               </button>
@@ -666,14 +696,14 @@ export function ChristmasEffects() {
           </div>
         )}
         <button
-          onClick={() => setShowControls(s => !s)}
+          onClick={() => setShowControls((s) => !s)}
           className="w-10 h-10 rounded-full bg-plm-accent/20 hover:bg-plm-accent/30 border border-plm-accent/50 flex items-center justify-center text-xl transition-colors"
           title="Christmas Settings"
         >
           🎄
         </button>
       </div>
-      
+
       {/* CSS animations */}
       <style>{`
         @keyframes twinkle {
@@ -690,4 +720,3 @@ export function ChristmasEffects() {
   )
 }
 
-export default ChristmasEffects

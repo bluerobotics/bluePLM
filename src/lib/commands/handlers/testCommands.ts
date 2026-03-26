@@ -47,10 +47,7 @@ const BPTEST_EXTENSION = '.bptest'
  * @param addOutput - Terminal output function for error reporting
  * @returns Decoded file content, or null on failure
  */
-async function readFileContent(
-  path: string,
-  addOutput: OutputFn
-): Promise<string | null> {
+async function readFileContent(path: string, addOutput: OutputFn): Promise<string | null> {
   if (!window.electronAPI?.readFile) {
     addOutput('error', 'File reading not available (no Electron API)')
     return null
@@ -65,8 +62,8 @@ async function readFileContent(
 
     // readFile returns base64-encoded data — decode it
     return atob(result.data)
-  } catch (err) {
-    addOutput('error', `Error reading file: ${err instanceof Error ? err.message : String(err)}`)
+  } catch (error) {
+    addOutput('error', `Error reading file: ${error instanceof Error ? error.message : String(error)}`)
     return null
   }
 }
@@ -105,10 +102,7 @@ function getTestFolderName(): string {
  * @param signal    - Optional abort signal
  * @returns TestRunnerOptions configured for terminal output
  */
-function buildRunnerOptions(
-  addOutput: OutputFn,
-  signal?: AbortSignal
-): TestRunnerOptions {
+function buildRunnerOptions(addOutput: OutputFn, signal?: AbortSignal): TestRunnerOptions {
   return {
     testFolderName: getTestFolderName(),
 
@@ -141,7 +135,7 @@ function buildRunnerOptions(
       const status = result.passed ? 'PASSED' : result.skipped ? 'SKIPPED' : 'FAILED'
       addOutput(
         result.passed ? 'success' : 'error',
-        `\n${icon} ${result.scriptName}: ${status} (${result.duration}ms)`
+        `\n${icon} ${result.scriptName}: ${status} (${result.duration}ms)`,
       )
     },
 
@@ -161,8 +155,14 @@ function printSummary(result: TestRunResult, addOutput: OutputFn): void {
   addOutput('info', '═'.repeat(50))
 
   const totalScripts = result.totalPassed + result.totalFailed + result.totalSkipped
-  addOutput('info', `  Scripts:    ${result.totalPassed} passed, ${result.totalFailed} failed, ${result.totalSkipped} skipped (${totalScripts} total)`)
-  addOutput('info', `  Assertions: ${result.passedAssertions} passed, ${result.failedAssertions} failed (${result.totalAssertions} total)`)
+  addOutput(
+    'info',
+    `  Scripts:    ${result.totalPassed} passed, ${result.totalFailed} failed, ${result.totalSkipped} skipped (${totalScripts} total)`,
+  )
+  addOutput(
+    'info',
+    `  Assertions: ${result.passedAssertions} passed, ${result.failedAssertions} failed (${result.totalAssertions} total)`,
+  )
   addOutput('info', `  Duration:   ${result.duration}ms`)
 
   if (result.totalFailed === 0 && result.totalSkipped === 0) {
@@ -200,12 +200,15 @@ function printScriptSummary(result: ScriptResult, addOutput: OutputFn): void {
 
   for (const section of result.sections) {
     totalAssertions += section.assertions.length
-    passedAssertions += section.assertions.filter(a => a.passed).length
+    passedAssertions += section.assertions.filter((a) => a.passed).length
   }
 
   const failedAssertions = totalAssertions - passedAssertions
 
-  addOutput('info', `  Assertions: ${passedAssertions} passed, ${failedAssertions} failed (${totalAssertions} total)`)
+  addOutput(
+    'info',
+    `  Assertions: ${passedAssertions} passed, ${failedAssertions} failed (${totalAssertions} total)`,
+  )
   addOutput('info', `  Duration:   ${result.duration}ms`)
 
   if (result.passed) {
@@ -228,10 +231,7 @@ function printScriptSummary(result: ScriptResult, addOutput: OutputFn): void {
  * @param parsed    - Parsed command (args[0] = path to .bptest file)
  * @param addOutput - Terminal output function
  */
-async function handleRunTest(
-  parsed: ParsedCommand,
-  addOutput: OutputFn
-): Promise<void> {
+async function handleRunTest(parsed: ParsedCommand, addOutput: OutputFn): Promise<void> {
   const scriptPath = parsed.args[0]
   if (!scriptPath) {
     addOutput('error', 'Usage: run-test <script-path>')
@@ -254,7 +254,10 @@ async function handleRunTest(
   const script = parseTestScript(content, scriptPath.split(/[/\\]/).pop())
   script.sourceFile = scriptPath
 
-  addOutput('info', `Running: ${script.metadata.name} (${script.sections.length} sections, timeout: ${script.metadata.timeout}s)`)
+  addOutput(
+    'info',
+    `Running: ${script.metadata.name} (${script.sections.length} sections, timeout: ${script.metadata.timeout}s)`,
+  )
 
   // Create an abort controller for timeout
   const controller = new AbortController()
@@ -285,10 +288,7 @@ async function handleRunTest(
  * @param parsed    - Parsed command (args[0] = folder path)
  * @param addOutput - Terminal output function
  */
-async function handleRunTests(
-  parsed: ParsedCommand,
-  addOutput: OutputFn
-): Promise<void> {
+async function handleRunTests(parsed: ParsedCommand, addOutput: OutputFn): Promise<void> {
   const folderPath = parsed.args[0]
   if (!folderPath) {
     addOutput('error', 'Usage: run-tests <folder-path>')
@@ -326,11 +326,14 @@ async function handleRunTests(
     }
 
     bptestFiles = listResult.files
-      .filter(f => f.name.toLowerCase().endsWith(BPTEST_EXTENSION))
-      .map(f => ({ name: f.name, path: f.path }))
+      .filter((f) => f.name.toLowerCase().endsWith(BPTEST_EXTENSION))
+      .map((f) => ({ name: f.name, path: f.path }))
       .sort((a, b) => a.name.localeCompare(b.name))
-  } catch (err) {
-    addOutput('error', `Error listing directory: ${err instanceof Error ? err.message : String(err)}`)
+  } catch (error) {
+    addOutput(
+      'error',
+      `Error listing directory: ${error instanceof Error ? error.message : String(error)}`,
+    )
     return
   }
 
@@ -386,7 +389,7 @@ registerTerminalCommand(
   },
   async (parsed, _files, addOutput) => {
     await handleRunTest(parsed, addOutput)
-  }
+  },
 )
 
 registerTerminalCommand(
@@ -399,5 +402,5 @@ registerTerminalCommand(
   },
   async (parsed, _files, addOutput) => {
     await handleRunTests(parsed, addOutput)
-  }
+  },
 )

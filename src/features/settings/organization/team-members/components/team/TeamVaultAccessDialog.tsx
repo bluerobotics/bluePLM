@@ -1,8 +1,8 @@
 /**
  * TeamVaultAccessDialog - Manage vault access for a team
- * 
+ *
  * Thin wrapper around VaultAccessDialog for team-specific vault access.
- * 
+ *
  * @module team-members/TeamVaultAccessDialog
  */
 
@@ -26,7 +26,7 @@ export function TeamVaultAccessDialog({
   setPendingVaultAccess,
   onSave,
   onClose,
-  isSaving
+  isSaving,
 }: TeamVaultAccessDialogProps) {
   return (
     <VaultAccessDialog

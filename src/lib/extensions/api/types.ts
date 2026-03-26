@@ -1,10 +1,10 @@
 /**
  * Extension Client API Types
- * 
+ *
  * Defines the sandboxed API available to extensions running in the Extension Host.
  * Extensions cannot directly access BluePLM internals - all operations go through
  * this controlled, permission-gated interface via IPC.
- * 
+ *
  * @module extensions/api/types
  */
 
@@ -26,7 +26,7 @@ export interface Disposable {
 
 /**
  * Creates a Disposable from a cleanup function.
- * 
+ *
  * @example
  * ```typescript
  * const unsubscribe = api.events.on('myEvent', handler)
@@ -97,17 +97,17 @@ export interface ProgressOptions {
 export interface Progress {
   /**
    * Report progress update.
-   * 
+   *
    * @example
    * ```typescript
    * progress.report({ message: 'Syncing files...', increment: 10 })
    * ```
    */
-  report(value: { 
+  report(value: {
     /** Current step message */
     message?: string
     /** Percentage increment (0-100) to add to current progress */
-    increment?: number 
+    increment?: number
   }): void
 }
 
@@ -189,10 +189,10 @@ export interface InputBoxOptions {
 export interface ExtensionStorage {
   /**
    * Get a value from storage.
-   * 
+   *
    * @param key - The key to retrieve
    * @returns The stored value, or undefined if not found
-   * 
+   *
    * @example
    * ```typescript
    * const lastSync = await api.storage.get<number>('lastSyncTime')
@@ -202,10 +202,10 @@ export interface ExtensionStorage {
 
   /**
    * Set a value in storage.
-   * 
+   *
    * @param key - The key to store under
    * @param value - The value to store (must be JSON-serializable)
-   * 
+   *
    * @example
    * ```typescript
    * await api.storage.set('lastSyncTime', Date.now())
@@ -215,21 +215,21 @@ export interface ExtensionStorage {
 
   /**
    * Delete a value from storage.
-   * 
+   *
    * @param key - The key to delete
    */
   delete(key: string): Promise<void>
 
   /**
    * List all keys in storage.
-   * 
+   *
    * @returns Array of all stored keys
    */
   keys(): Promise<string[]>
 
   /**
    * Check if a key exists in storage.
-   * 
+   *
    * @param key - The key to check
    */
   has(key: string): Promise<boolean>
@@ -309,12 +309,12 @@ export interface CommandOptions {
 export interface CommandsAPI {
   /**
    * Register a command handler.
-   * 
+   *
    * @param id - Unique command ID (should be namespaced, e.g., 'myext.doSomething')
    * @param handler - Function to execute when command is invoked
    * @param options - Optional command metadata
    * @returns Disposable to unregister the command
-   * 
+   *
    * @example
    * ```typescript
    * context.subscriptions.push(
@@ -328,11 +328,11 @@ export interface CommandsAPI {
 
   /**
    * Execute a registered command.
-   * 
+   *
    * @param id - Command ID to execute
    * @param args - Arguments to pass to the command handler
    * @returns Result from the command handler
-   * 
+   *
    * @example
    * ```typescript
    * const result = await api.commands.executeCommand<SyncResult>('google-drive.sync', { force: true })
@@ -401,10 +401,10 @@ export interface VaultInfo {
 export interface WorkspaceAPI {
   /**
    * Subscribe to file change events.
-   * 
+   *
    * @param callback - Function called when files change
    * @returns Disposable to unsubscribe
-   * 
+   *
    * @example
    * ```typescript
    * context.subscriptions.push(
@@ -425,7 +425,7 @@ export interface WorkspaceAPI {
 
   /**
    * Get the currently active vault.
-   * 
+   *
    * @returns Current vault info, or undefined if no vault is active
    */
   getCurrentVault(): Promise<VaultInfo | undefined>
@@ -453,15 +453,15 @@ export type TelemetryProperties = Record<string, string | number | boolean>
 export interface TelemetryAPI {
   /**
    * Track a named event with optional properties.
-   * 
+   *
    * @param name - Event name (should be descriptive, e.g., 'sync_completed')
    * @param properties - Optional key-value properties
-   * 
+   *
    * @example
    * ```typescript
-   * api.telemetry.trackEvent('sync_completed', { 
-   *   fileCount: 42, 
-   *   duration: 1500 
+   * api.telemetry.trackEvent('sync_completed', {
+   *   fileCount: 42,
+   *   duration: 1500
    * })
    * ```
    */
@@ -469,10 +469,10 @@ export interface TelemetryAPI {
 
   /**
    * Track an error occurrence.
-   * 
+   *
    * @param error - The error that occurred
    * @param context - Additional context about where/why the error occurred
-   * 
+   *
    * @example
    * ```typescript
    * try {
@@ -486,10 +486,10 @@ export interface TelemetryAPI {
 
   /**
    * Track a timing measurement.
-   * 
+   *
    * @param name - Name of the operation being timed
    * @param durationMs - Duration in milliseconds
-   * 
+   *
    * @example
    * ```typescript
    * const start = performance.now()
@@ -507,7 +507,7 @@ export interface TelemetryAPI {
 /**
  * Extension events that can be subscribed to.
  */
-export type ExtensionEvent = 
+export type ExtensionEvent =
   | 'extension:activated'
   | 'extension:deactivating'
   | 'config:changed'
@@ -521,11 +521,11 @@ export type ExtensionEvent =
 export interface EventsAPI {
   /**
    * Subscribe to an application event.
-   * 
+   *
    * @param event - Event name to subscribe to
    * @param callback - Function called when event fires
    * @returns Disposable to unsubscribe
-   * 
+   *
    * @example
    * ```typescript
    * context.subscriptions.push(
@@ -540,7 +540,7 @@ export interface EventsAPI {
   /**
    * Emit an event (for extension-internal use).
    * Extensions can only emit events prefixed with their extension ID.
-   * 
+   *
    * @param event - Event name
    * @param args - Arguments to pass to subscribers
    */
@@ -604,11 +604,11 @@ export interface ExtensionContextInfo {
 export interface UIAPI {
   /**
    * Show a toast notification.
-   * 
+   *
    * @param message - Message to display
    * @param type - Toast type (affects icon and color)
    * @param duration - Display duration in ms (default: 3000)
-   * 
+   *
    * @example
    * ```typescript
    * api.ui.showToast('Sync completed!', 'success')
@@ -618,10 +618,10 @@ export interface UIAPI {
 
   /**
    * Show a dialog and wait for user response.
-   * 
+   *
    * @param options - Dialog configuration
    * @returns User's response
-   * 
+   *
    * @example
    * ```typescript
    * const result = await api.ui.showDialog({
@@ -638,9 +638,9 @@ export interface UIAPI {
 
   /**
    * Set the extension's connection status indicator.
-   * 
+   *
    * @param status - Current connection status
-   * 
+   *
    * @example
    * ```typescript
    * api.ui.setStatus('checking')
@@ -652,11 +652,11 @@ export interface UIAPI {
 
   /**
    * Show a progress indicator while performing an operation.
-   * 
+   *
    * @param options - Progress display options
    * @param task - Async function to execute
    * @returns Result from the task function
-   * 
+   *
    * @example
    * ```typescript
    * const result = await api.ui.showProgress(
@@ -664,9 +664,9 @@ export interface UIAPI {
    *   async (progress) => {
    *     for (let i = 0; i < files.length; i++) {
    *       await syncFile(files[i])
-   *       progress.report({ 
+   *       progress.report({
    *         message: `Syncing ${files[i].name}`,
-   *         increment: 100 / files.length 
+   *         increment: 100 / files.length
    *       })
    *     }
    *     return { syncedCount: files.length }
@@ -676,23 +676,23 @@ export interface UIAPI {
    */
   showProgress<T>(
     options: ProgressOptions,
-    task: (progress: Progress, token: CancellationToken) => Promise<T>
+    task: (progress: Progress, token: CancellationToken) => Promise<T>,
   ): Promise<T>
 
   /**
    * Show a quick pick list for user selection.
-   * 
+   *
    * @param items - Items to display
    * @param options - Display options
    * @returns Selected item(s), or undefined if cancelled
-   * 
+   *
    * @example
    * ```typescript
    * const selected = await api.ui.showQuickPick([
    *   { label: 'Option A', description: 'First option' },
    *   { label: 'Option B', description: 'Second option' }
    * ], { title: 'Select an option' })
-   * 
+   *
    * if (selected) {
    *   console.log('User selected:', selected.label)
    * }
@@ -700,15 +700,15 @@ export interface UIAPI {
    */
   showQuickPick(
     items: QuickPickItem[],
-    options?: QuickPickOptions
+    options?: QuickPickOptions,
   ): Promise<QuickPickItem | QuickPickItem[] | undefined>
 
   /**
    * Show an input box for user text input.
-   * 
+   *
    * @param options - Input box options
    * @returns User input, or undefined if cancelled
-   * 
+   *
    * @example
    * ```typescript
    * const name = await api.ui.showInputBox({
@@ -737,11 +737,11 @@ export interface NetworkAPI {
   /**
    * Call the organization's API server.
    * Automatically includes authentication headers.
-   * 
+   *
    * @param endpoint - API endpoint path (e.g., '/extensions/my-ext/sync')
    * @param options - Request options
    * @returns Response from the API
-   * 
+   *
    * @example
    * ```typescript
    * const response = await api.callOrgApi<SyncResult>('/extensions/google-drive/sync', {
@@ -755,7 +755,7 @@ export interface NetworkAPI {
   /**
    * Call the Extension Store API.
    * Used for marketplace operations.
-   * 
+   *
    * @param endpoint - Store API endpoint path
    * @returns Response from the store API
    */
@@ -764,11 +764,11 @@ export interface NetworkAPI {
   /**
    * Make an HTTP request to an external URL.
    * Only allowed to domains declared in extension manifest.
-   * 
+   *
    * @param url - Full URL to fetch
    * @param options - Request options
    * @returns Response from the request
-   * 
+   *
    * @example
    * ```typescript
    * // Requires 'http:domain:api.example.com' permission in manifest
@@ -789,11 +789,11 @@ export interface NetworkAPI {
  * The complete Extension Client API interface.
  * This is the primary API surface available to extensions running in the Extension Host.
  * All operations are sandboxed and permission-gated.
- * 
+ *
  * @example
  * ```typescript
  * import type { ExtensionContext, ExtensionClientAPI } from '@blueplm/extension-api'
- * 
+ *
  * export async function activate(context: ExtensionContext, api: ExtensionClientAPI) {
  *   // Register a command
  *   context.subscriptions.push(
@@ -801,7 +801,7 @@ export interface NetworkAPI {
  *       api.ui.showToast('Hello from my extension!', 'success')
  *     })
  *   )
- *   
+ *
  *   // Subscribe to events
  *   context.subscriptions.push(
  *     api.workspace.onFileChanged((events) => {
@@ -809,7 +809,7 @@ export interface NetworkAPI {
  *     })
  *   )
  * }
- * 
+ *
  * export function deactivate() {
  *   // Cleanup (subscriptions are auto-disposed)
  * }
@@ -897,7 +897,7 @@ export const API_PERMISSIONS: Record<string, ClientPermission[]> = {
   'ui.showProgress': ['ui:progress'],
   'ui.showQuickPick': ['ui:dialog'],
   'ui.showInputBox': ['ui:dialog'],
-  
+
   // Storage
   'storage.get': ['storage:local'],
   'storage.set': ['storage:local'],
@@ -905,34 +905,34 @@ export const API_PERMISSIONS: Record<string, ClientPermission[]> = {
   'storage.keys': ['storage:local'],
   'storage.has': ['storage:local'],
   'storage.clear': ['storage:local'],
-  
+
   // Network
-  'callOrgApi': ['network:orgApi'],
-  'callStoreApi': ['network:storeApi'],
-  'fetch': ['network:fetch'],
-  
+  callOrgApi: ['network:orgApi'],
+  callStoreApi: ['network:storeApi'],
+  fetch: ['network:fetch'],
+
   // Commands
   'commands.registerCommand': ['commands:register'],
   'commands.executeCommand': ['commands:execute'],
   'commands.getCommands': [],
-  
+
   // Workspace
   'workspace.onFileChanged': ['workspace:files'],
   'workspace.getOpenFiles': ['workspace:files'],
   'workspace.getCurrentVault': [],
   'workspace.getVaults': [],
-  
+
   // Events
   'events.on': [],
   'events.emit': [],
-  
+
   // Telemetry
   'telemetry.trackEvent': ['telemetry'],
   'telemetry.trackError': ['telemetry'],
   'telemetry.trackTiming': ['telemetry'],
-  
+
   // Context
-  'context': [],
+  context: [],
 }
 
 // Re-export for convenience

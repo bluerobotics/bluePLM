@@ -1,19 +1,19 @@
 /**
  * useDragState - Drag-and-drop state management hook
- * 
+ *
  * Manages all drag-and-drop functionality for the file browser including:
  * - Internal file dragging (within the app)
  * - External file dragging (from OS file explorer)
  * - Folder drop targets with visual feedback
  * - Column header dragging for reorder
  * - Selection box for multi-select
- * 
+ *
  * Key exports:
  * - draggedFiles, isDraggingOver, isExternalDrag, dragOverFolder
  * - draggingColumn, dragOverColumn, selectionBox
  * - handleDragStart, handleDragEnd, handleDragOver, handleDrop
  * - handleFolderDragOver, handleFolderDragLeave, handleDropOnFolder
- * 
+ *
  * @example
  * const {
  *   isDraggingOver,
@@ -38,41 +38,41 @@ import { executeCommand } from '@/lib/commands'
 interface CollectedEntry {
   path: string
   isDirectory: boolean
-  relativePath: string  // Path relative to the dropped root for nested items
+  relativePath: string // Path relative to the dropped root for nested items
 }
 
 /**
  * Extract all file and folder paths from a DataTransfer, including empty folders.
  * Uses webkitGetAsEntry() API which properly handles directory structures.
  * Falls back to e.dataTransfer.files for browsers without directory support.
- * 
+ *
  * IMPORTANT: webkitGetAsEntry gives virtual paths (like /filename.txt), NOT real file system paths.
  * We must use getPathForFile() on the File objects from dataTransfer.files to get real paths,
  * then pass those real paths through the recursive directory traversal.
  */
 async function collectEntriesFromDataTransfer(
   dataTransfer: DataTransfer,
-  getPathForFile: (file: File) => string
+  getPathForFile: (file: File) => string,
 ): Promise<CollectedEntry[]> {
   const entries: CollectedEntry[] = []
   const items = dataTransfer.items
   const files = Array.from(dataTransfer.files)
-  
+
   // Try to use webkitGetAsEntry for proper directory support
   if (items && items.length > 0) {
     const itemsArray = Array.from(items)
-    
+
     for (let i = 0; i < itemsArray.length; i++) {
       const item = itemsArray[i]
       if (item.kind !== 'file') continue
-      
+
       // Get the actual file system path from the File object at the same index
       // dataTransfer.files[i] corresponds to dataTransfer.items[i]
       const file = files[i]
       const rootPath = file ? getPathForFile(file) : null
-      
+
       if (!rootPath) continue
-      
+
       // Try webkitGetAsEntry for directory support
       const entry = item.webkitGetAsEntry?.()
       if (entry) {
@@ -83,7 +83,7 @@ async function collectEntriesFromDataTransfer(
       }
     }
   }
-  
+
   // If no entries collected via webkitGetAsEntry, fall back to files array
   if (entries.length === 0) {
     for (const file of files) {
@@ -93,13 +93,13 @@ async function collectEntriesFromDataTransfer(
       }
     }
   }
-  
+
   return entries
 }
 
 /**
  * Recursively collect entries from a FileSystemEntry
- * 
+ *
  * @param entry - The FileSystemEntry to process
  * @param parentRelativePath - The relative path of the parent (empty string for root items)
  * @param entries - Array to collect results into
@@ -109,40 +109,40 @@ async function collectFromEntry(
   entry: FileSystemEntry,
   parentRelativePath: string,
   entries: CollectedEntry[],
-  rootPath: string
+  rootPath: string,
 ): Promise<void> {
   const relativePath = parentRelativePath ? `${parentRelativePath}/${entry.name}` : entry.name
-  
+
   // Construct the actual file system path
   // For root items (parentRelativePath is empty): use rootPath directly
   // For nested items: append the entry name to rootPath
-  const actualPath = !parentRelativePath 
-    ? rootPath 
+  const actualPath = !parentRelativePath
+    ? rootPath
     : rootPath + (rootPath.includes('\\') ? '\\' : '/') + entry.name
-  
+
   if (entry.isDirectory) {
     const dirEntry = entry as FileSystemDirectoryEntry
     // Always add the directory entry (even if empty)
-    entries.push({ 
-      path: actualPath, 
-      isDirectory: true, 
-      relativePath 
+    entries.push({
+      path: actualPath,
+      isDirectory: true,
+      relativePath,
     })
-    
+
     // Read directory contents
     const reader = dirEntry.createReader()
     const children = await readAllDirectoryEntries(reader)
-    
+
     for (const child of children) {
       // Pass actualPath as the new rootPath for children
       await collectFromEntry(child, relativePath, entries, actualPath)
     }
   } else {
     // It's a file
-    entries.push({ 
+    entries.push({
       path: actualPath,
-      isDirectory: false, 
-      relativePath 
+      isDirectory: false,
+      relativePath,
     })
   }
 }
@@ -153,7 +153,7 @@ async function collectFromEntry(
 function readAllDirectoryEntries(reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> {
   return new Promise((resolve, reject) => {
     const entries: FileSystemEntry[] = []
-    
+
     function readBatch() {
       reader.readEntries(
         (batch) => {
@@ -164,10 +164,10 @@ function readAllDirectoryEntries(reader: FileSystemDirectoryReader): Promise<Fil
             readBatch() // Continue reading
           }
         },
-        (error) => reject(error)
+        (error) => reject(error),
       )
     }
-    
+
     readBatch()
   })
 }
@@ -218,7 +218,10 @@ export interface UseDragStateOptions {
   onLockedFilesFound?: (result: LockedFilesCheckResult) => Promise<boolean>
   // Callback when folder conflicts are found during folder move
   // Returns the resolution for the conflict
-  onFolderConflict?: (conflicts: FolderConflictInfo[], totalConflicts: number) => Promise<{
+  onFolderConflict?: (
+    conflicts: FolderConflictInfo[],
+    totalConflicts: number,
+  ) => Promise<{
     resolution: 'merge' | 'rename' | 'skip' | 'cancel'
     applyToAll: boolean
   }>
@@ -228,36 +231,38 @@ export interface UseDragStateReturn {
   // Internal dragged files (files being dragged within the app)
   draggedFiles: LocalFile[]
   setDraggedFiles: (files: LocalFile[]) => void
-  
+
   // Drag over state for drop targets
   isDraggingOver: boolean
   setIsDraggingOver: (dragging: boolean) => void
-  
+
   // External drag (from outside the app)
   isExternalDrag: boolean
   setIsExternalDrag: (external: boolean) => void
-  
+
   // Folder drag target
   dragOverFolder: string | null
   setDragOverFolder: (folder: string | null) => void
-  
+
   // Column dragging
   draggingColumn: string | null
   setDraggingColumn: (column: string | null) => void
   dragOverColumn: string | null
   setDragOverColumn: (column: string | null) => void
-  
+
   // Selection box for marquee select
   selectionBox: SelectionBox | null
-  setSelectionBox: (box: SelectionBox | null | ((prev: SelectionBox | null) => SelectionBox | null)) => void
-  
+  setSelectionBox: (
+    box: SelectionBox | null | ((prev: SelectionBox | null) => SelectionBox | null),
+  ) => void
+
   // Column resizing
   resizingColumn: string | null
   setResizingColumn: (column: string | null) => void
-  
+
   // Reset all drag state
   resetDragState: () => void
-  
+
   // Drag event handlers
   handleDragStart: (e: React.DragEvent, file: LocalFile) => void
   handleDragEnd: () => void
@@ -286,7 +291,7 @@ export function useDragState(options: UseDragStateOptions): UseDragStateReturn {
     removeToast,
     setStatusMessage,
     onLockedFilesFound,
-    onFolderConflict
+    onFolderConflict,
   } = options
 
   const [draggedFiles, setDraggedFiles] = useState<LocalFile[]>([])
@@ -297,7 +302,7 @@ export function useDragState(options: UseDragStateOptions): UseDragStateReturn {
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null)
   const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null)
   const [resizingColumn, setResizingColumn] = useState<string | null>(null)
-  
+
   const resetDragState = useCallback(() => {
     setDraggedFiles([])
     setIsDraggingOver(false)
@@ -315,89 +320,98 @@ export function useDragState(options: UseDragStateOptions): UseDragStateReturn {
   }, [])
 
   // Handle drag start - HTML5 drag initiates, Electron adds native file data
-  const handleDragStart = useCallback((e: React.DragEvent, file: LocalFile) => {
-    // Cancel drag if the user is interacting with a text-selectable cell (e.g. item number, description)
-    const elementUnderCursor = document.elementFromPoint(e.clientX, e.clientY)
-    if (
-      elementUnderCursor?.closest('[data-no-drag]') ||
-      elementUnderCursor?.tagName === 'INPUT' ||
-      elementUnderCursor?.tagName === 'TEXTAREA'
-    ) {
-      e.preventDefault()
-      return
-    }
-
-    logDragDrop('Started dragging files', { fileName: file.name, isDirectory: file.isDirectory })
-    // Get files to drag - now supports both files and folders
-    let filesToDrag: LocalFile[]
-    if (selectedFiles.includes(file.path) && selectedFiles.length > 1) {
-      // Multiple selection - include both files and folders (can't drag cloud-only files)
-      filesToDrag = files.filter(f => selectedFiles.includes(f.path) && f.diffStatus !== 'cloud')
-    } else if (file.diffStatus !== 'cloud') {
-      filesToDrag = [file]
-    } else {
-      e.preventDefault()
-      return
-    }
-    
-    if (filesToDrag.length === 0) {
-      e.preventDefault()
-      return
-    }
-    
-    // Track dragged files for internal move operations
-    setDraggedFiles(filesToDrag)
-    
-    const filePaths = filesToDrag.map(f => f.path)
-    log.debug('[Drag]', 'Starting drag for files', { paths: filePaths })
-    
-    // Set up HTML5 drag data
-    e.dataTransfer.effectAllowed = 'copyMove'
-    e.dataTransfer.setData('text/plain', filePaths.join('\n'))
-    e.dataTransfer.setData('application/x-plm-files', JSON.stringify(filesToDrag.map(f => f.relativePath)))
-    
-    // Use DownloadURL format for single file (non-folder) - this enables actual file copy to external apps
-    if (filesToDrag.length === 1 && !filesToDrag[0].isDirectory) {
-      const filePath = filesToDrag[0].path
-      const fileName = filesToDrag[0].name
-      const ext = filesToDrag[0].extension?.toLowerCase() || ''
-      const mimeTypes: Record<string, string> = {
-        '.pdf': 'application/pdf',
-        '.step': 'application/step',
-        '.stp': 'application/step',
-        '.sldprt': 'application/octet-stream',
-        '.sldasm': 'application/octet-stream',
-        '.slddrw': 'application/octet-stream',
-        '.dxf': 'application/dxf',
-        '.dwg': 'application/acad',
-        '.png': 'image/png',
-        '.jpg': 'image/jpeg',
-        '.jpeg': 'image/jpeg',
+  const handleDragStart = useCallback(
+    (e: React.DragEvent, file: LocalFile) => {
+      // Cancel drag if the user is interacting with a text-selectable cell (e.g. item number, description)
+      const elementUnderCursor = document.elementFromPoint(e.clientX, e.clientY)
+      if (
+        elementUnderCursor?.closest('[data-no-drag]') ||
+        elementUnderCursor?.tagName === 'INPUT' ||
+        elementUnderCursor?.tagName === 'TEXTAREA'
+      ) {
+        e.preventDefault()
+        return
       }
-      const mime = mimeTypes[ext] || 'application/octet-stream'
-      const fileUrl = `file:///${filePath.replace(/\\/g, '/')}`
-      e.dataTransfer.setData('DownloadURL', `${mime}:${fileName}:${fileUrl}`)
-    }
-    
-    // Create a custom drag image showing file/folder count
-    const dragPreview = document.createElement('div')
-    dragPreview.style.cssText = 'position:absolute;left:-1000px;padding:8px 12px;background:#1e293b;border:1px solid #3b82f6;border-radius:6px;color:white;font-size:13px;display:flex;align-items:center;gap:6px;'
-    const iconSvg = file.isDirectory 
-      ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>'
-      : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>'
-    const label = filesToDrag.length > 1 ? `${filesToDrag.length} items` : file.name
-    dragPreview.innerHTML = iconSvg
-    dragPreview.appendChild(document.createTextNode(label))
-    document.body.appendChild(dragPreview)
-    e.dataTransfer.setDragImage(dragPreview, 20, 20)
-    setTimeout(() => dragPreview.remove(), 0)
-    
-    // Also call Electron's startDrag for native multi-file support (only for files, not folders)
-    const filePathsForNative = filesToDrag.filter(f => !f.isDirectory).map(f => f.path)
-    if (filePathsForNative.length > 0) {
-      window.electronAPI?.startDrag(filePathsForNative)
-    }
-  }, [files, selectedFiles])
+
+      logDragDrop('Started dragging files', { fileName: file.name, isDirectory: file.isDirectory })
+      // Get files to drag - now supports both files and folders
+      let filesToDrag: LocalFile[]
+      if (selectedFiles.includes(file.path) && selectedFiles.length > 1) {
+        // Multiple selection - include both files and folders (can't drag cloud-only files)
+        filesToDrag = files.filter(
+          (f) => selectedFiles.includes(f.path) && f.diffStatus !== 'cloud',
+        )
+      } else if (file.diffStatus !== 'cloud') {
+        filesToDrag = [file]
+      } else {
+        e.preventDefault()
+        return
+      }
+
+      if (filesToDrag.length === 0) {
+        e.preventDefault()
+        return
+      }
+
+      // Track dragged files for internal move operations
+      setDraggedFiles(filesToDrag)
+
+      const filePaths = filesToDrag.map((f) => f.path)
+      log.debug('[Drag]', 'Starting drag for files', { paths: filePaths })
+
+      // Set up HTML5 drag data
+      e.dataTransfer.effectAllowed = 'copyMove'
+      e.dataTransfer.setData('text/plain', filePaths.join('\n'))
+      e.dataTransfer.setData(
+        'application/x-plm-files',
+        JSON.stringify(filesToDrag.map((f) => f.relativePath)),
+      )
+
+      // Use DownloadURL format for single file (non-folder) - this enables actual file copy to external apps
+      if (filesToDrag.length === 1 && !filesToDrag[0].isDirectory) {
+        const filePath = filesToDrag[0].path
+        const fileName = filesToDrag[0].name
+        const ext = filesToDrag[0].extension?.toLowerCase() || ''
+        const mimeTypes: Record<string, string> = {
+          '.pdf': 'application/pdf',
+          '.step': 'application/step',
+          '.stp': 'application/step',
+          '.sldprt': 'application/octet-stream',
+          '.sldasm': 'application/octet-stream',
+          '.slddrw': 'application/octet-stream',
+          '.dxf': 'application/dxf',
+          '.dwg': 'application/acad',
+          '.png': 'image/png',
+          '.jpg': 'image/jpeg',
+          '.jpeg': 'image/jpeg',
+        }
+        const mime = mimeTypes[ext] || 'application/octet-stream'
+        const fileUrl = `file:///${filePath.replace(/\\/g, '/')}`
+        e.dataTransfer.setData('DownloadURL', `${mime}:${fileName}:${fileUrl}`)
+      }
+
+      // Create a custom drag image showing file/folder count
+      const dragPreview = document.createElement('div')
+      dragPreview.style.cssText =
+        'position:absolute;left:-1000px;padding:8px 12px;background:#1e293b;border:1px solid #3b82f6;border-radius:6px;color:white;font-size:13px;display:flex;align-items:center;gap:6px;'
+      const iconSvg = file.isDirectory
+        ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>'
+        : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>'
+      const label = filesToDrag.length > 1 ? `${filesToDrag.length} items` : file.name
+      dragPreview.innerHTML = iconSvg
+      dragPreview.appendChild(document.createTextNode(label))
+      document.body.appendChild(dragPreview)
+      e.dataTransfer.setDragImage(dragPreview, 20, 20)
+      setTimeout(() => dragPreview.remove(), 0)
+
+      // Also call Electron's startDrag for native multi-file support (only for files, not folders)
+      const filePathsForNative = filesToDrag.filter((f) => !f.isDirectory).map((f) => f.path)
+      if (filePathsForNative.length > 0) {
+        window.electronAPI?.startDrag(filePathsForNative)
+      }
+    },
+    [files, selectedFiles],
+  )
 
   // Handle drag end - clear dragged files state
   const handleDragEnd = useCallback(() => {
@@ -406,55 +420,61 @@ export function useDragState(options: UseDragStateOptions): UseDragStateReturn {
   }, [])
 
   // Handle drag over a folder row
-  const handleFolderDragOver = useCallback((e: React.DragEvent, folder: LocalFile) => {
-    e.preventDefault()
-    e.stopPropagation()
-    
-    // Accept if we have local dragged files OR cross-view drag from Explorer OR external files
-    const hasPdmFiles = e.dataTransfer.types.includes('application/x-plm-files')
-    const hasExternalFiles = e.dataTransfer.types.includes('Files') && !hasPdmFiles
-    
-    if (draggedFiles.length === 0 && !hasPdmFiles && !hasExternalFiles) return
-    
-    // For external file drops, just show the target highlight and set copy effect
-    if (hasExternalFiles) {
-      e.dataTransfer.dropEffect = 'copy'
-      setDragOverFolder(folder.relativePath)
-      // Hide the big overlay since we're targeting a specific folder
-      setIsDraggingOver(false)
-      return
-    }
-    
-    // For local drags, we can check everything
-    // For cross-view drags, we can't check details until drop, just show target
-    const filesToCheck = draggedFiles.length > 0 ? draggedFiles : []
-    
-    if (filesToCheck.length > 0) {
-      // Don't allow dropping a folder into itself or its children
-      const isDroppingIntoSelf = filesToCheck.some(f => 
-        f.isDirectory && (folder.relativePath === f.relativePath || folder.relativePath.startsWith(f.relativePath + '/'))
-      )
-      if (isDroppingIntoSelf) return
-      
-      // Don't allow dropping if the target is the current parent
-      const wouldStayInPlace = filesToCheck.every(f => {
-        const parentPath = f.relativePath.includes('/') 
-          ? f.relativePath.substring(0, f.relativePath.lastIndexOf('/'))
-          : ''
-        return parentPath === folder.relativePath
-      })
-      if (wouldStayInPlace) return
-      
-      // Check if all files can be moved
-      if (!canMoveFiles(filesToCheck)) {
-        e.dataTransfer.dropEffect = 'none'
+  const handleFolderDragOver = useCallback(
+    (e: React.DragEvent, folder: LocalFile) => {
+      e.preventDefault()
+      e.stopPropagation()
+
+      // Accept if we have local dragged files OR cross-view drag from Explorer OR external files
+      const hasPdmFiles = e.dataTransfer.types.includes('application/x-plm-files')
+      const hasExternalFiles = e.dataTransfer.types.includes('Files') && !hasPdmFiles
+
+      if (draggedFiles.length === 0 && !hasPdmFiles && !hasExternalFiles) return
+
+      // For external file drops, just show the target highlight and set copy effect
+      if (hasExternalFiles) {
+        e.dataTransfer.dropEffect = 'copy'
+        setDragOverFolder(folder.relativePath)
+        // Hide the big overlay since we're targeting a specific folder
+        setIsDraggingOver(false)
         return
       }
-    }
-    
-    e.dataTransfer.dropEffect = 'move'
-    setDragOverFolder(folder.relativePath)
-  }, [draggedFiles, canMoveFiles])
+
+      // For local drags, we can check everything
+      // For cross-view drags, we can't check details until drop, just show target
+      const filesToCheck = draggedFiles.length > 0 ? draggedFiles : []
+
+      if (filesToCheck.length > 0) {
+        // Don't allow dropping a folder into itself or its children
+        const isDroppingIntoSelf = filesToCheck.some(
+          (f) =>
+            f.isDirectory &&
+            (folder.relativePath === f.relativePath ||
+              folder.relativePath.startsWith(f.relativePath + '/')),
+        )
+        if (isDroppingIntoSelf) return
+
+        // Don't allow dropping if the target is the current parent
+        const wouldStayInPlace = filesToCheck.every((f) => {
+          const parentPath = f.relativePath.includes('/')
+            ? f.relativePath.substring(0, f.relativePath.lastIndexOf('/'))
+            : ''
+          return parentPath === folder.relativePath
+        })
+        if (wouldStayInPlace) return
+
+        // Check if all files can be moved
+        if (!canMoveFiles(filesToCheck)) {
+          e.dataTransfer.dropEffect = 'none'
+          return
+        }
+      }
+
+      e.dataTransfer.dropEffect = 'move'
+      setDragOverFolder(folder.relativePath)
+    },
+    [draggedFiles, canMoveFiles],
+  )
 
   // Handle drag leave from a folder row
   const handleFolderDragLeave = useCallback((e: React.DragEvent) => {
@@ -464,355 +484,409 @@ export function useDragState(options: UseDragStateOptions): UseDragStateReturn {
   }, [])
 
   // Handle drop onto a folder row
-  const handleDropOnFolder = useCallback(async (e: React.DragEvent, targetFolder: LocalFile) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setDragOverFolder(null)
-    setIsDraggingOver(false)
-    setIsExternalDrag(false)
-    
-    if (!window.electronAPI || !vaultPath) {
-      setDraggedFiles([])
-      return
-    }
-    
-    // Check for external files first (from outside the app)
-    const hasPdmFiles = e.dataTransfer.types.includes('application/x-plm-files')
-    const droppedExternalFiles = Array.from(e.dataTransfer.files)
-    
-    if ((droppedExternalFiles.length > 0 || e.dataTransfer.items.length > 0) && !hasPdmFiles) {
-      // Handle external file/folder drop onto this folder
-      // Use webkitGetAsEntry for proper folder support (including empty folders)
-      const entries = await collectEntriesFromDataTransfer(
-        e.dataTransfer,
-        (file) => window.electronAPI?.getPathForFile(file) || ''
-      )
-      
-      // If no entries from webkitGetAsEntry, fall back to traditional file handling
-      if (entries.length === 0) {
-        for (const file of droppedExternalFiles) {
-          try {
-            const filePath = window.electronAPI.getPathForFile(file)
-            if (filePath) {
-              // Check if it's a directory
-              const dirCheck = await window.electronAPI.isDirectory(filePath)
-              entries.push({ 
-                path: filePath, 
-                isDirectory: dirCheck.success && dirCheck.isDirectory === true,
-                relativePath: file.name 
-              })
-            }
-          } catch (err) {
-            log.error('[Drag]', 'Error getting file path', { error: err })
-          }
-        }
-      }
+  const handleDropOnFolder = useCallback(
+    async (e: React.DragEvent, targetFolder: LocalFile) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setDragOverFolder(null)
+      setIsDraggingOver(false)
+      setIsExternalDrag(false)
 
-      if (entries.length === 0) {
-        setStatusMessage('Could not get file paths')
-        setTimeout(() => setStatusMessage(''), 3000)
+      if (!window.electronAPI || !vaultPath) {
+        setDraggedFiles([])
         return
       }
 
-      // Separate directories and files - process directories first to create structure
-      const directories = entries.filter(e => e.isDirectory)
-      const fileEntries = entries.filter(e => !e.isDirectory)
-      
-      const totalItems = entries.length
-      const toastId = `drop-files-${Date.now()}`
-      addProgressToast(toastId, `Adding ${totalItems} item${totalItems > 1 ? 's' : ''} to ${targetFolder.name}...`, totalItems)
+      // Check for external files first (from outside the app)
+      const hasPdmFiles = e.dataTransfer.types.includes('application/x-plm-files')
+      const droppedExternalFiles = Array.from(e.dataTransfer.files)
 
-      try {
-        let successCount = 0
-        let errorCount = 0
-        let processed = 0
+      if ((droppedExternalFiles.length > 0 || e.dataTransfer.items.length > 0) && !hasPdmFiles) {
+        // Handle external file/folder drop onto this folder
+        // Use webkitGetAsEntry for proper folder support (including empty folders)
+        const entries = await collectEntriesFromDataTransfer(
+          e.dataTransfer,
+          (file) => window.electronAPI?.getPathForFile(file) || '',
+        )
 
-        // First create all directories (including empty ones)
-        for (const dir of directories) {
-          const destPath = buildFullPath(vaultPath, targetFolder.relativePath + '/' + dir.relativePath)
+        // If no entries from webkitGetAsEntry, fall back to traditional file handling
+        if (entries.length === 0) {
+          for (const file of droppedExternalFiles) {
+            try {
+              const filePath = window.electronAPI.getPathForFile(file)
+              if (filePath) {
+                // Check if it's a directory
+                const dirCheck = await window.electronAPI.isDirectory(filePath)
+                entries.push({
+                  path: filePath,
+                  isDirectory: dirCheck.success && dirCheck.isDirectory === true,
+                  relativePath: file.name,
+                })
+              }
+            } catch (error) {
+              log.error('[Drag]', 'Error getting file path', { error: error })
+            }
+          }
+        }
 
-          log.debug('[Drop]', 'Creating directory in folder', { relativePath: dir.relativePath, destPath })
+        if (entries.length === 0) {
+          setStatusMessage('Could not get file paths')
+          setTimeout(() => setStatusMessage(''), 3000)
+          return
+        }
 
-          // First try to copy the directory (handles non-empty directories)
-          const copyResult = await window.electronAPI.copyFile(dir.path, destPath)
-          if (copyResult.success) {
-            successCount++
-          } else {
-            // If copy failed, try creating the folder directly (for empty folders)
-            const createResult = await window.electronAPI.createFolder(destPath)
-            if (createResult.success) {
+        // Separate directories and files - process directories first to create structure
+        const directories = entries.filter((e) => e.isDirectory)
+        const fileEntries = entries.filter((e) => !e.isDirectory)
+
+        const totalItems = entries.length
+        const toastId = `drop-files-${Date.now()}`
+        addProgressToast(
+          toastId,
+          `Adding ${totalItems} item${totalItems > 1 ? 's' : ''} to ${targetFolder.name}...`,
+          totalItems,
+        )
+
+        try {
+          let successCount = 0
+          let errorCount = 0
+          let processed = 0
+
+          // First create all directories (including empty ones)
+          for (const dir of directories) {
+            const destPath = buildFullPath(
+              vaultPath,
+              targetFolder.relativePath + '/' + dir.relativePath,
+            )
+
+            log.debug('[Drop]', 'Creating directory in folder', {
+              relativePath: dir.relativePath,
+              destPath,
+            })
+
+            // First try to copy the directory (handles non-empty directories)
+            const copyResult = await window.electronAPI.copyFile(dir.path, destPath)
+            if (copyResult.success) {
+              successCount++
+            } else {
+              // If copy failed, try creating the folder directly (for empty folders)
+              const createResult = await window.electronAPI.createFolder(destPath)
+              if (createResult.success) {
+                successCount++
+              } else {
+                errorCount++
+                log.error('[Drop]', `Failed to create directory ${dir.relativePath}`, {
+                  error: createResult.error,
+                })
+              }
+            }
+
+            processed++
+            const percent = Math.round((processed / totalItems) * 100)
+            updateProgressToast(toastId, processed, percent)
+          }
+
+          // Then copy all files
+          for (const file of fileEntries) {
+            const destPath = buildFullPath(
+              vaultPath,
+              targetFolder.relativePath + '/' + file.relativePath,
+            )
+
+            log.debug('[Drop]', 'Copying file to folder', {
+              relativePath: file.relativePath,
+              destPath,
+            })
+
+            const result = await window.electronAPI.copyFile(file.path, destPath)
+            if (result.success) {
               successCount++
             } else {
               errorCount++
-              log.error('[Drop]', `Failed to create directory ${dir.relativePath}`, { error: createResult.error })
+              log.error('[Drop]', `Failed to copy ${file.relativePath}`, { error: result.error })
             }
+
+            processed++
+            const percent = Math.round((processed / totalItems) * 100)
+            updateProgressToast(toastId, processed, percent)
           }
-          
-          processed++
-          const percent = Math.round((processed / totalItems) * 100)
-          updateProgressToast(toastId, processed, percent)
-        }
 
-        // Then copy all files
-        for (const file of fileEntries) {
-          const destPath = buildFullPath(vaultPath, targetFolder.relativePath + '/' + file.relativePath)
+          removeToast(toastId)
 
-          log.debug('[Drop]', 'Copying file to folder', { relativePath: file.relativePath, destPath })
-
-          const result = await window.electronAPI.copyFile(file.path, destPath)
-          if (result.success) {
-            successCount++
+          if (errorCount === 0) {
+            addToast(
+              'success',
+              `Added ${successCount} item${successCount > 1 ? 's' : ''} to ${targetFolder.name}`,
+            )
           } else {
-            errorCount++
-            log.error('[Drop]', `Failed to copy ${file.relativePath}`, { error: result.error })
+            addToast('warning', `Added ${successCount}, failed ${errorCount}`)
           }
-          
-          processed++
-          const percent = Math.round((processed / totalItems) * 100)
-          updateProgressToast(toastId, processed, percent)
-        }
 
-        removeToast(toastId)
-        
-        if (errorCount === 0) {
-          addToast('success', `Added ${successCount} item${successCount > 1 ? 's' : ''} to ${targetFolder.name}`)
-        } else {
-          addToast('warning', `Added ${successCount}, failed ${errorCount}`)
+          // Refresh the file list
+          setTimeout(() => onRefresh(), 100)
+        } catch (error) {
+          log.error('[Drag]', 'Error adding files', { error: error })
+          removeToast(toastId)
+          addToast('error', 'Failed to add files')
         }
-
-        // Refresh the file list
-        setTimeout(() => onRefresh(), 100)
-      } catch (err) {
-        log.error('[Drag]', 'Error adding files', { error: err })
-        removeToast(toastId)
-        addToast('error', 'Failed to add files')
+        return
       }
-      return
-    }
-    
-    // Get files from local state or from data transfer (cross-view drag)
-    let filesToMove: LocalFile[] = []
-    
-    if (draggedFiles.length > 0) {
-      filesToMove = draggedFiles
-      setDraggedFiles([])
-    } else {
-      // Try to get from data transfer (drag from Explorer View)
-      const pdmFilesData = e.dataTransfer.getData('application/x-plm-files')
-      if (pdmFilesData) {
-        try {
-          const relativePaths: string[] = JSON.parse(pdmFilesData)
-          filesToMove = files.filter(f => relativePaths.includes(f.relativePath))
-        } catch (err) {
-          log.error('[Drag]', 'Failed to parse drag data', { error: err })
-          return
+
+      // Get files from local state or from data transfer (cross-view drag)
+      let filesToMove: LocalFile[] = []
+
+      if (draggedFiles.length > 0) {
+        filesToMove = draggedFiles
+        setDraggedFiles([])
+      } else {
+        // Try to get from data transfer (drag from Explorer View)
+        const pdmFilesData = e.dataTransfer.getData('application/x-plm-files')
+        if (pdmFilesData) {
+          try {
+            const relativePaths: string[] = JSON.parse(pdmFilesData)
+            filesToMove = files.filter((f) => relativePaths.includes(f.relativePath))
+          } catch (error) {
+            log.error('[Drag]', 'Failed to parse drag data', { error: error })
+            return
+          }
         }
       }
-    }
-    
-    if (filesToMove.length === 0) return
-    
-    // Check for locked files in folders before moving
-    const foldersToMove = filesToMove.filter(f => f.isDirectory)
-    
-    if (foldersToMove.length > 0 && window.electronAPI?.checkFolderLocks && onLockedFilesFound) {
-      // Check each folder for locked files
-      for (const folder of foldersToMove) {
-        try {
-          const lockResult = await window.electronAPI.checkFolderLocks(folder.path)
-          
-          if (lockResult.lockedFiles && lockResult.lockedFiles.length > 0) {
-            log.info('[Move]', 'Found locked files in folder', {
-              folder: folder.name,
-              lockedCount: lockResult.lockedFiles.length,
-              totalFiles: lockResult.totalFiles
+
+      if (filesToMove.length === 0) return
+
+      // Check for locked files in folders before moving
+      const foldersToMove = filesToMove.filter((f) => f.isDirectory)
+
+      if (foldersToMove.length > 0 && window.electronAPI?.checkFolderLocks && onLockedFilesFound) {
+        // Check each folder for locked files
+        for (const folder of foldersToMove) {
+          try {
+            const lockResult = await window.electronAPI.checkFolderLocks(folder.path)
+
+            if (lockResult.lockedFiles && lockResult.lockedFiles.length > 0) {
+              log.info('[Move]', 'Found locked files in folder', {
+                folder: folder.name,
+                lockedCount: lockResult.lockedFiles.length,
+                totalFiles: lockResult.totalFiles,
+              })
+
+              // Ask user what to do
+              const shouldProceed = await onLockedFilesFound({
+                lockedFiles: lockResult.lockedFiles,
+                totalFiles: lockResult.totalFiles,
+                folderName: folder.name,
+              })
+
+              if (!shouldProceed) {
+                log.info('[Move]', 'User cancelled folder move due to locked files')
+                addToast('info', 'Move cancelled')
+                return
+              }
+
+              // User wants to proceed with partial move
+              // For now, we'll still attempt the full folder move and let it fail on locked files
+              // TODO: Implement true partial move (file-by-file) when needed
+              log.info('[Move]', 'User chose to proceed with move despite locked files')
+            }
+          } catch (error) {
+            log.warn('[Move]', 'Failed to check folder locks', { error: error })
+            // Continue with move attempt if lock check fails
+          }
+        }
+      }
+
+      // Check for folder name conflicts before moving
+      if (foldersToMove.length > 0 && onFolderConflict) {
+        // Find existing folders in the target location
+        const targetPathLower = targetFolder.relativePath.toLowerCase()
+        const existingFoldersInTarget = new Set(
+          files
+            .filter((f) => f.isDirectory)
+            .filter((f) => {
+              const parent = f.relativePath.includes('/')
+                ? f.relativePath.substring(0, f.relativePath.lastIndexOf('/'))
+                : ''
+              return parent.toLowerCase() === targetPathLower
             })
-            
-            // Ask user what to do
-            const shouldProceed = await onLockedFilesFound({
-              lockedFiles: lockResult.lockedFiles,
-              totalFiles: lockResult.totalFiles,
-              folderName: folder.name
+            .map((f) => f.name.toLowerCase()),
+        )
+
+        // Check for conflicts
+        const conflicts: FolderConflictInfo[] = []
+        for (const folder of foldersToMove) {
+          if (existingFoldersInTarget.has(folder.name.toLowerCase())) {
+            conflicts.push({
+              sourceFolder: folder,
+              targetPath: targetFolder.relativePath,
+              existingFolderPath: targetFolder.relativePath
+                ? `${targetFolder.relativePath}/${folder.name}`
+                : folder.name,
             })
-            
-            if (!shouldProceed) {
-              log.info('[Move]', 'User cancelled folder move due to locked files')
+          }
+        }
+
+        if (conflicts.length > 0) {
+          log.info('[Move]', 'Found folder name conflicts', {
+            conflictCount: conflicts.length,
+            folders: conflicts.map((c) => c.sourceFolder.name),
+          })
+
+          // Track resolutions for each conflict
+          const resolutions: Map<string, 'merge' | 'rename' | 'skip'> = new Map()
+          let applyToAllResolution: 'merge' | 'rename' | 'skip' | null = null
+
+          for (let i = 0; i < conflicts.length; i++) {
+            const conflict = conflicts[i]
+
+            // If we have an "apply to all" resolution, use it
+            if (applyToAllResolution) {
+              resolutions.set(conflict.sourceFolder.path, applyToAllResolution)
+              continue
+            }
+
+            // Otherwise, ask user for resolution
+            const result = await onFolderConflict([conflict], conflicts.length)
+
+            if (result.resolution === 'cancel') {
+              log.info('[Move]', 'User cancelled folder move due to conflicts')
               addToast('info', 'Move cancelled')
               return
             }
-            
-            // User wants to proceed with partial move
-            // For now, we'll still attempt the full folder move and let it fail on locked files
-            // TODO: Implement true partial move (file-by-file) when needed
-            log.info('[Move]', 'User chose to proceed with move despite locked files')
+
+            resolutions.set(conflict.sourceFolder.path, result.resolution)
+
+            if (result.applyToAll) {
+              applyToAllResolution = result.resolution
+            }
           }
-        } catch (err) {
-          log.warn('[Move]', 'Failed to check folder locks', { error: err })
-          // Continue with move attempt if lock check fails
+
+          // Process files based on resolutions
+          const filesToMerge: LocalFile[] = []
+          const filesToRename: LocalFile[] = []
+          const filesToSkip: LocalFile[] = []
+          const nonConflictingFiles = filesToMove.filter(
+            (f) => !f.isDirectory || !conflicts.some((c) => c.sourceFolder.path === f.path),
+          )
+
+          for (const conflict of conflicts) {
+            const resolution = resolutions.get(conflict.sourceFolder.path)
+            switch (resolution) {
+              case 'merge':
+                filesToMerge.push(conflict.sourceFolder)
+                break
+              case 'rename':
+                filesToRename.push(conflict.sourceFolder)
+                break
+              case 'skip':
+                filesToSkip.push(conflict.sourceFolder)
+                break
+            }
+          }
+
+          log.info('[Move]', 'Folder conflict resolutions', {
+            merge: filesToMerge.length,
+            rename: filesToRename.length,
+            skip: filesToSkip.length,
+            nonConflicting: nonConflictingFiles.length,
+          })
+
+          // Skip folders the user chose to skip
+          if (filesToSkip.length > 0) {
+            addToast(
+              'info',
+              `Skipped ${filesToSkip.length} folder${filesToSkip.length > 1 ? 's' : ''}`,
+            )
+          }
+
+          // Handle merges
+          for (const folder of filesToMerge) {
+            await executeCommand('merge-folder', {
+              sourceFolder: folder,
+              targetFolder: targetFolder.relativePath,
+            })
+          }
+
+          // Handle renames - generate unique names
+          for (const folder of filesToRename) {
+            let counter = 2
+            let newName = `${folder.name} (${counter})`
+            while (existingFoldersInTarget.has(newName.toLowerCase()) && counter < 1000) {
+              counter++
+              newName = `${folder.name} (${counter})`
+            }
+            log.info('[Move]', 'Renaming folder to avoid conflict', {
+              original: folder.name,
+              newName,
+            })
+            await executeCommand('move', {
+              files: [folder],
+              targetFolder: targetFolder.relativePath,
+              resolvedName: newName,
+            })
+            // Update the set so subsequent renames don't collide
+            existingFoldersInTarget.add(newName.toLowerCase())
+          }
+
+          // Move non-conflicting files normally
+          if (nonConflictingFiles.length > 0) {
+            await executeCommand('move', {
+              files: nonConflictingFiles,
+              targetFolder: targetFolder.relativePath,
+            })
+          }
+
+          return
         }
       }
-    }
-    
-    // Check for folder name conflicts before moving
-    if (foldersToMove.length > 0 && onFolderConflict) {
-      // Find existing folders in the target location
-      const targetPathLower = targetFolder.relativePath.toLowerCase()
-      const existingFoldersInTarget = new Set(
-        files
-          .filter(f => f.isDirectory)
-          .filter(f => {
-            const parent = f.relativePath.includes('/') 
-              ? f.relativePath.substring(0, f.relativePath.lastIndexOf('/'))
-              : ''
-            return parent.toLowerCase() === targetPathLower
-          })
-          .map(f => f.name.toLowerCase())
-      )
-      
-      // Check for conflicts
-      const conflicts: FolderConflictInfo[] = []
-      for (const folder of foldersToMove) {
-        if (existingFoldersInTarget.has(folder.name.toLowerCase())) {
-          conflicts.push({
-            sourceFolder: folder,
-            targetPath: targetFolder.relativePath,
-            existingFolderPath: targetFolder.relativePath ? `${targetFolder.relativePath}/${folder.name}` : folder.name
-          })
-        }
-      }
-      
-      if (conflicts.length > 0) {
-        log.info('[Move]', 'Found folder name conflicts', {
-          conflictCount: conflicts.length,
-          folders: conflicts.map(c => c.sourceFolder.name)
-        })
-        
-        // Track resolutions for each conflict
-        const resolutions: Map<string, 'merge' | 'rename' | 'skip'> = new Map()
-        let applyToAllResolution: 'merge' | 'rename' | 'skip' | null = null
-        
-        for (let i = 0; i < conflicts.length; i++) {
-          const conflict = conflicts[i]
-          
-          // If we have an "apply to all" resolution, use it
-          if (applyToAllResolution) {
-            resolutions.set(conflict.sourceFolder.path, applyToAllResolution)
-            continue
-          }
-          
-          // Otherwise, ask user for resolution
-          const result = await onFolderConflict([conflict], conflicts.length)
-          
-          if (result.resolution === 'cancel') {
-            log.info('[Move]', 'User cancelled folder move due to conflicts')
-            addToast('info', 'Move cancelled')
-            return
-          }
-          
-          resolutions.set(conflict.sourceFolder.path, result.resolution)
-          
-          if (result.applyToAll) {
-            applyToAllResolution = result.resolution
-          }
-        }
-        
-        // Process files based on resolutions
-        const filesToMerge: LocalFile[] = []
-        const filesToRename: LocalFile[] = []
-        const filesToSkip: LocalFile[] = []
-        const nonConflictingFiles = filesToMove.filter(f => !f.isDirectory || !conflicts.some(c => c.sourceFolder.path === f.path))
-        
-        for (const conflict of conflicts) {
-          const resolution = resolutions.get(conflict.sourceFolder.path)
-          switch (resolution) {
-            case 'merge':
-              filesToMerge.push(conflict.sourceFolder)
-              break
-            case 'rename':
-              filesToRename.push(conflict.sourceFolder)
-              break
-            case 'skip':
-              filesToSkip.push(conflict.sourceFolder)
-              break
-          }
-        }
-        
-        log.info('[Move]', 'Folder conflict resolutions', {
-          merge: filesToMerge.length,
-          rename: filesToRename.length,
-          skip: filesToSkip.length,
-          nonConflicting: nonConflictingFiles.length
-        })
-        
-        // Skip folders the user chose to skip
-        if (filesToSkip.length > 0) {
-          addToast('info', `Skipped ${filesToSkip.length} folder${filesToSkip.length > 1 ? 's' : ''}`)
-        }
-        
-        // Handle merges
-        for (const folder of filesToMerge) {
-          await executeCommand('merge-folder', {
-            sourceFolder: folder,
-            targetFolder: targetFolder.relativePath
-          })
-        }
-        
-        // Handle renames - generate unique names
-        for (const folder of filesToRename) {
-          let counter = 2
-          let newName = `${folder.name} (${counter})`
-          while (existingFoldersInTarget.has(newName.toLowerCase()) && counter < 1000) {
-            counter++
-            newName = `${folder.name} (${counter})`
-          }
-          log.info('[Move]', 'Renaming folder to avoid conflict', { original: folder.name, newName })
-          await executeCommand('move', {
-            files: [folder],
-            targetFolder: targetFolder.relativePath,
-            resolvedName: newName
-          })
-          // Update the set so subsequent renames don't collide
-          existingFoldersInTarget.add(newName.toLowerCase())
-        }
-        
-        // Move non-conflicting files normally
-        if (nonConflictingFiles.length > 0) {
-          await executeCommand('move', { files: nonConflictingFiles, targetFolder: targetFolder.relativePath })
-        }
-        
-        return
-      }
-    }
-    
-    // Use the command system to perform the move (no conflicts)
-    await executeCommand('move', { files: filesToMove, targetFolder: targetFolder.relativePath })
-    // No refresh needed - store is already updated by the move command
-  }, [vaultPath, files, draggedFiles, addProgressToast, updateProgressToast, removeToast, addToast, setStatusMessage, onLockedFilesFound, onFolderConflict])
+
+      // Use the command system to perform the move (no conflicts)
+      await executeCommand('move', { files: filesToMove, targetFolder: targetFolder.relativePath })
+      // No refresh needed - store is already updated by the move command
+    },
+    [
+      vaultPath,
+      files,
+      draggedFiles,
+      addProgressToast,
+      updateProgressToast,
+      removeToast,
+      addToast,
+      setStatusMessage,
+      onLockedFilesFound,
+      onFolderConflict,
+    ],
+  )
 
   // Drag and Drop handlers for container (supports external files + cross-view drag)
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    
-    // Check for external files (from outside the app)
-    if (e.dataTransfer.types.includes('Files') && !e.dataTransfer.types.includes('application/x-plm-files')) {
-      setIsDraggingOver(true)
-      setIsExternalDrag(true)
-      e.dataTransfer.dropEffect = 'copy'
-      return
-    }
-    
-    // Check for cross-view drag from Explorer (internal move)
-    if (e.dataTransfer.types.includes('application/x-plm-files')) {
-      // Don't show big overlay for internal moves - folder row highlighting is sufficient
-      // Only set isDraggingOver if we're not over a specific folder (to enable drop on current folder)
-      if (!dragOverFolder) {
+  const handleDragOver = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+
+      // Check for external files (from outside the app)
+      if (
+        e.dataTransfer.types.includes('Files') &&
+        !e.dataTransfer.types.includes('application/x-plm-files')
+      ) {
         setIsDraggingOver(true)
-        setIsExternalDrag(false)
+        setIsExternalDrag(true)
+        e.dataTransfer.dropEffect = 'copy'
+        return
       }
-      e.dataTransfer.dropEffect = 'move'
-    }
-  }, [dragOverFolder])
+
+      // Check for cross-view drag from Explorer (internal move)
+      if (e.dataTransfer.types.includes('application/x-plm-files')) {
+        // Don't show big overlay for internal moves - folder row highlighting is sufficient
+        // Only set isDraggingOver if we're not over a specific folder (to enable drop on current folder)
+        if (!dragOverFolder) {
+          setIsDraggingOver(true)
+          setIsExternalDrag(false)
+        }
+        e.dataTransfer.dropEffect = 'move'
+      }
+    },
+    [dragOverFolder],
+  )
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -825,186 +899,209 @@ export function useDragState(options: UseDragStateOptions): UseDragStateReturn {
     }
   }, [])
 
-  const handleDrop = useCallback(async (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDraggingOver(false)
-    setIsExternalDrag(false)
+  const handleDrop = useCallback(
+    async (e: React.DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setIsDraggingOver(false)
+      setIsExternalDrag(false)
 
-    if (!window.electronAPI || !vaultPath) {
-      setStatusMessage('No vault connected')
-      return
-    }
+      if (!window.electronAPI || !vaultPath) {
+        setStatusMessage('No vault connected')
+        return
+      }
 
-    logDragDrop('Dropped files', { targetFolder: currentFolder })
-    // First check for cross-view drag from Explorer (move files to current folder)
-    const pdmFilesData = e.dataTransfer.getData('application/x-plm-files')
-    if (pdmFilesData) {
-      try {
-        const relativePaths: string[] = JSON.parse(pdmFilesData)
-        const filesToMove = files.filter(f => relativePaths.includes(f.relativePath))
-        
-        if (filesToMove.length > 0) {
-          // Check for locked files in folders before moving
-          const foldersToMove = filesToMove.filter(f => f.isDirectory)
-          
-          if (foldersToMove.length > 0 && window.electronAPI?.checkFolderLocks && onLockedFilesFound) {
-            for (const folder of foldersToMove) {
-              try {
-                const lockResult = await window.electronAPI.checkFolderLocks(folder.path)
-                
-                if (lockResult.lockedFiles && lockResult.lockedFiles.length > 0) {
-                  log.info('[Move]', 'Found locked files in folder', {
-                    folder: folder.name,
-                    lockedCount: lockResult.lockedFiles.length,
-                    totalFiles: lockResult.totalFiles
-                  })
-                  
-                  const shouldProceed = await onLockedFilesFound({
-                    lockedFiles: lockResult.lockedFiles,
-                    totalFiles: lockResult.totalFiles,
-                    folderName: folder.name
-                  })
-                  
-                  if (!shouldProceed) {
-                    log.info('[Move]', 'User cancelled folder move due to locked files')
-                    addToast('info', 'Move cancelled')
-                    return
+      logDragDrop('Dropped files', { targetFolder: currentFolder })
+      // First check for cross-view drag from Explorer (move files to current folder)
+      const pdmFilesData = e.dataTransfer.getData('application/x-plm-files')
+      if (pdmFilesData) {
+        try {
+          const relativePaths: string[] = JSON.parse(pdmFilesData)
+          const filesToMove = files.filter((f) => relativePaths.includes(f.relativePath))
+
+          if (filesToMove.length > 0) {
+            // Check for locked files in folders before moving
+            const foldersToMove = filesToMove.filter((f) => f.isDirectory)
+
+            if (
+              foldersToMove.length > 0 &&
+              window.electronAPI?.checkFolderLocks &&
+              onLockedFilesFound
+            ) {
+              for (const folder of foldersToMove) {
+                try {
+                  const lockResult = await window.electronAPI.checkFolderLocks(folder.path)
+
+                  if (lockResult.lockedFiles && lockResult.lockedFiles.length > 0) {
+                    log.info('[Move]', 'Found locked files in folder', {
+                      folder: folder.name,
+                      lockedCount: lockResult.lockedFiles.length,
+                      totalFiles: lockResult.totalFiles,
+                    })
+
+                    const shouldProceed = await onLockedFilesFound({
+                      lockedFiles: lockResult.lockedFiles,
+                      totalFiles: lockResult.totalFiles,
+                      folderName: folder.name,
+                    })
+
+                    if (!shouldProceed) {
+                      log.info('[Move]', 'User cancelled folder move due to locked files')
+                      addToast('info', 'Move cancelled')
+                      return
+                    }
                   }
+                } catch (error) {
+                  log.warn('[Move]', 'Failed to check folder locks', { error: error })
                 }
-              } catch (err) {
-                log.warn('[Move]', 'Failed to check folder locks', { error: err })
               }
             }
-          }
-          
-          // Move to current folder using the command system
-          await executeCommand('move', { files: filesToMove, targetFolder: currentFolder })
-          return
-        }
-      } catch (err) {
-        log.error('[Drag]', 'Failed to parse drag data', { error: err })
-      }
-    }
 
-    // Handle external files being dropped - use webkitGetAsEntry for proper folder support
-    const entries = await collectEntriesFromDataTransfer(
-      e.dataTransfer,
-      (file) => window.electronAPI?.getPathForFile(file) || ''
-    )
-    
-    // If no entries from webkitGetAsEntry, fall back to traditional file handling
-    if (entries.length === 0) {
-      const droppedFiles = Array.from(e.dataTransfer.files)
-      if (droppedFiles.length === 0) return
-      
-      for (const file of droppedFiles) {
-        try {
-          const filePath = window.electronAPI.getPathForFile(file)
-          if (filePath) {
-            // Check if it's a directory
-            const dirCheck = await window.electronAPI.isDirectory(filePath)
-            entries.push({ 
-              path: filePath, 
-              isDirectory: dirCheck.success && dirCheck.isDirectory === true,
-              relativePath: file.name 
-            })
+            // Move to current folder using the command system
+            await executeCommand('move', { files: filesToMove, targetFolder: currentFolder })
+            return
           }
-        } catch (err) {
-          log.error('[Drag]', 'Error getting file path', { error: err })
+        } catch (error) {
+          log.error('[Drag]', 'Failed to parse drag data', { error: error })
         }
       }
-    }
 
-    if (entries.length === 0) {
-      setStatusMessage('Could not get file paths')
-      setTimeout(() => setStatusMessage(''), 3000)
-      return
-    }
+      // Handle external files being dropped - use webkitGetAsEntry for proper folder support
+      const entries = await collectEntriesFromDataTransfer(
+        e.dataTransfer,
+        (file) => window.electronAPI?.getPathForFile(file) || '',
+      )
 
-    // Determine destination folder
-    const destFolder = currentFolder || ''
-    
-    // Separate directories and files - process directories first to create structure
-    const directories = entries.filter(e => e.isDirectory)
-    const fileEntries = entries.filter(e => !e.isDirectory)
-    
-    const totalItems = entries.length
-    const toastId = `drop-files-${Date.now()}`
-    addProgressToast(toastId, `Adding ${totalItems} item${totalItems > 1 ? 's' : ''}...`, totalItems)
+      // If no entries from webkitGetAsEntry, fall back to traditional file handling
+      if (entries.length === 0) {
+        const droppedFiles = Array.from(e.dataTransfer.files)
+        if (droppedFiles.length === 0) return
 
-    try {
-      let successCount = 0
-      let errorCount = 0
-      let processed = 0
+        for (const file of droppedFiles) {
+          try {
+            const filePath = window.electronAPI.getPathForFile(file)
+            if (filePath) {
+              // Check if it's a directory
+              const dirCheck = await window.electronAPI.isDirectory(filePath)
+              entries.push({
+                path: filePath,
+                isDirectory: dirCheck.success && dirCheck.isDirectory === true,
+                relativePath: file.name,
+              })
+            }
+          } catch (error) {
+            log.error('[Drag]', 'Error getting file path', { error: error })
+          }
+        }
+      }
 
-      // First create all directories (including empty ones)
-      for (const dir of directories) {
-        const destPath = destFolder 
-          ? buildFullPath(vaultPath, destFolder + '/' + dir.relativePath)
-          : buildFullPath(vaultPath, dir.relativePath)
+      if (entries.length === 0) {
+        setStatusMessage('Could not get file paths')
+        setTimeout(() => setStatusMessage(''), 3000)
+        return
+      }
 
-        log.debug('[Drop]', 'Creating directory', { relativePath: dir.relativePath, destPath })
+      // Determine destination folder
+      const destFolder = currentFolder || ''
 
-        // First try to copy the directory (handles non-empty directories)
-        const copyResult = await window.electronAPI.copyFile(dir.path, destPath)
-        if (copyResult.success) {
-          successCount++
-        } else {
-          // If copy failed, try creating the folder directly (for empty folders)
-          const createResult = await window.electronAPI.createFolder(destPath)
-          if (createResult.success) {
+      // Separate directories and files - process directories first to create structure
+      const directories = entries.filter((e) => e.isDirectory)
+      const fileEntries = entries.filter((e) => !e.isDirectory)
+
+      const totalItems = entries.length
+      const toastId = `drop-files-${Date.now()}`
+      addProgressToast(
+        toastId,
+        `Adding ${totalItems} item${totalItems > 1 ? 's' : ''}...`,
+        totalItems,
+      )
+
+      try {
+        let successCount = 0
+        let errorCount = 0
+        let processed = 0
+
+        // First create all directories (including empty ones)
+        for (const dir of directories) {
+          const destPath = destFolder
+            ? buildFullPath(vaultPath, destFolder + '/' + dir.relativePath)
+            : buildFullPath(vaultPath, dir.relativePath)
+
+          log.debug('[Drop]', 'Creating directory', { relativePath: dir.relativePath, destPath })
+
+          // First try to copy the directory (handles non-empty directories)
+          const copyResult = await window.electronAPI.copyFile(dir.path, destPath)
+          if (copyResult.success) {
+            successCount++
+          } else {
+            // If copy failed, try creating the folder directly (for empty folders)
+            const createResult = await window.electronAPI.createFolder(destPath)
+            if (createResult.success) {
+              successCount++
+            } else {
+              errorCount++
+              log.error('[Drop]', `Failed to create directory ${dir.relativePath}`, {
+                error: createResult.error,
+              })
+            }
+          }
+
+          processed++
+          const percent = Math.round((processed / totalItems) * 100)
+          updateProgressToast(toastId, processed, percent)
+        }
+
+        // Then copy all files
+        for (const file of fileEntries) {
+          const destPath = destFolder
+            ? buildFullPath(vaultPath, destFolder + '/' + file.relativePath)
+            : buildFullPath(vaultPath, file.relativePath)
+
+          log.debug('[Drop]', 'Copying file', { relativePath: file.relativePath, destPath })
+
+          const result = await window.electronAPI.copyFile(file.path, destPath)
+          if (result.success) {
             successCount++
           } else {
             errorCount++
-            log.error('[Drop]', `Failed to create directory ${dir.relativePath}`, { error: createResult.error })
+            log.error('[Drop]', `Failed to copy ${file.relativePath}`, { error: result.error })
           }
+
+          processed++
+          const percent = Math.round((processed / totalItems) * 100)
+          updateProgressToast(toastId, processed, percent)
         }
-        
-        processed++
-        const percent = Math.round((processed / totalItems) * 100)
-        updateProgressToast(toastId, processed, percent)
-      }
 
-      // Then copy all files
-      for (const file of fileEntries) {
-        const destPath = destFolder 
-          ? buildFullPath(vaultPath, destFolder + '/' + file.relativePath)
-          : buildFullPath(vaultPath, file.relativePath)
+        removeToast(toastId)
 
-        log.debug('[Drop]', 'Copying file', { relativePath: file.relativePath, destPath })
-
-        const result = await window.electronAPI.copyFile(file.path, destPath)
-        if (result.success) {
-          successCount++
+        if (errorCount === 0) {
+          addToast('success', `Added ${successCount} item${successCount > 1 ? 's' : ''}`)
         } else {
-          errorCount++
-          log.error('[Drop]', `Failed to copy ${file.relativePath}`, { error: result.error })
+          addToast('warning', `Added ${successCount}, failed ${errorCount}`)
         }
-        
-        processed++
-        const percent = Math.round((processed / totalItems) * 100)
-        updateProgressToast(toastId, processed, percent)
+
+        // Refresh the file list
+        setTimeout(() => onRefresh(), 100)
+      } catch (error) {
+        log.error('[Drag]', 'Error adding files', { error: error })
+        removeToast(toastId)
+        addToast('error', 'Failed to add files')
       }
+    },
+    [
+      vaultPath,
+      currentFolder,
+      files,
+      addProgressToast,
+      updateProgressToast,
+      removeToast,
+      addToast,
+      setStatusMessage,
+      onRefresh,
+      onLockedFilesFound,
+    ],
+  )
 
-      removeToast(toastId)
-      
-      if (errorCount === 0) {
-        addToast('success', `Added ${successCount} item${successCount > 1 ? 's' : ''}`)
-      } else {
-        addToast('warning', `Added ${successCount}, failed ${errorCount}`)
-      }
-
-      // Refresh the file list
-      setTimeout(() => onRefresh(), 100)
-
-    } catch (err) {
-      log.error('[Drag]', 'Error adding files', { error: err })
-      removeToast(toastId)
-      addToast('error', 'Failed to add files')
-    }
-  }, [vaultPath, currentFolder, files, addProgressToast, updateProgressToast, removeToast, addToast, setStatusMessage, onRefresh, onLockedFilesFound])
-  
   return {
     draggedFiles,
     setDraggedFiles,

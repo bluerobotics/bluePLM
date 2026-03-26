@@ -3,26 +3,26 @@
  * Provides file operations appropriate to each row type
  */
 import { memo, useEffect, useRef } from 'react'
-import { 
-  FolderOpen, 
-  ExternalLink, 
-  Copy, 
-  Upload, 
-  Trash2, 
-  ArrowUp, 
-  Undo2, 
-  Unlock 
+import {
+  FolderOpen,
+  ExternalLink,
+  Copy,
+  Upload,
+  Trash2,
+  ArrowUp,
+  Undo2,
+  Unlock,
 } from 'lucide-react'
 import type { LocalFile } from '@/stores/pdmStore'
 
 // Row types that can appear in the Pending pane
-export type PendingRowType = 
-  | 'open-file'        // Files currently open in SolidWorks
-  | 'selected-item'    // Components selected in SolidWorks
-  | 'new-file'         // Unsynced local files
+export type PendingRowType =
+  | 'open-file' // Files currently open in SolidWorks
+  | 'selected-item' // Components selected in SolidWorks
+  | 'new-file' // Unsynced local files
   | 'checked-out-mine' // Files I have checked out
-  | 'checked-out-other'// Files checked out by others
-  | 'deleted-remote'   // Files deleted from server (orphaned local)
+  | 'checked-out-other' // Files checked out by others
+  | 'deleted-remote' // Files deleted from server (orphaned local)
 
 export interface PendingContextMenuProps {
   // Position
@@ -67,27 +67,27 @@ export const PendingContextMenu = memo(function PendingContextMenu({
   onForceRelease,
 }: PendingContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
-  
+
   // Adjust position if menu would go off-screen
   useEffect(() => {
     if (!menuRef.current) return
-    
+
     const menu = menuRef.current
     const rect = menu.getBoundingClientRect()
     const viewportWidth = window.innerWidth
     const viewportHeight = window.innerHeight
-    
+
     // Adjust horizontal position
     if (x + rect.width > viewportWidth - 10) {
       menu.style.left = `${viewportWidth - rect.width - 10}px`
     }
-    
+
     // Adjust vertical position
     if (y + rect.height > viewportHeight - 10) {
       menu.style.top = `${viewportHeight - rect.height - 10}px`
     }
   }, [x, y])
-  
+
   // Close on escape
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -98,7 +98,7 @@ export const PendingContextMenu = memo(function PendingContextMenu({
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [onClose])
-  
+
   // Determine which actions are available based on row type
   const canOpen = true // All rows can open
   const canShowInExplorer = true // All rows can show in explorer
@@ -108,25 +108,21 @@ export const PendingContextMenu = memo(function PendingContextMenu({
   const canDiscard = rowType === 'checked-out-mine'
   const canReupload = rowType === 'deleted-remote'
   const canForceRelease = rowType === 'checked-out-other' && isAdmin
-  
+
   return (
     <>
       {/* Overlay to close menu on click */}
-      <div 
-        className="fixed inset-0 z-50" 
+      <div
+        className="fixed inset-0 z-50"
         onClick={onClose}
         onContextMenu={(e) => {
           e.preventDefault()
           onClose()
         }}
       />
-      
+
       {/* Context menu */}
-      <div 
-        ref={menuRef}
-        className="context-menu z-[60]"
-        style={{ left: x, top: y }}
-      >
+      <div ref={menuRef} className="context-menu z-[60]" style={{ left: x, top: y }}>
         {/* Open file */}
         {canOpen && (
           <button
@@ -140,7 +136,7 @@ export const PendingContextMenu = memo(function PendingContextMenu({
             <span>Open</span>
           </button>
         )}
-        
+
         {/* Show in Explorer */}
         {canShowInExplorer && (
           <button
@@ -154,7 +150,7 @@ export const PendingContextMenu = memo(function PendingContextMenu({
             <span>Show in Explorer</span>
           </button>
         )}
-        
+
         {/* Copy path */}
         {canCopyPath && (
           <button
@@ -168,12 +164,12 @@ export const PendingContextMenu = memo(function PendingContextMenu({
             <span>Copy Path</span>
           </button>
         )}
-        
+
         {/* Separator before PDM actions */}
         {(canCheckIn || canDiscard || canReupload || canForceRelease || canDelete) && (
           <div className="context-menu-separator" />
         )}
-        
+
         {/* Check In (for new files and checked out files) */}
         {canCheckIn && file && (
           <button
@@ -187,7 +183,7 @@ export const PendingContextMenu = memo(function PendingContextMenu({
             <span>Check In</span>
           </button>
         )}
-        
+
         {/* Discard (for checked out files) */}
         {canDiscard && file && (
           <button
@@ -201,7 +197,7 @@ export const PendingContextMenu = memo(function PendingContextMenu({
             <span>Discard Changes</span>
           </button>
         )}
-        
+
         {/* Re-upload (for deleted remote files) */}
         {canReupload && file && (
           <button
@@ -215,7 +211,7 @@ export const PendingContextMenu = memo(function PendingContextMenu({
             <span>Re-upload to Server</span>
           </button>
         )}
-        
+
         {/* Force Release (admin only, for others' checkouts) */}
         {canForceRelease && file && (
           <button
@@ -229,7 +225,7 @@ export const PendingContextMenu = memo(function PendingContextMenu({
             <span>Force Release</span>
           </button>
         )}
-        
+
         {/* Delete (for new files and deleted remote files) */}
         {canDelete && file && (
           <button

@@ -1,11 +1,11 @@
 /**
  * Extension System IPC Protocol
- * 
+ *
  * Defines all message types for communication between:
  * - Main Process (Electron main)
  * - Extension Host (hidden renderer with extensions)
  * - App Renderer (main UI)
- * 
+ *
  * @module extensions/ipc/protocol
  */
 
@@ -17,7 +17,7 @@ import type {
   StoreExtension,
   WatchdogViolation,
   ExtensionStats,
-  VerificationStatus
+  VerificationStatus,
 } from '../types'
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -137,12 +137,12 @@ export const ExtensionChannels = {
   GET_EXTENSION: 'extensions:get-extension',
   GET_HOST_STATUS: 'extensions:get-host-status',
   GET_EXTENSION_STATS: 'extensions:get-extension-stats',
-  
+
   // Store operations
   FETCH_STORE: 'extensions:fetch-store',
   SEARCH_STORE: 'extensions:search-store',
   GET_STORE_EXTENSION: 'extensions:get-store-extension',
-  
+
   // Lifecycle
   INSTALL: 'extensions:install',
   INSTALL_FROM_FILE: 'extensions:install-from-file',
@@ -153,21 +153,21 @@ export const ExtensionChannels = {
   ACTIVATE: 'extensions:activate',
   DEACTIVATE: 'extensions:deactivate',
   KILL: 'extensions:kill',
-  
+
   // Updates
   CHECK_UPDATES: 'extensions:check-updates',
   UPDATE: 'extensions:update',
   ROLLBACK: 'extensions:rollback',
   PIN_VERSION: 'extensions:pin-version',
   UNPIN_VERSION: 'extensions:unpin-version',
-  
+
   // Events (from main to renderer)
   STATE_CHANGE: 'extension:state-change',
   VIOLATION: 'extension:violation',
   UPDATE_AVAILABLE: 'extension:update-available',
   UI_CALL: 'extension:ui-call',
   HOST_STATS: 'extension-host:stats',
-  INSTALL_PROGRESS: 'extension:install-progress'
+  INSTALL_PROGRESS: 'extension:install-progress',
 } as const
 
 export type ExtensionChannel = (typeof ExtensionChannels)[keyof typeof ExtensionChannels]
@@ -378,7 +378,7 @@ export const IpcTimeouts = {
   /** Store API timeout */
   STORE_API: 15_000,
   /** Update check timeout */
-  UPDATE_CHECK: 30_000
+  UPDATE_CHECK: 30_000,
 } as const
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -392,7 +392,7 @@ export function createRequest<T>(payload: T): IpcRequest<T> {
   return {
     callId: generateCallId(),
     timestamp: Date.now(),
-    payload
+    payload,
   }
 }
 
@@ -403,19 +403,23 @@ export function createSuccessResponse<T>(callId: string, result: T): IpcResponse
   return {
     callId,
     success: true,
-    result
+    result,
   }
 }
 
 /**
  * Create an error response
  */
-export function createErrorResponse(callId: string, error: string, stack?: string): IpcResponse<never> {
+export function createErrorResponse(
+  callId: string,
+  error: string,
+  stack?: string,
+): IpcResponse<never> {
   return {
     callId,
     success: false,
     error,
-    stack
+    stack,
   }
 }
 
@@ -424,7 +428,7 @@ export function createErrorResponse(callId: string, error: string, stack?: strin
  */
 export function isHostMessage<T extends HostOutboundMessage['type']>(
   message: HostOutboundMessage,
-  type: T
+  type: T,
 ): message is Extract<HostOutboundMessage, { type: T }> {
   return message.type === type
 }
@@ -434,7 +438,7 @@ export function isHostMessage<T extends HostOutboundMessage['type']>(
  */
 export function isHostInboundMessage<T extends HostInboundMessage['type']>(
   message: HostInboundMessage,
-  type: T
+  type: T,
 ): message is Extract<HostInboundMessage, { type: T }> {
   return message.type === type
 }

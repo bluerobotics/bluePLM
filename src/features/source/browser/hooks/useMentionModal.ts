@@ -5,11 +5,11 @@ export interface UseMentionModalReturn {
   // Modal visibility
   showMentionModal: boolean
   setShowMentionModal: React.Dispatch<React.SetStateAction<boolean>>
-  
+
   // File being mentioned
   mentionFile: LocalFile | null
   setMentionFile: React.Dispatch<React.SetStateAction<LocalFile | null>>
-  
+
   // Form state
   selectedMentionUsers: string[]
   setSelectedMentionUsers: React.Dispatch<React.SetStateAction<string[]>>
@@ -39,6 +39,6 @@ export function useMentionModal(): UseMentionModalReturn {
     mentionMessage,
     setMentionMessage,
     isSubmittingMention,
-    setIsSubmittingMention
+    setIsSubmittingMention,
   }
 }

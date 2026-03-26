@@ -135,11 +135,7 @@ export function CommentInput({
           className="flex items-center gap-1 px-2.5 py-1 text-xs rounded font-medium bg-plm-accent text-white hover:bg-plm-accent/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           aria-label="Submit comment"
         >
-          {isLoading ? (
-            <Loader2 size={12} className="animate-spin" />
-          ) : (
-            <Send size={12} />
-          )}
+          {isLoading ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
           {!compact && <span>{isLoading ? 'Saving...' : 'Comment'}</span>}
         </button>
       </div>

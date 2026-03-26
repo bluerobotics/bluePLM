@@ -1,8 +1,8 @@
 /**
  * Restore Command Handler
- * 
+ *
  * Commands: restore, undelete
- * 
+ *
  * Restores a file from trash (soft-deleted state) back to its original location.
  * Searches the supabase `files` table for deleted files matching the given name
  * or path pattern.
@@ -19,7 +19,7 @@ type OutputFn = (type: TerminalOutput['type'], content: string) => void
  * Search for a deleted file by name or path pattern.
  * Unlike resolvePathPattern (which works on local files), this queries
  * the supabase database for soft-deleted files matching the search term.
- * 
+ *
  * @param searchTerm - File name or path fragment to search for
  * @param orgId - Organization ID to scope the search
  * @param vaultId - Optional vault ID to narrow results
@@ -28,39 +28,34 @@ type OutputFn = (type: TerminalOutput['type'], content: string) => void
 async function findDeletedFile(
   searchTerm: string,
   orgId: string,
-  vaultId?: string
+  vaultId?: string,
 ): Promise<Array<{ id: string; file_name: string; file_path: string; deleted_at: string }>> {
   const { files: deletedFiles, error } = await getDeletedFiles(orgId, {
-    vaultId: vaultId || undefined
+    vaultId: vaultId || undefined,
   })
 
   if (error || !deletedFiles || deletedFiles.length === 0) {
     return []
   }
 
-  const normalizedSearch = searchTerm
-    .replace(/\\/g, '/')
-    .replace(/^\.\//, '')
-    .toLowerCase()
+  const normalizedSearch = searchTerm.replace(/\\/g, '/').replace(/^\.\//, '').toLowerCase()
 
   // Strategy 1: Exact path match
   const exactMatch = deletedFiles.find(
-    f => f.file_path.replace(/\\/g, '/').toLowerCase() === normalizedSearch
+    (f) => f.file_path.replace(/\\/g, '/').toLowerCase() === normalizedSearch,
   )
   if (exactMatch) {
     return [exactMatch]
   }
 
   // Strategy 2: Exact filename match
-  const nameMatches = deletedFiles.filter(
-    f => f.file_name.toLowerCase() === normalizedSearch
-  )
+  const nameMatches = deletedFiles.filter((f) => f.file_name.toLowerCase() === normalizedSearch)
   if (nameMatches.length > 0) {
     return nameMatches
   }
 
   // Strategy 3: Path suffix match (e.g., "folder/file.sldprt")
-  const suffixMatches = deletedFiles.filter(f => {
+  const suffixMatches = deletedFiles.filter((f) => {
     const normalizedPath = f.file_path.replace(/\\/g, '/').toLowerCase()
     return normalizedPath.endsWith('/' + normalizedSearch) || normalizedPath === normalizedSearch
   })
@@ -69,8 +64,8 @@ async function findDeletedFile(
   }
 
   // Strategy 4: Partial name match (contains search term)
-  const partialMatches = deletedFiles.filter(
-    f => f.file_name.toLowerCase().includes(normalizedSearch)
+  const partialMatches = deletedFiles.filter((f) =>
+    f.file_name.toLowerCase().includes(normalizedSearch),
   )
 
   return partialMatches
@@ -78,14 +73,14 @@ async function findDeletedFile(
 
 /**
  * Handle restore command - restore a file from trash.
- * 
+ *
  * Searches for deleted files matching the given name/path,
  * then restores the most recently deleted match.
  */
 export async function handleRestore(
   parsed: ParsedCommand,
   addOutput: OutputFn,
-  onRefresh?: (silent?: boolean) => void
+  onRefresh?: (silent?: boolean) => void,
 ): Promise<void> {
   const searchTerm = parsed.args[0]
   if (!searchTerm) {
@@ -108,11 +103,7 @@ export async function handleRestore(
   // Search for the deleted file in the database
   addOutput('info', `Searching trash for: ${searchTerm}...`)
 
-  const matches = await findDeletedFile(
-    searchTerm,
-    organization.id,
-    activeVaultId || undefined
-  )
+  const matches = await findDeletedFile(searchTerm, organization.id, activeVaultId || undefined)
 
   if (matches.length === 0) {
     addOutput('error', `No deleted files found matching: ${searchTerm}`)
@@ -147,13 +138,24 @@ export async function handleRestore(
         const { addCloudFile } = usePDMStore.getState()
         addCloudFile(result.file)
 
-        const parentPath = result.file.file_path.substring(0, result.file.file_path.lastIndexOf('/'))
+        const parentPath = result.file.file_path.substring(
+          0,
+          result.file.file_path.lastIndexOf('/'),
+        )
         if (parentPath) {
-          const parentExists = usePDMStore.getState().files.some(
-            f => f.isDirectory && f.diffStatus !== 'cloud' && f.relativePath.toLowerCase() === parentPath.toLowerCase()
-          )
+          const parentExists = usePDMStore
+            .getState()
+            .files.some(
+              (f) =>
+                f.isDirectory &&
+                f.diffStatus !== 'cloud' &&
+                f.relativePath.toLowerCase() === parentPath.toLowerCase(),
+            )
           if (!parentExists) {
-            addOutput('info', `Warning: Original folder "${parentPath}" no longer exists. File restored at its old path -- use "move" to relocate.`)
+            addOutput(
+              'info',
+              `Warning: Original folder "${parentPath}" no longer exists. File restored at its old path -- use "move" to relocate.`,
+            )
           }
         }
       }
@@ -163,8 +165,8 @@ export async function handleRestore(
     } else {
       addOutput('error', result.error || `Failed to restore: ${fileToRestore.file_name}`)
     }
-  } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err)
+  } catch (error) {
+    const errMsg = error instanceof Error ? error.message : String(error)
     addOutput('error', `Failed to restore file: ${errMsg}`)
   }
 }
@@ -173,12 +175,15 @@ export async function handleRestore(
 // Self-registration
 // ============================================
 
-registerTerminalCommand({
-  aliases: ['restore', 'undelete'],
-  description: 'Restore a file from trash',
-  usage: 'restore <filename-or-path>',
-  examples: ['restore part.sldprt', 'restore folder/assembly.sldasm'],
-  category: 'pdm'
-}, async (parsed, _files, addOutput, onRefresh) => {
-  await handleRestore(parsed, addOutput, onRefresh)
-})
+registerTerminalCommand(
+  {
+    aliases: ['restore', 'undelete'],
+    description: 'Restore a file from trash',
+    usage: 'restore <filename-or-path>',
+    examples: ['restore part.sldprt', 'restore folder/assembly.sldasm'],
+    category: 'pdm',
+  },
+  async (parsed, _files, addOutput, onRefresh) => {
+    await handleRestore(parsed, addOutput, onRefresh)
+  },
+)

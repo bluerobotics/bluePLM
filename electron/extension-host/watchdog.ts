@@ -1,6 +1,6 @@
 /**
  * Extension Watchdog
- * 
+ *
  * Monitors all extensions for resource usage violations:
  * - Memory budget per extension (configurable, default 50MB)
  * - CPU timeout per operation (configurable, default 5s)
@@ -12,8 +12,9 @@ import type {
   WatchdogViolation,
   ExtensionStats,
   ViolationType,
-  DEFAULT_WATCHDOG_CONFIG
+  DEFAULT_WATCHDOG_CONFIG,
 } from './types'
+import { hostLog } from './log'
 
 interface ExtensionWatchdogEntry {
   extensionId: string
@@ -34,53 +35,53 @@ export class Watchdog {
   private violationCallbacks: ViolationCallback[] = []
   private defaultConfig: WatchdogConfig
   private isRunning = false
-  
+
   constructor(defaultConfig?: Partial<WatchdogConfig>) {
     this.defaultConfig = {
       memoryLimitMB: defaultConfig?.memoryLimitMB ?? 50,
       cpuTimeoutMs: defaultConfig?.cpuTimeoutMs ?? 5000,
-      checkIntervalMs: defaultConfig?.checkIntervalMs ?? 1000
+      checkIntervalMs: defaultConfig?.checkIntervalMs ?? 1000,
     }
   }
-  
+
   /**
    * Start the watchdog monitoring loop
    */
   start(): void {
     if (this.isRunning) return
-    
+
     this.isRunning = true
     this.intervalId = setInterval(() => {
       this.checkAllExtensions()
     }, this.defaultConfig.checkIntervalMs)
-    
-    console.log('[Watchdog] Started monitoring')
+
+    hostLog.info('[Watchdog]', 'Started monitoring')
   }
-  
+
   /**
    * Stop the watchdog monitoring loop
    */
   stop(): void {
     if (!this.isRunning) return
-    
+
     this.isRunning = false
     if (this.intervalId) {
       clearInterval(this.intervalId)
       this.intervalId = null
     }
-    
-    console.log('[Watchdog] Stopped monitoring')
+
+    hostLog.info('[Watchdog]', 'Stopped monitoring')
   }
-  
+
   /**
    * Register an extension for monitoring
    */
   registerExtension(id: string, config?: Partial<WatchdogConfig>): void {
     const mergedConfig: WatchdogConfig = {
       ...this.defaultConfig,
-      ...config
+      ...config,
     }
-    
+
     const entry: ExtensionWatchdogEntry = {
       extensionId: id,
       config: mergedConfig,
@@ -90,23 +91,23 @@ export class Watchdog {
         cpuTimeMs: 0,
         lastActivityMs: Date.now(),
         activationCount: 0,
-        errorCount: 0
+        errorCount: 0,
       },
-      isRunning: false
+      isRunning: false,
     }
-    
+
     this.extensions.set(id, entry)
-    console.log(`[Watchdog] Registered extension: ${id}`)
+    hostLog.info('[Watchdog]', `Registered extension: ${id}`)
   }
-  
+
   /**
    * Unregister an extension from monitoring
    */
   unregisterExtension(id: string): void {
     this.extensions.delete(id)
-    console.log(`[Watchdog] Unregistered extension: ${id}`)
+    hostLog.info('[Watchdog]', `Unregistered extension: ${id}`)
   }
-  
+
   /**
    * Update extension config
    */
@@ -116,7 +117,7 @@ export class Watchdog {
       entry.config = { ...entry.config, ...config }
     }
   }
-  
+
   /**
    * Mark operation start for CPU timeout tracking
    */
@@ -128,7 +129,7 @@ export class Watchdog {
       entry.stats.lastActivityMs = Date.now()
     }
   }
-  
+
   /**
    * Mark operation end
    */
@@ -143,7 +144,7 @@ export class Watchdog {
       entry.stats.lastActivityMs = Date.now()
     }
   }
-  
+
   /**
    * Report memory usage for an extension
    */
@@ -154,7 +155,7 @@ export class Watchdog {
       entry.stats.lastActivityMs = Date.now()
     }
   }
-  
+
   /**
    * Report an error for an extension
    */
@@ -164,7 +165,7 @@ export class Watchdog {
       entry.stats.errorCount++
     }
   }
-  
+
   /**
    * Report activation for an extension
    */
@@ -175,40 +176,40 @@ export class Watchdog {
       entry.stats.lastActivityMs = Date.now()
     }
   }
-  
+
   /**
    * Kill an extension manually
    */
   killExtension(id: string, reason: string): void {
     const entry = this.extensions.get(id)
     if (!entry) return
-    
-    console.log(`[Watchdog] Killing extension ${id}: ${reason}`)
-    
+
+    hostLog.info('[Watchdog]', `Killing extension ${id}: ${reason}`)
+
     const violation: WatchdogViolation = {
       type: 'error',
       extensionId: id,
       timestamp: Date.now(),
-      details: { message: reason }
+      details: { message: reason },
     }
-    
+
     this.emitViolation(id, violation)
   }
-  
+
   /**
    * Get stats for a specific extension
    */
   getStats(id: string): ExtensionStats | undefined {
     return this.extensions.get(id)?.stats
   }
-  
+
   /**
    * Get stats for all extensions
    */
   getAllStats(): ExtensionStats[] {
-    return Array.from(this.extensions.values()).map(e => e.stats)
+    return Array.from(this.extensions.values()).map((e) => e.stats)
   }
-  
+
   /**
    * Subscribe to violation events
    */
@@ -221,13 +222,13 @@ export class Watchdog {
       }
     }
   }
-  
+
   /**
    * Check all extensions for violations
    */
   private checkAllExtensions(): void {
     const now = Date.now()
-    
+
     this.extensions.forEach((entry, id) => {
       // Check memory limit
       if (entry.stats.memoryUsageMB > entry.config.memoryLimitMB) {
@@ -237,12 +238,12 @@ export class Watchdog {
           timestamp: now,
           details: {
             limit: entry.config.memoryLimitMB,
-            actual: entry.stats.memoryUsageMB
-          }
+            actual: entry.stats.memoryUsageMB,
+          },
         }
         this.emitViolation(id, violation)
       }
-      
+
       // Check CPU timeout
       if (entry.isRunning && entry.operationStartTime) {
         const elapsed = now - entry.operationStartTime
@@ -253,13 +254,13 @@ export class Watchdog {
             timestamp: now,
             details: {
               limit: entry.config.cpuTimeoutMs,
-              actual: elapsed
-            }
+              actual: elapsed,
+            },
           }
           this.emitViolation(id, violation)
         }
       }
-      
+
       // Check for unresponsive extensions (no activity for 30 seconds while marked as running)
       if (entry.isRunning) {
         const inactiveTime = now - entry.stats.lastActivityMs
@@ -270,26 +271,26 @@ export class Watchdog {
             timestamp: now,
             details: {
               actual: inactiveTime,
-              message: 'Extension has been unresponsive for 30+ seconds'
-            }
+              message: 'Extension has been unresponsive for 30+ seconds',
+            },
           }
           this.emitViolation(id, violation)
         }
       }
     })
   }
-  
+
   /**
    * Emit a violation to all callbacks
    */
   private emitViolation(extensionId: string, violation: WatchdogViolation): void {
-    console.warn(`[Watchdog] Violation for ${extensionId}:`, violation)
-    
+    hostLog.warn('[Watchdog]', `Violation for ${extensionId}`, violation)
+
     for (const callback of this.violationCallbacks) {
       try {
         callback(extensionId, violation)
-      } catch (err) {
-        console.error('[Watchdog] Violation callback error:', err)
+      } catch (error) {
+        hostLog.error('[Watchdog]', 'Violation callback error', error)
       }
     }
   }

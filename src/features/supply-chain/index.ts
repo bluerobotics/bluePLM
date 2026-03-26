@@ -1,6 +1,6 @@
 /**
  * Supply Chain Feature
- * 
+ *
  * Suppliers, Supplier Portal, and RFQ Management
  */
 

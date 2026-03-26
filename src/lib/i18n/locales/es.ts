@@ -94,7 +94,8 @@ export const es: TranslationDict = {
     useDifferentNumber: 'Usar otro número',
     verificationSent: 'Se envió un código de verificación a',
     includeCountryCode: 'Incluir código de país (ej: +34 para España, +1 para USA)',
-    supplierInviteNote: 'Los proveedores son invitados por las organizaciones. Contacta a tu comprador si necesitas acceso.',
+    supplierInviteNote:
+      'Los proveedores son invitados por las organizaciones. Contacta a tu comprador si necesitas acceso.',
 
     connectingToOrg: 'Conectando a tu organización...',
     organizationVaults: 'Bóvedas de la organización',
@@ -111,25 +112,30 @@ export const es: TranslationDict = {
     welcome: 'Bienvenido a BluePLM',
     connectToBackend: 'Conecta al backend de Supabase de tu organización para comenzar',
     imAdmin: 'Soy administrador de la organización',
-    imAdminDesc: 'Configura BluePLM con las credenciales de Supabase de tu organización. Obtendrás un código para compartir con tu equipo.',
+    imAdminDesc:
+      'Configura BluePLM con las credenciales de Supabase de tu organización. Obtendrás un código para compartir con tu equipo.',
     haveCode: 'Tengo un código de organización',
     haveCodeDesc: 'Ingresa el código proporcionado por el administrador de tu organización.',
     needHelp: '¿Necesitas ayuda para configurar Supabase?',
 
     adminSetup: 'Configuración de administrador',
-    enterCredentials: 'Ingresa tus credenciales de Supabase desde la configuración de API de tu proyecto',
+    enterCredentials:
+      'Ingresa tus credenciales de Supabase desde la configuración de API de tu proyecto',
     projectId: 'ID del Proyecto',
-    projectIdHelp: 'Se encuentra en la parte superior de tu Panel de Supabase (ej. vvyhpdzqdizvorrhjhvq)',
+    projectIdHelp:
+      'Se encuentra en la parte superior de tu Panel de Supabase (ej. vvyhpdzqdizvorrhjhvq)',
     anonKey: 'Clave anónima (pública)',
     orgSlug: 'Slug de la organización',
     orgSlugHelp: 'Esto ayuda a identificar tu organización en el código generado',
     connectToSupabase: 'Conectar a Supabase',
-    findInDashboard: 'Encuentra estos valores en tu Panel de Supabase → Configuración del proyecto → API',
+    findInDashboard:
+      'Encuentra estos valores en tu Panel de Supabase → Configuración del proyecto → API',
 
     connectedSuccess: '¡Conectado exitosamente!',
     shareCode: 'Comparte este código con los miembros de tu equipo para que puedan conectarse',
     organizationCode: 'Código de organización',
-    keepCodeSecure: 'Los miembros del equipo pueden pegar este código cuando abran BluePLM por primera vez. Mantén este código seguro - contiene tus credenciales de Supabase.',
+    keepCodeSecure:
+      'Los miembros del equipo pueden pegar este código cuando abran BluePLM por primera vez. Mantén este código seguro - contiene tus credenciales de Supabase.',
     continueToBluePLM: 'Continuar a BluePLM',
 
     joinOrg: 'Únete a tu organización',
@@ -192,31 +198,38 @@ export const es: TranslationDict = {
     language: 'Idioma',
     displayLanguage: 'Idioma de visualización',
     chooseLanguage: 'Elige el idioma de la interfaz',
-    translationsNote: 'Nota: Algunas traducciones pueden estar incompletas. Puede requerir reinicio.',
+    translationsNote:
+      'Nota: Algunas traducciones pueden estar incompletas. Puede requerir reinicio.',
 
     fileExtensions: 'Extensiones de archivo',
     lowercaseExtensions: 'Minúsculas en extensiones al subir',
     lowercaseExtensionsDesc: 'Convertir .SLDPRT a .sldprt al registrar archivos',
 
     ignorePatterns: 'Patrones a ignorar (mantener solo local)',
-    ignorePatternsDesc: 'Los archivos que coincidan con estos patrones permanecerán locales y no se sincronizarán.',
+    ignorePatternsDesc:
+      'Los archivos que coincidan con estos patrones permanecerán locales y no se sincronizarán.',
     ignorePlaceholder: 'ej: *.tmp, .git/*, thumbs.db',
     connectVaultForPatterns: 'Conéctate a una bóveda para gestionar patrones a ignorar.',
     noIgnorePatterns: 'Sin patrones de exclusión configurados',
 
     syncSettings: 'Configuración de sincronización',
     autoDownloadCloudFiles: 'Descargar archivos de la nube automáticamente',
-    autoDownloadCloudFilesDesc: 'Descargar automáticamente archivos que existen en el servidor pero no localmente',
+    autoDownloadCloudFilesDesc:
+      'Descargar automáticamente archivos que existen en el servidor pero no localmente',
     autoDownloadUpdates: 'Descargar actualizaciones automáticamente',
-    autoDownloadUpdatesDesc: 'Descargar automáticamente cuando el servidor tiene versiones más nuevas',
+    autoDownloadUpdatesDesc:
+      'Descargar automáticamente cuando el servidor tiene versiones más nuevas',
     excludedFiles: 'Archivos excluidos',
-    excludedFilesDesc: '{{count}} archivo(s) excluido(s) de descarga automática (eliminados manualmente)',
+    excludedFilesDesc:
+      '{{count}} archivo(s) excluido(s) de descarga automática (eliminados manualmente)',
     clearExcludedFiles: 'Limpiar lista',
     autoDiscardOrphanedFiles: 'Descartar archivos huérfanos automáticamente',
-    autoDiscardOrphanedFilesDesc: 'Eliminar automáticamente archivos locales que ya no existen en el servidor',
+    autoDiscardOrphanedFilesDesc:
+      'Eliminar automáticamente archivos locales que ya no existen en el servidor',
     discardOrphaned: 'Descartar huérfanos',
     discardOrphanedCount: 'Descartar huérfanos ({{count}} archivo{{plural}})',
-    orphanedFilesDescription: 'Estos archivos fueron sincronizados previamente pero han sido eliminados del servidor por otro usuario',
+    orphanedFilesDescription:
+      'Estos archivos fueron sincronizados previamente pero han sido eliminados del servidor por otro usuario',
   },
 
   sidebar: {
@@ -378,9 +391,11 @@ export const es: TranslationDict = {
     fileCountSingular: '1 archivo',
     totalSize: '{{size}} en total',
     autoDownloadCloudTitle: 'Descargar archivos de la nube automáticamente',
-    autoDownloadCloudDesc: 'Descargar automáticamente archivos que existen en el servidor pero no en tu computadora',
+    autoDownloadCloudDesc:
+      'Descargar automáticamente archivos que existen en el servidor pero no en tu computadora',
     autoDownloadUpdatesTitle: 'Descargar actualizaciones de archivos automáticamente',
-    autoDownloadUpdatesDesc: 'Descargar automáticamente versiones más nuevas cuando los archivos se actualicen en el servidor',
+    autoDownloadUpdatesDesc:
+      'Descargar automáticamente versiones más nuevas cuando los archivos se actualicen en el servidor',
     summary: 'Después de conectar, BluePLM descargará {{count}} archivos ({{size}})',
     summaryNoDownload: 'Los archivos solo se descargarán cuando los solicites',
     connect: 'Conectar bóveda',

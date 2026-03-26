@@ -1,9 +1,9 @@
 /**
  * SolidWorksContextMenuItems - Context menu items for creating SOLIDWORKS files
- * 
- * Renders menu items with submenus for creating new SOLIDWORKS Part, Assembly, 
+ *
+ * Renders menu items with submenus for creating new SOLIDWORKS Part, Assembly,
  * and Drawing files. Each file type shows available templates plus a "Default" option.
- * 
+ *
  * Designed for future extraction to a SOLIDWORKS extension.
  */
 import { memo, useState, useRef } from 'react'
@@ -29,7 +29,11 @@ interface FileTypeMenuItemProps {
   targetFolder: string
   onClose: () => void
   onFileCreated?: (filePath: string) => void
-  createFromTemplate: (templatePath: string, targetFolder: string, fileType: SolidWorksFileType) => Promise<string | null>
+  createFromTemplate: (
+    templatePath: string,
+    targetFolder: string,
+    fileType: SolidWorksFileType,
+  ) => Promise<string | null>
   /** Whether any file creation is currently in progress */
   isCreating: boolean
   /** Set creating state */
@@ -49,49 +53,49 @@ const FileTypeMenuItem = memo(function FileTypeMenuItem({
   onFileCreated,
   createFromTemplate,
   isCreating,
-  setIsCreating
+  setIsCreating,
 }: FileTypeMenuItemProps) {
   const [showSubmenu, setShowSubmenu] = useState(false)
   const submenuTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const addToast = usePDMStore(s => s.addToast)
-  
+  const addToast = usePDMStore((s) => s.addToast)
+
   const handleCreateFromTemplate = async (e: React.MouseEvent, template: TemplateFile) => {
     e.stopPropagation()
-    
+
     // Prevent duplicate clicks while creating
     if (isCreating) return
-    
+
     setIsCreating(true)
-    
+
     // Show immediate feedback toast
     addToast('info', `Creating ${fileType}...`, 2000)
-    
+
     // Close menu immediately so user knows action was received
     onClose()
-    
+
     const filePath = await createFromTemplate(template.path, targetFolder, fileType)
     if (filePath) {
       onFileCreated?.(filePath)
     }
-    
+
     setIsCreating(false)
   }
-  
+
   const handleMouseEnter = () => {
     if (submenuTimeoutRef.current) {
       clearTimeout(submenuTimeoutRef.current)
     }
     setShowSubmenu(true)
   }
-  
+
   const handleMouseLeave = () => {
     submenuTimeoutRef.current = setTimeout(() => {
       setShowSubmenu(false)
     }, 150)
   }
-  
+
   return (
-    <div 
+    <div
       className={`context-menu-item relative ${isCreating ? 'disabled' : ''}`}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -103,7 +107,7 @@ const FileTypeMenuItem = memo(function FileTypeMenuItem({
       {isCreating ? <Loader2 size={14} className="animate-spin" /> : icon}
       {label}
       <span className="text-xs text-plm-fg-muted ml-auto">▶</span>
-      
+
       {showSubmenu && !isCreating && (
         <ContextSubmenu
           minWidth={180}
@@ -122,9 +126,7 @@ const FileTypeMenuItem = memo(function FileTypeMenuItem({
               </div>
             ))
           ) : (
-            <div className="context-menu-item disabled">
-              No templates configured
-            </div>
+            <div className="context-menu-item disabled">No templates configured</div>
           )}
         </ContextSubmenu>
       )}
@@ -134,37 +136,37 @@ const FileTypeMenuItem = memo(function FileTypeMenuItem({
 
 /**
  * Context menu items for creating new SOLIDWORKS files.
- * 
+ *
  * Shows "New .sldprt", "New .sldasm", "New .slddrw" options,
  * each with a submenu showing available templates.
- * 
+ *
  * Returns null if SOLIDWORKS integration is disabled.
  */
 export const SolidWorksContextMenuItems = memo(function SolidWorksContextMenuItems({
   targetFolder,
   onClose,
-  onFileCreated
+  onFileCreated,
 }: SolidWorksContextMenuItemsProps) {
   const [isCreating, setIsCreating] = useState(false)
-  
+
   const {
     canCreateSolidWorksFiles,
     isIntegrationEnabled,
     availableTemplates,
     isLoadingTemplates,
-    createFromTemplate
+    createFromTemplate,
   } = useSolidWorksFileCreation()
-  
+
   // Don't render anything if integration is disabled
   if (!isIntegrationEnabled) {
     return null
   }
-  
+
   // Don't render if we can't create files (no vault path)
   if (!canCreateSolidWorksFiles) {
     return null
   }
-  
+
   // Show loading state
   if (isLoadingTemplates) {
     return (
@@ -177,11 +179,11 @@ export const SolidWorksContextMenuItems = memo(function SolidWorksContextMenuIte
       </>
     )
   }
-  
+
   return (
     <>
       <div className="context-menu-separator" />
-      
+
       {/* Part */}
       <FileTypeMenuItem
         label="New .sldprt"
@@ -195,7 +197,7 @@ export const SolidWorksContextMenuItems = memo(function SolidWorksContextMenuIte
         isCreating={isCreating}
         setIsCreating={setIsCreating}
       />
-      
+
       {/* Assembly */}
       <FileTypeMenuItem
         label="New .sldasm"
@@ -209,7 +211,7 @@ export const SolidWorksContextMenuItems = memo(function SolidWorksContextMenuIte
         isCreating={isCreating}
         setIsCreating={setIsCreating}
       />
-      
+
       {/* Drawing */}
       <FileTypeMenuItem
         label="New .slddrw"

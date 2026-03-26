@@ -34,50 +34,53 @@ function isPrivateUrl(urlString: string): boolean {
  * Trigger webhooks for an event
  */
 export async function triggerWebhooks(
-  orgId: string, 
-  event: WebhookEvent, 
+  orgId: string,
+  event: WebhookEvent,
   data: WebhookPayload['data'],
-  log: FastifyInstance['log']
+  log: FastifyInstance['log'],
 ): Promise<void> {
   const orgWebhooks = webhooks.get(orgId) || []
-  const activeWebhooks = orgWebhooks.filter(w => w.active && w.events.includes(event))
-  
+  const activeWebhooks = orgWebhooks.filter((w) => w.active && w.events.includes(event))
+
   if (activeWebhooks.length === 0) return
-  
+
   const payload: WebhookPayload = {
     event,
     timestamp: new Date().toISOString(),
     org_id: orgId,
-    data
+    data,
   }
-  
+
   const payloadString = JSON.stringify(payload)
-  
+
   for (const webhook of activeWebhooks) {
     if (isPrivateUrl(webhook.url)) {
-      log.warn({ webhookId: webhook.id, url: webhook.url }, 'Blocked webhook to private/internal URL')
+      log.warn(
+        { webhookId: webhook.id, url: webhook.url },
+        'Blocked webhook to private/internal URL',
+      )
       continue
     }
 
     try {
       const signature = signWebhookPayload(payloadString, webhook.secret)
-      
+
       const response = await fetch(webhook.url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-BluePLM-Signature': signature,
-          'X-BluePLM-Event': event
+          'X-BluePLM-Event': event,
         },
         body: payloadString,
-        signal: AbortSignal.timeout(10000) // 10s timeout
+        signal: AbortSignal.timeout(10000), // 10s timeout
       })
-      
+
       if (!response.ok) {
         log.warn({ webhookId: webhook.id, status: response.status }, 'Webhook delivery failed')
       }
-    } catch (err) {
-      log.error({ webhookId: webhook.id, error: err }, 'Webhook delivery error')
+    } catch (error) {
+      log.error({ webhookId: webhook.id, error: error }, 'Webhook delivery error')
     }
   }
 }

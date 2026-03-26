@@ -39,19 +39,24 @@ export function NavigationItems({
   setIsCalculatingSize,
   addToast,
   pinFolder,
-  unpinFolder
+  unpinFolder,
 }: NavigationItemsProps) {
-  const isPinned = activeVaultId && pinnedFolders.some(p => p.path === firstFile.relativePath && p.vaultId === activeVaultId)
+  const isPinned =
+    activeVaultId &&
+    pinnedFolders.some((p) => p.path === firstFile.relativePath && p.vaultId === activeVaultId)
 
   const handlePropertiesClick = async () => {
     if (isFolder && !multiSelect) {
       setIsCalculatingSize(true)
       openDialog('properties')
       const filesInFolder = getFilesInFolder(files, firstFile.relativePath)
-      const foldersInFolder = files.filter(f => 
-        f.isDirectory && 
-        f.relativePath.replace(/\\/g, '/').startsWith(firstFile.relativePath.replace(/\\/g, '/') + '/') && 
-        f.relativePath !== firstFile.relativePath
+      const foldersInFolder = files.filter(
+        (f) =>
+          f.isDirectory &&
+          f.relativePath
+            .replace(/\\/g, '/')
+            .startsWith(firstFile.relativePath.replace(/\\/g, '/') + '/') &&
+          f.relativePath !== firstFile.relativePath,
       )
       let totalSize = 0
       for (const f of filesInFolder) {
@@ -60,7 +65,7 @@ export function NavigationItems({
       setFolderSize({
         size: totalSize,
         fileCount: filesInFolder.length,
-        folderCount: foldersInFolder.length
+        folderCount: foldersInFolder.length,
       })
       setIsCalculatingSize(false)
     } else {
@@ -72,14 +77,19 @@ export function NavigationItems({
     <>
       {/* Pin/Unpin - for files and folders */}
       {!multiSelect && activeVaultId && (
-        <div 
+        <div
           className="context-menu-item"
           onClick={() => {
             if (isPinned) {
               unpinFolder(firstFile.relativePath)
               addToast('info', `Unpinned ${firstFile.name}`)
             } else {
-              pinFolder(firstFile.relativePath, activeVaultId, currentVaultName, firstFile.isDirectory)
+              pinFolder(
+                firstFile.relativePath,
+                activeVaultId,
+                currentVaultName,
+                firstFile.isDirectory,
+              )
               addToast('success', `Pinned ${firstFile.name}`)
             }
             onClose()
@@ -94,7 +104,7 @@ export function NavigationItems({
 
       {/* Show Deleted Files - for folders */}
       {!multiSelect && isFolder && (
-        <div 
+        <div
           className="context-menu-item"
           onClick={() => {
             const { setActiveView, setTrashFolderFilter } = usePDMStore.getState()
@@ -109,7 +119,7 @@ export function NavigationItems({
       )}
 
       {/* Refresh Vault */}
-      <div 
+      <div
         className="context-menu-item"
         onClick={() => {
           onClose()
@@ -121,10 +131,7 @@ export function NavigationItems({
       </div>
 
       {/* Properties */}
-      <div 
-        className="context-menu-item"
-        onClick={handlePropertiesClick}
-      >
+      <div className="context-menu-item" onClick={handlePropertiesClick}>
         <Info size={14} />
         Properties
       </div>

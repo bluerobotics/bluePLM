@@ -16,7 +16,7 @@ export interface WeatherData {
   location?: { lat: number; lon: number }
 }
 
-export type WeatherCondition = 
+export type WeatherCondition =
   | 'clear'
   | 'partly-cloudy'
   | 'cloudy'
@@ -58,23 +58,23 @@ export interface HalloweenConfig {
 // Snowflake interface for Canvas-based rendering
 export interface Snowflake {
   id: number
-  x: number  // 0-100 percentage
-  y: number  // 0-100 percentage
-  vx: number  // Horizontal velocity
-  vy: number  // Vertical velocity (falling speed)
+  x: number // 0-100 percentage
+  y: number // 0-100 percentage
+  vx: number // Horizontal velocity
+  vy: number // Vertical velocity (falling speed)
   size: number
-  baseSpeed: number  // Base falling speed
+  baseSpeed: number // Base falling speed
   opacity: number
-  mass: number  // Larger flakes are heavier, less affected by wind
+  mass: number // Larger flakes are heavier, less affected by wind
 }
 
 // Wind simulation state
 export interface WindState {
-  baseWind: number       // Slow-changing base wind (-1 to 1)
-  gustStrength: number   // Current gust strength (0 to 1)
-  gustDirection: number  // Gust direction in radians
-  turbulence: number     // High-frequency noise
-  weatherWind: number    // Wind speed from weather API (0-1 normalized)
+  baseWind: number // Slow-changing base wind (-1 to 1)
+  gustStrength: number // Current gust strength (0 to 1)
+  gustDirection: number // Gust direction in radians
+  turbulence: number // High-frequency noise
+  weatherWind: number // Wind speed from weather API (0-1 normalized)
 }
 
 // Gust state for wind simulation

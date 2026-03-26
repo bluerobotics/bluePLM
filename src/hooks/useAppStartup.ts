@@ -1,10 +1,10 @@
 /**
  * useAppStartup - Orchestrates the app startup sequence
- * 
+ *
  * Manages two-stage startup:
  * Stage 1 (Core): Store hydration, Supabase config, auth session, organization, permissions
  * Stage 2 (Extensions): Discover and activate startup extensions
- * 
+ *
  * Returns startup state that gates the app render.
  */
 import { useState, useEffect, useRef } from 'react'
@@ -26,7 +26,7 @@ const STAGE_NAMES: Record<StartupStage, StageName> = {
   1: 'Initializing',
   2: 'Connecting',
   3: 'Loading Vault',
-  4: 'Extensions'
+  4: 'Extensions',
 }
 
 interface StartupState {
@@ -70,15 +70,11 @@ export function useAppStartup(): StartupState {
   const [stage, setStage] = useState<StartupStage>(1)
   const [status, setStatus] = useState('Loading preferences...')
   const [errors, setErrors] = useState<StartupError[]>([])
-  
+
   // Track if startup has already run to prevent re-running on re-renders
   const startupRunRef = useRef(false)
-  
-  const {
-    loadInstalledExtensions,
-    handleExtensionStateChange,
-    addToast,
-  } = usePDMStore()
+
+  const { loadInstalledExtensions, handleExtensionStateChange, addToast } = usePDMStore()
 
   useEffect(() => {
     // Only run startup once
@@ -87,13 +83,13 @@ export function useAppStartup(): StartupState {
 
     const runStartup = async () => {
       const startTime = Date.now()
-      
+
       const completeStartup = () => {
         const elapsed = Date.now() - startTime
         recordMetric('Startup', 'Total startup complete', { durationMs: elapsed })
         setIsReady(true)
       }
-      
+
       try {
         // ═══════════════════════════════════════════════════════════════════════
         // Stage 1: Initializing
@@ -101,18 +97,20 @@ export function useAppStartup(): StartupState {
         log.info('[Startup]', 'Stage 1: Initializing started')
         recordMetric('Startup', 'Stage 1 started', {})
         setStage(1)
-        
+
         // Step 1.1: Wait for store hydration
         setStatus('Loading preferences...')
         const hydrationStart = performance.now()
         await waitForHydration()
         const hydrationDuration = performance.now() - hydrationStart
-        recordMetric('Startup', 'Store hydration complete', { durationMs: Math.round(hydrationDuration) })
+        recordMetric('Startup', 'Store hydration complete', {
+          durationMs: Math.round(hydrationDuration),
+        })
         log.debug('[Startup]', 'Store hydrated')
-        
+
         // Step 1.2: Check Supabase configuration
         setStatus('Checking configuration...')
-        
+
         const supabaseConfigured = isSupabaseConfigured()
         if (!supabaseConfigured) {
           // Supabase not configured - app will show setup screen
@@ -121,7 +119,7 @@ export function useAppStartup(): StartupState {
           completeStartup()
           return
         }
-        
+
         // Step 1.3: Check onboarding
         const state = usePDMStore.getState()
         if (!state.onboardingComplete) {
@@ -130,11 +128,11 @@ export function useAppStartup(): StartupState {
           completeStartup()
           return
         }
-        
+
         const stage1Duration = performance.now() - startTime
         recordMetric('Startup', 'Stage 1 complete', { durationMs: Math.round(stage1Duration) })
         log.info('[Startup]', 'Stage 1: Initializing complete')
-        
+
         // ═══════════════════════════════════════════════════════════════════════
         // Stage 2: Connecting
         // ═══════════════════════════════════════════════════════════════════════
@@ -142,7 +140,7 @@ export function useAppStartup(): StartupState {
         const stage2Start = performance.now()
         recordMetric('Startup', 'Stage 2 started', {})
         setStage(2)
-        
+
         // Step 2.1: Wait for auth session to resolve
         setStatus('Restoring session...')
         const authStart = performance.now()
@@ -152,19 +150,19 @@ export function useAppStartup(): StartupState {
         while (Date.now() - authWaitStart < AUTH_TIMEOUT_MS) {
           const state = usePDMStore.getState()
           if (state.authInitialized || state.user) break
-          await new Promise(resolve => setTimeout(resolve, 50))
+          await new Promise((resolve) => setTimeout(resolve, 50))
         }
         const authDuration = performance.now() - authStart
         recordMetric('Startup', 'Auth session restore', { durationMs: Math.round(authDuration) })
-        
+
         // Step 2.2: Check if organization is loading
         // The useAuth hook handles organization loading, we monitor it
         setStatus('Connecting to organization...')
-        
+
         // Wait for organization to be loaded (with timeout)
         const orgWaitStart = Date.now()
         const ORG_TIMEOUT_MS = 10000 // 10 second timeout for org loading
-        
+
         while (Date.now() - orgWaitStart < ORG_TIMEOUT_MS) {
           const currentState = usePDMStore.getState()
           // If user is not logged in, proceed (welcome screen will show)
@@ -178,18 +176,18 @@ export function useAppStartup(): StartupState {
             break
           }
           // Wait a bit and check again (50ms poll interval)
-          await new Promise(resolve => setTimeout(resolve, 50))
+          await new Promise((resolve) => setTimeout(resolve, 50))
         }
         const orgDuration = Date.now() - orgWaitStart
         recordMetric('Startup', 'Organization load complete', { durationMs: orgDuration })
-        
+
         // Step 2.3: Permissions are loaded by useAuth after organization
         setStatus('Loading permissions...')
-        
+
         const stage2Duration = performance.now() - stage2Start
         recordMetric('Startup', 'Stage 2 complete', { durationMs: Math.round(stage2Duration) })
         log.info('[Startup]', 'Stage 2: Connecting complete')
-        
+
         // ═══════════════════════════════════════════════════════════════════════
         // Stage 3: Loading Vault
         // ═══════════════════════════════════════════════════════════════════════
@@ -197,7 +195,7 @@ export function useAppStartup(): StartupState {
         const stage3Start = performance.now()
         recordMetric('Startup', 'Stage 3 started', {})
         setStage(3)
-        
+
         // Step 3.1: Check for connected vaults
         // Note: The actual vault file loading happens in useLoadFiles after the splash screen
         // This stage just indicates we're preparing to load a vault
@@ -207,11 +205,11 @@ export function useAppStartup(): StartupState {
         } else {
           setStatus('No vault connected')
         }
-        
+
         const stage3Duration = performance.now() - stage3Start
         recordMetric('Startup', 'Stage 3 complete', { durationMs: Math.round(stage3Duration) })
         log.info('[Startup]', 'Stage 3: Loading Vault complete')
-        
+
         // ═══════════════════════════════════════════════════════════════════════
         // Stage 4: Extensions
         // ═══════════════════════════════════════════════════════════════════════
@@ -219,44 +217,47 @@ export function useAppStartup(): StartupState {
         const stage4Start = performance.now()
         recordMetric('Startup', 'Stage 4 started', {})
         setStage(4)
-        
+
         // Step 2.1: Discover extensions
         setStatus('Discovering extensions...')
         await loadInstalledExtensions()
-        
+
         // Step 2.2: Activate startup extensions
         const currentExtensions = usePDMStore.getState().installedExtensions
         const extensionIds = Object.keys(currentExtensions)
-        
+
         if (extensionIds.length === 0) {
           log.debug('[Startup]', 'No extensions to activate')
           setStatus('Extensions ready')
           completeStartup()
           return
         }
-        
+
         const failedExtensions: StartupError[] = []
-        
+
         for (const extId of extensionIds) {
           const ext = currentExtensions[extId]
           if (!ext || ext.state === 'disabled') {
             continue // Skip disabled extensions
           }
-          
+
           const extName = ext.manifest?.name || extId
           setStatus(`Activating ${extName}...`)
-          
+
           try {
             // Activate with timeout
             const activationPromise = window.electronAPI?.extensions?.activate?.(extId)
-            
+
             if (activationPromise) {
               const timeoutPromise = new Promise<{ success: false; error: string }>((resolve) => {
-                setTimeout(() => resolve({ success: false, error: 'Activation timeout' }), EXTENSION_TIMEOUT_MS)
+                setTimeout(
+                  () => resolve({ success: false, error: 'Activation timeout' }),
+                  EXTENSION_TIMEOUT_MS,
+                )
               })
-              
+
               const result = await Promise.race([activationPromise, timeoutPromise])
-              
+
               if (!result.success) {
                 log.warn('[Startup]', 'Extension activation failed', { extId, error: result.error })
                 failedExtensions.push({
@@ -270,8 +271,8 @@ export function useAppStartup(): StartupState {
                 log.debug('[Startup]', 'Extension activated', { extId })
               }
             }
-          } catch (err) {
-            const errorMsg = err instanceof Error ? err.message : String(err)
+          } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : String(error)
             log.error('[Startup]', 'Extension activation error', { extId, error: errorMsg })
             failedExtensions.push({
               extensionId: extId,
@@ -281,27 +282,32 @@ export function useAppStartup(): StartupState {
             handleExtensionStateChange(extId, 'error', errorMsg)
           }
         }
-        
+
         const stage4Duration = performance.now() - stage4Start
         recordMetric('Startup', 'Stage 4 complete', { durationMs: Math.round(stage4Duration) })
-        
+
         if (failedExtensions.length > 0) {
           setErrors(failedExtensions)
-          log.warn('[Startup]', 'Some extensions failed to load', { count: failedExtensions.length })
-          const names = failedExtensions.map(e => e.extensionName).join(', ')
-          addToast('warning', `${failedExtensions.length} extension(s) failed to load: ${names}`, 8000)
+          log.warn('[Startup]', 'Some extensions failed to load', {
+            count: failedExtensions.length,
+          })
+          const names = failedExtensions.map((e) => e.extensionName).join(', ')
+          addToast(
+            'warning',
+            `${failedExtensions.length} extension(s) failed to load: ${names}`,
+            8000,
+          )
         } else {
           log.info('[Startup]', 'Stage 4: Extensions loading complete')
         }
         completeStartup()
-        
-      } catch (err) {
-        log.error('[Startup]', 'Startup error', { error: err })
+      } catch (error) {
+        log.error('[Startup]', 'Startup error', { error: error })
         // On error, just proceed to the app
         completeStartup()
       }
     }
-    
+
     runStartup()
   }, [loadInstalledExtensions, handleExtensionStateChange, addToast])
 

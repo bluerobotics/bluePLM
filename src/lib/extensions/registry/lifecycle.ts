@@ -1,9 +1,9 @@
 /**
  * Extension Lifecycle State Machine
- * 
+ *
  * Manages extension state transitions following a strict state machine model.
  * Ensures extensions move through valid states only via allowed transitions.
- * 
+ *
  * State Diagram:
  * ```
  * [not-installed] ──install()──► [installed] ──activate()──► [loading] ──success──► [active]
@@ -19,7 +19,7 @@
  *                                         ▼
  *                                    [disabled]
  * ```
- * 
+ *
  * @module extensions/registry/lifecycle
  */
 
@@ -47,32 +47,35 @@ export type LifecycleAction =
 /**
  * Valid state transitions: [currentState, action] -> newState
  */
-const STATE_TRANSITIONS: Record<ExtensionState, Partial<Record<LifecycleAction, ExtensionState>>> = {
+const STATE_TRANSITIONS: Record<
+  ExtensionState,
+  Partial<Record<LifecycleAction, ExtensionState>>
+> = {
   'not-installed': {
     install: 'installed',
   },
-  'installed': {
+  installed: {
     uninstall: 'not-installed',
     activate: 'loading',
     disable: 'disabled',
     error: 'error',
   },
-  'loading': {
+  loading: {
     loaded: 'active',
     error: 'error',
     uninstall: 'not-installed',
   },
-  'active': {
+  active: {
     deactivate: 'installed',
     error: 'error',
     uninstall: 'not-installed',
   },
-  'error': {
+  error: {
     recover: 'installed',
     uninstall: 'not-installed',
     activate: 'loading', // Retry
   },
-  'disabled': {
+  disabled: {
     enable: 'installed',
     uninstall: 'not-installed',
   },
@@ -96,53 +99,50 @@ export interface TransitionResult {
 
 /**
  * Check if a transition from one state to another via an action is valid.
- * 
+ *
  * @param currentState - Current extension state
  * @param action - Action to perform
  * @returns Whether the transition is allowed
  */
-export function isValidTransition(
-  currentState: ExtensionState,
-  action: LifecycleAction
-): boolean {
+export function isValidTransition(currentState: ExtensionState, action: LifecycleAction): boolean {
   const transitions = STATE_TRANSITIONS[currentState]
   return action in transitions
 }
 
 /**
  * Get the resulting state from a transition.
- * 
+ *
  * @param currentState - Current extension state
  * @param action - Action to perform
  * @returns The new state, or undefined if transition is invalid
  */
 export function getNextState(
   currentState: ExtensionState,
-  action: LifecycleAction
+  action: LifecycleAction,
 ): ExtensionState | undefined {
   return STATE_TRANSITIONS[currentState][action]
 }
 
 /**
  * Attempt a state transition.
- * 
+ *
  * @param currentState - Current extension state
  * @param action - Action to perform
  * @returns Result indicating success/failure and new state
  */
 export function transition(
   currentState: ExtensionState,
-  action: LifecycleAction
+  action: LifecycleAction,
 ): TransitionResult {
   const newState = getNextState(currentState, action)
-  
+
   if (newState === undefined) {
     return {
       success: false,
       error: `Invalid transition: cannot perform '${action}' from state '${currentState}'`,
     }
   }
-  
+
   return {
     success: true,
     newState,
@@ -178,18 +178,18 @@ export type StateChangeCallback = (event: StateChangeEvent) => void
 
 /**
  * Extension Lifecycle State Machine.
- * 
+ *
  * Manages the state of a single extension with strict transition rules
  * and event notifications.
- * 
+ *
  * @example
  * ```typescript
  * const lifecycle = new ExtensionLifecycle('blueplm.google-drive')
- * 
+ *
  * lifecycle.onStateChange((event) => {
  *   console.log(`${event.extensionId}: ${event.previousState} -> ${event.newState}`)
  * })
- * 
+ *
  * lifecycle.dispatch('install')  // not-installed -> installed
  * lifecycle.dispatch('activate') // installed -> loading
  * lifecycle.dispatch('loaded')   // loading -> active
@@ -200,64 +200,64 @@ export class ExtensionLifecycle {
   private _error?: string
   private _listeners: Set<StateChangeCallback> = new Set()
   private _history: StateChangeEvent[] = []
-  
+
   /**
    * Create a new lifecycle state machine.
-   * 
+   *
    * @param extensionId - The extension this lifecycle manages
    * @param initialState - Starting state (default: 'not-installed')
    */
   constructor(
     public readonly extensionId: string,
-    initialState: ExtensionState = 'not-installed'
+    initialState: ExtensionState = 'not-installed',
   ) {
     this._state = initialState
   }
-  
+
   /**
    * Get the current state.
    */
   get state(): ExtensionState {
     return this._state
   }
-  
+
   /**
    * Get the current error message (if in error state).
    */
   get error(): string | undefined {
     return this._error
   }
-  
+
   /**
    * Get the history of state changes.
    */
   get history(): readonly StateChangeEvent[] {
     return this._history
   }
-  
+
   /**
    * Check if an action can be performed in the current state.
-   * 
+   *
    * @param action - Action to check
    * @returns Whether the action is valid
    */
   canDispatch(action: LifecycleAction): boolean {
     return isValidTransition(this._state, action)
   }
-  
+
   /**
    * Get all valid actions from the current state.
-   * 
+   *
    * @returns Array of valid actions
    */
   getValidActions(): LifecycleAction[] {
     const transitions = STATE_TRANSITIONS[this._state]
     return Object.keys(transitions) as LifecycleAction[]
   }
-  
+
   /**
    * Dispatch an action to transition state.
-   * 
+   *
    * @param action - Action to perform
    * @param errorMessage - Optional error message (for 'error' action)
    * @returns Whether the transition was successful
@@ -265,22 +265,22 @@ export class ExtensionLifecycle {
    */
   dispatch(action: LifecycleAction, errorMessage?: string): boolean {
     const result = transition(this._state, action)
-    
+
     if (!result.success || !result.newState) {
       console.warn(`[Extension Lifecycle] ${result.error}`)
       return false
     }
-    
+
     const previousState = this._state
     this._state = result.newState
-    
+
     // Track error message
     if (action === 'error' && errorMessage) {
       this._error = errorMessage
     } else if (action === 'recover' || action === 'activate') {
       this._error = undefined
     }
-    
+
     // Create change event
     const event: StateChangeEvent = {
       extensionId: this.extensionId,
@@ -290,28 +290,28 @@ export class ExtensionLifecycle {
       timestamp: new Date(),
       error: this._error,
     }
-    
+
     // Record history (keep last 100 entries)
     this._history.push(event)
     if (this._history.length > 100) {
       this._history.shift()
     }
-    
+
     // Notify listeners
     for (const listener of this._listeners) {
       try {
         listener(event)
-      } catch (err) {
-        console.error('[Extension Lifecycle] Error in state change listener:', err)
+      } catch (error) {
+        console.error('[Extension Lifecycle] Error in state change listener:', error)
       }
     }
-    
+
     return true
   }
-  
+
   /**
    * Subscribe to state changes.
-   * 
+   *
    * @param callback - Function to call on state change
    * @returns Unsubscribe function
    */
@@ -319,7 +319,7 @@ export class ExtensionLifecycle {
     this._listeners.add(callback)
     return () => this._listeners.delete(callback)
   }
-  
+
   /**
    * Reset the state machine to initial state.
    * Used for testing or cleanup.
@@ -341,68 +341,68 @@ export class ExtensionLifecycle {
 export class LifecycleManager {
   private _lifecycles: Map<string, ExtensionLifecycle> = new Map()
   private _globalListeners: Set<StateChangeCallback> = new Set()
-  
+
   /**
    * Get or create a lifecycle for an extension.
-   * 
+   *
    * @param extensionId - Extension identifier
    * @param initialState - Initial state for new lifecycle
    * @returns The extension's lifecycle state machine
    */
   getLifecycle(extensionId: string, initialState?: ExtensionState): ExtensionLifecycle {
     let lifecycle = this._lifecycles.get(extensionId)
-    
+
     if (!lifecycle) {
       lifecycle = new ExtensionLifecycle(extensionId, initialState)
-      
+
       // Forward events to global listeners
       lifecycle.onStateChange((event) => {
         for (const listener of this._globalListeners) {
           try {
             listener(event)
-          } catch (err) {
-            console.error('[LifecycleManager] Error in global listener:', err)
+          } catch (error) {
+            console.error('[LifecycleManager] Error in global listener:', error)
           }
         }
       })
-      
+
       this._lifecycles.set(extensionId, lifecycle)
     }
-    
+
     return lifecycle
   }
-  
+
   /**
    * Get the current state of an extension.
-   * 
+   *
    * @param extensionId - Extension identifier
    * @returns Current state, or 'not-installed' if unknown
    */
   getState(extensionId: string): ExtensionState {
     return this._lifecycles.get(extensionId)?.state ?? 'not-installed'
   }
-  
+
   /**
    * Check if an extension exists in the manager.
    */
   hasExtension(extensionId: string): boolean {
     return this._lifecycles.has(extensionId)
   }
-  
+
   /**
    * Remove an extension's lifecycle (after uninstall).
    */
   removeLifecycle(extensionId: string): boolean {
     return this._lifecycles.delete(extensionId)
   }
-  
+
   /**
    * Get all managed extension IDs.
    */
   getExtensionIds(): string[] {
     return Array.from(this._lifecycles.keys())
   }
-  
+
   /**
    * Get all extensions in a specific state.
    */
@@ -411,10 +411,10 @@ export class LifecycleManager {
       .filter(([, lifecycle]) => lifecycle.state === state)
       .map(([id]) => id)
   }
-  
+
   /**
    * Subscribe to state changes for all extensions.
-   * 
+   *
    * @param callback - Function to call on any state change
    * @returns Unsubscribe function
    */
@@ -422,7 +422,7 @@ export class LifecycleManager {
     this._globalListeners.add(callback)
     return () => this._globalListeners.delete(callback)
   }
-  
+
   /**
    * Clear all lifecycles (for testing or reset).
    */

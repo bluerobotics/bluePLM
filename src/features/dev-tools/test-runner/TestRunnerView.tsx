@@ -37,20 +37,17 @@ export function TestRunnerView() {
   // Terminal output helpers
   // ---------------------------------------------------------------------------
 
-  const appendOutput = useCallback(
-    (type: TerminalOutputLine['type'], content: string) => {
-      setOutputs((prev) => [
-        ...prev,
-        {
-          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          type,
-          content,
-          timestamp: new Date(),
-        },
-      ])
-    },
-    []
-  )
+  const appendOutput = useCallback((type: TerminalOutputLine['type'], content: string) => {
+    setOutputs((prev) => [
+      ...prev,
+      {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        type,
+        content,
+        timestamp: new Date(),
+      },
+    ])
+  }, [])
 
   // ---------------------------------------------------------------------------
   // Run handlers
@@ -104,21 +101,21 @@ export function TestRunnerView() {
       setIsRunning(false)
       abortControllerRef.current = null
     },
-    [isRunning, appendOutput]
+    [isRunning, appendOutput],
   )
 
   const handleRunAll = useCallback(
     (scripts: ParsedTestScript[]) => {
       runScripts(scripts)
     },
-    [runScripts]
+    [runScripts],
   )
 
   const handleRunSingle = useCallback(
     (script: ParsedTestScript) => {
       runScripts([script])
     },
-    [runScripts]
+    [runScripts],
   )
 
   const handleAbort = useCallback(() => {
@@ -132,7 +129,7 @@ export function TestRunnerView() {
       appendOutput('input', `$ ${command}`)
       appendOutput('info', `Manual command execution not yet connected to engine.`)
     },
-    [appendOutput]
+    [appendOutput],
   )
 
   // ---------------------------------------------------------------------------
@@ -147,9 +144,7 @@ export function TestRunnerView() {
           <FlaskConical size={14} className="text-plm-accent" />
           <span className="text-xs font-semibold text-slate-200">Test Runner</span>
           {isRunning && (
-            <span className="text-[10px] text-blue-400 font-mono animate-pulse">
-              RUNNING
-            </span>
+            <span className="text-[10px] text-blue-400 font-mono animate-pulse">RUNNING</span>
           )}
         </div>
         {isRunning && (
@@ -166,7 +161,10 @@ export function TestRunnerView() {
       {/* Main content: left/right split */}
       <div className="flex flex-1 overflow-hidden min-h-0">
         {/* Left panel: Script Browser */}
-        <div style={{ width: SCRIPT_BROWSER_WIDTH, minWidth: SCRIPT_BROWSER_WIDTH }} className="flex-shrink-0">
+        <div
+          style={{ width: SCRIPT_BROWSER_WIDTH, minWidth: SCRIPT_BROWSER_WIDTH }}
+          className="flex-shrink-0"
+        >
           <ScriptBrowser
             scriptStatuses={scriptStatuses}
             onRunAll={handleRunAll}

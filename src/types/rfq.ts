@@ -1,6 +1,6 @@
 // RFQ (Request for Quote) Types for Supplier Portal
 
-export type RFQStatus = 
+export type RFQStatus =
   | 'draft'
   | 'pending_files'
   | 'generating'
@@ -15,44 +15,44 @@ export type RFQStatus =
 export interface RFQ {
   id: string
   org_id: string
-  
+
   // Identity
   rfq_number: string
   title: string
   description: string | null
-  
+
   // Status
   status: RFQStatus
-  
+
   // Dates
   due_date: string | null
   required_date: string | null
   valid_until: string | null
-  
+
   // Options
   requires_samples: boolean
   requires_first_article: boolean
   requires_quality_report: boolean
   allow_partial_quotes: boolean
-  
+
   // File generation
   release_files_generated: boolean
   release_files_generated_at: string | null
   release_folder_path: string | null
-  
+
   // Addresses (references to organization_addresses)
   billing_address_id: string | null
   shipping_address_id: string | null
-  
+
   // Shipping
   shipping_address: string | null
   shipping_notes: string | null
   incoterms: string | null
-  
+
   // Notes
   internal_notes: string | null
   supplier_notes: string | null
-  
+
   // Metadata
   created_at: string
   created_by: string
@@ -61,7 +61,7 @@ export interface RFQ {
   sent_at: string | null
   sent_by: string | null
   completed_at: string | null
-  
+
   // Joined data (when fetched with relations)
   items?: RFQItem[]
   suppliers?: RFQSupplier[]
@@ -76,29 +76,29 @@ export interface RFQ {
 export interface RFQItem {
   id: string
   rfq_id: string
-  
+
   // Item details
   line_number: number
   file_id: string | null
-  
+
   // Identification
   part_number: string
   description: string | null
   revision: string | null
-  
+
   // Quantity
   quantity: number
   unit: string
-  
+
   // Material specs
   material: string | null
   finish: string | null
   tolerance_class: string | null
   special_requirements: string | null
-  
+
   // SolidWorks configuration for export
   sw_configuration: string | null
-  
+
   // Release files
   step_file_path: string | null
   pdf_file_path: string | null
@@ -108,15 +108,15 @@ export interface RFQItem {
   pdf_file_size: number | null
   step_storage_path: string | null
   pdf_storage_path: string | null
-  
+
   // Attachments
   attachments: RFQAttachment[]
   notes: string | null
-  
+
   // Timestamps
   created_at: string
   updated_at: string
-  
+
   // Joined data
   file?: {
     id: string
@@ -142,27 +142,27 @@ export interface RFQSupplier {
   id: string
   rfq_id: string
   supplier_id: string
-  
+
   // Status
   sent_at: string | null
   viewed_at: string | null
   quoted_at: string | null
   declined_at: string | null
   declined_reason: string | null
-  
+
   // Quote summary
   total_quoted_amount: number | null
   currency: string
   lead_time_days: number | null
-  
+
   // Selection
   is_selected: boolean
   selected_at: string | null
   selected_by: string | null
-  
+
   notes: string | null
   created_at: string
-  
+
   // Joined data
   supplier?: {
     id: string
@@ -179,19 +179,19 @@ export interface RFQQuote {
   rfq_id: string
   rfq_supplier_id: string
   rfq_item_id: string
-  
+
   // Pricing
   unit_price: number | null
   currency: string
   tooling_cost: number | null
   price_breaks: PriceBreak[]
   lead_time_days: number | null
-  
+
   // Notes
   notes: string | null
   can_quote: boolean
   cannot_quote_reason: string | null
-  
+
   // Timestamps
   created_at: string
   updated_at: string
@@ -211,7 +211,7 @@ export interface RFQActivity {
   supplier_id: string | null
   details: Record<string, unknown>
   created_at: string
-  
+
   // Joined data
   user?: {
     email: string
@@ -233,72 +233,75 @@ export interface RFQSummary {
 }
 
 // Status display info
-export const RFQ_STATUS_INFO: Record<RFQStatus, { 
-  label: string
-  color: string
-  bgColor: string
-  description: string 
-}> = {
+export const RFQ_STATUS_INFO: Record<
+  RFQStatus,
+  {
+    label: string
+    color: string
+    bgColor: string
+    description: string
+  }
+> = {
   draft: {
     label: 'Draft',
     color: 'text-plm-fg-muted',
     bgColor: 'bg-plm-fg-muted/20',
-    description: 'RFQ is being prepared'
+    description: 'RFQ is being prepared',
   },
   pending_files: {
     label: 'Pending Files',
     color: 'text-plm-warning',
     bgColor: 'bg-plm-warning/20',
-    description: 'Files need to be added'
+    description: 'Files need to be added',
   },
   generating: {
     label: 'Generating',
     color: 'text-plm-info',
     bgColor: 'bg-plm-info/20',
-    description: 'Release files are being generated'
+    description: 'Release files are being generated',
   },
   ready: {
     label: 'Ready',
     color: 'text-plm-success',
     bgColor: 'bg-plm-success/20',
-    description: 'Ready to send to suppliers'
+    description: 'Ready to send to suppliers',
   },
   sent: {
     label: 'Sent',
     color: 'text-blue-400',
     bgColor: 'bg-blue-400/20',
-    description: 'Sent to suppliers'
+    description: 'Sent to suppliers',
   },
   awaiting_quote: {
     label: 'Awaiting',
     color: 'text-plm-warning',
     bgColor: 'bg-plm-warning/20',
-    description: 'Waiting for supplier responses'
+    description: 'Waiting for supplier responses',
   },
   quoted: {
     label: 'Quoted',
     color: 'text-plm-info',
     bgColor: 'bg-plm-info/20',
-    description: 'All quotes received'
+    description: 'All quotes received',
   },
   awarded: {
     label: 'Awarded',
     color: 'text-plm-success',
     bgColor: 'bg-plm-success/20',
-    description: 'Contract awarded'
+    description: 'Contract awarded',
   },
   cancelled: {
     label: 'Cancelled',
     color: 'text-plm-error',
     bgColor: 'bg-plm-error/20',
-    description: 'RFQ was cancelled'
+    description: 'RFQ was cancelled',
   },
   completed: {
     label: 'Completed',
     color: 'text-emerald-400',
     bgColor: 'bg-emerald-400/20',
-    description: 'Order completed'
-  }
+    description: 'Order completed',
+  },
 }
 
 // Helper to get status info
@@ -313,7 +316,7 @@ export function formatCurrency(amount: number | null, currency: string = 'USD'):
     style: 'currency',
     currency,
     minimumFractionDigits: 2,
-    maximumFractionDigits: 2
+    maximumFractionDigits: 2,
   }).format(amount)
 }
 
@@ -327,7 +330,7 @@ export function calculateLineTotal(unitPrice: number | null, quantity: number): 
 export function calculateRFQTotal(items: RFQItem[], quotes: RFQQuote[]): number {
   let total = 0
   for (const item of items) {
-    const quote = quotes.find(q => q.rfq_item_id === item.id && q.can_quote)
+    const quote = quotes.find((q) => q.rfq_item_id === item.id && q.can_quote)
     if (quote?.unit_price) {
       total += quote.unit_price * item.quantity
       if (quote.tooling_cost) {
@@ -337,4 +340,3 @@ export function calculateRFQTotal(items: RFQItem[], quotes: RFQQuote[]): number 
   }
   return total
 }
-

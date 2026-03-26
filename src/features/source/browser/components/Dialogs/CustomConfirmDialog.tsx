@@ -21,25 +21,28 @@ export const CustomConfirmDialog = memo(function CustomConfirmDialog({
   confirmText,
   confirmDanger,
   onConfirm,
-  onCancel
+  onCancel,
 }: CustomConfirmDialogProps) {
   // Handle Enter key to confirm
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      onConfirm()
-      onCancel()
-    } else if (e.key === 'Escape') {
-      e.preventDefault()
-      onCancel()
-    }
-  }, [onConfirm, onCancel])
-  
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        onConfirm()
+        onCancel()
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        onCancel()
+      }
+    },
+    [onConfirm, onCancel],
+  )
+
   useEffect(() => {
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [handleKeyDown])
-  
+
   return (
     <div
       className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center"
@@ -50,8 +53,13 @@ export const CustomConfirmDialog = memo(function CustomConfirmDialog({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-3 mb-4">
-          <div className={`w-10 h-10 rounded-full ${confirmDanger ? 'bg-plm-error/20' : 'bg-plm-warning/20'} flex items-center justify-center`}>
-            <AlertTriangle size={20} className={confirmDanger ? 'text-plm-error' : 'text-plm-warning'} />
+          <div
+            className={`w-10 h-10 rounded-full ${confirmDanger ? 'bg-plm-error/20' : 'bg-plm-warning/20'} flex items-center justify-center`}
+          >
+            <AlertTriangle
+              size={20}
+              className={confirmDanger ? 'text-plm-error' : 'text-plm-warning'}
+            />
           </div>
           <div>
             <h3 className="text-lg font-semibold text-plm-fg">{title}</h3>
@@ -70,10 +78,7 @@ export const CustomConfirmDialog = memo(function CustomConfirmDialog({
         )}
 
         <div className="flex justify-end gap-2">
-          <button
-            onClick={onCancel}
-            className="btn btn-ghost"
-          >
+          <button onClick={onCancel} className="btn btn-ghost">
             Cancel
           </button>
           <button

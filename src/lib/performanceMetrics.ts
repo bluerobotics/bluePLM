@@ -1,24 +1,24 @@
 /**
  * Performance Metrics Capture
- * 
+ *
  * Simple module to capture timing metrics from various parts of the app
  * for display in the DevTools dashboard.
  */
 
-export type MetricTag = 
-  | 'Startup'        // App startup phases (hydration, auth, org loading)
-  | 'VaultLoad'      // Vault loading operations (local scan, server fetch, merge)
-  | 'FolderMetrics' 
-  | 'Store' 
-  | 'FileWatcher' 
-  | 'Download' 
-  | 'GetLatest' 
-  | 'Checkout' 
-  | 'Checkin' 
-  | 'Delete' 
-  | 'Discard' 
-  | 'Sync' 
-  | 'ForceRelease' 
+export type MetricTag =
+  | 'Startup' // App startup phases (hydration, auth, org loading)
+  | 'VaultLoad' // Vault loading operations (local scan, server fetch, merge)
+  | 'FolderMetrics'
+  | 'Store'
+  | 'FileWatcher'
+  | 'Download'
+  | 'GetLatest'
+  | 'Checkout'
+  | 'Checkin'
+  | 'Delete'
+  | 'Discard'
+  | 'Sync'
+  | 'ForceRelease'
   | 'SyncMetadata'
 
 export interface PerformanceEntry {
@@ -42,7 +42,7 @@ let listeners: Set<() => void> = new Set()
 export function recordMetric(
   tag: MetricTag,
   message: string,
-  data: Record<string, unknown> = {}
+  data: Record<string, unknown> = {},
 ): void {
   const entry: PerformanceEntry = {
     id: `${tag}-${++entryIdCounter}`,
@@ -50,18 +50,18 @@ export function recordMetric(
     message,
     data,
     timestamp: Date.now(),
-    durationMs: typeof data.durationMs === 'number' ? data.durationMs : undefined
+    durationMs: typeof data.durationMs === 'number' ? data.durationMs : undefined,
   }
-  
+
   entries.push(entry)
-  
+
   // Trim to max size
   if (entries.length > MAX_ENTRIES) {
     entries = entries.slice(-MAX_ENTRIES)
   }
-  
+
   // Notify listeners
-  listeners.forEach(fn => fn())
+  listeners.forEach((fn) => fn())
 }
 
 /**
@@ -75,7 +75,7 @@ export function getMetrics(): PerformanceEntry[] {
  * Get entries filtered by tag
  */
 export function getMetricsByTag(tag: MetricTag): PerformanceEntry[] {
-  return entries.filter(e => e.tag === tag)
+  return entries.filter((e) => e.tag === tag)
 }
 
 /**
@@ -83,7 +83,7 @@ export function getMetricsByTag(tag: MetricTag): PerformanceEntry[] {
  */
 export function clearMetrics(): void {
   entries = []
-  listeners.forEach(fn => fn())
+  listeners.forEach((fn) => fn())
 }
 
 /**
@@ -126,17 +126,18 @@ export function getStartupTiming(): StartupTiming {
   // Case-insensitive search for more robust matching
   const findLatest = (tag: MetricTag, messageIncludes: string): number | null => {
     const searchLower = messageIncludes.toLowerCase()
-    const matching = entries.filter(e => 
-      e.tag === tag && 
-      e.message.toLowerCase().includes(searchLower) && 
-      e.durationMs !== undefined
+    const matching = entries.filter(
+      (e) =>
+        e.tag === tag &&
+        e.message.toLowerCase().includes(searchLower) &&
+        e.durationMs !== undefined,
     )
-    return matching.length > 0 ? matching[matching.length - 1].durationMs ?? null : null
+    return matching.length > 0 ? (matching[matching.length - 1].durationMs ?? null) : null
   }
-  
+
   const startupMs = findLatest('Startup', 'Total startup')
   const vaultLoadMs = findLatest('VaultLoad', 'Total vault load')
-  
+
   // Calculate combined total (startup + vault load)
   let totalMs: number | null = null
   if (startupMs !== null && vaultLoadMs !== null) {
@@ -146,7 +147,7 @@ export function getStartupTiming(): StartupTiming {
   } else if (startupMs !== null) {
     totalMs = startupMs // If no vault load, just use startup
   }
-  
+
   return {
     startupMs,
     vaultLoadMs,
@@ -156,7 +157,7 @@ export function getStartupTiming(): StartupTiming {
     orgMs: findLatest('Startup', 'Organization load'),
     localScanMs: findLatest('VaultLoad', 'Local scan complete'),
     serverFetchMs: findLatest('VaultLoad', 'Server fetch complete'),
-    mergeMs: findLatest('VaultLoad', 'Merge')
+    mergeMs: findLatest('VaultLoad', 'Merge'),
   }
 }
 
@@ -170,41 +171,41 @@ export function getMetricsSummary(): {
   startup: StartupTiming
 } {
   const folderMetricsEntries = entries.filter(
-    e => e.tag === 'FolderMetrics' && e.message.includes('complete')
+    (e) => e.tag === 'FolderMetrics' && e.message.includes('complete'),
   )
-  const storeEntries = entries.filter(
-    e => e.tag === 'Store' && e.message.includes('COMPLETE')
-  )
-  const watcherEvents = entries.filter(e => e.tag === 'FileWatcher')
-  const decisions = watcherEvents.filter(e => e.message.includes('Decision'))
-  
+  const storeEntries = entries.filter((e) => e.tag === 'Store' && e.message.includes('COMPLETE'))
+  const watcherEvents = entries.filter((e) => e.tag === 'FileWatcher')
+  const decisions = watcherEvents.filter((e) => e.message.includes('Decision'))
+
   const avgDuration = (entries: PerformanceEntry[]) => {
-    const withDuration = entries.filter(e => e.durationMs !== undefined)
+    const withDuration = entries.filter((e) => e.durationMs !== undefined)
     if (withDuration.length === 0) return 0
     return withDuration.reduce((sum, e) => sum + (e.durationMs || 0), 0) / withDuration.length
   }
-  
+
   const lastDuration = (entries: PerformanceEntry[]) => {
-    const withDuration = entries.filter(e => e.durationMs !== undefined)
-    return withDuration.length > 0 ? withDuration[withDuration.length - 1].durationMs ?? null : null
+    const withDuration = entries.filter((e) => e.durationMs !== undefined)
+    return withDuration.length > 0
+      ? (withDuration[withDuration.length - 1].durationMs ?? null)
+      : null
   }
-  
+
   return {
     folderMetrics: {
       count: folderMetricsEntries.length,
       avgDurationMs: Math.round(avgDuration(folderMetricsEntries) * 100) / 100,
-      lastDurationMs: lastDuration(folderMetricsEntries)
+      lastDurationMs: lastDuration(folderMetricsEntries),
     },
     storeUpdates: {
       count: storeEntries.length,
       avgDurationMs: Math.round(avgDuration(storeEntries) * 100) / 100,
-      lastDurationMs: lastDuration(storeEntries)
+      lastDurationMs: lastDuration(storeEntries),
     },
     fileWatcher: {
-      eventCount: watcherEvents.filter(e => e.message.includes('received')).length,
-      refreshesTriggered: decisions.filter(e => e.data.willTriggerRefresh === true).length,
-      refreshesSuppressed: decisions.filter(e => e.data.willTriggerRefresh === false).length
+      eventCount: watcherEvents.filter((e) => e.message.includes('received')).length,
+      refreshesTriggered: decisions.filter((e) => e.data.willTriggerRefresh === true).length,
+      refreshesSuppressed: decisions.filter((e) => e.data.willTriggerRefresh === false).length,
     },
-    startup: getStartupTiming()
+    startup: getStartupTiming(),
   }
 }

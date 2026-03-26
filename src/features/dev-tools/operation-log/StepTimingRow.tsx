@@ -1,6 +1,6 @@
 /**
  * StepTimingRow Component
- * 
+ *
  * Displays a single step within an operation with:
  * - Step name and status icon
  * - Duration with color coding (green < 100ms, amber < 500ms, red >= 500ms)
@@ -9,13 +9,7 @@
  */
 
 import { useState, memo } from 'react'
-import { 
-  ChevronRight, 
-  Check, 
-  X, 
-  Loader2,
-  Info
-} from 'lucide-react'
+import { ChevronRight, Check, X, Loader2, Info } from 'lucide-react'
 import type { OperationStep } from '@/lib/fileOperationTracker'
 import { formatDuration } from '@/lib/fileOperationTracker'
 
@@ -85,25 +79,27 @@ export const StepTimingRow = memo(function StepTimingRow({
   totalDurationMs,
   operationStartTime,
   substeps,
-  isSubstep = false
+  isSubstep = false,
 }: StepTimingRowProps) {
   const [isExpanded, setIsExpanded] = useState(false)
-  
+
   const hasMetadata = step.metadata && Object.keys(step.metadata).length > 0
   const hasSubsteps = substeps && substeps.length > 0
   const isExpandable = hasMetadata || hasSubsteps
-  
+
   // Calculate timing bar position and width
-  const barWidthPercent = totalDurationMs > 0 && step.durationMs !== undefined
-    ? Math.max(2, (step.durationMs / totalDurationMs) * 100)
-    : 0
-  
-  const barLeftPercent = totalDurationMs > 0
-    ? ((step.startTime - operationStartTime) / totalDurationMs) * 100
-    : 0
-  
+  const barWidthPercent =
+    totalDurationMs > 0 && step.durationMs !== undefined
+      ? Math.max(2, (step.durationMs / totalDurationMs) * 100)
+      : 0
+
+  const barLeftPercent =
+    totalDurationMs > 0 ? ((step.startTime - operationStartTime) / totalDurationMs) * 100 : 0
+
   return (
-    <div className={`border-b border-plm-border/30 last:border-b-0 ${isSubstep ? 'bg-plm-bg/50' : ''}`}>
+    <div
+      className={`border-b border-plm-border/30 last:border-b-0 ${isSubstep ? 'bg-plm-bg/50' : ''}`}
+    >
       {/* Main row */}
       <div
         className={`flex items-center gap-2 px-3 py-2 hover:bg-plm-highlight/30 transition-colors ${
@@ -114,20 +110,22 @@ export const StepTimingRow = memo(function StepTimingRow({
         {/* Expand indicator / Status icon */}
         <div className="w-4 flex-shrink-0 flex items-center justify-center">
           {isExpandable ? (
-            <ChevronRight 
-              size={12} 
+            <ChevronRight
+              size={12}
               className={`text-plm-fg-muted transition-transform ${isExpanded ? 'rotate-90' : ''}`}
             />
           ) : (
             <StatusIcon status={step.status} />
           )}
         </div>
-        
+
         {/* Step name */}
-        <div className={`flex-1 min-w-0 text-xs truncate ${isSubstep ? 'text-plm-fg-muted' : 'text-plm-fg'}`}>
+        <div
+          className={`flex-1 min-w-0 text-xs truncate ${isSubstep ? 'text-plm-fg-muted' : 'text-plm-fg'}`}
+        >
           {step.name}
         </div>
-        
+
         {/* Timing bar visualization */}
         <div className="w-32 h-3 bg-plm-bg rounded-sm relative overflow-hidden flex-shrink-0">
           {step.status !== 'running' && barWidthPercent > 0 && (
@@ -135,7 +133,7 @@ export const StepTimingRow = memo(function StepTimingRow({
               className={`absolute top-0 h-full rounded-sm ${getBarColor(step.durationMs)}`}
               style={{
                 left: `${Math.min(barLeftPercent, 100)}%`,
-                width: `${Math.min(barWidthPercent, 100 - barLeftPercent)}%`
+                width: `${Math.min(barWidthPercent, 100 - barLeftPercent)}%`,
               }}
             />
           )}
@@ -143,16 +141,18 @@ export const StepTimingRow = memo(function StepTimingRow({
             <div className="absolute inset-0 bg-plm-accent/30 animate-pulse rounded-sm" />
           )}
         </div>
-        
+
         {/* Duration */}
-        <div className={`w-16 text-right text-xs font-mono flex-shrink-0 ${getDurationColor(step.durationMs)}`}>
+        <div
+          className={`w-16 text-right text-xs font-mono flex-shrink-0 ${getDurationColor(step.durationMs)}`}
+        >
           {step.status === 'running' ? (
             <span className="text-plm-accent">...</span>
           ) : (
             formatDuration(step.durationMs)
           )}
         </div>
-        
+
         {/* Status icon (when metadata exists) */}
         {hasMetadata && (
           <div className="w-4 flex-shrink-0 flex items-center justify-center">
@@ -160,7 +160,7 @@ export const StepTimingRow = memo(function StepTimingRow({
           </div>
         )}
       </div>
-      
+
       {/* Expanded content: substeps and/or metadata */}
       {isExpanded && (
         <div className={isSubstep ? 'pl-8' : ''}>
@@ -178,7 +178,7 @@ export const StepTimingRow = memo(function StepTimingRow({
               ))}
             </div>
           )}
-          
+
           {/* Metadata */}
           {hasMetadata && (
             <div className="px-3 pb-2 pl-9">
@@ -195,7 +195,10 @@ export const StepTimingRow = memo(function StepTimingRow({
                       <span className="text-plm-fg-muted flex-shrink-0 w-24 truncate" title={key}>
                         {key}:
                       </span>
-                      <span className="text-plm-fg font-mono break-all" title={formatMetadataValue(value)}>
+                      <span
+                        className="text-plm-fg font-mono break-all"
+                        title={formatMetadataValue(value)}
+                      >
                         {formatMetadataValue(value)}
                       </span>
                     </div>
@@ -210,4 +213,3 @@ export const StepTimingRow = memo(function StepTimingRow({
   )
 })
 
-export default StepTimingRow

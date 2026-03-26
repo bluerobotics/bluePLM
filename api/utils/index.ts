@@ -2,6 +2,9 @@
  * Utils Barrel Export
  */
 
+// Error responses
+export { sendError, ErrorCode } from './errors.js'
+
 // Crypto utilities
 export { computeHash, generateWebhookSecret, signWebhookPayload } from './crypto.js'
 
@@ -9,13 +12,13 @@ export { computeHash, generateWebhookSecret, signWebhookPayload } from './crypto
 export { getFileTypeFromExtension } from './files.js'
 
 // Odoo integration
-export { 
+export {
   odooXmlRpc,
-  normalizeOdooUrl, 
-  testOdooConnection, 
+  normalizeOdooUrl,
+  testOdooConnection,
   fetchOdooSuppliers,
   getLastXmlResponses,
-  clearLastXmlResponses
+  clearLastXmlResponses,
 } from './odoo.js'
 
 // Webhooks

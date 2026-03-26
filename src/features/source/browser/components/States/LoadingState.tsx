@@ -8,7 +8,7 @@ export interface LoadingStateProps {
  * Loading state component shown while files are being loaded
  */
 export const LoadingState = memo(function LoadingState({
-  message = 'Loading vault...'
+  message = 'Loading vault...',
 }: LoadingStateProps) {
   return (
     <div className="absolute inset-0 z-30 bg-plm-bg/80 flex items-center justify-center">

@@ -23,7 +23,7 @@ import type { BackupPanelProps, BackupStatus } from './types'
 /**
  * Main BackupPanel component - orchestrates all backup functionality.
  * Manages backup configuration, status, history, and restore operations.
- * 
+ *
  * Loads in two phases for better UX:
  * 1. Config loads first (fast) - page renders immediately
  * 2. Snapshots load in background (slow) - history section updates when ready
@@ -31,10 +31,10 @@ import type { BackupPanelProps, BackupStatus } from './types'
 export function BackupPanel({ isAdmin }: BackupPanelProps) {
   const { organization, user, addToast, activeVaultId, connectedVaults, vaultPath } = usePDMStore()
   const currentVaultId = activeVaultId || connectedVaults[0]?.id
-  
+
   // Config section visibility
   const [showConfig, setShowConfig] = useState(false)
-  
+
   // Load backup status (now loads config first, then snapshots in background)
   const {
     config,
@@ -53,14 +53,14 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
     isDesignatedOnline,
     isRefreshing,
     refresh,
-    refreshSnapshots
+    refreshSnapshots,
   } = useBackupStatus(organization?.id, addToast)
-  
+
   // Construct a BackupStatus object for child components that expect it
   // This maintains backward compatibility with existing components
   const status: BackupStatus | null = useMemo(() => {
     if (isLoadingConfig) return null
-    
+
     return {
       isConfigured,
       config,
@@ -68,19 +68,22 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
       lastSnapshot,
       totalSnapshots,
       isLoading: isLoadingSnapshots,
-      error: snapshotError
+      error: snapshotError,
     }
-  }, [isLoadingConfig, isConfigured, config, snapshots, lastSnapshot, totalSnapshots, isLoadingSnapshots, snapshotError])
-  
-  // Config form state
-  const configHook = useBackupConfig(
+  }, [
+    isLoadingConfig,
+    isConfigured,
     config,
-    organization?.id,
-    user?.id,
-    addToast,
-    refreshSnapshots
-  )
-  
+    snapshots,
+    lastSnapshot,
+    totalSnapshots,
+    isLoadingSnapshots,
+    snapshotError,
+  ])
+
+  // Config form state
+  const configHook = useBackupConfig(config, organization?.id, user?.id, addToast, refreshSnapshots)
+
   // Operations (backup, restore, delete, designate)
   const operations = useBackupOperations(
     config,
@@ -93,15 +96,15 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
     isThisDesignated,
     isDesignatedOnline,
     addToast,
-    refreshSnapshots
+    refreshSnapshots,
   )
-  
+
   // Handle vault toggle for selection
   const handleVaultToggle = (vaultId: string, checked: boolean) => {
     if (checked) {
-      operations.setSelectedVaultIds(prev => [...prev, vaultId])
+      operations.setSelectedVaultIds((prev) => [...prev, vaultId])
     } else {
-      operations.setSelectedVaultIds(prev => prev.filter(id => id !== vaultId))
+      operations.setSelectedVaultIds((prev) => prev.filter((id) => id !== vaultId))
     }
   }
 
@@ -127,36 +130,35 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
           onClick={refresh}
           disabled={isRefreshing || isBackoffActive}
           className={`p-1.5 rounded transition-colors ${
-            isBackoffActive 
-              ? 'text-plm-fg-muted/50 cursor-not-allowed' 
+            isBackoffActive
+              ? 'text-plm-fg-muted/50 cursor-not-allowed'
               : 'hover:bg-plm-bg-secondary text-plm-fg-muted hover:text-plm-fg'
           }`}
-          title={isBackoffActive 
-            ? `Rate limited - retry in ${backoffRemainingSeconds}s` 
-            : 'Refresh from backup server'
+          title={
+            isBackoffActive
+              ? `Rate limited - retry in ${backoffRemainingSeconds}s`
+              : 'Refresh from backup server'
           }
         >
           <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
         </button>
       </div>
-      
+
       {/* Status Overview */}
       <div className="space-y-4">
         {/* Configuration Status */}
-        <BackupStatusCard 
-          status={status} 
+        <BackupStatusCard
+          status={status}
           isLoadingSnapshots={isLoadingSnapshots}
           isBackoffActive={isBackoffActive}
           backoffRemainingSeconds={backoffRemainingSeconds}
           cacheAgeSeconds={cacheAgeSeconds}
           isUsingCachedData={isUsingCachedData}
         />
-        
+
         {/* Backup Schedule Info */}
-        {status?.isConfigured && (
-          <BackupScheduleInfo status={status} />
-        )}
-        
+        {status?.isConfigured && <BackupScheduleInfo status={status} />}
+
         {/* Backup Source Section */}
         {status?.isConfigured && (
           <BackupSourceSection
@@ -174,7 +176,7 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
             onClearDesignatedMachine={operations.handleClearDesignatedMachine}
           />
         )}
-        
+
         {/* Backup/Restore Status Viewer */}
         {status?.isConfigured && (
           <BackupStatusViewer
@@ -183,7 +185,7 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
           />
         )}
       </div>
-      
+
       {/* Snapshot History - now shows its own loading state */}
       <BackupHistory
         status={status}
@@ -197,7 +199,7 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
         isRestoring={operations.isRestoring}
         isLoadingSnapshots={isLoadingSnapshots}
       />
-      
+
       {/* Restore Action Bar */}
       {operations.selectedSnapshot && (
         <RestoreActionBar
@@ -207,7 +209,7 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
           onCancel={() => operations.setSelectedSnapshot(null)}
         />
       )}
-      
+
       {/* Admin Configuration Section */}
       {isAdmin && (
         <BackupConfigForm
@@ -256,7 +258,7 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
           onImport={configHook.importConfig}
         />
       )}
-      
+
       {/* Delete Confirmation Modal */}
       {operations.deleteConfirmTarget && (
         <DeleteSnapshotDialog

@@ -1,6 +1,6 @@
 /**
  * CheckoutUsersDropdown - Displays checkout users with overflow dropdown
- * 
+ *
  * Shows up to N avatars, with a "+X" button that opens a dropdown
  * to view and notify all users who have files checked out.
  */
@@ -42,69 +42,69 @@ export function CheckoutUsersDropdown({
   avatarSize = 20,
   entityId,
   entityName,
-  isFolder = false
+  isFolder = false,
 }: CheckoutUsersDropdownProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [sendingTo, setSendingTo] = useState<string | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
-  
+
   const { user: currentUser, organization, addToast } = usePDMStore()
-  
+
   // Filter to only other users (not me)
-  const otherUsers = users.filter(u => !u.isMe)
-  
+  const otherUsers = users.filter((u) => !u.isMe)
+
   // Close dropdown when clicking outside
   useEffect(() => {
     if (!isOpen) return
-    
+
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false)
       }
     }
-    
+
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [isOpen])
-  
+
   // Handle sending notification to a user
   const handleNotify = async (targetUser: CheckoutUser, e: React.MouseEvent) => {
     e.stopPropagation()
     e.preventDefault()
-    
+
     // Use per-user fileId if available, otherwise fall back to entityId
     const notificationTargetId = targetUser.fileIds?.[0] || entityId
-    
+
     if (!currentUser?.id || !organization?.id || !notificationTargetId) {
       addToast('error', 'Unable to send notification')
       return
     }
-    
+
     setSendingTo(targetUser.id)
-    
+
     try {
       addToast('info', `Check-in request noted for ${targetUser.name}`)
-      log.info('[CheckoutUsersDropdown]', 'Check-in request (notifications disabled)', { 
-        toUser: targetUser.id, 
+      log.info('[CheckoutUsersDropdown]', 'Check-in request (notifications disabled)', {
+        toUser: targetUser.id,
         entity: entityName,
         isFolder,
-        fileId: notificationTargetId
+        fileId: notificationTargetId,
       })
-    } catch (err) {
-      log.error('[CheckoutUsersDropdown]', 'Error in notification handler', { error: err })
+    } catch (error) {
+      log.error('[CheckoutUsersDropdown]', 'Error in notification handler', { error: error })
     } finally {
       setSendingTo(null)
     }
   }
-  
+
   if (otherUsers.length === 0) return null
-  
+
   const visibleUsers = otherUsers.slice(0, maxShow)
   const overflowUsers = otherUsers.slice(maxShow)
   const hasOverflow = overflowUsers.length > 0
-  
+
   const fontSize = avatarSize * 0.45
-  
+
   return (
     <div className="relative flex items-center" ref={dropdownRef}>
       {/* Visible avatars - clickable for notification */}
@@ -116,9 +116,9 @@ export function CheckoutUsersDropdown({
           const fileCount = u.count || u.fileIds?.length || 1
           const showFileCount = isFolder && fileCount > 1
           return (
-            <div 
-              key={u.id} 
-              className="relative flex-shrink-0 group/avatar" 
+            <div
+              key={u.id}
+              className="relative flex-shrink-0 group/avatar"
               style={{ width: avatarSize, height: avatarSize }}
             >
               <button
@@ -130,9 +130,10 @@ export function CheckoutUsersDropdown({
                   e.preventDefault()
                   if (canNotify && !sendingTo) handleNotify(u, e)
                 }}
-                title={canNotify 
-                  ? `Click to notify ${u.name} to check in${showFileCount ? ` (${fileCount} files)` : ''}`
-                  : `Checked out by ${u.name}${showFileCount ? ` (${fileCount} files)` : ''}`
+                title={
+                  canNotify
+                    ? `Click to notify ${u.name} to check in${showFileCount ? ` (${fileCount} files)` : ''}`
+                    : `Checked out by ${u.name}${showFileCount ? ` (${fileCount} files)` : ''}`
                 }
               >
                 {sendingTo === u.id ? (
@@ -158,7 +159,7 @@ export function CheckoutUsersDropdown({
                               }}
                             />
                           ) : null}
-                          <div 
+                          <div
                             className={`w-full h-full rounded-full ${avatarColors.bg} ${avatarColors.text} flex items-center justify-center font-medium ${u.avatar_url ? 'hidden' : ''}`}
                             style={{ fontSize }}
                           >
@@ -182,18 +183,20 @@ export function CheckoutUsersDropdown({
                   className={`absolute -bottom-0.5 -right-0.5 rounded-full flex items-center justify-center transition-opacity ${
                     canNotify ? 'group-hover/avatar:opacity-0' : ''
                   } ${showFileCount ? 'bg-orange-500 text-white' : 'bg-orange-400'}`}
-                  style={{ 
-                    width: showFileCount ? avatarSize * 0.55 : avatarSize * 0.45, 
+                  style={{
+                    width: showFileCount ? avatarSize * 0.55 : avatarSize * 0.45,
                     height: showFileCount ? avatarSize * 0.55 : avatarSize * 0.45,
                     minWidth: showFileCount ? 14 : 10,
-                    minHeight: showFileCount ? 14 : 10
+                    minHeight: showFileCount ? 14 : 10,
                   }}
                 >
                   {showFileCount ? (
-                    <span className="text-[8px] font-bold">{fileCount > 99 ? '99+' : fileCount}</span>
+                    <span className="text-[8px] font-bold">
+                      {fileCount > 99 ? '99+' : fileCount}
+                    </span>
                   ) : (
-                    <Lock 
-                      size={avatarSize * 0.3} 
+                    <Lock
+                      size={avatarSize * 0.3}
                       className="text-white"
                       style={{ minWidth: 7, minHeight: 7 }}
                     />
@@ -203,7 +206,7 @@ export function CheckoutUsersDropdown({
             </div>
           )
         })}
-        
+
         {/* Overflow indicator - opens dropdown */}
         {hasOverflow && (
           <button
@@ -219,12 +222,12 @@ export function CheckoutUsersDropdown({
           </button>
         )}
       </div>
-      
+
       {/* Dropdown menu - positioned to right edge to avoid overflow */}
       {isOpen && (
-        <div 
+        <div
           className="absolute top-full right-0 mt-1 bg-plm-bg border border-plm-border rounded-lg shadow-lg z-[100] min-w-[200px] max-w-[280px] py-1"
-          style={{ 
+          style={{
             // Ensure dropdown doesn't go off screen
             maxHeight: 'calc(100vh - 200px)',
           }}
@@ -265,13 +268,15 @@ export function CheckoutUsersDropdown({
                           referrerPolicy="no-referrer"
                         />
                       ) : (
-                        <div className={`w-full h-full ${avatarColors.bg} ${avatarColors.text} flex items-center justify-center text-[10px] font-medium`}>
+                        <div
+                          className={`w-full h-full ${avatarColors.bg} ${avatarColors.text} flex items-center justify-center text-[10px] font-medium`}
+                        >
                           {getInitials(u.name)}
                         </div>
                       )
                     })()}
                   </div>
-                  
+
                   {/* Name and count */}
                   <div className="flex-1 min-w-0">
                     <div className="text-sm text-plm-fg truncate">{u.name}</div>
@@ -279,7 +284,7 @@ export function CheckoutUsersDropdown({
                       <div className="text-[10px] text-plm-fg-muted">{u.count} files</div>
                     )}
                   </div>
-                  
+
                   {/* Notify button */}
                   {canNotify && (
                     <div className="flex-shrink-0">

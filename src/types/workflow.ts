@@ -19,7 +19,7 @@ export type TransitionArrowHead = 'end' | 'start' | 'both' | 'none'
 export type TransitionLineThickness = 1 | 2 | 3 | 4 | 6
 
 // Permission types (what can be done to files in a state)
-export type StatePermissionType = 
+export type StatePermissionType =
   | 'read_file'
   | 'write_file'
   | 'delete_file'
@@ -29,7 +29,7 @@ export type StatePermissionType =
   | 'edit_metadata'
 
 // Condition types (for transition conditions)
-export type ConditionType = 
+export type ConditionType =
   | 'file_path'
   | 'file_extension'
   | 'variable'
@@ -42,7 +42,7 @@ export type ConditionType =
   | 'custom_sql'
 
 // Condition operators
-export type ConditionOperator = 
+export type ConditionOperator =
   | 'equals'
   | 'not_equals'
   | 'contains'
@@ -60,7 +60,7 @@ export type ConditionOperator =
   | 'matches_regex'
 
 // Action types (what happens when transition executes)
-export type ActionType = 
+export type ActionType =
   | 'increment_revision'
   | 'set_variable'
   | 'clear_variable'
@@ -71,22 +71,22 @@ export type ActionType =
   | 'run_script'
 
 // Revision scheme types
-export type RevisionSchemeType = 
-  | 'numeric'       // 1, 2, 3, 4...
-  | 'alpha_upper'   // A, B, C, D...
-  | 'alpha_lower'   // a, b, c, d...
-  | 'alphanumeric'  // A.1, A.2, B.1...
-  | 'custom'        // Custom pattern
+export type RevisionSchemeType =
+  | 'numeric' // 1, 2, 3, 4...
+  | 'alpha_upper' // A, B, C, D...
+  | 'alpha_lower' // a, b, c, d...
+  | 'alphanumeric' // A.1, A.2, B.1...
+  | 'custom' // Custom pattern
 
 // Auto-transition trigger types
-export type AutoTriggerType = 
-  | 'timer'           // After N hours in state
-  | 'condition_met'   // When all conditions are met
-  | 'all_approvals'   // When all required approvals are obtained
-  | 'schedule'        // At specific time/date
+export type AutoTriggerType =
+  | 'timer' // After N hours in state
+  | 'condition_met' // When all conditions are met
+  | 'all_approvals' // When all required approvals are obtained
+  | 'schedule' // At specific time/date
 
 // Task types (workflow automations)
-export type WorkflowTaskType = 
+export type WorkflowTaskType =
   | 'convert_pdf'
   | 'convert_step'
   | 'convert_iges'
@@ -97,7 +97,7 @@ export type WorkflowTaskType =
   | 'webhook'
 
 // Notification recipient types
-export type NotificationRecipientType = 
+export type NotificationRecipientType =
   | 'user'
   | 'role'
   | 'workflow_role'
@@ -142,9 +142,9 @@ export interface CanvasConfig {
 }
 
 export interface FileConditions {
-  extensions?: string[]     // File extensions this workflow applies to
-  folders?: string[]        // Folder paths this workflow applies to
-  categories?: string[]     // Category IDs this workflow applies to
+  extensions?: string[] // File extensions this workflow applies to
+  folders?: string[] // Folder paths this workflow applies to
+  categories?: string[] // Category IDs this workflow applies to
 }
 
 // ===========================================
@@ -182,7 +182,7 @@ export interface WorkflowState {
   name: string
   label: string | null
   description: string | null
-  
+
   // Visual properties
   shape: StateShape
   color: string
@@ -196,20 +196,20 @@ export interface WorkflowState {
   position_y: number
   width: number | null
   height: number | null
-  
+
   // State behavior
   is_editable: boolean
   requires_checkout: boolean
-  is_initial: boolean           // Starting state for new files
-  is_released: boolean          // Files are considered "released" in this state
-  is_obsolete: boolean          // Files are considered "obsolete" in this state
-  
+  is_initial: boolean // Starting state for new files
+  is_released: boolean // Files are considered "released" in this state
+  is_obsolete: boolean // Files are considered "obsolete" in this state
+
   // Revision behavior
-  auto_increment_revision: boolean  // Automatically increment revision when entering this state
-  
+  auto_increment_revision: boolean // Automatically increment revision when entering this state
+
   // Role requirements
-  required_workflow_roles?: string[]  // Workflow roles required to enter this state
-  
+  required_workflow_roles?: string[] // Workflow roles required to enter this state
+
   sort_order: number
   created_at: string
 }
@@ -228,13 +228,13 @@ export interface WorkflowStateNode extends WorkflowState {
 export interface WorkflowStatePermission {
   id: string
   state_id: string
-  
+
   // Who this permission applies to
   permission_for: 'user' | 'role' | 'workflow_role' | 'all'
   user_id: string | null
   role: UserRole | null
   workflow_role_id: string | null
-  
+
   // What permissions are granted
   can_read: boolean
   can_write: boolean
@@ -243,11 +243,11 @@ export interface WorkflowStatePermission {
   can_rename: boolean
   can_change_state: boolean
   can_edit_metadata: boolean
-  
+
   comment_required_on_change: boolean
-  
+
   created_at: string
-  
+
   // Joined data
   user?: {
     id: string
@@ -306,23 +306,23 @@ export interface WorkflowTransition {
   to_state_id: string
   name: string | null
   description: string | null
-  
+
   // Visual styling
   line_style: TransitionLineStyle
   line_color: string | null
   line_path_type: TransitionPathType | null
   line_arrow_head: TransitionArrowHead | null
   line_thickness: number | null
-  
+
   // Permissions (workflow roles that can execute this transition)
   allowed_workflow_roles: string[]
-  
+
   // Requirements
   comment_required: boolean
-  
+
   // Legacy auto conditions (use workflow_transition_conditions instead)
   auto_conditions: Record<string, unknown> | null
-  
+
   created_at: string
 }
 
@@ -344,21 +344,21 @@ export interface TransitionCondition {
   name: string
   description: string | null
   condition_type: ConditionType
-  
+
   // Configuration varies by type
   config: TransitionConditionConfig
   operator: ConditionOperator | null
   compare_value: string | null
-  
+
   is_required: boolean
   sort_order: number
   error_message: string | null
-  
+
   created_at: string
 }
 
 // Type-safe condition configs
-export type TransitionConditionConfig = 
+export type TransitionConditionConfig =
   | FilePathConditionConfig
   | FileExtensionConditionConfig
   | VariableConditionConfig
@@ -374,7 +374,7 @@ export interface FilePathConditionConfig {
 }
 
 export interface FileExtensionConditionConfig {
-  extensions: string[]  // [".sldprt", ".sldasm"]
+  extensions: string[] // [".sldprt", ".sldasm"]
 }
 
 export interface VariableConditionConfig {
@@ -413,27 +413,27 @@ export interface TransitionAction {
   description: string | null
   action_type: ActionType
   execute_when: 'before' | 'after'
-  
+
   // Configuration varies by type
   config: TransitionActionConfig
-  
+
   // For revision increment
   revision_scheme_id: string | null
   increment_type: 'major' | 'minor'
-  
+
   // For variable actions
   variable_name: string | null
-  variable_value: string | null  // Can use placeholders: {NOW}, {USER}, {FILE_NAME}
-  
+  variable_value: string | null // Can use placeholders: {NOW}, {USER}, {FILE_NAME}
+
   sort_order: number
   continue_on_error: boolean
   is_enabled: boolean
-  
+
   created_at: string
 }
 
 // Type-safe action configs
-export type TransitionActionConfig = 
+export type TransitionActionConfig =
   | IncrementRevisionConfig
   | SetVariableConfig
   | ClearVariableConfig
@@ -471,7 +471,7 @@ export interface SetFilePermissionConfig {
 }
 
 export interface CopyFileConfig {
-  destination_path: string  // Can use placeholders
+  destination_path: string // Can use placeholders
   overwrite: boolean
 }
 
@@ -488,27 +488,27 @@ export interface TransitionNotification {
   id: string
   transition_id: string
   name: string
-  
+
   // Who to notify
   recipient_type: NotificationRecipientType
   user_id: string | null
   role: UserRole | null
   workflow_role_id: string | null
-  
+
   // Notification content (supports placeholders)
   // {FILE_NAME}, {FILE_PATH}, {FROM_STATE}, {TO_STATE}, {TRANSITION_NAME},
   // {USER_NAME}, {USER_EMAIL}, {REVISION}, {DATE}, {TIME}, {COMMENT}
   subject: string | null
   message: string | null
-  
+
   // Channels
   send_email: boolean
   send_in_app: boolean
-  
+
   priority: 'low' | 'normal' | 'high' | 'urgent'
-  
+
   is_enabled: boolean
-  
+
   created_at: string
 }
 
@@ -521,27 +521,27 @@ export interface TransitionApproval {
   transition_id: string
   name: string
   description: string | null
-  
+
   // Approval settings
   required_count: number
   approval_mode: ApprovalMode
-  
+
   // Timeout
   timeout_hours: number | null
   timeout_action: 'reject' | 'escalate' | 'auto_approve'
-  
+
   // Checklist requirements
   checklist_items: ChecklistItem[]
-  
+
   comment_required: boolean
-  
+
   // Skip permissions
   can_skip_roles: UserRole[]
   can_skip_workflow_roles: string[]
-  
+
   sort_order: number
   is_enabled: boolean
-  
+
   created_at: string
 }
 
@@ -560,7 +560,7 @@ export interface ApprovalReviewer {
   workflow_role_id: string | null
   sequence_order: number
   created_at: string
-  
+
   // Joined data
   user?: {
     id: string
@@ -580,24 +580,24 @@ export interface AutoTransition {
   transition_id: string
   name: string
   description: string | null
-  
+
   trigger_type: AutoTriggerType
-  
+
   // For timer trigger
   timer_hours: number | null
-  
+
   // For schedule trigger
-  schedule_cron: string | null  // e.g., "0 0 * * 1" for every Monday at midnight
+  schedule_cron: string | null // e.g., "0 0 * * 1" for every Monday at midnight
   schedule_datetime: string | null
-  
+
   // Additional conditions that must be met
-  required_conditions: string[]  // Condition IDs
-  
+  required_conditions: string[] // Condition IDs
+
   // Fallback if conditions aren't met
   fallback_action: 'wait' | 'reject' | 'notify'
-  
+
   is_enabled: boolean
-  
+
   created_at: string
 }
 
@@ -611,29 +611,29 @@ export interface WorkflowTask {
   name: string
   description: string | null
   task_type: WorkflowTaskType
-  
+
   // Task configuration varies by type
   config: WorkflowTaskConfig
-  
+
   // Output configuration (supports placeholders)
-  output_folder: string        // {SOURCE_FOLDER}, {ROOT}/Exports, etc.
-  output_filename: string      // {FILE_NAME}, {FILE_NAME}_{DATE}, etc.
+  output_folder: string // {SOURCE_FOLDER}, {ROOT}/Exports, etc.
+  output_filename: string // {FILE_NAME}, {FILE_NAME}_{DATE}, etc.
   output_extension: string | null
-  
+
   // Execution settings
   run_as_background: boolean
   timeout_seconds: number
   retry_on_failure: boolean
   max_retries: number
-  
+
   is_active: boolean
-  
+
   created_at: string
   created_by: string | null
   updated_at: string
 }
 
-export type WorkflowTaskConfig = 
+export type WorkflowTaskConfig =
   | ConvertPdfConfig
   | ConvertStepConfig
   | ConvertIgesConfig
@@ -682,7 +682,7 @@ export interface WebhookConfig {
   url: string
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   headers: Record<string, string>
-  body_template: string  // JSON template with placeholders
+  body_template: string // JSON template with placeholders
 }
 
 // ===========================================
@@ -695,27 +695,27 @@ export interface PendingTransitionApproval {
   file_id: string
   transition_id: string
   approval_id: string
-  
+
   requested_by: string
   requested_at: string
   request_comment: string | null
-  
+
   status: ReviewStatus
   current_assignee: string | null
-  
+
   // Responses collected: { "user_id": { decision, comment, timestamp, checklist } }
   responses: Record<string, ApprovalResponse>
-  
+
   approval_count: number
   rejection_count: number
-  
+
   completed_at: string | null
   final_decision: 'approved' | 'rejected' | 'cancelled' | 'timed_out' | null
-  
+
   expires_at: string | null
-  
+
   created_at: string
-  
+
   // Joined data
   file?: {
     id: string
@@ -747,46 +747,52 @@ export interface ApprovalResponse {
 export interface WorkflowHistoryEntry {
   id: string
   org_id: string
-  
-  event_type: 'state_change' | 'approval' | 'rejection' | 'auto_transition' | 'task_executed' | 'condition_checked'
-  
+
+  event_type:
+    | 'state_change'
+    | 'approval'
+    | 'rejection'
+    | 'auto_transition'
+    | 'task_executed'
+    | 'condition_checked'
+
   // File info (snapshot)
   file_id: string | null
   file_path: string
   file_name: string
   file_version: number | null
-  
+
   // Workflow info (snapshot)
   workflow_id: string | null
   workflow_name: string
-  
+
   // State change info
   from_state_id: string | null
   from_state_name: string | null
   to_state_id: string | null
   to_state_name: string | null
-  
+
   // Transition info
   transition_id: string | null
   transition_name: string | null
-  
+
   // Revision info
   old_revision: string | null
   new_revision: string | null
-  
+
   // Who/when
   performed_by: string | null
   performed_by_email: string | null
   performed_at: string
-  
+
   // Details
   comment: string | null
   details: Record<string, unknown> | null
-  
+
   // For approvals
   approval_decision: 'approved' | 'rejected' | null
   checklist_responses: Record<string, boolean> | null
-  
+
   created_at: string
 }
 
@@ -798,13 +804,13 @@ export interface FileStateEntry {
   id: string
   file_id: string
   state_id: string
-  
+
   entered_at: string
   entered_by: string | null
-  
+
   auto_transition_scheduled_at: string | null
   auto_transition_id: string | null
-  
+
   is_current: boolean
   left_at: string | null
 }
@@ -818,10 +824,10 @@ export interface FileWorkflowAssignment {
   file_id: string
   workflow_id: string
   current_state_id: string | null
-  
+
   assigned_at: string
   assigned_by: string | null
-  
+
   // Joined data
   current_state?: WorkflowState | null
   workflow?: WorkflowTemplate | null
@@ -840,30 +846,30 @@ export interface WorkflowBuilderState {
   workflow: WorkflowTemplate | null
   states: WorkflowStateNode[]
   transitions: WorkflowTransitionEdge[]
-  
+
   // New data structures (replacing gates)
-  statePermissions: Record<string, WorkflowStatePermission[]>  // keyed by state_id
-  transitionConditions: Record<string, TransitionCondition[]>   // keyed by transition_id
-  transitionActions: Record<string, TransitionAction[]>         // keyed by transition_id
-  transitionNotifications: Record<string, TransitionNotification[]>  // keyed by transition_id
-  transitionApprovals: Record<string, TransitionApproval[]>     // keyed by transition_id
-  approvalReviewers: Record<string, ApprovalReviewer[]>         // keyed by approval_id
-  autoTransitions: Record<string, AutoTransition[]>             // keyed by transition_id
-  
+  statePermissions: Record<string, WorkflowStatePermission[]> // keyed by state_id
+  transitionConditions: Record<string, TransitionCondition[]> // keyed by transition_id
+  transitionActions: Record<string, TransitionAction[]> // keyed by transition_id
+  transitionNotifications: Record<string, TransitionNotification[]> // keyed by transition_id
+  transitionApprovals: Record<string, TransitionApproval[]> // keyed by transition_id
+  approvalReviewers: Record<string, ApprovalReviewer[]> // keyed by approval_id
+  autoTransitions: Record<string, AutoTransition[]> // keyed by transition_id
+
   // Selection
   selectedStateId: string | null
   selectedTransitionId: string | null
-  
+
   // Canvas state
   canvasMode: CanvasMode
   zoom: number
   panX: number
   panY: number
-  
+
   // Editing state
   isCreatingTransition: boolean
   transitionStartStateId: string | null
-  
+
   // UI state
   isDirty: boolean
   isSaving: boolean
@@ -879,11 +885,11 @@ export interface AvailableTransition {
   to_state_id: string
   to_state_name: string
   to_state_color: string
-  has_gates?: boolean          // From RPC
-  has_approvals?: boolean      // Renamed from has_gates (local alias)
-  has_conditions?: boolean     // Not in RPC - computed locally if needed
+  has_gates?: boolean // From RPC
+  has_approvals?: boolean // Renamed from has_gates (local alias)
+  has_conditions?: boolean // Not in RPC - computed locally if needed
   user_can_transition: boolean
-  conditions_met?: boolean     // Not in RPC - computed locally if needed
+  conditions_met?: boolean // Not in RPC - computed locally if needed
 }
 
 // ===========================================
@@ -999,7 +1005,7 @@ export const STATE_ICONS = [
   'list-checks',
 ] as const
 
-export type StateIcon = typeof STATE_ICONS[number]
+export type StateIcon = (typeof STATE_ICONS)[number]
 
 // ===========================================
 // COLOR PRESETS FOR STATES

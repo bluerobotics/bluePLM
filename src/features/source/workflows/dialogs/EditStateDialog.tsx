@@ -19,11 +19,11 @@ export function EditStateDialog({ state, onClose, onSave }: EditStateDialogProps
   // requires_checkout is now auto-set to match is_editable (simplified UX)
   const [autoRev, setAutoRev] = useState(state.auto_increment_revision)
   const [requiredRoles, setRequiredRoles] = useState<string[]>(state.required_workflow_roles || [])
-  
+
   // Load workflow roles
   const [workflowRoles, setWorkflowRoles] = useState<WorkflowRoleBasic[]>([])
   const [loadingRoles, setLoadingRoles] = useState(true)
-  
+
   useEffect(() => {
     const loadRoles = async () => {
       if (!organization) return
@@ -35,32 +35,32 @@ export function EditStateDialog({ state, onClose, onSave }: EditStateDialogProps
           .eq('is_active', true)
           .order('sort_order')
           .order('name')
-        
+
         if (!error && data) {
           setWorkflowRoles(data as WorkflowRoleBasic[])
         }
-      } catch (err) {
-        log.error('[Workflow]', 'Failed to load workflow roles', { error: err })
+      } catch (error) {
+        log.error('[Workflow]', 'Failed to load workflow roles', { error: error })
       } finally {
         setLoadingRoles(false)
       }
     }
     loadRoles()
   }, [organization])
-  
+
   const toggleRequiredRole = (roleId: string) => {
     if (requiredRoles.includes(roleId)) {
-      setRequiredRoles(requiredRoles.filter(id => id !== roleId))
+      setRequiredRoles(requiredRoles.filter((id) => id !== roleId))
     } else {
       setRequiredRoles([...requiredRoles, roleId])
     }
   }
-  
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-plm-sidebar rounded-lg shadow-xl w-[480px] max-h-[80vh] overflow-auto p-4">
         <h3 className="font-semibold mb-4">Edit State</h3>
-        
+
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -83,7 +83,7 @@ export function EditStateDialog({ state, onClose, onSave }: EditStateDialogProps
               />
             </div>
           </div>
-          
+
           <div>
             <label className="block text-xs text-plm-fg-muted mb-1">Description</label>
             <textarea
@@ -92,11 +92,11 @@ export function EditStateDialog({ state, onClose, onSave }: EditStateDialogProps
               className="w-full bg-plm-input border border-plm-border rounded px-2 py-1.5 text-sm h-16 resize-none"
             />
           </div>
-          
+
           <div>
             <label className="block text-xs text-plm-fg-muted mb-1">Color</label>
             <div className="flex flex-wrap gap-1">
-              {STATE_COLORS.map(c => (
+              {STATE_COLORS.map((c) => (
                 <button
                   key={c.value}
                   onClick={() => setColor(c.value)}
@@ -107,17 +107,12 @@ export function EditStateDialog({ state, onClose, onSave }: EditStateDialogProps
               ))}
             </div>
           </div>
-          
+
           <div>
             <label className="block text-xs text-plm-fg-muted mb-1">Icon</label>
-            <IconGridPicker
-              value={icon}
-              onChange={setIcon}
-              maxHeight="128px"
-              columns={8}
-            />
+            <IconGridPicker value={icon} onChange={setIcon} maxHeight="128px" columns={8} />
           </div>
-          
+
           {/* Required Workflow Roles */}
           <div>
             <label className="block text-xs text-plm-fg-muted mb-1">
@@ -133,9 +128,13 @@ export function EditStateDialog({ state, onClose, onSave }: EditStateDialogProps
                   onClick={() => {
                     const { setActiveView } = usePDMStore.getState()
                     setActiveView('settings')
-                    window.dispatchEvent(new CustomEvent('navigate-settings-tab', { detail: 'team-members' }))
+                    window.dispatchEvent(
+                      new CustomEvent('navigate-settings-tab', { detail: 'team-members' }),
+                    )
                     setTimeout(() => {
-                      window.dispatchEvent(new CustomEvent('navigate-team-members-tab', { detail: 'users' }))
+                      window.dispatchEvent(
+                        new CustomEvent('navigate-team-members-tab', { detail: 'users' }),
+                      )
                     }, 50)
                     onClose()
                   }}
@@ -146,7 +145,7 @@ export function EditStateDialog({ state, onClose, onSave }: EditStateDialogProps
               </div>
             ) : (
               <div className="flex flex-wrap gap-1.5 p-2 bg-plm-bg rounded border border-plm-border max-h-24 overflow-y-auto">
-                {workflowRoles.map(role => (
+                {workflowRoles.map((role) => (
                   <button
                     key={role.id}
                     onClick={() => toggleRequiredRole(role.id)}
@@ -156,9 +155,15 @@ export function EditStateDialog({ state, onClose, onSave }: EditStateDialogProps
                         : 'hover:bg-plm-highlight'
                     }`}
                     style={{
-                      backgroundColor: requiredRoles.includes(role.id) ? role.color + '30' : undefined
+                      backgroundColor: requiredRoles.includes(role.id)
+                        ? role.color + '30'
+                        : undefined,
                     }}
-                    title={requiredRoles.includes(role.id) ? 'Click to remove requirement' : 'Click to require this role'}
+                    title={
+                      requiredRoles.includes(role.id)
+                        ? 'Click to remove requirement'
+                        : 'Click to require this role'
+                    }
                   >
                     <BadgeCheck size={12} style={{ color: role.color }} />
                     <span>{role.name}</span>
@@ -171,11 +176,12 @@ export function EditStateDialog({ state, onClose, onSave }: EditStateDialogProps
             )}
             {requiredRoles.length > 0 && (
               <p className="text-[10px] text-plm-fg-muted mt-1">
-                Users must have {requiredRoles.length === 1 ? 'this role' : 'any of these roles'} to enter this state
+                Users must have {requiredRoles.length === 1 ? 'this role' : 'any of these roles'} to
+                enter this state
               </p>
             )}
           </div>
-          
+
           <div className="space-y-2">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
@@ -198,26 +204,25 @@ export function EditStateDialog({ state, onClose, onSave }: EditStateDialogProps
             </label>
           </div>
         </div>
-        
+
         <div className="flex justify-end gap-2 mt-4">
-          <button
-            onClick={onClose}
-            className="px-3 py-1.5 text-sm hover:bg-plm-bg rounded"
-          >
+          <button onClick={onClose} className="px-3 py-1.5 text-sm hover:bg-plm-bg rounded">
             Cancel
           </button>
           <button
-            onClick={() => onSave({
-              name,
-              label: label || null,
-              description: description || null,
-              color,
-              icon,
-              is_editable: isEditable,
-              requires_checkout: isEditable, // Auto-set: editable states require checkout
-              auto_increment_revision: autoRev,
-              required_workflow_roles: requiredRoles,
-            })}
+            onClick={() =>
+              onSave({
+                name,
+                label: label || null,
+                description: description || null,
+                color,
+                icon,
+                is_editable: isEditable,
+                requires_checkout: isEditable, // Auto-set: editable states require checkout
+                auto_increment_revision: autoRev,
+                required_workflow_roles: requiredRoles,
+              })
+            }
             className="px-3 py-1.5 text-sm bg-plm-accent hover:bg-plm-accent-hover text-white rounded"
             disabled={!name.trim()}
           >

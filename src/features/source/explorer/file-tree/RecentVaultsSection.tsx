@@ -14,26 +14,23 @@ interface RecentVaultsSectionProps {
 export function RecentVaultsSection({
   recentVaults,
   onOpenVault,
-  onOpenRecentVault
+  onOpenRecentVault,
 }: RecentVaultsSectionProps) {
   return (
     <div className="p-4">
       <div className="mb-6">
-        <button
-          onClick={onOpenVault}
-          className="btn btn-primary w-full"
-        >
+        <button onClick={onOpenVault} className="btn btn-primary w-full">
           <FolderOpen size={16} />
           Open Vault
         </button>
       </div>
-      
+
       {recentVaults.length > 0 && (
         <div>
           <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-2">
             Recent Vaults
           </div>
-          {recentVaults.map(vault => (
+          {recentVaults.map((vault) => (
             <button
               key={vault}
               onClick={() => onOpenRecentVault(vault)}
@@ -59,19 +56,21 @@ interface NoVaultAccessMessageProps {
  */
 export function NoVaultAccessMessage({
   impersonatedUser,
-  connectedVaultsCount
+  connectedVaultsCount,
 }: NoVaultAccessMessageProps) {
   if (!impersonatedUser) return null
-  
+
   return (
     <div className="py-8 px-4 text-center">
       <div className="text-4xl mb-3">🔒</div>
       <h3 className="text-base font-medium text-plm-fg mb-2">No Vault Access</h3>
       <p className="text-sm text-plm-fg-muted">
-        {impersonatedUser.full_name || impersonatedUser.email} does not have access to any of your connected vaults.
+        {impersonatedUser.full_name || impersonatedUser.email} does not have access to any of your
+        connected vaults.
       </p>
       <p className="text-xs text-plm-fg-dim mt-4">
-        {connectedVaultsCount} vault{connectedVaultsCount !== 1 ? 's' : ''} connected but hidden due to access restrictions
+        {connectedVaultsCount} vault{connectedVaultsCount !== 1 ? 's' : ''} connected but hidden due
+        to access restrictions
       </p>
     </div>
   )

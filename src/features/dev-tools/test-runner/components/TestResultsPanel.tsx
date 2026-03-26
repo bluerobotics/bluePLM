@@ -46,23 +46,19 @@ export function TestResultsPanel({ results }: TestResultsPanelProps) {
 function ScriptResultAccordion({ script }: { script: ScriptResult }) {
   const [expanded, setExpanded] = useState(!script.passed || script.skipped)
 
-  const StatusIcon = script.skipped
-    ? MinusCircle
-    : script.passed
-    ? CheckCircle2
-    : XCircle
+  const StatusIcon = script.skipped ? MinusCircle : script.passed ? CheckCircle2 : XCircle
 
   const statusColor = script.skipped
     ? 'text-slate-500'
     : script.passed
-    ? 'text-emerald-400'
-    : 'text-red-400'
+      ? 'text-emerald-400'
+      : 'text-red-400'
 
   const borderColor = script.skipped
     ? 'border-slate-700'
     : script.passed
-    ? 'border-emerald-800'
-    : 'border-red-800'
+      ? 'border-emerald-800'
+      : 'border-red-800'
 
   return (
     <div className={`border-b ${borderColor}`}>
@@ -75,13 +71,9 @@ function ScriptResultAccordion({ script }: { script: ScriptResult }) {
           className={`text-slate-500 transition-transform flex-shrink-0 ${expanded ? 'rotate-90' : ''}`}
         />
         <StatusIcon size={14} className={`${statusColor} flex-shrink-0`} />
-        <span className="text-slate-200 font-medium truncate">
-          {script.scriptName}
-        </span>
+        <span className="text-slate-200 font-medium truncate">{script.scriptName}</span>
         {script.skipped && script.skipReason && (
-          <span className="text-slate-600 truncate">
-            — {script.skipReason}
-          </span>
+          <span className="text-slate-600 truncate">— {script.skipReason}</span>
         )}
         <span className="ml-auto text-slate-600 flex-shrink-0">
           {formatDuration(script.duration)}

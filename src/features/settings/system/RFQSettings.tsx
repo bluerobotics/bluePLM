@@ -1,9 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { 
-  Loader2, 
-  FileText,
-  Save
-} from 'lucide-react'
+import { Loader2, FileText, Save } from 'lucide-react'
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
@@ -31,7 +27,7 @@ const DEFAULT_RFQ_SETTINGS: RFQSettingsData = {
   show_finish_column: true,
   show_notes_column: true,
   terms_and_conditions: '',
-  footer_text: ''
+  footer_text: '',
 }
 
 export function RFQSettings() {
@@ -40,7 +36,7 @@ export function RFQSettings() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [settings, setSettings] = useState<RFQSettingsData>(DEFAULT_RFQ_SETTINGS)
-  
+
   // Track if we're currently saving to avoid overwriting with stale realtime data
   const savingRef = useRef(false)
 
@@ -58,13 +54,15 @@ export function RFQSettings() {
           .single()
 
         if (error) throw error
-        
+
         const rfqData = data?.rfq_settings
-        setSettings(rfqData && typeof rfqData === 'object' && !Array.isArray(rfqData) 
-          ? rfqData as unknown as RFQSettingsData 
-          : DEFAULT_RFQ_SETTINGS)
-      } catch (err) {
-        log.error('[RFQ]', 'Failed to load RFQ settings', { error: err })
+        setSettings(
+          rfqData && typeof rfqData === 'object' && !Array.isArray(rfqData)
+            ? (rfqData as unknown as RFQSettingsData)
+            : DEFAULT_RFQ_SETTINGS,
+        )
+      } catch (error) {
+        log.error('[RFQ]', 'Failed to load RFQ settings', { error: error })
       } finally {
         setLoading(false)
       }
@@ -72,20 +70,20 @@ export function RFQSettings() {
 
     loadSettings()
   }, [organization?.id])
-  
+
   // Sync with realtime organization changes (when another admin updates settings)
   useEffect(() => {
     // Skip if we're currently saving (to avoid overwriting our own changes)
     if (savingRef.current) return
     // Skip if still loading initial data
     if (loading) return
-    
+
     // Get rfq_settings from the organization object (updated via realtime)
-    const realtimeSettings = (organization as any)?.rfq_settings
+    const realtimeSettings = (organization as any)?.rfq_settings // TODO: type this
     if (realtimeSettings) {
       setSettings({ ...DEFAULT_RFQ_SETTINGS, ...realtimeSettings })
     }
-  }, [(organization as any)?.rfq_settings])
+  }, [(organization as any)?.rfq_settings]) // TODO: type this
 
   // Save settings
   const handleSave = async () => {
@@ -101,27 +99,25 @@ export function RFQSettings() {
 
       if (error) throw error
       addToast('success', 'RFQ settings saved')
-    } catch (err) {
-      log.error('[RFQ]', 'Failed to save RFQ settings', { error: err })
+    } catch (error) {
+      log.error('[RFQ]', 'Failed to save RFQ settings', { error: error })
       addToast('error', 'Failed to save RFQ settings')
     } finally {
       setSaving(false)
       // Small delay before allowing realtime sync again to let the update propagate
-      setTimeout(() => { savingRef.current = false }, 1000)
+      setTimeout(() => {
+        savingRef.current = false
+      }, 1000)
     }
   }
 
   // Update a setting
   const updateSetting = (key: keyof RFQSettingsData, value: string | number | boolean) => {
-    setSettings(prev => ({ ...prev, [key]: value }))
+    setSettings((prev) => ({ ...prev, [key]: value }))
   }
 
   if (!organization) {
-    return (
-      <div className="text-center py-12 text-plm-fg-muted">
-        No organization connected
-      </div>
-    )
+    return <div className="text-center py-12 text-plm-fg-muted">No organization connected</div>
   }
 
   if (loading) {
@@ -140,7 +136,7 @@ export function RFQSettings() {
           Only administrators can modify RFQ settings. You are viewing in read-only mode.
         </div>
       )}
-      
+
       {/* RFQ Template Settings */}
       <div className="p-4 bg-plm-bg rounded-lg border border-plm-border">
         <div className="flex items-center gap-2 mb-4">
@@ -178,7 +174,9 @@ export function RFQSettings() {
               <input
                 type="number"
                 value={settings.default_valid_days}
-                onChange={(e) => updateSetting('default_valid_days', parseInt(e.target.value) || 30)}
+                onChange={(e) =>
+                  updateSetting('default_valid_days', parseInt(e.target.value) || 30)
+                }
                 min="1"
                 disabled={!isAdmin}
                 className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg focus:outline-none focus:border-plm-accent disabled:opacity-60 disabled:cursor-not-allowed"
@@ -190,7 +188,9 @@ export function RFQSettings() {
           <div>
             <label className="text-sm text-plm-fg-muted block mb-2">RFQ Document Columns</label>
             <div className="grid grid-cols-2 gap-2">
-              <label className={`flex items-center gap-2 ${isAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
+              <label
+                className={`flex items-center gap-2 ${isAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}
+              >
                 <input
                   type="checkbox"
                   checked={settings.show_company_logo}
@@ -200,7 +200,9 @@ export function RFQSettings() {
                 />
                 <span className="text-sm text-plm-fg">Show company logo</span>
               </label>
-              <label className={`flex items-center gap-2 ${isAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
+              <label
+                className={`flex items-center gap-2 ${isAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}
+              >
                 <input
                   type="checkbox"
                   checked={settings.show_revision_column}
@@ -210,7 +212,9 @@ export function RFQSettings() {
                 />
                 <span className="text-sm text-plm-fg">Show revision column</span>
               </label>
-              <label className={`flex items-center gap-2 ${isAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
+              <label
+                className={`flex items-center gap-2 ${isAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}
+              >
                 <input
                   type="checkbox"
                   checked={settings.show_material_column}
@@ -220,7 +224,9 @@ export function RFQSettings() {
                 />
                 <span className="text-sm text-plm-fg">Show material column</span>
               </label>
-              <label className={`flex items-center gap-2 ${isAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
+              <label
+                className={`flex items-center gap-2 ${isAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}
+              >
                 <input
                   type="checkbox"
                   checked={settings.show_finish_column}
@@ -230,7 +236,9 @@ export function RFQSettings() {
                 />
                 <span className="text-sm text-plm-fg">Show finish column</span>
               </label>
-              <label className={`flex items-center gap-2 ${isAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
+              <label
+                className={`flex items-center gap-2 ${isAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}
+              >
                 <input
                   type="checkbox"
                   checked={settings.show_notes_column}
@@ -279,11 +287,7 @@ export function RFQSettings() {
             disabled={saving}
             className="btn btn-primary flex items-center gap-2"
           >
-            {saving ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              <Save size={16} />
-            )}
+            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
             Save Settings
           </button>
         </div>
@@ -291,4 +295,3 @@ export function RFQSettings() {
     </div>
   )
 }
-

@@ -1,20 +1,20 @@
 /**
  * useSolidWorksStatus - Consolidated SolidWorks Service Status Hook
- * 
+ *
  * This hook provides a single source of truth for SolidWorks service status
  * polling across the application. It consolidates the duplicate polling that
  * previously existed in both useIntegrationStatus and SolidWorksSettings.
- * 
+ *
  * Features:
  * - 15-second polling interval (reduced from 5s to reduce service load)
  * - Pause/resume API for batch operations to prevent status check interference
  * - Handles 'busy' flag from main process - doesn't mark service as offline when busy
  * - Automatic polling pause when batch SW operations are running
- * 
+ *
  * @example
  * ```tsx
  * const { status, pausePolling, resumePolling, refreshStatus } = useSolidWorksStatus()
- * 
+ *
  * // For batch operations:
  * pausePolling()
  * await performBatchOperation()
@@ -65,7 +65,7 @@ export interface UseSolidWorksStatusReturn {
 
 /**
  * Consolidated SolidWorks service status hook
- * 
+ *
  * Provides a single source of truth for SW service status with:
  * - 15s polling interval
  * - Pause/resume API for batch operations
@@ -76,17 +76,17 @@ export function useSolidWorksStatus(): UseSolidWorksStatusReturn {
   const [status, setStatus] = useState<SolidWorksServiceStatus>({ running: false })
   const [isPolling, setIsPolling] = useState(true)
   const [isChecking, setIsChecking] = useState(false)
-  
+
   // Refs for interval management
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const isPausedRef = useRef(false)
-  
+
   // Get store state
-  const isBatchSWOperationRunning = usePDMStore(state => state.isBatchSWOperationRunning)
-  const solidworksIntegrationEnabled = usePDMStore(state => state.solidworksIntegrationEnabled)
-  const organization = usePDMStore(state => state.organization)
-  const solidworksAutoStartInProgress = usePDMStore(state => state.solidworksAutoStartInProgress)
-  
+  const isBatchSWOperationRunning = usePDMStore((state) => state.isBatchSWOperationRunning)
+  const solidworksIntegrationEnabled = usePDMStore((state) => state.solidworksIntegrationEnabled)
+  const organization = usePDMStore((state) => state.organization)
+  const solidworksAutoStartInProgress = usePDMStore((state) => state.solidworksAutoStartInProgress)
+
   // Store actions
   const setIntegrationStatus = usePDMStore.getState().setIntegrationStatus
 
@@ -98,19 +98,19 @@ export function useSolidWorksStatus(): UseSolidWorksStatusReturn {
     if (isPausedRef.current || isBatchSWOperationRunning || solidworksAutoStartInProgress) {
       return
     }
-    
+
     // Skip if integration is disabled
     if (!solidworksIntegrationEnabled) {
       setStatus({ running: false })
       setIntegrationStatus('solidworks', 'not-configured')
       return
     }
-    
+
     setIsChecking(true)
-    
+
     try {
       const result = await window.electronAPI?.solidworks?.getServiceStatus()
-      
+
       if (result?.success && result.data) {
         // The API response uses different field names, handle both old and new formats
         const apiData = result.data as {
@@ -128,39 +128,40 @@ export function useSolidWorksStatus(): UseSolidWorksStatusReturn {
           referenceRecoveryNeeded?: boolean
           message?: string
         }
-        
+
         // Handle reference recovery needed - process alive but IPC connection lost
         if (apiData.referenceRecoveryNeeded) {
-          setStatus(prev => ({
+          setStatus((prev) => ({
             ...prev,
             running: true,
             busy: true,
             queueDepth: apiData.queueDepth,
-            error: apiData.message || 'Service connection lost - restart recommended'
+            error: apiData.message || 'Service connection lost - restart recommended',
           }))
           // Mark as partial since we can't communicate reliably
           setIntegrationStatus('solidworks', 'partial', 'Service restart recommended')
           return
         }
-        
+
         // Handle busy state - service is alive but processing
         if (apiData.busy) {
-          setStatus(prev => ({
+          setStatus((prev) => ({
             ...prev,
             running: true,
             busy: true,
             queueDepth: apiData.queueDepth,
-            error: undefined
+            error: undefined,
           }))
           // Don't update integration status when busy - keep current state
           return
         }
-        
+
         // Normalize field names from API response
         const swInstalled = apiData.installed ?? apiData.swInstalled
-        const dmApiAvailable = apiData.documentManagerAvailable ?? apiData.fastModeEnabled ?? apiData.dmApiAvailable
+        const dmApiAvailable =
+          apiData.documentManagerAvailable ?? apiData.fastModeEnabled ?? apiData.dmApiAvailable
         const dmApiError = apiData.documentManagerError ?? apiData.dmApiError
-        
+
         const newStatus: SolidWorksServiceStatus = {
           running: apiData.running ?? false,
           version: apiData.version,
@@ -169,10 +170,10 @@ export function useSolidWorksStatus(): UseSolidWorksStatusReturn {
           dmApiError,
           queueDepth: apiData.queueDepth,
           busy: false,
-          error: undefined
+          error: undefined,
         }
         setStatus(newStatus)
-        
+
         // Update integration slice status
         if (apiData.running) {
           if (dmApiAvailable) {
@@ -185,17 +186,23 @@ export function useSolidWorksStatus(): UseSolidWorksStatusReturn {
           setIntegrationStatus('solidworks', isConfigured ? 'offline' : 'not-configured')
         }
       } else if (result?.error) {
-        setStatus(prev => ({ ...prev, running: false, busy: false, error: result.error }))
+        setStatus((prev) => ({ ...prev, running: false, busy: false, error: result.error }))
         setIntegrationStatus('solidworks', 'offline', result.error)
       }
-    } catch (err) {
-      log.warn('[SWStatus]', 'Error checking status', { error: err })
-      setStatus(prev => ({ ...prev, running: false, busy: false, error: String(err) }))
-      setIntegrationStatus('solidworks', 'offline', String(err))
+    } catch (error) {
+      log.warn('[SWStatus]', 'Error checking status', { error: error })
+      setStatus((prev) => ({ ...prev, running: false, busy: false, error: String(error) }))
+      setIntegrationStatus('solidworks', 'offline', String(error))
     } finally {
       setIsChecking(false)
     }
-  }, [isBatchSWOperationRunning, solidworksIntegrationEnabled, solidworksAutoStartInProgress, organization, setIntegrationStatus])
+  }, [
+    isBatchSWOperationRunning,
+    solidworksIntegrationEnabled,
+    solidworksAutoStartInProgress,
+    organization,
+    setIntegrationStatus,
+  ])
 
   /**
    * Pause status polling - call before batch operations
@@ -240,22 +247,22 @@ export function useSolidWorksStatus(): UseSolidWorksStatusReturn {
       }
       return
     }
-    
+
     // Skip if integration disabled
     if (!solidworksIntegrationEnabled) {
       return
     }
-    
+
     // Initial check
     checkStatus()
-    
+
     // Set up polling
     pollIntervalRef.current = setInterval(() => {
       if (!isPausedRef.current && !isBatchSWOperationRunning) {
         checkStatus()
       }
     }, POLLING_INTERVAL_MS)
-    
+
     return () => {
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current)
@@ -279,6 +286,6 @@ export function useSolidWorksStatus(): UseSolidWorksStatusReturn {
     isChecking,
     pausePolling,
     resumePolling,
-    refreshStatus
+    refreshStatus,
   }
 }

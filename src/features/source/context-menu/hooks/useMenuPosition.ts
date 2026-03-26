@@ -18,7 +18,7 @@ interface UseMenuPositionResult {
 export function useMenuPosition(
   initialX: number,
   initialY: number,
-  menuRef: RefObject<HTMLDivElement | null>
+  menuRef: RefObject<HTMLDivElement | null>,
 ): UseMenuPositionResult {
   const [position, setPosition] = useState<Position>({ x: initialX, y: initialY })
   const [submenuPosition, setSubmenuPosition] = useState<'right' | 'left'>('right')

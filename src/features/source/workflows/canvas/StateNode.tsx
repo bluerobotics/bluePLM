@@ -1,12 +1,14 @@
 // StateNode component - renders a workflow state on the canvas
 import React from 'react'
-import type { WorkflowState, CanvasMode, ResizingState, StateDimensions } from '../types'
+
 import { getContrastColor } from '@/types/workflow'
+
+import type { WorkflowState, CanvasMode, ResizingState, StateDimensions } from '../types'
 import { RESIZE_HANDLE_SIZE, CONNECTION_HANDLE_SIZE, CONNECTION_OFFSET } from '../constants'
 
 export interface StateNodeProps {
   state: WorkflowState
-  
+
   // Selection state
   isSelected: boolean
   isTransitionStart: boolean
@@ -14,27 +16,27 @@ export interface StateNodeProps {
   isResizing: boolean
   isSnapTarget: boolean
   isHovered: boolean
-  
+
   // Mode state
   isAdmin: boolean
   canvasMode: CanvasMode
   isCreatingTransition: boolean
   transitionStartId: string | null
   isDraggingToCreateTransition: boolean
-  
+
   // Dimensions
   dimensions: StateDimensions
-  
+
   // Canvas transform
   pan: { x: number; y: number }
   zoom: number
   canvasRef: React.RefObject<HTMLDivElement | null>
-  
+
   // Refs for timing
   justCompletedTransitionRef: React.MutableRefObject<boolean>
   transitionCompletedAtRef: React.MutableRefObject<number>
   hasDraggedRef: React.MutableRefObject<boolean>
-  
+
   // Event handlers
   onSelect: () => void
   onStartDrag: (e: React.MouseEvent) => void
@@ -44,7 +46,7 @@ export interface StateNodeProps {
   onEdit: () => void
   onHoverChange: (isHovered: boolean) => void
   onShowToolbar: () => void
-  
+
   // Transition creation handlers
   onSetDraggingToCreateTransition: (value: boolean) => void
   onSetHoveredStateId: (id: string | null) => void
@@ -80,7 +82,7 @@ export function StateNode({
   onHoverChange,
   onShowToolbar,
   onSetDraggingToCreateTransition,
-  onSetHoveredStateId
+  onSetHoveredStateId,
 }: StateNodeProps) {
   // Mark as used for future use
   void _pan
@@ -88,12 +90,13 @@ export function StateNode({
   const textColor = getContrastColor(state.color)
   const hw = dims.width / 2
   const hh = dims.height / 2
-  
+
   // Show connection points when selected, in connect mode, or when dragging to create a transition
   const isPotentialTransitionTarget = isCreatingTransition && transitionStartId !== state.id
-  const showConnectionPoints = isAdmin && (isSelected || canvasMode === 'connect' || isPotentialTransitionTarget)
+  const showConnectionPoints =
+    isAdmin && (isSelected || canvasMode === 'connect' || isPotentialTransitionTarget)
   const showResizeHandles = isAdmin && isSelected && canvasMode === 'select'
-  
+
   // Start resizing handler
   const startResize = (handle: ResizingState['handle'], e: React.MouseEvent) => {
     e.stopPropagation()
@@ -102,7 +105,7 @@ export function StateNode({
     if (!rect) return
     onStartResize(handle, e)
   }
-  
+
   // Handle connection point mousedown
   const handleConnectionPointMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -111,10 +114,15 @@ export function StateNode({
       onSetDraggingToCreateTransition(true)
     }
   }
-  
+
   // Handle connection point mouseup (completing transition)
   const handleConnectionPointMouseUp = (e: React.MouseEvent) => {
-    if (isDraggingToCreateTransition && isCreatingTransition && transitionStartId && transitionStartId !== state.id) {
+    if (
+      isDraggingToCreateTransition &&
+      isCreatingTransition &&
+      transitionStartId &&
+      transitionStartId !== state.id
+    ) {
       e.stopPropagation()
       onCompleteTransition()
       justCompletedTransitionRef.current = true
@@ -123,7 +131,7 @@ export function StateNode({
       onSetHoveredStateId(null)
     }
   }
-  
+
   // Handle connection point click
   const handleConnectionPointClick = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -131,21 +139,22 @@ export function StateNode({
       onCompleteTransition()
     }
   }
-  
+
   // Parse colors for rendering
   const baseFillOpacity = state.fill_opacity ?? 1
-  const fillOpacity = isHovered && !isSelected ? Math.min(1, baseFillOpacity + 0.1) : baseFillOpacity
+  const fillOpacity =
+    isHovered && !isSelected ? Math.min(1, baseFillOpacity + 0.1) : baseFillOpacity
   const borderOpacity = state.border_opacity ?? 1
   const borderThickness = state.border_thickness ?? 2
   const borderColor = state.border_color || state.color
-  
+
   const hexToRgba = (hex: string, alpha: number) => {
     const r = parseInt(hex.slice(1, 3), 16)
     const g = parseInt(hex.slice(3, 5), 16)
     const b = parseInt(hex.slice(5, 7), 16)
     return `rgba(${r}, ${g}, ${b}, ${alpha})`
   }
-  
+
   // Determine stroke color based on state
   let strokeColor: string
   let strokeWidth: number
@@ -159,10 +168,10 @@ export function StateNode({
     strokeColor = hexToRgba(borderColor, borderOpacity)
     strokeWidth = borderThickness
   }
-  
+
   const fillColor = hexToRgba(state.color, fillOpacity)
   const shape = state.shape || 'rectangle'
-  
+
   // Render the node shape
   const renderShape = () => {
     switch (shape) {
@@ -219,14 +228,20 @@ export function StateNode({
         )
     }
   }
-  
+
   return (
     <g
       key={state.id}
       transform={`translate(${state.position_x}, ${state.position_y})`}
-      style={{ 
-        cursor: isDraggingThis ? 'grabbing' : isResizingThis ? 'grabbing' : (isAdmin && canvasMode === 'select' ? 'grab' : 'pointer'),
-        pointerEvents: 'auto'
+      style={{
+        cursor: isDraggingThis
+          ? 'grabbing'
+          : isResizingThis
+            ? 'grabbing'
+            : isAdmin && canvasMode === 'select'
+              ? 'grab'
+              : 'pointer',
+        pointerEvents: 'auto',
       }}
       onMouseEnter={() => onHoverChange(true)}
       onMouseLeave={() => onHoverChange(false)}
@@ -237,7 +252,12 @@ export function StateNode({
         }
       }}
       onMouseUp={(e) => {
-        if (isDraggingToCreateTransition && isCreatingTransition && transitionStartId && transitionStartId !== state.id) {
+        if (
+          isDraggingToCreateTransition &&
+          isCreatingTransition &&
+          transitionStartId &&
+          transitionStartId !== state.id
+        ) {
           e.stopPropagation()
           onCompleteTransition()
           justCompletedTransitionRef.current = true
@@ -249,15 +269,17 @@ export function StateNode({
       onClick={(e) => {
         e.stopPropagation()
         if (hasDraggedRef.current) return
-        
+
         const timeSinceTransition = Date.now() - transitionCompletedAtRef.current
         if (justCompletedTransitionRef.current || timeSinceTransition < 500) {
-          setTimeout(() => { justCompletedTransitionRef.current = false }, 500)
+          setTimeout(() => {
+            justCompletedTransitionRef.current = false
+          }, 500)
           return
         }
-        
+
         if (isDraggingToCreateTransition) return
-        
+
         if (isCreatingTransition) {
           onCompleteTransition()
         } else {
@@ -269,11 +291,13 @@ export function StateNode({
         e.stopPropagation()
         const timeSinceTransition = Date.now() - transitionCompletedAtRef.current
         if (justCompletedTransitionRef.current || timeSinceTransition < 500) {
-          setTimeout(() => { justCompletedTransitionRef.current = false }, 500)
+          setTimeout(() => {
+            justCompletedTransitionRef.current = false
+          }, 500)
           return
         }
         if (isCreatingTransition || isDraggingToCreateTransition) return
-        
+
         if (isAdmin) {
           onEdit()
         }
@@ -286,8 +310,8 @@ export function StateNode({
       }}
     >
       {/* Drag glow / snap target glow / transition start glow */}
-      {(isTransitionStart || isDraggingThis || isSnapTarget) && (
-        shape === 'diamond' ? (
+      {(isTransitionStart || isDraggingThis || isSnapTarget) &&
+        (shape === 'diamond' ? (
           <polygon
             points={`0,${-hh - 4} ${hw + 4},0 0,${hh + 4} ${-hw - 4},0`}
             fill={isSnapTarget ? 'rgba(96, 165, 250, 0.2)' : 'none'}
@@ -310,9 +334,8 @@ export function StateNode({
             opacity={isSnapTarget ? 1 : isDraggingThis ? 0.8 : 0.6}
             strokeDasharray={isDraggingThis ? '4,2' : 'none'}
           />
-        )
-      )}
-      
+        ))}
+
       {/* Snap target indicator */}
       {isSnapTarget && (
         <text
@@ -327,10 +350,10 @@ export function StateNode({
           Drop here
         </text>
       )}
-      
+
       {/* Drop shadow when dragging */}
-      {isDraggingThis && (
-        shape === 'diamond' ? (
+      {isDraggingThis &&
+        (shape === 'diamond' ? (
           <polygon
             points={`0,${-hh} ${hw},0 0,${hh} ${-hw},0`}
             fill="rgba(0,0,0,0.3)"
@@ -345,12 +368,13 @@ export function StateNode({
             rx={state.corner_radius ?? 8}
             fill="rgba(0,0,0,0.3)"
           />
-        )
-      )}
-      
+        ))}
+
       {/* Hover glow effect */}
-      {isHovered && !isSelected && !isDraggingThis && (
-        shape === 'diamond' ? (
+      {isHovered &&
+        !isSelected &&
+        !isDraggingThis &&
+        (shape === 'diamond' ? (
           <polygon
             points={`0,${-hh - 2} ${hw + 2},0 0,${hh + 2} ${-hw - 2},0`}
             fill="none"
@@ -373,12 +397,11 @@ export function StateNode({
             className="pointer-events-none"
             style={{ transition: 'opacity 0.15s ease-out' }}
           />
-        )
-      )}
-      
+        ))}
+
       {/* Node background */}
       {renderShape()}
-      
+
       {/* Label */}
       <text
         x="0"
@@ -391,7 +414,7 @@ export function StateNode({
       >
         {state.label || state.name}
       </text>
-      
+
       {/* State config indicators */}
       <text
         x="0"
@@ -404,74 +427,165 @@ export function StateNode({
       >
         {state.is_editable ? '✎ Editable' : '🔒 Locked'}
       </text>
-      
+
       {/* Resize handles */}
       {showResizeHandles && (
         <g className="resize-handles">
           {/* Corner handles */}
-          <rect x={-hw - RESIZE_HANDLE_SIZE} y={-hh - RESIZE_HANDLE_SIZE} width={RESIZE_HANDLE_SIZE * 2} height={RESIZE_HANDLE_SIZE * 2}
-            fill="#fff" stroke="#6b7280" strokeWidth="1" className="cursor-nwse-resize"
-            onMouseDown={(e) => startResize('nw', e)} />
-          <rect x={hw - RESIZE_HANDLE_SIZE} y={-hh - RESIZE_HANDLE_SIZE} width={RESIZE_HANDLE_SIZE * 2} height={RESIZE_HANDLE_SIZE * 2}
-            fill="#fff" stroke="#6b7280" strokeWidth="1" className="cursor-nesw-resize"
-            onMouseDown={(e) => startResize('ne', e)} />
-          <rect x={-hw - RESIZE_HANDLE_SIZE} y={hh - RESIZE_HANDLE_SIZE} width={RESIZE_HANDLE_SIZE * 2} height={RESIZE_HANDLE_SIZE * 2}
-            fill="#fff" stroke="#6b7280" strokeWidth="1" className="cursor-nesw-resize"
-            onMouseDown={(e) => startResize('sw', e)} />
-          <rect x={hw - RESIZE_HANDLE_SIZE} y={hh - RESIZE_HANDLE_SIZE} width={RESIZE_HANDLE_SIZE * 2} height={RESIZE_HANDLE_SIZE * 2}
-            fill="#fff" stroke="#6b7280" strokeWidth="1" className="cursor-nwse-resize"
-            onMouseDown={(e) => startResize('se', e)} />
+          <rect
+            x={-hw - RESIZE_HANDLE_SIZE}
+            y={-hh - RESIZE_HANDLE_SIZE}
+            width={RESIZE_HANDLE_SIZE * 2}
+            height={RESIZE_HANDLE_SIZE * 2}
+            fill="#fff"
+            stroke="#6b7280"
+            strokeWidth="1"
+            className="cursor-nwse-resize"
+            onMouseDown={(e) => startResize('nw', e)}
+          />
+          <rect
+            x={hw - RESIZE_HANDLE_SIZE}
+            y={-hh - RESIZE_HANDLE_SIZE}
+            width={RESIZE_HANDLE_SIZE * 2}
+            height={RESIZE_HANDLE_SIZE * 2}
+            fill="#fff"
+            stroke="#6b7280"
+            strokeWidth="1"
+            className="cursor-nesw-resize"
+            onMouseDown={(e) => startResize('ne', e)}
+          />
+          <rect
+            x={-hw - RESIZE_HANDLE_SIZE}
+            y={hh - RESIZE_HANDLE_SIZE}
+            width={RESIZE_HANDLE_SIZE * 2}
+            height={RESIZE_HANDLE_SIZE * 2}
+            fill="#fff"
+            stroke="#6b7280"
+            strokeWidth="1"
+            className="cursor-nesw-resize"
+            onMouseDown={(e) => startResize('sw', e)}
+          />
+          <rect
+            x={hw - RESIZE_HANDLE_SIZE}
+            y={hh - RESIZE_HANDLE_SIZE}
+            width={RESIZE_HANDLE_SIZE * 2}
+            height={RESIZE_HANDLE_SIZE * 2}
+            fill="#fff"
+            stroke="#6b7280"
+            strokeWidth="1"
+            className="cursor-nwse-resize"
+            onMouseDown={(e) => startResize('se', e)}
+          />
           {/* Side handles */}
-          <rect x={-RESIZE_HANDLE_SIZE} y={-hh - RESIZE_HANDLE_SIZE} width={RESIZE_HANDLE_SIZE * 2} height={RESIZE_HANDLE_SIZE * 2}
-            fill="#fff" stroke="#6b7280" strokeWidth="1" className="cursor-ns-resize"
-            onMouseDown={(e) => startResize('n', e)} />
-          <rect x={-RESIZE_HANDLE_SIZE} y={hh - RESIZE_HANDLE_SIZE} width={RESIZE_HANDLE_SIZE * 2} height={RESIZE_HANDLE_SIZE * 2}
-            fill="#fff" stroke="#6b7280" strokeWidth="1" className="cursor-ns-resize"
-            onMouseDown={(e) => startResize('s', e)} />
-          <rect x={-hw - RESIZE_HANDLE_SIZE} y={-RESIZE_HANDLE_SIZE} width={RESIZE_HANDLE_SIZE * 2} height={RESIZE_HANDLE_SIZE * 2}
-            fill="#fff" stroke="#6b7280" strokeWidth="1" className="cursor-ew-resize"
-            onMouseDown={(e) => startResize('w', e)} />
-          <rect x={hw - RESIZE_HANDLE_SIZE} y={-RESIZE_HANDLE_SIZE} width={RESIZE_HANDLE_SIZE * 2} height={RESIZE_HANDLE_SIZE * 2}
-            fill="#fff" stroke="#6b7280" strokeWidth="1" className="cursor-ew-resize"
-            onMouseDown={(e) => startResize('e', e)} />
+          <rect
+            x={-RESIZE_HANDLE_SIZE}
+            y={-hh - RESIZE_HANDLE_SIZE}
+            width={RESIZE_HANDLE_SIZE * 2}
+            height={RESIZE_HANDLE_SIZE * 2}
+            fill="#fff"
+            stroke="#6b7280"
+            strokeWidth="1"
+            className="cursor-ns-resize"
+            onMouseDown={(e) => startResize('n', e)}
+          />
+          <rect
+            x={-RESIZE_HANDLE_SIZE}
+            y={hh - RESIZE_HANDLE_SIZE}
+            width={RESIZE_HANDLE_SIZE * 2}
+            height={RESIZE_HANDLE_SIZE * 2}
+            fill="#fff"
+            stroke="#6b7280"
+            strokeWidth="1"
+            className="cursor-ns-resize"
+            onMouseDown={(e) => startResize('s', e)}
+          />
+          <rect
+            x={-hw - RESIZE_HANDLE_SIZE}
+            y={-RESIZE_HANDLE_SIZE}
+            width={RESIZE_HANDLE_SIZE * 2}
+            height={RESIZE_HANDLE_SIZE * 2}
+            fill="#fff"
+            stroke="#6b7280"
+            strokeWidth="1"
+            className="cursor-ew-resize"
+            onMouseDown={(e) => startResize('w', e)}
+          />
+          <rect
+            x={hw - RESIZE_HANDLE_SIZE}
+            y={-RESIZE_HANDLE_SIZE}
+            width={RESIZE_HANDLE_SIZE * 2}
+            height={RESIZE_HANDLE_SIZE * 2}
+            fill="#fff"
+            stroke="#6b7280"
+            strokeWidth="1"
+            className="cursor-ew-resize"
+            onMouseDown={(e) => startResize('e', e)}
+          />
         </g>
       )}
-      
+
       {/* Connection points */}
       {showConnectionPoints && (
         <g className="connection-points">
           {/* Right */}
-          <circle cx={hw + CONNECTION_OFFSET} cy="0" r={CONNECTION_HANDLE_SIZE}
-            fill="#3b82f6" stroke="#fff" strokeWidth="1.5" className="cursor-crosshair"
+          <circle
+            cx={hw + CONNECTION_OFFSET}
+            cy="0"
+            r={CONNECTION_HANDLE_SIZE}
+            fill="#3b82f6"
+            stroke="#fff"
+            strokeWidth="1.5"
+            className="cursor-crosshair"
             style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.3))', pointerEvents: 'all' }}
             onMouseDown={handleConnectionPointMouseDown}
             onMouseUp={handleConnectionPointMouseUp}
-            onClick={handleConnectionPointClick} />
+            onClick={handleConnectionPointClick}
+          />
           {/* Left */}
-          <circle cx={-hw - CONNECTION_OFFSET} cy="0" r={CONNECTION_HANDLE_SIZE}
-            fill="#3b82f6" stroke="#fff" strokeWidth="1.5" className="cursor-crosshair"
+          <circle
+            cx={-hw - CONNECTION_OFFSET}
+            cy="0"
+            r={CONNECTION_HANDLE_SIZE}
+            fill="#3b82f6"
+            stroke="#fff"
+            strokeWidth="1.5"
+            className="cursor-crosshair"
             style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.3))', pointerEvents: 'all' }}
             onMouseDown={handleConnectionPointMouseDown}
             onMouseUp={handleConnectionPointMouseUp}
-            onClick={handleConnectionPointClick} />
+            onClick={handleConnectionPointClick}
+          />
           {/* Top */}
-          <circle cx="0" cy={-hh - CONNECTION_OFFSET} r={CONNECTION_HANDLE_SIZE}
-            fill="#3b82f6" stroke="#fff" strokeWidth="1.5" className="cursor-crosshair"
+          <circle
+            cx="0"
+            cy={-hh - CONNECTION_OFFSET}
+            r={CONNECTION_HANDLE_SIZE}
+            fill="#3b82f6"
+            stroke="#fff"
+            strokeWidth="1.5"
+            className="cursor-crosshair"
             style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.3))', pointerEvents: 'all' }}
             onMouseDown={handleConnectionPointMouseDown}
             onMouseUp={handleConnectionPointMouseUp}
-            onClick={handleConnectionPointClick} />
+            onClick={handleConnectionPointClick}
+          />
           {/* Bottom */}
-          <circle cx="0" cy={hh + CONNECTION_OFFSET} r={CONNECTION_HANDLE_SIZE}
-            fill="#3b82f6" stroke="#fff" strokeWidth="1.5" className="cursor-crosshair"
+          <circle
+            cx="0"
+            cy={hh + CONNECTION_OFFSET}
+            r={CONNECTION_HANDLE_SIZE}
+            fill="#3b82f6"
+            stroke="#fff"
+            strokeWidth="1.5"
+            className="cursor-crosshair"
             style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.3))', pointerEvents: 'all' }}
             onMouseDown={handleConnectionPointMouseDown}
             onMouseUp={handleConnectionPointMouseUp}
-            onClick={handleConnectionPointClick} />
+            onClick={handleConnectionPointClick}
+          />
         </g>
       )}
     </g>
   )
 }
 
-export default StateNode

@@ -11,6 +11,7 @@ import { getDocument, GlobalWorkerOptions, TextLayer } from 'pdfjs-dist'
 import type { PDFDocumentProxy, PDFPageProxy, RenderTask } from 'pdfjs-dist'
 
 import { log } from '@/lib/logger'
+import { t } from '@/lib/i18n'
 import {
   Loader2,
   ZoomIn,
@@ -111,7 +112,14 @@ function AnnotationBoxOverlay({
   onMouseEnter,
   onMouseLeave,
 }: {
-  position: { x: number; y: number; width: number; height: number; pageWidth: number; pageHeight: number }
+  position: {
+    x: number
+    y: number
+    width: number
+    height: number
+    pageWidth: number
+    pageHeight: number
+  }
   color?: string
   isHovered?: boolean
   isActive?: boolean
@@ -132,9 +140,7 @@ function AnnotationBoxOverlay({
         top: `${(position.y / position.pageHeight) * 100}%`,
         width: `${(position.width / position.pageWidth) * 100}%`,
         height: `${(position.height / position.pageHeight) * 100}%`,
-        border: isActive
-          ? '2px solid rgba(59, 130, 246, 1)'
-          : `2px solid ${color}`,
+        border: isActive ? '2px solid rgba(59, 130, 246, 1)' : `2px solid ${color}`,
         background: color.replace(/[\d.]+\)$/, '0.15)'),
         pointerEvents: interactive ? 'auto' : 'none',
         cursor: interactive ? 'pointer' : 'default',
@@ -197,7 +203,9 @@ const PdfPage = memo(function PdfPage({
   const renderTaskRef = useRef<RenderTask | null>(null)
   const textLayerRef = useRef<InstanceType<typeof TextLayer> | null>(null)
   const [isVisible, setIsVisible] = useState(false)
-  const [selRect, setSelRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
+  const [selRect, setSelRect] = useState<{ x: number; y: number; w: number; h: number } | null>(
+    null,
+  )
 
   const pageNumber = page.pageNumber
   const unscaledVp = useMemo(() => page.getViewport({ scale: 1 }), [page])
@@ -207,10 +215,9 @@ const PdfPage = memo(function PdfPage({
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
-    const observer = new IntersectionObserver(
-      ([entry]) => setIsVisible(entry.isIntersecting),
-      { rootMargin: '500px' },
-    )
+    const observer = new IntersectionObserver(([entry]) => setIsVisible(entry.isIntersecting), {
+      rootMargin: '500px',
+    })
     observer.observe(el)
     return () => observer.disconnect()
   }, [])
@@ -236,7 +243,9 @@ const PdfPage = memo(function PdfPage({
     renderTaskRef.current = task
     task.promise.catch(() => {})
 
-    return () => { task.cancel() }
+    return () => {
+      task.cancel()
+    }
   }, [isVisible, viewport, page])
 
   // Text layer rendering
@@ -328,7 +337,16 @@ const PdfPage = memo(function PdfPage({
 
     el.addEventListener('mousedown', handleMouseDown, { capture: true })
     return () => el.removeEventListener('mousedown', handleMouseDown, { capture: true })
-  }, [areaSelectActive, onAnnotationCreate, pageNumber, scale, viewport.width, viewport.height, unscaledVp.width, unscaledVp.height])
+  }, [
+    areaSelectActive,
+    onAnnotationCreate,
+    pageNumber,
+    scale,
+    viewport.width,
+    viewport.height,
+    unscaledVp.width,
+    unscaledVp.height,
+  ])
 
   const pageAnnotations = useMemo(
     () => annotations.filter((a) => a.pageNumber === pageNumber),
@@ -422,8 +440,8 @@ function ZoomToolbar({
   onAreaSelectToggle: () => void
 }) {
   const displayPercent = useMemo(() => {
-    if (fitMode === 'width') return 'Width'
-    if (fitMode === 'page') return 'Fit'
+    if (fitMode === 'width') return t('source.pdfViewer.widthLabel')
+    if (fitMode === 'page') return t('source.pdfViewer.fitLabel')
     return `${Math.round(scale * 100)}%`
   }, [scale, fitMode])
 
@@ -436,8 +454,8 @@ function ZoomToolbar({
             ? 'bg-plm-accent/20 text-plm-accent'
             : 'text-plm-fg-muted hover:text-plm-fg hover:bg-plm-bg-light'
         }`}
-        title={areaSelectActive ? 'Disable area selection (Alt+Drag)' : 'Enable area selection'}
-        aria-label="Toggle area selection"
+        title={areaSelectActive ? t('source.pdfViewer.disableAreaSelection') : t('source.pdfViewer.enableAreaSelection')}
+        aria-label={t('source.pdfViewer.toggleAreaSelection')}
         aria-pressed={areaSelectActive}
       >
         <MousePointerSquareDashed size={15} />
@@ -448,8 +466,8 @@ function ZoomToolbar({
       <button
         onClick={() => onScaleChange(Math.max(scale - 0.25, MIN_SCALE))}
         className="p-1 rounded text-plm-fg-muted hover:text-plm-fg hover:bg-plm-bg-light transition-colors disabled:opacity-30"
-        title="Zoom out (Ctrl+-)"
-        aria-label="Zoom out"
+        title={t('source.pdfViewer.zoomOutTitle')}
+        aria-label={t('source.pdfViewer.zoomOut')}
         disabled={scale <= MIN_SCALE}
       >
         <ZoomOut size={15} />
@@ -462,8 +480,8 @@ function ZoomToolbar({
       <button
         onClick={() => onScaleChange(Math.min(scale + 0.25, MAX_SCALE))}
         className="p-1 rounded text-plm-fg-muted hover:text-plm-fg hover:bg-plm-bg-light transition-colors disabled:opacity-30"
-        title="Zoom in (Ctrl++)"
-        aria-label="Zoom in"
+        title={t('source.pdfViewer.zoomInTitle')}
+        aria-label={t('source.pdfViewer.zoomIn')}
         disabled={scale >= MAX_SCALE}
       >
         <ZoomIn size={15} />
@@ -478,8 +496,8 @@ function ZoomToolbar({
             ? 'bg-plm-accent/20 text-plm-accent'
             : 'text-plm-fg-muted hover:text-plm-fg hover:bg-plm-bg-light'
         }`}
-        title="Fit to width"
-        aria-label="Fit to width"
+        title={t('source.pdfViewer.fitToWidth')}
+        aria-label={t('source.pdfViewer.fitToWidth')}
       >
         <Columns size={15} />
       </button>
@@ -491,8 +509,8 @@ function ZoomToolbar({
             ? 'bg-plm-accent/20 text-plm-accent'
             : 'text-plm-fg-muted hover:text-plm-fg hover:bg-plm-bg-light'
         }`}
-        title="Fit to page"
-        aria-label="Fit to page"
+        title={t('source.pdfViewer.fitToPage')}
+        aria-label={t('source.pdfViewer.fitToPage')}
       >
         <Maximize size={15} />
       </button>
@@ -547,7 +565,7 @@ export function PdfAnnotationViewer({
       if (cancelled) return
 
       if (!result?.success || !result.data) {
-        setError('Failed to read PDF file from disk.')
+        setError(t('source.pdfViewer.failedToReadPdf'))
         log.error('[PdfViewer]', 'readFile failed', { filePath, success: result?.success })
         setLoading(false)
         return
@@ -555,12 +573,18 @@ export function PdfAnnotationViewer({
 
       task = getDocument({ data: base64ToUint8Array(result.data) })
       const doc = await task.promise
-      if (cancelled) { doc.destroy(); return }
+      if (cancelled) {
+        doc.destroy()
+        return
+      }
 
       const ps = await Promise.all(
         Array.from({ length: doc.numPages }, (_, i) => doc.getPage(i + 1)),
       )
-      if (cancelled) { doc.destroy(); return }
+      if (cancelled) {
+        doc.destroy()
+        return
+      }
 
       docRef.current?.destroy()
       docRef.current = doc
@@ -583,7 +607,12 @@ export function PdfAnnotationViewer({
   }, [filePath, fileVersion])
 
   // Cleanup document on unmount
-  useEffect(() => () => { docRef.current?.destroy() }, [])
+  useEffect(
+    () => () => {
+      docRef.current?.destroy()
+    },
+    [],
+  )
 
   // ── Compute fit scale ──────────────────────────────────────────────────
   const computeFitScale = useCallback(
@@ -597,9 +626,7 @@ export function PdfAnnotationViewer({
       const availH = container.clientHeight
 
       const s =
-        mode === 'width'
-          ? availW / uv.width
-          : Math.min(availW / uv.width, availH / uv.height)
+        mode === 'width' ? availW / uv.width : Math.min(availW / uv.width, availH / uv.height)
 
       return Math.round(Math.max(MIN_SCALE, Math.min(MAX_SCALE, s)) * 100) / 100
     },
@@ -673,7 +700,8 @@ export function PdfAnnotationViewer({
           const contentX = scrollEl.scrollLeft + cx
           const contentY = scrollEl.scrollTop + cy
           const oldScale = scaleRef.current
-          const newScale = Math.round(Math.max(MIN_SCALE, Math.min(MAX_SCALE, oldScale + delta)) * 100) / 100
+          const newScale =
+            Math.round(Math.max(MIN_SCALE, Math.min(MAX_SCALE, oldScale + delta)) * 100) / 100
           if (newScale === oldScale) return
           const ratio = newScale / oldScale
           pendingScrollRef.current = { left: contentX * ratio - cx, top: contentY * ratio - cy }
@@ -689,7 +717,10 @@ export function PdfAnnotationViewer({
       } else if ((e.ctrlKey || e.metaKey) && e.key === '0') {
         e.preventDefault()
         const s = computeFitScale('page')
-        if (s) { setScale(s); setFitMode('page') }
+        if (s) {
+          setScale(s)
+          setFitMode('page')
+        }
       }
     }
 
@@ -717,7 +748,8 @@ export function PdfAnnotationViewer({
 
       const oldScale = scaleRef.current
       const delta = e.deltaY > 0 ? -0.1 : 0.1
-      const newScale = Math.round(Math.max(MIN_SCALE, Math.min(MAX_SCALE, oldScale + delta)) * 100) / 100
+      const newScale =
+        Math.round(Math.max(MIN_SCALE, Math.min(MAX_SCALE, oldScale + delta)) * 100) / 100
       if (newScale === oldScale) return
 
       const ratio = newScale / oldScale
@@ -737,12 +769,18 @@ export function PdfAnnotationViewer({
   // ── Fit-to-width / Fit-to-page handlers ────────────────────────────────
   const handleFitWidth = useCallback(() => {
     const s = computeFitScale('width')
-    if (s) { setScale(s); setFitMode('width') }
+    if (s) {
+      setScale(s)
+      setFitMode('width')
+    }
   }, [computeFitScale])
 
   const handleFitPage = useCallback(() => {
     const s = computeFitScale('page')
-    if (s) { setScale(s); setFitMode('page') }
+    if (s) {
+      setScale(s)
+      setFitMode('page')
+    }
   }, [computeFitScale])
 
   // ── Annotation creation wrapper (local pending for immediate feedback) ──
@@ -818,7 +856,7 @@ export function PdfAnnotationViewer({
       <div className="w-full h-full flex items-center justify-center">
         <div className="flex items-center gap-2 text-plm-fg-muted">
           <Loader2 className="animate-spin" size={20} />
-          <span>Loading PDF...</span>
+          <span>{t('source.pdfViewer.loadingPdf')}</span>
         </div>
       </div>
     )
@@ -829,13 +867,13 @@ export function PdfAnnotationViewer({
       <div className="w-full h-full flex items-center justify-center">
         <div className="text-sm text-plm-fg-muted text-center">
           <Eye size={48} className="mx-auto mb-4 opacity-30" />
-          <div>{error || 'Failed to load PDF'}</div>
+          <div>{error || t('source.pdfViewer.failedToLoadPdf')}</div>
           <button
             onClick={() => window.electronAPI?.openFile(filePath)}
             className="btn btn-secondary gap-2 mt-4"
           >
             <ExternalLink size={14} />
-            Open Externally
+            {t('source.pdfViewer.openExternally')}
           </button>
         </div>
       </div>
@@ -873,7 +911,10 @@ export function PdfAnnotationViewer({
       <ZoomToolbar
         scale={scale}
         fitMode={fitMode}
-        onScaleChange={(s) => { setFitMode(null); setScale(s) }}
+        onScaleChange={(s) => {
+          setFitMode(null)
+          setScale(s)
+        }}
         onFitWidth={handleFitWidth}
         onFitPage={handleFitPage}
         areaSelectActive={areaSelectActive}

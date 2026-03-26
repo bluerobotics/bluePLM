@@ -8,26 +8,26 @@ export interface UseRenameStateReturn {
   renameValue: string
   setRenameValue: (value: string) => void
   renameInputRef: React.RefObject<HTMLInputElement | null>
-  
+
   // Highlighting file name (read-only selection for copying)
   highlightingFile: LocalFile | null
   setHighlightingFile: (file: LocalFile | null) => void
   highlightInputRef: React.RefObject<HTMLInputElement | null>
-  
+
   // New folder creation
   isCreatingFolder: boolean
   setIsCreatingFolder: (creating: boolean) => void
   newFolderName: string
   setNewFolderName: (name: string) => void
   newFolderInputRef: React.RefObject<HTMLInputElement | null>
-  
+
   // Inline cell editing
   editingCell: { path: string; column: string } | null
   setEditingCell: (cell: { path: string; column: string } | null) => void
   editValue: string
   setEditValue: (value: string) => void
   inlineEditInputRef: React.RefObject<HTMLInputElement | null>
-  
+
   // Helper functions
   startRename: (file: LocalFile) => void
   cancelRename: () => void
@@ -47,63 +47,63 @@ export function useRenameState(): UseRenameStateReturn {
   const [renamingFile, setRenamingFile] = useState<LocalFile | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const renameInputRef = useRef<HTMLInputElement | null>(null)
-  
+
   // Highlighting file name (read-only selection for copying)
   const [highlightingFile, setHighlightingFile] = useState<LocalFile | null>(null)
   const highlightInputRef = useRef<HTMLInputElement | null>(null)
-  
+
   // New folder creation
   const [isCreatingFolder, setIsCreatingFolder] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
   const newFolderInputRef = useRef<HTMLInputElement | null>(null)
-  
+
   // Inline cell editing
   const [editingCell, setEditingCell] = useState<{ path: string; column: string } | null>(null)
   const [editValue, setEditValue] = useState('')
   const inlineEditInputRef = useRef<HTMLInputElement | null>(null)
-  
+
   const startRename = useCallback((file: LocalFile) => {
     const name = file.name
-    const extension = file.isDirectory ? '' : (name.includes('.') ? '.' + name.split('.').pop() : '')
+    const extension = file.isDirectory ? '' : name.includes('.') ? '.' + name.split('.').pop() : ''
     const nameWithoutExt = extension ? name.slice(0, -extension.length) : name
-    
+
     setRenamingFile(file)
     setRenameValue(nameWithoutExt)
   }, [])
-  
+
   const cancelRename = useCallback(() => {
     setRenamingFile(null)
     setRenameValue('')
   }, [])
-  
+
   const startHighlight = useCallback((file: LocalFile) => {
     setHighlightingFile(file)
   }, [])
-  
+
   const cancelHighlight = useCallback(() => {
     setHighlightingFile(null)
   }, [])
-  
+
   const startNewFolder = useCallback(() => {
     setIsCreatingFolder(true)
     setNewFolderName('')
   }, [])
-  
+
   const cancelNewFolder = useCallback(() => {
     setIsCreatingFolder(false)
     setNewFolderName('')
   }, [])
-  
+
   const startCellEdit = useCallback((path: string, column: string, currentValue: string) => {
     setEditingCell({ path, column })
     setEditValue(currentValue)
   }, [])
-  
+
   const cancelCellEdit = useCallback(() => {
     setEditingCell(null)
     setEditValue('')
   }, [])
-  
+
   return {
     renamingFile,
     setRenamingFile,

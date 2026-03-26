@@ -69,15 +69,13 @@ export function ScriptBrowser({
         setError(
           result.error?.includes('ENOENT')
             ? `No test scripts found in ${TEST_SCRIPTS_DIR}/. Scripts will appear when the test engine is installed.`
-            : result.error || 'Failed to list test scripts'
+            : result.error || 'Failed to list test scripts',
         )
         return
       }
 
       // Filter for .bptest files
-      const testFiles = result.files.filter(
-        (f) => !f.isDirectory && f.name.endsWith('.bptest')
-      )
+      const testFiles = result.files.filter((f) => !f.isDirectory && f.name.endsWith('.bptest'))
 
       if (testFiles.length === 0) {
         setScripts([])
@@ -105,8 +103,8 @@ export function ScriptBrowser({
       setScripts(parsed)
       // Select all by default
       setSelectedSet(new Set(parsed.map((s) => s.sourceFile || '')))
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error))
       setScripts([])
     } finally {
       setLoading(false)
@@ -139,9 +137,7 @@ export function ScriptBrowser({
 
   const handleRunAll = () => {
     const toRun =
-      selectedSet.size > 0
-        ? scripts.filter((s) => selectedSet.has(s.sourceFile || ''))
-        : scripts
+      selectedSet.size > 0 ? scripts.filter((s) => selectedSet.has(s.sourceFile || '')) : scripts
     onRunAll(toRun)
   }
 
@@ -182,12 +178,12 @@ export function ScriptBrowser({
           disabled={isRunning || scripts.length === 0}
           className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium bg-emerald-600 hover:bg-emerald-500 text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          {isRunning ? (
-            <Loader2 size={11} className="animate-spin" />
-          ) : (
-            <Play size={11} />
-          )}
-          {isRunning ? 'Running...' : selectedSet.size > 0 ? `Run ${selectedSet.size} Selected` : 'Run All'}
+          {isRunning ? <Loader2 size={11} className="animate-spin" /> : <Play size={11} />}
+          {isRunning
+            ? 'Running...'
+            : selectedSet.size > 0
+              ? `Run ${selectedSet.size} Selected`
+              : 'Run All'}
         </button>
 
         <button

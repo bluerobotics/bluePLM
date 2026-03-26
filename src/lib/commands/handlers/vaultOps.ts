@@ -1,6 +1,6 @@
 /**
  * Vault Operations Command Handlers
- * 
+ *
  * Commands: vault, vaults, refresh, checkouts, switch-vault, disconnect-vault
  */
 
@@ -15,12 +15,12 @@ type OutputFn = (type: TerminalOutput['type'], content: string) => void
  */
 export function handleVault(addOutput: OutputFn): void {
   const { connectedVaults, activeVaultId } = usePDMStore.getState()
-  
+
   if (connectedVaults.length === 0) {
     addOutput('info', 'No vaults connected')
     return
   }
-  
+
   const lines = ['📦 Connected Vaults:']
   for (const vault of connectedVaults) {
     const isActive = vault.id === activeVaultId
@@ -28,17 +28,14 @@ export function handleVault(addOutput: OutputFn): void {
     lines.push(`${marker} ${vault.name}`)
     lines.push(`    Path: ${vault.localPath}`)
   }
-  
+
   addOutput('info', lines.join('\n'))
 }
 
 /**
  * Handle refresh/reload command - refresh file list
  */
-export function handleRefresh(
-  addOutput: OutputFn,
-  onRefresh?: (silent?: boolean) => void
-): void {
+export function handleRefresh(addOutput: OutputFn, onRefresh?: (silent?: boolean) => void): void {
   addOutput('info', 'Refreshing file list...')
   onRefresh?.(false)
 }
@@ -49,35 +46,46 @@ export function handleRefresh(
 export function handleCheckouts(
   parsed: ParsedCommand,
   files: LocalFile[],
-  addOutput: OutputFn
+  addOutput: OutputFn,
 ): void {
   const { user } = usePDMStore.getState()
   const showMine = parsed.flags['mine'] || parsed.flags['m']
   const showOthers = parsed.flags['others'] || parsed.flags['o']
-  
-  let checkedOutFiles = files.filter(f => !f.isDirectory && f.pdmData?.checked_out_by)
-  
+
+  let checkedOutFiles = files.filter((f) => !f.isDirectory && f.pdmData?.checked_out_by)
+
   if (showMine) {
-    checkedOutFiles = checkedOutFiles.filter(f => f.pdmData?.checked_out_by === user?.id)
+    checkedOutFiles = checkedOutFiles.filter((f) => f.pdmData?.checked_out_by === user?.id)
   } else if (showOthers) {
-    checkedOutFiles = checkedOutFiles.filter(f => f.pdmData?.checked_out_by !== user?.id)
+    checkedOutFiles = checkedOutFiles.filter((f) => f.pdmData?.checked_out_by !== user?.id)
   }
-  
+
   if (checkedOutFiles.length === 0) {
-    addOutput('info', showMine ? 'You have no files checked out' : showOthers ? 'No files checked out by others' : 'No files checked out')
+    addOutput(
+      'info',
+      showMine
+        ? 'You have no files checked out'
+        : showOthers
+          ? 'No files checked out by others'
+          : 'No files checked out',
+    )
     return
   }
-  
+
   const lines = [`🔒 Checked Out Files (${checkedOutFiles.length}):`]
   for (const file of checkedOutFiles.slice(0, 20)) {
     const byMe = file.pdmData?.checked_out_by === user?.id
-    const who = byMe ? 'you' : (file.pdmData?.checked_out_user?.full_name || file.pdmData?.checked_out_user?.email || 'unknown')
+    const who = byMe
+      ? 'you'
+      : file.pdmData?.checked_out_user?.full_name ||
+        file.pdmData?.checked_out_user?.email ||
+        'unknown'
     lines.push(`  ${file.relativePath} (${who})`)
   }
   if (checkedOutFiles.length > 20) {
     lines.push(`  ... and ${checkedOutFiles.length - 20} more`)
   }
-  
+
   addOutput('info', lines.join('\n'))
 }
 
@@ -87,26 +95,25 @@ export function handleCheckouts(
 export function handleSwitchVault(
   parsed: ParsedCommand,
   addOutput: OutputFn,
-  onRefresh?: (silent?: boolean) => void
+  onRefresh?: (silent?: boolean) => void,
 ): void {
   const vaultName = parsed.args.join(' ')
   if (!vaultName) {
     addOutput('error', 'Usage: switch-vault <vault-name>')
     return
   }
-  
+
   const { connectedVaults, switchVault } = usePDMStore.getState()
-  const vault = connectedVaults.find(v => 
-    v.name.toLowerCase() === vaultName.toLowerCase() ||
-    v.id === vaultName
+  const vault = connectedVaults.find(
+    (v) => v.name.toLowerCase() === vaultName.toLowerCase() || v.id === vaultName,
   )
-  
+
   if (!vault) {
     addOutput('error', `Vault not found: ${vaultName}`)
-    addOutput('info', `Connected vaults: ${connectedVaults.map(v => v.name).join(', ')}`)
+    addOutput('info', `Connected vaults: ${connectedVaults.map((v) => v.name).join(', ')}`)
     return
   }
-  
+
   switchVault(vault.id, vault.localPath)
   addOutput('success', `Switched to vault: ${vault.name}`)
   onRefresh?.(false)
@@ -115,27 +122,23 @@ export function handleSwitchVault(
 /**
  * Handle disconnect-vault/remove-vault command - disconnect a vault
  */
-export function handleDisconnectVault(
-  parsed: ParsedCommand,
-  addOutput: OutputFn
-): void {
+export function handleDisconnectVault(parsed: ParsedCommand, addOutput: OutputFn): void {
   const vaultName = parsed.args.join(' ')
   if (!vaultName) {
     addOutput('error', 'Usage: disconnect-vault <vault-name>')
     return
   }
-  
+
   const { connectedVaults, removeConnectedVault } = usePDMStore.getState()
-  const vault = connectedVaults.find(v => 
-    v.name.toLowerCase() === vaultName.toLowerCase() ||
-    v.id === vaultName
+  const vault = connectedVaults.find(
+    (v) => v.name.toLowerCase() === vaultName.toLowerCase() || v.id === vaultName,
   )
-  
+
   if (!vault) {
     addOutput('error', `Vault not found: ${vaultName}`)
     return
   }
-  
+
   removeConnectedVault(vault.id)
   addOutput('success', `Disconnected vault: ${vault.name}`)
 }
@@ -152,13 +155,10 @@ export function handleSignOut(addOutput: OutputFn): void {
 /**
  * Handle offline command - toggle offline mode
  */
-export function handleOffline(
-  parsed: ParsedCommand,
-  addOutput: OutputFn
-): void {
+export function handleOffline(parsed: ParsedCommand, addOutput: OutputFn): void {
   const { setOfflineMode, isOfflineMode } = usePDMStore.getState()
   const enable = parsed.args[0] !== 'off'
-  
+
   if (enable === isOfflineMode) {
     addOutput('info', `Offline mode is already ${isOfflineMode ? 'on' : 'off'}`)
   } else {
@@ -181,70 +181,94 @@ export function handleReloadApp(addOutput: OutputFn): void {
 // Self-registration
 // ============================================
 
-registerTerminalCommand({
-  aliases: ['vault', 'vaults'],
-  description: 'Show connected vaults',
-  category: 'vault'
-}, (_parsed, _files, addOutput) => {
-  handleVault(addOutput)
-})
+registerTerminalCommand(
+  {
+    aliases: ['vault', 'vaults'],
+    description: 'Show connected vaults',
+    category: 'vault',
+  },
+  (_parsed, _files, addOutput) => {
+    handleVault(addOutput)
+  },
+)
 
-registerTerminalCommand({
-  aliases: ['refresh', 'reload'],
-  description: 'Refresh file list',
-  category: 'vault'
-}, (_parsed, _files, addOutput, onRefresh) => {
-  handleRefresh(addOutput, onRefresh)
-})
+registerTerminalCommand(
+  {
+    aliases: ['refresh', 'reload'],
+    description: 'Refresh file list',
+    category: 'vault',
+  },
+  (_parsed, _files, addOutput, onRefresh) => {
+    handleRefresh(addOutput, onRefresh)
+  },
+)
 
-registerTerminalCommand({
-  aliases: ['checkouts', 'locked'],
-  description: 'List checked out files',
-  usage: 'checkouts [--mine] [--others]',
-  category: 'vault'
-}, (parsed, files, addOutput) => {
-  handleCheckouts(parsed, files, addOutput)
-})
+registerTerminalCommand(
+  {
+    aliases: ['checkouts', 'locked'],
+    description: 'List checked out files',
+    usage: 'checkouts [--mine] [--others]',
+    category: 'vault',
+  },
+  (parsed, files, addOutput) => {
+    handleCheckouts(parsed, files, addOutput)
+  },
+)
 
-registerTerminalCommand({
-  aliases: ['switch-vault', 'use'],
-  description: 'Switch active vault',
-  usage: 'switch-vault <vault-name>',
-  category: 'vault'
-}, (parsed, _files, addOutput, onRefresh) => {
-  handleSwitchVault(parsed, addOutput, onRefresh)
-})
+registerTerminalCommand(
+  {
+    aliases: ['switch-vault', 'use'],
+    description: 'Switch active vault',
+    usage: 'switch-vault <vault-name>',
+    category: 'vault',
+  },
+  (parsed, _files, addOutput, onRefresh) => {
+    handleSwitchVault(parsed, addOutput, onRefresh)
+  },
+)
 
-registerTerminalCommand({
-  aliases: ['disconnect-vault', 'remove-vault'],
-  description: 'Disconnect a vault',
-  usage: 'disconnect-vault <vault-name>',
-  category: 'vault'
-}, (parsed, _files, addOutput) => {
-  handleDisconnectVault(parsed, addOutput)
-})
+registerTerminalCommand(
+  {
+    aliases: ['disconnect-vault', 'remove-vault'],
+    description: 'Disconnect a vault',
+    usage: 'disconnect-vault <vault-name>',
+    category: 'vault',
+  },
+  (parsed, _files, addOutput) => {
+    handleDisconnectVault(parsed, addOutput)
+  },
+)
 
-registerTerminalCommand({
-  aliases: ['sign-out', 'logout'],
-  description: 'Sign out of current session',
-  category: 'vault'
-}, (_parsed, _files, addOutput) => {
-  handleSignOut(addOutput)
-})
+registerTerminalCommand(
+  {
+    aliases: ['sign-out', 'logout'],
+    description: 'Sign out of current session',
+    category: 'vault',
+  },
+  (_parsed, _files, addOutput) => {
+    handleSignOut(addOutput)
+  },
+)
 
-registerTerminalCommand({
-  aliases: ['offline'],
-  description: 'Toggle offline mode',
-  usage: 'offline [on|off]',
-  category: 'vault'
-}, (parsed, _files, addOutput) => {
-  handleOffline(parsed, addOutput)
-})
+registerTerminalCommand(
+  {
+    aliases: ['offline'],
+    description: 'Toggle offline mode',
+    usage: 'offline [on|off]',
+    category: 'vault',
+  },
+  (parsed, _files, addOutput) => {
+    handleOffline(parsed, addOutput)
+  },
+)
 
-registerTerminalCommand({
-  aliases: ['reload-app', 'restart'],
-  description: 'Force full app reload',
-  category: 'vault'
-}, (_parsed, _files, addOutput) => {
-  handleReloadApp(addOutput)
-})
+registerTerminalCommand(
+  {
+    aliases: ['reload-app', 'restart'],
+    description: 'Force full app reload',
+    category: 'vault',
+  },
+  (_parsed, _files, addOutput) => {
+    handleReloadApp(addOutput)
+  },
+)

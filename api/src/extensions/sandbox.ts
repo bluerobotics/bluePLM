@@ -1,16 +1,17 @@
 /**
  * V8 Isolate Pool for Extension Sandbox Execution
- * 
+ *
  * STUB IMPLEMENTATION
- * 
+ *
  * The full sandbox using isolated-vm is disabled in this build.
  * Extension handlers will return an error until isolated-vm is properly configured.
- * 
+ *
  * @module extensions/sandbox
  */
 
 import type { ExtensionServerAPI } from './runtime.js'
 import type { ExtensionManifest } from './types.js'
+import { log } from '../infrastructure/logging.js'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CONFIGURATION
@@ -40,7 +41,7 @@ export const DEFAULT_POOL_CONFIG: IsolatePoolConfig = {
   memoryLimitMB: 128,
   timeoutMs: 30000,
   warmPool: true,
-  maxConcurrentPerIsolate: 5
+  maxConcurrentPerIsolate: 5,
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -88,7 +89,12 @@ export interface SandboxResult {
   /** Error message (if failed) */
   error?: string
   /** Error code for categorization */
-  errorCode?: 'TIMEOUT' | 'MEMORY_EXCEEDED' | 'EXECUTION_ERROR' | 'INVALID_HANDLER' | 'SANDBOX_UNAVAILABLE'
+  errorCode?:
+    | 'TIMEOUT'
+    | 'MEMORY_EXCEEDED'
+    | 'EXECUTION_ERROR'
+    | 'INVALID_HANDLER'
+    | 'SANDBOX_UNAVAILABLE'
   /** Execution time in milliseconds */
   executionTimeMs: number
   /** Memory used in bytes */
@@ -101,7 +107,7 @@ export interface SandboxResult {
 
 /**
  * V8 Isolate Pool for extension handler execution.
- * 
+ *
  * STUB: Returns error until isolated-vm is properly configured.
  */
 export class IsolatePool {
@@ -114,34 +120,35 @@ export class IsolatePool {
     warmStarts: 0,
     avgExecutionTimeMs: 0,
     timeouts: 0,
-    memoryExceeded: 0
+    memoryExceeded: 0,
   }
 
   constructor(config?: Partial<IsolatePoolConfig>) {
     this.config = { ...DEFAULT_POOL_CONFIG, ...config }
-    console.warn('[Sandbox] Extension sandbox is disabled - isolated-vm not available')
+    log.warn('[Sandbox] Extension sandbox is disabled - isolated-vm not available')
   }
 
   /**
    * Execute extension handler code in sandbox.
-   * 
+   *
    * STUB: Always returns error.
    */
   async execute(
     extensionId: string,
     _handlerCode: string,
     _api: ExtensionServerAPI,
-    _manifest: ExtensionManifest
+    _manifest: ExtensionManifest,
   ): Promise<SandboxResult> {
     const startTime = Date.now()
-    
-    console.warn(`[Sandbox] Cannot execute handler for ${extensionId} - sandbox unavailable`)
+
+    log.warn(`[Sandbox] Cannot execute handler for ${extensionId} - sandbox unavailable`)
 
     return {
       success: false,
-      error: 'Extension sandbox is not available. The server is running without isolated-vm support.',
+      error:
+        'Extension sandbox is not available. The server is running without isolated-vm support.',
       errorCode: 'SANDBOX_UNAVAILABLE',
-      executionTimeMs: Date.now() - startTime
+      executionTimeMs: Date.now() - startTime,
     }
   }
 

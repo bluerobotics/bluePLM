@@ -13,10 +13,10 @@ interface TickSliderProps {
 export function TickSlider({ value, min, max, step, snapPoints, onChange }: TickSliderProps) {
   const sliderRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState(false)
-  
+
   // Calculate position percentage
   const getPercent = (val: number) => ((val - min) / (max - min)) * 100
-  
+
   // Snap to nearest point if within threshold
   const snapThreshold = ((max - min) / snapPoints.length) * 0.3
   const getSnappedValue = (val: number) => {
@@ -27,38 +27,38 @@ export function TickSlider({ value, min, max, step, snapPoints, onChange }: Tick
     }
     return val
   }
-  
+
   // Handle mouse move
   const handleMove = (clientX: number) => {
     if (!sliderRef.current) return
-    
+
     const rect = sliderRef.current.getBoundingClientRect()
     const percent = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
     const rawValue = min + percent * (max - min)
     const snappedValue = getSnappedValue(rawValue)
     const steppedValue = Math.round(snappedValue / step) * step
     const clampedValue = Math.max(min, Math.min(max, steppedValue))
-    
+
     onChange(clampedValue)
   }
-  
+
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault()
     setIsDragging(true)
     handleMove(e.clientX)
   }
-  
+
   useEffect(() => {
     if (!isDragging) return
-    
+
     const handleMouseMove = (e: MouseEvent) => {
       handleMove(e.clientX)
     }
-    
+
     const handleMouseUp = () => {
       setIsDragging(false)
     }
-    
+
     document.addEventListener('mousemove', handleMouseMove)
     document.addEventListener('mouseup', handleMouseUp)
     return () => {
@@ -66,22 +66,22 @@ export function TickSlider({ value, min, max, step, snapPoints, onChange }: Tick
       document.removeEventListener('mouseup', handleMouseUp)
     }
   }, [isDragging])
-  
+
   return (
-    <div 
+    <div
       ref={sliderRef}
       className="relative h-6 cursor-pointer select-none"
       onMouseDown={handleMouseDown}
     >
       {/* Track background */}
       <div className="absolute top-1/2 left-0 right-0 h-1 -translate-y-1/2 bg-plm-border rounded-full" />
-      
+
       {/* Filled track */}
-      <div 
+      <div
         className="absolute top-1/2 left-0 h-1 -translate-y-1/2 bg-plm-accent rounded-full"
         style={{ width: `${getPercent(value)}%` }}
       />
-      
+
       {/* Tick marks */}
       {snapPoints.map((point) => {
         const percent = getPercent(point)
@@ -97,7 +97,7 @@ export function TickSlider({ value, min, max, step, snapPoints, onChange }: Tick
           />
         )
       })}
-      
+
       {/* Thumb */}
       <div
         className={`absolute top-1/2 w-4 h-4 -translate-x-1/2 -translate-y-1/2 bg-plm-fg rounded-full shadow-lg border-2 border-plm-accent transition-transform ${

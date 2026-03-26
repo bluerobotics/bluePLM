@@ -1,6 +1,6 @@
 /**
  * Seasonal Effects Feature Module
- * 
+ *
  * This module provides seasonal visual effects including:
  * - Christmas snow effects with wind physics
  * - Halloween spooky effects (ghosts, sparks, pumpkins)
@@ -17,11 +17,11 @@ export { useSeasonalTheme, useWeatherData, type UseWeatherDataResult } from './h
 export * from './utils'
 
 // Types
-export type { 
-  SeasonalTheme, 
+export type {
+  SeasonalTheme,
   WeatherData,
   WeatherCondition,
-  ChristmasConfig, 
+  ChristmasConfig,
   HalloweenConfig,
   SnowflakeConfig,
   Snowflake,
@@ -31,8 +31,8 @@ export type {
 } from './types'
 
 // Constants
-export { 
-  DEFAULT_CHRISTMAS_CONFIG, 
+export {
+  DEFAULT_CHRISTMAS_CONFIG,
   DEFAULT_HALLOWEEN_CONFIG,
   CHRISTMAS_DATE_RANGE,
   HALLOWEEN_DATE_RANGE,

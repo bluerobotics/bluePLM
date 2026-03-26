@@ -1,11 +1,11 @@
 /**
  * PDM Store - Main Zustand store for BluePLM
- * 
+ *
  * This file combines all slices into a single store with persistence.
  * See ./slices/ for individual slice implementations.
- * 
+ *
  * ## Hydration
- * 
+ *
  * The store uses Zustand's `persist` middleware which hydrates asynchronously
  * from localStorage. Components that depend on persisted values (like auto-start
  * settings) should wait for hydration using the `useHasHydrated()` hook before
@@ -17,7 +17,17 @@ import { persist } from 'zustand/middleware'
 import type { ModuleId, ModuleGroupId, ModuleConfig, SectionDivider } from '../types/modules'
 import { getDefaultModuleConfig, MODULES, getChildModules } from '../types/modules'
 import type { KeybindingsConfig, SettingsTab } from '../types/settings'
-import type { PDMStoreState, Tab, ConnectedVault, StagedCheckin, PendingMetadata, ThemeMode, Language, CardViewFieldConfig, SidebarView } from './types'
+import type {
+  PDMStoreState,
+  Tab,
+  ConnectedVault,
+  StagedCheckin,
+  PendingMetadata,
+  ThemeMode,
+  Language,
+  CardViewFieldConfig,
+  SidebarView,
+} from './types'
 import { CURRENT_STORE_VERSION, runMigrations, getPersistedVersion } from './migrations'
 
 /**
@@ -85,7 +95,7 @@ export const usePDMStore = create<PDMStoreState>()(
         // Schema Version
         // ═══════════════════════════════════════════════════════════════
         _storeVersion: CURRENT_STORE_VERSION,
-        
+
         // ═══════════════════════════════════════════════════════════════
         // Vault State
         // ═══════════════════════════════════════════════════════════════
@@ -95,7 +105,7 @@ export const usePDMStore = create<PDMStoreState>()(
         autoConnect: state.autoConnect,
         connectedVaults: state.connectedVaults,
         activeVaultId: state.activeVaultId,
-        
+
         // ═══════════════════════════════════════════════════════════════
         // UI Layout
         // ═══════════════════════════════════════════════════════════════
@@ -110,7 +120,7 @@ export const usePDMStore = create<PDMStoreState>()(
         rightPanelWidth: state.rightPanelWidth,
         rightPanelTabs: state.rightPanelTabs,
         bottomPanelTabOrder: state.bottomPanelTabOrder,
-        
+
         // ═══════════════════════════════════════════════════════════════
         // Tabs & Navigation
         // ═══════════════════════════════════════════════════════════════
@@ -121,7 +131,7 @@ export const usePDMStore = create<PDMStoreState>()(
         currentFolder: state.currentFolder,
         expandedFolders: Array.from(state.expandedFolders),
         expandedPendingSections: Array.from(state.expandedPendingSections),
-        
+
         // ═══════════════════════════════════════════════════════════════
         // Display Preferences
         // ═══════════════════════════════════════════════════════════════
@@ -133,14 +143,14 @@ export const usePDMStore = create<PDMStoreState>()(
         columnConfigLastSyncedAt: state.columnConfigLastSyncedAt,
         cardViewFields: state.cardViewFields,
         lowercaseExtensions: state.lowercaseExtensions,
-        
+
         // ═══════════════════════════════════════════════════════════════
         // Theme & Appearance
         // ═══════════════════════════════════════════════════════════════
         theme: state.theme,
         autoApplySeasonalThemes: state.autoApplySeasonalThemes,
         language: state.language,
-        
+
         // ═══════════════════════════════════════════════════════════════
         // Theme Effects (Christmas)
         // ═══════════════════════════════════════════════════════════════
@@ -151,7 +161,7 @@ export const usePDMStore = create<PDMStoreState>()(
         christmasUseLocalWeather: state.christmasUseLocalWeather,
         christmasSleighEnabled: state.christmasSleighEnabled,
         christmasSleighDirection: state.christmasSleighDirection,
-        
+
         // ═══════════════════════════════════════════════════════════════
         // Theme Effects (Halloween)
         // ═══════════════════════════════════════════════════════════════
@@ -159,7 +169,7 @@ export const usePDMStore = create<PDMStoreState>()(
         halloweenSparksOpacity: state.halloweenSparksOpacity,
         halloweenSparksSpeed: state.halloweenSparksSpeed,
         halloweenGhostsOpacity: state.halloweenGhostsOpacity,
-        
+
         // ═══════════════════════════════════════════════════════════════
         // Integrations
         // ═══════════════════════════════════════════════════════════════
@@ -173,7 +183,7 @@ export const usePDMStore = create<PDMStoreState>()(
         lockDrawingItemNumber: state.lockDrawingItemNumber,
         lockDrawingDescription: state.lockDrawingDescription,
         apiServerUrl: state.apiServerUrl,
-        
+
         // ═══════════════════════════════════════════════════════════════
         // File Operations
         // ═══════════════════════════════════════════════════════════════
@@ -185,7 +195,7 @@ export const usePDMStore = create<PDMStoreState>()(
         stagedCheckins: state.stagedCheckins,
         persistedPendingMetadata: state.persistedPendingMetadata,
         persistedCopySource: state.persistedCopySource,
-        
+
         // ═══════════════════════════════════════════════════════════════
         // User Preferences
         // ═══════════════════════════════════════════════════════════════
@@ -198,25 +208,25 @@ export const usePDMStore = create<PDMStoreState>()(
         pinnedSectionExpanded: state.pinnedSectionExpanded,
         colorSwatches: state.colorSwatches,
         hideCloudOnlyFolders: state.hideCloudOnlyFolders,
-        
+
         // ═══════════════════════════════════════════════════════════════
         // Module Configuration
         // ═══════════════════════════════════════════════════════════════
         moduleConfig: state.moduleConfig,
         moduleConfigLastSyncedAt: state.moduleConfigLastSyncedAt,
-        
+
         // ═══════════════════════════════════════════════════════════════
         // Terminal
         // ═══════════════════════════════════════════════════════════════
         terminalVisible: state.terminalVisible,
         terminalHeight: state.terminalHeight,
         terminalHistory: state.terminalHistory.slice(0, 100),
-        
+
         // ═══════════════════════════════════════════════════════════════
         // Search
         // ═══════════════════════════════════════════════════════════════
         recentSearches: state.recentSearches.slice(0, 20),
-        
+
         // ═══════════════════════════════════════════════════════════════
         // Test Runner
         // ═══════════════════════════════════════════════════════════════
@@ -238,45 +248,49 @@ export const usePDMStore = create<PDMStoreState>()(
       },
       merge: (persistedState, currentState) => {
         const rawPersisted = persistedState as Record<string, unknown>
-        
+
         // Run any necessary migrations
         const persistedVersion = getPersistedVersion(rawPersisted)
-        const persisted = persistedVersion < CURRENT_STORE_VERSION
-          ? runMigrations(rawPersisted, persistedVersion)
-          : rawPersisted
-        
+        const persisted =
+          persistedVersion < CURRENT_STORE_VERSION
+            ? runMigrations(rawPersisted, persistedVersion)
+            : rawPersisted
+
         // Deduplicate connected vaults by ID (keep first occurrence, ensure expanded)
         const persistedVaults = (persisted.connectedVaults as ConnectedVault[]) || []
         const seenIds = new Set<string>()
         const seenPaths = new Set<string>()
-        const deduplicatedVaults = persistedVaults.filter(vault => {
-          if (!vault?.id || !vault?.localPath) return false
-          const normalizedPath = vault.localPath.toLowerCase().replace(/\\/g, '/')
-          if (seenIds.has(vault.id) || seenPaths.has(normalizedPath)) {
-            return false
-          }
-          seenIds.add(vault.id)
-          seenPaths.add(normalizedPath)
-          return true
-        }).map(vault => ({
-          ...vault,
-          isExpanded: true  // Ensure vaults are expanded on load
-        }))
-        
+        const deduplicatedVaults = persistedVaults
+          .filter((vault) => {
+            if (!vault?.id || !vault?.localPath) return false
+            const normalizedPath = vault.localPath.toLowerCase().replace(/\\/g, '/')
+            if (seenIds.has(vault.id) || seenPaths.has(normalizedPath)) {
+              return false
+            }
+            seenIds.add(vault.id)
+            seenPaths.add(normalizedPath)
+            return true
+          })
+          .map((vault) => ({
+            ...vault,
+            isExpanded: true, // Ensure vaults are expanded on load
+          }))
+
         // Ensure activeVaultId points to a valid vault (might have been a removed duplicate)
         const persistedActiveVaultId = persisted.activeVaultId as string | null
-        const validVaultIds = new Set(deduplicatedVaults.map(v => v.id))
-        const validActiveVaultId = persistedActiveVaultId && validVaultIds.has(persistedActiveVaultId)
-          ? persistedActiveVaultId
-          : (deduplicatedVaults[0]?.id || null)
-        
+        const validVaultIds = new Set(deduplicatedVaults.map((v) => v.id))
+        const validActiveVaultId =
+          persistedActiveVaultId && validVaultIds.has(persistedActiveVaultId)
+            ? persistedActiveVaultId
+            : deduplicatedVaults[0]?.id || null
+
         // Ensure vaultPath matches the active vault's path
-        const activeVault = deduplicatedVaults.find(v => v.id === validActiveVaultId)
+        const activeVault = deduplicatedVaults.find((v) => v.id === validActiveVaultId)
         const validVaultPath = activeVault?.localPath || (persisted.vaultPath as string | null)
-        
+
         // Ensure activeView is a valid module ID (not a group ID like 'group-source-files')
         const persistedActiveView = persisted.activeView as string | undefined
-        const validModuleIds: Set<string> = new Set(MODULES.map(m => m.id))
+        const validModuleIds: Set<string> = new Set(MODULES.map((m) => m.id))
         let validActiveView: SidebarView = 'explorer'
         if (persistedActiveView && validModuleIds.has(persistedActiveView)) {
           validActiveView = persistedActiveView as SidebarView
@@ -284,7 +298,7 @@ export const usePDMStore = create<PDMStoreState>()(
           const children = getChildModules(persistedActiveView, getDefaultModuleConfig())
           validActiveView = (children[0]?.id ?? 'explorer') as SidebarView
         }
-        
+
         return {
           ...currentState,
           ...persisted,
@@ -297,29 +311,48 @@ export const usePDMStore = create<PDMStoreState>()(
           // Use validated activeView (prevents group IDs like 'group-source-files' from persisting)
           activeView: validActiveView,
           // Convert expandedFolders back to Set
-          expandedFolders: new Set(persisted.expandedFolders as string[] || []),
+          expandedFolders: new Set((persisted.expandedFolders as string[]) || []),
           // Convert expandedPendingSections back to Set
-          expandedPendingSections: new Set(persisted.expandedPendingSections as string[] || []),
+          expandedPendingSections: new Set((persisted.expandedPendingSections as string[]) || []),
           // Ensure cadPreviewMode has a default
           cadPreviewMode: (persisted.cadPreviewMode as 'thumbnail' | 'edrawings') || 'thumbnail',
           // Restore SolidWorks settings
-          solidworksIntegrationEnabled: persisted.solidworksIntegrationEnabled !== undefined 
-            ? (persisted.solidworksIntegrationEnabled as boolean) 
-            : true,  // Default enabled, onboarding will auto-detect
+          solidworksIntegrationEnabled:
+            persisted.solidworksIntegrationEnabled !== undefined
+              ? (persisted.solidworksIntegrationEnabled as boolean)
+              : true, // Default enabled, onboarding will auto-detect
           solidworksPath: (persisted.solidworksPath as string | null) || null,
           solidworksDmLicenseKey: (persisted.solidworksDmLicenseKey as string | null) || null,
           autoStartSolidworksService: (persisted.autoStartSolidworksService as boolean) ?? true,
-          hideSolidworksTempFiles: persisted.hideSolidworksTempFiles !== undefined ? (persisted.hideSolidworksTempFiles as boolean) : true,
-          ignoreSolidworksTempFiles: persisted.ignoreSolidworksTempFiles !== undefined ? (persisted.ignoreSolidworksTempFiles as boolean) : true,
+          hideSolidworksTempFiles:
+            persisted.hideSolidworksTempFiles !== undefined
+              ? (persisted.hideSolidworksTempFiles as boolean)
+              : true,
+          ignoreSolidworksTempFiles:
+            persisted.ignoreSolidworksTempFiles !== undefined
+              ? (persisted.ignoreSolidworksTempFiles as boolean)
+              : true,
           // Drawing field lockouts - default to true (locked) for new installs
-          lockDrawingRevision: persisted.lockDrawingRevision !== undefined ? (persisted.lockDrawingRevision as boolean) : true,
-          lockDrawingItemNumber: persisted.lockDrawingItemNumber !== undefined ? (persisted.lockDrawingItemNumber as boolean) : true,
-          lockDrawingDescription: persisted.lockDrawingDescription !== undefined ? (persisted.lockDrawingDescription as boolean) : true,
+          lockDrawingRevision:
+            persisted.lockDrawingRevision !== undefined
+              ? (persisted.lockDrawingRevision as boolean)
+              : true,
+          lockDrawingItemNumber:
+            persisted.lockDrawingItemNumber !== undefined
+              ? (persisted.lockDrawingItemNumber as boolean)
+              : true,
+          lockDrawingDescription:
+            persisted.lockDrawingDescription !== undefined
+              ? (persisted.lockDrawingDescription as boolean)
+              : true,
           // API Server URL - keep persisted value until org settings sync
           // The ApiSettings component will sync from org.settings.api_url when organization loads
           apiServerUrl: (persisted.apiServerUrl as string | null) || null,
           // Ensure lowercaseExtensions has a default (true)
-          lowercaseExtensions: persisted.lowercaseExtensions !== undefined ? persisted.lowercaseExtensions as boolean : true,
+          lowercaseExtensions:
+            persisted.lowercaseExtensions !== undefined
+              ? (persisted.lowercaseExtensions as boolean)
+              : true,
           // Ensure viewMode has a default
           viewMode: (persisted.viewMode as 'list' | 'icons') || 'list',
           // Ensure iconSize has a default
@@ -330,59 +363,78 @@ export const usePDMStore = create<PDMStoreState>()(
           // Ensure theme has a default
           theme: (persisted.theme as ThemeMode) || 'dark',
           // Restore autoApplySeasonalThemes (default to true)
-          autoApplySeasonalThemes: persisted.autoApplySeasonalThemes !== undefined ? (persisted.autoApplySeasonalThemes as boolean) : true,
+          autoApplySeasonalThemes:
+            persisted.autoApplySeasonalThemes !== undefined
+              ? (persisted.autoApplySeasonalThemes as boolean)
+              : true,
           // Ensure language has a default
           language: (persisted.language as Language) || 'en',
           // Restore hideCloudOnlyFolders (default to false - show all folders)
-          hideCloudOnlyFolders: persisted.hideCloudOnlyFolders !== undefined ? (persisted.hideCloudOnlyFolders as boolean) : false,
+          hideCloudOnlyFolders:
+            persisted.hideCloudOnlyFolders !== undefined
+              ? (persisted.hideCloudOnlyFolders as boolean)
+              : false,
           // Ensure settingsTab has a default
           settingsTab: (persisted.settingsTab as SettingsTab) || 'profile',
           // Ensure keybindings has defaults (merge with defaults for new keybindings)
-          keybindings: Object.assign({
-            navigateUp: { key: 'ArrowUp' },
-            navigateDown: { key: 'ArrowDown' },
-            expandFolder: { key: 'ArrowRight' },
-            collapseFolder: { key: 'ArrowLeft' },
-            selectAll: { key: 'a', ctrlKey: true },
-            copy: { key: 'c', ctrlKey: true },
-            cut: { key: 'x', ctrlKey: true },
-            paste: { key: 'v', ctrlKey: true },
-            delete: { key: 'Delete' },
-            escape: { key: 'Escape' },
-            openFile: { key: 'Enter' },
-            toggleDetailsPanel: { key: 'p', ctrlKey: true },
-            refresh: { key: 'r', ctrlKey: true },
-          }, persisted.keybindings as KeybindingsConfig || {}),
+          keybindings: Object.assign(
+            {
+              navigateUp: { key: 'ArrowUp' },
+              navigateDown: { key: 'ArrowDown' },
+              expandFolder: { key: 'ArrowRight' },
+              collapseFolder: { key: 'ArrowLeft' },
+              selectAll: { key: 'a', ctrlKey: true },
+              copy: { key: 'c', ctrlKey: true },
+              cut: { key: 'x', ctrlKey: true },
+              paste: { key: 'v', ctrlKey: true },
+              delete: { key: 'Delete' },
+              escape: { key: 'Escape' },
+              openFile: { key: 'Enter' },
+              toggleDetailsPanel: { key: 'p', ctrlKey: true },
+              refresh: { key: 'r', ctrlKey: true },
+            },
+            (persisted.keybindings as KeybindingsConfig) || {},
+          ),
           // Ensure onboarding state has defaults
           onboardingComplete: (persisted.onboardingComplete as boolean) || false,
           logSharingEnabled: (persisted.logSharingEnabled as boolean) || false,
           // Ensure auto-download settings have defaults
           autoDownloadCloudFiles: (persisted.autoDownloadCloudFiles as boolean) || false,
           autoDownloadUpdates: (persisted.autoDownloadUpdates as boolean) || false,
-          autoDownloadExcludedFiles: (persisted.autoDownloadExcludedFiles as Record<string, string[]>) || {},
-          autoDiscardOrphanedFiles: persisted.autoDiscardOrphanedFiles !== undefined
-            ? (persisted.autoDiscardOrphanedFiles as boolean)
-            : true,
+          autoDownloadExcludedFiles:
+            (persisted.autoDownloadExcludedFiles as Record<string, string[]>) || {},
+          autoDiscardOrphanedFiles:
+            persisted.autoDiscardOrphanedFiles !== undefined
+              ? (persisted.autoDiscardOrphanedFiles as boolean)
+              : true,
           // Ensure Christmas sleigh direction has default (new field for existing users)
-          christmasSleighDirection: (persisted.christmasSleighDirection as 'push' | 'pull') || 'push',
+          christmasSleighDirection:
+            (persisted.christmasSleighDirection as 'push' | 'pull') || 'push',
           // Ensure columns have all fields
-          columns: currentState.columns.map(defaultCol => {
-            const persistedCol = (persisted.columns as typeof currentState.columns || [])
-              .find(c => c.id === defaultCol.id)
+          columns: currentState.columns.map((defaultCol) => {
+            const persistedCol = ((persisted.columns as typeof currentState.columns) || []).find(
+              (c) => c.id === defaultCol.id,
+            )
             return persistedCol ? { ...defaultCol, ...persistedCol } : defaultCol
           }),
           // Ensure cardViewFields have all fields (merge persisted with defaults for new fields)
-          cardViewFields: defaultCardViewFields.map(defaultField => {
-            const persistedField = (persisted.cardViewFields as CardViewFieldConfig[] || [])
-              .find(f => f.id === defaultField.id)
+          cardViewFields: defaultCardViewFields.map((defaultField) => {
+            const persistedField = ((persisted.cardViewFields as CardViewFieldConfig[]) || []).find(
+              (f) => f.id === defaultField.id,
+            )
             return persistedField ? { ...defaultField, ...persistedField } : defaultField
           }),
           // Ensure ignorePatterns has a default
           ignorePatterns: (persisted.ignorePatterns as Record<string, string[]>) || {},
           // Restore persisted pending metadata
-          persistedPendingMetadata: (persisted.persistedPendingMetadata as Record<string, PendingMetadata>) || {},
+          persistedPendingMetadata:
+            (persisted.persistedPendingMetadata as Record<string, PendingMetadata>) || {},
           // Restore persisted copy source info (for version history preservation on paste)
-          persistedCopySource: (persisted.persistedCopySource as Record<string, { sourceFileId: string; version: number }>) || {},
+          persistedCopySource:
+            (persisted.persistedCopySource as Record<
+              string,
+              { sourceFileId: string; version: number }
+            >) || {},
           // Staged check-ins (offline mode)
           stagedCheckins: (persisted.stagedCheckins as StagedCheckin[]) || [],
           // Terminal settings
@@ -399,7 +451,7 @@ export const usePDMStore = create<PDMStoreState>()(
             const persistedTabs = persisted.tabs as Tab[] | undefined
             const persistedActiveTabId = persisted.activeTabId as string | undefined
             if (persistedTabs && persistedActiveTabId) {
-              const activeTab = persistedTabs.find(t => t.id === persistedActiveTabId)
+              const activeTab = persistedTabs.find((t) => t.id === persistedActiveTabId)
               if (activeTab?.folderPath) {
                 return activeTab.folderPath
               }
@@ -411,7 +463,7 @@ export const usePDMStore = create<PDMStoreState>()(
             const persistedConfig = persisted.moduleConfig as ModuleConfig | undefined
             const defaults = getDefaultModuleConfig()
             if (!persistedConfig) return defaults
-            
+
             // Merge enabled modules (keep persisted values, add defaults for new modules)
             const enabledModules = { ...defaults.enabledModules }
             for (const [key, value] of Object.entries(persistedConfig.enabledModules || {})) {
@@ -419,7 +471,7 @@ export const usePDMStore = create<PDMStoreState>()(
                 enabledModules[key as ModuleId] = value as boolean
               }
             }
-            
+
             // Merge enabled groups
             const enabledGroups = { ...defaults.enabledGroups }
             for (const [key, value] of Object.entries(persistedConfig.enabledGroups || {})) {
@@ -427,13 +479,13 @@ export const usePDMStore = create<PDMStoreState>()(
                 enabledGroups[key as ModuleGroupId] = value as boolean
               }
             }
-            
+
             // Module order - use persisted if valid, otherwise default
             let moduleOrder = defaults.moduleOrder
             if (persistedConfig.moduleOrder && Array.isArray(persistedConfig.moduleOrder)) {
               // Validate all modules exist
-              const validOrder = persistedConfig.moduleOrder.filter(
-                (id: string) => defaults.enabledModules.hasOwnProperty(id)
+              const validOrder = persistedConfig.moduleOrder.filter((id: string) =>
+                defaults.enabledModules.hasOwnProperty(id),
               )
               // Add any new modules that weren't in persisted order
               for (const id of defaults.moduleOrder) {
@@ -443,36 +495,39 @@ export const usePDMStore = create<PDMStoreState>()(
               }
               moduleOrder = validOrder as ModuleId[]
             }
-            
+
             // Dividers - use persisted if valid, migrate old format if needed
             let dividers = defaults.dividers
             if (persistedConfig.dividers && Array.isArray(persistedConfig.dividers)) {
               // Check if this is old format (has afterGroup) or new format (has position)
               const hasOldFormat = persistedConfig.dividers.some(
-                (d: any) => 'afterGroup' in d && !('position' in d)
+                (d: any) => 'afterGroup' in d && !('position' in d),
               )
-              
+
               if (hasOldFormat) {
                 // Migrate from old format - just use defaults for now
                 dividers = defaults.dividers
               } else {
                 // New format - use persisted dividers
                 dividers = persistedConfig.dividers.filter(
-                  (d: SectionDivider) => typeof d.position === 'number'
+                  (d: SectionDivider) => typeof d.position === 'number',
                 )
               }
             }
-            
+
             // Module parents - start from defaults, overlay persisted values
             const moduleParents = { ...defaults.moduleParents }
-            if (persistedConfig.moduleParents && Object.keys(persistedConfig.moduleParents).length > 0) {
+            if (
+              persistedConfig.moduleParents &&
+              Object.keys(persistedConfig.moduleParents).length > 0
+            ) {
               for (const [key, value] of Object.entries(persistedConfig.moduleParents)) {
                 if (key in moduleParents) {
                   moduleParents[key as ModuleId] = value as ModuleId | null
                 }
               }
             }
-            
+
             // Module icon colors - merge with defaults
             const moduleIconColors = { ...defaults.moduleIconColors }
             if (persistedConfig.moduleIconColors) {
@@ -482,20 +537,33 @@ export const usePDMStore = create<PDMStoreState>()(
                 }
               }
             }
-            
+
             // Custom groups - use defaults if persisted is empty (migration from old format)
             // Also validate that all groups have proper names
-            const customGroups = (persistedConfig.customGroups && persistedConfig.customGroups.length > 0) 
-              ? persistedConfig.customGroups.map(group => ({
-                  ...group,
-                  // Ensure name exists - derive from ID if missing
-                  name: group.name || group.id.replace('group-', '').split('-').map(
-                    (word: string) => word.charAt(0).toUpperCase() + word.slice(1)
-                  ).join(' ')
-                }))
-              : defaults.customGroups
-            
-            return { enabledModules, enabledGroups, moduleOrder, dividers, moduleParents, moduleIconColors, customGroups }
+            const customGroups =
+              persistedConfig.customGroups && persistedConfig.customGroups.length > 0
+                ? persistedConfig.customGroups.map((group) => ({
+                    ...group,
+                    // Ensure name exists - derive from ID if missing
+                    name:
+                      group.name ||
+                      group.id
+                        .replace('group-', '')
+                        .split('-')
+                        .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+                        .join(' '),
+                  }))
+                : defaults.customGroups
+
+            return {
+              enabledModules,
+              enabledGroups,
+              moduleOrder,
+              dividers,
+              moduleParents,
+              moduleIconColors,
+              customGroups,
+            }
           })(),
           // Module config sync timestamp (when user last synced org-forced config)
           moduleConfigLastSyncedAt: (persisted.moduleConfigLastSyncedAt as number | null) || null,
@@ -505,12 +573,18 @@ export const usePDMStore = create<PDMStoreState>()(
           tabs: (() => {
             const persistedTabs = persisted.tabs as Tab[] | undefined
             if (!persistedTabs || persistedTabs.length === 0) {
-              return [{
-                id: 'default-tab',
-                title: activeVault?.name || 'Explorer',
-                folderPath: '',
-                panelState: { sidebarVisible: true, detailsPanelVisible: true, rightPanelVisible: false }
-              }]
+              return [
+                {
+                  id: 'default-tab',
+                  title: activeVault?.name || 'Explorer',
+                  folderPath: '',
+                  panelState: {
+                    sidebarVisible: true,
+                    detailsPanelVisible: true,
+                    rightPanelVisible: false,
+                  },
+                },
+              ]
             }
             return persistedTabs
           })(),
@@ -521,41 +595,41 @@ export const usePDMStore = create<PDMStoreState>()(
               return 'default-tab'
             }
             // Ensure activeTabId points to a valid tab
-            const validTabIds = new Set(persistedTabs.map(t => t.id))
+            const validTabIds = new Set(persistedTabs.map((t) => t.id))
             if (persistedActiveTabId && validTabIds.has(persistedActiveTabId)) {
               return persistedActiveTabId
             }
             return persistedTabs[0]?.id || 'default-tab'
           })(),
         }
-      }
-    }
-  )
+      },
+    },
+  ),
 )
 
 // Convenience hooks - kept for backward compatibility
 export function useSelectedFiles() {
-  return usePDMStore(s => s.getSelectedFileObjects())
+  return usePDMStore((s) => s.getSelectedFileObjects())
 }
 
 export function useVisibleFiles() {
-  return usePDMStore(s => s.getVisibleFiles())
+  return usePDMStore((s) => s.getVisibleFiles())
 }
 
 /**
  * Hook to check if the Zustand store has completed hydration from localStorage.
- * 
+ *
  * Use this when you need to wait for persisted values before taking action.
  * For example, the SolidWorks auto-start hook waits for hydration to ensure
  * it reads the user's actual preferences rather than defaults.
- * 
+ *
  * @returns true if hydration is complete, false if still loading from localStorage
- * 
+ *
  * @example
  * ```tsx
  * const hasHydrated = useHasHydrated()
  * const autoStart = usePDMStore(s => s.autoStartSolidworksService)
- * 
+ *
  * useEffect(() => {
  *   if (!hasHydrated) return // Wait for real preferences
  *   if (autoStart) startService()
@@ -570,7 +644,7 @@ export function useHasHydrated(): boolean {
     (callback: () => void) => {
       // If already hydrated, no need to subscribe
       if (storeHasHydrated) return () => {}
-      
+
       // Poll for hydration completion (simple approach)
       // Zustand's persist middleware doesn't expose a subscription API
       const interval = setInterval(() => {
@@ -579,22 +653,22 @@ export function useHasHydrated(): boolean {
           clearInterval(interval)
         }
       }, 50)
-      
+
       return () => clearInterval(interval)
     },
     // getSnapshot: returns current hydration state
     () => storeHasHydrated,
     // getServerSnapshot: for SSR (not used in Electron, but required)
-    () => true
+    () => true,
   )
 }
 
 /**
  * Synchronous check for hydration status.
- * 
+ *
  * Prefer `useHasHydrated()` hook in React components for proper reactivity.
  * This is useful for non-React code or one-time checks.
- * 
+ *
  * @returns true if hydration is complete
  */
 export function getHasHydrated(): boolean {

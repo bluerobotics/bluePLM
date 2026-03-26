@@ -1,6 +1,6 @@
 /**
  * TeamsTab - Displays and manages organization teams
- * 
+ *
  * This component uses hooks directly instead of context:
  * - usePDMStore for user/org info
  * - useTeams for team data
@@ -24,22 +24,15 @@ import {
   LayoutGrid,
   Loader2,
   AlertTriangle,
-  ClipboardCheck
+  ClipboardCheck,
 } from 'lucide-react'
 import { PermissionsEditor } from '@/features/settings/organization/PermissionsEditor'
 import { usePDMStore } from '@/stores/pdmStore'
 import { useTeams, useMembers, useVaultAccess, useTeamDialogs } from '../hooks'
 import { useFilteredData } from '../hooks/useFilteredData'
 import { ConnectedUserRow } from '../components/user'
-import {
-  TeamFormDialog,
-  DeleteTeamDialog
-} from '../components/dialogs'
-import {
-  TeamMembersDialog,
-  TeamModulesDialog,
-  TeamVaultAccessDialog,
-} from '../components/team'
+import { TeamFormDialog, DeleteTeamDialog } from '../components/dialogs'
+import { TeamMembersDialog, TeamModulesDialog, TeamVaultAccessDialog } from '../components/team'
 import { TeamReviewersDialog } from '../components/team/TeamReviewersDialog'
 
 export interface TeamsTabProps {
@@ -56,22 +49,11 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
   const isAdmin = getEffectiveRole() === 'admin'
 
   // Data hooks
-  const {
-    teams,
-    loadTeams,
-    createTeam,
-    updateTeam,
-    deleteTeam,
-    setDefaultTeam
-  } = useTeams(orgId)
-  
+  const { teams, loadTeams, createTeam, updateTeam, deleteTeam, setDefaultTeam } = useTeams(orgId)
+
   const { members: orgUsers, loadMembers: loadOrgUsers } = useMembers(orgId)
-  
-  const {
-    vaults: orgVaults,
-    teamVaultAccessMap,
-    saveTeamVaultAccess
-  } = useVaultAccess(orgId)
+
+  const { vaults: orgVaults, teamVaultAccessMap, saveTeamVaultAccess } = useVaultAccess(orgId)
 
   // Filtered data
   const { filteredTeams } = useFilteredData({ orgUsers, teams, searchQuery })
@@ -109,7 +91,7 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
     resetTeamForm,
     openEditTeamDialog,
     openModulesDialog,
-    openTeamReviewersDialog
+    openTeamReviewersDialog,
   } = useTeamDialogs()
 
   // Local UI state
@@ -118,7 +100,7 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
 
   // Handlers
   const toggleTeamExpand = (teamId: string) => {
-    setExpandedTeams(prev => {
+    setExpandedTeams((prev) => {
       const next = new Set(prev)
       if (next.has(teamId)) {
         next.delete(teamId)
@@ -180,14 +162,14 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
         teamId,
         organization.id,
         setOrganization as (org: OrgWithDefaultTeam) => void,
-        organization as OrgWithDefaultTeam
+        organization as OrgWithDefaultTeam,
       )
     } finally {
       setIsSavingDefaultTeam(false)
     }
   }
 
-  const openTeamVaultAccessDialog = (team: typeof teams[0]) => {
+  const openTeamVaultAccessDialog = (team: (typeof teams)[0]) => {
     setSelectedTeam(team)
     setPendingTeamVaultAccess(teamVaultAccessMap[team.id] || [])
     setShowTeamVaultAccessDialog(true)
@@ -200,7 +182,7 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
       const success = await saveTeamVaultAccess(
         selectedTeam.id,
         pendingTeamVaultAccess,
-        selectedTeam.name
+        selectedTeam.name,
       )
       if (success) {
         setShowTeamVaultAccessDialog(false)
@@ -230,14 +212,19 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
             </div>
             <div className="flex items-center gap-2">
               <select
-                value={(organization as { default_new_user_team_id?: string | null } | null)?.default_new_user_team_id || ''}
+                value={
+                  (organization as { default_new_user_team_id?: string | null } | null)
+                    ?.default_new_user_team_id || ''
+                }
                 onChange={(e) => handleSetDefaultTeam(e.target.value || null)}
                 disabled={isSavingDefaultTeam}
                 className="px-3 py-1.5 text-sm bg-plm-bg-secondary border border-plm-border rounded-lg text-plm-fg focus:outline-none focus:border-plm-accent disabled:opacity-50"
               >
                 <option value="">Unassigned (no team permissions)</option>
-                {teams.map(team => (
-                  <option key={team.id} value={team.id}>{team.name}</option>
+                {teams.map((team) => (
+                  <option key={team.id} value={team.id}>
+                    {team.name}
+                  </option>
                 ))}
               </select>
               {isSavingDefaultTeam && (
@@ -245,7 +232,8 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
               )}
             </div>
           </div>
-          {!(organization as { default_new_user_team_id?: string | null } | null)?.default_new_user_team_id && (
+          {!(organization as { default_new_user_team_id?: string | null } | null)
+            ?.default_new_user_team_id && (
             <p className="mt-2 text-xs text-yellow-500 flex items-center gap-1">
               <AlertTriangle size={12} />
               New users will have no team permissions until manually assigned
@@ -253,16 +241,13 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
           )}
         </div>
       )}
-      
+
       {filteredTeams.length === 0 ? (
         <div className="text-center py-8 border border-dashed border-plm-border rounded-lg">
           <Users size={36} className="mx-auto text-plm-fg-muted mb-3 opacity-50" />
           <p className="text-sm text-plm-fg-muted mb-4">No teams yet</p>
           {isAdmin && onShowCreateTeamDialog && (
-            <button
-              onClick={onShowCreateTeamDialog}
-              className="btn btn-primary btn-sm"
-            >
+            <button onClick={onShowCreateTeamDialog} className="btn btn-primary btn-sm">
               <Plus size={14} className="mr-1" />
               Create First Team
             </button>
@@ -270,28 +255,33 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
         </div>
       ) : (
         <div className="rounded-lg bg-plm-bg/50 ring-1 ring-white/5 divide-y divide-white/10">
-          {filteredTeams.map(team => {
-            const IconComponent = (LucideIcons as unknown as Record<string, React.ComponentType<{ size?: number }>>)[team.icon] || Users
+          {filteredTeams.map((team) => {
+            const IconComponent =
+              (LucideIcons as unknown as Record<string, React.ComponentType<{ size?: number }>>)[
+                team.icon
+              ] || Users
             const isExpanded = expandedTeams.has(team.id)
-            const teamMembers = orgUsers.filter(u => u.teams?.some(t => t.id === team.id))
+            const teamMembers = orgUsers.filter((u) => u.teams?.some((t) => t.id === team.id))
             const teamVaults = teamVaultAccessMap[team.id] || []
-            
+
             return (
               <div
                 key={team.id}
                 className={`overflow-hidden transition-all first:rounded-t-lg last:rounded-b-lg ${
-                  isExpanded 
-                    ? 'bg-plm-bg/30 ring-1 ring-plm-accent/30 relative z-10 rounded-lg -mx-1 px-1' 
+                  isExpanded
+                    ? 'bg-plm-bg/30 ring-1 ring-plm-accent/30 relative z-10 rounded-lg -mx-1 px-1'
                     : ''
                 }`}
-                style={isExpanded ? { boxShadow: '0 0 30px 8px rgba(0,0,0,0.5), 0 0 60px 15px rgba(0,0,0,0.3)' } : undefined}
+                style={
+                  isExpanded
+                    ? { boxShadow: '0 0 30px 8px rgba(0,0,0,0.5), 0 0 60px 15px rgba(0,0,0,0.3)' }
+                    : undefined
+                }
               >
                 {/* Team Header */}
                 <div
                   className={`flex items-center gap-3 p-3 cursor-pointer transition-colors border-l-[3px] ${
-                    isExpanded 
-                      ? 'bg-plm-highlight/40' 
-                      : 'hover:bg-plm-highlight'
+                    isExpanded ? 'bg-plm-highlight/40' : 'hover:bg-plm-highlight'
                   }`}
                   style={{ borderLeftColor: team.color }}
                   onClick={() => toggleTeamExpand(team.id)}
@@ -302,7 +292,7 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
                   >
                     <IconComponent size={18} />
                   </div>
-                  
+
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <h4 className="font-medium text-plm-fg truncate">{team.name}</h4>
@@ -316,9 +306,13 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
                       )}
                     </div>
                     <div className="text-xs text-plm-fg-muted flex items-center gap-3">
-                      <span>{team.member_count} member{team.member_count !== 1 ? 's' : ''}</span>
+                      <span>
+                        {team.member_count} member{team.member_count !== 1 ? 's' : ''}
+                      </span>
                       <span>•</span>
-                      <span>{team.permissions_count} permission{team.permissions_count !== 1 ? 's' : ''}</span>
+                      <span>
+                        {team.permissions_count} permission{team.permissions_count !== 1 ? 's' : ''}
+                      </span>
                       {teamVaults.length > 0 && (
                         <>
                           <span>•</span>
@@ -330,14 +324,14 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
                       )}
                     </div>
                   </div>
-                  
+
                   {isExpanded ? (
                     <ChevronDown size={18} className="text-plm-fg-muted" />
                   ) : (
                     <ChevronRight size={18} className="text-plm-fg-muted" />
                   )}
                 </div>
-                
+
                 {/* Expanded Content */}
                 {isExpanded && (
                   <div className="border-t border-white/10">
@@ -434,7 +428,7 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
                         )}
                       </div>
                     )}
-                    
+
                     {/* Team Members List */}
                     <div>
                       {teamMembers.length === 0 ? (
@@ -443,7 +437,7 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
                         </p>
                       ) : (
                         <div className="divide-y divide-white/10">
-                          {teamMembers.map(member => (
+                          {teamMembers.map((member) => (
                             <ConnectedUserRow
                               key={member.id}
                               user={member}

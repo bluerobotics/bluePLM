@@ -1,20 +1,20 @@
 /**
  * Schema Version Checking
- * 
+ *
  * Detects mismatches between the app's expected database schema version
  * and the actual schema version in the database. This helps users understand
  * when their organization's database needs to be updated.
- * 
+ *
  * VERSION HISTORY:
  * - Version 1: Initial schema version tracking (v2.15.0)
  * - Version 2: Added workflow_roles, job_titles, pending_org_members, vault_users (v2.16.0)
  * - Version 3: Added auth_providers to organizations for SSO control (v2.16.6)
- * 
+ *
  * DATABASE SCHEMA LOCATION:
  * The schema is now modular - see supabase/README.md for details:
  * - supabase/core.sql - Foundation (orgs, users, teams, permissions)
  * - supabase/modules/*.sql - Feature modules (source files, change control, etc.)
- * 
+ *
  * When making schema changes:
  * 1. Increment EXPECTED_SCHEMA_VERSION here
  * 2. Update the appropriate module file in supabase/ (core.sql or modules/*.sql)
@@ -43,7 +43,7 @@ export const VERSION_DESCRIPTIONS: Record<number, string> = {
   7: 'Invited users use default team when no teams specified, migration for existing orgs',
   8: 'RLS policy for users to see their own pending membership (fixes invite flow)',
   9: 'Invite triggers fire on UPDATE for re-login flow',
-  10: 'join_org_by_slug creates user record if trigger hasn\'t fired (fixes org code race condition)',
+  10: "join_org_by_slug creates user record if trigger hasn't fired (fixes org code race condition)",
   11: 'Case-insensitive email matching for pending_org_members (fixes invite flow with different email case)',
   12: 'Block user feature and regenerate org code (security features)',
   13: 'Fixed invite org assignment - handle_new_user includes org_id in UPDATE',
@@ -128,8 +128,13 @@ export async function getSchemaVersion(): Promise<SchemaVersionInfo | null> {
     }
 
     // Type assertion needed because supabase client uses @ts-nocheck
-    const row = data as { version: number; description: string | null; applied_at: string | null; applied_by: string | null }
-    
+    const row = data as {
+      version: number
+      description: string | null
+      applied_at: string | null
+      applied_by: string | null
+    }
+
     return {
       version: row.version,
       description: row.description,
@@ -154,7 +159,8 @@ export async function checkSchemaCompatibility(): Promise<SchemaCheckResult> {
       dbVersion: null,
       expectedVersion: EXPECTED_SCHEMA_VERSION,
       message: 'Database schema version unknown',
-      details: 'Your organization\'s database was created before schema version tracking was added. ' +
+      details:
+        "Your organization's database was created before schema version tracking was added. " +
         'Ask your admin to run the latest schema (core.sql + modules) to enable version tracking and get the latest features.',
     }
   }
@@ -178,7 +184,8 @@ export async function checkSchemaCompatibility(): Promise<SchemaCheckResult> {
       dbVersion,
       expectedVersion: EXPECTED_SCHEMA_VERSION,
       message: 'App update available',
-      details: `Your database (v${dbVersion}) is newer than this app expects (v${EXPECTED_SCHEMA_VERSION}). ` +
+      details:
+        `Your database (v${dbVersion}) is newer than this app expects (v${EXPECTED_SCHEMA_VERSION}). ` +
         'Please update BluePLM to the latest version for the best experience.',
     }
   }
@@ -191,7 +198,8 @@ export async function checkSchemaCompatibility(): Promise<SchemaCheckResult> {
       dbVersion,
       expectedVersion: EXPECTED_SCHEMA_VERSION,
       message: 'Database schema update required',
-      details: `Your organization's database (v${dbVersion}) is too old for this app version. ` +
+      details:
+        `Your organization's database (v${dbVersion}) is too old for this app version. ` +
         `Required: v${MINIMUM_COMPATIBLE_VERSION}+. Ask your admin to run the latest schema (core.sql + modules).`,
     }
   }
@@ -202,7 +210,8 @@ export async function checkSchemaCompatibility(): Promise<SchemaCheckResult> {
     dbVersion,
     expectedVersion: EXPECTED_SCHEMA_VERSION,
     message: 'Database schema update available',
-    details: `Your organization's database is on v${dbVersion}, but v${EXPECTED_SCHEMA_VERSION} is available. ` +
+    details:
+      `Your organization's database is on v${dbVersion}, but v${EXPECTED_SCHEMA_VERSION} is available. ` +
       'Some new features may not work until your admin runs the latest schema (core.sql + modules).',
   }
 }
@@ -219,4 +228,3 @@ export function getVersionChangelog(fromVersion: number, toVersion: number): str
   }
   return changes
 }
-

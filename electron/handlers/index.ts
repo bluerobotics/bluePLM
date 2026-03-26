@@ -1,19 +1,86 @@
 // Handler registry - registers all IPC handlers
 import { BrowserWindow, ipcMain } from 'electron'
 
-import { registerFsHandlers, unregisterFsHandlers, getWorkingDirectory, cleanupFs, FsHandlerDependencies } from './fs'
-import { registerBackupHandlers, unregisterBackupHandlers, BackupHandlerDependencies } from './backup'
-import { registerSolidWorksHandlers, unregisterSolidWorksHandlers, cleanupSolidWorksService, isFileBeingThumbnailed, getThumbnailsInProgress, SolidWorksHandlerDependencies } from './solidworks'
-import { registerDialogHandlers, unregisterDialogHandlers, DialogHandlerDependencies } from './dialogs'
-import { registerSystemHandlers, unregisterSystemHandlers, SystemHandlerDependencies } from './system'
-import { registerLoggingHandlers, unregisterLoggingHandlers, writeLog, initializeLogging, LoggingHandlerDependencies } from './logging'
-import { registerUpdaterHandlers, unregisterUpdaterHandlers, cleanupUpdater, UpdaterHandlerDependencies } from './updater'
-import { registerOAuthHandlers, unregisterOAuthHandlers, cleanupOAuth, OAuthHandlerDependencies } from './oauth'
-import { registerCliHandlers, unregisterCliHandlers, startCliServer, cleanupCli, CliHandlerDependencies } from './cli'
+import {
+  registerFsHandlers,
+  unregisterFsHandlers,
+  getWorkingDirectory,
+  cleanupFs,
+  FsHandlerDependencies,
+} from './fs'
+import {
+  registerBackupHandlers,
+  unregisterBackupHandlers,
+  BackupHandlerDependencies,
+} from './backup'
+import {
+  registerSolidWorksHandlers,
+  unregisterSolidWorksHandlers,
+  cleanupSolidWorksService,
+  isFileBeingThumbnailed,
+  getThumbnailsInProgress,
+  SolidWorksHandlerDependencies,
+} from './solidworks'
+import {
+  registerDialogHandlers,
+  unregisterDialogHandlers,
+  DialogHandlerDependencies,
+} from './dialogs'
+import {
+  registerSystemHandlers,
+  unregisterSystemHandlers,
+  SystemHandlerDependencies,
+} from './system'
+import {
+  registerLoggingHandlers,
+  unregisterLoggingHandlers,
+  writeLog,
+  initializeLogging,
+  LoggingHandlerDependencies,
+} from './logging'
+import {
+  registerUpdaterHandlers,
+  unregisterUpdaterHandlers,
+  cleanupUpdater,
+  UpdaterHandlerDependencies,
+} from './updater'
+import {
+  registerOAuthHandlers,
+  unregisterOAuthHandlers,
+  cleanupOAuth,
+  OAuthHandlerDependencies,
+} from './oauth'
+import {
+  registerCliHandlers,
+  unregisterCliHandlers,
+  startCliServer,
+  cleanupCli,
+  CliHandlerDependencies,
+} from './cli'
 import { performMigrationCheck, getMigrationResult, wasMigrationPerformed } from './migration'
-import { registerExtensionHostHandlers, unregisterExtensionHostHandlers, cleanupExtensionHost, onExtensionStateChange, type ExtensionHostHandlerDependencies } from './extensionHost'
-import { registerDeepLinkHandlers, unregisterDeepLinkHandlers, handleDeepLink, parseDeepLink, storePendingDeepLink, processPendingDeepLink, hasPendingDeepLink, setDeepLinkDependencies, type DeepLinkHandlerDependencies } from './deepLink'
-import { registerArchiveHandlers, unregisterArchiveHandlers, type ArchiveHandlerDependencies } from './archive'
+import {
+  registerExtensionHostHandlers,
+  unregisterExtensionHostHandlers,
+  cleanupExtensionHost,
+  onExtensionStateChange,
+  type ExtensionHostHandlerDependencies,
+} from './extensionHost'
+import {
+  registerDeepLinkHandlers,
+  unregisterDeepLinkHandlers,
+  handleDeepLink,
+  parseDeepLink,
+  storePendingDeepLink,
+  processPendingDeepLink,
+  hasPendingDeepLink,
+  setDeepLinkDependencies,
+  type DeepLinkHandlerDependencies,
+} from './deepLink'
+import {
+  registerArchiveHandlers,
+  unregisterArchiveHandlers,
+  type ArchiveHandlerDependencies,
+} from './archive'
 
 // Logging utilities for main.ts
 export { writeLog, initializeLogging } from './logging'
@@ -28,7 +95,14 @@ export { startCliServer, cleanupCli } from './cli'
 export { cleanupExtensionHost, onExtensionStateChange } from './extensionHost'
 
 // Deep Link exports for main.ts
-export { handleDeepLink, parseDeepLink, storePendingDeepLink, processPendingDeepLink, hasPendingDeepLink, setDeepLinkDependencies } from './deepLink'
+export {
+  handleDeepLink,
+  parseDeepLink,
+  storePendingDeepLink,
+  processPendingDeepLink,
+  hasPendingDeepLink,
+  setDeepLinkDependencies,
+} from './deepLink'
 
 // OAuth cleanup for main.ts
 export { cleanupOAuth } from './oauth'
@@ -85,59 +159,59 @@ export function registerAllHandlers(mainWindow: BrowserWindow, deps: AllHandlerD
     logWarn,
     isFileBeingThumbnailed,
     thumbnailsInProgress: getThumbnailsInProgress(),
-    restoreMainWindowFocus: restoreMainWindowFocusFn
+    restoreMainWindowFocus: restoreMainWindowFocusFn,
   }
 
   const backupHandlerDeps: BackupHandlerDependencies = {
     log,
     logError,
-    getWorkingDirectory
+    getWorkingDirectory,
   }
 
   const solidWorksHandlerDeps: SolidWorksHandlerDependencies = {
     log,
     logError,
-    logWarn
+    logWarn,
   }
 
   const dialogHandlerDeps: DialogHandlerDependencies = {
     log,
-    restoreMainWindowFocus: restoreMainWindowFocusFn
+    restoreMainWindowFocus: restoreMainWindowFocusFn,
   }
 
   const systemHandlerDeps: SystemHandlerDependencies = {
-    log
+    log,
   }
 
   const loggingHandlerDeps: LoggingHandlerDependencies = {}
 
   const updaterHandlerDeps: UpdaterHandlerDependencies = {
     log,
-    logError
+    logError,
   }
 
   const oauthHandlerDeps: OAuthHandlerDependencies = {
-    log
+    log,
   }
 
   const cliHandlerDeps: CliHandlerDependencies = {
     log,
-    logError
+    logError,
   }
 
   const extensionHostHandlerDeps: ExtensionHostHandlerDependencies = {
     log,
-    logError
+    logError,
   }
 
   const deepLinkHandlerDeps: DeepLinkHandlerDependencies = {
     log,
-    logError
+    logError,
   }
 
   const archiveHandlerDeps: ArchiveHandlerDependencies = {
     log,
-    logError
+    logError,
   }
 
   // Register all handlers

@@ -13,25 +13,25 @@ import { usePDMStore } from '@/stores/pdmStore'
 
 // All translations indexed by language code
 const translations: Record<Language, Record<string, string>> = {
-  'en': flattenTranslations(en),
-  'fr': flattenTranslations(fr),
-  'de': flattenTranslations(de),
-  'es': flattenTranslations(es),
-  'pt': flattenTranslations(pt),       // Portuguese
-  'zh-CN': flattenTranslations(zhCN),  // Simplified Chinese (Mandarin)
-  'zh-TW': flattenTranslations(zhTW),  // Traditional Chinese
+  en: flattenTranslations(en),
+  fr: flattenTranslations(fr),
+  de: flattenTranslations(de),
+  es: flattenTranslations(es),
+  pt: flattenTranslations(pt), // Portuguese
+  'zh-CN': flattenTranslations(zhCN), // Simplified Chinese (Mandarin)
+  'zh-TW': flattenTranslations(zhTW), // Traditional Chinese
   // Use English as fallback for languages not yet translated
-  'it': flattenTranslations(en),
-  'nl': flattenTranslations(en),
-  'sv': flattenTranslations(en),
-  'pl': flattenTranslations(en),
-  'ru': flattenTranslations(en),
-  'ja': flattenTranslations(en),
-  'ko': flattenTranslations(en),
+  it: flattenTranslations(en),
+  nl: flattenTranslations(en),
+  sv: flattenTranslations(en),
+  pl: flattenTranslations(en),
+  ru: flattenTranslations(en),
+  ja: flattenTranslations(en),
+  ko: flattenTranslations(en),
   // 🧝 Easter Egg: Sindarin (Elvish) - Uses English text with Tengwar font
   // The Tengwar font maps Latin letters to Elvish script characters,
   // making the entire UI beautifully unreadable!
-  'sindarin': flattenTranslations(en),
+  sindarin: flattenTranslations(en),
 }
 
 /**
@@ -40,17 +40,26 @@ const translations: Record<Language, Record<string, string>> = {
  *        t('preferences.language') // Returns "Language" or "Langue" etc.
  */
 export function useTranslation() {
-  const language = usePDMStore(state => state.language)
-  
+  const language = usePDMStore((state) => state.language)
+
   const t = (key: string, fallback?: string): string => {
     const dict = translations[language] || translations['en']
     const enDict = translations['en']
-    
+
     // Try current language first, then fallback to English, then to provided fallback or key
     return dict[key] || enDict[key] || fallback || key
   }
-  
+
   return { t, language }
+}
+
+/**
+ * Standalone translation function — reads the active language from the store.
+ * Safe to call anywhere (components, callbacks, utility functions).
+ */
+export function t(key: string, fallback?: string): string {
+  const language = usePDMStore.getState().language
+  return getTranslation(language, key, fallback)
 }
 
 /**

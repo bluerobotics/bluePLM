@@ -1,9 +1,9 @@
 /**
  * StagedCheckinConflictDialog
- * 
+ *
  * Shows when files staged for check-in have conflicts with server versions.
  * This happens when the server has a newer version than when the file was staged offline.
- * 
+ *
  * Options:
  * - Keep Local: Force upload local changes, overwriting server version
  * - Keep Server: Discard local changes and get latest from server
@@ -12,16 +12,16 @@
 
 import { useState } from 'react'
 import { log } from '@/lib/logger'
-import { 
-  X, 
-  Upload, 
-  Download, 
-  Copy, 
+import {
+  X,
+  Upload,
+  Download,
+  Copy,
   AlertTriangle,
   File,
   Loader2,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
 } from 'lucide-react'
 import { usePDMStore, StagedCheckin } from '@/stores/pdmStore'
 import { executeCommand } from '@/lib/commands'
@@ -42,22 +42,22 @@ const ACTIONS: ActionConfig[] = [
     label: 'Keep My Changes',
     description: 'Upload your local changes, replacing the server version',
     icon: Upload,
-    variant: 'warning'
+    variant: 'warning',
   },
   {
     key: 'keep-server',
     label: 'Keep Server Version',
     description: 'Discard your local changes and download the latest from server',
     icon: Download,
-    variant: 'danger'
+    variant: 'danger',
   },
   {
     key: 'backup',
     label: 'Save Backup & Get Server',
     description: 'Save your local file as a backup copy, then get the server version',
     icon: Copy,
-    variant: 'default'
-  }
+    variant: 'default',
+  },
 ]
 
 interface ConflictDialogProps {
@@ -70,7 +70,11 @@ interface ConflictDialogProps {
   onRefresh?: () => void
 }
 
-export function StagedCheckinConflictDialog({ conflicts, onClose, onRefresh }: ConflictDialogProps) {
+export function StagedCheckinConflictDialog({
+  conflicts,
+  onClose,
+  onRefresh,
+}: ConflictDialogProps) {
   const { unstageCheckin, addToast, vaultPath } = usePDMStore()
   const [processing, setProcessing] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
@@ -85,14 +89,14 @@ export function StagedCheckinConflictDialog({ conflicts, onClose, onRefresh }: C
     setExpanded(next)
   }
 
-  const handleAction = async (conflict: typeof conflicts[0], action: ActionType) => {
+  const handleAction = async (conflict: (typeof conflicts)[0], action: ActionType) => {
     const { staged, localPath } = conflict
     setProcessing(staged.relativePath)
 
     try {
       const { files } = usePDMStore.getState()
-      const file = files.find(f => f.relativePath === staged.relativePath)
-      
+      const file = files.find((f) => f.relativePath === staged.relativePath)
+
       if (!file) {
         addToast('error', `File not found: ${staged.fileName}`)
         setProcessing(null)
@@ -103,10 +107,14 @@ export function StagedCheckinConflictDialog({ conflicts, onClose, onRefresh }: C
         case 'keep-local': {
           // Force checkout and checkin with local changes
           await executeCommand('checkout', { files: [file] }, { silent: true })
-          await executeCommand('checkin', { 
-            files: [file], 
-            comment: staged.comment || 'Offline changes (resolved conflict)' 
-          }, { silent: true })
+          await executeCommand(
+            'checkin',
+            {
+              files: [file],
+              comment: staged.comment || 'Offline changes (resolved conflict)',
+            },
+            { silent: true },
+          )
           addToast('success', `Uploaded your changes for "${staged.fileName}"`)
           break
         }
@@ -123,10 +131,13 @@ export function StagedCheckinConflictDialog({ conflicts, onClose, onRefresh }: C
           if (vaultPath) {
             const backupName = staged.fileName.replace(/(\.[^.]+)$/, '_backup$1')
             const backupPath = localPath.replace(staged.fileName, backupName)
-            
+
             await window.electronAPI?.copyFile(localPath, backupPath)
             await executeCommand('get-latest', { files: [file] }, { silent: true })
-            addToast('success', `Saved backup and downloaded server version of "${staged.fileName}"`)
+            addToast(
+              'success',
+              `Saved backup and downloaded server version of "${staged.fileName}"`,
+            )
           }
           break
         }
@@ -134,13 +145,15 @@ export function StagedCheckinConflictDialog({ conflicts, onClose, onRefresh }: C
 
       // Remove from staged
       unstageCheckin(staged.relativePath)
-      
-    } catch (err) {
-      log.error('[ConflictResolution]', 'Error resolving conflict', { error: err })
-      addToast('error', `Failed to resolve conflict: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    } catch (error) {
+      log.error('[ConflictResolution]', 'Error resolving conflict', { error: error })
+      addToast(
+        'error',
+        `Failed to resolve conflict: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      )
     } finally {
       setProcessing(null)
-      
+
       // If this was the last conflict, close dialog and refresh
       if (conflicts.length === 1) {
         onRefresh?.()
@@ -162,10 +175,9 @@ export function StagedCheckinConflictDialog({ conflicts, onClose, onRefresh }: C
           <div className="flex-1">
             <h2 className="text-lg font-semibold text-plm-fg">Conflict Detected</h2>
             <p className="text-sm text-plm-fg-muted">
-              {conflicts.length === 1 
+              {conflicts.length === 1
                 ? 'This file was modified on the server while you were offline.'
-                : `${conflicts.length} files were modified on the server while you were offline.`
-              }
+                : `${conflicts.length} files were modified on the server while you were offline.`}
             </p>
           </div>
           <button
@@ -183,7 +195,7 @@ export function StagedCheckinConflictDialog({ conflicts, onClose, onRefresh }: C
             const isProcessing = processing === conflict.staged.relativePath
 
             return (
-              <div 
+              <div
                 key={conflict.staged.relativePath}
                 className="border border-plm-border rounded-lg overflow-hidden"
               >
@@ -200,7 +212,8 @@ export function StagedCheckinConflictDialog({ conflicts, onClose, onRefresh }: C
                       {conflict.staged.fileName}
                     </p>
                     <p className="text-xs text-plm-fg-muted">
-                      Your version: v{conflict.staged.serverVersion || '?'} → Server: v{conflict.serverVersion}
+                      Your version: v{conflict.staged.serverVersion || '?'} → Server: v
+                      {conflict.serverVersion}
                     </p>
                   </div>
                   {isProcessing && <Loader2 size={16} className="animate-spin text-plm-accent" />}
@@ -214,11 +227,11 @@ export function StagedCheckinConflictDialog({ conflicts, onClose, onRefresh }: C
                         key={action.key}
                         onClick={() => handleAction(conflict, action.key)}
                         className={`w-full flex items-center gap-3 p-2.5 rounded-md text-left transition-colors ${
-                          action.variant === 'warning' 
-                            ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-400' 
+                          action.variant === 'warning'
+                            ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-400'
                             : action.variant === 'danger'
-                            ? 'bg-red-500/10 hover:bg-red-500/20 text-red-400'
-                            : 'bg-plm-highlight hover:bg-plm-highlight/80 text-plm-fg'
+                              ? 'bg-red-500/10 hover:bg-red-500/20 text-red-400'
+                              : 'bg-plm-highlight hover:bg-plm-highlight/80 text-plm-fg'
                         }`}
                       >
                         <action.icon size={16} />
@@ -249,15 +262,17 @@ export function StagedCheckinConflictDialog({ conflicts, onClose, onRefresh }: C
 // Container component that connects to store
 export function StagedCheckinConflictContainer({ onRefresh }: { onRefresh?: () => void }) {
   const [showDialog, setShowDialog] = useState(false)
-  const [conflicts, setConflicts] = useState<Array<{
-    staged: StagedCheckin
-    serverVersion: number
-    localPath: string
-  }>>([])
+  const [conflicts, setConflicts] = useState<
+    Array<{
+      staged: StagedCheckin
+      serverVersion: number
+      localPath: string
+    }>
+  >([])
 
   // This component is meant to be controlled externally
   // The conflicts should be passed in when detected during online transition
-  
+
   if (!showDialog || conflicts.length === 0) return null
 
   return (
@@ -271,4 +286,3 @@ export function StagedCheckinConflictContainer({ onRefresh }: { onRefresh?: () =
     />
   )
 }
-

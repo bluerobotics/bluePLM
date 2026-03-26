@@ -16,14 +16,14 @@ export const DeleteLocalCheckoutDialog = memo(function DeleteLocalCheckoutDialog
   checkedOutFiles,
   onCheckinFirst,
   onDiscardChanges,
-  onCancel
+  onCancel,
 }: DeleteLocalCheckoutDialogProps) {
   return (
-    <div 
+    <div
       className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center"
       onClick={onCancel}
     >
-      <div 
+      <div
         className="bg-plm-bg-light border border-plm-border rounded-lg p-6 max-w-md shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
@@ -32,15 +32,14 @@ export const DeleteLocalCheckoutDialog = memo(function DeleteLocalCheckoutDialog
             <AlertTriangle size={20} className="text-plm-warning" />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-plm-fg">
-              Files Are Checked Out
-            </h3>
+            <h3 className="text-lg font-semibold text-plm-fg">Files Are Checked Out</h3>
             <p className="text-sm text-plm-fg-muted">
-              {checkedOutFiles.length} file{checkedOutFiles.length > 1 ? 's are' : ' is'} currently checked out by you.
+              {checkedOutFiles.length} file{checkedOutFiles.length > 1 ? 's are' : ' is'} currently
+              checked out by you.
             </p>
           </div>
         </div>
-        
+
         <div className="bg-plm-bg rounded border border-plm-border p-3 mb-4 max-h-40 overflow-y-auto">
           <div className="space-y-1">
             {checkedOutFiles.slice(0, 5).map((f, i) => (
@@ -56,14 +55,12 @@ export const DeleteLocalCheckoutDialog = memo(function DeleteLocalCheckoutDialog
             )}
           </div>
         </div>
-        
+
         {/* Info */}
         <div className="bg-plm-accent/10 border border-plm-accent/30 rounded p-3 mb-4">
-          <p className="text-sm text-plm-fg">
-            What would you like to do with your changes?
-          </p>
+          <p className="text-sm text-plm-fg">What would you like to do with your changes?</p>
         </div>
-        
+
         <div className="flex flex-col gap-2">
           <button
             onClick={onCheckinFirst}
@@ -79,10 +76,7 @@ export const DeleteLocalCheckoutDialog = memo(function DeleteLocalCheckoutDialog
             <Trash2 size={14} />
             Discard Changes & Remove Local
           </button>
-          <button
-            onClick={onCancel}
-            className="btn btn-ghost w-full justify-center"
-          >
+          <button onClick={onCancel} className="btn btn-ghost w-full justify-center">
             Cancel
           </button>
         </div>

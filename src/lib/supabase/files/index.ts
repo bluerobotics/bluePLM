@@ -14,11 +14,16 @@ export {
   getMyCheckedOutFiles,
   getAllCheckedOutFiles,
   getFileReferenceDiagnostics,
-  getVaultFilesForDiagnostics
+  getVaultFilesForDiagnostics,
 } from './queries'
 
 // Export types for recursive BOM queries, drawing refs, and diagnostics
-export type { BomTreeNode, DrawingRefItem, FileReferenceDiagnostic, VaultFileSummary } from './queries'
+export type {
+  BomTreeNode,
+  DrawingRefItem,
+  FileReferenceDiagnostic,
+  VaultFileSummary,
+} from './queries'
 
 // Checkout functions - check out/in operations
 export {
@@ -26,7 +31,7 @@ export {
   checkinFile,
   syncSolidWorksFileMetadata,
   undoCheckout,
-  adminForceDiscardCheckout
+  adminForceDiscardCheckout,
 } from './checkout'
 
 // Mutation functions - sync and metadata updates
@@ -37,7 +42,7 @@ export {
   updateFolderPath,
   upsertFileReferences,
   updateConfigurationRevision,
-  propagateDrawingRevisionToConfigurations
+  propagateDrawingRevisionToConfigurations,
 } from './mutations'
 
 // Export types for file references
@@ -53,21 +58,14 @@ export {
   permanentlyDeleteFiles,
   getDeletedFiles,
   getDeletedFilesCount,
-  emptyTrash
+  emptyTrash,
 } from './trash'
 
 // Version functions - rollback, state transitions, notes
-export {
-  rollbackToVersion,
-  transitionFileState,
-  updateVersionNote
-} from './versions'
+export { rollbackToVersion, transitionFileState, updateVersionNote } from './versions'
 
 // Move functions - atomic file move operations
-export {
-  moveFileOnServer,
-  moveFilesOnServer
-} from './move'
+export { moveFileOnServer, moveFilesOnServer } from './move'
 
 // Folder functions - sync empty folders to server
 export {
@@ -75,7 +73,7 @@ export {
   getVaultFolders,
   updateFolderServerPath,
   deleteFolderOnServer,
-  deleteFolderByPath
+  deleteFolderByPath,
 } from './folders'
 
 export type { FolderRecord } from './folders'

@@ -24,7 +24,7 @@ export function PropertiesDialog({
   contextFiles,
   userId,
   folderSize,
-  isCalculatingSize
+  isCalculatingSize,
 }: PropertiesDialogProps) {
   if (!isOpen) return null
 
@@ -42,25 +42,29 @@ export function PropertiesDialog({
             <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-1">Name</div>
             <div className="text-sm">{file.name}</div>
           </div>
-          
+
           {/* Type */}
           <div>
             <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-1">Type</div>
             <div className="text-sm">
-              {isFolder ? 'Folder' : (file.extension ? file.extension.toUpperCase() + ' File' : 'File')}
+              {isFolder
+                ? 'Folder'
+                : file.extension
+                  ? file.extension.toUpperCase() + ' File'
+                  : 'File'}
             </div>
           </div>
-          
+
           {/* Location */}
           <div>
             <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-1">Location</div>
             <div className="text-sm break-all text-plm-fg-dim">
-              {file.relativePath.includes('/') 
+              {file.relativePath.includes('/')
                 ? file.relativePath.substring(0, file.relativePath.lastIndexOf('/'))
                 : '/'}
             </div>
           </div>
-          
+
           {/* Size */}
           <div>
             <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-1">Size</div>
@@ -72,10 +76,13 @@ export function PropertiesDialog({
                   <span>
                     {formatSize(folderSize.size)}
                     <span className="text-plm-fg-muted ml-2">
-                      ({folderSize.fileCount} file{folderSize.fileCount !== 1 ? 's' : ''}, {folderSize.folderCount} folder{folderSize.folderCount !== 1 ? 's' : ''})
+                      ({folderSize.fileCount} file{folderSize.fileCount !== 1 ? 's' : ''},{' '}
+                      {folderSize.folderCount} folder{folderSize.folderCount !== 1 ? 's' : ''})
                     </span>
                   </span>
-                ) : '—'
+                ) : (
+                  '—'
+                )
               ) : multiSelect ? (
                 formatSize(contextFiles.reduce((sum, f) => sum + (f.size || 0), 0))
               ) : (
@@ -83,36 +90,49 @@ export function PropertiesDialog({
               )}
             </div>
           </div>
-          
+
           {/* Status */}
           {file.pdmData && (
             <div>
               <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-1">Status</div>
               <div className="text-sm">
-                {file.pdmData.checked_out_by 
-                  ? file.pdmData.checked_out_by === userId 
+                {file.pdmData.checked_out_by
+                  ? file.pdmData.checked_out_by === userId
                     ? 'Checked out by you'
                     : 'Checked out'
                   : 'Available'}
               </div>
             </div>
           )}
-          
+
           {/* Sync Status */}
           <div>
-            <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-1">Sync Status</div>
-            <div className={`text-sm ${file.diffStatus === 'deleted_remote' ? 'text-plm-error' : ''}`}>
-              {file.diffStatus === 'cloud' ? 'Cloud only (not downloaded)' 
-                : file.diffStatus === 'added' ? 'Local only (not synced)'
-                : file.diffStatus === 'ignored' ? 'Local only (ignored from sync)'
-                : file.diffStatus === 'modified' ? 'Modified locally'
-                : file.diffStatus === 'moved' ? 'Moved (path changed)'
-                : file.diffStatus === 'outdated' ? 'Outdated (newer version on server)'
-                : file.diffStatus === 'deleted_remote' ? 'Deleted from server (orphaned)'
-                : file.pdmData ? 'Synced' : 'Not synced'}
+            <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-1">
+              Sync Status
+            </div>
+            <div
+              className={`text-sm ${file.diffStatus === 'deleted_remote' ? 'text-plm-error' : ''}`}
+            >
+              {file.diffStatus === 'cloud'
+                ? 'Cloud only (not downloaded)'
+                : file.diffStatus === 'added'
+                  ? 'Local only (not synced)'
+                  : file.diffStatus === 'ignored'
+                    ? 'Local only (ignored from sync)'
+                    : file.diffStatus === 'modified'
+                      ? 'Modified locally'
+                      : file.diffStatus === 'moved'
+                        ? 'Moved (path changed)'
+                        : file.diffStatus === 'outdated'
+                          ? 'Outdated (newer version on server)'
+                          : file.diffStatus === 'deleted_remote'
+                            ? 'Deleted from server (orphaned)'
+                            : file.pdmData
+                              ? 'Synced'
+                              : 'Not synced'}
             </div>
           </div>
-          
+
           {/* Modified Date */}
           {file.modifiedTime && (
             <div>
@@ -122,10 +142,7 @@ export function PropertiesDialog({
           )}
         </div>
         <div className="p-4 border-t border-plm-border flex justify-end">
-          <button
-            onClick={onClose}
-            className="btn btn-ghost"
-          >
+          <button onClick={onClose} className="btn btn-ghost">
             Close
           </button>
         </div>

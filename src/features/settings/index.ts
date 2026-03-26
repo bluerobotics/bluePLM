@@ -4,7 +4,7 @@ export { SettingsContent, SettingsNavigation } from './components'
 // Account settings
 export * from './account'
 
-// Organization settings  
+// Organization settings
 export * from './organization'
 
 // Integration settings

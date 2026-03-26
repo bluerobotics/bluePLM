@@ -13,9 +13,9 @@ interface ExpandableSectionProps {
   hiddenCount?: number
 }
 
-export function ExpandableSection({ 
-  expanded, 
-  onToggle, 
+export function ExpandableSection({
+  expanded,
+  onToggle,
   children,
   hiddenCount,
 }: ExpandableSectionProps) {
@@ -23,7 +23,7 @@ export function ExpandableSection({
     <>
       {/* Expand/Collapse toggle */}
       <div className="context-menu-separator" />
-      <div 
+      <div
         className="context-menu-expand-toggle"
         onClick={(e) => {
           e.stopPropagation()
@@ -42,13 +42,9 @@ export function ExpandableSection({
           </>
         )}
       </div>
-      
+
       {/* Expandable content */}
-      {expanded && (
-        <div className="context-menu-expanded-section">
-          {children}
-        </div>
-      )}
+      {expanded && <div className="context-menu-expanded-section">{children}</div>}
     </>
   )
 }

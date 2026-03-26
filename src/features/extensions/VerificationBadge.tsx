@@ -1,6 +1,6 @@
 /**
  * VerificationBadge - Display extension verification status
- * 
+ *
  * Shows different badges based on verification status:
  * - Verified: Blue checkmark, signed by Blue Robotics
  * - Community: Yellow badge, open source but not reviewed
@@ -62,9 +62,7 @@ export function VerificationBadge({
       title={config.description}
     >
       <Icon size={sizeConf.icon} className={config.iconClass} />
-      {showLabel && (
-        <span className={`font-medium ${sizeConf.text}`}>{config.label}</span>
-      )}
+      {showLabel && <span className={`font-medium ${sizeConf.text}`}>{config.label}</span>}
     </div>
   )
 }
@@ -84,10 +82,7 @@ export function VerificationIcon({
 
   return (
     <span title={config.description}>
-      <Icon
-        size={size}
-        className={`${config.iconClass} ${className}`}
-      />
+      <Icon size={size} className={`${config.iconClass} ${className}`} />
     </span>
   )
 }

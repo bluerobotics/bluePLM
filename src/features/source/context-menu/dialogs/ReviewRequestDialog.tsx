@@ -52,9 +52,9 @@ export function ReviewRequestDialog({
   const [expandedTeamIds, setExpandedTeamIds] = useState<Set<string>>(new Set())
   const [reviewMessage, setReviewMessage] = useState('')
   const [reviewDueDate, setReviewDueDate] = useState('')
-  const [reviewPriority, setReviewPriority] = useState<
-    'low' | 'normal' | 'high' | 'urgent'
-  >('normal')
+  const [reviewPriority, setReviewPriority] = useState<'low' | 'normal' | 'high' | 'urgent'>(
+    'normal',
+  )
   const [loadingUsers, setLoadingUsers] = useState(false)
   const [loadingTeams, setLoadingTeams] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -84,9 +84,7 @@ export function ReviewRequestDialog({
 
   const handleToggleReviewer = useCallback((reviewerId: string) => {
     setSelectedReviewers((prev) =>
-      prev.includes(reviewerId)
-        ? prev.filter((id) => id !== reviewerId)
-        : [...prev, reviewerId]
+      prev.includes(reviewerId) ? prev.filter((id) => id !== reviewerId) : [...prev, reviewerId],
     )
   }, [])
 
@@ -105,7 +103,7 @@ export function ReviewRequestDialog({
           next.delete(teamId)
           for (const uid of resolvedIds) {
             const inOtherTeam = teams.some(
-              (t) => t.id !== teamId && next.has(t.id) && resolveTeamReviewers(t).includes(uid)
+              (t) => t.id !== teamId && next.has(t.id) && resolveTeamReviewers(t).includes(uid),
             )
             if (!inOtherTeam) {
               setSelectedReviewers((sr) => sr.filter((id) => id !== uid))
@@ -123,7 +121,7 @@ export function ReviewRequestDialog({
         return next
       })
     },
-    [teams]
+    [teams],
   )
 
   const toggleExpand = useCallback((teamId: string) => {
@@ -140,10 +138,7 @@ export function ReviewRequestDialog({
     return ids.length === 1 ? ids[0] : ids.length > 0 ? ids[ids.length - 1] : undefined
   }, [selectedTeamIds])
 
-  const uniqueReviewerCount = useMemo(
-    () => new Set(selectedReviewers).size,
-    [selectedReviewers]
-  )
+  const uniqueReviewerCount = useMemo(() => new Set(selectedReviewers).size, [selectedReviewers])
 
   const handleSubmit = async () => {
     if (!userId || !organizationId || !vaultId) {
@@ -174,7 +169,7 @@ export function ReviewRequestDialog({
       reviewMessage || undefined,
       reviewDueDate || undefined,
       reviewPriority,
-      lastSelectedTeamId
+      lastSelectedTeamId,
     )
 
     if (error) {
@@ -182,7 +177,7 @@ export function ReviewRequestDialog({
     } else {
       addToast(
         'success',
-        `Review request sent to ${selectedReviewers.length} reviewer${selectedReviewers.length > 1 ? 's' : ''}`
+        `Review request sent to ${selectedReviewers.length} reviewer${selectedReviewers.length > 1 ? 's' : ''}`,
       )
       handleClose()
       onSuccess()
@@ -284,9 +279,7 @@ export function ReviewRequestDialog({
                 <Loader2 size={20} className="animate-spin text-plm-accent" />
               </div>
             ) : orgUsers.length === 0 ? (
-              <p className="text-sm text-plm-fg-muted p-2">
-                No other users in your organization
-              </p>
+              <p className="text-sm text-plm-fg-muted p-2">No other users in your organization</p>
             ) : (
               <div className="max-h-48 overflow-y-auto border border-plm-border rounded bg-plm-bg">
                 {orgUsers.map((orgUser) => (
@@ -317,9 +310,7 @@ export function ReviewRequestDialog({
                         {orgUser.full_name || orgUser.email}
                       </div>
                       {orgUser.full_name && (
-                        <div className="text-xs text-plm-fg-muted truncate">
-                          {orgUser.email}
-                        </div>
+                        <div className="text-xs text-plm-fg-muted truncate">{orgUser.email}</div>
                       )}
                     </div>
                     {selectedReviewers.includes(orgUser.id) && (
@@ -334,9 +325,7 @@ export function ReviewRequestDialog({
               <Loader2 size={20} className="animate-spin text-plm-accent" />
             </div>
           ) : teams.length === 0 ? (
-            <p className="text-sm text-plm-fg-muted p-2">
-              No teams found in your organization
-            </p>
+            <p className="text-sm text-plm-fg-muted p-2">No teams found in your organization</p>
           ) : (
             <div className="max-h-48 overflow-y-auto border border-plm-border rounded bg-plm-bg space-y-0.5">
               {teams.map((team) => {
@@ -344,25 +333,18 @@ export function ReviewRequestDialog({
                 const isExpanded = expandedTeamIds.has(team.id)
                 const resolvedCount = resolveTeamReviewers(team).length
                 const selectedMemberCount = team.members.filter((m) =>
-                  selectedReviewers.includes(m.id)
+                  selectedReviewers.includes(m.id),
                 ).length
 
                 return (
-                  <div
-                    key={team.id}
-                    className="border-b border-plm-border/50 last:border-b-0"
-                  >
+                  <div key={team.id} className="border-b border-plm-border/50 last:border-b-0">
                     <div className="flex items-center gap-2 p-2 hover:bg-plm-highlight">
                       <button
                         type="button"
                         className="p-0.5 text-plm-fg-muted hover:text-plm-fg"
                         onClick={() => toggleExpand(team.id)}
                       >
-                        {isExpanded ? (
-                          <ChevronDown size={14} />
-                        ) : (
-                          <ChevronRight size={14} />
-                        )}
+                        {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                       </button>
                       <input
                         type="checkbox"
@@ -387,9 +369,7 @@ export function ReviewRequestDialog({
                           : `${team.members.length} member${team.members.length !== 1 ? 's' : ''}`}
                         {selectedMemberCount > 0 && ` · ${selectedMemberCount} selected`}
                       </span>
-                      {isSelected && (
-                        <Check size={14} className="text-plm-accent flex-shrink-0" />
-                      )}
+                      {isSelected && <Check size={14} className="text-plm-accent flex-shrink-0" />}
                     </div>
                     {isExpanded && (
                       <div className="pl-10 pr-2 pb-1">
@@ -404,9 +384,7 @@ export function ReviewRequestDialog({
                               <div className="w-4 h-4 rounded-full bg-plm-accent/10 flex items-center justify-center">
                                 <UserCircle size={10} className="text-plm-accent" />
                               </div>
-                              <span className="truncate">
-                                {member.full_name || member.email}
-                              </span>
+                              <span className="truncate">{member.full_name || member.email}</span>
                               {selectedReviewers.includes(member.id) && (
                                 <Check
                                   size={12}
@@ -447,9 +425,7 @@ export function ReviewRequestDialog({
             <select
               value={reviewPriority}
               onChange={(e) =>
-                setReviewPriority(
-                  e.target.value as 'low' | 'normal' | 'high' | 'urgent'
-                )
+                setReviewPriority(e.target.value as 'low' | 'normal' | 'high' | 'urgent')
               }
               className="w-full px-3 py-2 text-sm bg-plm-bg border border-plm-border rounded focus:outline-none focus:border-plm-accent"
             >
@@ -485,13 +461,8 @@ export function ReviewRequestDialog({
             disabled={selectedReviewers.length === 0 || isSubmitting}
             className="btn bg-plm-accent hover:bg-plm-accent/90 text-white disabled:opacity-50"
           >
-            {isSubmitting ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <Send size={14} />
-            )}
-            Send Request{' '}
-            {uniqueReviewerCount > 0 && `(${uniqueReviewerCount})`}
+            {isSubmitting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+            Send Request {uniqueReviewerCount > 0 && `(${uniqueReviewerCount})`}
           </button>
         </div>
       </div>

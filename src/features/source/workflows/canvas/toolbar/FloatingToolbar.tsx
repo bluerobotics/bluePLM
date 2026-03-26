@@ -1,17 +1,17 @@
 /**
  * FloatingToolbar - Quick styling options for states and transitions
- * 
+ *
  * This is a thin container that positions the toolbar and delegates to
  * StateToolbar or TransitionToolbar based on the type.
  */
 import { useState, useRef, useEffect, useCallback } from 'react'
-import type { 
-  WorkflowState, 
+import type {
+  WorkflowState,
   WorkflowTransition,
   TransitionLineStyle,
   TransitionPathType,
   TransitionArrowHead,
-  TransitionLineThickness
+  TransitionLineThickness,
 } from '@/types/workflow'
 import { StateToolbar } from './StateToolbar'
 import { TransitionToolbar } from './TransitionToolbar'
@@ -64,17 +64,17 @@ export function FloatingToolbar({
   onDuplicate,
   onDelete,
   onAddGate: _onAddGate,
-  onClose
+  onClose,
 }: FloatingToolbarProps) {
   const toolbarRef = useRef<HTMLDivElement>(null)
   const [adjustedPos, setAdjustedPos] = useState<{ x: number; y: number } | null>(null)
   const [dropdownsKey, setDropdownsKey] = useState(0)
-  
+
   // Close all dropdowns by incrementing key (forces re-render with closed state)
   const closeAllDropdowns = useCallback(() => {
-    setDropdownsKey(k => k + 1)
+    setDropdownsKey((k) => k + 1)
   }, [])
-  
+
   // Close on click outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -82,13 +82,13 @@ export function FloatingToolbar({
         onClose()
       }
     }
-    
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose()
       }
     }
-    
+
     document.addEventListener('mousedown', handleClickOutside)
     document.addEventListener('keydown', handleKeyDown)
     return () => {
@@ -96,14 +96,14 @@ export function FloatingToolbar({
       document.removeEventListener('keydown', handleKeyDown)
     }
   }, [onClose])
-  
+
   // Adjust position to keep toolbar on screen
   useEffect(() => {
     if (toolbarRef.current) {
       const rect = toolbarRef.current.getBoundingClientRect()
       let newX = x - rect.width / 2 // Center horizontally
       let newY = y
-      
+
       // Keep on screen
       if (newX + rect.width > window.innerWidth) {
         newX = window.innerWidth - rect.width - 8
@@ -113,11 +113,11 @@ export function FloatingToolbar({
       if (newY + rect.height > window.innerHeight) {
         newY = window.innerHeight - rect.height - 8
       }
-      
+
       setAdjustedPos({ x: newX, y: newY })
     }
   }, [x, y])
-  
+
   return (
     <div
       ref={toolbarRef}
@@ -146,7 +146,7 @@ export function FloatingToolbar({
             closeAllDropdowns={closeAllDropdowns}
           />
         )}
-        
+
         {type === 'transition' && targetTransition && (
           <TransitionToolbar
             key={dropdownsKey}
@@ -163,7 +163,7 @@ export function FloatingToolbar({
           />
         )}
       </div>
-      
+
       {/* Connection hint arrow pointing down to object */}
       <div className="w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-l-transparent border-r-transparent border-t-plm-border" />
     </div>

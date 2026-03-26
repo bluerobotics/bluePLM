@@ -42,29 +42,27 @@ export const EmptyContextMenu = memo(function EmptyContextMenu({
   onPaste,
   onRefresh,
   onUndo,
-  onClose
+  onClose,
 }: EmptyContextMenuProps) {
   // Build the full target folder path for SOLIDWORKS file creation
-  const targetFolder = vaultPath 
-    ? (currentPath ? `${vaultPath}\\${currentPath}` : vaultPath)
-    : ''
-  
+  const targetFolder = vaultPath ? (currentPath ? `${vaultPath}\\${currentPath}` : vaultPath) : ''
+
   return (
     <>
-      <div 
-        className="fixed inset-0 z-50" 
+      <div
+        className="fixed inset-0 z-50"
         onClick={onClose}
         onContextMenu={(e) => {
           e.preventDefault()
           // Allow repositioning (handled by parent)
         }}
       />
-      <div 
+      <div
         ref={menuRef}
         className="context-menu"
         style={{ left: adjustedPos?.x ?? x, top: adjustedPos?.y ?? y }}
       >
-        <div 
+        <div
           className="context-menu-item"
           onClick={() => {
             onNewFolder()
@@ -74,7 +72,7 @@ export const EmptyContextMenu = memo(function EmptyContextMenu({
           <Folder size={14} />
           New Folder
         </div>
-        <div 
+        <div
           className="context-menu-item"
           onClick={() => {
             onAddFiles()
@@ -84,7 +82,7 @@ export const EmptyContextMenu = memo(function EmptyContextMenu({
           <Upload size={14} />
           Add Files...
         </div>
-        <div 
+        <div
           className="context-menu-item"
           onClick={() => {
             onAddFolder()
@@ -94,7 +92,7 @@ export const EmptyContextMenu = memo(function EmptyContextMenu({
           <FolderPlus size={14} />
           Add Folder...
         </div>
-        <div 
+        <div
           className={`context-menu-item ${!hasClipboard ? 'disabled' : ''}`}
           onClick={() => {
             if (hasClipboard) {
@@ -107,17 +105,14 @@ export const EmptyContextMenu = memo(function EmptyContextMenu({
           Paste
           <span className="text-xs text-plm-fg-muted ml-auto">Ctrl+V</span>
         </div>
-        
+
         {/* SOLIDWORKS New File Items - conditionally rendered based on integration status */}
         {targetFolder && (
-          <SolidWorksContextMenuItems
-            targetFolder={targetFolder}
-            onClose={onClose}
-          />
+          <SolidWorksContextMenuItems targetFolder={targetFolder} onClose={onClose} />
         )}
-        
+
         <div className="context-menu-separator" />
-        <div 
+        <div
           className="context-menu-item"
           onClick={() => {
             onRefresh()
@@ -128,7 +123,7 @@ export const EmptyContextMenu = memo(function EmptyContextMenu({
           Refresh
         </div>
         <div className="context-menu-separator" />
-        <div 
+        <div
           className={`context-menu-item ${!hasUndoStack ? 'disabled' : ''}`}
           onClick={() => {
             if (hasUndoStack) {

@@ -1,6 +1,6 @@
 /**
  * InstallDialog - Extension installation dialog with permissions review
- * 
+ *
  * Shows:
  * - Extension information
  * - Required permissions (client & server)
@@ -8,10 +8,7 @@
  * - Success/error state
  */
 import { useState, useEffect, useMemo } from 'react'
-import {
-  X, Download, CheckCircle2, XCircle, AlertTriangle,
-  Monitor, Database
-} from 'lucide-react'
+import { X, Download, CheckCircle2, XCircle, AlertTriangle, Monitor, Database } from 'lucide-react'
 import { VerificationBadge, NativeBadge } from './VerificationBadge'
 import { usePDMStore } from '@/stores/pdmStore'
 
@@ -37,24 +34,20 @@ type InstallState = 'review' | 'installing' | 'success' | 'error'
 //   }
 // }
 
-export function InstallDialog({
-  extensionId,
-  open,
-  onClose,
-}: InstallDialogProps) {
+export function InstallDialog({ extensionId, open, onClose }: InstallDialogProps) {
   const [installState, setInstallState] = useState<InstallState>('review')
   const [error, setError] = useState<string | null>(null)
   const [permissionsAccepted, setPermissionsAccepted] = useState(false)
-  
-  const storeExtensions = usePDMStore(s => s.storeExtensions)
-  const installProgress = usePDMStore(s => s.installProgress)
-  const installExtension = usePDMStore(s => s.installExtension)
-  const addToast = usePDMStore(s => s.addToast)
+
+  const storeExtensions = usePDMStore((s) => s.storeExtensions)
+  const installProgress = usePDMStore((s) => s.installProgress)
+  const installExtension = usePDMStore((s) => s.installExtension)
+  const addToast = usePDMStore((s) => s.addToast)
 
   // Find the store extension
   const storeExt = useMemo(() => {
     if (!extensionId) return null
-    return storeExtensions.find(e => e.extensionId === extensionId)
+    return storeExtensions.find((e) => e.extensionId === extensionId)
   }, [extensionId, storeExtensions])
 
   // Reset state when dialog opens
@@ -69,13 +62,13 @@ export function InstallDialog({
   // Handle installation
   const handleInstall = async () => {
     if (!extensionId) return
-    
+
     setInstallState('installing')
     setError(null)
-    
+
     try {
       const result = await installExtension(extensionId)
-      
+
       if (result.success) {
         setInstallState('success')
         addToast('success', `${storeExt?.name || extensionId} installed successfully`)
@@ -83,8 +76,8 @@ export function InstallDialog({
         setError(result.error || 'Installation failed')
         setInstallState('error')
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Installation failed')
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Installation failed')
       setInstallState('error')
     }
   }
@@ -97,10 +90,13 @@ export function InstallDialog({
   const verification = isVerified ? 'verified' : 'community'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+      onClick={onClose}
+    >
       <div
         className="w-full max-w-md bg-gray-900 rounded-xl shadow-2xl border border-gray-700 overflow-hidden"
-        onClick={e => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="p-6 border-b border-gray-800">
@@ -111,11 +107,15 @@ export function InstallDialog({
           >
             <X size={20} />
           </button>
-          
+
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-lg bg-gray-800 flex items-center justify-center">
               {storeExt?.iconUrl ? (
-                <img src={storeExt.iconUrl} alt="" className="w-full h-full object-cover rounded-lg" />
+                <img
+                  src={storeExt.iconUrl}
+                  alt=""
+                  className="w-full h-full object-cover rounded-lg"
+                />
               ) : (
                 <Download size={24} className="text-blue-400" />
               )}
@@ -130,7 +130,7 @@ export function InstallDialog({
             </div>
           </div>
         </div>
-        
+
         {/* Content */}
         <div className="p-6">
           {/* Review state */}
@@ -148,7 +148,7 @@ export function InstallDialog({
                   </p>
                 </div>
               )}
-              
+
               {/* Permissions section */}
               <div className="mb-6">
                 <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">
@@ -172,13 +172,13 @@ export function InstallDialog({
                   </div>
                 </div>
               </div>
-              
+
               {/* Checkbox */}
               <label className="flex items-start gap-3 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={permissionsAccepted}
-                  onChange={e => setPermissionsAccepted(e.target.checked)}
+                  onChange={(e) => setPermissionsAccepted(e.target.checked)}
                   className="mt-1 w-4 h-4 rounded border-gray-600 bg-gray-800 text-blue-600 
                     focus:ring-blue-500 focus:ring-offset-gray-900"
                 />
@@ -188,7 +188,7 @@ export function InstallDialog({
               </label>
             </>
           )}
-          
+
           {/* Installing state */}
           {installState === 'installing' && (
             <div className="py-8 text-center">
@@ -209,7 +209,7 @@ export function InstallDialog({
               )}
             </div>
           )}
-          
+
           {/* Success state */}
           {installState === 'success' && (
             <div className="py-8 text-center">
@@ -217,12 +217,10 @@ export function InstallDialog({
                 <CheckCircle2 size={32} className="text-green-400" />
               </div>
               <h3 className="text-lg font-semibold text-gray-100 mb-2">Installed Successfully</h3>
-              <p className="text-sm text-gray-400">
-                {name} is now ready to use.
-              </p>
+              <p className="text-sm text-gray-400">{name} is now ready to use.</p>
             </div>
           )}
-          
+
           {/* Error state */}
           {installState === 'error' && (
             <div className="py-8 text-center">
@@ -234,7 +232,7 @@ export function InstallDialog({
             </div>
           )}
         </div>
-        
+
         {/* Footer */}
         <div className="p-6 border-t border-gray-800 flex justify-end gap-3">
           {installState === 'review' && (
@@ -257,7 +255,7 @@ export function InstallDialog({
               </button>
             </>
           )}
-          
+
           {installState === 'installing' && (
             <button
               onClick={onClose}
@@ -266,7 +264,7 @@ export function InstallDialog({
               Run in background
             </button>
           )}
-          
+
           {(installState === 'success' || installState === 'error') && (
             <button
               onClick={onClose}

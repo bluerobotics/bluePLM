@@ -2,12 +2,12 @@
  * WorkflowContextMenus - Renders context menus for canvas, states, transitions
  */
 import { WorkflowContextMenu, WaypointContextMenu } from '../canvas'
-import type { 
-  WorkflowState, 
-  WorkflowTransition, 
+import type {
+  WorkflowState,
+  WorkflowTransition,
   WorkflowGate,
   ContextMenuState,
-  WaypointContextMenu as WaypointContextMenuType
+  WaypointContextMenu as WaypointContextMenuType,
 } from '../types'
 
 interface WorkflowContextMenusProps {
@@ -18,7 +18,7 @@ interface WorkflowContextMenusProps {
   gates: Record<string, WorkflowGate[]>
   waypoints: Record<string, Array<{ x: number; y: number }>>
   isAdmin: boolean
-  
+
   // Actions
   openEditState: (state: WorkflowState) => void
   openEditTransition: (transition: WorkflowTransition) => void
@@ -26,8 +26,17 @@ interface WorkflowContextMenusProps {
   deleteTransition: (id: string) => void
   addTransitionGate: (transitionId: string) => void
   addState: (x: number, y: number) => void
-  handleAddWaypointToTransition: (transitionId: string, x: number, y: number, pathType: string, exitDir: string, entryDir: string) => void
-  setWaypoints: React.Dispatch<React.SetStateAction<Record<string, Array<{ x: number; y: number }>>>>
+  handleAddWaypointToTransition: (
+    transitionId: string,
+    x: number,
+    y: number,
+    pathType: string,
+    exitDir: string,
+    entryDir: string,
+  ) => void
+  setWaypoints: React.Dispatch<
+    React.SetStateAction<Record<string, Array<{ x: number; y: number }>>>
+  >
   closeContextMenu: () => void
   setWaypointContextMenu: (m: WaypointContextMenuType | null) => void
   addToast: (type: 'success' | 'error' | 'warning' | 'info', message: string) => void
@@ -51,7 +60,7 @@ export function WorkflowContextMenus({
   setWaypoints,
   closeContextMenu,
   setWaypointContextMenu,
-  addToast
+  addToast,
 }: WorkflowContextMenusProps) {
   return (
     <>
@@ -61,17 +70,27 @@ export function WorkflowContextMenus({
           y={contextMenu.y}
           type={contextMenu.type}
           isAdmin={isAdmin}
-          targetState={contextMenu.type === 'state' ? states.find(s => s.id === contextMenu.targetId) : undefined}
-          targetTransition={contextMenu.type === 'transition' ? transitions.find(t => t.id === contextMenu.targetId) : undefined}
-          gates={contextMenu.type === 'transition' ? (gates[contextMenu.targetId] || []) : []}
+          targetState={
+            contextMenu.type === 'state'
+              ? states.find((s) => s.id === contextMenu.targetId)
+              : undefined
+          }
+          targetTransition={
+            contextMenu.type === 'transition'
+              ? transitions.find((t) => t.id === contextMenu.targetId)
+              : undefined
+          }
+          gates={contextMenu.type === 'transition' ? gates[contextMenu.targetId] || [] : []}
           allStates={states}
-          hasWaypoints={contextMenu.type === 'transition' && (waypoints[contextMenu.targetId]?.length || 0) > 0}
+          hasWaypoints={
+            contextMenu.type === 'transition' && (waypoints[contextMenu.targetId]?.length || 0) > 0
+          }
           onEdit={() => {
             if (contextMenu.type === 'state') {
-              const state = states.find(s => s.id === contextMenu.targetId)
+              const state = states.find((s) => s.id === contextMenu.targetId)
               if (state) openEditState(state)
             } else if (contextMenu.type === 'transition') {
-              const transition = transitions.find(t => t.id === contextMenu.targetId)
+              const transition = transitions.find((t) => t.id === contextMenu.targetId)
               if (transition) openEditTransition(transition)
             }
             closeContextMenu()
@@ -87,7 +106,7 @@ export function WorkflowContextMenus({
           }}
           onResetWaypoints={() => {
             if (contextMenu.type === 'transition') {
-              setWaypoints(prev => {
+              setWaypoints((prev) => {
                 const next = { ...prev }
                 delete next[contextMenu.targetId]
                 return next
@@ -96,13 +115,17 @@ export function WorkflowContextMenus({
             }
             closeContextMenu()
           }}
-          onAddState={contextMenu.type === 'canvas' && contextMenu.canvasX !== undefined && contextMenu.canvasY !== undefined 
-            ? () => addState(contextMenu.canvasX!, contextMenu.canvasY!) 
-            : undefined}
+          onAddState={
+            contextMenu.type === 'canvas' &&
+            contextMenu.canvasX !== undefined &&
+            contextMenu.canvasY !== undefined
+              ? () => addState(contextMenu.canvasX!, contextMenu.canvasY!)
+              : undefined
+          }
           onClose={closeContextMenu}
         />
       )}
-      
+
       {waypointContextMenu && (
         <WaypointContextMenu
           menu={waypointContextMenu}
@@ -111,7 +134,7 @@ export function WorkflowContextMenus({
             handleAddWaypointToTransition(transitionId, x, y, pathType, 'auto', 'auto')
           }}
           onRemoveWaypoint={(transitionId, waypointIndex) => {
-            setWaypoints(prev => {
+            setWaypoints((prev) => {
               const current = [...(prev[transitionId] || [])]
               current.splice(waypointIndex, 1)
               if (current.length === 0) {
@@ -123,7 +146,7 @@ export function WorkflowContextMenus({
             })
           }}
           onResetWaypoints={(transitionId) => {
-            setWaypoints(prev => {
+            setWaypoints((prev) => {
               const next = { ...prev }
               delete next[transitionId]
               return next

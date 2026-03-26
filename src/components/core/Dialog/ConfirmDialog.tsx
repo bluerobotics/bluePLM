@@ -5,7 +5,11 @@ import type { ConfirmDialogProps } from './types'
 
 const variantConfig = {
   danger: { icon: AlertTriangle, color: 'text-red-400', button: 'bg-red-600 hover:bg-red-700' },
-  warning: { icon: AlertCircle, color: 'text-amber-400', button: 'bg-amber-600 hover:bg-amber-700' },
+  warning: {
+    icon: AlertCircle,
+    color: 'text-amber-400',
+    button: 'bg-amber-600 hover:bg-amber-700',
+  },
   info: { icon: Info, color: 'text-blue-400', button: 'bg-blue-600 hover:bg-blue-700' },
 }
 
@@ -21,19 +25,22 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const config = variantConfig[variant]
   const Icon = config.icon
-  
+
   // Handle Enter key to confirm
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      onConfirm()
-      onClose()
-    } else if (e.key === 'Escape') {
-      e.preventDefault()
-      onClose()
-    }
-  }, [onConfirm, onClose])
-  
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        onConfirm()
+        onClose()
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        onClose()
+      }
+    },
+    [onConfirm, onClose],
+  )
+
   useEffect(() => {
     if (!open) return
     document.addEventListener('keydown', handleKeyDown)

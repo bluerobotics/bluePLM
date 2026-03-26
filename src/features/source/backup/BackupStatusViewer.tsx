@@ -16,7 +16,7 @@ interface BackupStatusViewerProps {
 /**
  * Main container for backup/restore status visualization.
  * Shows real-time progress, logs, and error counts.
- * 
+ *
  * Features:
  * - Collapsible panel that auto-expands during operations
  * - Auto-expands on errors
@@ -27,7 +27,7 @@ interface BackupStatusViewerProps {
 export function BackupStatusViewer({
   isRunningBackup = false,
   isRestoring = false,
-  forceExpanded = false
+  forceExpanded = false,
 }: BackupStatusViewerProps) {
   const {
     logs,
@@ -42,38 +42,39 @@ export function BackupStatusViewer({
     currentPhase,
     clearLogs,
     copyLogs,
-    elapsedTime
+    elapsedTime,
   } = useBackupLogs()
-  
+
   const [isExpanded, setIsExpanded] = useState(false)
-  
+
   // Determine the mode based on current phase or parent state
-  const mode = isRestoring || currentPhase === 'restore' || currentPhase === 'metadata_import' 
-    ? 'restore' 
-    : 'backup'
-  
+  const mode =
+    isRestoring || currentPhase === 'restore' || currentPhase === 'metadata_import'
+      ? 'restore'
+      : 'backup'
+
   // Combined running state (from hook or parent)
   const operationRunning = isRunning || isRunningBackup || isRestoring
-  
+
   // Auto-expand when operation starts or on errors
   useEffect(() => {
     if (operationRunning || forceExpanded) {
       setIsExpanded(true)
     }
   }, [operationRunning, forceExpanded])
-  
+
   // Auto-expand when errors occur after completion
   useEffect(() => {
     if (hasErrors && !isRunning && currentPhase === 'complete') {
       setIsExpanded(true)
     }
   }, [hasErrors, isRunning, currentPhase])
-  
+
   // Don't render anything if no logs and not running
   if (logs.length === 0 && !operationRunning && !lastStats) {
     return null
   }
-  
+
   return (
     <div className="rounded-lg border border-plm-border overflow-hidden bg-plm-bg-secondary">
       {/* Header - always visible */}
@@ -82,11 +83,13 @@ export function BackupStatusViewer({
         className="w-full flex items-center justify-between px-4 py-3 hover:bg-plm-bg-tertiary transition-colors"
       >
         <div className="flex items-center gap-2">
-          <Activity className={`w-4 h-4 ${operationRunning ? 'text-plm-accent animate-pulse' : 'text-plm-fg-muted'}`} />
+          <Activity
+            className={`w-4 h-4 ${operationRunning ? 'text-plm-accent animate-pulse' : 'text-plm-fg-muted'}`}
+          />
           <span className="font-medium text-sm">
             {mode === 'restore' ? 'Restore Status' : 'Backup Status'}
           </span>
-          
+
           {/* Error badge */}
           {hasErrors && !isExpanded && (
             <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 text-xs">
@@ -94,14 +97,14 @@ export function BackupStatusViewer({
               {errorCount} error{errorCount !== 1 ? 's' : ''}
             </span>
           )}
-          
+
           {/* Running indicator */}
           {operationRunning && (
             <span className="px-2 py-0.5 rounded-full bg-plm-accent/20 text-plm-accent text-xs animate-pulse">
               In Progress
             </span>
           )}
-          
+
           {/* Completed indicator */}
           {!operationRunning && lastStats?.success && (
             <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-xs">
@@ -109,14 +112,14 @@ export function BackupStatusViewer({
             </span>
           )}
         </div>
-        
+
         {isExpanded ? (
           <ChevronUp className="w-4 h-4 text-plm-fg-muted" />
         ) : (
           <ChevronDown className="w-4 h-4 text-plm-fg-muted" />
         )}
       </button>
-      
+
       {/* Expandable content */}
       {isExpanded && (
         <div className="px-4 pb-4 space-y-4 border-t border-plm-border pt-4">
@@ -131,7 +134,7 @@ export function BackupStatusViewer({
               mode={mode}
             />
           )}
-          
+
           {/* Log console */}
           <BackupLogConsole
             logs={filteredLogs}
@@ -140,19 +143,19 @@ export function BackupStatusViewer({
             onCopy={copyLogs}
             onClear={clearLogs}
           />
-          
+
           {/* Summary stats when complete */}
           {lastStats && !operationRunning && (
-            <div className={`p-3 rounded-lg text-sm ${
-              lastStats.success 
-                ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300'
-                : 'bg-red-500/10 border border-red-500/30 text-red-300'
-            }`}>
+            <div
+              className={`p-3 rounded-lg text-sm ${
+                lastStats.success
+                  ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300'
+                  : 'bg-red-500/10 border border-red-500/30 text-red-300'
+              }`}
+            >
               {lastStats.success ? (
                 <div className="flex items-center justify-between">
-                  <span>
-                    ✓ {mode === 'restore' ? 'Restore' : 'Backup'} completed successfully
-                  </span>
+                  <span>✓ {mode === 'restore' ? 'Restore' : 'Backup'} completed successfully</span>
                   <span className="text-xs opacity-75">
                     {lastStats.filesProcessed} files • {formatDuration(lastStats.durationMs)}
                   </span>
@@ -160,11 +163,10 @@ export function BackupStatusViewer({
               ) : (
                 <div className="flex items-center justify-between">
                   <span>
-                    ✗ {mode === 'restore' ? 'Restore' : 'Backup'} completed with {lastStats.errorsCount} error{lastStats.errorsCount !== 1 ? 's' : ''}
+                    ✗ {mode === 'restore' ? 'Restore' : 'Backup'} completed with{' '}
+                    {lastStats.errorsCount} error{lastStats.errorsCount !== 1 ? 's' : ''}
                   </span>
-                  <span className="text-xs opacity-75">
-                    Check logs for details
-                  </span>
+                  <span className="text-xs opacity-75">Check logs for details</span>
                 </div>
               )}
             </div>

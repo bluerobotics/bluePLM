@@ -1,6 +1,6 @@
 /**
  * Concurrency Utilities for BluePLM
- * 
+ *
  * Provides controlled parallel execution to prevent overwhelming
  * the server or network with too many simultaneous requests.
  */
@@ -19,7 +19,7 @@ export const SW_CONCURRENT_OPERATIONS = 3
 /** Default batch size for bulk database operations */
 export const BATCH_CHUNK_SIZE = 100
 
-/** 
+/**
  * Default interval for yielding to event loop during batch operations.
  * Lower value = more responsive UI animations, slightly higher overhead.
  * Value of 2 provides smooth spinner animations during file operations.
@@ -31,7 +31,7 @@ export const YIELD_INTERVAL = 2
  * Uses setTimeout(0) to allow React re-renders, user input, and animations.
  */
 export function yieldToEventLoop(): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, 0))
+  return new Promise((resolve) => setTimeout(resolve, 0))
 }
 
 /**
@@ -44,7 +44,7 @@ export interface ProcessWithConcurrencyOptions {
    * Default: 5
    */
   yieldInterval?: number
-  
+
   /**
    * Callback invoked after each item completes.
    * Useful for progress tracking.
@@ -55,7 +55,7 @@ export interface ProcessWithConcurrencyOptions {
 /**
  * Process items with limited concurrency using a worker pool pattern.
  * Periodically yields to the event loop to keep UI responsive.
- * 
+ *
  * @param items - Array of items to process
  * @param maxConcurrent - Maximum number of concurrent operations
  * @param processor - Async function to process each item
@@ -66,28 +66,28 @@ export async function processWithConcurrency<T, R>(
   items: T[],
   maxConcurrent: number,
   processor: (item: T) => Promise<R>,
-  options?: ProcessWithConcurrencyOptions
+  options?: ProcessWithConcurrencyOptions,
 ): Promise<R[]> {
   const results: R[] = new Array(items.length)
   let nextIndex = 0
   let completedCount = 0
   const yieldInterval = options?.yieldInterval ?? YIELD_INTERVAL
   const onItemComplete = options?.onItemComplete
-  
+
   async function worker() {
     let itemsProcessedSinceYield = 0
-    
+
     while (nextIndex < items.length) {
       const index = nextIndex++
       results[index] = await processor(items[index])
       completedCount++
       itemsProcessedSinceYield++
-      
+
       // Notify progress if callback provided
       if (onItemComplete) {
         onItemComplete(completedCount, items.length)
       }
-      
+
       // Yield to event loop periodically to keep UI responsive
       if (itemsProcessedSinceYield >= yieldInterval) {
         await yieldToEventLoop()
@@ -95,13 +95,11 @@ export async function processWithConcurrency<T, R>(
       }
     }
   }
-  
+
   // Create worker pool - min of maxConcurrent and items.length
   const workerCount = Math.min(maxConcurrent, items.length)
-  await Promise.all(
-    Array.from({ length: workerCount }, () => worker())
-  )
-  
+  await Promise.all(Array.from({ length: workerCount }, () => worker()))
+
   return results
 }
 

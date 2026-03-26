@@ -7,28 +7,20 @@ import { DraggableTab, TabDropZone, PanelLocation } from '@/components/shared/Dr
 import { WhereUsedTab } from '@/features/integrations/solidworks'
 import { SWDatacardPanel } from '@/features/integrations/solidworks'
 import { VendorsTab } from '@/features/source/details/VendorsTab'
-import { 
-  FileBox, 
-  Layers, 
-  File,
-  Loader2,
-  FilePen,
-  ExternalLink,
-  ArrowLeft
-} from 'lucide-react'
+import { FileBox, Layers, File, Loader2, FilePen, ExternalLink, ArrowLeft } from 'lucide-react'
 
 // Component to load OS icon for files
 function RightPanelIcon({ file, size = 24 }: { file: LocalFile; size?: number }) {
   const [icon, setIcon] = useState<string | null>(null)
-  
+
   useEffect(() => {
     if (file.isDirectory || !file.path) {
       setIcon(null)
       return
     }
-    
+
     let cancelled = false
-    
+
     const loadIcon = async () => {
       try {
         // Use global thumbnail cache to avoid repeated IPC calls
@@ -40,15 +32,17 @@ function RightPanelIcon({ file, size = 24 }: { file: LocalFile; size?: number })
         // Silently fail
       }
     }
-    
+
     loadIcon()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [file.path, file.isDirectory])
-  
+
   if (icon) {
     return (
-      <img 
-        src={icon} 
+      <img
+        src={icon}
         alt=""
         className="flex-shrink-0 rounded"
         style={{ width: size, height: size }}
@@ -56,7 +50,7 @@ function RightPanelIcon({ file, size = 24 }: { file: LocalFile; size?: number })
       />
     )
   }
-  
+
   // Fallback to React icons
   const iconType = getFileIconType(file.extension)
   const iconClassMap: Record<string, string> = {
@@ -78,7 +72,7 @@ function RightPanelIcon({ file, size = 24 }: { file: LocalFile; size?: number })
 }
 
 export function RightPanel() {
-  const { 
+  const {
     getSelectedFileObjects,
     rightPanelWidth,
     rightPanelTab,
@@ -87,37 +81,47 @@ export function RightPanel() {
     moveTabToBottom,
     moveTabToRight,
     reorderTabsInPanel,
-    addToast
+    addToast,
   } = usePDMStore()
-  
+
   // Handle tab drop from either panel
-  const handleTabDrop = useCallback((tabId: string, fromLocation: PanelLocation, toLocation: PanelLocation) => {
-    if (fromLocation === toLocation) return // No change needed
-    
-    if (toLocation === 'bottom' && fromLocation === 'right') {
-      // Moving from right panel to bottom
-      moveTabToBottom(tabId as DetailsPanelTab)
-    } else if (toLocation === 'right' && fromLocation === 'bottom') {
-      // Moving from bottom panel to right  
-      moveTabToRight(tabId as DetailsPanelTab)
-    }
-  }, [moveTabToBottom, moveTabToRight])
-  
+  const handleTabDrop = useCallback(
+    (tabId: string, fromLocation: PanelLocation, toLocation: PanelLocation) => {
+      if (fromLocation === toLocation) return // No change needed
+
+      if (toLocation === 'bottom' && fromLocation === 'right') {
+        // Moving from right panel to bottom
+        moveTabToBottom(tabId as DetailsPanelTab)
+      } else if (toLocation === 'right' && fromLocation === 'bottom') {
+        // Moving from bottom panel to right
+        moveTabToRight(tabId as DetailsPanelTab)
+      }
+    },
+    [moveTabToBottom, moveTabToRight],
+  )
+
   // Handle tab reorder within right panel
-  const handleTabReorder = useCallback((tabId: string, newIndex: number) => {
-    reorderTabsInPanel('right', tabId as DetailsPanelTab, newIndex)
-  }, [reorderTabsInPanel])
+  const handleTabReorder = useCallback(
+    (tabId: string, newIndex: number) => {
+      reorderTabsInPanel('right', tabId as DetailsPanelTab, newIndex)
+    },
+    [reorderTabsInPanel],
+  )
 
   const selectedFileObjects = getSelectedFileObjects()
   const file = selectedFileObjects.length === 1 ? selectedFileObjects[0] : null
-  
+
   // PDF preview state
   const [pdfDataUrl, setPdfDataUrl] = useState<string | null>(null)
   const [pdfLoading, setPdfLoading] = useState(false)
-  
+
   // eDrawings state
-  const [, setEDrawingsStatus] = useState<{ checked: boolean; installed: boolean; path: string | null }>({ checked: false, installed: false, path: null })
-  
+  const [, setEDrawingsStatus] = useState<{
+    checked: boolean
+    installed: boolean
+    path: string | null
+  }>({ checked: false, installed: false, path: null })
+
   // CAD preview state
   const [cadPreview, setCadPreview] = useState<string | null>(null)
   const [cadPreviewLoading, setCadPreviewLoading] = useState(false)
@@ -152,8 +156,10 @@ export function RightPanel() {
         if (result?.success && result.data) {
           setPdfDataUrl(`data:application/pdf;base64,${result.data}`)
         }
-      } catch { }
-      finally { setPdfLoading(false) }
+      } catch {
+      } finally {
+        setPdfLoading(false)
+      }
     }
     loadPdf()
   }, [file?.path, file?.extension, rightPanelTab])
@@ -164,12 +170,12 @@ export function RightPanel() {
     const loadPreview = async () => {
       const ext = file?.extension?.toLowerCase() || ''
       const isSolidWorks = ['.sldprt', '.sldasm', '.slddrw'].includes(ext)
-      
+
       if (!isSolidWorks || rightPanelTab !== 'preview' || !file?.path) {
         setCadPreview(null)
         return
       }
-      
+
       setCadPreviewLoading(true)
       try {
         // First, try direct OLE preview extraction (most reliable, high quality)
@@ -179,7 +185,7 @@ export function RightPanel() {
           setCadPreviewLoading(false)
           return
         }
-        
+
         // Second, try SolidWorks Document Manager API
         const previewResult = await window.electronAPI?.solidworks?.getPreview(file.path)
         if (previewResult?.success && previewResult.data?.imageData) {
@@ -188,7 +194,7 @@ export function RightPanel() {
           setCadPreviewLoading(false)
           return
         }
-        
+
         // Fall back to OS thumbnail (uses cache)
         const thumbData = await thumbnailCache.get(file.path)
         if (thumbData) {
@@ -207,7 +213,16 @@ export function RightPanel() {
 
   const ext = file?.extension?.toLowerCase() || ''
   const isSolidWorksFile = ['.sldprt', '.sldasm', '.slddrw'].includes(ext)
-  const isCADFile = ['.sldprt', '.sldasm', '.slddrw', '.step', '.stp', '.stl', '.iges', '.igs'].includes(ext)
+  const isCADFile = [
+    '.sldprt',
+    '.sldasm',
+    '.slddrw',
+    '.step',
+    '.stp',
+    '.stl',
+    '.iges',
+    '.igs',
+  ].includes(ext)
   const isImageFile = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.svg'].includes(ext)
   const isPDFFile = ext === '.pdf'
 
@@ -229,7 +244,7 @@ export function RightPanel() {
   if (rightPanelTabs.length === 0) return null
 
   return (
-    <div 
+    <div
       className="bg-plm-panel border-l border-plm-border flex flex-col"
       style={{ width: rightPanelWidth }}
     >
@@ -277,109 +292,123 @@ export function RightPanel() {
           <div className="text-sm text-plm-fg-muted text-center py-8">
             {selectedFileObjects.length} files selected
           </div>
-        ) : file && (
-          <>
-            {rightPanelTab === 'properties' && (
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  {getFileIcon()}
-                  <div className="min-w-0">
-                    <div className="font-medium truncate">{file.name}</div>
-                    <div className="text-xs text-plm-fg-muted truncate">{file.relativePath}</div>
+        ) : (
+          file && (
+            <>
+              {rightPanelTab === 'properties' && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    {getFileIcon()}
+                    <div className="min-w-0">
+                      <div className="font-medium truncate">{file.name}</div>
+                      <div className="text-xs text-plm-fg-muted truncate">{file.relativePath}</div>
+                    </div>
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-plm-fg-muted">Item Number</span>
+                      <span>{file.pdmData?.part_number || '-'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-plm-fg-muted">Revision</span>
+                      <span>{file.pdmData?.revision || '-'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-plm-fg-muted">Version</span>
+                      <span>{file.pdmData?.version || 1}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-plm-fg-muted">Size</span>
+                      <span>{formatFileSize(file.size)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-plm-fg-muted">Status</span>
+                      <span>
+                        {file.pdmData
+                          ? 'Synced'
+                          : file.diffStatus === 'ignored'
+                            ? 'Local only (ignored)'
+                            : 'Local only'}
+                      </span>
+                    </div>
                   </div>
                 </div>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-plm-fg-muted">Item Number</span>
-                    <span>{file.pdmData?.part_number || '-'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-plm-fg-muted">Revision</span>
-                    <span>{file.pdmData?.revision || '-'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-plm-fg-muted">Version</span>
-                    <span>{file.pdmData?.version || 1}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-plm-fg-muted">Size</span>
-                    <span>{formatFileSize(file.size)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-plm-fg-muted">Status</span>
-                    <span>{file.pdmData ? 'Synced' : (file.diffStatus === 'ignored' ? 'Local only (ignored)' : 'Local only')}</span>
-                  </div>
-                </div>
-              </div>
-            )}
+              )}
 
-            {rightPanelTab === 'preview' && (
-              <div className="flex flex-col h-full">
-                {isPDFFile ? (
-                  pdfLoading ? (
-                    <div className="flex-1 flex items-center justify-center">
-                      <Loader2 className="animate-spin" size={24} />
-                    </div>
-                  ) : pdfDataUrl ? (
-                    <iframe src={pdfDataUrl} className="w-full h-full border-0 rounded bg-white" />
-                  ) : (
-                    <div className="flex-1 flex items-center justify-center text-plm-fg-muted">Failed to load PDF</div>
-                  )
-                ) : isImageFile ? (
-                  <div className="flex-1 flex items-center justify-center">
-                    <img src={`file://${file.path}`} alt={file.name} className="max-w-full max-h-full object-contain" />
-                  </div>
-                ) : isSolidWorksFile ? (
-                  // Use the preview panel for SolidWorks files
-                  <SWDatacardPanel file={file} />
-                ) : isCADFile ? (
-                  cadPreviewLoading ? (
-                    <div className="flex-1 flex items-center justify-center">
-                      <Loader2 className="animate-spin text-plm-accent" size={32} />
-                    </div>
-                  ) : cadPreview ? (
-                    <div className="flex-1 flex flex-col">
-                      <div className="flex-1 flex items-center justify-center bg-gradient-to-b from-gray-800 to-gray-900 rounded overflow-auto">
-                        <img 
-                          src={cadPreview} 
-                          alt={file.name}
-                          className="max-w-full max-h-full object-contain"
-                        />
+              {rightPanelTab === 'preview' && (
+                <div className="flex flex-col h-full">
+                  {isPDFFile ? (
+                    pdfLoading ? (
+                      <div className="flex-1 flex items-center justify-center">
+                        <Loader2 className="animate-spin" size={24} />
                       </div>
-                      <button 
-                        onClick={handleOpenInEDrawings} 
-                        className="btn btn-sm btn-secondary gap-2 mt-2 self-center"
-                      >
-                        <ExternalLink size={14} />
-                        Open in eDrawings
-                      </button>
+                    ) : pdfDataUrl ? (
+                      <iframe
+                        src={pdfDataUrl}
+                        className="w-full h-full border-0 rounded bg-white"
+                      />
+                    ) : (
+                      <div className="flex-1 flex items-center justify-center text-plm-fg-muted">
+                        Failed to load PDF
+                      </div>
+                    )
+                  ) : isImageFile ? (
+                    <div className="flex-1 flex items-center justify-center">
+                      <img
+                        src={`file://${file.path}`}
+                        alt={file.name}
+                        className="max-w-full max-h-full object-contain"
+                      />
                     </div>
+                  ) : isSolidWorksFile ? (
+                    // Use the preview panel for SolidWorks files
+                    <SWDatacardPanel file={file} />
+                  ) : isCADFile ? (
+                    cadPreviewLoading ? (
+                      <div className="flex-1 flex items-center justify-center">
+                        <Loader2 className="animate-spin text-plm-accent" size={32} />
+                      </div>
+                    ) : cadPreview ? (
+                      <div className="flex-1 flex flex-col">
+                        <div className="flex-1 flex items-center justify-center bg-gradient-to-b from-gray-800 to-gray-900 rounded overflow-auto">
+                          <img
+                            src={cadPreview}
+                            alt={file.name}
+                            className="max-w-full max-h-full object-contain"
+                          />
+                        </div>
+                        <button
+                          onClick={handleOpenInEDrawings}
+                          className="btn btn-sm btn-secondary gap-2 mt-2 self-center"
+                        >
+                          <ExternalLink size={14} />
+                          Open in eDrawings
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex-1 flex flex-col items-center justify-center">
+                        <FileBox size={48} className="mb-4 text-plm-accent" />
+                        <button onClick={handleOpenInEDrawings} className="btn btn-primary gap-2">
+                          <ExternalLink size={16} />
+                          Open in eDrawings
+                        </button>
+                      </div>
+                    )
                   ) : (
-                    <div className="flex-1 flex flex-col items-center justify-center">
-                      <FileBox size={48} className="mb-4 text-plm-accent" />
-                      <button onClick={handleOpenInEDrawings} className="btn btn-primary gap-2">
-                        <ExternalLink size={16} />
-                        Open in eDrawings
-                      </button>
+                    <div className="flex-1 flex items-center justify-center text-plm-fg-muted">
+                      No preview available
                     </div>
-                  )
-                ) : (
-                  <div className="flex-1 flex items-center justify-center text-plm-fg-muted">No preview available</div>
-                )}
-              </div>
-            )}
+                  )}
+                </div>
+              )}
 
-            {rightPanelTab === 'whereused' && (
-              <WhereUsedTab file={file} />
-            )}
+              {rightPanelTab === 'whereused' && <WhereUsedTab file={file} />}
 
-            {rightPanelTab === 'vendors' && (
-              <VendorsTab file={file} />
-            )}
-          </>
+              {rightPanelTab === 'vendors' && <VendorsTab file={file} />}
+            </>
+          )
         )}
       </div>
     </div>
   )
 }
-

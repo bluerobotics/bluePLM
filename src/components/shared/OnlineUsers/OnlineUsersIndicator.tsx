@@ -107,13 +107,13 @@ export function OnlineUsersIndicator({ orgLogoUrl }: OnlineUsersIndicatorProps) 
         >
           {/* Company logo */}
           <div className="relative">
-            <img 
-              src={orgLogoUrl || ''} 
-              alt={organization.name} 
+            <img
+              src={orgLogoUrl || ''}
+              alt={organization.name}
               className="h-5 max-w-[80px] object-contain rounded"
               style={{ opacity: orgLogoUrl ? 1 : 0 }}
             />
-            
+
             {/* Online count - visible but not like a notification */}
             {onlineUsers.length > 0 && (
               <div className="absolute -top-1 -right-1.5 min-w-[14px] h-[14px] flex items-center justify-center bg-plm-bg-lighter rounded-full border border-plm-border">
@@ -132,12 +132,8 @@ export function OnlineUsersIndicator({ orgLogoUrl }: OnlineUsersIndicatorProps) 
             <div className="px-4 py-3 border-b border-plm-border bg-plm-bg">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-plm-success animate-pulse" />
-                <span className="text-sm font-medium text-plm-fg">
-                  {onlineUsers.length} Online
-                </span>
-                <span className="text-xs text-plm-fg-muted">
-                  in {organization.name}
-                </span>
+                <span className="text-sm font-medium text-plm-fg">{onlineUsers.length} Online</span>
+                <span className="text-xs text-plm-fg-muted">in {organization.name}</span>
               </div>
             </div>
 
@@ -150,7 +146,7 @@ export function OnlineUsersIndicator({ orgLogoUrl }: OnlineUsersIndicatorProps) 
               ) : (
                 sortedUsers.map((onlineUser) => {
                   const isCurrentUser = onlineUser.user_id === user?.id
-                  
+
                   return (
                     <button
                       key={`${onlineUser.user_id}-${onlineUser.machine_name}`}
@@ -162,8 +158,8 @@ export function OnlineUsersIndicator({ orgLogoUrl }: OnlineUsersIndicatorProps) 
                       {/* Avatar with online indicator */}
                       <div className="relative flex-shrink-0">
                         {getEffectiveAvatarUrl(onlineUser) ? (
-                          <img 
-                            src={getEffectiveAvatarUrl(onlineUser) || ''} 
+                          <img
+                            src={getEffectiveAvatarUrl(onlineUser) || ''}
                             alt={onlineUser.full_name || onlineUser.email}
                             className="w-8 h-8 rounded-full object-cover"
                             referrerPolicy="no-referrer"
@@ -174,10 +170,12 @@ export function OnlineUsersIndicator({ orgLogoUrl }: OnlineUsersIndicatorProps) 
                             }}
                           />
                         ) : null}
-                        <div className={`w-8 h-8 rounded-full bg-plm-accent flex items-center justify-center text-xs text-white font-semibold ${getEffectiveAvatarUrl(onlineUser) ? 'hidden' : ''}`}>
+                        <div
+                          className={`w-8 h-8 rounded-full bg-plm-accent flex items-center justify-center text-xs text-white font-semibold ${getEffectiveAvatarUrl(onlineUser) ? 'hidden' : ''}`}
+                        >
                           {getInitials(onlineUser.full_name || onlineUser.email)}
                         </div>
-                        
+
                         {/* Online dot */}
                         <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-plm-bg-light rounded-full flex items-center justify-center">
                           <div className="w-2 h-2 rounded-full bg-plm-success" />
@@ -187,7 +185,9 @@ export function OnlineUsersIndicator({ orgLogoUrl }: OnlineUsersIndicatorProps) 
                       {/* User info */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">
-                          <span className={`text-sm font-medium truncate ${isCurrentUser ? 'text-plm-accent' : 'text-plm-fg'}`}>
+                          <span
+                            className={`text-sm font-medium truncate ${isCurrentUser ? 'text-plm-accent' : 'text-plm-fg'}`}
+                          >
                             {onlineUser.full_name || onlineUser.email.split('@')[0]}
                           </span>
                           {isCurrentUser && (
@@ -199,7 +199,9 @@ export function OnlineUsersIndicator({ orgLogoUrl }: OnlineUsersIndicatorProps) 
                         <div className="flex items-center gap-2 text-xs text-plm-fg-muted">
                           <span className="flex items-center gap-1">
                             {getPlatformIcon(onlineUser.platform)}
-                            <span className="truncate max-w-[120px]">{onlineUser.machine_name}</span>
+                            <span className="truncate max-w-[120px]">
+                              {onlineUser.machine_name}
+                            </span>
                           </span>
                           <span className="text-plm-fg-dim">•</span>
                           <span>{formatLastSeen(onlineUser.last_seen)}</span>
@@ -223,10 +225,7 @@ export function OnlineUsersIndicator({ orgLogoUrl }: OnlineUsersIndicatorProps) 
 
       {/* User Profile Modal */}
       {viewingUserId && (
-        <UserProfileModal
-          userId={viewingUserId}
-          onClose={() => setViewingUserId(null)}
-        />
+        <UserProfileModal userId={viewingUserId} onClose={() => setViewingUserId(null)} />
       )}
     </>
   )

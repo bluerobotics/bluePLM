@@ -1,12 +1,12 @@
 /**
  * Bulk Assembly Command Handlers
- * 
+ *
  * Commands for performing bulk operations on assemblies and all their associated files:
  * - bulk-download-assembly: Download assembly + all children + drawings
  * - bulk-checkout-assembly: Checkout assembly + all children + drawings
  * - bulk-checkin-assembly: Checkin assembly + all children + drawings
  * - bulk-delete-assembly: Delete local copies of assembly + all children + drawings
- * 
+ *
  * These commands use the assembly resolver to find all associated files,
  * then delegate to existing single-file command handlers.
  */
@@ -27,7 +27,7 @@ import { FileOperationTracker } from '../../fileOperationTracker'
 function logBulkAssembly(
   level: 'info' | 'warn' | 'error' | 'debug',
   message: string,
-  context: Record<string, unknown>
+  context: Record<string, unknown>,
 ): void {
   log[level]('[BulkAssembly]', message, context)
 }
@@ -39,38 +39,38 @@ function logBulkAssembly(
 function validateBulkAssemblyCommand(
   { files, rootFileId }: BulkAssemblyParams,
   ctx: Parameters<Command<BulkAssemblyParams>['validate']>[1],
-  commandName: string
+  commandName: string,
 ): string | null {
   if (ctx.isOfflineMode) {
     return `Cannot ${commandName} while offline`
   }
-  
+
   if (!ctx.user) {
     return 'Please sign in first'
   }
-  
+
   if (!ctx.organization) {
     return 'No organization connected'
   }
-  
+
   if (!files || files.length === 0) {
     return 'No files selected'
   }
-  
+
   if (!rootFileId) {
     return 'No root assembly specified'
   }
-  
+
   // Find the root file to verify it's an assembly
-  const rootFile = files.find(f => f.pdmData?.id === rootFileId)
+  const rootFile = files.find((f) => f.pdmData?.id === rootFileId)
   if (!rootFile) {
     return 'Root assembly not found in selection'
   }
-  
+
   if (!rootFile.name.toLowerCase().endsWith('.sldasm')) {
     return 'Selected file is not an assembly (.sldasm)'
   }
-  
+
   return null
 }
 
@@ -81,10 +81,14 @@ function validateBulkAssemblyCommand(
 async function resolveFilesForBulkOperation(
   rootFileId: string,
   ctx: Parameters<Command<BulkAssemblyParams>['execute']>[1],
-  onProgress?: (message: string) => void
-): Promise<{ files: LocalFile[]; error: string | null; stats: { total: number; children: number; drawings: number } }> {
+  onProgress?: (message: string) => void,
+): Promise<{
+  files: LocalFile[]
+  error: string | null
+  stats: { total: number; children: number; drawings: number }
+}> {
   const orgId = ctx.organization!.id
-  
+
   // Build a Map from ctx.files for the resolver
   const filesMap = new Map<string, LocalFile>()
   for (const file of ctx.files) {
@@ -92,31 +96,31 @@ async function resolveFilesForBulkOperation(
       filesMap.set(file.pdmData.id, file)
     }
   }
-  
+
   const result = await resolveAssociatedFiles(rootFileId, orgId, filesMap, onProgress)
-  
+
   if (result.error) {
     return {
       files: [],
       error: result.error instanceof Error ? result.error.message : String(result.error),
-      stats: { total: 0, children: 0, drawings: 0 }
+      stats: { total: 0, children: 0, drawings: 0 },
     }
   }
-  
+
   // Extract LocalFile objects from the result's allFiles Map
   const resolvedFiles: LocalFile[] = []
   for (const [, localFile] of result.allFiles) {
     resolvedFiles.push(localFile)
   }
-  
+
   return {
     files: resolvedFiles,
     error: null,
     stats: {
       total: resolvedFiles.length,
       children: result.stats.totalChildren,
-      drawings: result.stats.drawings
-    }
+      drawings: result.stats.drawings,
+    },
   }
 }
 
@@ -130,27 +134,27 @@ export const bulkDownloadAssemblyCommand: Command<BulkAssemblyParams> = {
   description: 'Download assembly and all associated files (children, drawings)',
   aliases: ['bulk-dl-asm'],
   usage: 'bulk-download-assembly <assembly-file>',
-  
+
   validate(params, ctx) {
     return validateBulkAssemblyCommand(params, ctx, 'download assembly')
   },
-  
+
   async execute({ files, rootFileId }, ctx): Promise<CommandResult> {
     const operationId = `bulk-download-assembly-${Date.now()}`
-    
+
     logBulkAssembly('info', 'Starting bulk download assembly', {
       operationId,
       rootFileId,
-      selectedFileCount: files.length
+      selectedFileCount: files.length,
     })
-    
+
     // Initialize tracker
     const tracker = FileOperationTracker.start(
       'download',
       1, // Will update after resolution
-      ['(resolving...)']
+      ['(resolving...)'],
     )
-    
+
     // Create progress tracker for resolution phase
     const toastId = `bulk-download-${Date.now()}`
     const progress = new ProgressTracker(
@@ -158,21 +162,21 @@ export const bulkDownloadAssemblyCommand: Command<BulkAssemblyParams> = {
       'bulk-download-assembly',
       toastId,
       'Resolving assembly files...',
-      1
+      1,
     )
-    
+
     // Resolve all associated files
-    const { files: resolvedFiles, error, stats } = await resolveFilesForBulkOperation(
-      rootFileId,
-      ctx,
-      (msg) => progress.setStatus(msg)
-    )
-    
+    const {
+      files: resolvedFiles,
+      error,
+      stats,
+    } = await resolveFilesForBulkOperation(rootFileId, ctx, (msg) => progress.setStatus(msg))
+
     if (error) {
       logBulkAssembly('error', 'Failed to resolve assembly files', {
         operationId,
         rootFileId,
-        error
+        error,
       })
       progress.finish()
       tracker.endOperation('failed', error)
@@ -183,24 +187,24 @@ export const bulkDownloadAssemblyCommand: Command<BulkAssemblyParams> = {
         total: 0,
         succeeded: 0,
         failed: 1,
-        errors: [error]
+        errors: [error],
       }
     }
-    
+
     logBulkAssembly('info', 'Resolved assembly files', {
       operationId,
       rootFileId,
       totalFiles: stats.total,
       children: stats.children,
-      drawings: stats.drawings
+      drawings: stats.drawings,
     })
-    
+
     // Finish resolution progress
     progress.finish()
-    
+
     // Filter to only cloud-only files (files that need downloading)
-    const cloudOnlyFiles = resolvedFiles.filter(f => f.diffStatus === 'cloud')
-    
+    const cloudOnlyFiles = resolvedFiles.filter((f) => f.diffStatus === 'cloud')
+
     if (cloudOnlyFiles.length === 0) {
       logBulkAssembly('info', 'All files already downloaded', { operationId })
       tracker.endOperation('completed')
@@ -210,20 +214,20 @@ export const bulkDownloadAssemblyCommand: Command<BulkAssemblyParams> = {
         message: 'All assembly files are already downloaded',
         total: resolvedFiles.length,
         succeeded: resolvedFiles.length,
-        failed: 0
+        failed: 0,
       }
     }
-    
+
     tracker.endOperation('completed')
-    
+
     // Delegate to download command
     logBulkAssembly('info', 'Delegating to download command', {
       operationId,
-      cloudOnlyCount: cloudOnlyFiles.length
+      cloudOnlyCount: cloudOnlyFiles.length,
     })
-    
+
     return downloadCommand.execute({ files: cloudOnlyFiles }, ctx)
-  }
+  },
 }
 
 // ============================================
@@ -236,27 +240,23 @@ export const bulkCheckoutAssemblyCommand: Command<BulkAssemblyParams> = {
   description: 'Check out assembly and all associated files (children, drawings)',
   aliases: ['bulk-co-asm'],
   usage: 'bulk-checkout-assembly <assembly-file>',
-  
+
   validate(params, ctx) {
     return validateBulkAssemblyCommand(params, ctx, 'check out assembly')
   },
-  
+
   async execute({ files, rootFileId }, ctx): Promise<CommandResult> {
     const operationId = `bulk-checkout-assembly-${Date.now()}`
-    
+
     logBulkAssembly('info', 'Starting bulk checkout assembly', {
       operationId,
       rootFileId,
-      selectedFileCount: files.length
+      selectedFileCount: files.length,
     })
-    
+
     // Initialize tracker
-    const tracker = FileOperationTracker.start(
-      'checkout',
-      1,
-      ['(resolving...)']
-    )
-    
+    const tracker = FileOperationTracker.start('checkout', 1, ['(resolving...)'])
+
     // Create progress tracker for resolution phase
     const toastId = `bulk-checkout-${Date.now()}`
     const progress = new ProgressTracker(
@@ -264,21 +264,21 @@ export const bulkCheckoutAssemblyCommand: Command<BulkAssemblyParams> = {
       'bulk-checkout-assembly',
       toastId,
       'Resolving assembly files...',
-      1
+      1,
     )
-    
+
     // Resolve all associated files
-    const { files: resolvedFiles, error, stats } = await resolveFilesForBulkOperation(
-      rootFileId,
-      ctx,
-      (msg) => progress.setStatus(msg)
-    )
-    
+    const {
+      files: resolvedFiles,
+      error,
+      stats,
+    } = await resolveFilesForBulkOperation(rootFileId, ctx, (msg) => progress.setStatus(msg))
+
     if (error) {
       logBulkAssembly('error', 'Failed to resolve assembly files', {
         operationId,
         rootFileId,
-        error
+        error,
       })
       progress.finish()
       tracker.endOperation('failed', error)
@@ -289,40 +289,38 @@ export const bulkCheckoutAssemblyCommand: Command<BulkAssemblyParams> = {
         total: 0,
         succeeded: 0,
         failed: 1,
-        errors: [error]
+        errors: [error],
       }
     }
-    
+
     logBulkAssembly('info', 'Resolved assembly files', {
       operationId,
       rootFileId,
       totalFiles: stats.total,
       children: stats.children,
-      drawings: stats.drawings
+      drawings: stats.drawings,
     })
-    
+
     // Finish resolution progress
     progress.finish()
-    
+
     // Filter to files that can be checked out (synced and not already checked out)
-    const checkoutableFiles = resolvedFiles.filter(f => 
-      f.pdmData?.id && 
-      !f.pdmData.checked_out_by &&
-      f.diffStatus !== 'cloud' // Must exist locally
+    const checkoutableFiles = resolvedFiles.filter(
+      (f) => f.pdmData?.id && !f.pdmData.checked_out_by && f.diffStatus !== 'cloud', // Must exist locally
     )
-    
+
     if (checkoutableFiles.length === 0) {
       // Check why no files can be checked out
-      const alreadyCheckedOut = resolvedFiles.filter(f => f.pdmData?.checked_out_by)
-      const cloudOnly = resolvedFiles.filter(f => f.diffStatus === 'cloud')
-      
+      const alreadyCheckedOut = resolvedFiles.filter((f) => f.pdmData?.checked_out_by)
+      const cloudOnly = resolvedFiles.filter((f) => f.diffStatus === 'cloud')
+
       let message = 'No files to check out'
       if (alreadyCheckedOut.length > 0) {
         message = `All ${alreadyCheckedOut.length} files are already checked out`
       } else if (cloudOnly.length > 0) {
         message = `${cloudOnly.length} files need to be downloaded first`
       }
-      
+
       logBulkAssembly('info', message, { operationId })
       tracker.endOperation('completed')
       ctx.addToast('info', message)
@@ -331,20 +329,20 @@ export const bulkCheckoutAssemblyCommand: Command<BulkAssemblyParams> = {
         message,
         total: resolvedFiles.length,
         succeeded: 0,
-        failed: 0
+        failed: 0,
       }
     }
-    
+
     tracker.endOperation('completed')
-    
+
     // Delegate to checkout command
     logBulkAssembly('info', 'Delegating to checkout command', {
       operationId,
-      checkoutableCount: checkoutableFiles.length
+      checkoutableCount: checkoutableFiles.length,
     })
-    
+
     return checkoutCommand.execute({ files: checkoutableFiles }, ctx)
-  }
+  },
 }
 
 // ============================================
@@ -357,32 +355,28 @@ export const bulkCheckinAssemblyCommand: Command<BulkAssemblyParams> = {
   description: 'Check in assembly and all associated files (children, drawings)',
   aliases: ['bulk-ci-asm'],
   usage: 'bulk-checkin-assembly <assembly-file>',
-  
+
   validate(params, ctx) {
     const baseValidation = validateBulkAssemblyCommand(params, ctx, 'check in assembly')
     if (baseValidation) return baseValidation
-    
+
     return null
   },
-  
+
   async execute({ files, rootFileId }, ctx): Promise<CommandResult> {
     const operationId = `bulk-checkin-assembly-${Date.now()}`
     const userId = ctx.user!.id
-    
+
     logBulkAssembly('info', 'Starting bulk checkin assembly', {
       operationId,
       rootFileId,
       selectedFileCount: files.length,
-      userId
+      userId,
     })
-    
+
     // Initialize tracker
-    const tracker = FileOperationTracker.start(
-      'checkin',
-      1,
-      ['(resolving...)']
-    )
-    
+    const tracker = FileOperationTracker.start('checkin', 1, ['(resolving...)'])
+
     // Create progress tracker for resolution phase
     const toastId = `bulk-checkin-${Date.now()}`
     const progress = new ProgressTracker(
@@ -390,21 +384,21 @@ export const bulkCheckinAssemblyCommand: Command<BulkAssemblyParams> = {
       'bulk-checkin-assembly',
       toastId,
       'Resolving assembly files...',
-      1
+      1,
     )
-    
+
     // Resolve all associated files
-    const { files: resolvedFiles, error, stats } = await resolveFilesForBulkOperation(
-      rootFileId,
-      ctx,
-      (msg) => progress.setStatus(msg)
-    )
-    
+    const {
+      files: resolvedFiles,
+      error,
+      stats,
+    } = await resolveFilesForBulkOperation(rootFileId, ctx, (msg) => progress.setStatus(msg))
+
     if (error) {
       logBulkAssembly('error', 'Failed to resolve assembly files', {
         operationId,
         rootFileId,
-        error
+        error,
       })
       progress.finish()
       tracker.endOperation('failed', error)
@@ -415,41 +409,40 @@ export const bulkCheckinAssemblyCommand: Command<BulkAssemblyParams> = {
         total: 0,
         succeeded: 0,
         failed: 1,
-        errors: [error]
+        errors: [error],
       }
     }
-    
+
     logBulkAssembly('info', 'Resolved assembly files', {
       operationId,
       rootFileId,
       totalFiles: stats.total,
       children: stats.children,
-      drawings: stats.drawings
+      drawings: stats.drawings,
     })
-    
+
     // Finish resolution progress
     progress.finish()
-    
+
     // Filter to files checked out by the current user
-    const checkinableFiles = resolvedFiles.filter(f => 
-      f.pdmData?.id && 
-      f.pdmData.checked_out_by === userId
+    const checkinableFiles = resolvedFiles.filter(
+      (f) => f.pdmData?.id && f.pdmData.checked_out_by === userId,
     )
-    
+
     if (checkinableFiles.length === 0) {
       // Provide helpful feedback
-      const checkedOutByOthers = resolvedFiles.filter(f => 
-        f.pdmData?.checked_out_by && f.pdmData.checked_out_by !== userId
+      const checkedOutByOthers = resolvedFiles.filter(
+        (f) => f.pdmData?.checked_out_by && f.pdmData.checked_out_by !== userId,
       )
-      const notCheckedOut = resolvedFiles.filter(f => !f.pdmData?.checked_out_by)
-      
+      const notCheckedOut = resolvedFiles.filter((f) => !f.pdmData?.checked_out_by)
+
       let message = 'No files to check in'
       if (checkedOutByOthers.length > 0) {
         message = `${checkedOutByOthers.length} files are checked out by other users`
       } else if (notCheckedOut.length > 0) {
         message = `No files are checked out by you`
       }
-      
+
       logBulkAssembly('info', message, { operationId })
       tracker.endOperation('completed')
       ctx.addToast('info', message)
@@ -458,20 +451,20 @@ export const bulkCheckinAssemblyCommand: Command<BulkAssemblyParams> = {
         message,
         total: resolvedFiles.length,
         succeeded: 0,
-        failed: 0
+        failed: 0,
       }
     }
-    
+
     tracker.endOperation('completed')
-    
+
     // Delegate to checkin command
     logBulkAssembly('info', 'Delegating to checkin command', {
       operationId,
-      checkinableCount: checkinableFiles.length
+      checkinableCount: checkinableFiles.length,
     })
-    
+
     return checkinCommand.execute({ files: checkinableFiles }, ctx)
-  }
+  },
 }
 
 // ============================================
@@ -484,46 +477,42 @@ export const bulkDeleteAssemblyCommand: Command<BulkAssemblyParams> = {
   description: 'Remove local copies of assembly and all associated files (children, drawings)',
   aliases: ['bulk-rm-asm'],
   usage: 'bulk-delete-assembly <assembly-file>',
-  
+
   validate(params, _ctx) {
     // Delete can work offline (local files only)
     if (!params.files || params.files.length === 0) {
       return 'No files selected'
     }
-    
+
     if (!params.rootFileId) {
       return 'No root assembly specified'
     }
-    
+
     // Find the root file to verify it's an assembly
-    const rootFile = params.files.find(f => f.pdmData?.id === params.rootFileId)
+    const rootFile = params.files.find((f) => f.pdmData?.id === params.rootFileId)
     if (!rootFile) {
       return 'Root assembly not found in selection'
     }
-    
+
     if (!rootFile.name.toLowerCase().endsWith('.sldasm')) {
       return 'Selected file is not an assembly (.sldasm)'
     }
-    
+
     return null
   },
-  
+
   async execute({ files, rootFileId }, ctx): Promise<CommandResult> {
     const operationId = `bulk-delete-assembly-${Date.now()}`
-    
+
     logBulkAssembly('info', 'Starting bulk delete assembly', {
       operationId,
       rootFileId,
-      selectedFileCount: files.length
+      selectedFileCount: files.length,
     })
-    
+
     // Initialize tracker
-    const tracker = FileOperationTracker.start(
-      'delete',
-      1,
-      ['(resolving...)']
-    )
-    
+    const tracker = FileOperationTracker.start('delete', 1, ['(resolving...)'])
+
     // Create progress tracker for resolution phase
     const toastId = `bulk-delete-${Date.now()}`
     const progress = new ProgressTracker(
@@ -531,9 +520,9 @@ export const bulkDeleteAssemblyCommand: Command<BulkAssemblyParams> = {
       'bulk-delete-assembly',
       toastId,
       'Resolving assembly files...',
-      1
+      1,
     )
-    
+
     // For delete, we need to handle the case where organization might be null (offline)
     // But we still need the org ID for the resolver
     if (!ctx.organization?.id) {
@@ -546,22 +535,22 @@ export const bulkDeleteAssemblyCommand: Command<BulkAssemblyParams> = {
         total: 0,
         succeeded: 0,
         failed: 1,
-        errors: ['No organization connected']
+        errors: ['No organization connected'],
       }
     }
-    
+
     // Resolve all associated files
-    const { files: resolvedFiles, error, stats } = await resolveFilesForBulkOperation(
-      rootFileId,
-      ctx,
-      (msg) => progress.setStatus(msg)
-    )
-    
+    const {
+      files: resolvedFiles,
+      error,
+      stats,
+    } = await resolveFilesForBulkOperation(rootFileId, ctx, (msg) => progress.setStatus(msg))
+
     if (error) {
       logBulkAssembly('error', 'Failed to resolve assembly files', {
         operationId,
         rootFileId,
-        error
+        error,
       })
       progress.finish()
       tracker.endOperation('failed', error)
@@ -572,24 +561,24 @@ export const bulkDeleteAssemblyCommand: Command<BulkAssemblyParams> = {
         total: 0,
         succeeded: 0,
         failed: 1,
-        errors: [error]
+        errors: [error],
       }
     }
-    
+
     logBulkAssembly('info', 'Resolved assembly files', {
       operationId,
       rootFileId,
       totalFiles: stats.total,
       children: stats.children,
-      drawings: stats.drawings
+      drawings: stats.drawings,
     })
-    
+
     // Finish resolution progress
     progress.finish()
-    
+
     // Filter to files that exist locally (not cloud-only)
-    const localFiles = resolvedFiles.filter(f => f.diffStatus !== 'cloud')
-    
+    const localFiles = resolvedFiles.filter((f) => f.diffStatus !== 'cloud')
+
     if (localFiles.length === 0) {
       logBulkAssembly('info', 'No local files to delete', { operationId })
       tracker.endOperation('completed')
@@ -599,22 +588,22 @@ export const bulkDeleteAssemblyCommand: Command<BulkAssemblyParams> = {
         message: 'No local files to remove',
         total: resolvedFiles.length,
         succeeded: 0,
-        failed: 0
+        failed: 0,
       }
     }
-    
+
     // Note: We intentionally do NOT check checkout status here.
     // Checkout status is about server-side locking for editing - it's irrelevant
     // for deleting local copies. The base delete-local command handles this correctly.
-    
+
     tracker.endOperation('completed')
-    
+
     // Delegate to delete-local command
     logBulkAssembly('info', 'Delegating to delete-local command', {
       operationId,
-      localFileCount: localFiles.length
+      localFileCount: localFiles.length,
     })
-    
+
     return deleteLocalCommand.execute({ files: localFiles }, ctx)
-  }
+  },
 }

@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { log } from '@/lib/logger'
-import { 
-  Upload, 
-  Loader2, 
+import {
+  Upload,
+  Loader2,
   Phone,
   Globe,
   Save,
@@ -15,7 +15,7 @@ import {
   Building2,
   Truck,
   Copy,
-  AlertTriangle
+  AlertTriangle,
 } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
@@ -59,7 +59,7 @@ const emptyAddress: Omit<OrgAddress, 'id' | 'org_id'> = {
   postal_code: null,
   country: 'USA',
   attention_to: null,
-  phone: null
+  phone: null,
 }
 
 export function CompanyProfileSettings() {
@@ -68,30 +68,30 @@ export function CompanyProfileSettings() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [uploadingLogo, setUploadingLogo] = useState(false)
-  
+
   // Track if we're currently saving to avoid overwriting with stale realtime data
   const savingRef = useRef(false)
-  
+
   const [profile, setProfile] = useState<CompanyProfile>({
     logo_url: null,
     logo_storage_path: null,
     phone: null,
     website: null,
-    contact_email: null
+    contact_email: null,
   })
 
   // Addresses state
   const [billingAddresses, setBillingAddresses] = useState<OrgAddress[]>([])
   const [shippingAddresses, setShippingAddresses] = useState<OrgAddress[]>([])
   const [loadingAddresses, setLoadingAddresses] = useState(true)
-  
+
   // Address modal state
   const [showAddressModal, setShowAddressModal] = useState(false)
   const [editingAddress, setEditingAddress] = useState<OrgAddress | null>(null)
   const [addressForm, setAddressForm] = useState<Omit<OrgAddress, 'id' | 'org_id'>>(emptyAddress)
   const [savingAddress, setSavingAddress] = useState(false)
   const [deletingAddressId, setDeletingAddressId] = useState<string | null>(null)
-  
+
   // Delete confirmation modal state
   const [deleteConfirmAddress, setDeleteConfirmAddress] = useState<OrgAddress | null>(null)
 
@@ -109,19 +109,19 @@ export function CompanyProfileSettings() {
           .single()
 
         if (error) throw error
-        
-        log.debug('[CompanyProfile]', 'Loaded from DB', { 
-          logo_url: data?.logo_url?.substring(0, 50) + '...', 
-          logo_storage_path: data?.logo_storage_path 
+
+        log.debug('[CompanyProfile]', 'Loaded from DB', {
+          logo_url: data?.logo_url?.substring(0, 50) + '...',
+          logo_storage_path: data?.logo_storage_path,
         })
-        
+
         // If we have a storage path, get a fresh signed URL
         let logoUrl = data?.logo_url || null
         if (data?.logo_storage_path) {
           const { data: signedData, error: signedError } = await supabase.storage
             .from('vault')
             .createSignedUrl(data.logo_storage_path, 60 * 60 * 24 * 365) // 1 year
-          
+
           if (signedError) {
             log.error('[CompanyProfile]', 'Failed to create signed URL', { error: signedError })
           } else if (signedData?.signedUrl) {
@@ -129,16 +129,16 @@ export function CompanyProfileSettings() {
             logoUrl = signedData.signedUrl
           }
         }
-        
+
         setProfile({
           logo_url: logoUrl,
           logo_storage_path: data?.logo_storage_path || null,
           phone: data?.phone || null,
           website: data?.website || null,
-          contact_email: data?.contact_email || null
+          contact_email: data?.contact_email || null,
         })
-      } catch (err) {
-        log.error('[CompanyProfile]', 'Failed to load company profile', { error: err })
+      } catch (error) {
+        log.error('[CompanyProfile]', 'Failed to load company profile', { error: error })
       } finally {
         setLoading(false)
       }
@@ -162,12 +162,12 @@ export function CompanyProfileSettings() {
           .order('label')
 
         if (error) throw error
-        
+
         const addresses = (data || []) as OrgAddress[]
-        setBillingAddresses(addresses.filter(a => a.address_type === 'billing'))
-        setShippingAddresses(addresses.filter(a => a.address_type === 'shipping'))
-      } catch (err) {
-        log.error('[CompanyProfile]', 'Failed to load addresses', { error: err })
+        setBillingAddresses(addresses.filter((a) => a.address_type === 'billing'))
+        setShippingAddresses(addresses.filter((a) => a.address_type === 'shipping'))
+      } catch (error) {
+        log.error('[CompanyProfile]', 'Failed to load addresses', { error: error })
       } finally {
         setLoadingAddresses(false)
       }
@@ -175,35 +175,35 @@ export function CompanyProfileSettings() {
 
     loadAddresses()
   }, [organization?.id])
-  
+
   // Sync with realtime organization changes (when another admin updates settings)
   useEffect(() => {
     // Skip if we're currently saving (to avoid overwriting our own changes)
     if (savingRef.current) return
     // Skip if still loading initial data
     if (loading) return
-    
+
     // Sync company profile fields from realtime organization object
-    const org = organization as any
+    const org = organization as any // TODO: type this
     if (org) {
       log.debug('[CompanyProfile]', 'Syncing with realtime org settings')
-      
+
       // Only update if there are actual changes from the store
-      setProfile(prev => ({
+      setProfile((prev) => ({
         logo_url: org.logo_url ?? prev.logo_url,
         logo_storage_path: org.logo_storage_path ?? prev.logo_storage_path,
         phone: org.phone ?? prev.phone,
         website: org.website ?? prev.website,
-        contact_email: org.contact_email ?? prev.contact_email
+        contact_email: org.contact_email ?? prev.contact_email,
       }))
     }
   }, [
     loading,
-    (organization as any)?.logo_url,
-    (organization as any)?.logo_storage_path,
-    (organization as any)?.phone,
-    (organization as any)?.website,
-    (organization as any)?.contact_email
+    (organization as any)?.logo_url, // TODO: type this
+    (organization as any)?.logo_storage_path, // TODO: type this
+    (organization as any)?.phone, // TODO: type this
+    (organization as any)?.website, // TODO: type this
+    (organization as any)?.contact_email, // TODO: type this
   ])
 
   // Handle logo upload
@@ -227,9 +227,9 @@ export function CompanyProfileSettings() {
       // Upload to vault bucket under _assets folder
       const ext = file.name.split('.').pop()?.toLowerCase() || 'png'
       const filePath = `${organization.id}/_assets/logo.${ext}`
-      
+
       log.debug('[CompanyProfile]', 'Uploading logo', { filePath })
-      
+
       const { error: uploadError } = await supabase.storage
         .from('vault')
         .upload(filePath, file, { upsert: true })
@@ -246,28 +246,28 @@ export function CompanyProfileSettings() {
       // Update organization with signed URL and storage path using RPC function
       // (Direct updates aren't allowed due to RLS policy)
       log.debug('[CompanyProfile]', 'Saving to DB via RPC', { logoStoragePath: filePath })
-      const { error: updateError } = await (supabase.rpc as any)('update_org_branding', {
+      const { error: updateError } = await (supabase.rpc as any)('update_org_branding', { // TODO: type this
         p_org_id: organization.id,
         p_logo_url: signedData.signedUrl,
-        p_logo_storage_path: filePath
+        p_logo_storage_path: filePath,
       })
 
       if (updateError) {
         log.error('[CompanyProfile]', 'DB update error', { error: updateError })
         throw updateError
       }
-      
+
       log.info('[CompanyProfile]', 'Logo saved successfully')
 
-      setProfile(prev => ({
+      setProfile((prev) => ({
         ...prev,
         logo_url: signedData.signedUrl,
-        logo_storage_path: filePath
+        logo_storage_path: filePath,
       }))
 
       addToast('success', 'Logo uploaded successfully')
-    } catch (err) {
-      log.error('[CompanyProfile]', 'Failed to upload logo', { error: err })
+    } catch (error) {
+      log.error('[CompanyProfile]', 'Failed to upload logo', { error: error })
       addToast('error', 'Failed to upload logo')
     } finally {
       setUploadingLogo(false)
@@ -281,30 +281,28 @@ export function CompanyProfileSettings() {
     try {
       // Delete from storage if exists
       if (profile.logo_storage_path) {
-        await supabase.storage
-          .from('vault')
-          .remove([profile.logo_storage_path])
+        await supabase.storage.from('vault').remove([profile.logo_storage_path])
       }
 
       // Update organization using RPC function (direct updates not allowed due to RLS)
       // Pass empty strings to clear the values (COALESCE in function will handle nulls)
-      const { error } = await (supabase.rpc as any)('update_org_branding', {
+      const { error } = await (supabase.rpc as any)('update_org_branding', { // TODO: type this
         p_org_id: organization.id,
         p_logo_url: '',
-        p_logo_storage_path: ''
+        p_logo_storage_path: '',
       })
 
       if (error) throw error
 
-      setProfile(prev => ({
+      setProfile((prev) => ({
         ...prev,
         logo_url: null,
-        logo_storage_path: null
+        logo_storage_path: null,
       }))
 
       addToast('success', 'Logo removed')
-    } catch (err) {
-      log.error('[CompanyProfile]', 'Failed to remove logo', { error: err })
+    } catch (error) {
+      log.error('[CompanyProfile]', 'Failed to remove logo', { error: error })
       addToast('error', 'Failed to remove logo')
     }
   }
@@ -317,28 +315,30 @@ export function CompanyProfileSettings() {
     savingRef.current = true
     try {
       // Use RPC function (direct updates not allowed due to RLS)
-      const { error } = await (supabase.rpc as any)('update_org_branding', {
+      const { error } = await (supabase.rpc as any)('update_org_branding', { // TODO: type this
         p_org_id: organization.id,
         p_phone: profile.phone || null,
         p_website: profile.website || null,
-        p_contact_email: profile.contact_email || null
+        p_contact_email: profile.contact_email || null,
       })
 
       if (error) throw error
       addToast('success', 'Contact information saved')
-    } catch (err) {
-      log.error('[CompanyProfile]', 'Failed to save contact info', { error: err })
+    } catch (error) {
+      log.error('[CompanyProfile]', 'Failed to save contact info', { error: error })
       addToast('error', 'Failed to save contact information')
     } finally {
       setSaving(false)
       // Small delay before allowing realtime sync again to let the update propagate
-      setTimeout(() => { savingRef.current = false }, 1000)
+      setTimeout(() => {
+        savingRef.current = false
+      }, 1000)
     }
   }
 
   // Update a single field
   const updateField = (field: keyof CompanyProfile, value: string | null) => {
-    setProfile(prev => ({ ...prev, [field]: value }))
+    setProfile((prev) => ({ ...prev, [field]: value }))
   }
 
   // Open address modal for new address
@@ -347,7 +347,8 @@ export function CompanyProfileSettings() {
     setAddressForm({
       ...emptyAddress,
       address_type: type,
-      is_default: type === 'billing' ? billingAddresses.length === 0 : shippingAddresses.length === 0
+      is_default:
+        type === 'billing' ? billingAddresses.length === 0 : shippingAddresses.length === 0,
     })
     setShowAddressModal(true)
   }
@@ -368,7 +369,7 @@ export function CompanyProfileSettings() {
       postal_code: address.postal_code,
       country: address.country,
       attention_to: address.attention_to,
-      phone: address.phone
+      phone: address.phone,
     })
     setShowAddressModal(true)
   }
@@ -376,7 +377,11 @@ export function CompanyProfileSettings() {
   // Save address
   const handleSaveAddress = async () => {
     if (!organization?.id) return
-    if (!addressForm.label.trim() || !addressForm.address_line1.trim() || !addressForm.city.trim()) {
+    if (
+      !addressForm.label.trim() ||
+      !addressForm.address_line1.trim() ||
+      !addressForm.city.trim()
+    ) {
       addToast('error', 'Please fill in required fields (Label, Address Line 1, City)')
       return
     }
@@ -399,7 +404,7 @@ export function CompanyProfileSettings() {
             postal_code: addressForm.postal_code?.trim() || null,
             country: addressForm.country || 'USA',
             attention_to: addressForm.attention_to?.trim() || null,
-            phone: addressForm.phone?.trim() || null
+            phone: addressForm.phone?.trim() || null,
           })
           .eq('id', editingAddress.id)
 
@@ -408,17 +413,25 @@ export function CompanyProfileSettings() {
         // Update local state
         const updatedAddress = { ...editingAddress, ...addressForm }
         if (addressForm.address_type === 'billing') {
-          setBillingAddresses(prev => prev.map(a => 
-            a.id === editingAddress.id 
-              ? updatedAddress 
-              : addressForm.is_default ? { ...a, is_default: false } : a
-          ))
+          setBillingAddresses((prev) =>
+            prev.map((a) =>
+              a.id === editingAddress.id
+                ? updatedAddress
+                : addressForm.is_default
+                  ? { ...a, is_default: false }
+                  : a,
+            ),
+          )
         } else {
-          setShippingAddresses(prev => prev.map(a => 
-            a.id === editingAddress.id 
-              ? updatedAddress 
-              : addressForm.is_default ? { ...a, is_default: false } : a
-          ))
+          setShippingAddresses((prev) =>
+            prev.map((a) =>
+              a.id === editingAddress.id
+                ? updatedAddress
+                : addressForm.is_default
+                  ? { ...a, is_default: false }
+                  : a,
+            ),
+          )
         }
 
         addToast('success', 'Address updated')
@@ -440,7 +453,7 @@ export function CompanyProfileSettings() {
             postal_code: addressForm.postal_code?.trim() || null,
             country: addressForm.country || 'USA',
             attention_to: addressForm.attention_to?.trim() || null,
-            phone: addressForm.phone?.trim() || null
+            phone: addressForm.phone?.trim() || null,
           })
           .select()
           .single()
@@ -450,14 +463,16 @@ export function CompanyProfileSettings() {
         // Update local state
         const newAddress = data as OrgAddress
         if (addressForm.address_type === 'billing') {
-          setBillingAddresses(prev => addressForm.is_default 
-            ? [newAddress, ...prev.map(a => ({ ...a, is_default: false }))]
-            : [...prev, newAddress]
+          setBillingAddresses((prev) =>
+            addressForm.is_default
+              ? [newAddress, ...prev.map((a) => ({ ...a, is_default: false }))]
+              : [...prev, newAddress],
           )
         } else {
-          setShippingAddresses(prev => addressForm.is_default 
-            ? [newAddress, ...prev.map(a => ({ ...a, is_default: false }))]
-            : [...prev, newAddress]
+          setShippingAddresses((prev) =>
+            addressForm.is_default
+              ? [newAddress, ...prev.map((a) => ({ ...a, is_default: false }))]
+              : [...prev, newAddress],
           )
         }
 
@@ -466,8 +481,8 @@ export function CompanyProfileSettings() {
 
       setShowAddressModal(false)
       setEditingAddress(null)
-    } catch (err) {
-      log.error('[CompanyProfile]', 'Failed to save address', { error: err })
+    } catch (error) {
+      log.error('[CompanyProfile]', 'Failed to save address', { error: error })
       addToast('error', 'Failed to save address')
     } finally {
       setSavingAddress(false)
@@ -493,14 +508,14 @@ export function CompanyProfileSettings() {
       if (error) throw error
 
       if (deleteConfirmAddress.address_type === 'billing') {
-        setBillingAddresses(prev => prev.filter(a => a.id !== deleteConfirmAddress.id))
+        setBillingAddresses((prev) => prev.filter((a) => a.id !== deleteConfirmAddress.id))
       } else {
-        setShippingAddresses(prev => prev.filter(a => a.id !== deleteConfirmAddress.id))
+        setShippingAddresses((prev) => prev.filter((a) => a.id !== deleteConfirmAddress.id))
       }
 
       addToast('success', 'Address deleted')
-    } catch (err) {
-      log.error('[CompanyProfile]', 'Failed to delete address', { error: err })
+    } catch (error) {
+      log.error('[CompanyProfile]', 'Failed to delete address', { error: error })
       addToast('error', 'Failed to delete address')
     } finally {
       setDeletingAddressId(null)
@@ -510,7 +525,7 @@ export function CompanyProfileSettings() {
 
   // Copy from another address
   const handleCopyFromAddress = (sourceAddress: OrgAddress) => {
-    setAddressForm(prev => ({
+    setAddressForm((prev) => ({
       ...prev,
       // Company name is used for both billing and shipping
       company_name: sourceAddress.company_name,
@@ -524,7 +539,7 @@ export function CompanyProfileSettings() {
       country: sourceAddress.country,
       phone: sourceAddress.phone,
       // Only copy attention_to for shipping addresses
-      attention_to: prev.address_type === 'shipping' ? sourceAddress.attention_to : null
+      attention_to: prev.address_type === 'shipping' ? sourceAddress.attention_to : null,
     }))
     addToast('success', `Copied from "${sourceAddress.label}"`)
   }
@@ -546,27 +561,31 @@ export function CompanyProfileSettings() {
 
       // Update local state - the trigger handles unsetting others
       if (address.address_type === 'billing') {
-        setBillingAddresses(prev => prev.map(a => ({
-          ...a,
-          is_default: a.id === address.id
-        })))
+        setBillingAddresses((prev) =>
+          prev.map((a) => ({
+            ...a,
+            is_default: a.id === address.id,
+          })),
+        )
       } else {
-        setShippingAddresses(prev => prev.map(a => ({
-          ...a,
-          is_default: a.id === address.id
-        })))
+        setShippingAddresses((prev) =>
+          prev.map((a) => ({
+            ...a,
+            is_default: a.id === address.id,
+          })),
+        )
       }
 
       addToast('success', `"${address.label}" set as default`)
-    } catch (err) {
-      log.error('[CompanyProfile]', 'Failed to set default', { error: err })
+    } catch (error) {
+      log.error('[CompanyProfile]', 'Failed to set default', { error: error })
       addToast('error', 'Failed to set default address')
     }
   }
 
   // Render address card
   const renderAddressCard = (address: OrgAddress) => (
-    <div 
+    <div
       key={address.id}
       className={`p-3 rounded-lg border ${address.is_default ? 'border-plm-accent bg-plm-accent/5' : 'border-plm-border bg-plm-highlight/50'}`}
     >
@@ -582,7 +601,9 @@ export function CompanyProfileSettings() {
             )}
           </div>
           <div className="text-xs text-plm-fg-muted mt-1 space-y-0.5">
-            {address.company_name && <div className="font-medium text-plm-fg">{address.company_name}</div>}
+            {address.company_name && (
+              <div className="font-medium text-plm-fg">{address.company_name}</div>
+            )}
             {address.contact_name && <div>{address.contact_name}</div>}
             {address.attention_to && <div>ATTN: {address.attention_to}</div>}
             <div>{address.address_line1}</div>
@@ -631,11 +652,7 @@ export function CompanyProfileSettings() {
   )
 
   if (!organization) {
-    return (
-      <div className="text-center py-12 text-plm-fg-muted">
-        No organization connected
-      </div>
-    )
+    return <div className="text-center py-12 text-plm-fg-muted">No organization connected</div>
   }
 
   if (!isAdmin) {
@@ -666,9 +683,9 @@ export function CompanyProfileSettings() {
         <div className="flex items-start gap-4">
           {profile.logo_url ? (
             <div className="relative">
-              <img 
-                src={profile.logo_url} 
-                alt="Company logo" 
+              <img
+                src={profile.logo_url}
+                alt="Company logo"
                 className="h-16 max-w-48 object-contain rounded border border-plm-border p-2"
               />
               <button
@@ -733,9 +750,7 @@ export function CompanyProfileSettings() {
             No billing addresses yet.
           </div>
         ) : (
-          <div className="space-y-2">
-            {billingAddresses.map(renderAddressCard)}
-          </div>
+          <div className="space-y-2">{billingAddresses.map(renderAddressCard)}</div>
         )}
       </div>
 
@@ -764,9 +779,7 @@ export function CompanyProfileSettings() {
             No shipping addresses yet.
           </div>
         ) : (
-          <div className="space-y-2">
-            {shippingAddresses.map(renderAddressCard)}
-          </div>
+          <div className="space-y-2">{shippingAddresses.map(renderAddressCard)}</div>
         )}
       </div>
 
@@ -801,7 +814,10 @@ export function CompanyProfileSettings() {
           <div className="col-span-2">
             <label className="text-sm text-plm-fg-muted block mb-1">Website</label>
             <div className="relative">
-              <Globe size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
+              <Globe
+                size={16}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted"
+              />
               <input
                 type="url"
                 value={profile.website || ''}
@@ -819,11 +835,7 @@ export function CompanyProfileSettings() {
             disabled={saving}
             className="btn btn-primary flex items-center gap-2"
           >
-            {saving ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              <Save size={16} />
-            )}
+            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
             Save Contact Info
           </button>
         </div>
@@ -835,7 +847,9 @@ export function CompanyProfileSettings() {
           <div className="bg-plm-bg-elevated rounded-lg border border-plm-border w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-4 border-b border-plm-border">
               <h3 className="text-lg font-medium text-plm-fg">
-                {editingAddress ? 'Edit Address' : `New ${addressForm.address_type === 'billing' ? 'Billing' : 'Shipping'} Address`}
+                {editingAddress
+                  ? 'Edit Address'
+                  : `New ${addressForm.address_type === 'billing' ? 'Billing' : 'Shipping'} Address`}
               </h3>
               <button
                 onClick={() => setShowAddressModal(false)}
@@ -852,11 +866,12 @@ export function CompanyProfileSettings() {
                   <div className="flex items-center gap-2 mb-2">
                     <Copy size={14} className="text-plm-accent" />
                     <span className="text-sm text-plm-fg">
-                      Copy from {addressForm.address_type === 'billing' ? 'shipping' : 'billing'} address
+                      Copy from {addressForm.address_type === 'billing' ? 'shipping' : 'billing'}{' '}
+                      address
                     </span>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {getSourceAddressesForCopy().map(addr => (
+                    {getSourceAddressesForCopy().map((addr) => (
                       <button
                         key={addr.id}
                         onClick={() => handleCopyFromAddress(addr)}
@@ -875,7 +890,7 @@ export function CompanyProfileSettings() {
                 <input
                   type="text"
                   value={addressForm.label}
-                  onChange={(e) => setAddressForm(prev => ({ ...prev, label: e.target.value }))}
+                  onChange={(e) => setAddressForm((prev) => ({ ...prev, label: e.target.value }))}
                   placeholder="e.g., Main Office, Warehouse, HQ"
                   className="w-full px-3 py-2 bg-plm-bg-secondary border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
                 />
@@ -887,7 +902,9 @@ export function CompanyProfileSettings() {
                 <input
                   type="text"
                   value={addressForm.company_name || ''}
-                  onChange={(e) => setAddressForm(prev => ({ ...prev, company_name: e.target.value }))}
+                  onChange={(e) =>
+                    setAddressForm((prev) => ({ ...prev, company_name: e.target.value }))
+                  }
                   placeholder="Acme Corporation"
                   className="w-full px-3 py-2 bg-plm-bg-secondary border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
                 />
@@ -900,7 +917,9 @@ export function CompanyProfileSettings() {
                   <input
                     type="text"
                     value={addressForm.contact_name || ''}
-                    onChange={(e) => setAddressForm(prev => ({ ...prev, contact_name: e.target.value }))}
+                    onChange={(e) =>
+                      setAddressForm((prev) => ({ ...prev, contact_name: e.target.value }))
+                    }
                     placeholder="John Smith"
                     className="w-full px-3 py-2 bg-plm-bg-secondary border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
                   />
@@ -914,7 +933,9 @@ export function CompanyProfileSettings() {
                   <input
                     type="text"
                     value={addressForm.attention_to || ''}
-                    onChange={(e) => setAddressForm(prev => ({ ...prev, attention_to: e.target.value }))}
+                    onChange={(e) =>
+                      setAddressForm((prev) => ({ ...prev, attention_to: e.target.value }))
+                    }
                     placeholder="e.g., Receiving Dept, John Smith"
                     className="w-full px-3 py-2 bg-plm-bg-secondary border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
                   />
@@ -926,7 +947,9 @@ export function CompanyProfileSettings() {
                 <input
                   type="text"
                   value={addressForm.address_line1}
-                  onChange={(e) => setAddressForm(prev => ({ ...prev, address_line1: e.target.value }))}
+                  onChange={(e) =>
+                    setAddressForm((prev) => ({ ...prev, address_line1: e.target.value }))
+                  }
                   placeholder="123 Main Street"
                   className="w-full px-3 py-2 bg-plm-bg-secondary border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
                 />
@@ -937,7 +960,9 @@ export function CompanyProfileSettings() {
                 <input
                   type="text"
                   value={addressForm.address_line2 || ''}
-                  onChange={(e) => setAddressForm(prev => ({ ...prev, address_line2: e.target.value }))}
+                  onChange={(e) =>
+                    setAddressForm((prev) => ({ ...prev, address_line2: e.target.value }))
+                  }
                   placeholder="Suite 100"
                   className="w-full px-3 py-2 bg-plm-bg-secondary border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
                 />
@@ -949,7 +974,7 @@ export function CompanyProfileSettings() {
                   <input
                     type="text"
                     value={addressForm.city}
-                    onChange={(e) => setAddressForm(prev => ({ ...prev, city: e.target.value }))}
+                    onChange={(e) => setAddressForm((prev) => ({ ...prev, city: e.target.value }))}
                     placeholder="San Francisco"
                     className="w-full px-3 py-2 bg-plm-bg-secondary border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
                   />
@@ -959,7 +984,7 @@ export function CompanyProfileSettings() {
                   <input
                     type="text"
                     value={addressForm.state || ''}
-                    onChange={(e) => setAddressForm(prev => ({ ...prev, state: e.target.value }))}
+                    onChange={(e) => setAddressForm((prev) => ({ ...prev, state: e.target.value }))}
                     placeholder="CA"
                     className="w-full px-3 py-2 bg-plm-bg-secondary border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
                   />
@@ -972,7 +997,9 @@ export function CompanyProfileSettings() {
                   <input
                     type="text"
                     value={addressForm.postal_code || ''}
-                    onChange={(e) => setAddressForm(prev => ({ ...prev, postal_code: e.target.value }))}
+                    onChange={(e) =>
+                      setAddressForm((prev) => ({ ...prev, postal_code: e.target.value }))
+                    }
                     placeholder="94102"
                     className="w-full px-3 py-2 bg-plm-bg-secondary border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
                   />
@@ -982,7 +1009,9 @@ export function CompanyProfileSettings() {
                   <input
                     type="text"
                     value={addressForm.country}
-                    onChange={(e) => setAddressForm(prev => ({ ...prev, country: e.target.value }))}
+                    onChange={(e) =>
+                      setAddressForm((prev) => ({ ...prev, country: e.target.value }))
+                    }
                     placeholder="USA"
                     className="w-full px-3 py-2 bg-plm-bg-secondary border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
                   />
@@ -994,7 +1023,7 @@ export function CompanyProfileSettings() {
                 <input
                   type="text"
                   value={addressForm.phone || ''}
-                  onChange={(e) => setAddressForm(prev => ({ ...prev, phone: e.target.value }))}
+                  onChange={(e) => setAddressForm((prev) => ({ ...prev, phone: e.target.value }))}
                   placeholder="+1 (555) 123-4567"
                   className="w-full px-3 py-2 bg-plm-bg-secondary border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
                 />
@@ -1004,18 +1033,19 @@ export function CompanyProfileSettings() {
                 <input
                   type="checkbox"
                   checked={addressForm.is_default}
-                  onChange={(e) => setAddressForm(prev => ({ ...prev, is_default: e.target.checked }))}
+                  onChange={(e) =>
+                    setAddressForm((prev) => ({ ...prev, is_default: e.target.checked }))
+                  }
                   className="w-4 h-4 rounded border-plm-border text-plm-accent focus:ring-plm-accent"
                 />
-                <span className="text-sm text-plm-fg">Set as default {addressForm.address_type} address</span>
+                <span className="text-sm text-plm-fg">
+                  Set as default {addressForm.address_type} address
+                </span>
               </label>
             </div>
 
             <div className="flex justify-end gap-2 p-4 border-t border-plm-border">
-              <button
-                onClick={() => setShowAddressModal(false)}
-                className="btn btn-ghost"
-              >
+              <button onClick={() => setShowAddressModal(false)} className="btn btn-ghost">
                 Cancel
               </button>
               <button
@@ -1037,11 +1067,11 @@ export function CompanyProfileSettings() {
 
       {/* Delete Address Confirmation Modal */}
       {deleteConfirmAddress && (
-        <div 
+        <div
           className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center"
           onClick={() => setDeleteConfirmAddress(null)}
         >
-          <div 
+          <div
             className="bg-plm-bg-light border border-plm-border rounded-lg shadow-2xl max-w-md w-full mx-4 p-6"
             onClick={(e) => e.stopPropagation()}
           >
@@ -1056,16 +1086,13 @@ export function CompanyProfileSettings() {
                 </p>
               </div>
             </div>
-            
+
             <p className="text-sm text-plm-fg-muted mb-4">
               This will permanently delete this address. This action cannot be undone.
             </p>
-            
+
             <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setDeleteConfirmAddress(null)}
-                className="btn btn-ghost"
-              >
+              <button onClick={() => setDeleteConfirmAddress(null)} className="btn btn-ghost">
                 Cancel
               </button>
               <button
@@ -1084,7 +1111,6 @@ export function CompanyProfileSettings() {
           </div>
         </div>
       )}
-
     </div>
   )
 }

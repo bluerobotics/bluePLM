@@ -1,13 +1,13 @@
 /**
  * Team Members Settings - Barrel Export
- * 
+ *
  * This module provides all components, hooks, and utilities
  * for the Team Members Settings feature.
- * 
+ *
  * Components now use hooks directly instead of context.
  * The TeamMembersContext has been removed - tabs and dialog components
  * are self-contained, calling data hooks internally.
- * 
+ *
  * @module team-members
  */
 
@@ -25,7 +25,7 @@ export {
   useInvites,
   useWorkflowRoles,
   useJobTitles,
-  useVaultAccess
+  useVaultAccess,
 } from './hooks'
 
 // Dialog/UI state hooks
@@ -35,15 +35,11 @@ export {
   useWorkflowRoleDialogs,
   useJobTitleDialogs,
   useOrgCode,
-  useUIState
+  useUIState,
 } from './hooks'
 
 // Computed data hooks
-export {
-  useFilteredData,
-  type UseFilteredDataParams,
-  type UseFilteredDataReturn
-} from './hooks'
+export { useFilteredData, type UseFilteredDataParams, type UseFilteredDataReturn } from './hooks'
 
 // Types
 export type {
@@ -64,15 +60,11 @@ export type {
   UserJobTitleModalProps,
   UserPermissionsDialogProps,
   ViewNetPermissionsModalProps,
-  TeamModulesDialogProps
+  TeamModulesDialogProps,
 } from './types'
 
 // Utilities
-export { 
-  formatLastOnline,
-  pendingMemberToOrgUser,
-  getPendingMemberVaultAccessCount
-} from './utils'
+export { formatLastOnline, pendingMemberToOrgUser, getPendingMemberVaultAccessCount } from './utils'
 
 // Constants
 export {
@@ -87,5 +79,5 @@ export {
   DEFAULT_TEAM_ICON,
   DEFAULT_WORKFLOW_ROLE_ICON,
   DEFAULT_JOB_TITLE_ICON,
-  PERMISSION_RESOURCE_GROUPS
+  PERMISSION_RESOURCE_GROUPS,
 } from './constants'

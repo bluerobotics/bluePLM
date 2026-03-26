@@ -11,8 +11,9 @@ export function useTransitionCreation() {
   const [isCreatingTransition, setIsCreatingTransition] = useState(false)
   const [transitionStartId, setTransitionStartId] = useState<string | null>(null)
   const [isDraggingToCreateTransition, setIsDraggingToCreateTransition] = useState(false)
-  const [draggingTransitionEndpoint, setDraggingTransitionEndpoint] = useState<TransitionEndpointDrag | null>(null)
-  
+  const [draggingTransitionEndpoint, setDraggingTransitionEndpoint] =
+    useState<TransitionEndpointDrag | null>(null)
+
   // Refs for tracking transition completion
   const justCompletedTransitionRef = useRef(false)
   const transitionCompletedAtRef = useRef<number>(0)
@@ -57,9 +58,12 @@ export function useTransitionCreation() {
   /**
    * Start dragging an existing transition endpoint
    */
-  const startEndpointDrag = useCallback((transitionId: string, endpoint: 'start' | 'end', originalStateId: string) => {
-    setDraggingTransitionEndpoint({ transitionId, endpoint, originalStateId })
-  }, [])
+  const startEndpointDrag = useCallback(
+    (transitionId: string, endpoint: 'start' | 'end', originalStateId: string) => {
+      setDraggingTransitionEndpoint({ transitionId, endpoint, originalStateId })
+    },
+    [],
+  )
 
   /**
    * End endpoint drag
@@ -72,7 +76,7 @@ export function useTransitionCreation() {
    * Check if transition was just completed (within 100ms)
    */
   const wasJustCompleted = useCallback(() => {
-    return justCompletedTransitionRef.current && (Date.now() - transitionCompletedAtRef.current < 100)
+    return justCompletedTransitionRef.current && Date.now() - transitionCompletedAtRef.current < 100
   }, [])
 
   /**
@@ -107,6 +111,6 @@ export function useTransitionCreation() {
     startEndpointDrag,
     endEndpointDrag,
     wasJustCompleted,
-    resetCompletedFlag
+    resetCompletedFlag,
   }
 }

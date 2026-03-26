@@ -14,7 +14,7 @@ export const createUpdateSlice: StateCreator<
   updateProgress: null,
   showUpdateModal: false,
   installerPath: null,
-  
+
   // Actions
   setUpdateAvailable: (info) => set({ updateAvailable: info }),
   setUpdateDownloading: (downloading) => set({ updateDownloading: downloading }),
@@ -22,19 +22,24 @@ export const createUpdateSlice: StateCreator<
   setUpdateProgress: (progress) => set({ updateProgress: progress }),
   setShowUpdateModal: (show) => set({ showUpdateModal: show }),
   setInstallerPath: (path) => set({ installerPath: path }),
-  
+
   showUpdateToast: (version: string) => {
     const id = 'update-available'
     // Remove existing update toast if any
-    set(state => ({
+    set((state) => ({
       toasts: [
-        ...state.toasts.filter(t => t.id !== id),
-        { id, type: 'update' as ToastType, message: `Version ${version} is available`, duration: 0 }
-      ]
+        ...state.toasts.filter((t) => t.id !== id),
+        {
+          id,
+          type: 'update' as ToastType,
+          message: `Version ${version} is available`,
+          duration: 0,
+        },
+      ],
     }))
   },
-  
+
   dismissUpdateToast: () => {
-    set(state => ({ toasts: state.toasts.filter(t => t.id !== 'update-available') }))
+    set((state) => ({ toasts: state.toasts.filter((t) => t.id !== 'update-available') }))
   },
 })

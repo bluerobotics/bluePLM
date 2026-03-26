@@ -37,7 +37,10 @@ export function getInitials(name: string | null | undefined): string {
   const displayName = name.includes('@') ? name.split('@')[0] : name
 
   // Split by spaces, dots, underscores, or hyphens
-  const parts = displayName.trim().split(/[\s._-]+/).filter(p => p.length > 0)
+  const parts = displayName
+    .trim()
+    .split(/[\s._-]+/)
+    .filter((p) => p.length > 0)
 
   if (parts.length >= 2) {
     // First letter of first and last parts
@@ -61,7 +64,7 @@ export function getAvatarColor(identifier: string | null | undefined): AvatarCol
   // Simple hash function to get consistent index
   let hash = 0
   for (let i = 0; i < identifier.length; i++) {
-    hash = ((hash << 5) - hash) + identifier.charCodeAt(i)
+    hash = (hash << 5) - hash + identifier.charCodeAt(i)
     hash = hash & hash // Convert to 32bit integer
   }
 
@@ -74,7 +77,7 @@ export function getAvatarColor(identifier: string | null | undefined): AvatarCol
  * Prefers custom_avatar_url over avatar_url
  */
 export function getEffectiveAvatarUrl(
-  user: { custom_avatar_url?: string | null; avatar_url?: string | null } | null | undefined
+  user: { custom_avatar_url?: string | null; avatar_url?: string | null } | null | undefined,
 ): string | null {
   if (!user) return null
   return user.custom_avatar_url || user.avatar_url || null

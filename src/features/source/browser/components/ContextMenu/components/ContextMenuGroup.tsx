@@ -17,11 +17,11 @@ interface ContextMenuGroupProps {
   minWidth?: number
 }
 
-export function ContextMenuGroup({ 
-  label, 
-  icon: Icon, 
+export function ContextMenuGroup({
+  label,
+  icon: Icon,
   iconColorClass = '',
-  children, 
+  children,
   hasItems = true,
   minWidth = 180,
 }: ContextMenuGroupProps) {
@@ -47,7 +47,7 @@ export function ContextMenuGroup({
   }
 
   return (
-    <div 
+    <div
       className="context-menu-item relative"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -59,7 +59,7 @@ export function ContextMenuGroup({
       <Icon size={14} className={iconColorClass} />
       {label}
       <span className="text-xs text-plm-fg-muted ml-auto">▶</span>
-      
+
       {showSubmenu && (
         <ContextSubmenu
           minWidth={minWidth}

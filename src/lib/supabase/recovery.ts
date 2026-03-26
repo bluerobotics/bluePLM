@@ -34,7 +34,7 @@ function generateSecureRecoveryCode(): string {
   const segments = 4
   const segmentLength = 4
   const parts: string[] = []
-  
+
   for (let s = 0; s < segments; s++) {
     let segment = ''
     for (let i = 0; i < segmentLength; i++) {
@@ -45,7 +45,7 @@ function generateSecureRecoveryCode(): string {
     }
     parts.push(segment)
   }
-  
+
   return parts.join('-')
 }
 
@@ -60,14 +60,14 @@ async function hashRecoveryCode(code: string): Promise<string> {
   const data = encoder.encode(normalized)
   const hashBuffer = await crypto.subtle.digest('SHA-256', data)
   const hashArray = Array.from(new Uint8Array(hashBuffer))
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
 /**
  * Generate a new admin recovery code (Admin only)
  * Returns the plain code ONCE - it must be written down immediately
  * The code is hashed before storage and cannot be recovered
- * 
+ *
  * @param orgId Organization ID
  * @param createdBy User ID of the admin creating the code
  * @param description Optional description (e.g., "Emergency backup for CEO")
@@ -77,18 +77,18 @@ export async function generateAdminRecoveryCode(
   orgId: string,
   createdBy: string,
   description?: string,
-  expiresInDays: number = 90
+  expiresInDays: number = 90,
 ): Promise<{ success: boolean; code?: string; codeId?: string; error?: string }> {
   const client = getSupabaseClient()
-  
+
   // Generate the code
   const plainCode = generateSecureRecoveryCode()
   const codeHash = await hashRecoveryCode(plainCode)
-  
+
   // Calculate expiration
   const expiresAt = new Date()
   expiresAt.setDate(expiresAt.getDate() + expiresInDays)
-  
+
   // Insert into database (RLS will enforce admin-only)
   const { data, error } = await client
     .from('admin_recovery_codes')
@@ -97,21 +97,21 @@ export async function generateAdminRecoveryCode(
       code_hash: codeHash,
       description: description || null,
       created_by: createdBy,
-      expires_at: expiresAt.toISOString()
+      expires_at: expiresAt.toISOString(),
     })
     .select('id')
     .single()
-  
+
   if (error) {
     log.error('[RecoveryCode]', 'Failed to create', { error: error.message })
     return { success: false, error: error.message }
   }
-  
+
   // Return the plain code - this is the ONLY time it will be visible
-  return { 
-    success: true, 
+  return {
+    success: true,
     code: plainCode,
-    codeId: data.id
+    codeId: data.id,
   }
 }
 
@@ -120,13 +120,14 @@ export async function generateAdminRecoveryCode(
  * NOTE: The actual codes are never returned, only metadata
  */
 export async function listAdminRecoveryCodes(
-  orgId: string
+  orgId: string,
 ): Promise<{ codes: AdminRecoveryCode[]; error?: string }> {
   const client = getSupabaseClient()
-  
+
   const { data, error } = await client
     .from('admin_recovery_codes')
-    .select(`
+    .select(
+      `
       id,
       org_id,
       description,
@@ -140,15 +141,16 @@ export async function listAdminRecoveryCodes(
       revoked_by,
       revoked_at,
       revoke_reason
-    `)
+    `,
+    )
     .eq('org_id', orgId)
     .order('created_at', { ascending: false })
-  
+
   if (error) {
     log.error('[RecoveryCode]', 'Failed to list', { error: error.message })
     return { codes: [], error: error.message }
   }
-  
+
   return { codes: data || [] }
 }
 
@@ -159,26 +161,26 @@ export async function listAdminRecoveryCodes(
 export async function revokeAdminRecoveryCode(
   codeId: string,
   revokedBy: string,
-  reason?: string
+  reason?: string,
 ): Promise<{ success: boolean; error?: string }> {
   const client = getSupabaseClient()
-  
+
   const { error } = await client
     .from('admin_recovery_codes')
     .update({
       is_revoked: true,
       revoked_by: revokedBy,
       revoked_at: new Date().toISOString(),
-      revoke_reason: reason || null
+      revoke_reason: reason || null,
     })
     .eq('id', codeId)
     .eq('is_used', false) // Can't revoke already-used codes
-  
+
   if (error) {
     log.error('[RecoveryCode]', 'Failed to revoke', { error: error.message })
     return { success: false, error: error.message }
   }
-  
+
   return { success: true }
 }
 
@@ -187,20 +189,17 @@ export async function revokeAdminRecoveryCode(
  * Only used codes or revoked codes should be deleted
  */
 export async function deleteAdminRecoveryCode(
-  codeId: string
+  codeId: string,
 ): Promise<{ success: boolean; error?: string }> {
   const client = getSupabaseClient()
-  
-  const { error } = await client
-    .from('admin_recovery_codes')
-    .delete()
-    .eq('id', codeId)
-  
+
+  const { error } = await client.from('admin_recovery_codes').delete().eq('id', codeId)
+
   if (error) {
     log.error('[RecoveryCode]', 'Failed to delete', { error: error.message })
     return { success: false, error: error.message }
   }
-  
+
   return { success: true }
 }
 
@@ -210,30 +209,30 @@ export async function deleteAdminRecoveryCode(
  * The code is validated and marked as used by the database function
  */
 export async function useAdminRecoveryCode(
-  code: string
+  code: string,
 ): Promise<{ success: boolean; message?: string; error?: string }> {
   const client = getSupabaseClient()
-  
+
   // Hash the code to match against stored hash
   const codeHash = await hashRecoveryCode(code)
-  
+
   // Call the database function that handles everything
   const { data, error } = await client.rpc('use_admin_recovery_code', {
-    p_code: codeHash
+    p_code: codeHash,
   })
-  
+
   if (error) {
     log.error('[RecoveryCode]', 'RPC error', { error: error.message })
     return { success: false, error: error.message }
   }
-  
+
   const result = data as { success: boolean; message?: string; error?: string }
-  
+
   if (result.success) {
     log.info('[RecoveryCode]', 'Successfully elevated user to admin')
   } else {
     log.warn('[RecoveryCode]', 'Code validation failed', { error: result.error })
   }
-  
+
   return result
 }

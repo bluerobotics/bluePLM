@@ -1,5 +1,17 @@
 import { useEffect, useState, useRef } from 'react'
-import { X, AlertCircle, CheckCircle, Info, AlertTriangle, Copy, Check, Loader2, Download, RefreshCw, ArrowDownToLine } from 'lucide-react'
+import {
+  X,
+  AlertCircle,
+  CheckCircle,
+  Info,
+  AlertTriangle,
+  Copy,
+  Check,
+  Loader2,
+  Download,
+  RefreshCw,
+  ArrowDownToLine,
+} from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { copyToClipboard } from '@/lib/clipboard'
 import { log } from '@/lib/logger'
@@ -7,33 +19,26 @@ import type { ToastMessage, ToastType } from './types'
 
 export function Toast() {
   const { toasts, removeToast, dismissUpdateToast } = usePDMStore()
-  
+
   // Separate different toast types
-  const updateToasts = toasts.filter(t => t.type === 'update')
-  const progressToasts = toasts.filter(t => t.type === 'progress')
-  const regularToasts = toasts.filter(t => t.type !== 'progress' && t.type !== 'update')
+  const updateToasts = toasts.filter((t) => t.type === 'update')
+  const progressToasts = toasts.filter((t) => t.type === 'progress')
+  const regularToasts = toasts.filter((t) => t.type !== 'progress' && t.type !== 'update')
 
   const handleDismissAll = () => {
-    regularToasts.forEach(toast => removeToast(toast.id))
+    regularToasts.forEach((toast) => removeToast(toast.id))
   }
 
   return (
     <div className="fixed bottom-8 left-4 z-50 flex flex-col gap-2 max-w-md">
       {/* Update toasts at the very top */}
-      {updateToasts.map(toast => (
-        <UpdateToastItem 
-          key={toast.id} 
-          toast={toast} 
-          onDismiss={dismissUpdateToast}
-        />
+      {updateToasts.map((toast) => (
+        <UpdateToastItem key={toast.id} toast={toast} onDismiss={dismissUpdateToast} />
       ))}
       {/* Progress toasts - each operation shows its own toast, bottom is active, above are queued */}
       {/* Reverse order so newest (queued) toasts appear at top, oldest (active) at bottom */}
-      {[...progressToasts].reverse().map(toast => (
-        <ProgressToastItem 
-          key={toast.id} 
-          toast={toast}
-        />
+      {[...progressToasts].reverse().map((toast) => (
+        <ProgressToastItem key={toast.id} toast={toast} />
       ))}
       {/* Dismiss All button when multiple regular toasts */}
       {regularToasts.length > 1 && (
@@ -47,7 +52,7 @@ export function Toast() {
         </button>
       )}
       {/* Regular toasts below */}
-      {regularToasts.map(toast => (
+      {regularToasts.map((toast) => (
         <ToastItem key={toast.id} toast={toast} onClose={() => removeToast(toast.id)} />
       ))}
     </div>
@@ -55,15 +60,21 @@ export function Toast() {
 }
 
 function UpdateToastItem({ toast, onDismiss }: { toast: ToastMessage; onDismiss: () => void }) {
-  const { updateDownloading, updateDownloaded, updateProgress, updateAvailable, setUpdateDownloading } = usePDMStore()
+  const {
+    updateDownloading,
+    updateDownloaded,
+    updateProgress,
+    updateAvailable,
+    setUpdateDownloading,
+  } = usePDMStore()
   const [isExiting, setIsExiting] = useState(false)
 
   const handleDownload = async () => {
     if (updateDownloading || updateDownloaded) return
-    
+
     // Clear any existing reminder when user clicks download
     window.electronAPI.clearUpdateReminder()
-    
+
     setUpdateDownloading(true)
     try {
       const result = await window.electronAPI.downloadUpdate()
@@ -71,8 +82,8 @@ function UpdateToastItem({ toast, onDismiss }: { toast: ToastMessage; onDismiss:
         log.error('[Update]', 'Download failed', { error: result.error })
         setUpdateDownloading(false)
       }
-    } catch (err) {
-      log.error('[Update]', 'Download error', { error: err })
+    } catch (error) {
+      log.error('[Update]', 'Download error', { error: error })
       setUpdateDownloading(false)
     }
   }
@@ -80,8 +91,8 @@ function UpdateToastItem({ toast, onDismiss }: { toast: ToastMessage; onDismiss:
   const handleInstall = async () => {
     try {
       await window.electronAPI.installUpdate()
-    } catch (err) {
-      log.error('[Update]', 'Install error', { error: err })
+    } catch (error) {
+      log.error('[Update]', 'Install error', { error: error })
     }
   }
 
@@ -134,12 +145,12 @@ function UpdateToastItem({ toast, onDismiss }: { toast: ToastMessage; onDismiss:
           </button>
         )}
       </div>
-      
+
       {/* Download Progress */}
       {updateDownloading && updateProgress && (
         <div className="flex items-center gap-2">
           <div className="flex-1 h-2 bg-plm-bg-dark rounded-full overflow-hidden">
-            <div 
+            <div
               className="h-full bg-plm-accent transition-[width] duration-75 ease-linear will-change-[width]"
               style={{ width: `${updateProgress.percent}%` }}
             />
@@ -152,7 +163,7 @@ function UpdateToastItem({ toast, onDismiss }: { toast: ToastMessage; onDismiss:
           </span>
         </div>
       )}
-      
+
       {/* Action Buttons */}
       <div className="flex items-center gap-2">
         {!updateDownloading && !updateDownloaded && (
@@ -174,14 +185,14 @@ function UpdateToastItem({ toast, onDismiss }: { toast: ToastMessage; onDismiss:
             </button>
           </>
         )}
-        
+
         {updateDownloading && !updateDownloaded && (
           <div className="flex items-center gap-2 text-xs text-plm-fg-muted">
             <Loader2 size={12} className="animate-spin text-plm-accent" />
             <span>Downloading...</span>
           </div>
         )}
-        
+
         {updateDownloaded && (
           <>
             <button
@@ -209,12 +220,14 @@ function UpdateToastItem({ toast, onDismiss }: { toast: ToastMessage; onDismiss:
 function ProgressToastItem({ toast }: { toast: ToastMessage }) {
   const progress = toast.progress
   const isQueued = progress?.queued
-  
+
   return (
-    <div className={`
+    <div
+      className={`
       flex flex-col gap-2 px-4 py-3 rounded-lg border shadow-lg min-w-[300px]
       bg-plm-panel border-plm-border
-    `}>
+    `}
+    >
       <div className="flex items-center gap-2">
         {isQueued ? (
           // Queued: show clock/pause icon instead of spinner
@@ -234,7 +247,7 @@ function ProgressToastItem({ toast }: { toast: ToastMessage }) {
       {progress && !isQueued && (
         <div className="flex items-center gap-2">
           <div className="flex-1 h-2 bg-plm-bg-dark rounded-full overflow-hidden">
-            <div 
+            <div
               className="h-full bg-plm-accent transition-[width] duration-75 ease-linear will-change-[width]"
               style={{ width: `${progress.percent}%` }}
             />
@@ -251,7 +264,7 @@ function ProgressToastItem({ toast }: { toast: ToastMessage }) {
 function ToastItem({ toast, onClose }: { toast: ToastMessage; onClose: () => void }) {
   const [isExiting, setIsExiting] = useState(false)
   const [copied, setCopied] = useState(false)
-  
+
   // Use ref to store onClose so the timer doesn't reset when the function reference changes
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
@@ -286,7 +299,7 @@ function ToastItem({ toast, onClose }: { toast: ToastMessage; onClose: () => voi
     info: <Info size={16} />,
     warning: <AlertTriangle size={16} />,
     progress: <Loader2 size={16} className="animate-spin" />,
-    update: <ArrowDownToLine size={16} />
+    update: <ArrowDownToLine size={16} />,
   }
 
   const colors: Record<ToastType, string> = {
@@ -295,7 +308,7 @@ function ToastItem({ toast, onClose }: { toast: ToastMessage; onClose: () => voi
     info: 'bg-blue-900 border-blue-700 text-blue-100',
     warning: 'bg-yellow-900 border-yellow-700 text-yellow-100',
     progress: 'bg-plm-panel border-plm-border text-plm-fg',
-    update: 'bg-plm-panel border-plm-accent/50 text-plm-fg'
+    update: 'bg-plm-panel border-plm-accent/50 text-plm-fg',
   }
 
   const iconColors: Record<ToastType, string> = {
@@ -304,7 +317,7 @@ function ToastItem({ toast, onClose }: { toast: ToastMessage; onClose: () => voi
     info: 'text-blue-400',
     warning: 'text-yellow-400',
     progress: 'text-plm-accent',
-    update: 'text-plm-accent'
+    update: 'text-plm-accent',
   }
 
   return (
@@ -318,15 +331,16 @@ function ToastItem({ toast, onClose }: { toast: ToastMessage; onClose: () => voi
       `}
       title="Click to dismiss"
     >
-      <span className={`flex-shrink-0 mt-0.5 ${iconColors[toast.type]}`}>
-        {icons[toast.type]}
-      </span>
+      <span className={`flex-shrink-0 mt-0.5 ${iconColors[toast.type]}`}>{icons[toast.type]}</span>
       <p className="flex-1 text-sm leading-relaxed">{toast.message}</p>
       <div className="flex items-center gap-1 flex-shrink-0">
         {/* Copy button - show for errors and warnings */}
         {(toast.type === 'error' || toast.type === 'warning') && (
           <button
-            onClick={(e) => { e.stopPropagation(); handleCopy() }}
+            onClick={(e) => {
+              e.stopPropagation()
+              handleCopy()
+            }}
             className="opacity-60 hover:opacity-100 transition-opacity p-0.5"
             title={copied ? 'Copied!' : 'Copy error'}
           >
@@ -334,7 +348,10 @@ function ToastItem({ toast, onClose }: { toast: ToastMessage; onClose: () => voi
           </button>
         )}
         <button
-          onClick={(e) => { e.stopPropagation(); handleClose() }}
+          onClick={(e) => {
+            e.stopPropagation()
+            handleClose()
+          }}
           className="opacity-60 hover:opacity-100 transition-opacity"
           title="Dismiss"
         >

@@ -6,10 +6,10 @@ import type { OperationType } from '@/stores/types'
  */
 export function getFileProcessingOperation(
   relativePath: string,
-  processingOperations: Map<string, OperationType>
+  processingOperations: Map<string, OperationType>,
 ): OperationType | null {
   const normalizedPath = relativePath.replace(/\\/g, '/')
-  
+
   // Check exact match first
   if (processingOperations.has(relativePath)) {
     return processingOperations.get(relativePath)!
@@ -17,7 +17,7 @@ export function getFileProcessingOperation(
   if (processingOperations.has(normalizedPath)) {
     return processingOperations.get(normalizedPath)!
   }
-  
+
   // Check if this file is INSIDE any processing folder (downward propagation)
   for (const [processingPath, opType] of processingOperations) {
     const normalizedProcessingPath = processingPath.replace(/\\/g, '/')
@@ -25,7 +25,7 @@ export function getFileProcessingOperation(
       return opType
     }
   }
-  
+
   return null
 }
 
@@ -36,10 +36,10 @@ export function getFileProcessingOperation(
  */
 export function getFolderProcessingOperation(
   folderPath: string,
-  processingOperations: Map<string, OperationType>
+  processingOperations: Map<string, OperationType>,
 ): OperationType | null {
   const normalizedFolder = folderPath.replace(/\\/g, '/')
-  
+
   // Check if the folder itself is being processed
   if (processingOperations.has(folderPath)) {
     return processingOperations.get(folderPath)!
@@ -47,7 +47,7 @@ export function getFolderProcessingOperation(
   if (processingOperations.has(normalizedFolder)) {
     return processingOperations.get(normalizedFolder)!
   }
-  
+
   // Check if this folder is INSIDE any processing folder (downward propagation)
   // This makes spinners propagate DOWN to children, not UP to parents
   for (const [path, opType] of processingOperations) {
@@ -56,7 +56,7 @@ export function getFolderProcessingOperation(
       return opType
     }
   }
-  
+
   return null
 }
 
@@ -68,7 +68,7 @@ export function getFolderProcessingOperation(
 export function getProcessingOperation(
   relativePath: string,
   processingOperations: Map<string, OperationType>,
-  isDirectory: boolean
+  isDirectory: boolean,
 ): OperationType | null {
   if (isDirectory) {
     return getFolderProcessingOperation(relativePath, processingOperations)

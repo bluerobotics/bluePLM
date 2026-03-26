@@ -111,12 +111,7 @@ function formatData(data?: LogData): LogData | undefined {
 /**
  * Internal log function that handles dual output.
  */
-function logMessage(
-  level: LogLevel,
-  category: string,
-  message: string,
-  data?: LogData
-): void {
+function logMessage(level: LogLevel, category: string, message: string, data?: LogData): void {
   const formattedMessage = formatMessage(category, message)
   const formattedData = formatData(data)
 

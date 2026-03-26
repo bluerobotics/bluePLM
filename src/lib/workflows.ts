@@ -44,16 +44,13 @@ export async function createWorkflowTemplate(
   orgId: string,
   createdBy: string,
   name: string,
-  description?: string
+  description?: string,
 ) {
   // First create using the default template function
-  const { data: workflowId, error: createError } = await supabase.rpc(
-    'create_default_workflow',
-    {
-      p_org_id: orgId,
-      p_created_by: createdBy,
-    }
-  )
+  const { data: workflowId, error: createError } = await supabase.rpc('create_default_workflow', {
+    p_org_id: orgId,
+    p_created_by: createdBy,
+  })
 
   if (createError) return { data: null, error: createError }
 
@@ -68,16 +65,12 @@ export async function createWorkflowTemplate(
   }
 
   // Return the created workflow
-  return supabase
-    .from('workflow_templates')
-    .select('*')
-    .eq('id', workflowId)
-    .single()
+  return supabase.from('workflow_templates').select('*').eq('id', workflowId).single()
 }
 
 export async function updateWorkflowTemplate(
   workflowId: string,
-  updates: Partial<WorkflowTemplate>
+  updates: Partial<WorkflowTemplate>,
 ) {
   // Cast canvas_config to Json for Supabase compatibility
   const updateData = {
@@ -95,10 +88,7 @@ export async function updateWorkflowTemplate(
 
 export async function deleteWorkflowTemplate(workflowId: string) {
   // Soft delete - just mark as inactive
-  return supabase
-    .from('workflow_templates')
-    .update({ is_active: false })
-    .eq('id', workflowId)
+  return supabase.from('workflow_templates').update({ is_active: false }).eq('id', workflowId)
 }
 
 // ============================================
@@ -113,20 +103,14 @@ export async function getWorkflowStates(workflowId: string) {
     .order('sort_order')
 }
 
-export async function createWorkflowState(state: Omit<Partial<WorkflowState>, 'id'> & { name: string; workflow_id: string }) {
+export async function createWorkflowState(
+  state: Omit<Partial<WorkflowState>, 'id'> & { name: string; workflow_id: string },
+) {
   return supabase.from('workflow_states').insert(state).select().single()
 }
 
-export async function updateWorkflowState(
-  stateId: string,
-  updates: Partial<WorkflowState>
-) {
-  return supabase
-    .from('workflow_states')
-    .update(updates)
-    .eq('id', stateId)
-    .select()
-    .single()
+export async function updateWorkflowState(stateId: string, updates: Partial<WorkflowState>) {
+  return supabase.from('workflow_states').update(updates).eq('id', stateId).select().single()
 }
 
 export async function deleteWorkflowState(stateId: string) {
@@ -138,30 +122,27 @@ export async function deleteWorkflowState(stateId: string) {
 // ============================================
 
 export async function getWorkflowTransitions(workflowId: string) {
-  return supabase
-    .from('workflow_transitions')
-    .select('*')
-    .eq('workflow_id', workflowId)
+  return supabase.from('workflow_transitions').select('*').eq('workflow_id', workflowId)
 }
 
 export async function createWorkflowTransition(
-  transition: Omit<Partial<WorkflowTransition>, 'id'> & { workflow_id: string; from_state_id: string; to_state_id: string }
+  transition: Omit<Partial<WorkflowTransition>, 'id'> & {
+    workflow_id: string
+    from_state_id: string
+    to_state_id: string
+  },
 ) {
   // Cast auto_conditions to Json for Supabase compatibility
   const insertData = {
     ...transition,
     auto_conditions: transition.auto_conditions as import('../types/supabase').Json | undefined,
   }
-  return supabase
-    .from('workflow_transitions')
-    .insert(insertData)
-    .select()
-    .single()
+  return supabase.from('workflow_transitions').insert(insertData).select().single()
 }
 
 export async function updateWorkflowTransition(
   transitionId: string,
-  updates: Partial<WorkflowTransition>
+  updates: Partial<WorkflowTransition>,
 ) {
   // Cast auto_conditions to Json for Supabase compatibility
   const updateData = {
@@ -192,7 +173,9 @@ export async function getGatesForTransitions(transitionIds: string[]) {
     .order('sort_order')
 }
 
-export async function createWorkflowGate(gate: Omit<Partial<WorkflowGate>, 'id'> & { transition_id: string; name: string }) {
+export async function createWorkflowGate(
+  gate: Omit<Partial<WorkflowGate>, 'id'> & { transition_id: string; name: string },
+) {
   // Cast types to handle the difference between local and Supabase types
   const insertData = {
     ...gate,
@@ -203,10 +186,7 @@ export async function createWorkflowGate(gate: Omit<Partial<WorkflowGate>, 'id'>
   return supabase.from('workflow_gates').insert(insertData).select().single()
 }
 
-export async function updateWorkflowGate(
-  gateId: string,
-  updates: Partial<WorkflowGate>
-) {
+export async function updateWorkflowGate(gateId: string, updates: Partial<WorkflowGate>) {
   // Cast types to handle the difference between local and Supabase types
   const updateData = {
     ...updates,
@@ -214,12 +194,7 @@ export async function updateWorkflowGate(
     checklist_items: updates.checklist_items as import('../types/supabase').Json | undefined,
     conditions: updates.conditions as import('../types/supabase').Json | undefined,
   }
-  return supabase
-    .from('workflow_gates')
-    .update(updateData)
-    .eq('id', gateId)
-    .select()
-    .single()
+  return supabase.from('workflow_gates').update(updateData).eq('id', gateId).select().single()
 }
 
 export async function deleteWorkflowGate(gateId: string) {
@@ -248,17 +223,18 @@ export async function getGateReviewers(gateId: string) {
         color,
         icon
       )
-    `
+    `,
     )
     .eq('gate_id', gateId)
 }
 
-export async function addGateReviewer(reviewer: Omit<Partial<GateReviewer>, 'id'> & { gate_id: string; reviewer_type: 'user' | 'role' | 'group' | 'workflow_role' }) {
-  return supabase
-    .from('workflow_gate_reviewers')
-    .insert(reviewer)
-    .select()
-    .single()
+export async function addGateReviewer(
+  reviewer: Omit<Partial<GateReviewer>, 'id'> & {
+    gate_id: string
+    reviewer_type: 'user' | 'role' | 'group' | 'workflow_role'
+  },
+) {
+  return supabase.from('workflow_gate_reviewers').insert(reviewer).select().single()
 }
 
 export async function removeGateReviewer(reviewerId: string) {
@@ -277,7 +253,7 @@ export async function getFileWorkflowAssignment(fileId: string) {
       *,
       current_state:current_state_id (*),
       workflow:workflow_id (*)
-    `
+    `,
     )
     .eq('file_id', fileId)
     .single()
@@ -287,7 +263,7 @@ export async function assignWorkflowToFile(
   fileId: string,
   workflowId: string,
   initialStateId: string,
-  assignedBy: string
+  assignedBy: string,
 ) {
   return supabase
     .from('file_workflow_assignments')
@@ -301,10 +277,7 @@ export async function assignWorkflowToFile(
     .single()
 }
 
-export async function updateFileWorkflowState(
-  fileId: string,
-  newStateId: string
-) {
+export async function updateFileWorkflowState(fileId: string, newStateId: string) {
   return supabase
     .from('file_workflow_assignments')
     .update({ current_state_id: newStateId })
@@ -318,7 +291,7 @@ export async function updateFileWorkflowState(
 // ============================================
 
 export async function getAvailableTransitions(
-  fileId: string
+  fileId: string,
 ): Promise<{ data: AvailableTransition[] | null; error: Error | null }> {
   const { data, error } = await supabase.rpc('get_available_transitions', {
     p_file_id: fileId,
@@ -341,7 +314,7 @@ export async function getPendingReviews(orgId: string) {
       gate:gate_id (*),
       requester:requested_by (email, full_name, avatar_url),
       assignee:assigned_to (email, full_name, avatar_url)
-    `
+    `,
     )
     .eq('org_id', orgId)
     .eq('status', 'pending')
@@ -353,7 +326,15 @@ export async function getMyPendingReviews() {
   return { data, error }
 }
 
-export async function createPendingReview(review: Omit<Partial<PendingReview>, 'id'> & { file_id: string; transition_id: string; gate_id: string; org_id: string; requested_by: string }) {
+export async function createPendingReview(
+  review: Omit<Partial<PendingReview>, 'id'> & {
+    file_id: string
+    transition_id: string
+    gate_id: string
+    org_id: string
+    requested_by: string
+  },
+) {
   return supabase.from('pending_reviews').insert(review).select().single()
 }
 
@@ -362,7 +343,7 @@ export async function submitReviewDecision(
   decision: 'approved' | 'rejected',
   reviewedBy: string,
   comment?: string,
-  checklistResponses?: Record<string, boolean>
+  checklistResponses?: Record<string, boolean>,
 ) {
   return supabase
     .from('pending_reviews')
@@ -388,7 +369,7 @@ export async function getReviewHistory(
     fileId?: string
     reviewedBy?: string
     limit?: number
-  }
+  },
 ) {
   let query = supabase
     .from('workflow_review_history')
@@ -420,12 +401,13 @@ export async function executeTransition(
   _options?: {
     comment?: string
     checklistResponses?: Record<string, boolean>
-  }
+  },
 ) {
   // Get the transition details with to_state and get org_id from workflow
   const { data: transition, error: transitionError } = await supabase
     .from('workflow_transitions')
-    .select(`
+    .select(
+      `
       *,
       to_state:workflow_states!workflow_transitions_to_state_id_fkey (
         *
@@ -433,7 +415,8 @@ export async function executeTransition(
       workflow:workflow_templates!workflow_transitions_workflow_id_fkey (
         org_id
       )
-    `)
+    `,
+    )
     .eq('id', transitionId)
     .single()
 
@@ -519,11 +502,7 @@ export async function executeTransition(
 // ============================================
 
 export async function getFullWorkflow(workflowId: string) {
-  const [
-    workflowResult,
-    statesResult,
-    transitionsResult,
-  ] = await Promise.all([
+  const [workflowResult, statesResult, transitionsResult] = await Promise.all([
     supabase.from('workflow_templates').select('*').eq('id', workflowId).single(),
     getWorkflowStates(workflowId),
     getWorkflowTransitions(workflowId),
@@ -540,15 +519,16 @@ export async function getFullWorkflow(workflowId: string) {
   // Get gates for all transitions
   let gates: Record<string, WorkflowGate[]> = {}
   if (transitions && transitions.length > 0) {
-    const { data: allGates } = await getGatesForTransitions(
-      transitions.map((t) => t.id)
-    )
+    const { data: allGates } = await getGatesForTransitions(transitions.map((t) => t.id))
     if (allGates) {
-      gates = allGates.reduce((acc, gate) => {
-        if (!acc[gate.transition_id]) acc[gate.transition_id] = []
-        acc[gate.transition_id].push(gate as WorkflowGate)
-        return acc
-      }, {} as Record<string, WorkflowGate[]>)
+      gates = allGates.reduce(
+        (acc, gate) => {
+          if (!acc[gate.transition_id]) acc[gate.transition_id] = []
+          acc[gate.transition_id].push(gate as WorkflowGate)
+          return acc
+        },
+        {} as Record<string, WorkflowGate[]>,
+      )
     }
   }
 
@@ -562,4 +542,3 @@ export async function getFullWorkflow(workflowId: string) {
     error: null,
   }
 }
-

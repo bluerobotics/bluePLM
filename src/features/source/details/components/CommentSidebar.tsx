@@ -15,13 +15,7 @@
  */
 
 import { useEffect, useCallback, useRef, useMemo, useState } from 'react'
-import {
-  MessageSquare,
-  Loader2,
-  MessageCircle,
-  ChevronDown,
-  ChevronRight,
-} from 'lucide-react'
+import { MessageSquare, Loader2, MessageCircle, ChevronDown, ChevronRight } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { log } from '@/lib/logger'
 import type { FileAnnotation } from '@/types/database'
@@ -70,11 +64,7 @@ function sortAnnotations(annotations: FileAnnotation[]): FileAnnotation[] {
 // Component
 // ============================================================================
 
-export function CommentSidebar({
-  fileId,
-  fileName: _fileName,
-  fileVersion,
-}: CommentSidebarProps) {
+export function CommentSidebar({ fileId, fileName: _fileName, fileVersion }: CommentSidebarProps) {
   // ── Store ────────────────────────────────────────────────────────────────
   const annotations = usePDMStore((s) => s.annotations)
   const annotationsLoading = usePDMStore((s) => s.annotationsLoading)
@@ -139,7 +129,9 @@ export function CommentSidebar({
     }
 
     load()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [fileId, fileVersion, annotationFileId, setAnnotations, setAnnotationFileId, addToast])
 
   // ── Supabase Realtime subscription ──────────────────────────────────────
@@ -191,8 +183,8 @@ export function CommentSidebar({
           },
         )
         .subscribe()
-    } catch (err) {
-      log.warn('[CommentSidebar]', 'Failed to set up realtime subscription', { error: err })
+    } catch (error) {
+      log.warn('[CommentSidebar]', 'Failed to set up realtime subscription', { error: error })
     }
 
     return () => {
@@ -247,7 +239,11 @@ export function CommentSidebar({
         file_version: fileVersion ?? null,
         edited_at: null,
         created_at: new Date().toISOString(),
-        user: { email: user.email, full_name: user.full_name ?? null, avatar_url: user.avatar_url ?? null },
+        user: {
+          email: user.email,
+          full_name: user.full_name ?? null,
+          avatar_url: user.avatar_url ?? null,
+        },
         replies: [],
       }
       addAnnotation(optimistic)
@@ -285,18 +281,25 @@ export function CommentSidebar({
         setActiveAnnotationId(result.annotation.id)
 
         // Notification system removed
-      } catch (err) {
+      } catch (error) {
         removeAnnotation(tempId)
         addToast('error', 'Failed to save comment')
-        log.error('[CommentSidebar]', 'Create annotation failed', { error: err })
+        log.error('[CommentSidebar]', 'Create annotation failed', { error: error })
       } finally {
         setIsCreating(false)
       }
     },
     [
-      user, pendingAnnotation, fileId, fileVersion,
-      addAnnotation, removeAnnotation, setShowCommentInput,
-      setPendingAnnotation, setActiveAnnotationId, addToast,
+      user,
+      pendingAnnotation,
+      fileId,
+      fileVersion,
+      addAnnotation,
+      removeAnnotation,
+      setShowCommentInput,
+      setPendingAnnotation,
+      setActiveAnnotationId,
+      addToast,
     ],
   )
 
@@ -334,7 +337,10 @@ export function CommentSidebar({
   const handleEdit = useCallback(
     async (annotationId: string, newText: string) => {
       // Optimistic update
-      updateAnnotationInStore(annotationId, { comment: newText, edited_at: new Date().toISOString() })
+      updateAnnotationInStore(annotationId, {
+        comment: newText,
+        edited_at: new Date().toISOString(),
+      })
 
       const result = await updateAnnotation(annotationId, newText)
       if (result.error) {

@@ -1,6 +1,6 @@
 /**
  * useUserHandlers - User management handler functions
- * 
+ *
  * Provides handlers for user removal, team membership, and vault access.
  */
 import { useCallback } from 'react'
@@ -9,18 +9,23 @@ import type { OrgUser } from '../../types'
 export interface UseUserHandlersParams {
   // Current user
   user: { id: string } | null
-  
+
   // Data hook methods
   removeMember: (userId: string) => Promise<boolean>
   hookRemoveFromTeam: (userId: string, teamId: string, teamName: string) => Promise<boolean>
   hookToggleTeam: (userId: string, teamId: string, isAdding: boolean) => Promise<boolean>
-  hookToggleUserRole: (userId: string, roleId: string, isAdding: boolean, addedBy?: string) => Promise<boolean>
+  hookToggleUserRole: (
+    userId: string,
+    roleId: string,
+    isAdding: boolean,
+    addedBy?: string,
+  ) => Promise<boolean>
   saveUserVaultAccess: (userId: string, vaultIds: string[], userName: string) => Promise<boolean>
   getUserAccessibleVaults: (userId: string) => string[]
-  
+
   // Refresh functions
   loadTeams: () => Promise<void>
-  
+
   // Dialog state
   removingUser: OrgUser | null
   setRemovingUser: (user: OrgUser | null) => void
@@ -53,12 +58,12 @@ export function useUserHandlers(params: UseUserHandlersParams) {
     setEditingVaultAccessUser,
     pendingVaultAccess,
     setPendingVaultAccess,
-    setIsSavingVaultAccess
+    setIsSavingVaultAccess,
   } = params
 
   const handleRemoveUser = useCallback(async () => {
     if (!removingUser) return
-    
+
     setIsRemoving(true)
     try {
       const success = await removeMember(removingUser.id)
@@ -70,52 +75,67 @@ export function useUserHandlers(params: UseUserHandlersParams) {
     }
   }, [removingUser, removeMember, setIsRemoving, setRemovingUser])
 
-  const executeRemoveFromTeam = useCallback(async (targetUser: OrgUser, teamId: string, teamName: string) => {
-    setIsRemovingFromTeam(true)
-    try {
-      const success = await hookRemoveFromTeam(targetUser.id, teamId, teamName)
-      if (success) {
-        setRemovingFromTeam(null)
-        loadTeams()
+  const executeRemoveFromTeam = useCallback(
+    async (targetUser: OrgUser, teamId: string, teamName: string) => {
+      setIsRemovingFromTeam(true)
+      try {
+        const success = await hookRemoveFromTeam(targetUser.id, teamId, teamName)
+        if (success) {
+          setRemovingFromTeam(null)
+          loadTeams()
+        }
+      } finally {
+        setIsRemovingFromTeam(false)
       }
-    } finally {
-      setIsRemovingFromTeam(false)
-    }
-  }, [hookRemoveFromTeam, setIsRemovingFromTeam, setRemovingFromTeam, loadTeams])
+    },
+    [hookRemoveFromTeam, setIsRemovingFromTeam, setRemovingFromTeam, loadTeams],
+  )
 
-  const handleRemoveFromTeam = useCallback(async (targetUser: OrgUser, teamId: string, teamName: string) => {
-    // If removing yourself from Administrators, show confirmation
-    if (targetUser.id === user?.id && teamName === 'Administrators') {
-      setRemovingFromTeam({ user: targetUser, teamId, teamName })
-      return
-    }
-    
-    await executeRemoveFromTeam(targetUser, teamId, teamName)
-  }, [user?.id, setRemovingFromTeam, executeRemoveFromTeam])
+  const handleRemoveFromTeam = useCallback(
+    async (targetUser: OrgUser, teamId: string, teamName: string) => {
+      // If removing yourself from Administrators, show confirmation
+      if (targetUser.id === user?.id && teamName === 'Administrators') {
+        setRemovingFromTeam({ user: targetUser, teamId, teamName })
+        return
+      }
 
-  const handleToggleTeam = useCallback(async (targetUser: OrgUser, teamId: string, isAdding: boolean) => {
-    await hookToggleTeam(targetUser.id, teamId, isAdding)
-    loadTeams()
-  }, [hookToggleTeam, loadTeams])
+      await executeRemoveFromTeam(targetUser, teamId, teamName)
+    },
+    [user?.id, setRemovingFromTeam, executeRemoveFromTeam],
+  )
 
-  const handleToggleWorkflowRole = useCallback(async (targetUser: OrgUser, roleId: string, isAdding: boolean) => {
-    await hookToggleUserRole(targetUser.id, roleId, isAdding, user?.id)
-  }, [hookToggleUserRole, user?.id])
+  const handleToggleTeam = useCallback(
+    async (targetUser: OrgUser, teamId: string, isAdding: boolean) => {
+      await hookToggleTeam(targetUser.id, teamId, isAdding)
+      loadTeams()
+    },
+    [hookToggleTeam, loadTeams],
+  )
 
-  const openVaultAccessEditor = useCallback((targetUser: OrgUser) => {
-    setEditingVaultAccessUser(targetUser)
-    setPendingVaultAccess(getUserAccessibleVaults(targetUser.id))
-  }, [setEditingVaultAccessUser, setPendingVaultAccess, getUserAccessibleVaults])
+  const handleToggleWorkflowRole = useCallback(
+    async (targetUser: OrgUser, roleId: string, isAdding: boolean) => {
+      await hookToggleUserRole(targetUser.id, roleId, isAdding, user?.id)
+    },
+    [hookToggleUserRole, user?.id],
+  )
+
+  const openVaultAccessEditor = useCallback(
+    (targetUser: OrgUser) => {
+      setEditingVaultAccessUser(targetUser)
+      setPendingVaultAccess(getUserAccessibleVaults(targetUser.id))
+    },
+    [setEditingVaultAccessUser, setPendingVaultAccess, getUserAccessibleVaults],
+  )
 
   const handleSaveVaultAccess = useCallback(async () => {
     if (!editingVaultAccessUser) return
-    
+
     setIsSavingVaultAccess(true)
     try {
       const success = await saveUserVaultAccess(
         editingVaultAccessUser.id,
         pendingVaultAccess,
-        editingVaultAccessUser.full_name || editingVaultAccessUser.email
+        editingVaultAccessUser.full_name || editingVaultAccessUser.email,
       )
       if (success) {
         setEditingVaultAccessUser(null)
@@ -123,7 +143,13 @@ export function useUserHandlers(params: UseUserHandlersParams) {
     } finally {
       setIsSavingVaultAccess(false)
     }
-  }, [editingVaultAccessUser, pendingVaultAccess, saveUserVaultAccess, setIsSavingVaultAccess, setEditingVaultAccessUser])
+  }, [
+    editingVaultAccessUser,
+    pendingVaultAccess,
+    saveUserVaultAccess,
+    setIsSavingVaultAccess,
+    setEditingVaultAccessUser,
+  ])
 
   return {
     handleRemoveUser,
@@ -132,6 +158,6 @@ export function useUserHandlers(params: UseUserHandlersParams) {
     handleToggleTeam,
     handleToggleWorkflowRole,
     openVaultAccessEditor,
-    handleSaveVaultAccess
+    handleSaveVaultAccess,
   }
 }

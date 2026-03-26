@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react'
 import { log } from '@/lib/logger'
-import { 
-  Database, 
-  RefreshCw, 
-  Loader2, 
-  Circle, 
-  Key, 
-  Eye, 
-  EyeOff, 
-  Copy, 
+import {
+  Database,
+  RefreshCw,
+  Loader2,
+  Circle,
+  Key,
+  Eye,
+  EyeOff,
+  Copy,
   Check,
   Shield,
   Activity,
@@ -22,17 +22,21 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   BarChart3,
-  TrendingUp
+  TrendingUp,
 } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase, getCurrentConfig, isSupabaseConfigured } from '@/lib/supabase'
 import { copyToClipboard } from '@/lib/clipboard'
-import { getSchemaVersion, EXPECTED_SCHEMA_VERSION, type SchemaVersionInfo } from '@/lib/schemaVersion'
+import {
+  getSchemaVersion,
+  EXPECTED_SCHEMA_VERSION,
+  type SchemaVersionInfo,
+} from '@/lib/schemaVersion'
 import { formatBytes } from '@/lib/utils/format'
 
 // Supabase v2 type inference incomplete for system queries
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const db = supabase as any
+const db = supabase as any // TODO: type this
 
 interface SupabaseStats {
   totalFiles: number
@@ -67,7 +71,7 @@ interface NetworkStats {
 
 export function SupabaseSettings() {
   const { organization, getEffectiveRole } = usePDMStore()
-  
+
   const [status, setStatus] = useState<'unknown' | 'online' | 'offline' | 'checking'>('unknown')
   const [showKey, setShowKey] = useState(false)
   const [keyCopied, setKeyCopied] = useState(false)
@@ -79,10 +83,12 @@ export function SupabaseSettings() {
     totalVaults: 0,
     totalUsers: 0,
     totalCheckouts: 0,
-    realtimeConnected: false
+    realtimeConnected: false,
   })
   const [loadingStats, setLoadingStats] = useState(false)
-  const [authStatus, setAuthStatus] = useState<'authenticated' | 'unauthenticated' | 'checking'>('checking')
+  const [authStatus, setAuthStatus] = useState<'authenticated' | 'unauthenticated' | 'checking'>(
+    'checking',
+  )
   const [sessionInfo, setSessionInfo] = useState<{
     expiresAt: Date | null
     provider: string | null
@@ -94,23 +100,23 @@ export function SupabaseSettings() {
     totalEvents: 0,
     activeUsers: 0,
     peakDay: '',
-    peakEvents: 0
+    peakEvents: 0,
   })
   const [loadingActivity, setLoadingActivity] = useState(false)
   const [timeRange, setTimeRange] = useState<'24h' | '7d' | '30d' | 'all'>('7d')
   const [schemaVersion, setSchemaVersion] = useState<SchemaVersionInfo | null>(null)
   const [loadingSchema, setLoadingSchema] = useState(false)
-  
+
   const config = getCurrentConfig()
   const isConfigured = isSupabaseConfigured()
   const isAdmin = getEffectiveRole() === 'admin'
-  
+
   // Check connection status on mount
   useEffect(() => {
     checkConnectionStatus()
     checkAuthStatus()
   }, [])
-  
+
   // Load stats when we have an organization
   useEffect(() => {
     if (organization?.id && status === 'online') {
@@ -119,40 +125,40 @@ export function SupabaseSettings() {
       loadSchemaVersion()
     }
   }, [organization?.id, status])
-  
+
   const loadSchemaVersion = async () => {
     setLoadingSchema(true)
     try {
       const version = await getSchemaVersion()
       setSchemaVersion(version)
-    } catch (err) {
-      log.error('[Supabase]', 'Failed to load schema version', { error: err })
+    } catch (error) {
+      log.error('[Supabase]', 'Failed to load schema version', { error: error })
     }
     setLoadingSchema(false)
   }
-  
+
   // Reload activity when time range changes
   useEffect(() => {
     if (organization?.id && status === 'online') {
       loadActivityData()
     }
   }, [timeRange])
-  
+
   const checkConnectionStatus = async () => {
     if (!isConfigured) {
       setStatus('offline')
       return
     }
-    
+
     setStatus('checking')
     const start = Date.now()
-    
+
     try {
       // Simple query to test connection
       const { error } = await supabase.from('organizations').select('id').limit(1)
       const duration = Date.now() - start
       setLatency(duration)
-      
+
       if (error && (error.message.includes('Invalid API key') || error.code === 'PGRST301')) {
         setStatus('offline')
       } else {
@@ -162,19 +168,21 @@ export function SupabaseSettings() {
       setStatus('offline')
       setLatency(null)
     }
-    
+
     setLastChecked(new Date())
   }
-  
+
   const checkAuthStatus = async () => {
     setAuthStatus('checking')
     try {
-      const { data: { session } } = await supabase.auth.getSession()
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
       if (session) {
         setAuthStatus('authenticated')
         setSessionInfo({
           expiresAt: session.expires_at ? new Date(session.expires_at * 1000) : null,
-          provider: session.user?.app_metadata?.provider || 'email'
+          provider: session.user?.app_metadata?.provider || 'email',
         })
       } else {
         setAuthStatus('unauthenticated')
@@ -183,47 +191,60 @@ export function SupabaseSettings() {
       setAuthStatus('unauthenticated')
     }
   }
-  
+
   const loadStats = async () => {
     if (!organization?.id) return
-    
+
     setLoadingStats(true)
     try {
       // Get stats in parallel
       const [filesResult, vaultsResult, usersResult, checkoutsResult] = await Promise.all([
-        supabase.from('files').select('id', { count: 'exact', head: true }).eq('org_id', organization.id),
-        supabase.from('vaults').select('id', { count: 'exact', head: true }).eq('org_id', organization.id),
-        supabase.from('users').select('id', { count: 'exact', head: true }).eq('org_id', organization.id),
-        supabase.from('files').select('id', { count: 'exact', head: true }).eq('org_id', organization.id).not('checked_out_by', 'is', null)
+        supabase
+          .from('files')
+          .select('id', { count: 'exact', head: true })
+          .eq('org_id', organization.id),
+        supabase
+          .from('vaults')
+          .select('id', { count: 'exact', head: true })
+          .eq('org_id', organization.id),
+        supabase
+          .from('users')
+          .select('id', { count: 'exact', head: true })
+          .eq('org_id', organization.id),
+        supabase
+          .from('files')
+          .select('id', { count: 'exact', head: true })
+          .eq('org_id', organization.id)
+          .not('checked_out_by', 'is', null),
       ])
-      
+
       // Check realtime connection by looking at supabase channels
       const channels = supabase.getChannels()
       const realtimeConnected = channels.length > 0
-      
+
       setStats({
         totalFiles: filesResult.count || 0,
         totalVaults: vaultsResult.count || 0,
         totalUsers: usersResult.count || 0,
         totalCheckouts: checkoutsResult.count || 0,
-        realtimeConnected
+        realtimeConnected,
       })
-    } catch (err) {
-      log.error('[Supabase]', 'Failed to load stats', { error: err })
+    } catch (error) {
+      log.error('[Supabase]', 'Failed to load stats', { error: error })
     }
     setLoadingStats(false)
   }
-  
+
   const loadActivityData = async () => {
     if (!organization?.id) return
-    
+
     setLoadingActivity(true)
     try {
       // Calculate date range based on timeRange
       const now = new Date()
       let startDate: Date | null = new Date()
       let bucketCount: number
-      
+
       switch (timeRange) {
         case '24h':
           startDate.setHours(startDate.getHours() - 23)
@@ -245,44 +266,55 @@ export function SupabaseSettings() {
           bucketCount = 12
           break
       }
-      
+
       // Build activity query
       let activityQuery = db
         .from('activity')
         .select('action, user_id, created_at')
         .eq('org_id', organization.id)
         .order('created_at', { ascending: true })
-      
+
       if (startDate) {
         activityQuery = activityQuery.gte('created_at', startDate.toISOString())
       }
-      
+
       const { data: activities, error: activityError } = await activityQuery
-      
+
       if (activityError) {
         log.error('[Supabase]', 'Activity query error', { error: activityError })
       }
-      
+
       // Build versions query
-      let versionsQuery = db
-        .from('file_versions')
-        .select('file_size, created_at, version')
-      
+      let versionsQuery = db.from('file_versions').select('file_size, created_at, version')
+
       if (startDate) {
         versionsQuery = versionsQuery.gte('created_at', startDate.toISOString())
       }
-      
+
       const { data: versions, error: versionError } = await versionsQuery
-      
+
       if (versionError) {
         log.error('[Supabase]', 'Versions query error', { error: versionError })
       }
-      
+
       // Build buckets based on time range
       const buckets: DailyActivity[] = []
       const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-      
+      const monthNames = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ]
+
       if (timeRange === '24h') {
         // Hourly buckets
         for (let i = 0; i < bucketCount; i++) {
@@ -290,12 +322,19 @@ export function SupabaseSettings() {
           bucketDate.setHours(startDate!.getHours() + i)
           const hour = bucketDate.getHours()
           const isNow = i === bucketCount - 1
-          
+
           buckets.push({
             date: bucketDate.toISOString(),
             dayLabel: isNow ? 'Now' : `${hour}:00`,
-            checkouts: 0, checkins: 0, creates: 0, deletes: 0, stateChanges: 0,
-            total: 0, bytesIn: 0, bytesOut: 0, uniqueUsers: 0
+            checkouts: 0,
+            checkins: 0,
+            creates: 0,
+            deletes: 0,
+            stateChanges: 0,
+            total: 0,
+            bytesIn: 0,
+            bytesOut: 0,
+            uniqueUsers: 0,
           })
         }
       } else if (timeRange === '7d' || timeRange === '30d') {
@@ -306,18 +345,25 @@ export function SupabaseSettings() {
           const dateStr = bucketDate.toISOString().split('T')[0]
           const isToday = i === bucketCount - 1
           const isYesterday = i === bucketCount - 2
-          
+
           let label: string
           if (isToday) label = 'Today'
           else if (isYesterday) label = 'Yest'
           else if (timeRange === '30d') label = `${bucketDate.getDate()}`
           else label = dayNames[bucketDate.getDay()]
-          
+
           buckets.push({
             date: dateStr,
             dayLabel: label,
-            checkouts: 0, checkins: 0, creates: 0, deletes: 0, stateChanges: 0,
-            total: 0, bytesIn: 0, bytesOut: 0, uniqueUsers: 0
+            checkouts: 0,
+            checkins: 0,
+            creates: 0,
+            deletes: 0,
+            stateChanges: 0,
+            total: 0,
+            bytesIn: 0,
+            bytesOut: 0,
+            uniqueUsers: 0,
           })
         }
       } else {
@@ -328,24 +374,31 @@ export function SupabaseSettings() {
           bucketDate.setDate(1)
           const monthKey = `${bucketDate.getFullYear()}-${String(bucketDate.getMonth() + 1).padStart(2, '0')}`
           const isThisMonth = i === 0
-          
+
           buckets.push({
             date: monthKey,
             dayLabel: isThisMonth ? 'This Mo' : monthNames[bucketDate.getMonth()],
-            checkouts: 0, checkins: 0, creates: 0, deletes: 0, stateChanges: 0,
-            total: 0, bytesIn: 0, bytesOut: 0, uniqueUsers: 0
+            checkouts: 0,
+            checkins: 0,
+            creates: 0,
+            deletes: 0,
+            stateChanges: 0,
+            total: 0,
+            bytesIn: 0,
+            bytesOut: 0,
+            uniqueUsers: 0,
           })
         }
       }
-      
+
       // Process activities into buckets
       const usersByBucket: Record<string, Set<string>> = {}
-      
+
       if (activities) {
         for (const activity of activities) {
           const actDate = new Date(activity.created_at)
           let bucketKey: string
-          
+
           if (timeRange === '24h') {
             // Match by hour
             const actHour = new Date(actDate)
@@ -357,34 +410,44 @@ export function SupabaseSettings() {
             // Monthly
             bucketKey = `${actDate.getFullYear()}-${String(actDate.getMonth() + 1).padStart(2, '0')}`
           }
-          
-          const bucketIndex = buckets.findIndex(b => b.date === bucketKey)
-          
+
+          const bucketIndex = buckets.findIndex((b) => b.date === bucketKey)
+
           if (bucketIndex >= 0) {
             const bucket = buckets[bucketIndex]
             bucket.total++
-            
+
             if (!usersByBucket[bucketKey]) usersByBucket[bucketKey] = new Set()
             usersByBucket[bucketKey].add(activity.user_id)
-            
+
             switch (activity.action) {
-              case 'checkout': bucket.checkouts++; break
-              case 'checkin': bucket.checkins++; break
-              case 'create': bucket.creates++; break
-              case 'delete': bucket.deletes++; break
+              case 'checkout':
+                bucket.checkouts++
+                break
+              case 'checkin':
+                bucket.checkins++
+                break
+              case 'create':
+                bucket.creates++
+                break
+              case 'delete':
+                bucket.deletes++
+                break
               case 'state_change':
-              case 'revision_change': bucket.stateChanges++; break
+              case 'revision_change':
+                bucket.stateChanges++
+                break
             }
           }
         }
       }
-      
+
       // Process file versions for byte tracking
       if (versions) {
         for (const version of versions) {
           const versionDate = new Date(version.created_at)
           let bucketKey: string
-          
+
           if (timeRange === '24h') {
             const vHour = new Date(versionDate)
             vHour.setMinutes(0, 0, 0)
@@ -394,19 +457,19 @@ export function SupabaseSettings() {
           } else {
             bucketKey = `${versionDate.getFullYear()}-${String(versionDate.getMonth() + 1).padStart(2, '0')}`
           }
-          
-          const bucketIndex = buckets.findIndex(b => b.date === bucketKey)
+
+          const bucketIndex = buckets.findIndex((b) => b.date === bucketKey)
           if (bucketIndex >= 0) {
             buckets[bucketIndex].bytesIn += version.file_size || 0
           }
         }
       }
-      
+
       // Apply unique user counts
       for (const bucket of buckets) {
         bucket.uniqueUsers = usersByBucket[bucket.date]?.size || 0
       }
-      
+
       // Calculate network stats
       const totalBytesIn = buckets.reduce((sum, d) => sum + d.bytesIn, 0)
       const totalEvents = buckets.reduce((sum, d) => sum + d.total, 0)
@@ -414,23 +477,24 @@ export function SupabaseSettings() {
       if (activities) {
         for (const a of activities) allUsers.add(a.user_id)
       }
-      
+
       // Estimate bytes out
-      const avgFileSize = versions && versions.length > 0 
-        // Supabase v2 nested select type inference incomplete
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ? versions.reduce((sum: number, v: any) => sum + (v.file_size || 0), 0) / versions.length 
-        : 0
+      const avgFileSize =
+        versions && versions.length > 0
+          ? // Supabase v2 nested select type inference incomplete
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            versions.reduce((sum: number, v: any) => sum + (v.file_size || 0), 0) / versions.length
+          : 0
       const totalCheckouts = buckets.reduce((sum, d) => sum + d.checkouts, 0)
       const estimatedBytesOut = totalCheckouts * avgFileSize
-      
+
       for (const bucket of buckets) {
         bucket.bytesOut = bucket.checkouts * avgFileSize
       }
-      
+
       // Find peak
-      const peakBucket = buckets.reduce((max, d) => d.total > max.total ? d : max, buckets[0])
-      
+      const peakBucket = buckets.reduce((max, d) => (d.total > max.total ? d : max), buckets[0])
+
       setDailyActivity(buckets)
       setNetworkStats({
         totalBytesIn,
@@ -438,14 +502,14 @@ export function SupabaseSettings() {
         totalEvents,
         activeUsers: allUsers.size,
         peakDay: peakBucket?.dayLabel || '',
-        peakEvents: peakBucket?.total || 0
+        peakEvents: peakBucket?.total || 0,
       })
-    } catch (err) {
-      log.error('[Supabase]', 'Failed to load activity', { error: err })
+    } catch (error) {
+      log.error('[Supabase]', 'Failed to load activity', { error: error })
     }
     setLoadingActivity(false)
   }
-  
+
   const handleCopyKey = async () => {
     if (!config?.anonKey || !isAdmin) return
     const result = await copyToClipboard(config.anonKey)
@@ -456,7 +520,7 @@ export function SupabaseSettings() {
       log.error('[Supabase]', 'Failed to copy key', { error: result.error })
     }
   }
-  
+
   const handleCopyUrl = async () => {
     if (!config?.url) return
     const result = await copyToClipboard(config.url)
@@ -467,18 +531,18 @@ export function SupabaseSettings() {
       log.error('[Supabase]', 'Failed to copy URL', { error: result.error })
     }
   }
-  
+
   const maskKey = (key: string): string => {
     if (key.length <= 20) return '•'.repeat(key.length)
     return key.substring(0, 12) + '•'.repeat(20) + key.substring(key.length - 8)
   }
-  
+
   const formatExpiryTime = (date: Date): string => {
     const now = new Date()
     const diff = date.getTime() - now.getTime()
     const minutes = Math.floor(diff / 60000)
     const hours = Math.floor(minutes / 60)
-    
+
     if (minutes < 0) return 'Expired'
     if (hours > 0) return `${hours}h ${minutes % 60}m`
     return `${minutes}m`
@@ -493,7 +557,9 @@ export function SupabaseSettings() {
         </div>
         <div>
           <h2 className="text-lg font-semibold text-plm-fg">Supabase Connection</h2>
-          <p className="text-sm text-plm-fg-muted">Monitor your database connection and statistics</p>
+          <p className="text-sm text-plm-fg-muted">
+            Monitor your database connection and statistics
+          </p>
         </div>
       </div>
 
@@ -514,20 +580,30 @@ export function SupabaseSettings() {
         </div>
         <div className="p-4 bg-plm-bg rounded-lg border border-plm-border">
           <div className="flex items-center gap-3">
-            <div className={`p-2.5 rounded-full ${
-              status === 'online' ? 'bg-green-500/20' :
-              status === 'offline' ? 'bg-red-500/20' :
-              status === 'checking' ? 'bg-yellow-500/20' :
-              'bg-plm-fg-muted/20'
-            }`}>
+            <div
+              className={`p-2.5 rounded-full ${
+                status === 'online'
+                  ? 'bg-green-500/20'
+                  : status === 'offline'
+                    ? 'bg-red-500/20'
+                    : status === 'checking'
+                      ? 'bg-yellow-500/20'
+                      : 'bg-plm-fg-muted/20'
+              }`}
+            >
               {status === 'checking' ? (
                 <Loader2 size={18} className="animate-spin text-yellow-400" />
               ) : (
-                <Circle size={18} className={`${
-                  status === 'online' ? 'text-green-400 fill-green-400' :
-                  status === 'offline' ? 'text-red-400' :
-                  'text-plm-fg-muted'
-                }`} />
+                <Circle
+                  size={18}
+                  className={`${
+                    status === 'online'
+                      ? 'text-green-400 fill-green-400'
+                      : status === 'offline'
+                        ? 'text-red-400'
+                        : 'text-plm-fg-muted'
+                  }`}
+                />
               )}
             </div>
             <div className="flex-1">
@@ -543,15 +619,19 @@ export function SupabaseSettings() {
               </div>
             </div>
           </div>
-          
+
           {/* Auth Status */}
           <div className="mt-4 pt-4 border-t border-plm-border/50">
             <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-full ${
-                authStatus === 'authenticated' ? 'bg-blue-500/20' :
-                authStatus === 'unauthenticated' ? 'bg-orange-500/20' :
-                'bg-plm-fg-muted/20'
-              }`}>
+              <div
+                className={`p-2 rounded-full ${
+                  authStatus === 'authenticated'
+                    ? 'bg-blue-500/20'
+                    : authStatus === 'unauthenticated'
+                      ? 'bg-orange-500/20'
+                      : 'bg-plm-fg-muted/20'
+                }`}
+              >
                 {authStatus === 'checking' ? (
                   <Loader2 size={16} className="animate-spin text-plm-fg-muted" />
                 ) : authStatus === 'authenticated' ? (
@@ -562,9 +642,11 @@ export function SupabaseSettings() {
               </div>
               <div className="flex-1">
                 <div className="text-sm font-medium text-plm-fg">
-                  {authStatus === 'authenticated' ? 'Authenticated' : 
-                   authStatus === 'unauthenticated' ? 'Not authenticated' : 
-                   'Checking...'}
+                  {authStatus === 'authenticated'
+                    ? 'Authenticated'
+                    : authStatus === 'unauthenticated'
+                      ? 'Not authenticated'
+                      : 'Checking...'}
                 </div>
                 {sessionInfo.expiresAt && authStatus === 'authenticated' && (
                   <div className="text-xs text-plm-fg-muted flex items-center gap-2">
@@ -595,20 +677,25 @@ export function SupabaseSettings() {
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-full ${
-                      schemaVersion.version === EXPECTED_SCHEMA_VERSION 
-                        ? 'bg-green-500/20' 
-                        : schemaVersion.version > EXPECTED_SCHEMA_VERSION
-                          ? 'bg-blue-500/20'
-                          : 'bg-yellow-500/20'
-                    }`}>
-                      <Database size={16} className={
-                        schemaVersion.version === EXPECTED_SCHEMA_VERSION 
-                          ? 'text-green-400' 
+                    <div
+                      className={`p-2 rounded-full ${
+                        schemaVersion.version === EXPECTED_SCHEMA_VERSION
+                          ? 'bg-green-500/20'
                           : schemaVersion.version > EXPECTED_SCHEMA_VERSION
-                            ? 'text-blue-400'
-                            : 'text-yellow-400'
-                      } />
+                            ? 'bg-blue-500/20'
+                            : 'bg-yellow-500/20'
+                      }`}
+                    >
+                      <Database
+                        size={16}
+                        className={
+                          schemaVersion.version === EXPECTED_SCHEMA_VERSION
+                            ? 'text-green-400'
+                            : schemaVersion.version > EXPECTED_SCHEMA_VERSION
+                              ? 'text-blue-400'
+                              : 'text-yellow-400'
+                        }
+                      />
                     </div>
                     <div>
                       <div className="text-sm font-medium text-plm-fg">
@@ -636,20 +723,24 @@ export function SupabaseSettings() {
                 )}
                 {schemaVersion.appliedAt && (
                   <div className="text-xs text-plm-fg-muted">
-                    Last updated: {schemaVersion.appliedAt.toLocaleDateString()} at {schemaVersion.appliedAt.toLocaleTimeString()}
+                    Last updated: {schemaVersion.appliedAt.toLocaleDateString()} at{' '}
+                    {schemaVersion.appliedAt.toLocaleTimeString()}
                   </div>
                 )}
                 {schemaVersion.version < EXPECTED_SCHEMA_VERSION && isAdmin && (
                   <div className="mt-2 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
                     <p className="text-sm text-yellow-300">
-                      <strong>Admin action needed:</strong> Run the latest <code className="bg-plm-bg px-1 rounded">schema.sql</code> in your Supabase SQL editor to enable new features.
+                      <strong>Admin action needed:</strong> Run the latest{' '}
+                      <code className="bg-plm-bg px-1 rounded">schema.sql</code> in your Supabase
+                      SQL editor to enable new features.
                     </p>
                   </div>
                 )}
                 {schemaVersion.version > EXPECTED_SCHEMA_VERSION && (
                   <div className="mt-2 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
                     <p className="text-sm text-blue-300">
-                      Your database is newer than this app version. Consider updating BluePLM for the best experience.
+                      Your database is newer than this app version. Consider updating BluePLM for
+                      the best experience.
                     </p>
                   </div>
                 )}
@@ -661,7 +752,9 @@ export function SupabaseSettings() {
                     <Database size={16} className="text-orange-400" />
                   </div>
                   <div>
-                    <div className="text-sm font-medium text-plm-fg">Version tracking not found</div>
+                    <div className="text-sm font-medium text-plm-fg">
+                      Version tracking not found
+                    </div>
                     <div className="text-xs text-plm-fg-muted">
                       App expects: v{EXPECTED_SCHEMA_VERSION}
                     </div>
@@ -670,7 +763,9 @@ export function SupabaseSettings() {
                 {isAdmin && (
                   <div className="mt-2 p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg">
                     <p className="text-sm text-orange-300">
-                      <strong>Admin action needed:</strong> Run the latest <code className="bg-plm-bg px-1 rounded">schema.sql</code> in your Supabase SQL editor to enable schema version tracking.
+                      <strong>Admin action needed:</strong> Run the latest{' '}
+                      <code className="bg-plm-bg px-1 rounded">schema.sql</code> in your Supabase
+                      SQL editor to enable schema version tracking.
                     </p>
                   </div>
                 )}
@@ -695,8 +790,8 @@ export function SupabaseSettings() {
               <button
                 onClick={handleCopyUrl}
                 className={`p-2 rounded transition-colors ${
-                  urlCopied 
-                    ? 'text-green-400 bg-green-400/10' 
+                  urlCopied
+                    ? 'text-green-400 bg-green-400/10'
                     : 'text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight'
                 }`}
                 title="Copy URL"
@@ -740,8 +835,8 @@ export function SupabaseSettings() {
                 <button
                   onClick={handleCopyKey}
                   className={`p-2 rounded transition-colors ${
-                    keyCopied 
-                      ? 'text-green-400 bg-green-400/10' 
+                    keyCopied
+                      ? 'text-green-400 bg-green-400/10'
                       : 'text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight'
                   }`}
                   title="Copy key"
@@ -835,7 +930,13 @@ export function SupabaseSettings() {
                         : 'text-plm-fg-muted hover:text-plm-fg'
                     }`}
                   >
-                    {range === '24h' ? '24H' : range === '7d' ? '7D' : range === '30d' ? '30D' : 'All'}
+                    {range === '24h'
+                      ? '24H'
+                      : range === '7d'
+                        ? '7D'
+                        : range === '30d'
+                          ? '30D'
+                          : 'All'}
                   </button>
                 ))}
               </div>
@@ -848,7 +949,7 @@ export function SupabaseSettings() {
               </button>
             </div>
           </div>
-          
+
           <div className="p-4 bg-plm-bg rounded-lg border border-plm-border space-y-4">
             {/* Summary Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
@@ -856,21 +957,27 @@ export function SupabaseSettings() {
                 <ArrowUpRight size={14} className="text-emerald-400" />
                 <div>
                   <div className="text-plm-fg-muted text-xs">Data In</div>
-                  <div className="text-plm-fg font-medium">{formatBytes(networkStats.totalBytesIn)}</div>
+                  <div className="text-plm-fg font-medium">
+                    {formatBytes(networkStats.totalBytesIn)}
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <ArrowDownRight size={14} className="text-blue-400" />
                 <div>
                   <div className="text-plm-fg-muted text-xs">Data Out (est.)</div>
-                  <div className="text-plm-fg font-medium">{formatBytes(networkStats.totalBytesOut)}</div>
+                  <div className="text-plm-fg font-medium">
+                    {formatBytes(networkStats.totalBytesOut)}
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <Activity size={14} className="text-purple-400" />
                 <div>
                   <div className="text-plm-fg-muted text-xs">Total Events</div>
-                  <div className="text-plm-fg font-medium">{networkStats.totalEvents.toLocaleString()}</div>
+                  <div className="text-plm-fg font-medium">
+                    {networkStats.totalEvents.toLocaleString()}
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -881,7 +988,7 @@ export function SupabaseSettings() {
                 </div>
               </div>
             </div>
-            
+
             {/* Histogram */}
             {loadingActivity ? (
               <div className="flex items-center justify-center py-8">
@@ -892,59 +999,67 @@ export function SupabaseSettings() {
                 {/* Activity bars */}
                 <div className="flex items-end gap-1 h-32">
                   {dailyActivity.map((day, idx) => {
-                    const maxTotal = Math.max(...dailyActivity.map(d => d.total), 1)
+                    const maxTotal = Math.max(...dailyActivity.map((d) => d.total), 1)
                     const height = (day.total / maxTotal) * 100
                     const isToday = idx === dailyActivity.length - 1
-                    
+
                     return (
                       <div
                         key={day.date}
                         className="flex-1 flex flex-col items-center gap-1 group relative"
                       >
                         {/* Stacked bar */}
-                        <div 
+                        <div
                           className="w-full rounded-t transition-all duration-200 group-hover:opacity-80 relative overflow-hidden"
                           style={{ height: `${Math.max(height, 2)}%` }}
                         >
                           {/* Checkins layer */}
-                          <div 
+                          <div
                             className="absolute bottom-0 left-0 right-0 bg-emerald-500"
-                            style={{ height: `${day.total > 0 ? (day.checkins / day.total) * 100 : 0}%` }}
+                            style={{
+                              height: `${day.total > 0 ? (day.checkins / day.total) * 100 : 0}%`,
+                            }}
                           />
                           {/* Checkouts layer */}
-                          <div 
+                          <div
                             className="absolute left-0 right-0 bg-blue-500"
-                            style={{ 
+                            style={{
                               bottom: `${day.total > 0 ? (day.checkins / day.total) * 100 : 0}%`,
-                              height: `${day.total > 0 ? (day.checkouts / day.total) * 100 : 0}%` 
+                              height: `${day.total > 0 ? (day.checkouts / day.total) * 100 : 0}%`,
                             }}
                           />
                           {/* Creates layer */}
-                          <div 
+                          <div
                             className="absolute left-0 right-0 bg-purple-500"
-                            style={{ 
+                            style={{
                               bottom: `${day.total > 0 ? ((day.checkins + day.checkouts) / day.total) * 100 : 0}%`,
-                              height: `${day.total > 0 ? (day.creates / day.total) * 100 : 0}%` 
+                              height: `${day.total > 0 ? (day.creates / day.total) * 100 : 0}%`,
                             }}
                           />
                           {/* Other (state changes, deletes) */}
-                          <div 
+                          <div
                             className="absolute left-0 right-0 top-0 bg-orange-500"
-                            style={{ 
-                              height: `${day.total > 0 ? ((day.stateChanges + day.deletes) / day.total) * 100 : 0}%` 
+                            style={{
+                              height: `${day.total > 0 ? ((day.stateChanges + day.deletes) / day.total) * 100 : 0}%`,
                             }}
                           />
                         </div>
-                        
+
                         {/* Tooltip */}
                         <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-plm-bg-secondary border border-plm-border rounded-lg p-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 whitespace-nowrap shadow-lg">
                           <div className="font-medium text-plm-fg mb-1">
-                            {timeRange === '24h' 
-                              ? new Date(day.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                            {timeRange === '24h'
+                              ? new Date(day.date).toLocaleTimeString([], {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })
                               : timeRange === 'all'
-                              ? day.date
-                              : new Date(day.date).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
-                            }
+                                ? day.date
+                                : new Date(day.date).toLocaleDateString([], {
+                                    weekday: 'short',
+                                    month: 'short',
+                                    day: 'numeric',
+                                  })}
                           </div>
                           <div className="space-y-0.5 text-plm-fg-muted">
                             <div className="flex items-center gap-2">
@@ -969,16 +1084,18 @@ export function SupabaseSettings() {
                             </div>
                           </div>
                         </div>
-                        
+
                         {/* Day label */}
-                        <span className={`text-[10px] ${isToday ? 'text-plm-accent font-medium' : 'text-plm-fg-muted'}`}>
+                        <span
+                          className={`text-[10px] ${isToday ? 'text-plm-accent font-medium' : 'text-plm-fg-muted'}`}
+                        >
                           {day.dayLabel.substring(0, 3)}
                         </span>
                       </div>
                     )
                   })}
                 </div>
-                
+
                 {/* Legend */}
                 <div className="flex items-center justify-center gap-4 text-xs text-plm-fg-muted pt-2 border-t border-plm-border/50">
                   <div className="flex items-center gap-1.5">
@@ -998,13 +1115,14 @@ export function SupabaseSettings() {
                     Other
                   </div>
                 </div>
-                
+
                 {/* Peak callout */}
                 {networkStats.peakEvents > 0 && (
                   <div className="flex items-center gap-2 text-xs text-plm-fg-muted pt-2">
                     <TrendingUp size={12} className="text-plm-accent" />
                     <span>
-                      Peak: <strong className="text-plm-fg">{networkStats.peakEvents}</strong> events {timeRange === '24h' ? 'at' : 'on'} {networkStats.peakDay}
+                      Peak: <strong className="text-plm-fg">{networkStats.peakEvents}</strong>{' '}
+                      events {timeRange === '24h' ? 'at' : 'on'} {networkStats.peakDay}
                     </span>
                   </div>
                 )}
@@ -1023,39 +1141,48 @@ export function SupabaseSettings() {
           </div>
           <div className="p-4 bg-plm-bg rounded-lg border border-plm-border">
             <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-full ${stats.realtimeConnected ? 'bg-purple-500/20' : 'bg-plm-fg-muted/20'}`}>
-                <Zap size={16} className={stats.realtimeConnected ? 'text-purple-400' : 'text-plm-fg-muted'} />
+              <div
+                className={`p-2 rounded-full ${stats.realtimeConnected ? 'bg-purple-500/20' : 'bg-plm-fg-muted/20'}`}
+              >
+                <Zap
+                  size={16}
+                  className={stats.realtimeConnected ? 'text-purple-400' : 'text-plm-fg-muted'}
+                />
               </div>
               <div className="flex-1">
                 <div className="text-sm font-medium text-plm-fg">
-                  {stats.realtimeConnected ? 'Realtime subscriptions active' : 'No active subscriptions'}
+                  {stats.realtimeConnected
+                    ? 'Realtime subscriptions active'
+                    : 'No active subscriptions'}
                 </div>
                 <div className="text-xs text-plm-fg-muted">
-                  {stats.realtimeConnected 
-                    ? `${supabase.getChannels().length} active channel(s)` 
+                  {stats.realtimeConnected
+                    ? `${supabase.getChannels().length} active channel(s)`
                     : 'Subscribe to database changes for live updates'}
                 </div>
               </div>
             </div>
-            
+
             {/* Channel List */}
             {stats.realtimeConnected && supabase.getChannels().length > 0 && (
               <div className="mt-3 pt-3 border-t border-plm-border/50 space-y-1.5">
                 {supabase.getChannels().map((channel, idx) => {
                   const topic = channel.topic || 'unknown'
                   const state = channel.state
-                  
+
                   return (
-                    <div 
-                      key={idx}
-                      className="flex items-center gap-2 text-xs"
-                    >
-                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                        state === 'joined' ? 'bg-green-400' :
-                        state === 'joining' ? 'bg-yellow-400 animate-pulse' :
-                        state === 'leaving' ? 'bg-orange-400' :
-                        'bg-plm-fg-muted'
-                      }`} />
+                    <div key={idx} className="flex items-center gap-2 text-xs">
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                          state === 'joined'
+                            ? 'bg-green-400'
+                            : state === 'joining'
+                              ? 'bg-yellow-400 animate-pulse'
+                              : state === 'leaving'
+                                ? 'bg-orange-400'
+                                : 'bg-plm-fg-muted'
+                        }`}
+                      />
                       <code className="text-plm-fg font-mono truncate flex-1">{topic}</code>
                       <span className="text-plm-fg-muted capitalize">{state}</span>
                     </div>
@@ -1101,8 +1228,8 @@ export function SupabaseSettings() {
             <div>
               <div className="font-medium text-plm-fg">Supabase Not Configured</div>
               <p className="text-sm text-plm-fg-muted mt-1">
-                Connect to a Supabase project to enable cloud features. Use the organization code from your administrator 
-                or configure environment variables during development.
+                Connect to a Supabase project to enable cloud features. Use the organization code
+                from your administrator or configure environment variables during development.
               </p>
             </div>
           </div>
@@ -1113,12 +1240,12 @@ export function SupabaseSettings() {
 }
 
 // Helper component for stat cards
-function StatCard({ 
-  icon, 
-  label, 
-  value, 
-  loading 
-}: { 
+function StatCard({
+  icon,
+  label,
+  value,
+  loading,
+}: {
   icon: React.ReactNode
   label: string
   value: number
@@ -1164,4 +1291,3 @@ function extractRegion(url: string): string {
     return 'Unknown'
   }
 }
-

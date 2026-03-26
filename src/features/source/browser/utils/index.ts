@@ -1,9 +1,5 @@
 // File browser utilities
-export {
-  compareFiles,
-  sortFiles,
-  sortByRelevance
-} from './sorting'
+export { compareFiles, sortFiles, sortByRelevance } from './sorting'
 
 export {
   fuzzyMatch,
@@ -14,7 +10,7 @@ export {
   filterValidFiles,
   getFilesInFolder,
   filterBySearch,
-  applyFilters
+  applyFilters,
 } from './filtering'
 export type { FileFilter } from './filtering'
 
@@ -25,7 +21,7 @@ export {
   getFilesInSelectionBox,
   createSelectionBox,
   updateSelectionBox,
-  getSelectionBoxStyles
+  getSelectionBoxStyles,
 } from './selection'
 
 export {
@@ -42,11 +38,15 @@ export {
   isCheckedOutByOthers,
   getCheckoutStatus,
   getFolderCheckoutStatus,
-  isFolderSynced
+  isFolderSynced,
 } from './fileStatus'
 export type { DiffStatus } from './fileStatus'
 
-export { getProcessingOperation, getFileProcessingOperation, getFolderProcessingOperation } from './processingStatus'
+export {
+  getProcessingOperation,
+  getFileProcessingOperation,
+  getFolderProcessingOperation,
+} from './processingStatus'
 export { matchesKeybinding } from './keybindings'
 export type { Keybinding } from './keybindings'
 export { buildConfigTreeFlat } from './configTree'

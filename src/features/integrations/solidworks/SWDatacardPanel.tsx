@@ -11,7 +11,7 @@ import {
   ExternalLink,
   ZoomIn,
   ZoomOut,
-  RotateCcw
+  RotateCcw,
 } from 'lucide-react'
 
 // File type icon
@@ -30,7 +30,11 @@ function SWFileIcon({ fileType, size = 16 }: { fileType: string; size?: number }
 
 // SolidWorks service hook
 function useSolidWorksService() {
-  const [status, setStatus] = useState<{ running: boolean; version?: string; directAccessEnabled?: boolean }>({ running: false })
+  const [status, setStatus] = useState<{
+    running: boolean
+    version?: string
+    directAccessEnabled?: boolean
+  }>({ running: false })
 
   const checkStatus = async () => {
     try {
@@ -58,10 +62,10 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
   const [previewLoading, setPreviewLoading] = useState(false)
   const [previewZoom, setPreviewZoom] = useState(100)
   const [activeConfigName, setActiveConfigName] = useState<string | undefined>(undefined)
-  
+
   const { status } = useSolidWorksService()
-  const addToast = usePDMStore(s => s.addToast)
-  
+  const addToast = usePDMStore((s) => s.addToast)
+
   const ext = file.extension?.toLowerCase() || ''
   const fileType = ext === '.sldprt' ? 'Part' : ext === '.sldasm' ? 'Assembly' : 'Drawing'
 
@@ -74,19 +78,19 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
   useEffect(() => {
     const loadActiveConfig = async () => {
       if (!file?.path || !status.running) return
-      
+
       try {
         const result = await window.electronAPI?.solidworks?.getConfigurations(file.path)
         if (result?.success && result.data?.configurations) {
           const configs = result.data.configurations as Array<{ name: string; isActive?: boolean }>
-          const active = configs.find(c => c.isActive)
+          const active = configs.find((c) => c.isActive)
           setActiveConfigName(active?.name)
         }
-      } catch (err) {
-        log.debug('[SWPreview]', 'Failed to load configurations', { error: err })
+      } catch (error) {
+        log.debug('[SWPreview]', 'Failed to load configurations', { error: error })
       }
     }
-    
+
     loadActiveConfig()
   }, [file?.path, status.running])
 
@@ -95,10 +99,10 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
   useEffect(() => {
     const loadOlePreview = async () => {
       if (!file?.path) return
-      
+
       setPreviewLoading(true)
       setPreview(null)
-      
+
       try {
         // Try direct OLE preview extraction (works for older SW files)
         const oleResult = await window.electronAPI?.extractSolidWorksPreview?.(file.path)
@@ -108,33 +112,36 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
           setPreviewLoading(false)
           return
         }
-        
+
         // OLE failed - Fall back to OS thumbnail as immediate fallback (uses cache)
         const thumbData = await thumbnailCache.get(file.path)
         if (thumbData) {
           log.debug('[Preview]', 'Using OS thumbnail fallback')
           setPreview(thumbData)
         }
-      } catch (err) {
-        log.error('[Preview]', 'Failed to load OLE preview', { error: err })
+      } catch (error) {
+        log.error('[Preview]', 'Failed to load OLE preview', { error: error })
       } finally {
         setPreviewLoading(false)
       }
     }
-    
+
     loadOlePreview()
   }, [file?.path])
-  
+
   // Effect 2: Try SW service preview when service becomes available AND we don't have a preview
   useEffect(() => {
     const loadServicePreview = async () => {
       if (preview || !file?.path || !status.running) return
-      
+
       log.debug('[Preview]', 'Attempting SW service preview', { fileName: file.name })
       setPreviewLoading(true)
-      
+
       try {
-        const previewResult = await window.electronAPI?.solidworks?.getPreview(file.path, activeConfigName)
+        const previewResult = await window.electronAPI?.solidworks?.getPreview(
+          file.path,
+          activeConfigName,
+        )
         if (previewResult?.success && previewResult.data?.imageData) {
           const mimeType = previewResult.data.mimeType || 'image/png'
           log.debug('[Preview]', 'Using SW service preview')
@@ -142,13 +149,13 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
         } else if (previewResult?.error) {
           log.debug('[Preview]', 'SW service preview failed', { error: previewResult.error })
         }
-      } catch (err) {
-        log.error('[Preview]', 'Failed to load SW service preview', { error: err })
+      } catch (error) {
+        log.error('[Preview]', 'Failed to load SW service preview', { error: error })
       } finally {
         setPreviewLoading(false)
       }
     }
-    
+
     loadServicePreview()
   }, [file?.path, file?.name, activeConfigName, status.running, preview])
 
@@ -156,7 +163,7 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
   const handlePreviewWheel = (e: React.WheelEvent) => {
     e.preventDefault()
     const delta = e.deltaY > 0 ? -10 : 10
-    setPreviewZoom(prev => Math.max(50, Math.min(300, prev + delta)))
+    setPreviewZoom((prev) => Math.max(50, Math.min(300, prev + delta)))
   }
 
   // Refresh preview
@@ -169,16 +176,19 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
         setPreview(oleResult.data)
         return
       }
-      
+
       if (status.running) {
-        const previewResult = await window.electronAPI?.solidworks?.getPreview(file.path, activeConfigName)
+        const previewResult = await window.electronAPI?.solidworks?.getPreview(
+          file.path,
+          activeConfigName,
+        )
         if (previewResult?.success && previewResult.data?.imageData) {
           const mimeType = previewResult.data.mimeType || 'image/png'
           setPreview(`data:${mimeType};base64,${previewResult.data.imageData}`)
           return
         }
       }
-      
+
       // Fall back to OS thumbnail (uses cache)
       const thumbData = await thumbnailCache.get(file.path)
       if (thumbData) {
@@ -204,7 +214,7 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
   return (
     <div className="sw-preview-panel h-full flex flex-col">
       {/* Preview area - takes full height */}
-      <div 
+      <div
         className="flex-1 relative rounded-lg overflow-hidden bg-gradient-to-br from-slate-900/50 via-slate-800/50 to-slate-900/50"
         onWheel={handlePreviewWheel}
       >
@@ -213,13 +223,13 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
           {previewLoading ? (
             <Loader2 className="animate-spin text-cyan-400" size={48} />
           ) : preview ? (
-            <img 
-              src={preview} 
+            <img
+              src={preview}
               alt={file.name}
               className="max-w-full max-h-full object-contain transition-transform duration-150"
-              style={{ 
+              style={{
                 transform: `scale(${previewZoom / 100})`,
-                filter: 'drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4))'
+                filter: 'drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4))',
               }}
               draggable={false}
             />
@@ -230,18 +240,18 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
             </div>
           )}
         </div>
-        
+
         {/* Zoom controls - bottom */}
         <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1.5">
           <button
-            onClick={() => setPreviewZoom(prev => Math.max(50, prev - 25))}
+            onClick={() => setPreviewZoom((prev) => Math.max(50, prev - 25))}
             className="p-1 hover:text-cyan-400 text-plm-fg-muted transition-colors"
           >
             <ZoomOut size={16} />
           </button>
           <span className="text-xs text-plm-fg-muted w-10 text-center">{previewZoom}%</span>
           <button
-            onClick={() => setPreviewZoom(prev => Math.min(300, prev + 25))}
+            onClick={() => setPreviewZoom((prev) => Math.min(300, prev + 25))}
             className="p-1 hover:text-cyan-400 text-plm-fg-muted transition-colors"
           >
             <ZoomIn size={16} />
@@ -254,7 +264,7 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
             <RotateCcw size={14} />
           </button>
         </div>
-        
+
         {/* Refresh button - top right */}
         <button
           onClick={refreshPreview}
@@ -265,7 +275,7 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
           <RefreshCw size={14} className={previewLoading ? 'animate-spin' : ''} />
         </button>
       </div>
-      
+
       {/* Action button */}
       <div className="flex-shrink-0 pt-3">
         <button
@@ -280,4 +290,3 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
   )
 }
 
-export default SWDatacardPanel

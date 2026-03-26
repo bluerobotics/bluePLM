@@ -1,6 +1,6 @@
 /**
  * TransitionService - Type-safe database operations for workflow transitions and gates
- * 
+ *
  * Uses the supabase client with runtime type assertions to work around
  * TypeScript inference issues with the database types.
  */
@@ -23,14 +23,14 @@ export const transitionService = {
   /**
    * Get all transitions for a workflow
    */
-  async getByWorkflow(workflowId: string): Promise<TransitionServiceResult<WorkflowTransitionRow[]>> {
-    const { data, error } = await workflowTransitions()
-      .select('*')
-      .eq('workflow_id', workflowId)
+  async getByWorkflow(
+    workflowId: string,
+  ): Promise<TransitionServiceResult<WorkflowTransitionRow[]>> {
+    const { data, error } = await workflowTransitions().select('*').eq('workflow_id', workflowId)
 
     return {
       data: data as WorkflowTransitionRow[] | null,
-      error: error ? new Error(error.message) : null
+      error: error ? new Error(error.message) : null,
     }
   },
 
@@ -38,21 +38,24 @@ export const transitionService = {
    * Get a single transition by ID
    */
   async getById(transitionId: string): Promise<TransitionServiceResult<WorkflowTransitionRow>> {
-    const { data, error } = await workflowTransitions()
-      .select('*')
-      .eq('id', transitionId)
-      .single()
+    const { data, error } = await workflowTransitions().select('*').eq('id', transitionId).single()
 
     return {
       data: data as WorkflowTransitionRow | null,
-      error: error ? new Error(error.message) : null
+      error: error ? new Error(error.message) : null,
     }
   },
 
   /**
    * Create a new transition
    */
-  async create(transition: Partial<WorkflowTransitionRow> & { workflow_id: string; from_state_id: string; to_state_id: string }): Promise<TransitionServiceResult<WorkflowTransitionRow>> {
+  async create(
+    transition: Partial<WorkflowTransitionRow> & {
+      workflow_id: string
+      from_state_id: string
+      to_state_id: string
+    },
+  ): Promise<TransitionServiceResult<WorkflowTransitionRow>> {
     const { data, error } = await workflowTransitions()
       .insert(transition as never)
       .select()
@@ -60,7 +63,7 @@ export const transitionService = {
 
     return {
       data: data as WorkflowTransitionRow | null,
-      error: error ? new Error(error.message) : null
+      error: error ? new Error(error.message) : null,
     }
   },
 
@@ -71,7 +74,7 @@ export const transitionService = {
    */
   async update(
     transitionId: string,
-    updates: Record<string, unknown>
+    updates: Record<string, unknown>,
   ): Promise<TransitionServiceResult<WorkflowTransitionRow>> {
     const { data, error } = await workflowTransitions()
       .update(updates as never)
@@ -81,7 +84,7 @@ export const transitionService = {
 
     return {
       data: data as WorkflowTransitionRow | null,
-      error: error ? new Error(error.message) : null
+      error: error ? new Error(error.message) : null,
     }
   },
 
@@ -89,13 +92,11 @@ export const transitionService = {
    * Delete a transition
    */
   async delete(transitionId: string): Promise<TransitionServiceResult<void>> {
-    const { error } = await workflowTransitions()
-      .delete()
-      .eq('id', transitionId)
+    const { error } = await workflowTransitions().delete().eq('id', transitionId)
 
     return {
       data: error ? null : undefined,
-      error: error ? new Error(error.message) : null
+      error: error ? new Error(error.message) : null,
     }
   },
 
@@ -105,11 +106,9 @@ export const transitionService = {
   async reconnect(
     transitionId: string,
     endpoint: 'start' | 'end',
-    stateId: string
+    stateId: string,
   ): Promise<TransitionServiceResult<void>> {
-    const updates = endpoint === 'start'
-      ? { from_state_id: stateId }
-      : { to_state_id: stateId }
+    const updates = endpoint === 'start' ? { from_state_id: stateId } : { to_state_id: stateId }
 
     const { error } = await workflowTransitions()
       .update(updates as never)
@@ -117,7 +116,7 @@ export const transitionService = {
 
     return {
       data: error ? null : undefined,
-      error: error ? new Error(error.message) : null
+      error: error ? new Error(error.message) : null,
     }
   },
 
@@ -128,7 +127,9 @@ export const transitionService = {
   /**
    * Get all gates for a list of transitions
    */
-  async getGatesByTransitions(transitionIds: string[]): Promise<TransitionServiceResult<WorkflowGateRow[]>> {
+  async getGatesByTransitions(
+    transitionIds: string[],
+  ): Promise<TransitionServiceResult<WorkflowGateRow[]>> {
     if (transitionIds.length === 0) {
       return { data: [], error: null }
     }
@@ -140,7 +141,7 @@ export const transitionService = {
 
     return {
       data: data as WorkflowGateRow[] | null,
-      error: error ? new Error(error.message) : null
+      error: error ? new Error(error.message) : null,
     }
   },
 
@@ -148,10 +149,10 @@ export const transitionService = {
    * Get gates grouped by transition ID
    */
   async getGatesGroupedByTransition(
-    transitionIds: string[]
+    transitionIds: string[],
   ): Promise<TransitionServiceResult<Record<string, WorkflowGateRow[]>>> {
     const result = await this.getGatesByTransitions(transitionIds)
-    
+
     if (result.error || !result.data) {
       return { data: null, error: result.error }
     }
@@ -170,7 +171,9 @@ export const transitionService = {
   /**
    * Create a gate
    */
-  async createGate(gate: Partial<WorkflowGateRow> & { transition_id: string; name: string }): Promise<TransitionServiceResult<WorkflowGateRow>> {
+  async createGate(
+    gate: Partial<WorkflowGateRow> & { transition_id: string; name: string },
+  ): Promise<TransitionServiceResult<WorkflowGateRow>> {
     const { data, error } = await workflowGates()
       .insert(gate as never)
       .select()
@@ -178,7 +181,7 @@ export const transitionService = {
 
     return {
       data: data as WorkflowGateRow | null,
-      error: error ? new Error(error.message) : null
+      error: error ? new Error(error.message) : null,
     }
   },
 
@@ -187,7 +190,7 @@ export const transitionService = {
    */
   async updateGate(
     gateId: string,
-    updates: Partial<WorkflowGateRow>
+    updates: Partial<WorkflowGateRow>,
   ): Promise<TransitionServiceResult<WorkflowGateRow>> {
     const { data, error } = await workflowGates()
       .update(updates as never)
@@ -197,7 +200,7 @@ export const transitionService = {
 
     return {
       data: data as WorkflowGateRow | null,
-      error: error ? new Error(error.message) : null
+      error: error ? new Error(error.message) : null,
     }
   },
 
@@ -205,13 +208,11 @@ export const transitionService = {
    * Delete a gate
    */
   async deleteGate(gateId: string): Promise<TransitionServiceResult<void>> {
-    const { error } = await workflowGates()
-      .delete()
-      .eq('id', gateId)
+    const { error } = await workflowGates().delete().eq('id', gateId)
 
     return {
       data: error ? null : undefined,
-      error: error ? new Error(error.message) : null
+      error: error ? new Error(error.message) : null,
     }
   },
 
@@ -227,5 +228,5 @@ export const transitionService = {
       .single()
 
     return ((data as { sort_order: number } | null)?.sort_order ?? 0) + 1
-  }
+  },
 }

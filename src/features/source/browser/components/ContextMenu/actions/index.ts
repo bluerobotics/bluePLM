@@ -18,9 +18,9 @@ export { MetadataActions } from './MetadataActions'
 export { useContextMenuSelectionState } from './useContextMenuState'
 
 // Types
-export type { 
-  ActionComponentProps, 
+export type {
+  ActionComponentProps,
   RefreshableActionProps,
   SelectionCounts,
-  SelectionState 
+  SelectionState,
 } from './types'

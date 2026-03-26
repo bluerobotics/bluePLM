@@ -7,7 +7,9 @@ export function FiltersDropdown({ filters, currentFilter, onSelect }: FiltersDro
   return (
     <div className="absolute top-full left-0 mt-1 w-64 bg-plm-bg border border-plm-border rounded-lg shadow-2xl z-[60] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
       <div className="p-2 border-b border-plm-border">
-        <div className="text-[10px] uppercase tracking-wider text-plm-fg-muted font-medium">Search Filters</div>
+        <div className="text-[10px] uppercase tracking-wider text-plm-fg-muted font-medium">
+          Search Filters
+        </div>
       </div>
       <div className="p-1 max-h-64 overflow-y-auto">
         {filters.map((filter) => (

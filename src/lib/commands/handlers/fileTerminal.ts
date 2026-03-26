@@ -1,6 +1,6 @@
 /**
  * File Operations Command Handlers
- * 
+ *
  * Commands: mkdir, touch, rename, move, copy, cat, head, tail, write, append, wc, diff, sed, replace, json, json-get, json-set
  */
 
@@ -15,11 +15,8 @@ type OutputFn = (type: TerminalOutput['type'], content: string) => void
  * Resolve a path pattern to matching files
  */
 function resolvePathPattern(pattern: string, files: LocalFile[]): LocalFile[] {
-  let normalizedPattern = pattern
-    .replace(/\\/g, '/')
-    .replace(/^\.\//, '')
-    .replace(/\/+$/, '')
-  
+  let normalizedPattern = pattern.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, '')
+
   if (normalizedPattern.includes('*')) {
     const regexPattern = normalizedPattern
       .replace(/\./g, '\\.')
@@ -27,22 +24,22 @@ function resolvePathPattern(pattern: string, files: LocalFile[]): LocalFile[] {
       .replace(/\*/g, '[^/]*')
       .replace(/<<<DOUBLESTAR>>>/g, '.*')
     const regex = new RegExp(`^${regexPattern}$`)
-    
-    return files.filter(f => {
+
+    return files.filter((f) => {
       const normalizedPath = f.relativePath.replace(/\\/g, '/')
       return regex.test(normalizedPath)
     })
   }
-  
-  const exactMatch = files.find(f => 
-    f.relativePath.replace(/\\/g, '/').toLowerCase() === normalizedPattern.toLowerCase()
+
+  const exactMatch = files.find(
+    (f) => f.relativePath.replace(/\\/g, '/').toLowerCase() === normalizedPattern.toLowerCase(),
   )
-  
+
   if (exactMatch) {
     return [exactMatch]
   }
-  
-  return files.filter(f => {
+
+  return files.filter((f) => {
     const normalizedPath = f.relativePath.replace(/\\/g, '/').toLowerCase()
     return normalizedPath.startsWith(normalizedPattern.toLowerCase() + '/')
   })
@@ -54,29 +51,36 @@ function resolvePathPattern(pattern: string, files: LocalFile[]): LocalFile[] {
 export async function handleMkdir(
   parsed: ParsedCommand,
   addOutput: OutputFn,
-  onRefresh?: (silent?: boolean) => void
+  onRefresh?: (silent?: boolean) => void,
 ): Promise<void> {
   const folderName = parsed.args[0]
   if (!folderName) {
     addOutput('error', 'Usage: mkdir <name>')
     return
   }
-  
+
   const { currentFolder } = usePDMStore.getState()
-  
+
   try {
-    const result = await executeCommand('new-folder', {
-      parentPath: currentFolder,
-      folderName: folderName
-    }, { onRefresh })
-    
+    const result = await executeCommand(
+      'new-folder',
+      {
+        parentPath: currentFolder,
+        folderName: folderName,
+      },
+      { onRefresh },
+    )
+
     if (result.success) {
       addOutput('success', result.message)
     } else {
       addOutput('error', result.message)
     }
-  } catch (err) {
-    addOutput('error', `Failed to create folder: ${err instanceof Error ? err.message : String(err)}`)
+  } catch (error) {
+    addOutput(
+      'error',
+      `Failed to create folder: ${error instanceof Error ? error.message : String(error)}`,
+    )
   }
 }
 
@@ -86,25 +90,25 @@ export async function handleMkdir(
 export async function handleTouch(
   parsed: ParsedCommand,
   addOutput: OutputFn,
-  onRefresh?: (silent?: boolean) => void
+  onRefresh?: (silent?: boolean) => void,
 ): Promise<void> {
   const fileName = parsed.args[0]
   if (!fileName) {
     addOutput('error', 'Usage: touch <filename>')
     return
   }
-  
+
   const { currentFolder, vaultPath } = usePDMStore.getState()
   if (!vaultPath) {
     addOutput('error', 'No vault connected')
     return
   }
-  
+
   const isWindows = vaultPath.includes('\\')
   const sep = isWindows ? '\\' : '/'
   const relativePath = currentFolder ? `${currentFolder}/${fileName}` : fileName
   const fullPath = `${vaultPath}${sep}${relativePath.replace(/\//g, sep)}`
-  
+
   try {
     const result = await window.electronAPI?.writeFile(fullPath, '')
     if (result?.success) {
@@ -113,8 +117,8 @@ export async function handleTouch(
     } else {
       addOutput('error', result?.error || 'Failed to create file')
     }
-  } catch (err) {
-    addOutput('error', `Failed to create file: ${err instanceof Error ? err.message : String(err)}`)
+  } catch (error) {
+    addOutput('error', `Failed to create file: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
@@ -125,40 +129,44 @@ export async function handleRename(
   parsed: ParsedCommand,
   files: LocalFile[],
   addOutput: OutputFn,
-  onRefresh?: (silent?: boolean) => void
+  onRefresh?: (silent?: boolean) => void,
 ): Promise<void> {
   const sourcePath = parsed.args[0]
   const newName = parsed.args[1]
-  
+
   if (!sourcePath || !newName) {
     addOutput('error', 'Usage: rename <path> <newname>')
     return
   }
-  
+
   const matches = resolvePathPattern(sourcePath, files)
   if (matches.length === 0) {
     addOutput('error', `File not found: ${sourcePath}`)
     return
   }
-  
+
   if (matches.length > 1) {
     addOutput('error', 'Can only rename one file at a time')
     return
   }
-  
+
   try {
-    const result = await executeCommand('rename', {
-      file: matches[0],
-      newName: newName
-    }, { onRefresh })
-    
+    const result = await executeCommand(
+      'rename',
+      {
+        file: matches[0],
+        newName: newName,
+      },
+      { onRefresh },
+    )
+
     if (result.success) {
       addOutput('success', result.message)
     } else {
       addOutput('error', result.message)
     }
-  } catch (err) {
-    addOutput('error', `Failed to rename: ${err instanceof Error ? err.message : String(err)}`)
+  } catch (error) {
+    addOutput('error', `Failed to rename: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
@@ -169,49 +177,53 @@ export async function handleMove(
   parsed: ParsedCommand,
   files: LocalFile[],
   addOutput: OutputFn,
-  onRefresh?: (silent?: boolean) => void
+  onRefresh?: (silent?: boolean) => void,
 ): Promise<void> {
   if (parsed.args.length < 2) {
     addOutput('error', 'Usage: move <source...> <destination>')
     return
   }
-  
+
   const destPath = parsed.args[parsed.args.length - 1].replace(/\\/g, '/').replace(/^\.\//, '')
   const sourcePatterns = parsed.args.slice(0, -1)
-  
-  const destFolder = files.find(f => 
-    f.isDirectory && f.relativePath.replace(/\\/g, '/') === destPath
+
+  const destFolder = files.find(
+    (f) => f.isDirectory && f.relativePath.replace(/\\/g, '/') === destPath,
   )
-  
+
   if (!destFolder && destPath !== '' && destPath !== '.') {
     addOutput('error', `Destination folder not found: ${destPath}`)
     return
   }
-  
+
   const sourceFiles: LocalFile[] = []
   for (const pattern of sourcePatterns) {
     const matches = resolvePathPattern(pattern, files)
     sourceFiles.push(...matches)
   }
-  
+
   if (sourceFiles.length === 0) {
     addOutput('error', 'No source files matched')
     return
   }
-  
+
   try {
-    const result = await executeCommand('move', {
-      files: sourceFiles,
-      targetFolder: destPath === '.' ? '' : destPath
-    }, { onRefresh })
-    
+    const result = await executeCommand(
+      'move',
+      {
+        files: sourceFiles,
+        targetFolder: destPath === '.' ? '' : destPath,
+      },
+      { onRefresh },
+    )
+
     if (result.success) {
       addOutput('success', result.message)
     } else {
       addOutput('error', result.message)
     }
-  } catch (err) {
-    addOutput('error', `Failed to move: ${err instanceof Error ? err.message : String(err)}`)
+  } catch (error) {
+    addOutput('error', `Failed to move: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
@@ -222,49 +234,53 @@ export async function handleCopy(
   parsed: ParsedCommand,
   files: LocalFile[],
   addOutput: OutputFn,
-  onRefresh?: (silent?: boolean) => void
+  onRefresh?: (silent?: boolean) => void,
 ): Promise<void> {
   if (parsed.args.length < 2) {
     addOutput('error', 'Usage: copy <source...> <destination>')
     return
   }
-  
+
   const destPath = parsed.args[parsed.args.length - 1].replace(/\\/g, '/').replace(/^\.\//, '')
   const sourcePatterns = parsed.args.slice(0, -1)
-  
-  const destFolder = files.find(f => 
-    f.isDirectory && f.relativePath.replace(/\\/g, '/') === destPath
+
+  const destFolder = files.find(
+    (f) => f.isDirectory && f.relativePath.replace(/\\/g, '/') === destPath,
   )
-  
+
   if (!destFolder && destPath !== '' && destPath !== '.') {
     addOutput('error', `Destination folder not found: ${destPath}`)
     return
   }
-  
+
   const sourceFiles: LocalFile[] = []
   for (const pattern of sourcePatterns) {
     const matches = resolvePathPattern(pattern, files)
     sourceFiles.push(...matches)
   }
-  
+
   if (sourceFiles.length === 0) {
     addOutput('error', 'No source files matched')
     return
   }
-  
+
   try {
-    const result = await executeCommand('copy', {
-      files: sourceFiles,
-      targetFolder: destPath === '.' ? '' : destPath
-    }, { onRefresh })
-    
+    const result = await executeCommand(
+      'copy',
+      {
+        files: sourceFiles,
+        targetFolder: destPath === '.' ? '' : destPath,
+      },
+      { onRefresh },
+    )
+
     if (result.success) {
       addOutput('success', result.message)
     } else {
       addOutput('error', result.message)
     }
-  } catch (err) {
-    addOutput('error', `Failed to copy: ${err instanceof Error ? err.message : String(err)}`)
+  } catch (error) {
+    addOutput('error', `Failed to copy: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
@@ -274,23 +290,23 @@ export async function handleCopy(
 export async function handleCat(
   parsed: ParsedCommand,
   files: LocalFile[],
-  addOutput: OutputFn
+  addOutput: OutputFn,
 ): Promise<void> {
   const path = parsed.args[0]
   if (!path) {
     addOutput('error', 'Usage: cat <file-path>')
     return
   }
-  
+
   const { vaultPath } = usePDMStore.getState()
   if (!vaultPath) {
     addOutput('error', 'No vault connected')
     return
   }
-  
+
   const matches = resolvePathPattern(path, files)
   let filePath: string
-  
+
   if (matches.length > 0 && !matches[0].isDirectory) {
     filePath = matches[0].path
   } else {
@@ -299,7 +315,7 @@ export async function handleCat(
     const normalizedPath = path.replace(/\\/g, '/').replace(/^\.\//, '')
     filePath = `${vaultPath}${sep}${normalizedPath.replace(/\//g, sep)}`
   }
-  
+
   try {
     const result = await window.electronAPI?.readFile(filePath)
     if (result?.success && result.data) {
@@ -323,8 +339,8 @@ export async function handleCat(
     } else {
       addOutput('error', result?.error || 'Failed to read file')
     }
-  } catch (err) {
-    addOutput('error', `Failed to read file: ${err instanceof Error ? err.message : String(err)}`)
+  } catch (error) {
+    addOutput('error', `Failed to read file: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
@@ -334,23 +350,23 @@ export async function handleCat(
 export async function handleHead(
   parsed: ParsedCommand,
   files: LocalFile[],
-  addOutput: OutputFn
+  addOutput: OutputFn,
 ): Promise<void> {
   const path = parsed.args[0]
   if (!path) {
     addOutput('error', 'Usage: head <file-path> [-n lines]')
     return
   }
-  
+
   const { vaultPath } = usePDMStore.getState()
   if (!vaultPath) {
     addOutput('error', 'No vault connected')
     return
   }
-  
+
   const matches = resolvePathPattern(path, files)
   let filePath: string
-  
+
   if (matches.length > 0 && !matches[0].isDirectory) {
     filePath = matches[0].path
   } else {
@@ -359,9 +375,9 @@ export async function handleHead(
     const normalizedPath = path.replace(/\\/g, '/').replace(/^\.\//, '')
     filePath = `${vaultPath}${sep}${normalizedPath.replace(/\//g, sep)}`
   }
-  
+
   const numLines = parseInt(parsed.flags['n'] as string) || 10
-  
+
   try {
     const result = await window.electronAPI?.readFile(filePath)
     if (result?.success && result.data) {
@@ -375,8 +391,8 @@ export async function handleHead(
     } else {
       addOutput('error', result?.error || 'Failed to read file')
     }
-  } catch (err) {
-    addOutput('error', `Failed to read file: ${err instanceof Error ? err.message : String(err)}`)
+  } catch (error) {
+    addOutput('error', `Failed to read file: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
@@ -386,23 +402,23 @@ export async function handleHead(
 export async function handleTail(
   parsed: ParsedCommand,
   files: LocalFile[],
-  addOutput: OutputFn
+  addOutput: OutputFn,
 ): Promise<void> {
   const path = parsed.args[0]
   if (!path) {
     addOutput('error', 'Usage: tail <file-path> [-n lines]')
     return
   }
-  
+
   const { vaultPath } = usePDMStore.getState()
   if (!vaultPath) {
     addOutput('error', 'No vault connected')
     return
   }
-  
+
   const matches = resolvePathPattern(path, files)
   let filePath: string
-  
+
   if (matches.length > 0 && !matches[0].isDirectory) {
     filePath = matches[0].path
   } else {
@@ -411,9 +427,9 @@ export async function handleTail(
     const normalizedPath = path.replace(/\\/g, '/').replace(/^\.\//, '')
     filePath = `${vaultPath}${sep}${normalizedPath.replace(/\//g, sep)}`
   }
-  
+
   const numLines = parseInt(parsed.flags['n'] as string) || 10
-  
+
   try {
     const result = await window.electronAPI?.readFile(filePath)
     if (result?.success && result.data) {
@@ -427,8 +443,8 @@ export async function handleTail(
     } else {
       addOutput('error', result?.error || 'Failed to read file')
     }
-  } catch (err) {
-    addOutput('error', `Failed to read file: ${err instanceof Error ? err.message : String(err)}`)
+  } catch (error) {
+    addOutput('error', `Failed to read file: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
@@ -438,41 +454,45 @@ export async function handleTail(
 export async function handleWrite(
   parsed: ParsedCommand,
   addOutput: OutputFn,
-  onRefresh?: (silent?: boolean) => void
+  onRefresh?: (silent?: boolean) => void,
 ): Promise<void> {
   const path = parsed.args[0]
   const content = parsed.args.slice(1).join(' ')
-  
+
   if (!path) {
     addOutput('error', 'Usage: write <file-path> <content>')
     addOutput('info', 'Use \\n for newlines, or write> for multi-line input')
     return
   }
-  
+
   const { vaultPath, currentFolder } = usePDMStore.getState()
   if (!vaultPath) {
     addOutput('error', 'No vault connected')
     return
   }
-  
+
   const isWindows = vaultPath.includes('\\')
   const sep = isWindows ? '\\' : '/'
   let filePath: string
-  
-  if (path.startsWith('./') || path.startsWith('.\\') || !path.includes('/') && !path.includes('\\')) {
-    const relativePath = currentFolder 
+
+  if (
+    path.startsWith('./') ||
+    path.startsWith('.\\') ||
+    (!path.includes('/') && !path.includes('\\'))
+  ) {
+    const relativePath = currentFolder
       ? `${currentFolder}/${path.replace(/^\.\//, '')}`
       : path.replace(/^\.\//, '')
     filePath = `${vaultPath}${sep}${relativePath.replace(/\//g, sep)}`
   } else {
     filePath = `${vaultPath}${sep}${path.replace(/\//g, sep)}`
   }
-  
+
   const processedContent = content
     .replace(/\\n/g, '\n')
     .replace(/\\t/g, '\t')
     .replace(/\\\\/g, '\\')
-  
+
   try {
     const base64 = btoa(processedContent)
     const result = await window.electronAPI?.writeFile(filePath, base64)
@@ -482,8 +502,8 @@ export async function handleWrite(
     } else {
       addOutput('error', result?.error || 'Failed to write file')
     }
-  } catch (err) {
-    addOutput('error', `Failed to write file: ${err instanceof Error ? err.message : String(err)}`)
+  } catch (error) {
+    addOutput('error', `Failed to write file: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
@@ -493,47 +513,51 @@ export async function handleWrite(
 export async function handleAppend(
   parsed: ParsedCommand,
   addOutput: OutputFn,
-  onRefresh?: (silent?: boolean) => void
+  onRefresh?: (silent?: boolean) => void,
 ): Promise<void> {
   const path = parsed.args[0]
   const content = parsed.args.slice(1).join(' ')
-  
+
   if (!path || !content) {
     addOutput('error', 'Usage: append <file-path> <content>')
     return
   }
-  
+
   const { vaultPath, currentFolder } = usePDMStore.getState()
   if (!vaultPath) {
     addOutput('error', 'No vault connected')
     return
   }
-  
+
   const isWindows = vaultPath.includes('\\')
   const sep = isWindows ? '\\' : '/'
   let filePath: string
-  
-  if (path.startsWith('./') || path.startsWith('.\\') || !path.includes('/') && !path.includes('\\')) {
-    const relativePath = currentFolder 
+
+  if (
+    path.startsWith('./') ||
+    path.startsWith('.\\') ||
+    (!path.includes('/') && !path.includes('\\'))
+  ) {
+    const relativePath = currentFolder
       ? `${currentFolder}/${path.replace(/^\.\//, '')}`
       : path.replace(/^\.\//, '')
     filePath = `${vaultPath}${sep}${relativePath.replace(/\//g, sep)}`
   } else {
     filePath = `${vaultPath}${sep}${path.replace(/\//g, sep)}`
   }
-  
+
   const processedContent = content
     .replace(/\\n/g, '\n')
     .replace(/\\t/g, '\t')
     .replace(/\\\\/g, '\\')
-  
+
   try {
     const readResult = await window.electronAPI?.readFile(filePath)
     let existingContent = ''
     if (readResult?.success && readResult.data) {
       existingContent = atob(readResult.data)
     }
-    
+
     const newContent = existingContent + processedContent
     const base64 = btoa(newContent)
     const result = await window.electronAPI?.writeFile(filePath, base64)
@@ -543,8 +567,8 @@ export async function handleAppend(
     } else {
       addOutput('error', result?.error || 'Failed to append to file')
     }
-  } catch (err) {
-    addOutput('error', `Failed to append: ${err instanceof Error ? err.message : String(err)}`)
+  } catch (error) {
+    addOutput('error', `Failed to append: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
@@ -554,23 +578,23 @@ export async function handleAppend(
 export async function handleWc(
   parsed: ParsedCommand,
   files: LocalFile[],
-  addOutput: OutputFn
+  addOutput: OutputFn,
 ): Promise<void> {
   const path = parsed.args[0]
   if (!path) {
     addOutput('error', 'Usage: wc <file-path>')
     return
   }
-  
+
   const { vaultPath } = usePDMStore.getState()
   if (!vaultPath) {
     addOutput('error', 'No vault connected')
     return
   }
-  
+
   const matches = resolvePathPattern(path, files)
   let filePath: string
-  
+
   if (matches.length > 0 && !matches[0].isDirectory) {
     filePath = matches[0].path
   } else {
@@ -579,22 +603,22 @@ export async function handleWc(
     const normalizedPath = path.replace(/\\/g, '/').replace(/^\.\//, '')
     filePath = `${vaultPath}${sep}${normalizedPath.replace(/\//g, sep)}`
   }
-  
+
   try {
     const result = await window.electronAPI?.readFile(filePath)
     if (result?.success && result.data) {
       const text = atob(result.data)
       const lines = text.split('\n').length
-      const words = text.split(/\s+/).filter(w => w.length > 0).length
+      const words = text.split(/\s+/).filter((w) => w.length > 0).length
       const chars = text.length
       const bytes = new Blob([text]).size
-      
+
       addOutput('info', `  ${lines} lines, ${words} words, ${chars} characters, ${bytes} bytes`)
     } else {
       addOutput('error', result?.error || 'Failed to read file')
     }
-  } catch (err) {
-    addOutput('error', `Failed: ${err instanceof Error ? err.message : String(err)}`)
+  } catch (error) {
+    addOutput('error', `Failed: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
@@ -604,25 +628,25 @@ export async function handleWc(
 export async function handleDiff(
   parsed: ParsedCommand,
   files: LocalFile[],
-  addOutput: OutputFn
+  addOutput: OutputFn,
 ): Promise<void> {
   const path1 = parsed.args[0]
   const path2 = parsed.args[1]
-  
+
   if (!path1 || !path2) {
     addOutput('error', 'Usage: diff <file1> <file2>')
     return
   }
-  
+
   const { vaultPath } = usePDMStore.getState()
   if (!vaultPath) {
     addOutput('error', 'No vault connected')
     return
   }
-  
+
   const isWindows = vaultPath.includes('\\')
   const sep = isWindows ? '\\' : '/'
-  
+
   const resolvePath = (p: string) => {
     const matches = resolvePathPattern(p, files)
     if (matches.length > 0 && !matches[0].isDirectory) {
@@ -631,13 +655,13 @@ export async function handleDiff(
     const normalizedPath = p.replace(/\\/g, '/').replace(/^\.\//, '')
     return `${vaultPath}${sep}${normalizedPath.replace(/\//g, sep)}`
   }
-  
+
   try {
     const [result1, result2] = await Promise.all([
       window.electronAPI?.readFile(resolvePath(path1)),
-      window.electronAPI?.readFile(resolvePath(path2))
+      window.electronAPI?.readFile(resolvePath(path2)),
     ])
-    
+
     if (!result1?.success || !result1.data) {
       addOutput('error', `Cannot read ${path1}: ${result1?.error || 'unknown error'}`)
       return
@@ -646,27 +670,27 @@ export async function handleDiff(
       addOutput('error', `Cannot read ${path2}: ${result2?.error || 'unknown error'}`)
       return
     }
-    
+
     const text1 = atob(result1.data)
     const text2 = atob(result2.data)
-    
+
     if (text1 === text2) {
       addOutput('success', 'Files are identical')
       return
     }
-    
+
     const lines1 = text1.split('\n')
     const lines2 = text2.split('\n')
-    
+
     const output: string[] = [`--- ${path1}`, `+++ ${path2}`, '']
     let diffCount = 0
     const maxDiffs = 50
-    
+
     const maxLines = Math.max(lines1.length, lines2.length)
     for (let i = 0; i < maxLines && diffCount < maxDiffs; i++) {
       const line1 = lines1[i]
       const line2 = lines2[i]
-      
+
       if (line1 !== line2) {
         diffCount++
         if (line1 !== undefined && line2 === undefined) {
@@ -682,14 +706,14 @@ export async function handleDiff(
         }
       }
     }
-    
+
     if (diffCount >= maxDiffs) {
       output.push(`... (truncated, showing first ${maxDiffs} differences)`)
     }
-    
+
     addOutput('info', output.join('\n'))
-  } catch (err) {
-    addOutput('error', `Failed: ${err instanceof Error ? err.message : String(err)}`)
+  } catch (error) {
+    addOutput('error', `Failed: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
@@ -700,27 +724,27 @@ export async function handleSed(
   parsed: ParsedCommand,
   files: LocalFile[],
   addOutput: OutputFn,
-  onRefresh?: (silent?: boolean) => void
+  onRefresh?: (silent?: boolean) => void,
 ): Promise<void> {
   const path = parsed.args[0]
   const findStr = parsed.args[1]
   const replaceStr = parsed.args[2]
-  
+
   if (!path || findStr === undefined) {
     addOutput('error', 'Usage: sed <file-path> <find> <replace>')
     addOutput('info', 'Use --all to replace all occurrences (default: first only)')
     return
   }
-  
+
   const { vaultPath } = usePDMStore.getState()
   if (!vaultPath) {
     addOutput('error', 'No vault connected')
     return
   }
-  
+
   const matches = resolvePathPattern(path, files)
   let filePath: string
-  
+
   if (matches.length > 0 && !matches[0].isDirectory) {
     filePath = matches[0].path
   } else {
@@ -729,20 +753,20 @@ export async function handleSed(
     const normalizedPath = path.replace(/\\/g, '/').replace(/^\.\//, '')
     filePath = `${vaultPath}${sep}${normalizedPath.replace(/\//g, sep)}`
   }
-  
+
   const replaceAll = parsed.flags['all'] === true || parsed.flags['g'] === true
-  
+
   try {
     const readResult = await window.electronAPI?.readFile(filePath)
     if (!readResult?.success || !readResult.data) {
       addOutput('error', readResult?.error || 'Failed to read file')
       return
     }
-    
+
     const text = atob(readResult.data)
     let newText: string
     let count = 0
-    
+
     if (replaceAll) {
       const regex = new RegExp(findStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
       count = (text.match(regex) || []).length
@@ -750,29 +774,30 @@ export async function handleSed(
     } else {
       const index = text.indexOf(findStr)
       if (index !== -1) {
-        newText = text.substring(0, index) + (replaceStr || '') + text.substring(index + findStr.length)
+        newText =
+          text.substring(0, index) + (replaceStr || '') + text.substring(index + findStr.length)
         count = 1
       } else {
         newText = text
       }
     }
-    
+
     if (count === 0) {
       addOutput('info', `No occurrences of "${findStr}" found`)
       return
     }
-    
+
     const base64 = btoa(newText)
     const writeResult = await window.electronAPI?.writeFile(filePath, base64)
-    
+
     if (writeResult?.success) {
       addOutput('success', `Replaced ${count} occurrence${count > 1 ? 's' : ''} of "${findStr}"`)
       onRefresh?.(true)
     } else {
       addOutput('error', writeResult?.error || 'Failed to write file')
     }
-  } catch (err) {
-    addOutput('error', `Failed: ${err instanceof Error ? err.message : String(err)}`)
+  } catch (error) {
+    addOutput('error', `Failed: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
@@ -782,23 +807,23 @@ export async function handleSed(
 export async function handleJson(
   parsed: ParsedCommand,
   files: LocalFile[],
-  addOutput: OutputFn
+  addOutput: OutputFn,
 ): Promise<void> {
   const path = parsed.args[0]
   if (!path) {
     addOutput('error', 'Usage: json <file-path>')
     return
   }
-  
+
   const { vaultPath } = usePDMStore.getState()
   if (!vaultPath) {
     addOutput('error', 'No vault connected')
     return
   }
-  
+
   const matches = resolvePathPattern(path, files)
   let filePath: string
-  
+
   if (matches.length > 0 && !matches[0].isDirectory) {
     filePath = matches[0].path
   } else {
@@ -807,7 +832,7 @@ export async function handleJson(
     const normalizedPath = path.replace(/\\/g, '/').replace(/^\.\//, '')
     filePath = `${vaultPath}${sep}${normalizedPath.replace(/\//g, sep)}`
   }
-  
+
   try {
     const result = await window.electronAPI?.readFile(filePath)
     if (result?.success && result.data) {
@@ -817,13 +842,16 @@ export async function handleJson(
         const pretty = JSON.stringify(json, null, 2)
         addOutput('info', pretty)
       } catch (parseErr) {
-        addOutput('error', `Invalid JSON: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`)
+        addOutput(
+          'error',
+          `Invalid JSON: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`,
+        )
       }
     } else {
       addOutput('error', result?.error || 'Failed to read file')
     }
-  } catch (err) {
-    addOutput('error', `Failed to read file: ${err instanceof Error ? err.message : String(err)}`)
+  } catch (error) {
+    addOutput('error', `Failed to read file: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
@@ -833,27 +861,27 @@ export async function handleJson(
 export async function handleJsonGet(
   parsed: ParsedCommand,
   files: LocalFile[],
-  addOutput: OutputFn
+  addOutput: OutputFn,
 ): Promise<void> {
   const path = parsed.args[0]
   const keyPath = parsed.args[1]
-  
+
   if (!path) {
     addOutput('error', 'Usage: json-get <file-path> [key.path]')
     addOutput('info', 'Examples: json-get config.json name')
     addOutput('info', '          json-get data.json users.0.email')
     return
   }
-  
+
   const { vaultPath } = usePDMStore.getState()
   if (!vaultPath) {
     addOutput('error', 'No vault connected')
     return
   }
-  
+
   const matches = resolvePathPattern(path, files)
   let filePath: string
-  
+
   if (matches.length > 0 && !matches[0].isDirectory) {
     filePath = matches[0].path
   } else {
@@ -862,14 +890,14 @@ export async function handleJsonGet(
     const normalizedPath = path.replace(/\\/g, '/').replace(/^\.\//, '')
     filePath = `${vaultPath}${sep}${normalizedPath.replace(/\//g, sep)}`
   }
-  
+
   try {
     const result = await window.electronAPI?.readFile(filePath)
     if (result?.success && result.data) {
       try {
         const text = atob(result.data)
         let json = JSON.parse(text)
-        
+
         if (keyPath) {
           const keys = keyPath.split('.')
           for (const key of keys) {
@@ -885,20 +913,23 @@ export async function handleJsonGet(
             }
           }
         }
-        
+
         if (typeof json === 'object') {
           addOutput('info', JSON.stringify(json, null, 2))
         } else {
           addOutput('info', String(json))
         }
       } catch (parseErr) {
-        addOutput('error', `Invalid JSON: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`)
+        addOutput(
+          'error',
+          `Invalid JSON: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`,
+        )
       }
     } else {
       addOutput('error', result?.error || 'Failed to read file')
     }
-  } catch (err) {
-    addOutput('error', `Failed to read file: ${err instanceof Error ? err.message : String(err)}`)
+  } catch (error) {
+    addOutput('error', `Failed to read file: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
@@ -909,45 +940,49 @@ export async function handleJsonSet(
   parsed: ParsedCommand,
   files: LocalFile[],
   addOutput: OutputFn,
-  onRefresh?: (silent?: boolean) => void
+  onRefresh?: (silent?: boolean) => void,
 ): Promise<void> {
   const path = parsed.args[0]
   const keyPath = parsed.args[1]
   const value = parsed.args.slice(2).join(' ')
-  
+
   if (!path || !keyPath) {
     addOutput('error', 'Usage: json-set <file-path> <key.path> <value>')
     addOutput('info', 'Examples: json-set config.json name "My App"')
     addOutput('info', '          json-set data.json settings.enabled true')
     return
   }
-  
+
   const { vaultPath, currentFolder } = usePDMStore.getState()
   if (!vaultPath) {
     addOutput('error', 'No vault connected')
     return
   }
-  
+
   const isWindows = vaultPath.includes('\\')
   const sep = isWindows ? '\\' : '/'
   let filePath: string
-  
+
   const matches = resolvePathPattern(path, files)
   if (matches.length > 0 && !matches[0].isDirectory) {
     filePath = matches[0].path
-  } else if (path.startsWith('./') || path.startsWith('.\\') || !path.includes('/') && !path.includes('\\')) {
-    const relativePath = currentFolder 
+  } else if (
+    path.startsWith('./') ||
+    path.startsWith('.\\') ||
+    (!path.includes('/') && !path.includes('\\'))
+  ) {
+    const relativePath = currentFolder
       ? `${currentFolder}/${path.replace(/^\.\//, '')}`
       : path.replace(/^\.\//, '')
     filePath = `${vaultPath}${sep}${relativePath.replace(/\//g, sep)}`
   } else {
     filePath = `${vaultPath}${sep}${path.replace(/\//g, sep)}`
   }
-  
+
   try {
     const readResult = await window.electronAPI?.readFile(filePath)
     let json: Record<string, unknown> = {}
-    
+
     if (readResult?.success && readResult.data) {
       try {
         json = JSON.parse(atob(readResult.data))
@@ -956,21 +991,21 @@ export async function handleJsonSet(
         return
       }
     }
-    
+
     let parsedValue: unknown
     try {
       parsedValue = JSON.parse(value)
     } catch {
       parsedValue = value
     }
-    
+
     const keys = keyPath.split('.')
     let current: Record<string, unknown> = json
-    
+
     for (let i = 0; i < keys.length - 1; i++) {
       const key = keys[i]
       const arrayIndex = parseInt(key)
-      
+
       if (!isNaN(arrayIndex) && Array.isArray(current)) {
         if (!current[arrayIndex]) current[arrayIndex] = {} as unknown
         current = current[arrayIndex] as Record<string, unknown>
@@ -981,27 +1016,27 @@ export async function handleJsonSet(
         current = current[key] as Record<string, unknown>
       }
     }
-    
+
     const finalKey = keys[keys.length - 1]
     const finalArrayIndex = parseInt(finalKey)
     if (!isNaN(finalArrayIndex) && Array.isArray(current)) {
-      (current as unknown[])[finalArrayIndex] = parsedValue
+      ;(current as unknown[])[finalArrayIndex] = parsedValue
     } else {
       current[finalKey] = parsedValue
     }
-    
+
     const pretty = JSON.stringify(json, null, 2)
     const base64 = btoa(pretty)
     const writeResult = await window.electronAPI?.writeFile(filePath, base64)
-    
+
     if (writeResult?.success) {
       addOutput('success', `Set ${keyPath} = ${JSON.stringify(parsedValue)}`)
       onRefresh?.(true)
     } else {
       addOutput('error', writeResult?.error || 'Failed to write file')
     }
-  } catch (err) {
-    addOutput('error', `Failed: ${err instanceof Error ? err.message : String(err)}`)
+  } catch (error) {
+    addOutput('error', `Failed: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
@@ -1009,149 +1044,197 @@ export async function handleJsonSet(
 // Self-registration
 // ============================================
 
-registerTerminalCommand({
-  aliases: ['mkdir', 'md', 'new-folder'],
-  description: 'Create a new folder',
-  usage: 'mkdir <name>',
-  category: 'file-ops'
-}, async (parsed, _files, addOutput, onRefresh) => {
-  await handleMkdir(parsed, addOutput, onRefresh)
-})
+registerTerminalCommand(
+  {
+    aliases: ['mkdir', 'md', 'new-folder'],
+    description: 'Create a new folder',
+    usage: 'mkdir <name>',
+    category: 'file-ops',
+  },
+  async (parsed, _files, addOutput, onRefresh) => {
+    await handleMkdir(parsed, addOutput, onRefresh)
+  },
+)
 
-registerTerminalCommand({
-  aliases: ['touch'],
-  description: 'Create empty file',
-  usage: 'touch <filename>',
-  category: 'file-ops'
-}, async (parsed, _files, addOutput, onRefresh) => {
-  await handleTouch(parsed, addOutput, onRefresh)
-})
+registerTerminalCommand(
+  {
+    aliases: ['touch'],
+    description: 'Create empty file',
+    usage: 'touch <filename>',
+    category: 'file-ops',
+  },
+  async (parsed, _files, addOutput, onRefresh) => {
+    await handleTouch(parsed, addOutput, onRefresh)
+  },
+)
 
-registerTerminalCommand({
-  aliases: ['rename', 'ren'],
-  description: 'Rename file or folder',
-  usage: 'rename <path> <newname>',
-  category: 'file-ops'
-}, async (parsed, files, addOutput, onRefresh) => {
-  await handleRename(parsed, files, addOutput, onRefresh)
-})
+registerTerminalCommand(
+  {
+    aliases: ['rename', 'ren'],
+    description: 'Rename file or folder',
+    usage: 'rename <path> <newname>',
+    category: 'file-ops',
+  },
+  async (parsed, files, addOutput, onRefresh) => {
+    await handleRename(parsed, files, addOutput, onRefresh)
+  },
+)
 
-registerTerminalCommand({
-  aliases: ['move', 'mv'],
-  description: 'Move files to new location',
-  usage: 'move <source...> <destination>',
-  category: 'file-ops'
-}, async (parsed, files, addOutput, onRefresh) => {
-  await handleMove(parsed, files, addOutput, onRefresh)
-})
+registerTerminalCommand(
+  {
+    aliases: ['move', 'mv'],
+    description: 'Move files to new location',
+    usage: 'move <source...> <destination>',
+    category: 'file-ops',
+  },
+  async (parsed, files, addOutput, onRefresh) => {
+    await handleMove(parsed, files, addOutput, onRefresh)
+  },
+)
 
-registerTerminalCommand({
-  aliases: ['copy', 'cp'],
-  description: 'Copy files',
-  usage: 'copy <source...> <destination>',
-  category: 'file-ops'
-}, async (parsed, files, addOutput, onRefresh) => {
-  await handleCopy(parsed, files, addOutput, onRefresh)
-})
+registerTerminalCommand(
+  {
+    aliases: ['copy', 'cp'],
+    description: 'Copy files',
+    usage: 'copy <source...> <destination>',
+    category: 'file-ops',
+  },
+  async (parsed, files, addOutput, onRefresh) => {
+    await handleCopy(parsed, files, addOutput, onRefresh)
+  },
+)
 
-registerTerminalCommand({
-  aliases: ['cat', 'type'],
-  description: 'Display file contents',
-  usage: 'cat <file-path> [-n lines]',
-  category: 'file-ops'
-}, async (parsed, files, addOutput) => {
-  await handleCat(parsed, files, addOutput)
-})
+registerTerminalCommand(
+  {
+    aliases: ['cat', 'type'],
+    description: 'Display file contents',
+    usage: 'cat <file-path> [-n lines]',
+    category: 'file-ops',
+  },
+  async (parsed, files, addOutput) => {
+    await handleCat(parsed, files, addOutput)
+  },
+)
 
-registerTerminalCommand({
-  aliases: ['head'],
-  description: 'Show first N lines',
-  usage: 'head <file-path> [-n lines]',
-  category: 'file-ops'
-}, async (parsed, files, addOutput) => {
-  await handleHead(parsed, files, addOutput)
-})
+registerTerminalCommand(
+  {
+    aliases: ['head'],
+    description: 'Show first N lines',
+    usage: 'head <file-path> [-n lines]',
+    category: 'file-ops',
+  },
+  async (parsed, files, addOutput) => {
+    await handleHead(parsed, files, addOutput)
+  },
+)
 
-registerTerminalCommand({
-  aliases: ['tail'],
-  description: 'Show last N lines',
-  usage: 'tail <file-path> [-n lines]',
-  category: 'file-ops'
-}, async (parsed, files, addOutput) => {
-  await handleTail(parsed, files, addOutput)
-})
+registerTerminalCommand(
+  {
+    aliases: ['tail'],
+    description: 'Show last N lines',
+    usage: 'tail <file-path> [-n lines]',
+    category: 'file-ops',
+  },
+  async (parsed, files, addOutput) => {
+    await handleTail(parsed, files, addOutput)
+  },
+)
 
-registerTerminalCommand({
-  aliases: ['write'],
-  description: 'Write text to file',
-  usage: 'write <file-path> <content>',
-  examples: ['write notes.txt "Hello world"'],
-  category: 'file-ops'
-}, async (parsed, _files, addOutput, onRefresh) => {
-  await handleWrite(parsed, addOutput, onRefresh)
-})
+registerTerminalCommand(
+  {
+    aliases: ['write'],
+    description: 'Write text to file',
+    usage: 'write <file-path> <content>',
+    examples: ['write notes.txt "Hello world"'],
+    category: 'file-ops',
+  },
+  async (parsed, _files, addOutput, onRefresh) => {
+    await handleWrite(parsed, addOutput, onRefresh)
+  },
+)
 
-registerTerminalCommand({
-  aliases: ['append'],
-  description: 'Append text to file',
-  usage: 'append <file-path> <content>',
-  category: 'file-ops'
-}, async (parsed, _files, addOutput, onRefresh) => {
-  await handleAppend(parsed, addOutput, onRefresh)
-})
+registerTerminalCommand(
+  {
+    aliases: ['append'],
+    description: 'Append text to file',
+    usage: 'append <file-path> <content>',
+    category: 'file-ops',
+  },
+  async (parsed, _files, addOutput, onRefresh) => {
+    await handleAppend(parsed, addOutput, onRefresh)
+  },
+)
 
-registerTerminalCommand({
-  aliases: ['wc'],
-  description: 'Word/line/character count',
-  usage: 'wc <file-path>',
-  category: 'file-ops'
-}, async (parsed, files, addOutput) => {
-  await handleWc(parsed, files, addOutput)
-})
+registerTerminalCommand(
+  {
+    aliases: ['wc'],
+    description: 'Word/line/character count',
+    usage: 'wc <file-path>',
+    category: 'file-ops',
+  },
+  async (parsed, files, addOutput) => {
+    await handleWc(parsed, files, addOutput)
+  },
+)
 
-registerTerminalCommand({
-  aliases: ['diff'],
-  description: 'Compare two text files',
-  usage: 'diff <file1> <file2>',
-  category: 'file-ops'
-}, async (parsed, files, addOutput) => {
-  await handleDiff(parsed, files, addOutput)
-})
+registerTerminalCommand(
+  {
+    aliases: ['diff'],
+    description: 'Compare two text files',
+    usage: 'diff <file1> <file2>',
+    category: 'file-ops',
+  },
+  async (parsed, files, addOutput) => {
+    await handleDiff(parsed, files, addOutput)
+  },
+)
 
-registerTerminalCommand({
-  aliases: ['sed', 'replace'],
-  description: 'Find/replace in file',
-  usage: 'sed <file-path> <find> <replace> [--all]',
-  category: 'file-ops'
-}, async (parsed, files, addOutput, onRefresh) => {
-  await handleSed(parsed, files, addOutput, onRefresh)
-})
+registerTerminalCommand(
+  {
+    aliases: ['sed', 'replace'],
+    description: 'Find/replace in file',
+    usage: 'sed <file-path> <find> <replace> [--all]',
+    category: 'file-ops',
+  },
+  async (parsed, files, addOutput, onRefresh) => {
+    await handleSed(parsed, files, addOutput, onRefresh)
+  },
+)
 
-registerTerminalCommand({
-  aliases: ['json'],
-  description: 'Pretty-print JSON file',
-  usage: 'json <file-path>',
-  category: 'file-ops'
-}, async (parsed, files, addOutput) => {
-  await handleJson(parsed, files, addOutput)
-})
+registerTerminalCommand(
+  {
+    aliases: ['json'],
+    description: 'Pretty-print JSON file',
+    usage: 'json <file-path>',
+    category: 'file-ops',
+  },
+  async (parsed, files, addOutput) => {
+    await handleJson(parsed, files, addOutput)
+  },
+)
 
-registerTerminalCommand({
-  aliases: ['json-get', 'jq'],
-  description: 'Get value from JSON by key path',
-  usage: 'json-get <file-path> [key.path]',
-  examples: ['json-get config.json name', 'jq data.json users.0.email'],
-  category: 'file-ops'
-}, async (parsed, files, addOutput) => {
-  await handleJsonGet(parsed, files, addOutput)
-})
+registerTerminalCommand(
+  {
+    aliases: ['json-get', 'jq'],
+    description: 'Get value from JSON by key path',
+    usage: 'json-get <file-path> [key.path]',
+    examples: ['json-get config.json name', 'jq data.json users.0.email'],
+    category: 'file-ops',
+  },
+  async (parsed, files, addOutput) => {
+    await handleJsonGet(parsed, files, addOutput)
+  },
+)
 
-registerTerminalCommand({
-  aliases: ['json-set'],
-  description: 'Set value in JSON file',
-  usage: 'json-set <file-path> <key.path> <value>',
-  examples: ['json-set config.json name "My App"'],
-  category: 'file-ops'
-}, async (parsed, files, addOutput, onRefresh) => {
-  await handleJsonSet(parsed, files, addOutput, onRefresh)
-})
+registerTerminalCommand(
+  {
+    aliases: ['json-set'],
+    description: 'Set value in JSON file',
+    usage: 'json-set <file-path> <key.path> <value>',
+    examples: ['json-set config.json name "My App"'],
+    category: 'file-ops',
+  },
+  async (parsed, files, addOutput, onRefresh) => {
+    await handleJsonSet(parsed, files, addOutput, onRefresh)
+  },
+)

@@ -4,10 +4,7 @@ import type { TranslationDict, FlatTranslations } from './types'
  * Flatten nested translation keys
  * e.g., { settings: { title: "Settings" } } -> { "settings.title": "Settings" }
  */
-export function flattenTranslations(
-  obj: TranslationDict,
-  prefix = ''
-): FlatTranslations {
+export function flattenTranslations(obj: TranslationDict, prefix = ''): FlatTranslations {
   const result: FlatTranslations = {}
 
   for (const [key, value] of Object.entries(obj)) {

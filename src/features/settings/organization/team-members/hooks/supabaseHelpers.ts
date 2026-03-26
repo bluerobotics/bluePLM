@@ -1,10 +1,10 @@
 /**
  * Typed Supabase helpers for team-members hooks
- * 
+ *
  * The main Supabase client has @ts-nocheck due to complex type inference issues.
  * This module provides typed wrappers for the specific operations used in
  * team-members hooks, enabling proper type checking in the consuming hooks.
- * 
+ *
  * Note: Some tables (job_titles, user_job_titles, team_vault_access, pending_org_members)
  * are not yet in the main Database type definition. Types are defined locally here.
  */
@@ -242,7 +242,7 @@ export interface JobTitleBasic {
  */
 // Supabase v2 type inference incomplete for team member operations
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const db = supabase as any
+const db = supabase as any // TODO: type this
 
 /**
  * Insert into teams table with proper typing
@@ -378,7 +378,10 @@ export async function upsertUserJobTitle(data: UserJobTitleInsert) {
 /**
  * Update pending org member with proper typing
  */
-export async function updatePendingOrgMember(memberId: string, data: Partial<PendingOrgMemberUpdate>) {
+export async function updatePendingOrgMember(
+  memberId: string,
+  data: Partial<PendingOrgMemberUpdate>,
+) {
   return db.from('pending_org_members').update(data).eq('id', memberId) as Promise<{
     data: null
     error: Error | null

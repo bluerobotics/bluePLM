@@ -1,12 +1,12 @@
 /**
  * Extensions Slice - State management for the Extension System
- * 
+ *
  * This slice manages:
  * - Installed extensions from the Extension Host
  * - Store (marketplace) extensions from the API
  * - Extension lifecycle states and updates
  * - Installation progress and UI state
- * 
+ *
  * @see Agent 10 in extension-system-architecture-agents.plan.md
  */
 import { StateCreator } from 'zustand'
@@ -141,7 +141,11 @@ export const createExtensionsSlice: StateCreator<
     set({ checkingUpdates: checking })
   },
 
-  handleExtensionStateChange: (extensionId: string, state: ExtensionLifecycleState, error?: string) => {
+  handleExtensionStateChange: (
+    extensionId: string,
+    state: ExtensionLifecycleState,
+    error?: string,
+  ) => {
     set((current) => {
       const existing = current.installedExtensions[extensionId]
       if (!existing) {
@@ -185,24 +189,24 @@ export const createExtensionsSlice: StateCreator<
 
       const extensions = await api.getAll()
       const extensionsMap: Record<string, InstalledExtension> = {}
-      
+
       for (const ext of extensions) {
         extensionsMap[ext.manifest.id] = ext
       }
-      
+
       get().setInstalledExtensions(extensionsMap)
       log.info('[Extensions]', 'Loaded installed extensions', { count: extensions.length })
-    } catch (err) {
-      log.error('[Extensions]', 'Failed to load installed extensions', { error: err })
+    } catch (error) {
+      log.error('[Extensions]', 'Failed to load installed extensions', { error: error })
     }
   },
 
   fetchStoreExtensions: async () => {
     const { setStoreLoading, setStoreExtensions } = get()
-    
+
     try {
       setStoreLoading(true)
-      
+
       const api = window.electronAPI?.extensions
       if (!api) {
         log.warn('[Extensions]', 'Extensions API not available')
@@ -212,8 +216,8 @@ export const createExtensionsSlice: StateCreator<
       const extensions = await api.fetchStore()
       setStoreExtensions(extensions)
       log.info('[Extensions]', 'Fetched store extensions', { count: extensions.length })
-    } catch (err) {
-      log.error('[Extensions]', 'Failed to fetch store extensions', { error: err })
+    } catch (error) {
+      log.error('[Extensions]', 'Failed to fetch store extensions', { error: error })
     } finally {
       setStoreLoading(false)
     }
@@ -221,10 +225,10 @@ export const createExtensionsSlice: StateCreator<
 
   searchStoreExtensions: async (query?: string, category?: string) => {
     const { setStoreLoading, setStoreExtensions, storeVerifiedOnly, storeSort } = get()
-    
+
     try {
       setStoreLoading(true)
-      
+
       const api = window.electronAPI?.extensions
       if (!api) {
         log.warn('[Extensions]', 'Extensions API not available')
@@ -239,7 +243,7 @@ export const createExtensionsSlice: StateCreator<
         page: 1,
         pageSize: 50,
       })
-      
+
       setStoreExtensions(result.extensions)
       log.info('[Extensions]', 'Searched store extensions', {
         query,
@@ -247,8 +251,8 @@ export const createExtensionsSlice: StateCreator<
         count: result.extensions.length,
         total: result.total,
       })
-    } catch (err) {
-      log.error('[Extensions]', 'Failed to search store extensions', { error: err })
+    } catch (error) {
+      log.error('[Extensions]', 'Failed to search store extensions', { error: error })
     } finally {
       setStoreLoading(false)
     }
@@ -262,23 +266,26 @@ export const createExtensionsSlice: StateCreator<
       }
 
       // Find the store extension to get the database UUID for download
-      const storeExt = get().storeExtensions.find(e => e.extensionId === extensionId)
+      const storeExt = get().storeExtensions.find((e) => e.extensionId === extensionId)
       const downloadId = storeExt?.id || extensionId // Use database UUID if available
-      
+
       log.info('[Extensions]', 'Installing extension', { extensionId, downloadId, version })
       const result = await api.install(downloadId, version, extensionId)
-      
+
       if (result.success) {
         // Refresh the installed extensions list to pick up the new installation
         await get().loadInstalledExtensions()
-        log.info('[Extensions]', 'Extension installed successfully', { extensionId, version: result.extension?.manifest.version })
+        log.info('[Extensions]', 'Extension installed successfully', {
+          extensionId,
+          version: result.extension?.manifest.version,
+        })
       }
-      
+
       return { success: result.success, error: result.error }
-    } catch (err) {
-      const error = err instanceof Error ? err.message : String(err)
-      log.error('[Extensions]', 'Failed to install extension', { extensionId, error })
-      return { success: false, error }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      log.error('[Extensions]', 'Failed to install extension', { extensionId, error: message })
+      return { success: false, error: message }
     }
   },
 
@@ -291,18 +298,20 @@ export const createExtensionsSlice: StateCreator<
 
       log.info('[Extensions]', 'Sideloading extension', { bpxPath })
       const result = await api.installFromFile(bpxPath, acknowledgeUnsigned)
-      
+
       if (result.success) {
         // Refresh the installed extensions list to pick up the new installation
         await get().loadInstalledExtensions()
-        log.info('[Extensions]', 'Extension sideloaded successfully', { extensionId: result.extension?.manifest.id })
+        log.info('[Extensions]', 'Extension sideloaded successfully', {
+          extensionId: result.extension?.manifest.id,
+        })
       }
-      
+
       return { success: result.success, error: result.error }
-    } catch (err) {
-      const error = err instanceof Error ? err.message : String(err)
-      log.error('[Extensions]', 'Failed to sideload extension', { bpxPath, error })
-      return { success: false, error }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      log.error('[Extensions]', 'Failed to sideload extension', { bpxPath, error: message })
+      return { success: false, error: message }
     }
   },
 
@@ -315,16 +324,16 @@ export const createExtensionsSlice: StateCreator<
 
       log.info('[Extensions]', 'Uninstalling extension', { extensionId })
       const result = await api.uninstall(extensionId)
-      
+
       if (result.success) {
         get().removeInstalledExtension(extensionId)
       }
-      
+
       return result
-    } catch (err) {
-      const error = err instanceof Error ? err.message : String(err)
-      log.error('[Extensions]', 'Failed to uninstall extension', { extensionId, error })
-      return { success: false, error }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      log.error('[Extensions]', 'Failed to uninstall extension', { extensionId, error: message })
+      return { success: false, error: message }
     }
   },
 
@@ -337,16 +346,16 @@ export const createExtensionsSlice: StateCreator<
 
       log.info('[Extensions]', 'Enabling extension', { extensionId })
       const result = await api.enable(extensionId)
-      
+
       if (result.success) {
         get().handleExtensionStateChange(extensionId, 'installed')
       }
-      
+
       return result
-    } catch (err) {
-      const error = err instanceof Error ? err.message : String(err)
-      log.error('[Extensions]', 'Failed to enable extension', { extensionId, error })
-      return { success: false, error }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      log.error('[Extensions]', 'Failed to enable extension', { extensionId, error: message })
+      return { success: false, error: message }
     }
   },
 
@@ -359,16 +368,16 @@ export const createExtensionsSlice: StateCreator<
 
       log.info('[Extensions]', 'Disabling extension', { extensionId })
       const result = await api.disable(extensionId)
-      
+
       if (result.success) {
         get().handleExtensionStateChange(extensionId, 'disabled')
       }
-      
+
       return result
-    } catch (err) {
-      const error = err instanceof Error ? err.message : String(err)
-      log.error('[Extensions]', 'Failed to disable extension', { extensionId, error })
-      return { success: false, error }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      log.error('[Extensions]', 'Failed to disable extension', { extensionId, error: message })
+      return { success: false, error: message }
     }
   },
 
@@ -381,20 +390,20 @@ export const createExtensionsSlice: StateCreator<
 
       log.info('[Extensions]', 'Updating extension', { extensionId, version })
       const result = await api.update(extensionId, version)
-      
+
       if (result.success && result.extension) {
         get().updateInstalledExtension(extensionId, result.extension)
         // Remove from available updates
         set((state) => ({
-          availableUpdates: state.availableUpdates.filter(u => u.extensionId !== extensionId),
+          availableUpdates: state.availableUpdates.filter((u) => u.extensionId !== extensionId),
         }))
       }
-      
+
       return { success: result.success, error: result.error }
-    } catch (err) {
-      const error = err instanceof Error ? err.message : String(err)
-      log.error('[Extensions]', 'Failed to update extension', { extensionId, error })
-      return { success: false, error }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      log.error('[Extensions]', 'Failed to update extension', { extensionId, error: message })
+      return { success: false, error: message }
     }
   },
 
@@ -407,25 +416,25 @@ export const createExtensionsSlice: StateCreator<
 
       log.info('[Extensions]', 'Rolling back extension', { extensionId })
       const result = await api.rollback(extensionId)
-      
+
       if (result.success && result.extension) {
         get().updateInstalledExtension(extensionId, result.extension)
       }
-      
+
       return { success: result.success, error: result.error }
-    } catch (err) {
-      const error = err instanceof Error ? err.message : String(err)
-      log.error('[Extensions]', 'Failed to rollback extension', { extensionId, error })
-      return { success: false, error }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      log.error('[Extensions]', 'Failed to rollback extension', { extensionId, error: message })
+      return { success: false, error: message }
     }
   },
 
   checkForUpdates: async () => {
     const { setCheckingUpdates, setAvailableUpdates } = get()
-    
+
     try {
       setCheckingUpdates(true)
-      
+
       const api = window.electronAPI?.extensions
       if (!api) {
         log.warn('[Extensions]', 'Extensions API not available')
@@ -435,10 +444,10 @@ export const createExtensionsSlice: StateCreator<
       const updates = await api.checkUpdates()
       setAvailableUpdates(updates)
       set({ lastUpdateCheck: Date.now() })
-      
+
       log.info('[Extensions]', 'Checked for updates', { count: updates.length })
-    } catch (err) {
-      log.error('[Extensions]', 'Failed to check for updates', { error: err })
+    } catch (error) {
+      log.error('[Extensions]', 'Failed to check for updates', { error: error })
     } finally {
       setCheckingUpdates(false)
     }
@@ -453,7 +462,7 @@ export const createExtensionsSlice: StateCreator<
   },
 
   getActiveExtensions: () => {
-    return Object.values(get().installedExtensions).filter(ext => ext.state === 'active')
+    return Object.values(get().installedExtensions).filter((ext) => ext.state === 'active')
   },
 
   isExtensionInstalled: (extensionId: string) => {
@@ -461,11 +470,11 @@ export const createExtensionsSlice: StateCreator<
   },
 
   hasUpdate: (extensionId: string) => {
-    return get().availableUpdates.some(u => u.extensionId === extensionId)
+    return get().availableUpdates.some((u) => u.extensionId === extensionId)
   },
 
   getUpdateInfo: (extensionId: string) => {
-    return get().availableUpdates.find(u => u.extensionId === extensionId)
+    return get().availableUpdates.find((u) => u.extensionId === extensionId)
   },
 
   // ═══════════════════════════════════════════════════════════════════════════

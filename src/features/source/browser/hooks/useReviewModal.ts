@@ -1,28 +1,24 @@
 import { useState } from 'react'
 import type { LocalFile } from '@/stores/pdmStore'
+import type { OrgUser } from '@/types/database'
 
-export interface OrgUser {
-  id: string
-  email: string
-  full_name: string | null
-  avatar_url: string | null
-}
+export type { OrgUser }
 
 export interface UseReviewModalReturn {
   // Modal visibility
   showReviewModal: boolean
   setShowReviewModal: React.Dispatch<React.SetStateAction<boolean>>
-  
+
   // File being reviewed
   reviewModalFile: LocalFile | null
   setReviewModalFile: React.Dispatch<React.SetStateAction<LocalFile | null>>
-  
+
   // Organization users
   orgUsers: OrgUser[]
   setOrgUsers: React.Dispatch<React.SetStateAction<OrgUser[]>>
   loadingUsers: boolean
   setLoadingUsers: React.Dispatch<React.SetStateAction<boolean>>
-  
+
   // Review form state
   selectedReviewers: string[]
   setSelectedReviewers: React.Dispatch<React.SetStateAction<string[]>>
@@ -46,7 +42,9 @@ export function useReviewModal(): UseReviewModalReturn {
   const [selectedReviewers, setSelectedReviewers] = useState<string[]>([])
   const [reviewMessage, setReviewMessage] = useState('')
   const [reviewDueDate, setReviewDueDate] = useState<string>('')
-  const [reviewPriority, setReviewPriority] = useState<'low' | 'normal' | 'high' | 'urgent'>('normal')
+  const [reviewPriority, setReviewPriority] = useState<'low' | 'normal' | 'high' | 'urgent'>(
+    'normal',
+  )
   const [isSubmittingReview, setIsSubmittingReview] = useState(false)
   const [loadingUsers, setLoadingUsers] = useState(false)
 
@@ -68,6 +66,6 @@ export function useReviewModal(): UseReviewModalReturn {
     reviewPriority,
     setReviewPriority,
     isSubmittingReview,
-    setIsSubmittingReview
+    setIsSubmittingReview,
   }
 }

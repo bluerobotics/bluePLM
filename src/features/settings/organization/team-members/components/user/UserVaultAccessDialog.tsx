@@ -1,8 +1,8 @@
 /**
  * UserVaultAccessDialog - Manage vault access for an individual user
- * 
+ *
  * Thin wrapper around VaultAccessDialog for user-specific vault access.
- * 
+ *
  * @module team-members/UserVaultAccessDialog
  */
 
@@ -26,7 +26,7 @@ export function UserVaultAccessDialog({
   setPendingVaultAccess,
   onSave,
   onClose,
-  isSaving
+  isSaving,
 }: UserVaultAccessDialogProps) {
   return (
     <VaultAccessDialog

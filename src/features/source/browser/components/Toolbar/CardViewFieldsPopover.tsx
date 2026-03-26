@@ -12,23 +12,23 @@ export const CardViewFieldsPopover = memo(function CardViewFieldsPopover() {
   const [isOpen, setIsOpen] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
-  
-  const cardViewFields = usePDMStore(state => state.cardViewFields)
-  const toggleCardViewFieldVisibility = usePDMStore(state => state.toggleCardViewFieldVisibility)
-  const reorderCardViewFields = usePDMStore(state => state.reorderCardViewFields)
-  const resetCardViewFieldsToDefaults = usePDMStore(state => state.resetCardViewFieldsToDefaults)
-  
+
+  const cardViewFields = usePDMStore((state) => state.cardViewFields)
+  const toggleCardViewFieldVisibility = usePDMStore((state) => state.toggleCardViewFieldVisibility)
+  const reorderCardViewFields = usePDMStore((state) => state.reorderCardViewFields)
+  const resetCardViewFieldsToDefaults = usePDMStore((state) => state.resetCardViewFieldsToDefaults)
+
   // Drag state
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
-  
+
   // Close when clicking outside
   useEffect(() => {
     if (!isOpen) return
-    
+
     const handleClickOutside = (e: MouseEvent) => {
       if (
-        popoverRef.current && 
+        popoverRef.current &&
         !popoverRef.current.contains(e.target as Node) &&
         buttonRef.current &&
         !buttonRef.current.contains(e.target as Node)
@@ -36,11 +36,11 @@ export const CardViewFieldsPopover = memo(function CardViewFieldsPopover() {
         setIsOpen(false)
       }
     }
-    
+
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [isOpen])
-  
+
   // Get translated label for a field
   const getFieldLabel = (fieldId: string): string => {
     const translationKey = COLUMN_TRANSLATION_KEYS[fieldId]
@@ -48,16 +48,16 @@ export const CardViewFieldsPopover = memo(function CardViewFieldsPopover() {
       return t(translationKey)
     }
     // Fallback to the field's stored label
-    const field = cardViewFields.find(f => f.id === fieldId)
+    const field = cardViewFields.find((f) => f.id === fieldId)
     return field?.label || fieldId
   }
-  
+
   // Handle drag start
   const handleDragStart = (e: React.DragEvent, index: number) => {
     setDraggedIndex(index)
     e.dataTransfer.effectAllowed = 'move'
   }
-  
+
   // Handle drag over
   const handleDragOver = (e: React.DragEvent, index: number) => {
     e.preventDefault()
@@ -65,7 +65,7 @@ export const CardViewFieldsPopover = memo(function CardViewFieldsPopover() {
       setDragOverIndex(index)
     }
   }
-  
+
   // Handle drop
   const handleDrop = (e: React.DragEvent, dropIndex: number) => {
     e.preventDefault()
@@ -78,15 +78,15 @@ export const CardViewFieldsPopover = memo(function CardViewFieldsPopover() {
     setDraggedIndex(null)
     setDragOverIndex(null)
   }
-  
+
   // Handle drag end
   const handleDragEnd = () => {
     setDraggedIndex(null)
     setDragOverIndex(null)
   }
-  
-  const visibleCount = cardViewFields.filter(f => f.visible).length
-  
+
+  const visibleCount = cardViewFields.filter((f) => f.visible).length
+
   return (
     <div className="relative">
       <button
@@ -97,7 +97,7 @@ export const CardViewFieldsPopover = memo(function CardViewFieldsPopover() {
       >
         <Settings2 size={14} />
       </button>
-      
+
       {isOpen && (
         <div
           ref={popoverRef}
@@ -109,11 +109,9 @@ export const CardViewFieldsPopover = memo(function CardViewFieldsPopover() {
               <span className="text-sm font-medium text-plm-fg">Card Fields</span>
               <span className="text-xs text-plm-fg-muted">{visibleCount} visible</span>
             </div>
-            <p className="text-xs text-plm-fg-muted mt-0.5">
-              Drag to reorder, click to toggle
-            </p>
+            <p className="text-xs text-plm-fg-muted mt-0.5">Drag to reorder, click to toggle</p>
           </div>
-          
+
           {/* Field list */}
           <div className="max-h-72 overflow-y-auto py-1">
             {cardViewFields.map((field, index) => (
@@ -132,10 +130,7 @@ export const CardViewFieldsPopover = memo(function CardViewFieldsPopover() {
                   ${draggedIndex === index ? 'opacity-50' : ''}
                 `}
               >
-                <GripVertical 
-                  size={12} 
-                  className="text-plm-fg-muted cursor-grab flex-shrink-0" 
-                />
+                <GripVertical size={12} className="text-plm-fg-muted cursor-grab flex-shrink-0" />
                 {field.visible ? (
                   <Eye size={14} className="text-plm-success flex-shrink-0" />
                 ) : (
@@ -147,7 +142,7 @@ export const CardViewFieldsPopover = memo(function CardViewFieldsPopover() {
               </div>
             ))}
           </div>
-          
+
           {/* Footer with reset button */}
           <div className="px-3 py-2 border-t border-plm-border bg-plm-bg-light/50">
             <button

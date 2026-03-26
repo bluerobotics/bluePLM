@@ -11,7 +11,7 @@ import {
   Loader2,
   Download,
   Upload,
-  AlertTriangle
+  AlertTriangle,
 } from 'lucide-react'
 import { TIME_SLOTS } from './constants'
 
@@ -106,7 +106,7 @@ export function BackupConfigForm({
   isSaving,
   onSave,
   onExport,
-  onImport
+  onImport,
 }: BackupConfigFormProps) {
   return (
     <div className="space-y-3 pt-4 border-t border-plm-border">
@@ -127,7 +127,7 @@ export function BackupConfigForm({
           <ChevronDown className="w-4 h-4 text-plm-fg-muted" />
         )}
       </button>
-      
+
       {showConfig && (
         <div className="space-y-4 p-4 rounded-lg bg-plm-bg-secondary border border-plm-border">
           {/* Provider Selection */}
@@ -135,7 +135,7 @@ export function BackupConfigForm({
             <label className="block text-sm font-medium mb-1">Provider</label>
             <select
               value={provider}
-              onChange={e => onProviderChange(e.target.value as typeof provider)}
+              onChange={(e) => onProviderChange(e.target.value as typeof provider)}
               className="w-full px-3 py-2 rounded bg-plm-bg-primary border border-plm-border text-sm"
             >
               <option value="backblaze_b2">Backblaze B2</option>
@@ -143,19 +143,19 @@ export function BackupConfigForm({
               <option value="google_cloud">Google Cloud Storage</option>
             </select>
           </div>
-          
+
           {/* Bucket */}
           <div>
             <label className="block text-sm font-medium mb-1">Bucket Name</label>
             <input
               type="text"
               value={bucket}
-              onChange={e => onBucketChange(e.target.value)}
+              onChange={(e) => onBucketChange(e.target.value)}
               placeholder="my-backup-bucket"
               className="w-full px-3 py-2 rounded bg-plm-bg-primary border border-plm-border text-sm"
             />
           </div>
-          
+
           {/* Endpoint (for S3-compatible) */}
           {provider === 'backblaze_b2' && (
             <div>
@@ -163,16 +163,14 @@ export function BackupConfigForm({
               <input
                 type="text"
                 value={endpoint}
-                onChange={e => onEndpointChange(e.target.value)}
+                onChange={(e) => onEndpointChange(e.target.value)}
                 placeholder="s3.us-west-004.backblazeb2.com"
                 className="w-full px-3 py-2 rounded bg-plm-bg-primary border border-plm-border text-sm"
               />
-              <p className="text-xs text-plm-fg-muted mt-1">
-                Find this in your B2 bucket settings
-              </p>
+              <p className="text-xs text-plm-fg-muted mt-1">Find this in your B2 bucket settings</p>
             </div>
           )}
-          
+
           {/* Region (for AWS) */}
           {provider === 'aws_s3' && (
             <div>
@@ -180,13 +178,13 @@ export function BackupConfigForm({
               <input
                 type="text"
                 value={region}
-                onChange={e => onRegionChange(e.target.value)}
+                onChange={(e) => onRegionChange(e.target.value)}
                 placeholder="us-east-1"
                 className="w-full px-3 py-2 rounded bg-plm-bg-primary border border-plm-border text-sm"
               />
             </div>
           )}
-          
+
           {/* Access Key */}
           <div>
             <label className="block text-sm font-medium mb-1">
@@ -195,12 +193,12 @@ export function BackupConfigForm({
             <input
               type="text"
               value={accessKey}
-              onChange={e => onAccessKeyChange(e.target.value)}
+              onChange={(e) => onAccessKeyChange(e.target.value)}
               placeholder="004..."
               className="w-full px-3 py-2 rounded bg-plm-bg-primary border border-plm-border text-sm font-mono"
             />
           </div>
-          
+
           {/* Secret Key */}
           <div>
             <label className="block text-sm font-medium mb-1">
@@ -210,7 +208,7 @@ export function BackupConfigForm({
               <input
                 type={showSecretKey ? 'text' : 'password'}
                 value={secretKey}
-                onChange={e => onSecretKeyChange(e.target.value)}
+                onChange={(e) => onSecretKeyChange(e.target.value)}
                 placeholder="K004..."
                 className="w-full px-3 py-2 pr-10 rounded bg-plm-bg-primary border border-plm-border text-sm font-mono"
               />
@@ -223,7 +221,7 @@ export function BackupConfigForm({
               </button>
             </div>
           </div>
-          
+
           {/* Restic Password */}
           <div>
             <label className="block text-sm font-medium mb-1 flex items-center gap-1">
@@ -234,7 +232,7 @@ export function BackupConfigForm({
               <input
                 type={showResticPassword ? 'text' : 'password'}
                 value={resticPassword}
-                onChange={e => onResticPasswordChange(e.target.value)}
+                onChange={(e) => onResticPasswordChange(e.target.value)}
                 placeholder="Strong password for encrypting backups"
                 className="w-full px-3 py-2 pr-10 rounded bg-plm-bg-primary border border-plm-border text-sm"
               />
@@ -250,7 +248,7 @@ export function BackupConfigForm({
               This password encrypts your backups. <strong>Store it safely!</strong>
             </p>
           </div>
-          
+
           {/* Retention Policy */}
           <div>
             <label className="block text-sm font-medium mb-2">Retention Policy</label>
@@ -264,7 +262,7 @@ export function BackupConfigForm({
                     min="1"
                     max="30"
                     value={retentionDaily}
-                    onChange={e => onRetentionDailyChange(parseInt(e.target.value) || 14)}
+                    onChange={(e) => onRetentionDailyChange(parseInt(e.target.value) || 14)}
                     className="w-full px-3 py-2 rounded bg-plm-bg-primary border border-plm-border text-sm"
                   />
                   <span className="text-xs text-plm-fg-muted whitespace-nowrap">days</span>
@@ -278,7 +276,7 @@ export function BackupConfigForm({
                     min="1"
                     max="52"
                     value={retentionWeekly}
-                    onChange={e => onRetentionWeeklyChange(parseInt(e.target.value) || 10)}
+                    onChange={(e) => onRetentionWeeklyChange(parseInt(e.target.value) || 10)}
                     className="w-full px-3 py-2 rounded bg-plm-bg-primary border border-plm-border text-sm"
                   />
                   <span className="text-xs text-plm-fg-muted whitespace-nowrap">weeks</span>
@@ -292,7 +290,7 @@ export function BackupConfigForm({
                     min="1"
                     max="24"
                     value={retentionMonthly}
-                    onChange={e => onRetentionMonthlyChange(parseInt(e.target.value) || 12)}
+                    onChange={(e) => onRetentionMonthlyChange(parseInt(e.target.value) || 12)}
                     className="w-full px-3 py-2 rounded bg-plm-bg-primary border border-plm-border text-sm"
                   />
                   <span className="text-xs text-plm-fg-muted whitespace-nowrap">months</span>
@@ -306,7 +304,7 @@ export function BackupConfigForm({
                     min="1"
                     max="10"
                     value={retentionYearly}
-                    onChange={e => onRetentionYearlyChange(parseInt(e.target.value) || 5)}
+                    onChange={(e) => onRetentionYearlyChange(parseInt(e.target.value) || 5)}
                     className="w-full px-3 py-2 rounded bg-plm-bg-primary border border-plm-border text-sm"
                   />
                   <span className="text-xs text-plm-fg-muted whitespace-nowrap">years</span>
@@ -317,38 +315,40 @@ export function BackupConfigForm({
               ≈ {totalRetentionPoints} restore points total
             </p>
           </div>
-          
+
           {/* Schedule */}
           <div>
             <label className="flex items-center gap-2 mb-3">
               <input
                 type="checkbox"
                 checked={scheduleEnabled}
-                onChange={e => onScheduleEnabledChange(e.target.checked)}
+                onChange={(e) => onScheduleEnabledChange(e.target.checked)}
                 className="w-4 h-4 rounded border-plm-border bg-plm-bg-primary"
               />
               <span className="text-sm font-medium">Enable scheduled backups</span>
             </label>
-            
+
             {scheduleEnabled && (
               <div className="pl-6">
                 <label className="block text-xs text-plm-fg-muted mb-1">Backup time</label>
                 <div className="flex items-center gap-2">
                   <select
                     value={`${scheduleHour}:${scheduleMinute}`}
-                    onChange={e => {
+                    onChange={(e) => {
                       const [h, m] = e.target.value.split(':').map(Number)
                       onScheduleTimeChange(h, m)
                     }}
                     className="w-24 px-2 py-1.5 rounded bg-plm-bg-primary border border-plm-border text-sm"
                   >
-                    {TIME_SLOTS.map(slot => (
-                      <option key={slot.value} value={slot.value}>{slot.label}</option>
+                    {TIME_SLOTS.map((slot) => (
+                      <option key={slot.value} value={slot.value}>
+                        {slot.label}
+                      </option>
                     ))}
                   </select>
                   <select
                     value={scheduleTimezone}
-                    onChange={e => onScheduleTimezoneChange(e.target.value)}
+                    onChange={(e) => onScheduleTimezoneChange(e.target.value)}
                     className="flex-1 px-2 py-1.5 rounded bg-plm-bg-primary border border-plm-border text-sm"
                   >
                     <optgroup label="Americas">
@@ -378,14 +378,15 @@ export function BackupConfigForm({
               </div>
             )}
           </div>
-          
+
           {/* Info Box */}
           <div className="p-3 rounded bg-blue-500/10 border border-blue-500/30">
             <div className="flex items-start gap-2">
               <Info className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
               <div className="text-xs text-blue-300">
                 <p className="mb-1">
-                  Backups use <strong>restic</strong> with deduplication, so storage usage is much lower than raw file size.
+                  Backups use <strong>restic</strong> with deduplication, so storage usage is much
+                  lower than raw file size.
                 </p>
                 <a
                   href="https://www.backblaze.com/b2/cloud-storage.html"
@@ -399,7 +400,7 @@ export function BackupConfigForm({
               </div>
             </div>
           </div>
-          
+
           {/* Save Button */}
           <button
             onClick={onSave}
@@ -418,7 +419,7 @@ export function BackupConfigForm({
               </>
             )}
           </button>
-          
+
           {/* Export/Import buttons */}
           <div className="flex gap-2">
             <button
@@ -436,7 +437,7 @@ export function BackupConfigForm({
               Import Config
             </button>
           </div>
-          
+
           {/* Disaster Recovery Warning */}
           <div className="p-3 rounded bg-amber-500/10 border border-amber-500/30">
             <div className="flex items-start gap-2">

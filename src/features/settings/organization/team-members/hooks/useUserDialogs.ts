@@ -10,75 +10,85 @@ export function useUserDialogs() {
     isRemoving,
     setIsRemoving,
     editingTeamsUser,
-    setEditingTeamsUser
+    setEditingTeamsUser,
   } = usePDMStore()
-  
+
   // === Local state (component-specific dialogs) ===
-  
+
   // Create user dialog
   const [showCreateUserDialog, setShowCreateUserDialog] = useState(false)
-  
+
   // Remove from team confirmation (for removing self from Administrators)
-  const [removingFromTeam, setRemovingFromTeam] = useState<{ user: OrgUser; teamId: string; teamName: string } | null>(null)
+  const [removingFromTeam, setRemovingFromTeam] = useState<{
+    user: OrgUser
+    teamId: string
+    teamName: string
+  } | null>(null)
   const [isRemovingFromTeam, setIsRemovingFromTeam] = useState(false)
-  
+
   // View/edit permissions
   const [viewingPermissionsUser, setViewingPermissionsUser] = useState<OrgUser | null>(null)
   const [editingPermissionsUser, setEditingPermissionsUser] = useState<OrgUser | null>(null)
-  
+
   // User profile
   const [viewingUserId, setViewingUserId] = useState<string | null>(null)
-  
+
   // Add to team
   const [addToTeamUser, setAddToTeamUser] = useState<OrgUser | null>(null)
-  
+
   // User vault access
   const [editingVaultAccessUser, setEditingVaultAccessUser] = useState<OrgUser | null>(null)
   const [pendingVaultAccess, setPendingVaultAccess] = useState<string[]>([])
   const [isSavingVaultAccess, setIsSavingVaultAccess] = useState(false)
-  
+
   // User workflow roles
   const [editingWorkflowRolesUser, setEditingWorkflowRolesUser] = useState<OrgUser | null>(null)
-  
+
   // Helper functions
-  const openRemoveUserDialog = useCallback((user: OrgUser) => {
-    setRemovingUser(user)
-  }, [setRemovingUser])
-  
+  const openRemoveUserDialog = useCallback(
+    (user: OrgUser) => {
+      setRemovingUser(user)
+    },
+    [setRemovingUser],
+  )
+
   const closeRemoveUserDialog = useCallback(() => {
     setRemovingUser(null)
     setIsRemoving(false)
   }, [setRemovingUser, setIsRemoving])
-  
+
   const openViewPermissions = useCallback((user: OrgUser) => {
     setViewingPermissionsUser(user)
   }, [])
-  
+
   const openEditPermissions = useCallback((user: OrgUser) => {
     setEditingPermissionsUser(user)
   }, [])
-  
+
   const openUserProfile = useCallback((userId: string) => {
     setViewingUserId(userId)
   }, [])
-  
+
   const openAddToTeam = useCallback((user: OrgUser) => {
     setAddToTeamUser(user)
   }, [])
-  
-  const openEditTeams = useCallback((user: OrgUser) => {
-    setEditingTeamsUser(user)
-  }, [setEditingTeamsUser])
-  
+
+  const openEditTeams = useCallback(
+    (user: OrgUser) => {
+      setEditingTeamsUser(user)
+    },
+    [setEditingTeamsUser],
+  )
+
   const openVaultAccess = useCallback((user: OrgUser, currentVaultIds: string[]) => {
     setEditingVaultAccessUser(user)
     setPendingVaultAccess(currentVaultIds)
   }, [])
-  
+
   const openWorkflowRoles = useCallback((user: OrgUser) => {
     setEditingWorkflowRolesUser(user)
   }, [])
-  
+
   const closeAllUserDialogs = useCallback(() => {
     setShowCreateUserDialog(false)
     setRemovingUser(null)
@@ -95,7 +105,7 @@ export function useUserDialogs() {
     setIsSavingVaultAccess(false)
     setEditingWorkflowRolesUser(null)
   }, [setRemovingUser, setIsRemoving, setEditingTeamsUser])
-  
+
   return {
     // State
     showCreateUserDialog,
@@ -126,7 +136,7 @@ export function useUserDialogs() {
     setIsSavingVaultAccess,
     editingWorkflowRolesUser,
     setEditingWorkflowRolesUser,
-    
+
     // Actions
     openRemoveUserDialog,
     closeRemoveUserDialog,
@@ -137,6 +147,6 @@ export function useUserDialogs() {
     openEditTeams,
     openVaultAccess,
     openWorkflowRoles,
-    closeAllUserDialogs
+    closeAllUserDialogs,
   }
 }

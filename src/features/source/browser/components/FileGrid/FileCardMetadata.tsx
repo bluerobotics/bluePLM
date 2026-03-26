@@ -1,15 +1,15 @@
 /**
  * FileCardMetadata - Renders configurable metadata fields on file cards
- * 
+ *
  * This component displays metadata fields configured in cardViewFields settings.
  * It supports:
  * - Inline editing for editable fields (item number, description, revision)
  * - Version dropdown with history
  * - Configuration indicator
- * 
+ *
  * NOTE: Drawing files (.slddrw) have their revision locked because
  * it comes from the drawing's revision table, not from editable properties.
- * 
+ *
  * NOTE: Part/assembly files (.sldprt/.sldasm) can have file-level revision locked
  * via the org-wide allow_file_level_revision_for_models setting.
  */
@@ -36,7 +36,7 @@ const EDITABLE_FIELDS = ['itemNumber', 'description', 'revision']
 function getFieldValue(file: LocalFile, fieldId: string): string | null {
   const pdmData = file.pdmData
   const pendingMetadata = file.pendingMetadata
-  
+
   switch (fieldId) {
     case 'itemNumber': {
       if (pendingMetadata?.part_number !== undefined) {
@@ -69,9 +69,12 @@ function getFieldValue(file: LocalFile, fieldId: string): string | null {
       return tags && tags.length > 0 ? tags.join(', ') : null
     }
     case 'tabNumber': {
-      const customProps = pdmData?.custom_properties as Record<string, string | number | null> | undefined
+      const customProps = pdmData?.custom_properties as
+        | Record<string, string | number | null>
+        | undefined
       if (!customProps) return null
-      const tabNumber = customProps['Tab Number'] || customProps['Sheet Number'] || customProps['Sheetno']
+      const tabNumber =
+        customProps['Tab Number'] || customProps['Sheet Number'] || customProps['Sheetno']
       return tabNumber ? String(tabNumber) : null
     }
     case 'checkedOutBy': {
@@ -98,17 +101,28 @@ function getFieldValue(file: LocalFile, fieldId: string): string | null {
  */
 function getShortLabel(fieldId: string): string {
   switch (fieldId) {
-    case 'itemNumber': return 'BR'
-    case 'description': return 'Desc'
-    case 'revision': return 'Rev'
-    case 'version': return 'Ver'
-    case 'state': return 'State'
-    case 'ecoTags': return 'ECO'
-    case 'tabNumber': return 'Tab'
-    case 'checkedOutBy': return 'By'
-    case 'size': return 'Size'
-    case 'modifiedTime': return 'Mod'
-    default: return fieldId
+    case 'itemNumber':
+      return 'BR'
+    case 'description':
+      return 'Desc'
+    case 'revision':
+      return 'Rev'
+    case 'version':
+      return 'Ver'
+    case 'state':
+      return 'State'
+    case 'ecoTags':
+      return 'ECO'
+    case 'tabNumber':
+      return 'Tab'
+    case 'checkedOutBy':
+      return 'By'
+    case 'size':
+      return 'Size'
+    case 'modifiedTime':
+      return 'Mod'
+    default:
+      return fieldId
   }
 }
 
@@ -123,7 +137,7 @@ function EditableField({
   fontSize,
   isEditable,
   isDrawing,
-  isModel
+  isModel,
 }: {
   file: LocalFile
   fieldId: string
@@ -135,57 +149,59 @@ function EditableField({
   isModel: boolean
 }) {
   // Get drawing lockout settings (per-user)
-  const lockDrawingRevision = usePDMStore(s => s.lockDrawingRevision)
-  const lockDrawingItemNumber = usePDMStore(s => s.lockDrawingItemNumber)
-  const lockDrawingDescription = usePDMStore(s => s.lockDrawingDescription)
-  
+  const lockDrawingRevision = usePDMStore((s) => s.lockDrawingRevision)
+  const lockDrawingItemNumber = usePDMStore((s) => s.lockDrawingItemNumber)
+  const lockDrawingDescription = usePDMStore((s) => s.lockDrawingDescription)
+
   // Org-wide: parts/assemblies file-level revision lockout
-  const allowModelRevision = usePDMStore(s => s.organization?.settings?.allow_file_level_revision_for_models)
-  
-  // Check if this field is locked for drawings
-  const isDrawingFieldLocked = isDrawing && (
-    (fieldId === 'revision' && lockDrawingRevision) ||
-    (fieldId === 'itemNumber' && lockDrawingItemNumber) ||
-    (fieldId === 'description' && lockDrawingDescription)
+  const allowModelRevision = usePDMStore(
+    (s) => s.organization?.settings?.allow_file_level_revision_for_models,
   )
-  
+
+  // Check if this field is locked for drawings
+  const isDrawingFieldLocked =
+    isDrawing &&
+    ((fieldId === 'revision' && lockDrawingRevision) ||
+      (fieldId === 'itemNumber' && lockDrawingItemNumber) ||
+      (fieldId === 'description' && lockDrawingDescription))
+
   // Check if revision is locked for models (parts/assemblies) via org setting
   const isModelRevisionLocked = isModel && fieldId === 'revision' && !allowModelRevision
-  
+
   const isFieldLocked = isDrawingFieldLocked || isModelRevisionLocked
   const canEdit = isFieldLocked ? false : isEditable
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState(value || '')
   const [isGenerating, setIsGenerating] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
-  
+
   const { organization, addToast, updatePendingMetadata } = usePDMStore()
-  
+
   useEffect(() => {
     if (isEditing && inputRef.current) {
       inputRef.current.focus()
       inputRef.current.select()
     }
   }, [isEditing])
-  
+
   // Handle save
   const handleSave = () => {
     const trimmedValue = editValue.trim()
     const fieldKey = fieldId === 'itemNumber' ? 'part_number' : fieldId
-    
+
     // Only update if changed
     const currentValue = value || ''
     if (trimmedValue !== currentValue) {
       updatePendingMetadata(file.path, { [fieldKey]: trimmedValue || null })
     }
-    
+
     setIsEditing(false)
   }
-  
+
   // Handle generate serial number (for item number field)
   const handleGenerateSerial = async () => {
     if (!organization?.id || fieldId !== 'itemNumber') return
-    
+
     setIsGenerating(true)
     try {
       const serial = await getNextSerialNumber(organization.id)
@@ -196,22 +212,24 @@ function EditableField({
       } else {
         addToast('error', 'Serialization is disabled or failed')
       }
-    } catch (err) {
-      addToast('error', `Failed: ${err instanceof Error ? err.message : String(err)}`)
+    } catch (error) {
+      addToast('error', `Failed: ${error instanceof Error ? error.message : String(error)}`)
     } finally {
       setIsGenerating(false)
       setIsEditing(false)
     }
   }
-  
+
   if (isEditing && canEdit) {
     return (
-      <div 
+      <div
         className="flex items-center gap-1"
         onClick={(e) => e.stopPropagation()}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <span className="text-plm-fg-muted/60 flex-shrink-0" style={{ fontSize }}>{label}:</span>
+        <span className="text-plm-fg-muted/60 flex-shrink-0" style={{ fontSize }}>
+          {label}:
+        </span>
         <div className="flex-1 relative">
           <input
             ref={inputRef}
@@ -244,17 +262,21 @@ function EditableField({
               className="absolute right-0.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-plm-fg-muted hover:text-plm-accent hover:bg-plm-accent/20 disabled:opacity-50 transition-colors"
               title="Generate serial"
             >
-              {isGenerating ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
+              {isGenerating ? (
+                <Loader2 size={10} className="animate-spin" />
+              ) : (
+                <Sparkles size={10} />
+              )}
             </button>
           )}
         </div>
       </div>
     )
   }
-  
+
   // Show icon for locked fields indicating they're driven by the file/model
   const showLockedIndicator = isFieldLocked
-  
+
   // Determine appropriate tooltip
   const getTooltip = () => {
     if (isModelRevisionLocked) return 'Revision is controlled from drawings (org policy)'
@@ -266,7 +288,7 @@ function EditableField({
     if (canEdit) return 'Click to edit'
     return `${label}: ${value || '-'}`
   }
-  
+
   return (
     <div
       className={`flex items-center gap-1 truncate ${canEdit ? 'cursor-text hover:bg-plm-bg-light/50 rounded px-0.5 -mx-0.5' : ''}`}
@@ -290,7 +312,9 @@ function EditableField({
       <span className={`truncate ${value ? 'text-plm-fg/80' : 'text-plm-fg-muted'}`}>
         {value || '-'}
       </span>
-      {showLockedIndicator && <FileInput size={10} className="text-plm-fg-muted/50 flex-shrink-0" />}
+      {showLockedIndicator && (
+        <FileInput size={10} className="text-plm-fg-muted/50 flex-shrink-0" />
+      )}
     </div>
   )
 }
@@ -298,16 +322,10 @@ function EditableField({
 /**
  * Version field with dropdown
  */
-function VersionField({
-  file,
-  fontSize
-}: {
-  file: LocalFile
-  fontSize: number
-}) {
+function VersionField({ file, fontSize }: { file: LocalFile; fontSize: number }) {
   // Use the VersionHistoryDropdown component for full functionality
   return (
-    <div 
+    <div
       className="flex items-center gap-1"
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
@@ -322,40 +340,34 @@ function VersionField({
 /**
  * Configuration indicator badge
  */
-function ConfigIndicator({
-  file,
-  fontSize
-}: {
-  file: LocalFile
-  fontSize: number
-}) {
+function ConfigIndicator({ file, fontSize }: { file: LocalFile; fontSize: number }) {
   const [showTooltip, setShowTooltip] = useState(false)
   const badgeRef = useRef<HTMLDivElement>(null)
   const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 })
-  
+
   // Check if file can have configurations (SolidWorks parts/assemblies)
   const ext = file.extension?.toLowerCase()
   const canHaveConfigs = ['.sldprt', '.sldasm'].includes(ext)
-  
+
   // Get config count from custom properties if available
   const customProps = file.pdmData?.custom_properties as Record<string, unknown> | undefined
   const configCount = customProps?.['$PRP:SW-Configuration Count'] as number | undefined
-  
+
   if (!canHaveConfigs || !configCount || configCount <= 1) return null
-  
+
   // Calculate tooltip position
   useEffect(() => {
     if (showTooltip && badgeRef.current) {
       const rect = badgeRef.current.getBoundingClientRect()
       setTooltipPos({
         top: rect.bottom + 4,
-        left: rect.left
+        left: rect.left,
       })
     }
   }, [showTooltip])
-  
+
   return (
-    <div 
+    <div
       ref={badgeRef}
       className="flex items-center gap-1 cursor-default"
       onMouseEnter={() => setShowTooltip(true)}
@@ -367,17 +379,18 @@ function ConfigIndicator({
         <Layers size={10} />
         <span>{configCount}</span>
       </div>
-      
+
       {/* Tooltip - use portal for proper stacking */}
-      {showTooltip && createPortal(
-        <div
-          className="fixed z-50 px-2 py-1 bg-plm-bg-lighter border border-plm-border rounded shadow-lg text-xs text-plm-fg"
-          style={{ top: tooltipPos.top, left: tooltipPos.left }}
-        >
-          {configCount} configurations
-        </div>,
-        document.body
-      )}
+      {showTooltip &&
+        createPortal(
+          <div
+            className="fixed z-50 px-2 py-1 bg-plm-bg-lighter border border-plm-border rounded shadow-lg text-xs text-plm-fg"
+            style={{ top: tooltipPos.top, left: tooltipPos.left }}
+          >
+            {configCount} configurations
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }
@@ -387,52 +400,49 @@ function ConfigIndicator({
  */
 export const FileCardMetadata = memo(function FileCardMetadata({
   file,
-  iconSize
+  iconSize,
 }: FileCardMetadataProps) {
-  const cardViewFields = usePDMStore(state => state.cardViewFields)
-  const user = usePDMStore(state => state.user)
-  
+  const cardViewFields = usePDMStore((state) => state.cardViewFields)
+  const user = usePDMStore((state) => state.user)
+
   // Don't show metadata for folders or at small sizes
   if (file.isDirectory || iconSize < 80) return null
-  
+
   // Get visible fields
-  const visibleFields = cardViewFields.filter(f => f.visible)
-  
+  const visibleFields = cardViewFields.filter((f) => f.visible)
+
   // Skip if no visible fields
   if (visibleFields.length === 0) return null
-  
+
   // Check if file is editable (checked out by current user)
   const isCheckedOutByMe = file.pdmData?.checked_out_by === user?.id
   // For unsynced files, they're always editable locally
   const isLocalFile = !file.pdmData && file.diffStatus !== 'cloud'
   const isEditable = isCheckedOutByMe || isLocalFile
-  
+
   // Check file type for lockout rules
   const ext = file.extension?.toLowerCase()
   const isDrawing = ext === '.slddrw'
   const isModel = ext === '.sldprt' || ext === '.sldasm'
-  
+
   // Calculate font size based on icon size
   const fontSize = Math.max(8, Math.min(10, iconSize / 10))
-  
+
   return (
-    <div 
-      className="mt-1 w-full px-1 space-y-0.5"
-      style={{ fontSize }}
-    >
+    <div className="mt-1 w-full px-1 space-y-0.5" style={{ fontSize }}>
       {/* Configuration indicator */}
       <ConfigIndicator file={file} fontSize={fontSize} />
-      
+
       {/* Metadata fields */}
-      {visibleFields.map(field => {
+      {visibleFields.map((field) => {
         const value = getFieldValue(file, field.id)
         const shortLabel = getShortLabel(field.id)
-        
+
         // Version field gets special treatment with dropdown
         if (field.id === 'version' && file.pdmData?.id) {
           return <VersionField key={field.id} file={file} fontSize={fontSize} />
         }
-        
+
         // Editable fields
         if (EDITABLE_FIELDS.includes(field.id)) {
           return (
@@ -449,10 +459,10 @@ export const FileCardMetadata = memo(function FileCardMetadata({
             />
           )
         }
-        
+
         // Non-editable fields - only show if they have values
         if (value === null) return null
-        
+
         return (
           <div
             key={field.id}

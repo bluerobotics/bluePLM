@@ -14,7 +14,9 @@ export function KeyboardHints() {
           select
         </span>
         <span className="flex items-center gap-1">
-          <kbd className="px-1 py-0.5 bg-plm-bg border border-plm-border rounded font-mono">esc</kbd>
+          <kbd className="px-1 py-0.5 bg-plm-bg border border-plm-border rounded font-mono">
+            esc
+          </kbd>
           close
         </span>
       </div>

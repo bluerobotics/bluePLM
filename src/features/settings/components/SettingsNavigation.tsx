@@ -22,7 +22,7 @@ const settingsSections: SettingsSection[] = [
       { id: 'keybindings', label: 'Keybindings' },
       { id: 'modules', label: 'Sidebar' },
       { id: 'delete-account', label: 'Delete Account' },
-    ]
+    ],
   },
   {
     category: 'Organization',
@@ -38,7 +38,7 @@ const settingsSections: SettingsSection[] = [
       { id: 'metadata-columns', label: 'File Metadata' },
       { id: 'rfq', label: 'RFQ Settings' },
       { id: 'recovery-codes', label: 'Recovery Codes' },
-    ]
+    ],
   },
   {
     category: 'Extensions',
@@ -49,7 +49,7 @@ const settingsSections: SettingsSection[] = [
       { id: 'odoo', label: 'Odoo ERP' },
       { id: 'api', label: 'REST API' },
       { id: 'webhooks', label: 'Webhooks' },
-    ]
+    ],
   },
   {
     category: 'System',
@@ -58,34 +58,41 @@ const settingsSections: SettingsSection[] = [
       { id: 'logs', label: 'Logs' },
       { id: 'dev-tools', label: 'Dev Tools' },
       { id: 'about', label: 'About' },
-    ]
+    ],
   },
 ]
 
 // Items that show status dots (integrations + Supabase which is now in Organization)
-const integrationIds = ['supabase', 'solidworks', 'google-drive', 'odoo', 'webhooks', 'api'] as const
+const integrationIds = [
+  'supabase',
+  'solidworks',
+  'google-drive',
+  'odoo',
+  'webhooks',
+  'api',
+] as const
 
 function StatusDot({ status }: { status: IntegrationStatusValue }) {
   const colors: Record<IntegrationStatusValue, string> = {
-    'online': 'bg-plm-success',
-    'partial': 'bg-yellow-500',
-    'offline': 'bg-plm-error',
+    online: 'bg-plm-success',
+    partial: 'bg-yellow-500',
+    offline: 'bg-plm-error',
     'not-configured': 'bg-plm-fg-muted/40',
     'coming-soon': 'bg-plm-fg-muted/40',
-    'checking': 'bg-plm-accent',
+    checking: 'bg-plm-accent',
   }
-  
+
   const titles: Record<IntegrationStatusValue, string> = {
-    'online': 'Connected',
-    'partial': 'Partially connected',
-    'offline': 'Offline',
+    online: 'Connected',
+    partial: 'Partially connected',
+    offline: 'Offline',
     'not-configured': 'Not configured',
     'coming-soon': 'Coming soon',
-    'checking': 'Checking status...',
+    checking: 'Checking status...',
   }
-  
+
   return (
-    <span 
+    <span
       className={`w-2.5 h-2.5 rounded-full ${colors[status]} flex-shrink-0 ${status === 'checking' ? 'animate-pulse' : ''}`}
       title={titles[status]}
     />
@@ -94,21 +101,21 @@ function StatusDot({ status }: { status: IntegrationStatusValue }) {
 
 function BackupStatusDot({ status }: { status: BackupStatusValue }) {
   const colors: Record<BackupStatusValue, string> = {
-    'online': 'bg-plm-success',
-    'partial': 'bg-yellow-500',
-    'offline': 'bg-plm-error',
+    online: 'bg-plm-success',
+    partial: 'bg-yellow-500',
+    offline: 'bg-plm-error',
     'not-configured': 'bg-plm-fg-muted/40',
   }
-  
+
   const titles: Record<BackupStatusValue, string> = {
-    'online': 'Backups working',
-    'partial': 'Needs attention',
-    'offline': 'Backup failed',
+    online: 'Backups working',
+    partial: 'Needs attention',
+    offline: 'Backup failed',
     'not-configured': 'Not configured',
   }
-  
+
   return (
-    <span 
+    <span
       className={`w-2.5 h-2.5 rounded-full ${colors[status]} flex-shrink-0`}
       title={titles[status]}
     />
@@ -119,27 +126,31 @@ export function SettingsNavigation({ activeTab, onTabChange }: SettingsNavigatio
   // ═══════════════════════════════════════════════════════════════════════════
   // INTEGRATION & BACKUP STATUSES - Consumed from centralized store slice
   // ═══════════════════════════════════════════════════════════════════════════
-  
+
   // Subscribe to integration statuses from the store (no local state needed)
   // The useIntegrationStatus hook in App.tsx handles the status check orchestration
   const integrations = usePDMStore((s) => s.integrations)
   const backupStatus = usePDMStore((s) => s.backupStatus)
-  
+
   const isIntegration = (id: SettingsTab): boolean => {
     return (integrationIds as readonly string[]).includes(id)
   }
-  
+
   // Get integration status from store, with fallback for initial load
   const getIntegrationStatus = (id: SettingsTab): IntegrationStatusValue => {
     if (!isIntegration(id)) return 'not-configured'
     const integration = integrations[id as IntegrationId]
     return integration?.status || 'checking'
   }
-  
+
   return (
     <div className="flex flex-col h-full bg-plm-sidebar">
       {/* Scrollable navigation */}
-      <nav className="flex-1 overflow-y-auto hide-scrollbar" role="menu" aria-label="Settings navigation">
+      <nav
+        className="flex-1 overflow-y-auto hide-scrollbar"
+        role="menu"
+        aria-label="Settings navigation"
+      >
         <div className="flex flex-col py-1">
           {settingsSections.map((section, sectionIndex) => (
             <div key={section.category}>
@@ -151,10 +162,10 @@ export function SettingsNavigation({ activeTab, onTabChange }: SettingsNavigatio
                     {section.category}
                   </span>
                 </div>
-                
+
                 {/* Menu items - tighter spacing */}
                 <div>
-                  {section.items.map(item => (
+                  {section.items.map((item) => (
                     <button
                       key={item.id}
                       role="menuitem"
@@ -172,14 +183,12 @@ export function SettingsNavigation({ activeTab, onTabChange }: SettingsNavigatio
                       {isIntegration(item.id) && (
                         <StatusDot status={getIntegrationStatus(item.id)} />
                       )}
-                      {item.id === 'backup' && (
-                        <BackupStatusDot status={backupStatus} />
-                      )}
+                      {item.id === 'backup' && <BackupStatusDot status={backupStatus} />}
                     </button>
                   ))}
                 </div>
               </div>
-              
+
               {/* Divider between sections (except after last) */}
               {sectionIndex < settingsSections.length - 1 && (
                 <div className="h-px w-full bg-plm-border/50 mt-3" />

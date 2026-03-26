@@ -1,9 +1,9 @@
 /**
  * Extension-Scoped Storage
- * 
+ *
  * Provides key-value storage for extensions, isolated per org and extension.
  * Data is stored in the extension_storage table in the org's Supabase database.
- * 
+ *
  * @module extensions/storage
  */
 
@@ -22,7 +22,7 @@ export const STORAGE_LIMITS = {
   /** Maximum key length in characters */
   MAX_KEY_LENGTH: 256,
   /** Maximum value size in bytes (100KB) */
-  MAX_VALUE_SIZE: 100 * 1024
+  MAX_VALUE_SIZE: 100 * 1024,
 } as const
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -31,22 +31,22 @@ export const STORAGE_LIMITS = {
 
 /**
  * Extension-scoped key-value storage.
- * 
+ *
  * Provides CRUD operations for extension data, isolated per org and extension.
- * 
+ *
  * @example
  * ```typescript
  * const storage = new ExtensionStorage(supabase, orgId, extensionId);
- * 
+ *
  * // Store data
  * await storage.set('config', { theme: 'dark' });
- * 
+ *
  * // Retrieve data
  * const config = await storage.get<{ theme: string }>('config');
- * 
+ *
  * // List keys
  * const keys = await storage.list('config.');
- * 
+ *
  * // Delete data
  * await storage.delete('config');
  * ```
@@ -56,11 +56,7 @@ export class ExtensionStorage {
   private orgId: string
   private extensionId: string
 
-  constructor(
-    supabase: SupabaseClient,
-    orgId: string,
-    extensionId: string
-  ) {
+  constructor(supabase: SupabaseClient, orgId: string, extensionId: string) {
     this.supabase = supabase
     this.orgId = orgId
     this.extensionId = extensionId
@@ -68,7 +64,7 @@ export class ExtensionStorage {
 
   /**
    * Get a value by key.
-   * 
+   *
    * @param key - Storage key
    * @returns Value or undefined if not found
    */
@@ -96,7 +92,7 @@ export class ExtensionStorage {
 
   /**
    * Set a value for a key.
-   * 
+   *
    * @param key - Storage key
    * @param value - Value to store (must be JSON-serializable)
    */
@@ -107,24 +103,25 @@ export class ExtensionStorage {
     // Check key count limit
     const count = await this.getKeyCount()
     const existing = await this.get(key)
-    
+
     if (!existing && count >= STORAGE_LIMITS.MAX_KEYS) {
       throw new StorageError(
-        `Storage limit exceeded: maximum ${STORAGE_LIMITS.MAX_KEYS} keys per extension`
+        `Storage limit exceeded: maximum ${STORAGE_LIMITS.MAX_KEYS} keys per extension`,
       )
     }
 
-    const { error } = await this.supabase
-      .from('extension_storage')
-      .upsert({
+    const { error } = await this.supabase.from('extension_storage').upsert(
+      {
         org_id: this.orgId,
         extension_id: this.extensionId,
         key,
         value,
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'org_id,extension_id,key'
-      })
+        updated_at: new Date().toISOString(),
+      },
+      {
+        onConflict: 'org_id,extension_id,key',
+      },
+    )
 
     if (error) {
       throw new StorageError(`Failed to set key ${key}: ${error.message}`)
@@ -133,7 +130,7 @@ export class ExtensionStorage {
 
   /**
    * Delete a key.
-   * 
+   *
    * @param key - Storage key to delete
    */
   async delete(key: string): Promise<void> {
@@ -153,7 +150,7 @@ export class ExtensionStorage {
 
   /**
    * List all keys, optionally filtered by prefix.
-   * 
+   *
    * @param prefix - Optional key prefix to filter by
    * @returns Array of matching keys
    */
@@ -174,7 +171,7 @@ export class ExtensionStorage {
       throw new StorageError(`Failed to list keys: ${error.message}`)
     }
 
-    return data?.map(row => row.key) ?? []
+    return data?.map((row) => row.key) ?? []
   }
 
   /**
@@ -218,15 +215,13 @@ export class ExtensionStorage {
     }
 
     if (key.length > STORAGE_LIMITS.MAX_KEY_LENGTH) {
-      throw new StorageError(
-        `Key too long: max ${STORAGE_LIMITS.MAX_KEY_LENGTH} characters`
-      )
+      throw new StorageError(`Key too long: max ${STORAGE_LIMITS.MAX_KEY_LENGTH} characters`)
     }
 
     // Only allow alphanumeric, dots, dashes, underscores
     if (!/^[a-zA-Z0-9._-]+$/.test(key)) {
       throw new StorageError(
-        'Key must only contain alphanumeric characters, dots, dashes, and underscores'
+        'Key must only contain alphanumeric characters, dots, dashes, and underscores',
       )
     }
   }
@@ -240,7 +235,7 @@ export class ExtensionStorage {
 
     if (size > STORAGE_LIMITS.MAX_VALUE_SIZE) {
       throw new StorageError(
-        `Value too large: ${size} bytes (max ${STORAGE_LIMITS.MAX_VALUE_SIZE} bytes)`
+        `Value too large: ${size} bytes (max ${STORAGE_LIMITS.MAX_VALUE_SIZE} bytes)`,
       )
     }
   }

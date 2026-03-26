@@ -13,9 +13,9 @@ export interface GoogleDriveFileResult {
 }
 
 // Search filter types
-export type SearchFilter = 
+export type SearchFilter =
   | 'all'
-  | 'files' 
+  | 'files'
   | 'folders'
   | 'part-number'
   | 'description'

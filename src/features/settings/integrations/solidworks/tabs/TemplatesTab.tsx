@@ -54,12 +54,13 @@ export function TemplatesTab() {
             <FolderOpen size={16} className="mt-0.5 flex-shrink-0" />
             <div>
               <p>
-                Configure SOLIDWORKS template folder locations within the vault. 
-                When applied, SOLIDWORKS will use these folders for new documents.
+                Configure SOLIDWORKS template folder locations within the vault. When applied,
+                SOLIDWORKS will use these folders for new documents.
               </p>
               {installedSwVersions.length > 0 ? (
                 <p className="text-plm-fg-dim mt-1">
-                  Detected SOLIDWORKS versions: <span className="text-plm-fg">{installedSwVersions.join(', ')}</span>
+                  Detected SOLIDWORKS versions:{' '}
+                  <span className="text-plm-fg">{installedSwVersions.join(', ')}</span>
                 </p>
               ) : (
                 <p className="text-yellow-400/80 mt-1">
@@ -68,7 +69,7 @@ export function TemplatesTab() {
               )}
             </div>
           </div>
-          
+
           {/* Document Templates */}
           <div className="space-y-1">
             <label className="text-sm text-plm-fg-dim">Document Templates</label>
@@ -94,7 +95,7 @@ export function TemplatesTab() {
               Part, assembly, and drawing templates for new documents
             </div>
           </div>
-          
+
           {/* Sheet Formats */}
           <div className="space-y-1">
             <label className="text-sm text-plm-fg-dim">Sheet Formats</label>
@@ -120,7 +121,7 @@ export function TemplatesTab() {
               Drawing title blocks, borders, and sheet formats
             </div>
           </div>
-          
+
           {/* BOM Templates */}
           <div className="space-y-1">
             <label className="text-sm text-plm-fg-dim">BOM Templates</label>
@@ -142,11 +143,9 @@ export function TemplatesTab() {
                 </button>
               )}
             </div>
-            <div className="text-xs text-plm-fg-dim">
-              Bill of materials table templates
-            </div>
+            <div className="text-xs text-plm-fg-dim">Bill of materials table templates</div>
           </div>
-          
+
           {/* Custom Property Files */}
           <div className="space-y-1">
             <label className="text-sm text-plm-fg-dim">Custom Property Files</label>
@@ -168,17 +167,16 @@ export function TemplatesTab() {
                 </button>
               )}
             </div>
-            <div className="text-xs text-plm-fg-dim">
-              Custom property tab builder templates
-            </div>
+            <div className="text-xs text-plm-fg-dim">Custom property tab builder templates</div>
           </div>
-          
+
           {/* Prompt for Template Toggle */}
           <div className="flex items-center justify-between pt-3 border-t border-plm-border">
             <div>
               <div className="text-sm text-plm-fg">Prompt user to select document template</div>
               <div className="text-xs text-plm-fg-muted">
-                When enabled, SOLIDWORKS will show the template picker dialog when creating new documents
+                When enabled, SOLIDWORKS will show the template picker dialog when creating new
+                documents
               </div>
             </div>
             <button
@@ -195,7 +193,7 @@ export function TemplatesTab() {
               />
             </button>
           </div>
-          
+
           {/* Admin Actions */}
           {isAdmin && (
             <div className="flex items-center justify-between pt-3 border-t border-plm-border">
@@ -223,7 +221,14 @@ export function TemplatesTab() {
                 </button>
                 <button
                   onClick={handlePushTemplates}
-                  disabled={isPushingTemplates || (!hasUnsavedTemplates && !orgTemplates?.documentTemplates && !orgTemplates?.sheetFormats && !orgTemplates?.bomTemplates && !orgTemplates?.customPropertyFolders)}
+                  disabled={
+                    isPushingTemplates ||
+                    (!hasUnsavedTemplates &&
+                      !orgTemplates?.documentTemplates &&
+                      !orgTemplates?.sheetFormats &&
+                      !orgTemplates?.bomTemplates &&
+                      !orgTemplates?.customPropertyFolders)
+                  }
                   className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-plm-accent text-white hover:bg-plm-accent/80 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isPushingTemplates ? (
@@ -236,7 +241,7 @@ export function TemplatesTab() {
               </div>
             </div>
           )}
-          
+
           {/* User Actions (Apply to local SOLIDWORKS) */}
           <div className="flex items-center justify-between pt-3 border-t border-plm-border">
             <div>
@@ -247,9 +252,20 @@ export function TemplatesTab() {
             </div>
             <button
               onClick={handleApplyTemplates}
-              disabled={isApplyingTemplates || (!templateDocuments && !templateSheetFormats && !templateBom && !templateCustomProperty && !promptForTemplate)}
+              disabled={
+                isApplyingTemplates ||
+                (!templateDocuments &&
+                  !templateSheetFormats &&
+                  !templateBom &&
+                  !templateCustomProperty &&
+                  !promptForTemplate)
+              }
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                !templateDocuments && !templateSheetFormats && !templateBom && !templateCustomProperty && !promptForTemplate
+                !templateDocuments &&
+                !templateSheetFormats &&
+                !templateBom &&
+                !templateCustomProperty &&
+                !promptForTemplate
                   ? 'bg-plm-bg-secondary text-plm-fg-dim cursor-not-allowed'
                   : isApplyingTemplates
                     ? 'bg-green-500/50 text-white cursor-wait'
@@ -264,14 +280,14 @@ export function TemplatesTab() {
               {isApplyingTemplates ? 'Applying...' : 'Apply to SOLIDWORKS'}
             </button>
           </div>
-          
+
           {/* Last pushed info */}
           {orgTemplates?.lastPushedAt && (
             <div className="text-xs text-plm-fg-dim pt-2 border-t border-plm-border">
               Last pushed: {new Date(orgTemplates.lastPushedAt).toLocaleString()}
             </div>
           )}
-          
+
           {/* Warning if no vault selected */}
           {!vaultPath && (
             <div className="flex items-center gap-2 text-sm text-yellow-400 pt-2 border-t border-plm-border">

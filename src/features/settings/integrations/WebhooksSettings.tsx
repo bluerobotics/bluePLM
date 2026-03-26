@@ -1,14 +1,14 @@
 import { useState, useEffect, useCallback } from 'react'
 import { log } from '@/lib/logger'
-import { 
-  Plug, 
-  Plus, 
-  Trash2, 
-  Edit2, 
-  Check, 
-  X, 
-  Copy, 
-  Eye, 
+import {
+  Plug,
+  Plus,
+  Trash2,
+  Edit2,
+  Check,
+  X,
+  Copy,
+  Eye,
   EyeOff,
   RefreshCw,
   ChevronDown,
@@ -19,7 +19,7 @@ import {
   XCircle,
   RotateCcw,
   Shield,
-  Send
+  Send,
 } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
@@ -28,7 +28,7 @@ import type { Webhook, WebhookDelivery, WebhookEvent, WebhookTriggerFilter } fro
 
 // Supabase v2 type inference incomplete for webhooks table
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const db = supabase as any
+const db = supabase as any // TODO: type this
 
 // All available webhook events
 const WEBHOOK_EVENTS: { value: WebhookEvent; label: string; category: string }[] = [
@@ -47,17 +47,20 @@ const WEBHOOK_EVENTS: { value: WebhookEvent; label: string; category: string }[]
 ]
 
 // Group events by category
-const EVENTS_BY_CATEGORY = WEBHOOK_EVENTS.reduce((acc, event) => {
-  if (!acc[event.category]) acc[event.category] = []
-  acc[event.category].push(event)
-  return acc
-}, {} as Record<string, typeof WEBHOOK_EVENTS>)
+const EVENTS_BY_CATEGORY = WEBHOOK_EVENTS.reduce(
+  (acc, event) => {
+    if (!acc[event.category]) acc[event.category] = []
+    acc[event.category].push(event)
+    return acc
+  },
+  {} as Record<string, typeof WEBHOOK_EVENTS>,
+)
 
 // Generate a secure random secret
 function generateSecret(): string {
   const array = new Uint8Array(32)
   crypto.getRandomValues(array)
-  return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('')
+  return Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join('')
 }
 
 interface WebhookFormData {
@@ -94,20 +97,22 @@ const USER_ROLES = [
 export function WebhooksSettings() {
   const { user, organization, addToast, getEffectiveRole } = usePDMStore()
   const isAdmin = getEffectiveRole() === 'admin'
-  
+
   const [webhooks, setWebhooks] = useState<Webhook[]>([])
   const [deliveries, setDeliveries] = useState<WebhookDelivery[]>([])
-  const [orgUsers, setOrgUsers] = useState<{ id: string; email: string; full_name: string | null; role: string }[]>([])
+  const [orgUsers, setOrgUsers] = useState<
+    { id: string; email: string; full_name: string | null; role: string }[]
+  >([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  
+
   // Form state
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [formData, setFormData] = useState<WebhookFormData>(emptyFormData)
   const [showSecret, setShowSecret] = useState(false)
   const [secretCopied, setSecretCopied] = useState(false)
-  
+
   // Expanded states
   const [expandedWebhook, setExpandedWebhook] = useState<string | null>(null)
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({
@@ -115,10 +120,10 @@ export function WebhooksSettings() {
     Reviews: false,
     ECOs: false,
   })
-  
+
   // Testing state
   const [testingWebhook, setTestingWebhook] = useState<string | null>(null)
-  
+
   // Delete confirmation state
   const [deletingWebhook, setDeletingWebhook] = useState<Webhook | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -126,65 +131,68 @@ export function WebhooksSettings() {
   // Load webhooks
   const loadWebhooks = useCallback(async () => {
     if (!organization?.id) return
-    
+
     try {
       const { data, error } = await supabase
         .from('webhooks')
         .select('*')
         .eq('org_id', organization.id)
         .order('created_at', { ascending: false })
-      
+
       if (error) throw error
       setWebhooks(data || [])
-    } catch (err) {
-      log.error('[Webhooks]', 'Failed to load webhooks', { error: err })
+    } catch (error) {
+      log.error('[Webhooks]', 'Failed to load webhooks', { error: error })
     } finally {
       setLoading(false)
     }
   }, [organization?.id])
-  
+
   // Load org users for trigger filter
   const loadOrgUsers = useCallback(async () => {
     if (!organization?.id) return
-    
+
     try {
       const { data, error } = await supabase
         .from('users')
         .select('id, email, full_name, role')
         .eq('org_id', organization.id)
         .order('full_name')
-      
+
       if (error) throw error
       setOrgUsers(data || [])
-    } catch (err) {
-      log.error('[Webhooks]', 'Failed to load users', { error: err })
+    } catch (error) {
+      log.error('[Webhooks]', 'Failed to load users', { error: error })
     }
   }, [organization?.id])
-  
+
   // Load deliveries for a webhook
-  const loadDeliveries = useCallback(async (webhookId: string) => {
-    if (!organization?.id) return
-    
-    try {
-      const { data, error } = await supabase
-        .from('webhook_deliveries')
-        .select('*')
-        .eq('webhook_id', webhookId)
-        .order('created_at', { ascending: false })
-        .limit(20)
-      
-      if (error) throw error
-      setDeliveries(data || [])
-    } catch (err) {
-      log.error('[Webhooks]', 'Failed to load deliveries', { error: err })
-    }
-  }, [organization?.id])
-  
+  const loadDeliveries = useCallback(
+    async (webhookId: string) => {
+      if (!organization?.id) return
+
+      try {
+        const { data, error } = await supabase
+          .from('webhook_deliveries')
+          .select('*')
+          .eq('webhook_id', webhookId)
+          .order('created_at', { ascending: false })
+          .limit(20)
+
+        if (error) throw error
+        setDeliveries(data || [])
+      } catch (error) {
+        log.error('[Webhooks]', 'Failed to load deliveries', { error: error })
+      }
+    },
+    [organization?.id],
+  )
+
   useEffect(() => {
     loadWebhooks()
     loadOrgUsers()
   }, [loadWebhooks, loadOrgUsers])
-  
+
   useEffect(() => {
     if (expandedWebhook) {
       loadDeliveries(expandedWebhook)
@@ -197,7 +205,7 @@ export function WebhooksSettings() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!organization?.id || !user?.id) return
-    
+
     // Validation
     if (!formData.name.trim()) {
       addToast('error', 'Name is required')
@@ -211,7 +219,7 @@ export function WebhooksSettings() {
       addToast('error', 'Select at least one event')
       return
     }
-    
+
     // Validate URL
     try {
       new URL(formData.url)
@@ -219,7 +227,7 @@ export function WebhooksSettings() {
       addToast('error', 'Invalid URL format')
       return
     }
-    
+
     setSaving(true)
     try {
       if (editingId) {
@@ -238,44 +246,42 @@ export function WebhooksSettings() {
             updated_by: user.id,
           })
           .eq('id', editingId)
-        
+
         if (error) throw error
         addToast('success', 'Webhook updated')
       } else {
         // Create new
-        const { error } = await db
-          .from('webhooks')
-          .insert({
-            org_id: organization.id,
-            name: formData.name.trim(),
-            description: formData.description.trim() || null,
-            url: formData.url.trim(),
-            secret: formData.secret,
-            events: formData.events,
-            is_active: formData.is_active,
-            trigger_filter: formData.trigger_filter,
-            trigger_roles: formData.trigger_roles,
-            trigger_user_ids: formData.trigger_user_ids,
-            created_by: user.id,
-          })
-        
+        const { error } = await db.from('webhooks').insert({
+          org_id: organization.id,
+          name: formData.name.trim(),
+          description: formData.description.trim() || null,
+          url: formData.url.trim(),
+          secret: formData.secret,
+          events: formData.events,
+          is_active: formData.is_active,
+          trigger_filter: formData.trigger_filter,
+          trigger_roles: formData.trigger_roles,
+          trigger_user_ids: formData.trigger_user_ids,
+          created_by: user.id,
+        })
+
         if (error) throw error
         addToast('success', 'Webhook created')
       }
-      
+
       // Reset form and reload
       setShowForm(false)
       setEditingId(null)
       setFormData({ ...emptyFormData, secret: generateSecret() })
       loadWebhooks()
-    } catch (err) {
-      log.error('[Webhooks]', 'Failed to save webhook', { error: err })
+    } catch (error) {
+      log.error('[Webhooks]', 'Failed to save webhook', { error: error })
       addToast('error', 'Failed to save webhook')
     } finally {
       setSaving(false)
     }
   }
-  
+
   const handleEdit = (webhook: Webhook) => {
     setFormData({
       name: webhook.name,
@@ -292,45 +298,42 @@ export function WebhooksSettings() {
     setShowForm(true)
     setShowSecret(false)
   }
-  
+
   const handleDelete = async () => {
     if (!deletingWebhook) return
-    
+
     setIsDeleting(true)
     try {
-      const { error } = await supabase
-        .from('webhooks')
-        .delete()
-        .eq('id', deletingWebhook.id)
-      
+      const { error } = await supabase.from('webhooks').delete().eq('id', deletingWebhook.id)
+
       if (error) throw error
       addToast('success', 'Webhook deleted')
       loadWebhooks()
-    } catch (err) {
-      log.error('[Webhooks]', 'Failed to delete webhook', { error: err })
+    } catch (error) {
+      log.error('[Webhooks]', 'Failed to delete webhook', { error: error })
       addToast('error', 'Failed to delete webhook')
     } finally {
       setIsDeleting(false)
       setDeletingWebhook(null)
     }
   }
-  
+
   const handleToggleActive = async (webhook: Webhook) => {
     try {
       const { error } = await db
         .from('webhooks')
         .update({ is_active: !webhook.is_active })
         .eq('id', webhook.id)
-      
+
       if (error) throw error
       addToast('success', webhook.is_active ? 'Webhook disabled' : 'Webhook enabled')
       loadWebhooks()
-    } catch (err) {
-      log.error('[Webhooks]', 'Failed to toggle webhook', { error: err })
+    } catch (error) {
+      log.error('[Webhooks]', 'Failed to toggle webhook', { error: error })
       addToast('error', 'Failed to update webhook')
     }
   }
-  
+
   const handleCopySecret = async () => {
     const result = await copyToClipboard(formData.secret)
     if (result.success) {
@@ -340,10 +343,10 @@ export function WebhooksSettings() {
       log.error('[Webhooks]', 'Failed to copy', { error: result.error })
     }
   }
-  
+
   const handleTestWebhook = async (webhook: Webhook) => {
     setTestingWebhook(webhook.id)
-    
+
     try {
       // Send a test payload
       const testPayload = {
@@ -357,7 +360,7 @@ export function WebhooksSettings() {
           message: 'This is a test webhook from BluePLM',
         },
       }
-      
+
       // Create signature
       const encoder = new TextEncoder()
       const key = await crypto.subtle.importKey(
@@ -365,18 +368,14 @@ export function WebhooksSettings() {
         encoder.encode(webhook.secret),
         { name: 'HMAC', hash: 'SHA-256' },
         false,
-        ['sign']
+        ['sign'],
       )
       const payloadString = JSON.stringify(testPayload)
-      const signature = await crypto.subtle.sign(
-        'HMAC',
-        key,
-        encoder.encode(payloadString)
-      )
+      const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(payloadString))
       const signatureHex = Array.from(new Uint8Array(signature))
-        .map(b => b.toString(16).padStart(2, '0'))
+        .map((b) => b.toString(16).padStart(2, '0'))
         .join('')
-      
+
       const response = await fetch(webhook.url, {
         method: 'POST',
         headers: {
@@ -388,37 +387,37 @@ export function WebhooksSettings() {
         body: payloadString,
         signal: AbortSignal.timeout(webhook.timeout_seconds * 1000),
       })
-      
+
       if (response.ok) {
         addToast('success', `Test successful! Status: ${response.status}`)
       } else {
         addToast('warning', `Test completed with status: ${response.status}`)
       }
-    } catch (err) {
-      log.error('[Webhooks]', 'Test failed', { error: err })
-      addToast('error', `Test failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    } catch (error) {
+      log.error('[Webhooks]', 'Test failed', { error: error })
+      addToast('error', `Test failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setTestingWebhook(null)
     }
   }
-  
+
   const toggleEvent = (event: WebhookEvent) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       events: prev.events.includes(event)
-        ? prev.events.filter(e => e !== event)
+        ? prev.events.filter((e) => e !== event)
         : [...prev.events, event],
     }))
   }
-  
+
   const toggleCategory = (_category: string, events: typeof WEBHOOK_EVENTS) => {
-    const categoryEvents = events.map(e => e.value)
-    const allSelected = categoryEvents.every(e => formData.events.includes(e))
-    
-    setFormData(prev => ({
+    const categoryEvents = events.map((e) => e.value)
+    const allSelected = categoryEvents.every((e) => formData.events.includes(e))
+
+    setFormData((prev) => ({
       ...prev,
       events: allSelected
-        ? prev.events.filter(e => !categoryEvents.includes(e))
+        ? prev.events.filter((e) => !categoryEvents.includes(e))
         : [...new Set([...prev.events, ...categoryEvents])],
     }))
   }
@@ -454,9 +453,7 @@ export function WebhooksSettings() {
           </div>
           <div>
             <h3 className="text-base font-medium text-plm-fg">Webhooks</h3>
-            <p className="text-sm text-plm-fg-muted">
-              Notify external services when events occur
-            </p>
+            <p className="text-sm text-plm-fg-muted">Notify external services when events occur</p>
           </div>
         </div>
         {!showForm && (
@@ -476,7 +473,10 @@ export function WebhooksSettings() {
 
       {/* Create/Edit Form */}
       {showForm && (
-        <form onSubmit={handleSubmit} className="p-4 bg-plm-bg rounded-lg border border-plm-border space-y-4">
+        <form
+          onSubmit={handleSubmit}
+          className="p-4 bg-plm-bg rounded-lg border border-plm-border space-y-4"
+        >
           <div className="flex items-center justify-between">
             <h4 className="text-base font-medium text-plm-fg">
               {editingId ? 'Edit Webhook' : 'New Webhook'}
@@ -492,44 +492,44 @@ export function WebhooksSettings() {
               <X size={18} />
             </button>
           </div>
-          
+
           {/* Name */}
           <div className="space-y-1">
             <label className="text-sm text-plm-fg-muted">Name *</label>
             <input
               type="text"
               value={formData.name}
-              onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))}
+              onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
               placeholder="e.g., Slack Notifications"
               className="w-full bg-plm-bg-secondary border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
               autoFocus
             />
           </div>
-          
+
           {/* Description */}
           <div className="space-y-1">
             <label className="text-sm text-plm-fg-muted">Description</label>
             <input
               type="text"
               value={formData.description}
-              onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
+              onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
               placeholder="Optional description"
               className="w-full bg-plm-bg-secondary border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
             />
           </div>
-          
+
           {/* URL */}
           <div className="space-y-1">
             <label className="text-sm text-plm-fg-muted">Payload URL *</label>
             <input
               type="url"
               value={formData.url}
-              onChange={e => setFormData(prev => ({ ...prev, url: e.target.value }))}
+              onChange={(e) => setFormData((prev) => ({ ...prev, url: e.target.value }))}
               placeholder="https://example.com/webhooks/blueplm"
               className="w-full bg-plm-bg-secondary border border-plm-border rounded-lg px-3 py-2 text-base font-mono focus:border-plm-accent focus:outline-none"
             />
           </div>
-          
+
           {/* Secret (only for new webhooks) */}
           {!editingId && (
             <div className="space-y-1">
@@ -537,7 +537,7 @@ export function WebhooksSettings() {
                 <label className="text-sm text-plm-fg-muted">Secret</label>
                 <button
                   type="button"
-                  onClick={() => setFormData(prev => ({ ...prev, secret: generateSecret() }))}
+                  onClick={() => setFormData((prev) => ({ ...prev, secret: generateSecret() }))}
                   className="text-xs text-plm-accent hover:underline flex items-center gap-1"
                 >
                   <RefreshCw size={12} />
@@ -577,20 +577,22 @@ export function WebhooksSettings() {
               </p>
             </div>
           )}
-          
+
           {/* Events */}
           <div className="space-y-2">
             <label className="text-sm text-plm-fg-muted">Events *</label>
             <div className="bg-plm-bg-secondary rounded-lg border border-plm-border divide-y divide-plm-border">
               {Object.entries(EVENTS_BY_CATEGORY).map(([category, events]) => {
-                const allSelected = events.every(e => formData.events.includes(e.value))
-                const someSelected = events.some(e => formData.events.includes(e.value))
-                
+                const allSelected = events.every((e) => formData.events.includes(e.value))
+                const someSelected = events.some((e) => formData.events.includes(e.value))
+
                 return (
                   <div key={category}>
                     <button
                       type="button"
-                      onClick={() => setExpandedCategories(prev => ({ ...prev, [category]: !prev[category] }))}
+                      onClick={() =>
+                        setExpandedCategories((prev) => ({ ...prev, [category]: !prev[category] }))
+                      }
                       className="w-full flex items-center justify-between p-3 hover:bg-plm-highlight transition-colors"
                     >
                       <div className="flex items-center gap-2">
@@ -602,7 +604,8 @@ export function WebhooksSettings() {
                         <span className="text-sm font-medium text-plm-fg">{category}</span>
                         {someSelected && (
                           <span className="text-xs text-plm-accent">
-                            ({events.filter(e => formData.events.includes(e.value)).length}/{events.length})
+                            ({events.filter((e) => formData.events.includes(e.value)).length}/
+                            {events.length})
                           </span>
                         )}
                       </div>
@@ -613,8 +616,8 @@ export function WebhooksSettings() {
                           toggleCategory(category, events)
                         }}
                         className={`text-xs px-2 py-0.5 rounded ${
-                          allSelected 
-                            ? 'bg-plm-accent/20 text-plm-accent' 
+                          allSelected
+                            ? 'bg-plm-accent/20 text-plm-accent'
                             : 'bg-plm-fg-muted/10 text-plm-fg-muted hover:bg-plm-fg-muted/20'
                         }`}
                       >
@@ -623,7 +626,7 @@ export function WebhooksSettings() {
                     </button>
                     {expandedCategories[category] && (
                       <div className="px-3 pb-3 space-y-1">
-                        {events.map(event => (
+                        {events.map((event) => (
                           <label
                             key={event.value}
                             className="flex items-center gap-2 p-2 rounded hover:bg-plm-highlight cursor-pointer"
@@ -647,7 +650,7 @@ export function WebhooksSettings() {
               })}
             </div>
           </div>
-          
+
           {/* Trigger Filter - WHO triggers this webhook */}
           <div className="space-y-3">
             <label className="text-sm text-plm-fg-muted">Trigger when action is by</label>
@@ -656,17 +659,19 @@ export function WebhooksSettings() {
                 { value: 'everyone', label: 'Everyone' },
                 { value: 'roles', label: 'Specific Roles' },
                 { value: 'users', label: 'Specific Users' },
-              ].map(option => (
+              ].map((option) => (
                 <button
                   key={option.value}
                   type="button"
-                  onClick={() => setFormData(prev => ({ 
-                    ...prev, 
-                    trigger_filter: option.value as WebhookTriggerFilter,
-                    // Reset selections when changing filter type
-                    trigger_roles: option.value === 'roles' ? prev.trigger_roles : [],
-                    trigger_user_ids: option.value === 'users' ? prev.trigger_user_ids : [],
-                  }))}
+                  onClick={() =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      trigger_filter: option.value as WebhookTriggerFilter,
+                      // Reset selections when changing filter type
+                      trigger_roles: option.value === 'roles' ? prev.trigger_roles : [],
+                      trigger_user_ids: option.value === 'users' ? prev.trigger_user_ids : [],
+                    }))
+                  }
                   className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
                     formData.trigger_filter === option.value
                       ? 'bg-plm-accent/20 border-plm-accent text-plm-accent'
@@ -677,13 +682,15 @@ export function WebhooksSettings() {
                 </button>
               ))}
             </div>
-            
+
             {/* Role selection */}
             {formData.trigger_filter === 'roles' && (
               <div className="p-3 bg-plm-bg-secondary rounded-lg border border-plm-border space-y-2">
-                <p className="text-xs text-plm-fg-muted">Select which roles trigger this webhook:</p>
+                <p className="text-xs text-plm-fg-muted">
+                  Select which roles trigger this webhook:
+                </p>
                 <div className="flex flex-wrap gap-2">
-                  {USER_ROLES.map(role => (
+                  {USER_ROLES.map((role) => (
                     <label
                       key={role.value}
                       className={`flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer transition-colors ${
@@ -696,10 +703,10 @@ export function WebhooksSettings() {
                         type="checkbox"
                         checked={formData.trigger_roles.includes(role.value)}
                         onChange={() => {
-                          setFormData(prev => ({
+                          setFormData((prev) => ({
                             ...prev,
                             trigger_roles: prev.trigger_roles.includes(role.value)
-                              ? prev.trigger_roles.filter(r => r !== role.value)
+                              ? prev.trigger_roles.filter((r) => r !== role.value)
                               : [...prev.trigger_roles, role.value],
                           }))
                         }}
@@ -711,13 +718,15 @@ export function WebhooksSettings() {
                 </div>
               </div>
             )}
-            
+
             {/* User selection */}
             {formData.trigger_filter === 'users' && (
               <div className="p-3 bg-plm-bg-secondary rounded-lg border border-plm-border space-y-2">
-                <p className="text-xs text-plm-fg-muted">Select which users trigger this webhook:</p>
+                <p className="text-xs text-plm-fg-muted">
+                  Select which users trigger this webhook:
+                </p>
                 <div className="max-h-48 overflow-y-auto space-y-1">
-                  {orgUsers.map(orgUser => (
+                  {orgUsers.map((orgUser) => (
                     <label
                       key={orgUser.id}
                       className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${
@@ -730,10 +739,10 @@ export function WebhooksSettings() {
                         type="checkbox"
                         checked={formData.trigger_user_ids.includes(orgUser.id)}
                         onChange={() => {
-                          setFormData(prev => ({
+                          setFormData((prev) => ({
                             ...prev,
                             trigger_user_ids: prev.trigger_user_ids.includes(orgUser.id)
-                              ? prev.trigger_user_ids.filter(id => id !== orgUser.id)
+                              ? prev.trigger_user_ids.filter((id) => id !== orgUser.id)
                               : [...prev.trigger_user_ids, orgUser.id],
                           }))
                         }}
@@ -757,14 +766,14 @@ export function WebhooksSettings() {
               </div>
             )}
           </div>
-          
+
           {/* Active toggle */}
           <label className="flex items-center gap-3 cursor-pointer">
             <div className="relative">
               <input
                 type="checkbox"
                 checked={formData.is_active}
-                onChange={e => setFormData(prev => ({ ...prev, is_active: e.target.checked }))}
+                onChange={(e) => setFormData((prev) => ({ ...prev, is_active: e.target.checked }))}
                 className="sr-only peer"
               />
               <div className="w-10 h-6 bg-plm-border rounded-full peer peer-checked:bg-plm-accent transition-colors"></div>
@@ -772,7 +781,7 @@ export function WebhooksSettings() {
             </div>
             <span className="text-sm text-plm-fg">Active</span>
           </label>
-          
+
           {/* Actions */}
           <div className="flex items-center justify-end gap-2 pt-2">
             <button
@@ -817,7 +826,7 @@ export function WebhooksSettings() {
         </div>
       ) : (
         <div className="space-y-3">
-          {webhooks.map(webhook => (
+          {webhooks.map((webhook) => (
             <div
               key={webhook.id}
               className="bg-plm-bg rounded-lg border border-plm-border overflow-hidden"
@@ -826,12 +835,15 @@ export function WebhooksSettings() {
               <div className="p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-start gap-3 min-w-0">
-                    <div className={`mt-1 p-2 rounded-lg ${
-                      webhook.is_active ? 'bg-green-500/20' : 'bg-plm-fg-muted/20'
-                    }`}>
-                      <Zap size={16} className={
-                        webhook.is_active ? 'text-green-400' : 'text-plm-fg-muted'
-                      } />
+                    <div
+                      className={`mt-1 p-2 rounded-lg ${
+                        webhook.is_active ? 'bg-green-500/20' : 'bg-plm-fg-muted/20'
+                      }`}
+                    >
+                      <Zap
+                        size={16}
+                        className={webhook.is_active ? 'text-green-400' : 'text-plm-fg-muted'}
+                      />
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
@@ -845,13 +857,9 @@ export function WebhooksSettings() {
                         )}
                       </div>
                       {webhook.description && (
-                        <p className="text-sm text-plm-fg-muted truncate">
-                          {webhook.description}
-                        </p>
+                        <p className="text-sm text-plm-fg-muted truncate">{webhook.description}</p>
                       )}
-                      <code className="text-xs text-plm-fg-dim font-mono">
-                        {webhook.url}
-                      </code>
+                      <code className="text-xs text-plm-fg-dim font-mono">{webhook.url}</code>
                       <div className="flex items-center gap-4 mt-2 text-xs text-plm-fg-muted">
                         <span className="flex items-center gap-1">
                           <CheckCircle2 size={12} className="text-green-400" />
@@ -870,7 +878,7 @@ export function WebhooksSettings() {
                       </div>
                     </div>
                   </div>
-                  
+
                   {/* Actions */}
                   <div className="flex items-center gap-1">
                     <button
@@ -889,7 +897,9 @@ export function WebhooksSettings() {
                     <button
                       onClick={() => handleToggleActive(webhook)}
                       className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none"
-                      style={{ backgroundColor: webhook.is_active ? 'rgb(34 197 94)' : 'rgb(75 85 99)' }}
+                      style={{
+                        backgroundColor: webhook.is_active ? 'rgb(34 197 94)' : 'rgb(75 85 99)',
+                      }}
                       title={webhook.is_active ? 'Disable webhook' : 'Enable webhook'}
                     >
                       <span
@@ -914,10 +924,10 @@ export function WebhooksSettings() {
                     </button>
                   </div>
                 </div>
-                
+
                 {/* Events badges */}
                 <div className="flex flex-wrap gap-1 mt-3">
-                  {webhook.events.map(event => (
+                  {webhook.events.map((event) => (
                     <span
                       key={event}
                       className="px-2 py-0.5 text-xs bg-plm-accent/10 text-plm-accent rounded font-mono"
@@ -926,28 +936,33 @@ export function WebhooksSettings() {
                     </span>
                   ))}
                 </div>
-                
+
                 {/* Trigger filter badge */}
                 {webhook.trigger_filter && webhook.trigger_filter !== 'everyone' && (
                   <div className="mt-2 text-xs text-plm-fg-muted">
                     <span className="text-plm-fg-dim">Triggered by: </span>
                     {webhook.trigger_filter === 'roles' && (
                       <span className="text-plm-fg">
-                        {webhook.trigger_roles?.map(r => r.charAt(0).toUpperCase() + r.slice(1)).join(', ') || 'No roles selected'}
+                        {webhook.trigger_roles
+                          ?.map((r) => r.charAt(0).toUpperCase() + r.slice(1))
+                          .join(', ') || 'No roles selected'}
                       </span>
                     )}
                     {webhook.trigger_filter === 'users' && (
                       <span className="text-plm-fg">
-                        {webhook.trigger_user_ids?.length || 0} selected user{(webhook.trigger_user_ids?.length || 0) !== 1 ? 's' : ''}
+                        {webhook.trigger_user_ids?.length || 0} selected user
+                        {(webhook.trigger_user_ids?.length || 0) !== 1 ? 's' : ''}
                       </span>
                     )}
                   </div>
                 )}
               </div>
-              
+
               {/* Delivery history toggle */}
               <button
-                onClick={() => setExpandedWebhook(expandedWebhook === webhook.id ? null : webhook.id)}
+                onClick={() =>
+                  setExpandedWebhook(expandedWebhook === webhook.id ? null : webhook.id)
+                }
                 className="w-full flex items-center justify-between px-4 py-2 bg-plm-bg-secondary border-t border-plm-border hover:bg-plm-highlight transition-colors text-sm"
               >
                 <span className="text-plm-fg-muted">Recent Deliveries</span>
@@ -957,7 +972,7 @@ export function WebhooksSettings() {
                   <ChevronRight size={16} className="text-plm-fg-muted" />
                 )}
               </button>
-              
+
               {/* Delivery history */}
               {expandedWebhook === webhook.id && (
                 <div className="border-t border-plm-border">
@@ -967,18 +982,31 @@ export function WebhooksSettings() {
                     </div>
                   ) : (
                     <div className="divide-y divide-plm-border max-h-64 overflow-y-auto">
-                      {deliveries.map(delivery => (
+                      {deliveries.map((delivery) => (
                         <div key={delivery.id} className="p-3 flex items-center gap-3 text-sm">
-                          <div className={`p-1.5 rounded ${
-                            delivery.status === 'success' ? 'bg-green-500/20' :
-                            delivery.status === 'failed' ? 'bg-red-500/20' :
-                            delivery.status === 'retrying' ? 'bg-yellow-500/20' :
-                            'bg-plm-fg-muted/20'
-                          }`}>
-                            {delivery.status === 'success' && <CheckCircle2 size={14} className="text-green-400" />}
-                            {delivery.status === 'failed' && <XCircle size={14} className="text-red-400" />}
-                            {delivery.status === 'retrying' && <RotateCcw size={14} className="text-yellow-400" />}
-                            {delivery.status === 'pending' && <Clock size={14} className="text-plm-fg-muted" />}
+                          <div
+                            className={`p-1.5 rounded ${
+                              delivery.status === 'success'
+                                ? 'bg-green-500/20'
+                                : delivery.status === 'failed'
+                                  ? 'bg-red-500/20'
+                                  : delivery.status === 'retrying'
+                                    ? 'bg-yellow-500/20'
+                                    : 'bg-plm-fg-muted/20'
+                            }`}
+                          >
+                            {delivery.status === 'success' && (
+                              <CheckCircle2 size={14} className="text-green-400" />
+                            )}
+                            {delivery.status === 'failed' && (
+                              <XCircle size={14} className="text-red-400" />
+                            )}
+                            {delivery.status === 'retrying' && (
+                              <RotateCcw size={14} className="text-yellow-400" />
+                            )}
+                            {delivery.status === 'pending' && (
+                              <Clock size={14} className="text-plm-fg-muted" />
+                            )}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
@@ -986,23 +1014,26 @@ export function WebhooksSettings() {
                                 {delivery.event_type}
                               </code>
                               {delivery.response_status && (
-                                <span className={`text-xs ${
-                                  delivery.response_status >= 200 && delivery.response_status < 300
-                                    ? 'text-green-400'
-                                    : 'text-red-400'
-                                }`}>
+                                <span
+                                  className={`text-xs ${
+                                    delivery.response_status >= 200 &&
+                                    delivery.response_status < 300
+                                      ? 'text-green-400'
+                                      : 'text-red-400'
+                                  }`}
+                                >
                                   {delivery.response_status}
                                 </span>
                               )}
                             </div>
                             {delivery.last_error && (
-                              <p className="text-xs text-red-400 truncate">
-                                {delivery.last_error}
-                              </p>
+                              <p className="text-xs text-red-400 truncate">{delivery.last_error}</p>
                             )}
                           </div>
                           <div className="text-xs text-plm-fg-dim whitespace-nowrap">
-                            {delivery.created_at ? new Date(delivery.created_at).toLocaleString() : 'unknown'}
+                            {delivery.created_at
+                              ? new Date(delivery.created_at).toLocaleString()
+                              : 'unknown'}
                           </div>
                         </div>
                       ))}
@@ -1017,14 +1048,25 @@ export function WebhooksSettings() {
 
       {/* Delete Webhook Confirmation Dialog */}
       {deletingWebhook && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={() => setDeletingWebhook(null)}>
-          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center"
+          onClick={() => setDeletingWebhook(null)}
+        >
+          <div
+            className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3 className="text-lg font-medium text-plm-fg mb-4">Delete Webhook</h3>
             <p className="text-base text-plm-fg-muted mb-4">
-              Are you sure you want to delete <strong>{deletingWebhook.name}</strong>? This cannot be undone.
+              Are you sure you want to delete <strong>{deletingWebhook.name}</strong>? This cannot
+              be undone.
             </p>
             <div className="flex gap-2 justify-end">
-              <button onClick={() => setDeletingWebhook(null)} className="btn btn-ghost" disabled={isDeleting}>
+              <button
+                onClick={() => setDeletingWebhook(null)}
+                className="btn btn-ghost"
+                disabled={isDeleting}
+              >
                 Cancel
               </button>
               <button
@@ -1047,7 +1089,7 @@ export function WebhooksSettings() {
           <code className="text-plm-accent">X-BluePLM-Signature</code> header.
         </p>
         <pre className="p-3 bg-plm-bg-secondary rounded text-xs font-mono text-plm-fg-dim overflow-x-auto">
-{`{
+          {`{
   "event": "file.checked_in",
   "timestamp": "2024-01-15T10:30:00Z",
   "organization": {

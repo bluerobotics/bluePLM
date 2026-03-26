@@ -9,22 +9,54 @@ import { Loader2, Construction, List } from 'lucide-react'
 import { SettingsNavigation } from '@/features/settings'
 
 // Lazy loaded views - only loaded when the module is enabled and selected
-const FileTree = lazy(() => import('@/features/source/explorer').then(m => ({ default: m.FileTree })))
-const PendingView = lazy(() => import('@/features/source/pending').then(m => ({ default: m.PendingView })))
-const WorkflowsView = lazy(() => import('@/features/source/workflows/WorkflowsView').then(m => ({ default: m.WorkflowsView })))
-const HistoryView = lazy(() => import('@/features/source/history').then(m => ({ default: m.HistoryView })))
-const TrashView = lazy(() => import('@/features/source/trash').then(m => ({ default: m.TrashView })))
-const ReviewsDashboard = lazy(() => import('@/features/source/reviews').then(m => ({ default: m.ReviewsDashboard })))
-const TerminalView = lazy(() => import('@/features/dev-tools/terminal').then(m => ({ default: m.TerminalView })))
-const ECOView = lazy(() => import('@/features/change-control/eco').then(m => ({ default: m.ECOView })))
-const ECRView = lazy(() => import('@/features/change-control/ecr').then(m => ({ default: m.ECRView })))
-const DeviationsView = lazy(() => import('@/features/change-control/deviations').then(m => ({ default: m.DeviationsView })))
-const ProductsView = lazy(() => import('@/features/items/products').then(m => ({ default: m.ProductsView })))
-const ProcessView = lazy(() => import('@/features/change-control/process').then(m => ({ default: m.ProcessView })))
-const ScheduleView = lazy(() => import('@/features/change-control/schedule').then(m => ({ default: m.ScheduleView })))
-const SuppliersView = lazy(() => import('@/features/supply-chain/suppliers').then(m => ({ default: m.SuppliersView })))
-const SupplierPortalView = lazy(() => import('@/features/supply-chain/portal').then(m => ({ default: m.SupplierPortalView })))
-const GoogleDriveView = lazy(() => import('@/features/integrations/google-drive').then(m => ({ default: m.GoogleDriveView })))
+const FileTree = lazy(() =>
+  import('@/features/source/explorer').then((m) => ({ default: m.FileTree })),
+)
+const PendingView = lazy(() =>
+  import('@/features/source/pending').then((m) => ({ default: m.PendingView })),
+)
+const WorkflowsView = lazy(() =>
+  import('@/features/source/workflows/WorkflowsView').then((m) => ({ default: m.WorkflowsView })),
+)
+const HistoryView = lazy(() =>
+  import('@/features/source/history').then((m) => ({ default: m.HistoryView })),
+)
+const TrashView = lazy(() =>
+  import('@/features/source/trash').then((m) => ({ default: m.TrashView })),
+)
+const ReviewsDashboard = lazy(() =>
+  import('@/features/source/reviews').then((m) => ({ default: m.ReviewsDashboard })),
+)
+const TerminalView = lazy(() =>
+  import('@/features/dev-tools/terminal').then((m) => ({ default: m.TerminalView })),
+)
+const ECOView = lazy(() =>
+  import('@/features/change-control/eco').then((m) => ({ default: m.ECOView })),
+)
+const ECRView = lazy(() =>
+  import('@/features/change-control/ecr').then((m) => ({ default: m.ECRView })),
+)
+const DeviationsView = lazy(() =>
+  import('@/features/change-control/deviations').then((m) => ({ default: m.DeviationsView })),
+)
+const ProductsView = lazy(() =>
+  import('@/features/items/products').then((m) => ({ default: m.ProductsView })),
+)
+const ProcessView = lazy(() =>
+  import('@/features/change-control/process').then((m) => ({ default: m.ProcessView })),
+)
+const ScheduleView = lazy(() =>
+  import('@/features/change-control/schedule').then((m) => ({ default: m.ScheduleView })),
+)
+const SuppliersView = lazy(() =>
+  import('@/features/supply-chain/suppliers').then((m) => ({ default: m.SuppliersView })),
+)
+const SupplierPortalView = lazy(() =>
+  import('@/features/supply-chain/portal').then((m) => ({ default: m.SupplierPortalView })),
+)
+const GoogleDriveView = lazy(() =>
+  import('@/features/integrations/google-drive').then((m) => ({ default: m.GoogleDriveView })),
+)
 
 // Fixed width for settings view (not resizable)
 const SETTINGS_SIDEBAR_WIDTH = 200
@@ -45,9 +77,7 @@ function ModuleDisabled({ moduleName }: { moduleName: string }) {
       <p className="text-sm">
         The <span className="font-medium">{moduleName}</span> module is disabled.
       </p>
-      <p className="text-xs mt-1 text-plm-fg-dim">
-        Enable it in Settings → Modules
-      </p>
+      <p className="text-xs mt-1 text-plm-fg-dim">Enable it in Settings → Modules</p>
     </div>
   )
 }
@@ -57,31 +87,27 @@ function ModuleComingSoon({ moduleName }: { moduleName: string }) {
   return (
     <div className="flex flex-col items-center justify-center h-48 text-plm-fg-muted p-4 text-center">
       <Construction size={32} className="mb-3 text-plm-accent" />
-      <p className="text-sm font-medium">
-        {moduleName}
-      </p>
-      <p className="text-xs mt-1 text-plm-fg-dim">
-        Coming soon
-      </p>
+      <p className="text-sm font-medium">{moduleName}</p>
+      <p className="text-xs mt-1 text-plm-fg-dim">Coming soon</p>
     </div>
   )
 }
 
 export function Sidebar() {
   // Selective selectors: only re-render when specific values change
-  const activeView = usePDMStore(s => s.activeView)
-  const sidebarWidth = usePDMStore(s => s.sidebarWidth)
-  const connectedVaults = usePDMStore(s => s.connectedVaults)
-  const moduleConfig = usePDMStore(s => s.moduleConfig)
-  const settingsTab = usePDMStore(s => s.settingsTab)
-  const setSettingsTab = usePDMStore(s => s.setSettingsTab)
-  const treeRowSize = usePDMStore(s => s.treeRowSize)
-  const setTreeRowSize = usePDMStore(s => s.setTreeRowSize)
-  
+  const activeView = usePDMStore((s) => s.activeView)
+  const sidebarWidth = usePDMStore((s) => s.sidebarWidth)
+  const connectedVaults = usePDMStore((s) => s.connectedVaults)
+  const moduleConfig = usePDMStore((s) => s.moduleConfig)
+  const settingsTab = usePDMStore((s) => s.settingsTab)
+  const setSettingsTab = usePDMStore((s) => s.setSettingsTab)
+  const treeRowSize = usePDMStore((s) => s.treeRowSize)
+  const setTreeRowSize = usePDMStore((s) => s.setTreeRowSize)
+
   // Call hooks directly instead of receiving as props
   const { loadFiles } = useLoadFiles()
   const { handleOpenVault, handleOpenRecentVault } = useVaultManagement()
-  
+
   // Settings view uses fixed width, others use resizable width
   const effectiveWidth = activeView === 'settings' ? SETTINGS_SIDEBAR_WIDTH : sidebarWidth
 
@@ -90,14 +116,14 @@ export function Sidebar() {
     if (activeView === 'settings') {
       return <SettingsNavigation activeTab={settingsTab} onTabChange={setSettingsTab} />
     }
-    
+
     // Check if the module is enabled for all other views
     const moduleId = activeView as string
-    const isEnabled = isModuleVisible(moduleId as any, moduleConfig)
-    
+    const isEnabled = isModuleVisible(moduleId as any, moduleConfig) // TODO: type this
+
     // Get the module name from the constants
     const moduleName = MODULE_LABELS[activeView] || activeView
-    
+
     switch (activeView) {
       // ============================================
       // SOURCE FILES
@@ -105,58 +131,80 @@ export function Sidebar() {
       case 'explorer':
         return isEnabled ? (
           <Suspense fallback={<ViewLoading />}>
-            <FileTree onOpenVault={handleOpenVault} onOpenRecentVault={handleOpenRecentVault} onRefresh={loadFiles} />
+            <FileTree
+              onOpenVault={handleOpenVault}
+              onOpenRecentVault={handleOpenRecentVault}
+              onRefresh={loadFiles}
+            />
           </Suspense>
-        ) : <ModuleDisabled moduleName={moduleName} />
-        
+        ) : (
+          <ModuleDisabled moduleName={moduleName} />
+        )
+
       case 'pending':
         return isEnabled ? (
           <Suspense fallback={<ViewLoading />}>
             <PendingView onRefresh={loadFiles} />
           </Suspense>
-        ) : <ModuleDisabled moduleName={moduleName} />
-        
+        ) : (
+          <ModuleDisabled moduleName={moduleName} />
+        )
+
       case 'history':
         return isEnabled ? (
           <Suspense fallback={<ViewLoading />}>
             <HistoryView />
           </Suspense>
-        ) : <ModuleDisabled moduleName={moduleName} />
-        
+        ) : (
+          <ModuleDisabled moduleName={moduleName} />
+        )
+
       case 'workflows':
         return isEnabled ? (
           <Suspense fallback={<ViewLoading />}>
             <WorkflowsView />
           </Suspense>
-        ) : <ModuleDisabled moduleName={moduleName} />
-        
+        ) : (
+          <ModuleDisabled moduleName={moduleName} />
+        )
+
       case 'trash':
         return isEnabled ? (
           <Suspense fallback={<ViewLoading />}>
             <TrashView />
           </Suspense>
-        ) : <ModuleDisabled moduleName={moduleName} />
-        
+        ) : (
+          <ModuleDisabled moduleName={moduleName} />
+        )
+
       case 'reviews':
         return isEnabled ? (
           <Suspense fallback={<ViewLoading />}>
             <ReviewsDashboard />
           </Suspense>
-        ) : <ModuleDisabled moduleName={moduleName} />
+        ) : (
+          <ModuleDisabled moduleName={moduleName} />
+        )
 
       // ============================================
       // ITEMS
       // ============================================
       case 'items':
       case 'boms':
-        return isEnabled ? <ModuleComingSoon moduleName={moduleName} /> : <ModuleDisabled moduleName={moduleName} />
-        
+        return isEnabled ? (
+          <ModuleComingSoon moduleName={moduleName} />
+        ) : (
+          <ModuleDisabled moduleName={moduleName} />
+        )
+
       case 'products':
         return isEnabled ? (
           <Suspense fallback={<ViewLoading />}>
             <ProductsView />
           </Suspense>
-        ) : <ModuleDisabled moduleName={moduleName} />
+        ) : (
+          <ModuleDisabled moduleName={moduleName} />
+        )
 
       // ============================================
       // CHANGE CONTROL
@@ -166,35 +214,45 @@ export function Sidebar() {
           <Suspense fallback={<ViewLoading />}>
             <ECRView />
           </Suspense>
-        ) : <ModuleDisabled moduleName={moduleName} />
-        
+        ) : (
+          <ModuleDisabled moduleName={moduleName} />
+        )
+
       case 'eco':
         return isEnabled ? (
           <Suspense fallback={<ViewLoading />}>
             <ECOView />
           </Suspense>
-        ) : <ModuleDisabled moduleName={moduleName} />
-        
+        ) : (
+          <ModuleDisabled moduleName={moduleName} />
+        )
+
       case 'deviations':
         return isEnabled ? (
           <Suspense fallback={<ViewLoading />}>
             <DeviationsView />
           </Suspense>
-        ) : <ModuleDisabled moduleName={moduleName} />
-        
+        ) : (
+          <ModuleDisabled moduleName={moduleName} />
+        )
+
       case 'release-schedule':
         return isEnabled ? (
           <Suspense fallback={<ViewLoading />}>
             <ScheduleView />
           </Suspense>
-        ) : <ModuleDisabled moduleName={moduleName} />
-        
+        ) : (
+          <ModuleDisabled moduleName={moduleName} />
+        )
+
       case 'process':
         return isEnabled ? (
           <Suspense fallback={<ViewLoading />}>
             <ProcessView />
           </Suspense>
-        ) : <ModuleDisabled moduleName={moduleName} />
+        ) : (
+          <ModuleDisabled moduleName={moduleName} />
+        )
 
       // ============================================
       // SUPPLY CHAIN - SUPPLIERS
@@ -204,14 +262,18 @@ export function Sidebar() {
           <Suspense fallback={<ViewLoading />}>
             <SuppliersView />
           </Suspense>
-        ) : <ModuleDisabled moduleName={moduleName} />
-        
+        ) : (
+          <ModuleDisabled moduleName={moduleName} />
+        )
+
       case 'supplier-portal':
         return isEnabled ? (
           <Suspense fallback={<ViewLoading />}>
             <SupplierPortalView />
           </Suspense>
-        ) : <ModuleDisabled moduleName={moduleName} />
+        ) : (
+          <ModuleDisabled moduleName={moduleName} />
+        )
 
       // ============================================
       // SUPPLY CHAIN - PURCHASING
@@ -219,14 +281,22 @@ export function Sidebar() {
       case 'purchase-requests':
       case 'purchase-orders':
       case 'invoices':
-        return isEnabled ? <ModuleComingSoon moduleName={moduleName} /> : <ModuleDisabled moduleName={moduleName} />
+        return isEnabled ? (
+          <ModuleComingSoon moduleName={moduleName} />
+        ) : (
+          <ModuleDisabled moduleName={moduleName} />
+        )
 
       // ============================================
       // SUPPLY CHAIN - LOGISTICS
       // ============================================
       case 'shipping':
       case 'receiving':
-        return isEnabled ? <ModuleComingSoon moduleName={moduleName} /> : <ModuleDisabled moduleName={moduleName} />
+        return isEnabled ? (
+          <ModuleComingSoon moduleName={moduleName} />
+        ) : (
+          <ModuleDisabled moduleName={moduleName} />
+        )
 
       // ============================================
       // PRODUCTION
@@ -239,7 +309,11 @@ export function Sidebar() {
       case 'work-centers':
       case 'process-flows':
       case 'equipment':
-        return isEnabled ? <ModuleComingSoon moduleName={moduleName} /> : <ModuleDisabled moduleName={moduleName} />
+        return isEnabled ? (
+          <ModuleComingSoon moduleName={moduleName} />
+        ) : (
+          <ModuleDisabled moduleName={moduleName} />
+        )
 
       // ============================================
       // PRODUCTION - ANALYTICS
@@ -249,7 +323,11 @@ export function Sidebar() {
       case 'downtime':
       case 'oee':
       case 'scrap-tracking':
-        return isEnabled ? <ModuleComingSoon moduleName={moduleName} /> : <ModuleDisabled moduleName={moduleName} />
+        return isEnabled ? (
+          <ModuleComingSoon moduleName={moduleName} />
+        ) : (
+          <ModuleDisabled moduleName={moduleName} />
+        )
 
       // ============================================
       // QUALITY
@@ -263,7 +341,11 @@ export function Sidebar() {
       case 'certificates':
       case 'calibration':
       case 'quality-templates':
-        return isEnabled ? <ModuleComingSoon moduleName={moduleName} /> : <ModuleDisabled moduleName={moduleName} />
+        return isEnabled ? (
+          <ModuleComingSoon moduleName={moduleName} />
+        ) : (
+          <ModuleDisabled moduleName={moduleName} />
+        )
 
       // ============================================
       // ACCOUNTING
@@ -273,7 +355,11 @@ export function Sidebar() {
       case 'general-ledger':
       case 'cost-tracking':
       case 'budgets':
-        return isEnabled ? <ModuleComingSoon moduleName={moduleName} /> : <ModuleDisabled moduleName={moduleName} />
+        return isEnabled ? (
+          <ModuleComingSoon moduleName={moduleName} />
+        ) : (
+          <ModuleDisabled moduleName={moduleName} />
+        )
 
       // ============================================
       // INTEGRATIONS
@@ -283,7 +369,9 @@ export function Sidebar() {
           <Suspense fallback={<ViewLoading />}>
             <GoogleDriveView />
           </Suspense>
-        ) : <ModuleDisabled moduleName={moduleName} />
+        ) : (
+          <ModuleDisabled moduleName={moduleName} />
+        )
 
       // ============================================
       // SYSTEM
@@ -293,15 +381,19 @@ export function Sidebar() {
           <Suspense fallback={<ViewLoading />}>
             <TerminalView onRefresh={loadFiles} />
           </Suspense>
-        ) : <ModuleDisabled moduleName={moduleName} />
-        
+        ) : (
+          <ModuleDisabled moduleName={moduleName} />
+        )
+
       default:
         // Default to explorer if enabled, otherwise show disabled message
         return isModuleVisible('explorer', moduleConfig) ? (
           <Suspense fallback={<ViewLoading />}>
             <FileTree onOpenVault={handleOpenVault} onOpenRecentVault={handleOpenRecentVault} />
           </Suspense>
-        ) : <ModuleDisabled moduleName="Explorer" />
+        ) : (
+          <ModuleDisabled moduleName="Explorer" />
+        )
     }
   }
 
@@ -329,9 +421,7 @@ export function Sidebar() {
           </div>
         )}
       </div>
-      <div className="flex-1 overflow-auto">
-        {renderView()}
-      </div>
+      <div className="flex-1 overflow-auto">{renderView()}</div>
     </div>
   )
 }

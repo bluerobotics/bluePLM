@@ -26,7 +26,7 @@ export function ConfigContextMenu({
   isExportingConfigs,
   onExportConfigs,
   onClearSelection,
-  onClose
+  onClose,
 }: ConfigContextMenuProps) {
   // Track which export submenu is currently open
   const [exportSubmenu, setExportSubmenu] = useState<ExportFormat | null>(null)
@@ -53,7 +53,7 @@ export function ConfigContextMenu({
 
   const handleExportTo = async (format: ExportFormat) => {
     if (isExportingConfigs) return
-    
+
     // Open folder picker dialog
     const result = await window.electronAPI?.selectFolder()
     if (result?.success && result.folderPath) {
@@ -70,9 +70,9 @@ export function ConfigContextMenu({
   const renderExportSubmenu = (format: ExportFormat) => {
     const config = formatConfig[format]
     const countLabel = configCount > 1 ? ` (${configCount})` : ''
-    
+
     return (
-      <div 
+      <div
         key={format}
         className={`context-menu-item relative ${isExportingConfigs ? 'opacity-50' : ''}`}
         onMouseEnter={() => handleMouseEnterExport(format)}
@@ -87,9 +87,9 @@ export function ConfigContextMenu({
         ) : (
           <Package size={14} className={config.colorClass} />
         )}
-        Export {config.label}{countLabel}
+        Export {config.label}
+        {countLabel}
         <span className="text-xs text-plm-fg-muted ml-auto">▶</span>
-        
         {/* Export destination submenu */}
         {exportSubmenu === format && (
           <ContextSubmenu
@@ -102,7 +102,7 @@ export function ConfigContextMenu({
             }}
             onMouseLeave={handleMouseLeaveExport}
           >
-            <div 
+            <div
               className="context-menu-item"
               onClick={(e) => {
                 e.stopPropagation()
@@ -112,7 +112,7 @@ export function ConfigContextMenu({
               <FolderDown size={14} className={config.colorClass} />
               Export Here
             </div>
-            <div 
+            <div
               className="context-menu-item"
               onClick={(e) => {
                 e.stopPropagation()
@@ -131,17 +131,17 @@ export function ConfigContextMenu({
   return (
     <>
       {/* Backdrop to close menu */}
-      <div 
-        className="fixed inset-0 z-50" 
+      <div
+        className="fixed inset-0 z-50"
         onClick={onClose}
         onContextMenu={(e) => {
           e.preventDefault()
           onClose()
         }}
       />
-      
+
       {/* Menu content */}
-      <div 
+      <div
         className="context-menu z-[60]"
         style={{ left: configContextMenu.x, top: configContextMenu.y }}
       >
@@ -150,10 +150,12 @@ export function ConfigContextMenu({
           {configCount > 1 ? (
             <span className="text-cyan-400">{configCount} configurations selected</span>
           ) : (
-            <span>Configuration: <span className="text-cyan-400">{configContextMenu.configName}</span></span>
+            <span>
+              Configuration: <span className="text-cyan-400">{configContextMenu.configName}</span>
+            </span>
           )}
         </div>
-        
+
         {/* Export options for parts/assemblies */}
         {isPartOrAsm && (
           <>
@@ -162,10 +164,10 @@ export function ConfigContextMenu({
             {renderExportSubmenu('stl')}
           </>
         )}
-        
+
         {/* Export Options link */}
         <div className="context-menu-separator" />
-        <div 
+        <div
           className="context-menu-item text-plm-fg-muted"
           onClick={() => {
             onClose()
@@ -176,15 +178,12 @@ export function ConfigContextMenu({
           <Settings size={14} />
           Export Options...
         </div>
-        
+
         {/* Selection info */}
         {configCount > 1 && (
           <>
             <div className="context-menu-separator" />
-            <div 
-              className="context-menu-item text-plm-fg-muted"
-              onClick={onClearSelection}
-            >
+            <div className="context-menu-item text-plm-fg-muted" onClick={onClearSelection}>
               <Check size={14} />
               Clear Selection
             </div>

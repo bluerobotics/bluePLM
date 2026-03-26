@@ -8,40 +8,55 @@ import { usePDMStore } from '@/stores/pdmStore'
  */
 export function useTreeExpansion() {
   // Selective state selectors - each subscription only triggers on its own changes
-  const expandedFolders = usePDMStore(s => s.expandedFolders)
-  const connectedVaults = usePDMStore(s => s.connectedVaults)
-  
+  const expandedFolders = usePDMStore((s) => s.expandedFolders)
+  const connectedVaults = usePDMStore((s) => s.connectedVaults)
+
   // Actions grouped with useShallow
   const { toggleFolder, toggleVaultExpanded } = usePDMStore(
-    useShallow(s => ({ toggleFolder: s.toggleFolder, toggleVaultExpanded: s.toggleVaultExpanded }))
+    useShallow((s) => ({
+      toggleFolder: s.toggleFolder,
+      toggleVaultExpanded: s.toggleVaultExpanded,
+    })),
   )
-  
+
   // Check if a folder is expanded
-  const isExpanded = useCallback((path: string) => {
-    return expandedFolders.has(path)
-  }, [expandedFolders])
-  
+  const isExpanded = useCallback(
+    (path: string) => {
+      return expandedFolders.has(path)
+    },
+    [expandedFolders],
+  )
+
   // Check if a vault is expanded
-  const isVaultExpanded = useCallback((vaultId: string) => {
-    const vault = connectedVaults.find(v => v.id === vaultId)
-    return vault?.isExpanded ?? false
-  }, [connectedVaults])
-  
+  const isVaultExpanded = useCallback(
+    (vaultId: string) => {
+      const vault = connectedVaults.find((v) => v.id === vaultId)
+      return vault?.isExpanded ?? false
+    },
+    [connectedVaults],
+  )
+
   // Toggle expansion for a folder
-  const toggleExpansion = useCallback((path: string) => {
-    toggleFolder(path)
-  }, [toggleFolder])
-  
+  const toggleExpansion = useCallback(
+    (path: string) => {
+      toggleFolder(path)
+    },
+    [toggleFolder],
+  )
+
   // Toggle expansion for a vault
-  const toggleVaultExpansion = useCallback((vaultId: string) => {
-    toggleVaultExpanded(vaultId)
-  }, [toggleVaultExpanded])
-  
-  return { 
-    isExpanded, 
+  const toggleVaultExpansion = useCallback(
+    (vaultId: string) => {
+      toggleVaultExpanded(vaultId)
+    },
+    [toggleVaultExpanded],
+  )
+
+  return {
+    isExpanded,
     isVaultExpanded,
-    toggleExpansion, 
+    toggleExpansion,
     toggleVaultExpansion,
-    expandedFolders 
+    expandedFolders,
   }
 }

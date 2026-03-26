@@ -9,12 +9,12 @@ interface VaultNotFoundDialogProps {
   onBrowseNewPath: () => void
 }
 
-export function VaultNotFoundDialog({ 
-  vaultPath, 
+export function VaultNotFoundDialog({
+  vaultPath,
   vaultName,
-  onClose, 
+  onClose,
   onOpenSettings,
-  onBrowseNewPath 
+  onBrowseNewPath,
 }: VaultNotFoundDialogProps) {
   const [isExiting, setIsExiting] = useState(false)
 
@@ -42,15 +42,15 @@ export function VaultNotFoundDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div 
+      <div
         className={`absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-200 ${
           isExiting ? 'opacity-0' : 'opacity-100'
         }`}
         onClick={handleClose}
       />
-      
+
       {/* Dialog */}
-      <div 
+      <div
         className={`
           relative bg-pdm-panel border border-pdm-border rounded-lg shadow-2xl 
           w-full max-w-md mx-4 overflow-hidden
@@ -83,7 +83,7 @@ export function VaultNotFoundDialog({
             </p>
             <p className="text-sm font-mono text-pdm-fg break-all">{vaultPath}</p>
           </div>
-          
+
           <p className="text-sm text-pdm-fg-muted">
             This vault folder doesn't exist on your computer. This can happen if:
           </p>
@@ -123,4 +123,3 @@ export function VaultNotFoundDialog({
     </div>
   )
 }
-

@@ -11,41 +11,44 @@ import { log } from '@/lib/logger'
  */
 export async function softDeleteFile(
   fileId: string,
-  userId: string
+  userId: string,
 ): Promise<{ success: boolean; file?: any; error?: string }> {
   const client = getSupabaseClient()
-  
+
   // Get current file to validate
   const { data: file, error: fetchError } = await client
     .from('files')
     .select('id, org_id, file_name, file_path, checked_out_by')
     .eq('id', fileId)
     .single()
-  
+
   if (fetchError) {
     return { success: false, error: fetchError.message }
   }
-  
+
   // Don't allow deleting files checked out by other users
   if (file.checked_out_by && file.checked_out_by !== userId) {
-    return { success: false, error: 'Cannot delete a file checked out by another user. Ask them to check it in first.' }
+    return {
+      success: false,
+      error: 'Cannot delete a file checked out by another user. Ask them to check it in first.',
+    }
   }
-  
+
   // Soft delete - set deleted_at and deleted_by
   const { data: deletedFile, error } = await client
     .from('files')
     .update({
       deleted_at: new Date().toISOString(),
-      deleted_by: userId
+      deleted_by: userId,
     })
     .eq('id', fileId)
     .select()
     .single()
-  
+
   if (error) {
     return { success: false, error: error.message }
   }
-  
+
   // Log activity
   try {
     await client.from('activity').insert({
@@ -57,13 +60,13 @@ export async function softDeleteFile(
       details: {
         file_name: file.file_name,
         file_path: file.file_path,
-        soft_delete: true
-      }
+        soft_delete: true,
+      },
     })
   } catch {
     // Activity logging is non-critical
   }
-  
+
   return { success: true, file: deletedFile }
 }
 
@@ -72,12 +75,12 @@ export async function softDeleteFile(
  */
 export async function softDeleteFiles(
   fileIds: string[],
-  userId: string
+  userId: string,
 ): Promise<{ success: boolean; deleted: number; failed: number; errors: string[] }> {
   const errors: string[] = []
   let deleted = 0
   let failed = 0
-  
+
   for (const fileId of fileIds) {
     const result = await softDeleteFile(fileId, userId)
     if (result.success) {
@@ -87,7 +90,7 @@ export async function softDeleteFiles(
       errors.push(result.error || 'Unknown error')
     }
   }
-  
+
   return { success: failed === 0, deleted, failed, errors }
 }
 
@@ -96,29 +99,29 @@ export async function softDeleteFiles(
  */
 export async function restoreFile(
   fileId: string,
-  userId: string
+  userId: string,
 ): Promise<{ success: boolean; file?: any; error?: string }> {
   const client = getSupabaseClient()
-  
+
   // Get current file to validate
   const { data: file, error: fetchError } = await client
     .from('files')
     .select('id, org_id, file_name, file_path, deleted_at, vault_id')
     .eq('id', fileId)
     .single()
-  
+
   if (fetchError) {
     return { success: false, error: fetchError.message }
   }
-  
+
   if (!file.deleted_at) {
     return { success: false, error: 'File is not in trash' }
   }
-  
+
   if (!file.vault_id) {
     return { success: false, error: 'File has no vault assigned' }
   }
-  
+
   // Check if a file with the same path already exists (case-insensitive: Windows paths are case-insensitive)
   const escapedPath = file.file_path.replace(/%/g, '\\%').replace(/_/g, '\\_')
   const { data: existingFile } = await client
@@ -128,33 +131,35 @@ export async function restoreFile(
     .ilike('file_path', escapedPath)
     .is('deleted_at', null)
     .single()
-  
+
   if (existingFile) {
-    return { 
-      success: false, 
-      error: 'A file with the same path already exists. Rename or delete the existing file first.' 
+    return {
+      success: false,
+      error: 'A file with the same path already exists. Rename or delete the existing file first.',
     }
   }
-  
+
   // Restore - clear deleted_at and deleted_by
   // Select full PDMFile-compatible data including workflow_state for addCloudFile()
   const { data: restoredFile, error } = await client
     .from('files')
     .update({
       deleted_at: null,
-      deleted_by: null
+      deleted_by: null,
     })
     .eq('id', fileId)
-    .select(`
+    .select(
+      `
       *,
       workflow_state:workflow_states(id, name, label, color, icon, is_editable, requires_checkout)
-    `)
+    `,
+    )
     .single()
-  
+
   if (error) {
     return { success: false, error: error.message }
   }
-  
+
   // Log activity
   try {
     await client.from('activity').insert({
@@ -165,13 +170,13 @@ export async function restoreFile(
       action: 'restore',
       details: {
         file_name: file.file_name,
-        file_path: file.file_path
-      }
+        file_path: file.file_path,
+      },
     })
   } catch {
     // Activity logging is non-critical
   }
-  
+
   return { success: true, file: restoredFile }
 }
 
@@ -180,12 +185,12 @@ export async function restoreFile(
  */
 export async function restoreFiles(
   fileIds: string[],
-  userId: string
+  userId: string,
 ): Promise<{ success: boolean; restored: number; failed: number; errors: string[] }> {
   const errors: string[] = []
   let restored = 0
   let failed = 0
-  
+
   for (const fileId of fileIds) {
     const result = await restoreFile(fileId, userId)
     if (result.success) {
@@ -195,7 +200,7 @@ export async function restoreFiles(
       errors.push(result.error || 'Unknown error')
     }
   }
-  
+
   return { success: failed === 0, restored, failed, errors }
 }
 
@@ -205,25 +210,25 @@ export async function restoreFiles(
  */
 export async function permanentlyDeleteFile(
   fileId: string,
-  userId: string
+  userId: string,
 ): Promise<{ success: boolean; error?: string }> {
   const client = getSupabaseClient()
-  
+
   // Get current file to validate
   const { data: file, error: fetchError } = await client
     .from('files')
     .select('id, org_id, file_name, file_path, deleted_at')
     .eq('id', fileId)
     .single()
-  
+
   if (fetchError) {
     return { success: false, error: fetchError.message }
   }
-  
+
   if (!file.deleted_at) {
     return { success: false, error: 'File must be in trash before permanent deletion' }
   }
-  
+
   // Log activity BEFORE delete
   try {
     await client.from('activity').insert({
@@ -235,35 +240,29 @@ export async function permanentlyDeleteFile(
       details: {
         file_name: file.file_name,
         file_path: file.file_path,
-        permanent: true
-      }
+        permanent: true,
+      },
     })
   } catch {
     // Activity logging is non-critical
   }
-  
+
   // Delete file versions
-  await client
-    .from('file_versions')
-    .delete()
-    .eq('file_id', fileId)
-  
+  await client.from('file_versions').delete().eq('file_id', fileId)
+
   // Delete file references
   await client
     .from('file_references')
     .delete()
     .or(`parent_file_id.eq.${fileId},child_file_id.eq.${fileId}`)
-  
+
   // Permanently delete the file
-  const { error } = await client
-    .from('files')
-    .delete()
-    .eq('id', fileId)
-  
+  const { error } = await client.from('files').delete().eq('id', fileId)
+
   if (error) {
     return { success: false, error: error.message }
   }
-  
+
   return { success: true }
 }
 
@@ -274,7 +273,7 @@ export async function permanentlyDeleteFile(
 export async function permanentlyDeleteFiles(
   fileIds: string[],
   userId: string,
-  onProgress?: (completed: number, total: number) => void
+  onProgress?: (completed: number, total: number) => void,
 ): Promise<{ success: boolean; deleted: number; failed: number; errors: string[] }> {
   if (fileIds.length === 0) {
     return { success: true, deleted: 0, failed: 0, errors: [] }
@@ -283,19 +282,15 @@ export async function permanentlyDeleteFiles(
   let completed = 0
   const errors: string[] = []
 
-  const results = await processWithConcurrency(
-    fileIds,
-    CONCURRENT_OPERATIONS,
-    async (fileId) => {
-      const result = await permanentlyDeleteFile(fileId, userId)
-      completed++
-      onProgress?.(completed, fileIds.length)
-      return result
-    }
-  )
+  const results = await processWithConcurrency(fileIds, CONCURRENT_OPERATIONS, async (fileId) => {
+    const result = await permanentlyDeleteFile(fileId, userId)
+    completed++
+    onProgress?.(completed, fileIds.length)
+    return result
+  })
 
-  const deleted = results.filter(r => r.success).length
-  const failed = results.filter(r => !r.success).length
+  const deleted = results.filter((r) => r.success).length
+  const failed = results.filter((r) => !r.success).length
 
   // Collect first few errors for reporting
   for (const r of results) {
@@ -320,22 +315,23 @@ export async function getDeletedFiles(
   orgId: string,
   options?: {
     vaultId?: string
-    folderPath?: string  // Get deleted files that were in this folder
-  }
+    folderPath?: string // Get deleted files that were in this folder
+  },
 ): Promise<{ files: any[]; error?: string }> {
   const client = getSupabaseClient()
-  
+
   try {
     // Fetch ALL deleted files using pagination (Supabase default limit is 1000)
     const PAGE_SIZE = 1000
     const allFiles: any[] = []
     let offset = 0
     let hasMore = true
-    
+
     while (hasMore) {
       let query = client
         .from('files')
-        .select(`
+        .select(
+          `
           id,
           file_path,
           file_name,
@@ -354,23 +350,24 @@ export async function getDeletedFiles(
           org_id,
           updated_at,
           deleted_by_user:users!deleted_by(email, full_name, avatar_url)
-        `)
+        `,
+        )
         .eq('org_id', orgId)
         .not('deleted_at', 'is', null)
         .order('deleted_at', { ascending: false })
         .range(offset, offset + PAGE_SIZE - 1)
-      
+
       if (options?.vaultId) {
         query = query.eq('vault_id', options.vaultId)
       }
-      
+
       if (options?.folderPath) {
         // Match files that were in this folder or subfolders
         query = query.ilike('file_path', `${options.folderPath}%`)
       }
-      
+
       const { data, error } = await query
-      
+
       if (error) {
         // If column doesn't exist, return empty (trash feature not available)
         if (error.message?.includes('deleted_at') || error.message?.includes('column')) {
@@ -378,7 +375,7 @@ export async function getDeletedFiles(
         }
         return { files: allFiles, error: error.message }
       }
-      
+
       if (data && data.length > 0) {
         allFiles.push(...data)
         offset += PAGE_SIZE
@@ -387,10 +384,12 @@ export async function getDeletedFiles(
         hasMore = false
       }
     }
-    
+
     return { files: allFiles }
-  } catch (err) {
-    log.error('[Trash]', 'Error fetching deleted files', { error: err instanceof Error ? err.message : String(err) })
+  } catch (error) {
+    log.error('[Trash]', 'Error fetching deleted files', {
+      error: error instanceof Error ? error.message : String(error),
+    })
     return { files: [] }
   }
 }
@@ -401,23 +400,23 @@ export async function getDeletedFiles(
  */
 export async function getDeletedFilesCount(
   orgId: string,
-  vaultId?: string
+  vaultId?: string,
 ): Promise<{ count: number; error?: string }> {
   const client = getSupabaseClient()
-  
+
   try {
     let query = client
       .from('files')
       .select('id', { count: 'exact', head: true })
       .eq('org_id', orgId)
       .not('deleted_at', 'is', null)
-    
+
     if (vaultId) {
       query = query.eq('vault_id', vaultId)
     }
-    
+
     const { count, error } = await query
-    
+
     if (error) {
       // If column doesn't exist, return 0 (trash feature not available)
       if (error.message?.includes('deleted_at') || error.message?.includes('column')) {
@@ -425,9 +424,9 @@ export async function getDeletedFilesCount(
       }
       return { count: 0, error: error.message }
     }
-    
+
     return { count: count || 0 }
-  } catch (err) {
+  } catch (error) {
     return { count: 0 }
   }
 }
@@ -441,16 +440,16 @@ export async function getDeletedFilesCount(
 export async function emptyTrash(
   orgId: string,
   userId: string,
-  vaultId?: string
+  vaultId?: string,
 ): Promise<{ success: boolean; deleted: number; error?: string }> {
   const client = getSupabaseClient()
-  
+
   // Fetch ALL trashed file IDs using pagination (Supabase default limit is 1000)
   const PAGE_SIZE = 1000
   const allFileIds: string[] = []
   let offset = 0
   let hasMore = true
-  
+
   while (hasMore) {
     let query = client
       .from('files')
@@ -459,41 +458,43 @@ export async function emptyTrash(
       .not('deleted_at', 'is', null)
       .order('id', { ascending: true }) // Consistent ordering for pagination
       .range(offset, offset + PAGE_SIZE - 1)
-    
+
     if (vaultId) {
       query = query.eq('vault_id', vaultId)
     }
-    
+
     const { data: trashedFiles, error: fetchError } = await query
-    
+
     if (fetchError) {
       // If we've already collected some IDs, try to delete those
       if (allFileIds.length > 0) {
-        log.warn('[Trash]', 'Pagination error, proceeding with collected IDs', { error: fetchError.message })
+        log.warn('[Trash]', 'Pagination error, proceeding with collected IDs', {
+          error: fetchError.message,
+        })
         break
       }
       return { success: false, deleted: 0, error: fetchError.message }
     }
-    
+
     if (trashedFiles && trashedFiles.length > 0) {
-      allFileIds.push(...trashedFiles.map(f => f.id))
+      allFileIds.push(...trashedFiles.map((f) => f.id))
       offset += PAGE_SIZE
       hasMore = trashedFiles.length === PAGE_SIZE
     } else {
       hasMore = false
     }
   }
-  
+
   if (allFileIds.length === 0) {
     return { success: true, deleted: 0 }
   }
-  
+
   // Use batch deletion for performance
   const result = await permanentlyDeleteFiles(allFileIds, userId)
-  
+
   if (!result.success && result.errors.length > 0) {
     return { success: false, deleted: result.deleted, error: result.errors[0] }
   }
-  
+
   return { success: true, deleted: result.deleted }
 }

@@ -1,15 +1,15 @@
 /**
  * Command System
- * 
+ *
  * Centralized command system for all PDM operations.
- * 
+ *
  * Usage:
  * ```typescript
  * import { executeCommand } from '../lib/commands'
- * 
+ *
  * // Execute a command
  * await executeCommand('checkout', { files: selectedFiles })
- * 
+ *
  * // With refresh callback
  * await executeCommand('download', { files: selectedFiles }, { onRefresh: handleRefresh })
  * ```
@@ -29,13 +29,13 @@ export {
   getTerminalCommandMeta,
   type CommandHandler,
   type CommandMeta,
-  type CommandCategory
+  type CommandCategory,
 } from './registry'
 
 // Re-export executor
-export { 
-  executeCommand, 
-  getCommand, 
+export {
+  executeCommand,
+  getCommand,
   getAllCommands,
   buildCommandContext,
   getCommandHistory,
@@ -47,7 +47,7 @@ export {
   cancelAllOperations,
   cancelOperation,
   // Command confirmation dialog
-  resolveCommandConfirm
+  resolveCommandConfirm,
 } from './executor'
 
 // Import handlers
@@ -61,19 +61,19 @@ import { deleteLocalCommand, deleteServerCommand } from './handlers/delete'
 import { discardCommand } from './handlers/discard'
 import { discardOrphanedCommand } from './handlers/discardOrphaned'
 import { forceReleaseCommand } from './handlers/forceRelease'
-import { 
-  openCommand, 
-  showInExplorerCommand, 
-  pinCommand, 
-  unpinCommand, 
-  ignoreCommand 
+import {
+  openCommand,
+  showInExplorerCommand,
+  pinCommand,
+  unpinCommand,
+  ignoreCommand,
 } from './handlers/misc'
 import {
   renameCommand,
   moveCommand,
   copyCommand,
   newFolderCommand,
-  mergeFolderCommand
+  mergeFolderCommand,
 } from './handlers/fileOps'
 import { syncMetadataCommand } from './handlers/syncMetadata'
 import { extractReferencesCommand } from './handlers/extractReferences'
@@ -81,7 +81,7 @@ import {
   bulkDownloadAssemblyCommand,
   bulkCheckoutAssemblyCommand,
   bulkCheckinAssemblyCommand,
-  bulkDeleteAssemblyCommand
+  bulkDeleteAssemblyCommand,
 } from './handlers/bulkAssembly'
 import { packAndGoCommand } from './handlers/packAndGo'
 import { matchGhostFileCommand } from './handlers/matchGhostFile'
@@ -99,32 +99,32 @@ function initializeCommands() {
   registerCommand('discard', discardCommand)
   registerCommand('discard-orphaned', discardOrphanedCommand)
   registerCommand('force-release', forceReleaseCommand)
-  
+
   // File operations
   registerCommand('open', openCommand)
   registerCommand('show-in-explorer', showInExplorerCommand)
   registerCommand('pin', pinCommand)
   registerCommand('unpin', unpinCommand)
   registerCommand('ignore', ignoreCommand)
-  
+
   // File management (rename, move, copy, new folder, merge folder)
   registerCommand('rename', renameCommand)
   registerCommand('move', moveCommand)
   registerCommand('copy', copyCommand)
   registerCommand('new-folder', newFolderCommand)
   registerCommand('merge-folder', mergeFolderCommand)
-  
+
   // SolidWorks specific
   registerCommand('sync-metadata', syncMetadataCommand)
   registerCommand('extract-references', extractReferencesCommand)
-  
+
   // Bulk assembly operations
   registerCommand('bulk-download-assembly', bulkDownloadAssemblyCommand)
   registerCommand('bulk-checkout-assembly', bulkCheckoutAssemblyCommand)
   registerCommand('bulk-checkin-assembly', bulkCheckinAssemblyCommand)
   registerCommand('bulk-delete-assembly', bulkDeleteAssemblyCommand)
   registerCommand('pack-and-go', packAndGoCommand)
-  
+
   // Ghost file resolution
   registerCommand('match-ghost-file', matchGhostFileCommand)
 }
@@ -142,50 +142,35 @@ import { executeCommand } from './executor'
 /**
  * Check out files for editing
  */
-export async function checkout(
-  files: LocalFile[], 
-  onRefresh?: (silent?: boolean) => void
-) {
+export async function checkout(files: LocalFile[], onRefresh?: (silent?: boolean) => void) {
   return executeCommand('checkout', { files }, { onRefresh })
 }
 
 /**
  * Check in files after editing
  */
-export async function checkin(
-  files: LocalFile[],
-  onRefresh?: (silent?: boolean) => void
-) {
+export async function checkin(files: LocalFile[], onRefresh?: (silent?: boolean) => void) {
   return executeCommand('checkin', { files }, { onRefresh })
 }
 
 /**
  * Upload new files to server (first check-in)
  */
-export async function sync(
-  files: LocalFile[],
-  onRefresh?: (silent?: boolean) => void
-) {
+export async function sync(files: LocalFile[], onRefresh?: (silent?: boolean) => void) {
   return executeCommand('sync', { files }, { onRefresh })
 }
 
 /**
  * Download cloud files to local vault
  */
-export async function download(
-  files: LocalFile[],
-  onRefresh?: (silent?: boolean) => void
-) {
+export async function download(files: LocalFile[], onRefresh?: (silent?: boolean) => void) {
   return executeCommand('download', { files }, { onRefresh })
 }
 
 /**
  * Remove local copies (keeps server version)
  */
-export async function deleteLocal(
-  files: LocalFile[],
-  onRefresh?: (silent?: boolean) => void
-) {
+export async function deleteLocal(files: LocalFile[], onRefresh?: (silent?: boolean) => void) {
   return executeCommand('delete-local', { files }, { onRefresh })
 }
 
@@ -195,7 +180,7 @@ export async function deleteLocal(
 export async function deleteServer(
   files: LocalFile[],
   deleteLocalToo: boolean = true,
-  onRefresh?: (silent?: boolean) => void
+  onRefresh?: (silent?: boolean) => void,
 ) {
   return executeCommand('delete-server', { files, deleteLocal: deleteLocalToo }, { onRefresh })
 }
@@ -203,40 +188,28 @@ export async function deleteServer(
 /**
  * Discard local changes and revert to server version
  */
-export async function discard(
-  files: LocalFile[],
-  onRefresh?: (silent?: boolean) => void
-) {
+export async function discard(files: LocalFile[], onRefresh?: (silent?: boolean) => void) {
   return executeCommand('discard', { files }, { onRefresh })
 }
 
 /**
  * Discard orphaned files (local files that no longer exist on server)
  */
-export async function discardOrphaned(
-  files: LocalFile[],
-  onRefresh?: (silent?: boolean) => void
-) {
+export async function discardOrphaned(files: LocalFile[], onRefresh?: (silent?: boolean) => void) {
   return executeCommand('discard-orphaned', { files }, { onRefresh })
 }
 
 /**
  * Get latest version from server (for outdated files)
  */
-export async function getLatest(
-  files: LocalFile[],
-  onRefresh?: (silent?: boolean) => void
-) {
+export async function getLatest(files: LocalFile[], onRefresh?: (silent?: boolean) => void) {
   return executeCommand('get-latest', { files }, { onRefresh })
 }
 
 /**
  * Admin: Force release checkout
  */
-export async function forceRelease(
-  files: LocalFile[],
-  onRefresh?: (silent?: boolean) => void
-) {
+export async function forceRelease(files: LocalFile[], onRefresh?: (silent?: boolean) => void) {
   return executeCommand('force-release', { files }, { onRefresh })
 }
 
@@ -246,10 +219,7 @@ export async function forceRelease(
  * - For parts/assemblies: PUSH (writes from pendingMetadata to SW file)
  * Only works on files checked out by the current user.
  */
-export async function syncMetadata(
-  files: LocalFile[],
-  onRefresh?: (silent?: boolean) => void
-) {
+export async function syncMetadata(files: LocalFile[], onRefresh?: (silent?: boolean) => void) {
   return executeCommand('sync-metadata', { files }, { onRefresh })
 }
 
@@ -259,7 +229,7 @@ export async function syncMetadata(
  */
 export async function extractReferences(
   files: LocalFile[],
-  onRefresh?: (silent?: boolean) => void
+  onRefresh?: (silent?: boolean) => void,
 ) {
   return executeCommand('extract-references', { files }, { onRefresh })
 }
@@ -289,6 +259,5 @@ export function canCancel(): boolean {
  * Get descriptions of all running operations
  */
 export function getRunningOperations(): string[] {
-  return getActiveOperations().map(op => op.description)
+  return getActiveOperations().map((op) => op.description)
 }
-

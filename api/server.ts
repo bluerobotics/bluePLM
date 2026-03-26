@@ -1,15 +1,15 @@
 #!/usr/bin/env npx ts-node
 /**
  * BluePLM REST API Server (Fastify + TypeScript)
- * 
+ *
  * Integration API for external systems (ERP, CI/CD, Slack, etc.)
- * 
+ *
  * NOTE: This API is designed for INTEGRATIONS, not daily app use.
  * - Desktop app users → Direct to Supabase (faster)
- * - SolidWorks add-in → Direct to Supabase (faster)  
+ * - SolidWorks add-in → Direct to Supabase (faster)
  * - ERP systems (Odoo, etc.) → This API (controlled access)
  * - CI/CD, webhooks, automation → This API
- * 
+ *
  * Features:
  * - JWT authentication via Supabase
  * - JSON Schema validation on all endpoints
@@ -18,7 +18,7 @@
  * - Webhook support for notifications
  * - Signed URLs for file transfers (files go direct to Supabase)
  * - ERP-friendly endpoints (/parts, /bom, state shortcuts)
- * 
+ *
  * Usage:
  *   npx ts-node api/server.ts
  *   npm run api
@@ -38,6 +38,7 @@ import { env } from './src/config/env.js'
 import { createLoggerOptions } from './src/infrastructure/logging.js'
 import { errorHandlerPlugin, requestContextPlugin } from './src/core/plugins/index.js'
 import { authPlugin } from './middleware/index.js'
+import { sendError } from './utils/index.js'
 import routes from './routes/index.js'
 
 // Import types to ensure Fastify extensions are available
@@ -53,8 +54,8 @@ const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'))
 const API_VERSION = packageJson.version || '0.0.0'
 
 // Parse CORS origins from env — require explicit config in production
-const CORS_ORIGINS = env.CORS_ORIGINS 
-  ? env.CORS_ORIGINS.split(',').map(o => o.trim())
+const CORS_ORIGINS = env.CORS_ORIGINS
+  ? env.CORS_ORIGINS.split(',').map((o) => o.trim())
   : env.NODE_ENV === 'production'
     ? false
     : true
@@ -62,7 +63,7 @@ const CORS_ORIGINS = env.CORS_ORIGINS
 export async function buildServer(): Promise<FastifyInstance> {
   const fastify = Fastify({
     logger: createLoggerOptions(env),
-    bodyLimit: 104857600 // 100MB
+    bodyLimit: 104857600, // 100MB
   })
 
   // Security headers
@@ -71,46 +72,44 @@ export async function buildServer(): Promise<FastifyInstance> {
   })
 
   // Register CORS
-  await fastify.register(cors, { 
+  await fastify.register(cors, {
     origin: CORS_ORIGINS,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   })
-  
+
   // Register Rate Limiting
   await fastify.register(rateLimit, {
     max: env.RATE_LIMIT_MAX,
     timeWindow: env.RATE_LIMIT_WINDOW,
     errorResponseBuilder: () => ({
       error: 'Too Many Requests',
-      message: `Rate limit exceeded. Max ${env.RATE_LIMIT_MAX} requests per ${env.RATE_LIMIT_WINDOW / 1000}s`
-    })
+      message: `Rate limit exceeded. Max ${env.RATE_LIMIT_MAX} requests per ${env.RATE_LIMIT_WINDOW / 1000}s`,
+    }),
   })
-  
+
   // Register core plugins
   await fastify.register(requestContextPlugin)
   await fastify.register(errorHandlerPlugin)
-  
+
   // Register OpenAPI/Swagger
   await fastify.register(swagger, {
     openapi: {
       info: {
         title: 'BluePLM REST API',
         description: 'BluePLM REST API',
-        version: API_VERSION
+        version: API_VERSION,
       },
-      servers: [
-        { url: `http://${env.API_HOST}:${env.API_PORT}`, description: 'Local server' }
-      ],
+      servers: [{ url: `http://${env.API_HOST}:${env.API_PORT}`, description: 'Local server' }],
       components: {
         securitySchemes: {
           bearerAuth: {
             type: 'http',
             scheme: 'bearer',
-            bearerFormat: 'JWT'
-          }
-        }
+            bearerFormat: 'JWT',
+          },
+        },
       },
       tags: [
         { name: 'Info', description: 'API info and health' },
@@ -124,25 +123,25 @@ export async function buildServer(): Promise<FastifyInstance> {
         { name: 'Activity', description: 'Activity feed' },
         { name: 'Integrations', description: 'External integrations (Odoo)' },
         { name: 'Webhooks', description: 'Webhook management' },
-        { name: 'Extensions', description: 'Extension system - sandbox handlers and admin' }
-      ]
-    }
+        { name: 'Extensions', description: 'Extension system - sandbox handlers and admin' },
+      ],
+    },
   })
-  
+
   if (env.NODE_ENV !== 'production') {
     await fastify.register(swaggerUi, {
       routePrefix: '/docs',
       uiConfig: {
         docExpansion: 'list',
         deepLinking: true,
-        displayRequestDuration: true
+        displayRequestDuration: true,
       },
       theme: {
-        title: 'BluePLM API'
-      }
+        title: 'BluePLM API',
+      },
     })
   }
-  
+
   // Register Auth Plugin
   await fastify.register(authPlugin)
 
@@ -155,17 +154,17 @@ export async function buildServer(): Promise<FastifyInstance> {
         url: request.url,
         method: request.method,
         hasAuthHeader: !!authHeader,
-        authHeaderStart: authHeader?.substring(0, 30) || 'none'
+        authHeaderStart: authHeader?.substring(0, 30) || 'none',
       })
     })
   }
 
   // Register all routes
   await fastify.register(routes)
-  
+
   // Not found handler
   fastify.setNotFoundHandler((_request, reply) => {
-    reply.code(404).send({ error: 'Not Found', message: 'Endpoint not found' })
+    sendError(reply, 404, 'NOT_FOUND', 'Endpoint not found')
   })
 
   return fastify
@@ -179,8 +178,8 @@ function setupGracefulShutdown(fastify: FastifyInstance): void {
       await fastify.close()
       fastify.log.info('Server closed gracefully')
       process.exit(0)
-    } catch (err) {
-      fastify.log.error({ err }, 'Error during shutdown')
+    } catch (error) {
+      fastify.log.error({ error }, 'Error during shutdown')
       process.exit(1)
     }
   }
@@ -190,18 +189,20 @@ function setupGracefulShutdown(fastify: FastifyInstance): void {
 }
 
 // Start Server
-buildServer().then(fastify => {
-  setupGracefulShutdown(fastify)
-  
-  fastify.listen({ port: env.API_PORT, host: env.API_HOST }, (err, address) => {
-    if (err) {
-      fastify.log.error({ err }, 'Failed to start server')
-      process.exit(1)
-    }
-    fastify.log.info(`\n🚀 BluePLM API v${API_VERSION} running at ${address}`)
-    fastify.log.info(`📚 API Documentation: ${address}/docs\n`)
+buildServer()
+  .then((fastify) => {
+    setupGracefulShutdown(fastify)
+
+    fastify.listen({ port: env.API_PORT, host: env.API_HOST }, (error, address) => {
+      if (error) {
+        fastify.log.error({ error }, 'Failed to start server')
+        process.exit(1)
+      }
+      fastify.log.info(`\n🚀 BluePLM API v${API_VERSION} running at ${address}`)
+      fastify.log.info(`📚 API Documentation: ${address}/docs\n`)
+    })
   })
-}).catch((err: unknown) => {
-  console.error('Failed to build server:', err)
-  process.exit(1)
-})
+  .catch((error: unknown) => {
+    console.error('Failed to build server:', error)
+    process.exit(1)
+  })

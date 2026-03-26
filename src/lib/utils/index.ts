@@ -24,11 +24,7 @@ export {
 } from './avatar'
 
 // File utilities
-export {
-  getFileType,
-  getFileIconType,
-  isCADFile,
-} from './file'
+export { getFileType, getFileIconType, isCADFile } from './file'
 
 // Date utilities
 export {

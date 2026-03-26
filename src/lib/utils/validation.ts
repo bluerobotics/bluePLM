@@ -128,7 +128,7 @@ export function isSafePath(path: string): boolean {
 export function isValidLength(
   str: string | null | undefined,
   minLength: number,
-  maxLength: number
+  maxLength: number,
 ): boolean {
   if (str === null || str === undefined) return minLength === 0
   return str.length >= minLength && str.length <= maxLength

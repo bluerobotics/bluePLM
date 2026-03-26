@@ -1,15 +1,15 @@
 /**
  * useWorkflowDialogs - Manages dialog visibility and editing entities
- * 
+ *
  * Consolidates dialog state that was previously inline in WorkflowsViewContent.
  */
 import { useState, useCallback } from 'react'
-import type { 
-  WorkflowState, 
-  WorkflowTransition, 
-  FloatingToolbarState, 
-  ContextMenuState, 
-  WaypointContextMenu 
+import type {
+  WorkflowState,
+  WorkflowTransition,
+  FloatingToolbarState,
+  ContextMenuState,
+  WaypointContextMenu,
 } from '../types'
 
 export interface UseWorkflowDialogsReturn {
@@ -18,22 +18,22 @@ export interface UseWorkflowDialogsReturn {
   showEditWorkflow: boolean
   showEditState: boolean
   showEditTransition: boolean
-  
+
   // Editing entities
   editingState: WorkflowState | null
   editingTransition: WorkflowTransition | null
-  
+
   // Context menus
   contextMenu: ContextMenuState | null
   waypointContextMenu: WaypointContextMenu | null
   floatingToolbar: FloatingToolbarState | null
-  
+
   // Snap settings UI
   showSnapSettings: boolean
-  
+
   // Clipboard
   clipboard: { type: 'state' | 'transition'; data: unknown } | null
-  
+
   // Setters
   setShowCreateWorkflow: (v: boolean) => void
   setShowEditWorkflow: (v: boolean) => void
@@ -46,7 +46,7 @@ export interface UseWorkflowDialogsReturn {
   setFloatingToolbar: (t: FloatingToolbarState | null) => void
   setShowSnapSettings: (v: boolean) => void
   setClipboard: (c: { type: 'state' | 'transition'; data: unknown } | null) => void
-  
+
   // Helper functions
   openEditState: (state: WorkflowState) => void
   closeEditState: () => void
@@ -64,72 +64,95 @@ export function useWorkflowDialogs(): UseWorkflowDialogsReturn {
   const [showEditWorkflow, setShowEditWorkflow] = useState(false)
   const [showEditState, setShowEditState] = useState(false)
   const [showEditTransition, setShowEditTransition] = useState(false)
-  
+
   // Editing entities
   const [editingState, setEditingState] = useState<WorkflowState | null>(null)
   const [editingTransition, setEditingTransition] = useState<WorkflowTransition | null>(null)
-  
+
   // Context menus
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
   const [waypointContextMenu, setWaypointContextMenu] = useState<WaypointContextMenu | null>(null)
   const [floatingToolbar, setFloatingToolbar] = useState<FloatingToolbarState | null>(null)
-  
+
   // Snap settings UI
   const [showSnapSettings, setShowSnapSettings] = useState(false)
-  
+
   // Clipboard
-  const [clipboard, setClipboard] = useState<{ type: 'state' | 'transition'; data: unknown } | null>(null)
-  
+  const [clipboard, setClipboard] = useState<{
+    type: 'state' | 'transition'
+    data: unknown
+  } | null>(null)
+
   // Helper functions
   const openEditState = useCallback((state: WorkflowState) => {
     setEditingState(state)
     setShowEditState(true)
   }, [])
-  
+
   const closeEditState = useCallback(() => {
     setShowEditState(false)
     setEditingState(null)
   }, [])
-  
+
   const openEditTransition = useCallback((transition: WorkflowTransition) => {
     setEditingTransition(transition)
     setShowEditTransition(true)
   }, [])
-  
+
   const closeEditTransition = useCallback(() => {
     setShowEditTransition(false)
     setEditingTransition(null)
   }, [])
-  
+
   const showStateToolbar = useCallback((x: number, y: number, stateId: string) => {
     setFloatingToolbar({ canvasX: x, canvasY: y, type: 'state', targetId: stateId })
   }, [])
-  
+
   const showTransitionToolbar = useCallback((x: number, y: number, transitionId: string) => {
     setFloatingToolbar({ canvasX: x, canvasY: y, type: 'transition', targetId: transitionId })
   }, [])
-  
+
   const closeContextMenu = useCallback(() => {
     setContextMenu(null)
     setWaypointContextMenu(null)
   }, [])
-  
+
   const closeAll = useCallback(() => {
     setContextMenu(null)
     setWaypointContextMenu(null)
     setFloatingToolbar(null)
   }, [])
-  
+
   return {
-    showCreateWorkflow, showEditWorkflow, showEditState, showEditTransition,
-    editingState, editingTransition,
-    contextMenu, waypointContextMenu, floatingToolbar,
-    showSnapSettings, clipboard,
-    setShowCreateWorkflow, setShowEditWorkflow, setShowEditState, setShowEditTransition,
-    setEditingState, setEditingTransition,
-    setContextMenu, setWaypointContextMenu, setFloatingToolbar,
-    setShowSnapSettings, setClipboard,
-    openEditState, closeEditState, openEditTransition, closeEditTransition,
-    showStateToolbar, showTransitionToolbar, closeContextMenu, closeAll
+    showCreateWorkflow,
+    showEditWorkflow,
+    showEditState,
+    showEditTransition,
+    editingState,
+    editingTransition,
+    contextMenu,
+    waypointContextMenu,
+    floatingToolbar,
+    showSnapSettings,
+    clipboard,
+    setShowCreateWorkflow,
+    setShowEditWorkflow,
+    setShowEditState,
+    setShowEditTransition,
+    setEditingState,
+    setEditingTransition,
+    setContextMenu,
+    setWaypointContextMenu,
+    setFloatingToolbar,
+    setShowSnapSettings,
+    setClipboard,
+    openEditState,
+    closeEditState,
+    openEditTransition,
+    closeEditTransition,
+    showStateToolbar,
+    showTransitionToolbar,
+    closeContextMenu,
+    closeAll,
   }
 }

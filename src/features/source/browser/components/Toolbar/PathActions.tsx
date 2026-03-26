@@ -17,12 +17,10 @@ export const PathActions = memo(function PathActions({
   currentPath,
   vaultPath,
   platform,
-  addToast
+  addToast,
 }: PathActionsProps) {
   const handleCopyPath = async () => {
-    const fullPath = currentPath 
-      ? buildFullPath(vaultPath!, currentPath)
-      : vaultPath || ''
+    const fullPath = currentPath ? buildFullPath(vaultPath!, currentPath) : vaultPath || ''
     const result = await copyToClipboard(fullPath)
     if (result.success) {
       addToast('success', 'Path copied to clipboard')
@@ -31,9 +29,7 @@ export const PathActions = memo(function PathActions({
 
   const handleOpenInExplorer = () => {
     if (window.electronAPI && vaultPath) {
-      const fullPath = currentPath 
-        ? buildFullPath(vaultPath, currentPath)
-        : vaultPath
+      const fullPath = currentPath ? buildFullPath(vaultPath, currentPath) : vaultPath
       window.electronAPI.openInExplorer(fullPath)
     }
   }

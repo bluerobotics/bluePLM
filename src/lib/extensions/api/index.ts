@@ -1,10 +1,10 @@
 /**
  * Extension Client API
- * 
+ *
  * This module exports the complete sandboxed API available to extensions
  * running in the Extension Host. All operations are permission-gated and
  * forwarded via IPC to the main process.
- * 
+ *
  * @module extensions/api
  */
 
@@ -15,7 +15,7 @@
 export type {
   // Core types
   Disposable,
-  
+
   // UI types
   UIAPI,
   ToastType,
@@ -28,44 +28,44 @@ export type {
   QuickPickItem,
   QuickPickOptions,
   InputBoxOptions,
-  
+
   // Storage types
   ExtensionStorage,
-  
+
   // Network types
   NetworkAPI,
   FetchOptions,
   FetchResponse,
   HttpMethod,
-  
+
   // Commands types
   CommandsAPI,
   CommandHandler,
   CommandOptions,
-  
+
   // Workspace types
   WorkspaceAPI,
   FileChangeEvent,
   FileChangeType,
   OpenFile,
   VaultInfo,
-  
+
   // Telemetry types
   TelemetryAPI,
   TelemetryProperties,
-  
+
   // Events types
   EventsAPI,
   ExtensionEvent,
-  
+
   // Context types
   ExtensionContextInfo,
   UserContext,
   OrganizationContext,
-  
+
   // Main API type
   ExtensionClientAPI,
-  
+
   // Permission types
   ClientPermission,
 } from './types'
@@ -82,12 +82,68 @@ export { toDisposable, API_PERMISSIONS } from './types'
 
 export { createUIAPI, UI_IPC_CHANNELS } from './ui'
 export { createStorageAPI, createLocalStorageAPI, STORAGE_IPC_CHANNELS } from './storage'
-export { createNetworkAPI, isSuccessResponse, createResponseError, NETWORK_IPC_CHANNELS } from './network'
-export { createCommandsAPI, createCommandExecutor, getLocalCommands, clearLocalCommands, handleCommandInvocation, COMMANDS_IPC_CHANNELS } from './commands'
-export { createWorkspaceAPI, createFileChangeEvent, batchFileChanges, filterByChangeType, filterByVault, getActiveSubscriptionCount, clearFileChangeSubscriptions, handleFileChangeEvent, WORKSPACE_IPC_CHANNELS } from './workspace'
-export { createTelemetryAPI, createTimer, withTiming, withErrorTracking, TELEMETRY_IPC_CHANNELS } from './telemetry'
-export { createEventsAPI, createTypedEmitter, onTyped, once, waitForEvent, getExtensionSubscriptionCount, clearExtensionSubscriptions, clearAllSubscriptions, handleEvent, broadcastEvent, EVENTS_IPC_CHANNELS } from './events'
-export { createInitialContext, fetchContext, getCachedContext, onContextChange, createContextProxy, createActivationContext, disposeActivationContext, clearContext, clearAllContexts, handleContextChange, isAuthenticated, hasOrganization, getUserEmail, getOrgName, CONTEXT_IPC_CHANNELS } from './context'
+export {
+  createNetworkAPI,
+  isSuccessResponse,
+  createResponseError,
+  NETWORK_IPC_CHANNELS,
+} from './network'
+export {
+  createCommandsAPI,
+  createCommandExecutor,
+  getLocalCommands,
+  clearLocalCommands,
+  handleCommandInvocation,
+  COMMANDS_IPC_CHANNELS,
+} from './commands'
+export {
+  createWorkspaceAPI,
+  createFileChangeEvent,
+  batchFileChanges,
+  filterByChangeType,
+  filterByVault,
+  getActiveSubscriptionCount,
+  clearFileChangeSubscriptions,
+  handleFileChangeEvent,
+  WORKSPACE_IPC_CHANNELS,
+} from './workspace'
+export {
+  createTelemetryAPI,
+  createTimer,
+  withTiming,
+  withErrorTracking,
+  TELEMETRY_IPC_CHANNELS,
+} from './telemetry'
+export {
+  createEventsAPI,
+  createTypedEmitter,
+  onTyped,
+  once,
+  waitForEvent,
+  getExtensionSubscriptionCount,
+  clearExtensionSubscriptions,
+  clearAllSubscriptions,
+  handleEvent,
+  broadcastEvent,
+  EVENTS_IPC_CHANNELS,
+} from './events'
+export {
+  createInitialContext,
+  fetchContext,
+  getCachedContext,
+  onContextChange,
+  createContextProxy,
+  createActivationContext,
+  disposeActivationContext,
+  clearContext,
+  clearAllContexts,
+  handleContextChange,
+  isAuthenticated,
+  hasOrganization,
+  getUserEmail,
+  getOrgName,
+  CONTEXT_IPC_CHANNELS,
+} from './context'
 export type { ExtensionActivationContext } from './context'
 
 // ============================================
@@ -142,13 +198,13 @@ export interface CreateExtensionClientAPIOptions {
 
 /**
  * Create the complete Extension Client API for an extension.
- * 
+ *
  * This is the main factory function that creates all API components
  * and assembles them into the unified ExtensionClientAPI interface.
- * 
+ *
  * @param options - Configuration options
  * @returns The complete Extension Client API
- * 
+ *
  * @example
  * ```typescript
  * const api = createExtensionClientAPI({
@@ -157,16 +213,16 @@ export interface CreateExtensionClientAPIOptions {
  *   permissions: ['ui:toast', 'storage:local', 'network:orgApi'],
  *   allowedDomains: ['googleapis.com'],
  * })
- * 
+ *
  * // Use the API
  * api.ui.showToast('Hello!', 'success')
  * ```
  */
 export function createExtensionClientAPI(
-  options: CreateExtensionClientAPIOptions
+  options: CreateExtensionClientAPIOptions,
 ): ExtensionClientAPI {
   const { extensionId, version, permissions, allowedDomains = [] } = options
-  
+
   // Create individual API components
   const ui = createUIAPI(extensionId, permissions)
   const storage = createStorageAPI(extensionId, permissions)
@@ -176,7 +232,7 @@ export function createExtensionClientAPI(
   const telemetry = createTelemetryAPI(extensionId, permissions)
   const events = createEventsAPI(extensionId, permissions)
   const context = createContextProxy(extensionId, version)
-  
+
   // Assemble the complete API
   return {
     ui,

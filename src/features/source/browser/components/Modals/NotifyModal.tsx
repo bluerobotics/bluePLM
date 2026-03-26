@@ -1,13 +1,7 @@
 import { memo } from 'react'
 import { Users, File, Check, Send, Loader2 } from 'lucide-react'
 import type { LocalFile } from '@/stores/pdmStore'
-
-export interface OrgUser {
-  id: string
-  email: string
-  full_name?: string | null
-  avatar_url?: string | null
-}
+import type { OrgUser } from '@/types/database'
 
 export interface NotifyModalProps {
   file: LocalFile
@@ -35,14 +29,14 @@ export const NotifyModal = memo(function NotifyModal({
   onToggleUser,
   onMessageChange,
   onSubmit,
-  onClose
+  onClose,
 }: NotifyModalProps) {
   return (
-    <div 
+    <div
       className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-center justify-center"
       onClick={onClose}
     >
-      <div 
+      <div
         className="bg-plm-bg-light border border-plm-border rounded-lg p-6 max-w-md w-full shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
@@ -55,16 +49,18 @@ export const NotifyModal = memo(function NotifyModal({
             <p className="text-sm text-plm-fg-muted">Send a notification about this file</p>
           </div>
         </div>
-        
+
         <div className="bg-plm-bg rounded border border-plm-border p-3 mb-4">
           <div className="flex items-center gap-2">
             <File size={16} className="text-plm-fg-muted" />
             <span className="text-plm-fg font-medium truncate">{file.name}</span>
           </div>
         </div>
-        
+
         <div className="mb-4">
-          <label className="block text-xs text-plm-fg-muted uppercase tracking-wide mb-2">Select People to Notify</label>
+          <label className="block text-xs text-plm-fg-muted uppercase tracking-wide mb-2">
+            Select People to Notify
+          </label>
           {loadingUsers ? (
             <div className="flex items-center justify-center p-4">
               <Loader2 size={20} className="animate-spin text-plm-accent" />
@@ -73,8 +69,11 @@ export const NotifyModal = memo(function NotifyModal({
             <p className="text-sm text-plm-fg-muted p-2">No other users in your organization</p>
           ) : (
             <div className="max-h-48 overflow-y-auto border border-plm-border rounded bg-plm-bg">
-              {orgUsers.map(orgUser => (
-                <label key={orgUser.id} className="flex items-center gap-3 p-2 hover:bg-plm-highlight cursor-pointer">
+              {orgUsers.map((orgUser) => (
+                <label
+                  key={orgUser.id}
+                  className="flex items-center gap-3 p-2 hover:bg-plm-highlight cursor-pointer"
+                >
                   <input
                     type="checkbox"
                     checked={selectedUsers.includes(orgUser.id)}
@@ -85,18 +84,26 @@ export const NotifyModal = memo(function NotifyModal({
                     <Users size={12} className="text-plm-accent" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm text-plm-fg truncate">{orgUser.full_name || orgUser.email}</div>
-                    {orgUser.full_name && <div className="text-xs text-plm-fg-muted truncate">{orgUser.email}</div>}
+                    <div className="text-sm text-plm-fg truncate">
+                      {orgUser.full_name || orgUser.email}
+                    </div>
+                    {orgUser.full_name && (
+                      <div className="text-xs text-plm-fg-muted truncate">{orgUser.email}</div>
+                    )}
                   </div>
-                  {selectedUsers.includes(orgUser.id) && <Check size={16} className="text-plm-accent flex-shrink-0" />}
+                  {selectedUsers.includes(orgUser.id) && (
+                    <Check size={16} className="text-plm-accent flex-shrink-0" />
+                  )}
                 </label>
               ))}
             </div>
           )}
         </div>
-        
+
         <div className="mb-4">
-          <label className="block text-xs text-plm-fg-muted uppercase tracking-wide mb-2">Message</label>
+          <label className="block text-xs text-plm-fg-muted uppercase tracking-wide mb-2">
+            Message
+          </label>
           <textarea
             value={message}
             onChange={(e) => onMessageChange(e.target.value)}
@@ -105,9 +112,11 @@ export const NotifyModal = memo(function NotifyModal({
             rows={3}
           />
         </div>
-        
+
         <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="btn btn-ghost">Cancel</button>
+          <button onClick={onClose} className="btn btn-ghost">
+            Cancel
+          </button>
           <button
             onClick={onSubmit}
             disabled={selectedUsers.length === 0 || !message.trim() || isSubmitting}

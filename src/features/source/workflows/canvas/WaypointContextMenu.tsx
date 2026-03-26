@@ -21,10 +21,10 @@ export const WaypointContextMenu = memo(function WaypointContextMenu({
   onRemoveWaypoint,
   onResetWaypoints,
   onClose,
-  addToast
+  addToast,
 }: WaypointContextMenuProps) {
-  const transition = transitions.find(t => t.id === menu.transitionId)
-  
+  const transition = transitions.find((t) => t.id === menu.transitionId)
+
   return (
     <div
       className="fixed bg-plm-sidebar border border-plm-border rounded-lg shadow-xl py-1 min-w-[160px] z-50"
@@ -43,7 +43,7 @@ export const WaypointContextMenu = memo(function WaypointContextMenu({
       >
         Add Control Point
       </button>
-      
+
       {menu.waypointIndex !== null && (
         <button
           onClick={() => {
@@ -56,7 +56,7 @@ export const WaypointContextMenu = memo(function WaypointContextMenu({
           Remove Control Point
         </button>
       )}
-      
+
       <button
         onClick={() => {
           onResetWaypoints(menu.transitionId)

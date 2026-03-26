@@ -58,15 +58,15 @@ export const fr: TranslationDict = {
     title: 'BluePLM',
     tagline: 'Gestion du cycle de vie des produits open source',
     selectAccountType: 'Sélectionnez votre type de compte',
-    teamMember: 'Membre de l\'équipe',
+    teamMember: "Membre de l'équipe",
     teamMemberDesc: 'Ingénieurs, administrateurs et observateurs',
     supplier: 'Fournisseur',
     supplierDesc: 'Accès au portail fournisseur',
     workOffline: 'Travailler hors ligne',
     offlineMode: 'Mode hors ligne',
 
-    teamSignIn: 'Connexion membre de l\'équipe',
-    signInWithOrg: 'Connectez-vous avec votre compte d\'organisation',
+    teamSignIn: "Connexion membre de l'équipe",
+    signInWithOrg: "Connectez-vous avec votre compte d'organisation",
     signInWithGoogle: 'Se connecter avec Google',
     tryAgain: 'Réessayer',
     connecting: 'Connexion...',
@@ -93,15 +93,17 @@ export const fr: TranslationDict = {
     verifyAndSignIn: 'Vérifier et se connecter',
     useDifferentNumber: 'Utiliser un autre numéro',
     verificationSent: 'Un code de vérification a été envoyé à',
-    includeCountryCode: 'Incluez l\'indicatif pays (ex: +33 pour la France, +1 pour les USA)',
-    supplierInviteNote: 'Les fournisseurs sont invités par les organisations. Contactez votre acheteur si vous avez besoin d\'accès.',
+    includeCountryCode: "Incluez l'indicatif pays (ex: +33 pour la France, +1 pour les USA)",
+    supplierInviteNote:
+      "Les fournisseurs sont invités par les organisations. Contactez votre acheteur si vous avez besoin d'accès.",
 
     connectingToOrg: 'Connexion à votre organisation...',
-    organizationVaults: 'Coffres de l\'organisation',
+    organizationVaults: "Coffres de l'organisation",
     noVaultsCreated: 'Aucun coffre créé',
     noVaultsAdminMsg: 'Créez un coffre dans Paramètres → Organisation pour commencer.',
     noVaultsUserMsg: 'Demandez à un administrateur de créer un coffre.',
-    advancedOptions: 'Ou utilisez les options avancées ci-dessous pour vous connecter manuellement.',
+    advancedOptions:
+      'Ou utilisez les options avancées ci-dessous pour vous connecter manuellement.',
     localVault: 'Coffre local',
 
     madeWith: 'Fait avec 💙 par Blue Robotics',
@@ -110,36 +112,41 @@ export const fr: TranslationDict = {
   setup: {
     welcome: 'Bienvenue sur BluePLM',
     connectToBackend: 'Connectez-vous au backend Supabase de votre organisation pour commencer',
-    imAdmin: 'Je suis administrateur de l\'organisation',
-    imAdminDesc: 'Configurez BluePLM avec les identifiants Supabase de votre organisation. Vous obtiendrez un code à partager avec votre équipe.',
-    haveCode: 'J\'ai un code d\'organisation',
-    haveCodeDesc: 'Entrez le code fourni par l\'administrateur de votre organisation pour vous connecter.',
-    needHelp: 'Besoin d\'aide pour configurer Supabase ?',
+    imAdmin: "Je suis administrateur de l'organisation",
+    imAdminDesc:
+      'Configurez BluePLM avec les identifiants Supabase de votre organisation. Vous obtiendrez un code à partager avec votre équipe.',
+    haveCode: "J'ai un code d'organisation",
+    haveCodeDesc:
+      "Entrez le code fourni par l'administrateur de votre organisation pour vous connecter.",
+    needHelp: "Besoin d'aide pour configurer Supabase ?",
 
     adminSetup: 'Configuration administrateur',
     enterCredentials: 'Entrez vos identifiants Supabase depuis les paramètres API de votre projet',
     projectId: 'ID du Projet',
     projectIdHelp: 'Se trouve en haut de votre tableau de bord Supabase (ex. vvyhpdzqdizvorrhjhvq)',
     anonKey: 'Clé anonyme (publique)',
-    orgSlug: 'Slug de l\'organisation',
+    orgSlug: "Slug de l'organisation",
     orgSlugHelp: 'Cela aide à identifier votre organisation dans le code généré',
     connectToSupabase: 'Se connecter à Supabase',
-    findInDashboard: 'Trouvez ces valeurs dans votre tableau de bord Supabase → Paramètres du projet → API',
+    findInDashboard:
+      'Trouvez ces valeurs dans votre tableau de bord Supabase → Paramètres du projet → API',
 
     connectedSuccess: 'Connecté avec succès !',
-    shareCode: 'Partagez ce code avec les membres de votre équipe pour qu\'ils puissent se connecter',
-    organizationCode: 'Code d\'organisation',
-    keepCodeSecure: 'Les membres de l\'équipe peuvent coller ce code lors de leur première ouverture de BluePLM. Gardez ce code en sécurité - il contient vos identifiants Supabase.',
+    shareCode:
+      "Partagez ce code avec les membres de votre équipe pour qu'ils puissent se connecter",
+    organizationCode: "Code d'organisation",
+    keepCodeSecure:
+      "Les membres de l'équipe peuvent coller ce code lors de leur première ouverture de BluePLM. Gardez ce code en sécurité - il contient vos identifiants Supabase.",
     continueToBluePLM: 'Continuer vers BluePLM',
 
     joinOrg: 'Rejoindre votre organisation',
-    enterCode: 'Entrez le code fourni par l\'administrateur de votre organisation',
+    enterCode: "Entrez le code fourni par l'administrateur de votre organisation",
 
-    enterBothFields: 'Veuillez entrer l\'ID du Projet et la clé anonyme',
+    enterBothFields: "Veuillez entrer l'ID du Projet et la clé anonyme",
     invalidProjectId: 'Veuillez entrer un ID de Projet valide (lettres et chiffres uniquement)',
     failedToConnect: 'Échec de la connexion à Supabase',
-    enterOrgCode: 'Veuillez entrer le code d\'organisation',
-    invalidCode: 'Code d\'organisation invalide. Veuillez vérifier et réessayer.',
+    enterOrgCode: "Veuillez entrer le code d'organisation",
+    invalidCode: "Code d'organisation invalide. Veuillez vérifier et réessayer.",
     failedWithCode: 'Échec de la connexion à Supabase avec le code fourni',
   },
 
@@ -159,7 +166,7 @@ export const fr: TranslationDict = {
 
   preferences: {
     title: 'Préférences',
-    applicationUpdates: 'Mises à jour de l\'application',
+    applicationUpdates: "Mises à jour de l'application",
     checkForUpdates: 'Rechercher des mises à jour',
     checking: 'Vérification...',
     upToDate: 'À jour',
@@ -183,40 +190,48 @@ export const fr: TranslationDict = {
     themeKenneth: '👑 Kenneth',
     themeKennethDesc: 'Élégance pourpre royale',
     themeWeather: '🌤️ Météo Locale',
-    themeWeatherDesc: 'Thème dynamique qui s\'adapte à votre météo locale !',
+    themeWeatherDesc: "Thème dynamique qui s'adapte à votre météo locale !",
     themeSystem: 'Système',
     themeSystemDesc: 'Suivre les préférences du système',
     autoSeasonalThemes: 'Thèmes saisonniers automatiques',
-    autoSeasonalThemesDesc: 'Passer automatiquement aux thèmes Halloween (1er oct.) et Noël (1er déc.)',
+    autoSeasonalThemesDesc:
+      'Passer automatiquement aux thèmes Halloween (1er oct.) et Noël (1er déc.)',
 
     language: 'Langue',
-    displayLanguage: 'Langue d\'affichage',
-    chooseLanguage: 'Choisissez la langue de l\'interface',
-    translationsNote: 'Note : Certaines traductions peuvent être incomplètes. Un redémarrage peut être nécessaire.',
+    displayLanguage: "Langue d'affichage",
+    chooseLanguage: "Choisissez la langue de l'interface",
+    translationsNote:
+      'Note : Certaines traductions peuvent être incomplètes. Un redémarrage peut être nécessaire.',
 
     fileExtensions: 'Extensions de fichiers',
-    lowercaseExtensions: 'Extensions en minuscules lors de l\'envoi',
-    lowercaseExtensionsDesc: 'Convertir .SLDPRT en .sldprt lors de l\'archivage',
+    lowercaseExtensions: "Extensions en minuscules lors de l'envoi",
+    lowercaseExtensionsDesc: "Convertir .SLDPRT en .sldprt lors de l'archivage",
 
     ignorePatterns: 'Modèles à ignorer (garder local uniquement)',
-    ignorePatternsDesc: 'Les fichiers correspondant à ces modèles resteront locaux et ne seront pas synchronisés.',
+    ignorePatternsDesc:
+      'Les fichiers correspondant à ces modèles resteront locaux et ne seront pas synchronisés.',
     ignorePlaceholder: 'ex: *.tmp, .git/*, thumbs.db',
     connectVaultForPatterns: 'Connectez-vous à un coffre pour gérer les modèles à ignorer.',
-    noIgnorePatterns: 'Aucun modèle d\'exclusion configuré',
+    noIgnorePatterns: "Aucun modèle d'exclusion configuré",
 
     syncSettings: 'Paramètres de synchronisation',
     autoDownloadCloudFiles: 'Téléchargement auto des fichiers cloud',
-    autoDownloadCloudFilesDesc: 'Télécharger automatiquement les fichiers qui existent sur le serveur mais pas localement',
+    autoDownloadCloudFilesDesc:
+      'Télécharger automatiquement les fichiers qui existent sur le serveur mais pas localement',
     autoDownloadUpdates: 'Téléchargement auto des mises à jour',
-    autoDownloadUpdatesDesc: 'Télécharger automatiquement lorsque le serveur a des versions plus récentes',
+    autoDownloadUpdatesDesc:
+      'Télécharger automatiquement lorsque le serveur a des versions plus récentes',
     excludedFiles: 'Fichiers exclus',
-    excludedFilesDesc: '{{count}} fichier(s) exclus du téléchargement automatique (supprimés manuellement)',
+    excludedFilesDesc:
+      '{{count}} fichier(s) exclus du téléchargement automatique (supprimés manuellement)',
     clearExcludedFiles: 'Effacer la liste',
     autoDiscardOrphanedFiles: 'Supprimer auto les fichiers orphelins',
-    autoDiscardOrphanedFilesDesc: 'Supprimer automatiquement les fichiers locaux qui n\'existent plus sur le serveur',
+    autoDiscardOrphanedFilesDesc:
+      "Supprimer automatiquement les fichiers locaux qui n'existent plus sur le serveur",
     discardOrphaned: 'Supprimer orphelins',
     discardOrphanedCount: 'Supprimer orphelins ({{count}} fichier{{plural}})',
-    orphanedFilesDescription: 'Ces fichiers ont été synchronisés précédemment mais ont été supprimés du serveur par un autre utilisateur',
+    orphanedFilesDescription:
+      'Ces fichiers ont été synchronisés précédemment mais ont été supprimés du serveur par un autre utilisateur',
   },
 
   sidebar: {
@@ -228,7 +243,7 @@ export const fr: TranslationDict = {
     trash: 'Corbeille',
     // Products
     products: 'Explorateur de produits',
-    items: 'Navigateur d\'articles',
+    items: "Navigateur d'articles",
     boms: 'Nomenclatures',
     // Change Control
     ecr: 'ECRs / Problèmes',
@@ -241,7 +256,7 @@ export const fr: TranslationDict = {
     supplierDatabase: 'Base de données fournisseurs',
     supplierPortal: 'Portail fournisseurs',
     // Supply Chain - Purchasing
-    purchaseRequests: 'Demandes d\'achat',
+    purchaseRequests: "Demandes d'achat",
     purchaseOrders: 'Bons de commande',
     invoices: 'Factures',
     // Supply Chain - Logistics
@@ -259,8 +274,8 @@ export const fr: TranslationDict = {
     // Production - Analytics
     productionAnalytics: 'Analytique',
     yieldTracking: 'Suivi des rendements',
-    errorCodes: 'Codes d\'erreur',
-    downtime: 'Temps d\'arrêt',
+    errorCodes: "Codes d'erreur",
+    downtime: "Temps d'arrêt",
     oee: 'Tableau de bord TRS',
     scrapTracking: 'Suivi des rebuts',
     // Quality
@@ -288,7 +303,7 @@ export const fr: TranslationDict = {
     sourceFiles: 'Fichiers source',
     itemsSection: 'Articles',
     changeControl: 'Contrôle des modifications',
-    supplyChain: 'Chaîne d\'approvisionnement',
+    supplyChain: "Chaîne d'approvisionnement",
     suppliers: 'Fournisseurs',
     purchasing: 'Achats',
     logistics: 'Logistique',
@@ -307,7 +322,7 @@ export const fr: TranslationDict = {
     fileStatus: 'État du fichier',
     checkedOutBy: 'Extrait par',
     version: 'Ver',
-    itemNumber: 'Numéro d\'article',
+    itemNumber: "Numéro d'article",
     description: 'Description',
     revision: 'Rév',
     state: 'État',
@@ -331,8 +346,8 @@ export const fr: TranslationDict = {
     paste: 'Coller',
     openFile: 'Ouvrir le fichier',
     openFolder: 'Ouvrir le dossier',
-    openInExplorer: 'Ouvrir dans l\'explorateur',
-    viewHistory: 'Voir l\'historique',
+    openInExplorer: "Ouvrir dans l'explorateur",
+    viewHistory: "Voir l'historique",
     compare: 'Comparer',
     rollback: 'Restaurer',
     discard: 'Annuler les modifications',
@@ -378,9 +393,11 @@ export const fr: TranslationDict = {
     fileCountSingular: '1 fichier',
     totalSize: '{{size}} au total',
     autoDownloadCloudTitle: 'Télécharger automatiquement les fichiers cloud',
-    autoDownloadCloudDesc: 'Télécharger automatiquement les fichiers qui existent sur le serveur mais pas sur votre ordinateur',
+    autoDownloadCloudDesc:
+      'Télécharger automatiquement les fichiers qui existent sur le serveur mais pas sur votre ordinateur',
     autoDownloadUpdatesTitle: 'Télécharger automatiquement les mises à jour',
-    autoDownloadUpdatesDesc: 'Télécharger automatiquement les versions plus récentes lorsque les fichiers sont mis à jour sur le serveur',
+    autoDownloadUpdatesDesc:
+      'Télécharger automatiquement les versions plus récentes lorsque les fichiers sont mis à jour sur le serveur',
     summary: 'Après connexion, BluePLM téléchargera {{count}} fichiers ({{size}})',
     summaryNoDownload: 'Les fichiers ne seront téléchargés que sur demande',
     connect: 'Connecter le coffre',

@@ -7,7 +7,7 @@ import type { SelectionCategories } from './types'
 export function getSelectionCategories(
   files: LocalFile[],
   selectedPaths: string[],
-  userId?: string
+  userId?: string,
 ): SelectionCategories {
   // Return empty if not multi-select
   if (selectedPaths.length <= 1) {
@@ -16,7 +16,7 @@ export function getSelectionCategories(
       checkoutable: [],
       checkinable: [],
       uploadable: [],
-      updatable: []
+      updatable: [],
     }
   }
 
@@ -26,7 +26,7 @@ export function getSelectionCategories(
     checkoutable: [],
     checkinable: [],
     uploadable: [],
-    updatable: []
+    updatable: [],
   }
 
   for (const file of files) {

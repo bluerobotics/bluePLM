@@ -1,10 +1,10 @@
 /**
  * SolidWorks integration utilities.
- * 
+ *
  * Provides shared functionality for SolidWorks-related features:
  * - Path matching and normalization
  * - Reference validation types
- * 
+ *
  * @example
  * import { matchSwPathToDb, normalizePath, type PathMatchResult } from '@/lib/solidworks'
  */
@@ -16,7 +16,7 @@ export type {
   PathStatus,
   SWServiceReference,
   VaultFileSummary,
-  BomNodePathStatus
+  BomNodePathStatus,
 } from './types'
 
 // Path matching utilities
@@ -24,5 +24,5 @@ export {
   normalizePath,
   getPathSuffix,
   matchSwPathToDb,
-  getPathStatusFromMatch
+  getPathStatusFromMatch,
 } from './pathMatching'

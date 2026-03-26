@@ -18,5 +18,11 @@ export { createIntegrationsSlice } from './integrationsSlice'
 export { createExtensionsSlice } from './extensionsSlice'
 
 export { createOperationLogSlice } from './operationLogSlice'
-export type { OperationLogSlice, FileOperation, OperationStep, FileOperationType, OperationStatus } from './operationLogSlice'
+export type {
+  OperationLogSlice,
+  FileOperation,
+  OperationStep,
+  FileOperationType,
+  OperationStatus,
+} from './operationLogSlice'
 export { createAnnotationsSlice } from './annotationsSlice'

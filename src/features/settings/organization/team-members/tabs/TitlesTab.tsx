@@ -1,6 +1,6 @@
 /**
  * TitlesTab - Displays and manages job titles
- * 
+ *
  * This component uses hooks directly instead of context:
  * - usePDMStore for user/org info
  * - useJobTitles for data
@@ -29,12 +29,8 @@ export function TitlesTab({ searchQuery = '', onShowCreateTitleDialog }: TitlesT
   const isAdmin = getEffectiveRole() === 'admin'
 
   // Data hooks
-  const {
-    jobTitles,
-    updateJobTitle,
-    deleteJobTitle
-  } = useJobTitles(orgId)
-  
+  const { jobTitles, updateJobTitle, deleteJobTitle } = useJobTitles(orgId)
+
   const { members: orgUsers } = useMembers(orgId)
 
   // Dialog state - for edit operations within the tab
@@ -54,7 +50,7 @@ export function TitlesTab({ searchQuery = '', onShowCreateTitleDialog }: TitlesT
     isCreatingTitle,
     setIsCreatingTitle,
     openEditTitleDialog,
-    resetTitleForm
+    resetTitleForm,
   } = useJobTitleDialogs()
 
   // Delete confirmation dialog state
@@ -62,8 +58,8 @@ export function TitlesTab({ searchQuery = '', onShowCreateTitleDialog }: TitlesT
   const [isDeleting, setIsDeleting] = useState(false)
 
   // Filter titles by search
-  const filteredTitles = jobTitles.filter(t => 
-    !searchQuery || t.name.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredTitles = jobTitles.filter(
+    (t) => !searchQuery || t.name.toLowerCase().includes(searchQuery.toLowerCase()),
   )
 
   // Handlers
@@ -75,7 +71,7 @@ export function TitlesTab({ searchQuery = '', onShowCreateTitleDialog }: TitlesT
         editingJobTitle.id,
         newTitleName.trim(),
         newTitleColor,
-        newTitleIcon
+        newTitleIcon,
       )
       if (success) {
         setShowCreateTitleDialog(false)
@@ -109,10 +105,7 @@ export function TitlesTab({ searchQuery = '', onShowCreateTitleDialog }: TitlesT
             {searchQuery ? 'No matching job titles' : 'No job titles yet'}
           </p>
           {isAdmin && !searchQuery && onShowCreateTitleDialog && (
-            <button
-              onClick={onShowCreateTitleDialog}
-              className="btn btn-primary btn-sm"
-            >
+            <button onClick={onShowCreateTitleDialog} className="btn btn-primary btn-sm">
               <Plus size={14} className="mr-1" />
               Create First Title
             </button>
@@ -126,10 +119,13 @@ export function TitlesTab({ searchQuery = '', onShowCreateTitleDialog }: TitlesT
     <div className="space-y-3">
       <div className="border border-plm-border rounded-lg overflow-hidden bg-plm-bg/50">
         <div className="divide-y divide-plm-border/50">
-          {filteredTitles.map(title => {
-            const TitleIcon = (LucideIcons as unknown as Record<string, React.ComponentType<{ size?: number }>>)[title.icon] || Briefcase
-            const usersWithTitle = orgUsers.filter(u => u.job_title?.id === title.id)
-            
+          {filteredTitles.map((title) => {
+            const TitleIcon =
+              (LucideIcons as unknown as Record<string, React.ComponentType<{ size?: number }>>)[
+                title.icon
+              ] || Briefcase
+            const usersWithTitle = orgUsers.filter((u) => u.job_title?.id === title.id)
+
             return (
               <div
                 key={title.id}
@@ -142,7 +138,7 @@ export function TitlesTab({ searchQuery = '', onShowCreateTitleDialog }: TitlesT
                 >
                   <TitleIcon size={20} />
                 </div>
-                
+
                 {/* Title info */}
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-plm-fg">{title.name}</div>
@@ -150,11 +146,11 @@ export function TitlesTab({ searchQuery = '', onShowCreateTitleDialog }: TitlesT
                     {usersWithTitle.length} user{usersWithTitle.length !== 1 ? 's' : ''}
                   </div>
                 </div>
-                
+
                 {/* Users with this title */}
                 {usersWithTitle.length > 0 && (
                   <div className="flex -space-x-2 flex-shrink-0">
-                    {usersWithTitle.slice(0, 4).map(u => (
+                    {usersWithTitle.slice(0, 4).map((u) =>
                       getEffectiveAvatarUrl(u) ? (
                         <img
                           key={u.id}
@@ -172,8 +168,8 @@ export function TitlesTab({ searchQuery = '', onShowCreateTitleDialog }: TitlesT
                         >
                           {getInitials(u.full_name || u.email)}
                         </div>
-                      )
-                    ))}
+                      ),
+                    )}
                     {usersWithTitle.length > 4 && (
                       <div className="w-7 h-7 rounded-full bg-plm-fg-muted/20 flex items-center justify-center text-[10px] font-medium border-2 border-plm-bg-light">
                         +{usersWithTitle.length - 4}
@@ -181,7 +177,7 @@ export function TitlesTab({ searchQuery = '', onShowCreateTitleDialog }: TitlesT
                     )}
                   </div>
                 )}
-                
+
                 {/* Actions */}
                 {isAdmin && (
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -206,11 +202,11 @@ export function TitlesTab({ searchQuery = '', onShowCreateTitleDialog }: TitlesT
           })}
         </div>
       </div>
-      
+
       {/* Info footer */}
       <p className="text-xs text-plm-fg-muted">
-        Job titles are display-only labels. Editing a title updates it for all users who have it assigned.
-        All permissions come from teams.
+        Job titles are display-only labels. Editing a title updates it for all users who have it
+        assigned. All permissions come from teams.
       </p>
 
       {/* Edit Job Title Dialog - rendered here for edit actions within the tab */}

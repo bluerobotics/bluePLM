@@ -22,7 +22,7 @@ export function ClipboardActions({
   return (
     <>
       {/* Copy */}
-      <div 
+      <div
         className="context-menu-item"
         onClick={() => {
           handleCopy()
@@ -33,9 +33,9 @@ export function ClipboardActions({
         Copy
         <span className="text-xs text-plm-fg-muted ml-auto">Ctrl+C</span>
       </div>
-      
+
       {/* Cut */}
-      <div 
+      <div
         className="context-menu-item"
         onClick={() => {
           handleCut()
@@ -46,9 +46,9 @@ export function ClipboardActions({
         Cut
         <span className="text-xs text-plm-fg-muted ml-auto">Ctrl+X</span>
       </div>
-      
+
       {/* Paste */}
-      <div 
+      <div
         className={`context-menu-item ${!clipboard ? 'disabled' : ''}`}
         onClick={() => {
           if (clipboard) {

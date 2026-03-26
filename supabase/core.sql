@@ -19,7 +19,7 @@
 --   - 10-source-files.sql (files, vaults, workflows)
 --   - 20-change-control.sql (ECOs, reviews, deviations)
 --   - 30-supply-chain.sql (suppliers, RFQs)
---   - 40-integrations.sql (Odoo, WooCommerce, webhooks)
+--   - 40-integrations.sql (Odoo, webhooks)
 --
 -- =====================================================================
 

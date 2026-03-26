@@ -1,9 +1,9 @@
 /**
  * Extension UI API Implementation
- * 
+ *
  * Provides sandboxed UI operations for extensions.
  * All operations are forwarded via IPC to the main process.
- * 
+ *
  * @module extensions/api/ui
  */
 
@@ -52,8 +52,8 @@ export const UI_IPC_CHANNELS = {
 async function sendIPC<T>(channel: string, ...args: unknown[]): Promise<T> {
   // In the actual implementation, this connects to the IPC bridge
   // For now, we throw to indicate this needs to be wired up
-  if (typeof window !== 'undefined' && (window as any).__extensionIPC) {
-    return (window as any).__extensionIPC.invoke(channel, ...args)
+  if (typeof window !== 'undefined' && (window as any).__extensionIPC) { // TODO: type this
+    return (window as any).__extensionIPC.invoke(channel, ...args) // TODO: type this
   }
   throw new Error(`IPC not available: ${channel}`)
 }
@@ -71,22 +71,19 @@ function generateProgressId(): string {
 
 /**
  * Create the UI API implementation for an extension.
- * 
+ *
  * @param extensionId - The ID of the extension using this API
  * @param grantedPermissions - Permissions granted to the extension
  * @returns The UI API implementation
  */
-export function createUIAPI(
-  extensionId: string,
-  grantedPermissions: string[]
-): UIAPI {
+export function createUIAPI(extensionId: string, grantedPermissions: string[]): UIAPI {
   return {
     /**
      * Show a toast notification.
      */
     showToast(message: string, type: ToastType = 'info', duration: number = 3000): void {
       checkPermission(extensionId, 'ui.showToast', grantedPermissions)
-      
+
       // Fire and forget - toasts don't need a response
       sendIPC(UI_IPC_CHANNELS.SHOW_TOAST, {
         extensionId,
@@ -103,12 +100,12 @@ export function createUIAPI(
      */
     async showDialog(options: DialogOptions): Promise<DialogResult> {
       checkPermission(extensionId, 'ui.showDialog', grantedPermissions)
-      
+
       const result = await sendIPC<DialogResult>(UI_IPC_CHANNELS.SHOW_DIALOG, {
         extensionId,
         ...options,
       })
-      
+
       return result
     },
 
@@ -117,7 +114,7 @@ export function createUIAPI(
      */
     setStatus(status: ConnectionStatus): void {
       checkPermission(extensionId, 'ui.setStatus', grantedPermissions)
-      
+
       sendIPC(UI_IPC_CHANNELS.SET_STATUS, {
         extensionId,
         status,
@@ -131,14 +128,14 @@ export function createUIAPI(
      */
     async showProgress<T>(
       options: ProgressOptions,
-      task: (progress: Progress, token: CancellationToken) => Promise<T>
+      task: (progress: Progress, token: CancellationToken) => Promise<T>,
     ): Promise<T> {
       checkPermission(extensionId, 'ui.showProgress', grantedPermissions)
-      
+
       const progressId = generateProgressId()
       let isCancelled = false
       const cancellationCallbacks: (() => void)[] = []
-      
+
       // Create the progress reporter
       const progress: Progress = {
         report(value: { message?: string; increment?: number }): void {
@@ -151,7 +148,7 @@ export function createUIAPI(
           })
         },
       }
-      
+
       // Create the cancellation token
       const token: CancellationToken = {
         get isCancellationRequested() {
@@ -169,7 +166,7 @@ export function createUIAPI(
           }
         },
       }
-      
+
       try {
         // Start progress display
         const startResult = await sendIPC<{ success: boolean; cancelListener?: string }>(
@@ -178,18 +175,18 @@ export function createUIAPI(
             extensionId,
             progressId,
             ...options,
-          }
+          },
         )
-        
+
         // Set up cancellation listener if cancellable
         if (options.cancellable && startResult.cancelListener) {
           // Listen for cancel events from main process
           // This would be wired up through the IPC bridge
         }
-        
+
         // Execute the task
         const result = await task(progress, token)
-        
+
         return result
       } finally {
         // Clean up progress display
@@ -207,23 +204,23 @@ export function createUIAPI(
      */
     async showQuickPick(
       items: QuickPickItem[],
-      options?: QuickPickOptions
+      options?: QuickPickOptions,
     ): Promise<QuickPickItem | QuickPickItem[] | undefined> {
       checkPermission(extensionId, 'ui.showQuickPick', grantedPermissions)
-      
-      const result = await sendIPC<{ selected?: QuickPickItem | QuickPickItem[]; cancelled: boolean }>(
-        UI_IPC_CHANNELS.SHOW_QUICK_PICK,
-        {
-          extensionId,
-          items,
-          options: options || {},
-        }
-      )
-      
+
+      const result = await sendIPC<{
+        selected?: QuickPickItem | QuickPickItem[]
+        cancelled: boolean
+      }>(UI_IPC_CHANNELS.SHOW_QUICK_PICK, {
+        extensionId,
+        items,
+        options: options || {},
+      })
+
       if (result.cancelled) {
         return undefined
       }
-      
+
       return result.selected
     },
 
@@ -232,7 +229,7 @@ export function createUIAPI(
      */
     async showInputBox(options?: InputBoxOptions): Promise<string | undefined> {
       checkPermission(extensionId, 'ui.showInputBox', grantedPermissions)
-      
+
       // Note: validateInput function cannot be serialized via IPC
       // Validation will happen on the main process side with the pattern
       // or be re-executed after receiving input
@@ -247,19 +244,19 @@ export function createUIAPI(
             // Validation pattern could be sent as regex string if needed
           }
         : {}
-      
+
       const result = await sendIPC<{ value?: string; cancelled: boolean }>(
         UI_IPC_CHANNELS.SHOW_INPUT_BOX,
         {
           extensionId,
           options: serializableOptions,
-        }
+        },
       )
-      
+
       if (result.cancelled) {
         return undefined
       }
-      
+
       // If there's a validateInput function, validate the result
       if (options?.validateInput && result.value !== undefined) {
         const validationError = await options.validateInput(result.value)
@@ -269,7 +266,7 @@ export function createUIAPI(
           throw new Error(`Validation failed: ${validationError}`)
         }
       }
-      
+
       return result.value
     },
   }

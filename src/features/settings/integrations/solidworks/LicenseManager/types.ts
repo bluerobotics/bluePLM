@@ -1,12 +1,15 @@
 import type { Database } from '@/types/supabase'
+import type { OrgUser as OrgUserBase } from '@/types/database'
 
 // Database row types
 export type SolidWorksLicense = Database['public']['Tables']['solidworks_licenses']['Row']
 export type SolidWorksLicenseInsert = Database['public']['Tables']['solidworks_licenses']['Insert']
 export type SolidWorksLicenseUpdate = Database['public']['Tables']['solidworks_licenses']['Update']
 
-export type SolidWorksLicenseAssignment = Database['public']['Tables']['solidworks_license_assignments']['Row']
-export type SolidWorksLicenseAssignmentInsert = Database['public']['Tables']['solidworks_license_assignments']['Insert']
+export type SolidWorksLicenseAssignment =
+  Database['public']['Tables']['solidworks_license_assignments']['Row']
+export type SolidWorksLicenseAssignmentInsert =
+  Database['public']['Tables']['solidworks_license_assignments']['Insert']
 
 export type SolidWorksLicenseType = Database['public']['Enums']['solidworks_license_type']
 
@@ -34,11 +37,7 @@ export interface LicenseWithAssignment extends SolidWorksLicense {
 export type LicenseStatus = 'unassigned' | 'assigned' | 'active'
 
 // User for assignment dropdown (includes both active users and pending invites)
-export interface OrgUser {
-  id: string
-  email: string
-  full_name: string | null
-  avatar_url: string | null
+export interface OrgUser extends OrgUserBase {
   is_pending: boolean
 }
 

@@ -32,36 +32,50 @@ export function useKeyboardNavigation(options: UseKeyboardNavigationOptions) {
     onEscape,
   } = options
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    switch (e.key) {
-      case 'ArrowDown':
-        e.preventDefault()
-        setHighlightedIndex((prev: number) => Math.min(prev + 1, totalResults - 1))
-        break
-      case 'ArrowUp':
-        e.preventDefault()
-        setHighlightedIndex((prev: number) => Math.max(prev - 1, -1))
-        break
-      case 'Enter':
-        e.preventDefault()
-        onEnter(highlightedIndex)
-        break
-      case 'Escape':
-        e.preventDefault()
-        onEscape()
-        break
-      case 'Tab':
-        if (showFilters) {
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      switch (e.key) {
+        case 'ArrowDown':
           e.preventDefault()
-          // Cycle through filters - only show filters user can use
-          const availableFilters = getAvailableFilters(isGdriveConnected)
-          const currentIndex = availableFilters.findIndex(f => f.id === activeFilter)
-          const nextIndex = (currentIndex + 1) % availableFilters.length
-          setActiveFilter(availableFilters[nextIndex].id)
-        }
-        break
-    }
-  }, [highlightedIndex, totalResults, isOpen, showFilters, activeFilter, isGdriveConnected, setHighlightedIndex, onEnter, onEscape, setActiveFilter])
+          setHighlightedIndex((prev: number) => Math.min(prev + 1, totalResults - 1))
+          break
+        case 'ArrowUp':
+          e.preventDefault()
+          setHighlightedIndex((prev: number) => Math.max(prev - 1, -1))
+          break
+        case 'Enter':
+          e.preventDefault()
+          onEnter(highlightedIndex)
+          break
+        case 'Escape':
+          e.preventDefault()
+          onEscape()
+          break
+        case 'Tab':
+          if (showFilters) {
+            e.preventDefault()
+            // Cycle through filters - only show filters user can use
+            const availableFilters = getAvailableFilters(isGdriveConnected)
+            const currentIndex = availableFilters.findIndex((f) => f.id === activeFilter)
+            const nextIndex = (currentIndex + 1) % availableFilters.length
+            setActiveFilter(availableFilters[nextIndex].id)
+          }
+          break
+      }
+    },
+    [
+      highlightedIndex,
+      totalResults,
+      isOpen,
+      showFilters,
+      activeFilter,
+      isGdriveConnected,
+      setHighlightedIndex,
+      onEnter,
+      onEscape,
+      setActiveFilter,
+    ],
+  )
 
   return { handleKeyDown }
 }

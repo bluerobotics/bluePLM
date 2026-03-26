@@ -1,6 +1,6 @@
 /**
  * FilePaneHandlersContext - Provides action handlers and computed values
- * 
+ *
  * Separated from FilePaneContext to:
  * 1. Reduce prop drilling through CellRenderer
  * 2. Allow cells to access handlers directly via context
@@ -19,32 +19,32 @@ export interface FilePaneHandlersContextValue {
   handleInlineUpload: (e: React.MouseEvent, file: LocalFile) => void
   handleInlineCheckout: (e: React.MouseEvent, file: LocalFile) => void
   handleInlineCheckin: (e: React.MouseEvent, file: LocalFile) => void
-  
+
   // Computed selection arrays (for multi-select operations)
   selectedDownloadableFiles: LocalFile[]
   selectedUploadableFiles: LocalFile[]
   selectedCheckoutableFiles: LocalFile[]
   selectedCheckinableFiles: LocalFile[]
   selectedUpdatableFiles: LocalFile[]
-  
+
   // Status functions
   isBeingProcessed: (path: string) => boolean
   getProcessingOperation: (path: string, isDirectory?: boolean) => OperationType | null
   getFolderCheckoutStatus: (path: string) => 'mine' | 'others' | 'both' | null
   isFolderSynced: (path: string) => boolean
   isFileEditable: (file: LocalFile) => boolean
-  
+
   // Config handlers (SolidWorks configurations)
   canHaveConfigs: (file: LocalFile) => boolean
   toggleFileConfigExpansion: (file: LocalFile) => void
   hasPendingMetadataChanges: (file: LocalFile) => boolean
   savingConfigsToSW: Set<string>
   saveConfigsToSWFile: (file: LocalFile) => void
-  
+
   // Drawing reference handlers
   canHaveDrawingRefs: (file: LocalFile) => boolean
   toggleDrawingRefExpansion: (file: LocalFile) => void
-  
+
   // Edit handlers
   handleRename: () => void
   handleSaveCellEdit: () => void
@@ -63,17 +63,12 @@ export interface FilePaneHandlersProviderProps {
  * Provider for file pane handlers context
  * Receives handlers from FilePane.tsx and provides them to cell components
  */
-export function FilePaneHandlersProvider({ 
-  children, 
-  handlers 
-}: FilePaneHandlersProviderProps) {
+export function FilePaneHandlersProvider({ children, handlers }: FilePaneHandlersProviderProps) {
   // Memoize to prevent unnecessary re-renders
   const value = useMemo(() => handlers, [handlers])
-  
+
   return (
-    <FilePaneHandlersContext.Provider value={value}>
-      {children}
-    </FilePaneHandlersContext.Provider>
+    <FilePaneHandlersContext.Provider value={value}>{children}</FilePaneHandlersContext.Provider>
   )
 }
 

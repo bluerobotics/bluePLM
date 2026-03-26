@@ -1,9 +1,9 @@
 /**
  * DeleteWorkflowRoleDialog - Confirm workflow role deletion
- * 
+ *
  * Shows a confirmation dialog before deleting a workflow role,
  * warning that users will be unassigned from this role.
- * 
+ *
  * @module team-members/DeleteWorkflowRoleDialog
  */
 
@@ -18,14 +18,21 @@ export function DeleteWorkflowRoleDialog({
   role,
   onConfirm,
   onClose,
-  isDeleting
+  isDeleting,
 }: DeleteWorkflowRoleDialogProps) {
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={onClose}>
-      <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center"
+      onClick={onClose}
+    >
+      <div
+        className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4"
+        onClick={(e) => e.stopPropagation()}
+      >
         <h3 className="text-lg font-medium text-plm-fg mb-4">Delete Workflow Role</h3>
         <p className="text-base text-plm-fg-muted mb-4">
-          Are you sure you want to delete <strong>{role.name}</strong>? Users will be unassigned from this role.
+          Are you sure you want to delete <strong>{role.name}</strong>? Users will be unassigned
+          from this role.
         </p>
         <div className="flex gap-2 justify-end">
           <button onClick={onClose} className="btn btn-ghost" disabled={isDeleting}>

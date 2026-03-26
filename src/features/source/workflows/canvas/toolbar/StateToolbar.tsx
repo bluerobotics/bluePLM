@@ -3,6 +3,8 @@
  */
 import { useState } from 'react'
 import { Edit3, Trash2, Copy } from 'lucide-react'
+
+import { t } from '@/lib/i18n'
 import { ColorPicker, DEFAULT_PRESET_COLORS } from '@/components/shared/ColorPicker'
 import { TickSlider } from '../TickSlider'
 import type { WorkflowState } from '@/types/workflow'
@@ -46,26 +48,26 @@ export function StateToolbar({
   onEdit,
   onDuplicate,
   onDelete,
-  closeAllDropdowns
+  closeAllDropdowns,
 }: StateToolbarProps) {
   const [showColorPicker, setShowColorPicker] = useState(false)
   const [showBoxStyles, setShowBoxStyles] = useState(false)
   const [_showBorderColorPicker, _setShowBorderColorPicker] = useState(false)
-  
+
   const currentColor = targetState.color || '#6b7280'
   const currentFillOpacity = targetState.fill_opacity ?? 1
   const currentBorderColor = targetState.border_color || null
   const currentBorderOpacity = targetState.border_opacity ?? 1
   const currentStateBorderThickness = targetState.border_thickness ?? 2
   const currentCornerRadius = targetState.corner_radius ?? 8
-  
+
   const handleCloseDropdowns = () => {
     setShowColorPicker(false)
     setShowBoxStyles(false)
     _setShowBorderColorPicker(false)
     closeAllDropdowns()
   }
-  
+
   return (
     <>
       {/* Color button */}
@@ -76,14 +78,14 @@ export function StateToolbar({
             setShowColorPicker(!showColorPicker)
           }}
           className="flex items-center justify-center w-8 h-8 rounded hover:bg-plm-highlight transition-colors"
-          title="Fill color"
+          title={t('workflows.stateToolbar.fillColor')}
         >
-          <div 
+          <div
             className="w-5 h-5 rounded border-2 border-plm-fg/30"
             style={{ backgroundColor: currentColor }}
           />
         </button>
-        
+
         {showColorPicker && (
           <ColorPicker
             color={currentColor}
@@ -92,16 +94,16 @@ export function StateToolbar({
             }}
             onClose={handleCloseDropdowns}
             showReset={false}
-            title="Fill Color"
+            title={t('workflows.stateToolbar.fillColorLabel')}
             additionalPresets={WORKFLOW_ADDITIONAL_COLORS}
             position="left"
           />
         )}
       </div>
-      
+
       {/* Divider */}
       <div className="w-px h-5 bg-plm-border mx-0.5" />
-      
+
       {/* Box styling button */}
       <div className="relative">
         <button
@@ -110,36 +112,56 @@ export function StateToolbar({
             setShowBoxStyles(!showBoxStyles)
           }}
           className="flex items-center justify-center w-8 h-8 rounded hover:bg-plm-highlight transition-colors"
-          title="Box styling"
+          title={t('workflows.stateToolbar.boxStyling')}
         >
           <svg width="18" height="18" viewBox="0 0 18 18" className="text-plm-fg-muted">
-            <rect x="2" y="2" width="14" height="14" rx="2" fill="none" stroke="currentColor" strokeWidth="2" />
+            <rect
+              x="2"
+              y="2"
+              width="14"
+              height="14"
+              rx="2"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            />
           </svg>
         </button>
-        
+
         {/* Box styling dropdown */}
         {showBoxStyles && (
-          <div 
+          <div
             className="absolute top-full left-0 mt-1 p-3 bg-plm-sidebar rounded-lg shadow-xl border border-plm-border z-50 w-[200px]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Fill Color */}
             <div className="mb-4">
-              <div className="text-[10px] uppercase tracking-wide text-plm-fg-muted mb-2">Fill Color</div>
+              <div className="text-[10px] uppercase tracking-wide text-plm-fg-muted mb-2">
+                {t('workflows.stateToolbar.fillColorLabel')}
+              </div>
               <div className="grid grid-cols-7 gap-1">
                 {/* No fill button */}
                 <button
                   onClick={() => onFillOpacityChange?.(0)}
                   className={`w-5 h-5 rounded flex items-center justify-center transition-colors border ${
-                    currentFillOpacity === 0 
-                      ? 'border-plm-fg bg-plm-bg' 
+                    currentFillOpacity === 0
+                      ? 'border-plm-fg bg-plm-bg'
                       : 'border-plm-border bg-plm-bg hover:bg-plm-highlight'
                   }`}
-                  title="No fill"
+                  title={t('workflows.stateToolbar.noFill')}
                 >
                   <svg width="10" height="10" viewBox="0 0 12 12" className="text-plm-fg-muted">
                     <line x1="2" y1="2" x2="10" y2="10" stroke="currentColor" strokeWidth="1.5" />
-                    <rect x="1" y="1" width="10" height="10" rx="1" fill="none" stroke="currentColor" strokeWidth="1" />
+                    <rect
+                      x="1"
+                      y="1"
+                      width="10"
+                      height="10"
+                      rx="1"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1"
+                    />
                   </svg>
                 </button>
                 {/* Color presets */}
@@ -151,18 +173,20 @@ export function StateToolbar({
                       if (currentFillOpacity === 0) onFillOpacityChange?.(1)
                     }}
                     className={`w-5 h-5 rounded transition-transform hover:scale-105 ${
-                      currentColor === color && currentFillOpacity > 0 ? 'ring-2 ring-plm-fg ring-offset-1 ring-offset-plm-sidebar' : ''
+                      currentColor === color && currentFillOpacity > 0
+                        ? 'ring-2 ring-plm-fg ring-offset-1 ring-offset-plm-sidebar'
+                        : ''
                     }`}
                     style={{ backgroundColor: color }}
                   />
                 ))}
               </div>
             </div>
-            
+
             {/* Fill Opacity */}
             <div className="mb-4">
               <div className="text-[10px] uppercase tracking-wide text-plm-fg-muted mb-2 flex items-center justify-between">
-                <span>Fill Opacity</span>
+                <span>{t('workflows.stateToolbar.fillOpacity')}</span>
                 <span className="text-plm-fg-muted">{Math.round(currentFillOpacity * 100)}%</span>
               </div>
               <TickSlider
@@ -174,10 +198,12 @@ export function StateToolbar({
                 onChange={(val) => onFillOpacityChange?.(val / 100)}
               />
             </div>
-            
+
             {/* Border Color */}
             <div className="mb-4">
-              <div className="text-[10px] uppercase tracking-wide text-plm-fg-muted mb-2">Border Color</div>
+              <div className="text-[10px] uppercase tracking-wide text-plm-fg-muted mb-2">
+                {t('workflows.stateToolbar.borderColor')}
+              </div>
               <div className="grid grid-cols-7 gap-1">
                 {/* No border / same as fill button */}
                 <button
@@ -186,14 +212,24 @@ export function StateToolbar({
                     _setShowBorderColorPicker(false)
                   }}
                   className={`w-5 h-5 rounded flex items-center justify-center transition-colors border ${
-                    currentBorderColor === null 
-                      ? 'border-plm-fg bg-plm-bg' 
+                    currentBorderColor === null
+                      ? 'border-plm-fg bg-plm-bg'
                       : 'border-plm-border bg-plm-bg hover:bg-plm-highlight'
                   }`}
-                  title="Same as fill"
+                  title={t('workflows.stateToolbar.sameAsFill')}
                 >
                   <svg width="10" height="10" viewBox="0 0 12 12" className="text-plm-fg-muted">
-                    <rect x="1" y="1" width="10" height="10" rx="1" fill="none" stroke="currentColor" strokeWidth="1" strokeDasharray="2,2" />
+                    <rect
+                      x="1"
+                      y="1"
+                      width="10"
+                      height="10"
+                      rx="1"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1"
+                      strokeDasharray="2,2"
+                    />
                   </svg>
                 </button>
                 {/* Color presets */}
@@ -204,18 +240,20 @@ export function StateToolbar({
                       onBorderColorChange?.(color)
                     }}
                     className={`w-5 h-5 rounded transition-transform hover:scale-105 ${
-                      currentBorderColor === color ? 'ring-2 ring-plm-fg ring-offset-1 ring-offset-plm-sidebar' : ''
+                      currentBorderColor === color
+                        ? 'ring-2 ring-plm-fg ring-offset-1 ring-offset-plm-sidebar'
+                        : ''
                     }`}
                     style={{ backgroundColor: color }}
                   />
                 ))}
               </div>
             </div>
-            
+
             {/* Border Opacity */}
             <div className="mb-4">
               <div className="text-[10px] uppercase tracking-wide text-plm-fg-muted mb-2 flex items-center justify-between">
-                <span>Border Opacity</span>
+                <span>{t('workflows.stateToolbar.borderOpacity')}</span>
                 <span className="text-plm-fg-muted">{Math.round(currentBorderOpacity * 100)}%</span>
               </div>
               <TickSlider
@@ -227,11 +265,11 @@ export function StateToolbar({
                 onChange={(val) => onBorderOpacityChange?.(val / 100)}
               />
             </div>
-            
+
             {/* Border Thickness */}
             <div className="mb-4">
               <div className="text-[10px] uppercase tracking-wide text-plm-fg-muted mb-2 flex items-center justify-between">
-                <span>Border Thickness</span>
+                <span>{t('workflows.stateToolbar.borderThickness')}</span>
                 <span className="text-plm-fg-muted">{currentStateBorderThickness}px</span>
               </div>
               <TickSlider
@@ -243,12 +281,12 @@ export function StateToolbar({
                 onChange={(val) => onBorderThicknessChange?.(val)}
               />
             </div>
-            
+
             {/* Corner Radius - only for rectangle */}
             {(targetState.shape === 'rectangle' || !targetState.shape) && (
               <div className="mb-4">
                 <div className="text-[10px] uppercase tracking-wide text-plm-fg-muted mb-2 flex items-center justify-between">
-                  <span>Corner Radius</span>
+                  <span>{t('workflows.stateToolbar.cornerRadius')}</span>
                   <span className="text-plm-fg-muted">{currentCornerRadius}px</span>
                 </div>
                 <TickSlider
@@ -261,10 +299,12 @@ export function StateToolbar({
                 />
               </div>
             )}
-            
+
             {/* Shape */}
             <div>
-              <div className="text-[10px] uppercase tracking-wide text-plm-fg-muted mb-2">Shape</div>
+              <div className="text-[10px] uppercase tracking-wide text-plm-fg-muted mb-2">
+                {t('workflows.stateToolbar.shape')}
+              </div>
               <div className="flex gap-1">
                 {/* Rectangle */}
                 <button
@@ -274,10 +314,19 @@ export function StateToolbar({
                       ? 'border-plm-fg bg-plm-highlight'
                       : 'border-plm-border bg-plm-bg hover:bg-plm-highlight'
                   }`}
-                  title="Rectangle"
+                  title={t('workflows.stateToolbar.rectangle')}
                 >
                   <svg width="16" height="16" viewBox="0 0 16 16" className="text-plm-fg">
-                    <rect x="2" y="4" width="12" height="8" rx="2" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                    <rect
+                      x="2"
+                      y="4"
+                      width="12"
+                      height="8"
+                      rx="2"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                    />
                   </svg>
                 </button>
                 {/* Diamond */}
@@ -288,10 +337,16 @@ export function StateToolbar({
                       ? 'border-plm-fg bg-plm-highlight'
                       : 'border-plm-border bg-plm-bg hover:bg-plm-highlight'
                   }`}
-                  title="Diamond (for approval gates)"
+                  title={t('workflows.stateToolbar.diamond')}
                 >
                   <svg width="16" height="16" viewBox="0 0 16 16" className="text-plm-fg">
-                    <polygon points="8,2 14,8 8,14 2,8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+                    <polygon
+                      points="8,2 14,8 8,14 2,8"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinejoin="round"
+                    />
                   </svg>
                 </button>
                 {/* Hexagon */}
@@ -302,10 +357,16 @@ export function StateToolbar({
                       ? 'border-plm-fg bg-plm-highlight'
                       : 'border-plm-border bg-plm-bg hover:bg-plm-highlight'
                   }`}
-                  title="Hexagon"
+                  title={t('workflows.stateToolbar.hexagon')}
                 >
                   <svg width="16" height="16" viewBox="0 0 16 16" className="text-plm-fg">
-                    <polygon points="4,2 12,2 15,8 12,14 4,14 1,8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+                    <polygon
+                      points="4,2 12,2 15,8 12,14 4,14 1,8"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinejoin="round"
+                    />
                   </svg>
                 </button>
                 {/* Ellipse */}
@@ -316,10 +377,18 @@ export function StateToolbar({
                       ? 'border-plm-fg bg-plm-highlight'
                       : 'border-plm-border bg-plm-bg hover:bg-plm-highlight'
                   }`}
-                  title="Ellipse"
+                  title={t('workflows.stateToolbar.ellipse')}
                 >
                   <svg width="16" height="16" viewBox="0 0 16 16" className="text-plm-fg">
-                    <ellipse cx="8" cy="8" rx="6" ry="4" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                    <ellipse
+                      cx="8"
+                      cy="8"
+                      rx="6"
+                      ry="4"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                    />
                   </svg>
                 </button>
               </div>
@@ -327,36 +396,36 @@ export function StateToolbar({
           </div>
         )}
       </div>
-      
+
       {/* Edit button */}
       <button
         onClick={onEdit}
         className="flex items-center justify-center w-8 h-8 rounded hover:bg-plm-highlight transition-colors text-plm-fg-muted hover:text-plm-fg"
-        title="Edit state"
+        title={t('workflows.stateToolbar.editState')}
       >
         <Edit3 size={16} />
       </button>
-      
+
       {/* Duplicate button */}
       {isAdmin && (
         <button
           onClick={onDuplicate}
           className="flex items-center justify-center w-8 h-8 rounded hover:bg-plm-highlight transition-colors text-plm-fg-muted hover:text-plm-fg"
-          title="Duplicate"
+          title={t('workflows.stateToolbar.duplicate')}
         >
           <Copy size={16} />
         </button>
       )}
-      
+
       {/* Divider */}
       <div className="w-px h-5 bg-plm-border mx-0.5" />
-      
+
       {/* Delete */}
       {isAdmin && (
         <button
           onClick={onDelete}
           className="flex items-center justify-center w-8 h-8 rounded hover:bg-plm-error/20 transition-colors text-plm-fg-muted hover:text-plm-error"
-          title="Delete state"
+          title={t('workflows.stateToolbar.deleteState')}
         >
           <Trash2 size={16} />
         </button>

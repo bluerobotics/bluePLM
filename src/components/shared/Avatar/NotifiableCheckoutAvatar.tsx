@@ -1,6 +1,6 @@
 /**
  * NotifiableCheckoutAvatar - Interactive avatar for checked-out files/folders
- * 
+ *
  * Shows the checkout user's avatar with hover effects:
  * - On hover, the entire avatar animates into a red bell notification icon
  * - Click triggers notification send
@@ -53,87 +53,109 @@ export function NotifiableCheckoutAvatar({
   urgent = false,
   folderFileIds,
   isFolder: isFolderProp,
-  fileCount: fileCountProp
+  fileCount: fileCountProp,
 }: NotifiableCheckoutAvatarProps) {
   const [isHovered, setIsHovered] = useState(false)
   const [isSending, setIsSending] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
-  
+
   // Safety cleanup: reset hover state when component unmounts or element loses hover
   // This fixes "sticky" hover states in virtualized lists where mouseLeave may not fire
   useEffect(() => {
     const element = containerRef.current
     if (!element) return
-    
+
     // Check actual hover state periodically when we think we're hovered
     // This catches cases where mouseLeave didn't fire (e.g., fast scrolling, virtualization)
     if (!isHovered) return
-    
+
     const checkHoverState = () => {
       if (element && !element.matches(':hover')) {
         setIsHovered(false)
       }
     }
-    
+
     // Check immediately and set up interval
     const timerId = setInterval(checkHoverState, 100)
-    
+
     return () => clearInterval(timerId)
   }, [isHovered])
-  
+
   const { user: currentUser, organization, addToast } = usePDMStore()
-  
+
   const displayName = user.full_name || user.email?.split('@')[0] || 'User'
   const initials = getInitials(displayName)
   const calculatedFontSize = fontSize ?? size * 0.45
   const avatarColors = getAvatarColor(user.email || user.full_name)
-  
+
   // Determine if this is a folder with multiple files
   // Support both folderFileIds array and isFolder + fileCount props
   const isFolder = isFolderProp ?? (folderFileIds && folderFileIds.length > 0)
   const fileCount = fileCountProp ?? folderFileIds?.length ?? 1
-  
+
   // Handle click to send notification
-  const handleClick = useCallback(async (e: React.MouseEvent) => {
-    e.stopPropagation()
-    e.preventDefault()
-    
-    if (!currentUser?.id || !organization?.id) {
-      addToast('error', 'You must be signed in to send notifications')
-      return
-    }
-    
-    if (currentUser.id === user.id) {
-      addToast('info', isFolder ? 'These files are checked out by you' : 'This file is checked out by you')
-      return
-    }
-    
-    setIsSending(true)
-    
-    try {
-      addToast('info', `Check-in request noted for ${displayName}`)
-      log.info('[NotifiableCheckoutAvatar]', 'Check-in request (notifications disabled)', { 
-        toUser: user.id, 
-        file: fileName,
-        isFolder,
-        fileCount,
-        urgent 
-      })
-    } catch (err) {
-      log.error('[NotifiableCheckoutAvatar]', 'Error in check-in request handler', { error: err })
-    } finally {
-      setIsSending(false)
-    }
-  }, [currentUser, organization, user, fileId, fileName, displayName, urgent, isFolder, folderFileIds, fileCount, addToast])
-  
-  const tooltipText = isHovered 
-    ? (isFolder ? `Click to notify ${displayName} to check in ${fileCount} files` : `Click to notify ${displayName} to check in`)
-    : (isFolder ? `${displayName} has ${fileCount} files checked out` : `Checked out by ${displayName}`)
-  
+  const handleClick = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation()
+      e.preventDefault()
+
+      if (!currentUser?.id || !organization?.id) {
+        addToast('error', 'You must be signed in to send notifications')
+        return
+      }
+
+      if (currentUser.id === user.id) {
+        addToast(
+          'info',
+          isFolder ? 'These files are checked out by you' : 'This file is checked out by you',
+        )
+        return
+      }
+
+      setIsSending(true)
+
+      try {
+        addToast('info', `Check-in request noted for ${displayName}`)
+        log.info('[NotifiableCheckoutAvatar]', 'Check-in request (notifications disabled)', {
+          toUser: user.id,
+          file: fileName,
+          isFolder,
+          fileCount,
+          urgent,
+        })
+      } catch (error) {
+        log.error('[NotifiableCheckoutAvatar]', 'Error in check-in request handler', { error: error })
+      } finally {
+        setIsSending(false)
+      }
+    },
+    [
+      currentUser,
+      organization,
+      user,
+      fileId,
+      fileName,
+      displayName,
+      urgent,
+      isFolder,
+      folderFileIds,
+      fileCount,
+      addToast,
+    ],
+  )
+
+  const tooltipText = isHovered
+    ? isFolder
+      ? `Click to notify ${displayName} to check in ${fileCount} files`
+      : `Click to notify ${displayName} to check in`
+    : isFolder
+      ? `${displayName} has ${fileCount} files checked out`
+      : `Checked out by ${displayName}`
+
   // Don't make own avatar clickable
   const isOwnFile = currentUser?.id === user.id
   const showHoverState = isHovered && !isOwnFile
-  
+
   // Use pointer events for more reliable hover detection
   // Also verify actual hover state on enter to handle edge cases
   const handlePointerEnter = useCallback(() => {
@@ -141,11 +163,11 @@ export function NotifiableCheckoutAvatar({
       setIsHovered(true)
     }
   }, [isOwnFile])
-  
+
   const handlePointerLeave = useCallback(() => {
     setIsHovered(false)
   }, [])
-  
+
   return (
     <div
       ref={containerRef}
@@ -157,7 +179,7 @@ export function NotifiableCheckoutAvatar({
       title={tooltipText}
     >
       {/* Avatar container with transform animation */}
-      <div 
+      <div
         className={`
           w-full h-full rounded-full overflow-hidden 
           transition-all duration-300 ease-out
@@ -186,7 +208,7 @@ export function NotifiableCheckoutAvatar({
           {initials}
         </div>
       </div>
-      
+
       {/* Red notification bell that appears on hover */}
       <div
         className={`
@@ -200,40 +222,29 @@ export function NotifiableCheckoutAvatar({
         `}
       >
         {isSending ? (
-          <Loader2 
-            size={size * 0.55} 
-            className="text-white animate-spin"
-          />
+          <Loader2 size={size * 0.55} className="text-white animate-spin" />
         ) : (
-          <Bell 
-            size={size * 0.55} 
-            className="text-white"
-            fill="white"
-          />
+          <Bell size={size * 0.55} className="text-white" fill="white" />
         )}
       </div>
-      
+
       {/* File count badge for folders OR lock icon for single files when not hovered */}
       {!showHoverState && (
         <div
           className={`absolute -bottom-0.5 -right-0.5 rounded-full flex items-center justify-center ${
             isFolder ? 'bg-orange-500 text-white' : 'bg-orange-400'
           }`}
-          style={{ 
-            width: isFolder && fileCount > 1 ? size * 0.55 : size * 0.45, 
+          style={{
+            width: isFolder && fileCount > 1 ? size * 0.55 : size * 0.45,
             height: isFolder && fileCount > 1 ? size * 0.55 : size * 0.45,
             minWidth: isFolder && fileCount > 1 ? 14 : 10,
-            minHeight: isFolder && fileCount > 1 ? 14 : 10
+            minHeight: isFolder && fileCount > 1 ? 14 : 10,
           }}
         >
           {isFolder && fileCount > 1 ? (
             <span className="text-[8px] font-bold">{fileCount > 99 ? '99+' : fileCount}</span>
           ) : (
-            <Lock 
-              size={size * 0.3} 
-              className="text-white"
-              style={{ minWidth: 7, minHeight: 7 }}
-            />
+            <Lock size={size * 0.3} className="text-white" style={{ minWidth: 7, minHeight: 7 }} />
           )}
         </div>
       )}
@@ -241,4 +252,3 @@ export function NotifiableCheckoutAvatar({
   )
 }
 
-export default NotifiableCheckoutAvatar

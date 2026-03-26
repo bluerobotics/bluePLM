@@ -3,15 +3,19 @@ import { Package } from 'lucide-react'
 import { GoogleDriveIcon } from './GoogleDriveIcon'
 
 // Get the icon component for a module
-export function getModuleIcon(iconName: string, size: number = 22, customColor?: string | null): React.ReactNode {
+export function getModuleIcon(
+  iconName: string,
+  size: number = 22,
+  customColor?: string | null,
+): React.ReactNode {
   if (iconName === 'GoogleDrive') {
     return <GoogleDriveIcon size={size} />
   }
-  
+
   // Dynamic Lucide icon lookup requires any cast (icon name is runtime string)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const IconComponent = (LucideIcons as any)[iconName]
-  
+  const IconComponent = (LucideIcons as any)[iconName] // TODO: type this
+
   if (IconComponent) {
     if (customColor) {
       return (
@@ -22,7 +26,7 @@ export function getModuleIcon(iconName: string, size: number = 22, customColor?:
     }
     return <IconComponent size={size} />
   }
-  
+
   // Fallback to Package icon if not found
   return <Package size={size} />
 }

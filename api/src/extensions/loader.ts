@@ -1,14 +1,15 @@
 /**
  * Extension Handler Loader
- * 
+ *
  * Loads and manages extension handlers from the database.
  * Handles caching, validation, and hot-reloading of handler code.
- * 
+ *
  * @module extensions/loader
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { InstalledExtension, ExtensionManifest } from './types.js'
+import { log } from '../infrastructure/logging.js'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // LOADED HANDLER
@@ -43,14 +44,14 @@ export interface HandlerKey {
 
 /**
  * Loads and caches extension handlers.
- * 
+ *
  * @example
  * ```typescript
  * const loader = new ExtensionLoader(supabase, orgId);
- * 
+ *
  * // Load all handlers for the org
  * await loader.loadAll();
- * 
+ *
  * // Get a specific handler
  * const handler = loader.getHandler('POST', 'my-extension', 'sync');
  * ```
@@ -108,14 +109,12 @@ export class ExtensionLoader {
 
     // Register each API route from the manifest
     const apiRoutes = manifest.contributes?.apiRoutes ?? []
-    
+
     for (const route of apiRoutes) {
       const handlerCode = handlers[route.handler]
-      
+
       if (!handlerCode) {
-        console.warn(
-          `[ExtensionLoader] Missing handler code for ${extension_id}:${route.handler}`
-        )
+        log.warn(`[ExtensionLoader] Missing handler code for ${extension_id}:${route.handler}`)
         continue
       }
 
@@ -127,7 +126,7 @@ export class ExtensionLoader {
         public: route.public ?? false,
         rateLimit: route.rateLimit ?? 100,
         manifest,
-        allowedDomains: allowed_domains
+        allowedDomains: allowed_domains,
       }
 
       const key = this.getKey(route.method, extension_id, route.path)
@@ -162,13 +161,13 @@ export class ExtensionLoader {
    */
   getExtensionHandlers(extensionId: string): LoadedHandler[] {
     const handlers: LoadedHandler[] = []
-    
+
     for (const [, handler] of this.handlers) {
       if (handler.extensionId === extensionId) {
         handlers.push(handler)
       }
     }
-    
+
     return handlers
   }
 
@@ -210,7 +209,7 @@ export class ExtensionLoader {
 
   /**
    * Find handlers matching a request path.
-   * 
+   *
    * @param method - HTTP method
    * @param path - Request path (e.g., "/extensions/my-ext/sync")
    * @returns Matching handler or undefined
@@ -218,7 +217,7 @@ export class ExtensionLoader {
   findHandler(method: string, path: string): LoadedHandler | undefined {
     // Parse path: /extensions/{extensionId}/{handlerPath}
     const match = path.match(/^\/extensions\/([^/]+)\/(.+)$/)
-    
+
     if (!match) {
       return undefined
     }
@@ -239,12 +238,12 @@ const loaderCache: Map<string, ExtensionLoader> = new Map()
  */
 export function getLoader(supabase: SupabaseClient, orgId: string): ExtensionLoader {
   let loader = loaderCache.get(orgId)
-  
+
   if (!loader) {
     loader = new ExtensionLoader(supabase, orgId)
     loaderCache.set(orgId, loader)
   }
-  
+
   return loader
 }
 
@@ -277,11 +276,10 @@ export async function installExtension(
   manifest: ExtensionManifest,
   handlers: Record<string, string>,
   allowedDomains: string[],
-  installedBy: string
+  installedBy: string,
 ): Promise<void> {
-  const { error } = await supabase
-    .from('org_installed_extensions')
-    .upsert({
+  const { error } = await supabase.from('org_installed_extensions').upsert(
+    {
       org_id: orgId,
       extension_id: extensionId,
       version,
@@ -291,10 +289,12 @@ export async function installExtension(
       installed_at: new Date().toISOString(),
       installed_by: installedBy,
       enabled: true,
-      pinned_version: null
-    }, {
-      onConflict: 'org_id,extension_id'
-    })
+      pinned_version: null,
+    },
+    {
+      onConflict: 'org_id,extension_id',
+    },
+  )
 
   if (error) {
     throw new Error(`Failed to install extension: ${error.message}`)
@@ -310,7 +310,7 @@ export async function installExtension(
 export async function uninstallExtension(
   supabase: SupabaseClient,
   orgId: string,
-  extensionId: string
+  extensionId: string,
 ): Promise<void> {
   // Delete extension record
   const { error: extError } = await supabase
@@ -355,7 +355,7 @@ export async function setExtensionEnabled(
   supabase: SupabaseClient,
   orgId: string,
   extensionId: string,
-  enabled: boolean
+  enabled: boolean,
 ): Promise<void> {
   const { error } = await supabase
     .from('org_installed_extensions')

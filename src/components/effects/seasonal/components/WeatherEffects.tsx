@@ -1,7 +1,12 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
-import { fetchWeather, getWeatherThemeColors, getWeatherDescription, clearWeatherCache } from '../utils/weather'
+import {
+  fetchWeather,
+  getWeatherThemeColors,
+  getWeatherDescription,
+  clearWeatherCache,
+} from '../utils/weather'
 import { log } from '@/lib/logger'
 import type { WeatherData } from '../types'
 import {
@@ -15,16 +20,16 @@ import {
   updateSnowflake,
   renderSnowflake,
   manageDensity,
-  smoothNoise
+  smoothNoise,
 } from '../utils/snowPhysics'
 
 /**
  * WeatherEffects component
  * Applies dynamic theme colors based on local weather conditions
  * Also displays subtle weather-based visual effects with wind physics
- * 
+ *
  * Snow physics are shared with Christmas theme via snowPhysics.ts
- * 
+ *
  * IMPORTANT: This component is designed to fail gracefully.
  * Any errors will be caught and the component will render nothing.
  * The app will never crash due to weather-related issues.
@@ -43,29 +48,29 @@ interface RainDrop {
 export function WeatherEffects() {
   try {
     return <WeatherEffectsInner />
-  } catch (err) {
-    log.warn('[WeatherEffects]', 'Render error (this is okay)', { error: err })
+  } catch (error) {
+    log.warn('[WeatherEffects]', 'Render error (this is okay)', { error: error })
     return null
   }
 }
 
 function WeatherEffectsInner() {
-  const theme = usePDMStore(s => s.theme)
-  const user = usePDMStore(s => s.user)
-  const isOfflineMode = usePDMStore(s => s.isOfflineMode)
-  
+  const theme = usePDMStore((s) => s.theme)
+  const user = usePDMStore((s) => s.user)
+  const isOfflineMode = usePDMStore((s) => s.isOfflineMode)
+
   // Weather theme settings from store
-  const rainOpacity = usePDMStore(s => s.weatherRainOpacity)
-  const rainDensity = usePDMStore(s => s.weatherRainDensity)
-  const snowOpacity = usePDMStore(s => s.weatherSnowOpacity)
-  const snowDensity = usePDMStore(s => s.weatherSnowDensity)
-  const effectsEnabled = usePDMStore(s => s.weatherEffectsEnabled)
-  const setRainOpacity = usePDMStore(s => s.setWeatherRainOpacity)
-  const setRainDensity = usePDMStore(s => s.setWeatherRainDensity)
-  const setSnowOpacity = usePDMStore(s => s.setWeatherSnowOpacity)
-  const setSnowDensity = usePDMStore(s => s.setWeatherSnowDensity)
-  const setEffectsEnabled = usePDMStore(s => s.setWeatherEffectsEnabled)
-  
+  const rainOpacity = usePDMStore((s) => s.weatherRainOpacity)
+  const rainDensity = usePDMStore((s) => s.weatherRainDensity)
+  const snowOpacity = usePDMStore((s) => s.weatherSnowOpacity)
+  const snowDensity = usePDMStore((s) => s.weatherSnowDensity)
+  const effectsEnabled = usePDMStore((s) => s.weatherEffectsEnabled)
+  const setRainOpacity = usePDMStore((s) => s.setWeatherRainOpacity)
+  const setRainDensity = usePDMStore((s) => s.setWeatherRainDensity)
+  const setSnowOpacity = usePDMStore((s) => s.setWeatherSnowOpacity)
+  const setSnowDensity = usePDMStore((s) => s.setWeatherSnowDensity)
+  const setEffectsEnabled = usePDMStore((s) => s.setWeatherEffectsEnabled)
+
   const [weather, setWeather] = useState<WeatherData | null>(null)
   const [hasError, setHasError] = useState(false)
   const [, setIsTransitioning] = useState(false)
@@ -74,7 +79,7 @@ function WeatherEffectsInner() {
   const previousColorsRef = useRef<Record<string, string> | null>(null)
   const isMountedRef = useRef(true)
   const weatherUpdatedAtRef = useRef<number | null>(null)
-  
+
   // Refs for slider values (avoid re-renders during animation)
   const rainOpacityRef = useRef(rainOpacity)
   const rainDensityRef = useRef(rainDensity)
@@ -82,24 +87,36 @@ function WeatherEffectsInner() {
   const snowDensityRef = useRef(snowDensity)
   const effectsEnabledRef = useRef(effectsEnabled)
   const weatherRef = useRef<WeatherData | null>(null)
-  
+
   // Keep refs in sync
-  useEffect(() => { rainOpacityRef.current = rainOpacity }, [rainOpacity])
-  useEffect(() => { rainDensityRef.current = rainDensity }, [rainDensity])
-  useEffect(() => { snowOpacityRef.current = snowOpacity }, [snowOpacity])
-  useEffect(() => { snowDensityRef.current = snowDensity }, [snowDensity])
-  useEffect(() => { effectsEnabledRef.current = effectsEnabled }, [effectsEnabled])
-  useEffect(() => { weatherRef.current = weather }, [weather])
-  
+  useEffect(() => {
+    rainOpacityRef.current = rainOpacity
+  }, [rainOpacity])
+  useEffect(() => {
+    rainDensityRef.current = rainDensity
+  }, [rainDensity])
+  useEffect(() => {
+    snowOpacityRef.current = snowOpacity
+  }, [snowOpacity])
+  useEffect(() => {
+    snowDensityRef.current = snowDensity
+  }, [snowDensity])
+  useEffect(() => {
+    effectsEnabledRef.current = effectsEnabled
+  }, [effectsEnabled])
+  useEffect(() => {
+    weatherRef.current = weather
+  }, [weather])
+
   const isActive = theme === 'weather' && (!!user || isOfflineMode)
-  
+
   // Reset error state when theme changes
   useEffect(() => {
     if (!isActive) {
       setHasError(false)
     }
   }, [isActive])
-  
+
   // Fetch weather data
   const loadWeather = useCallback(async () => {
     try {
@@ -112,96 +129,100 @@ function WeatherEffectsInner() {
           condition: data.condition,
           isDay: data.isDay,
           temp: data.temperature,
-          wind: data.windSpeed
+          wind: data.windSpeed,
         })
       }
-    } catch (err) {
-      log.warn('[WeatherEffects]', 'Load error (this is okay)', { error: err })
+    } catch (error) {
+      log.warn('[WeatherEffects]', 'Load error (this is okay)', { error: error })
     }
   }, [])
-  
+
   // Initial fetch and periodic updates
   useEffect(() => {
     if (!isActive || hasError) {
       // Cleanup is now handled by the dedicated cleanup effect
       return
     }
-    
+
     isMountedRef.current = true
     loadWeather()
     const interval = setInterval(loadWeather, 15 * 60 * 1000)
-    
+
     return () => {
       isMountedRef.current = false
       clearInterval(interval)
     }
   }, [isActive, hasError, loadWeather])
-  
+
   // Update minutes ago
   useEffect(() => {
     if (!weatherUpdatedAtRef.current) return
-    
+
     const updateMinutesAgo = () => {
       if (weatherUpdatedAtRef.current) {
         const mins = Math.floor((Date.now() - weatherUpdatedAtRef.current) / 60000)
         setMinutesAgo(mins)
       }
     }
-    
+
     const interval = setInterval(updateMinutesAgo, 30000)
     return () => clearInterval(interval)
   }, [weather])
-  
+
   // Apply weather theme colors
   useEffect(() => {
     if (!isActive || !weather) return undefined
-    
+
     try {
       const colors = getWeatherThemeColors(weather)
       if (!colors || typeof colors !== 'object') return undefined
-      
+
       setIsTransitioning(true)
-      
+
       const root = document.documentElement
       if (!root) return undefined
-      
+
       root.setAttribute('data-weather', weather.condition || 'unknown')
       root.setAttribute('data-weather-day', weather.isDay ? 'true' : 'false')
-      
+
       Object.entries(colors).forEach(([key, value]) => {
         try {
           if (key && value && typeof key === 'string' && typeof value === 'string') {
             root.style.setProperty(key, value)
           }
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       })
-      
+
       previousColorsRef.current = colors
-      
+
       const timeoutId = setTimeout(() => {
         if (isMountedRef.current) {
           setIsTransitioning(false)
         }
       }, 500)
-      
+
       try {
         const bgColor = colors['--plm-bg']
         const fgColor = colors['--plm-fg']
         if (bgColor && fgColor) {
           window.electronAPI?.setTitleBarOverlay?.({
             color: bgColor,
-            symbolColor: fgColor
+            symbolColor: fgColor,
           })
         }
-      } catch { /* ignore */ }
-      
+      } catch {
+        /* ignore */
+      }
+
       return () => clearTimeout(timeoutId)
-    } catch (err) {
-      log.warn('[WeatherEffects]', 'Apply colors error', { error: err })
+    } catch (error) {
+      log.warn('[WeatherEffects]', 'Apply colors error', { error: error })
       return undefined
     }
   }, [isActive, weather])
-  
+
   // Clean up when theme changes - MUST remove ALL inline styles
   // This is critical because inline styles have higher CSS specificity than stylesheet rules
   useEffect(() => {
@@ -211,89 +232,124 @@ function WeatherEffectsInner() {
         if (root) {
           root.removeAttribute('data-weather')
           root.removeAttribute('data-weather-day')
-          
+
           // Remove ALL PLM CSS variables that might have been set as inline styles
           // This ensures complete cleanup even if previousColorsRef is stale
           const allPlmVars = [
-            '--plm-bg', '--plm-bg-light', '--plm-bg-lighter', '--plm-bg-secondary',
-            '--plm-sidebar', '--plm-activitybar', '--plm-panel', '--plm-input',
-            '--plm-border', '--plm-border-light',
-            '--plm-fg', '--plm-fg-dim', '--plm-fg-muted',
-            '--plm-accent', '--plm-accent-hover', '--plm-accent-dim',
-            '--plm-selection', '--plm-highlight',
-            '--plm-success', '--plm-warning', '--plm-error', '--plm-info',
-            '--plm-wip', '--plm-released', '--plm-in-review', '--plm-obsolete', '--plm-locked'
+            '--plm-bg',
+            '--plm-bg-light',
+            '--plm-bg-lighter',
+            '--plm-bg-secondary',
+            '--plm-sidebar',
+            '--plm-activitybar',
+            '--plm-panel',
+            '--plm-input',
+            '--plm-border',
+            '--plm-border-light',
+            '--plm-fg',
+            '--plm-fg-dim',
+            '--plm-fg-muted',
+            '--plm-accent',
+            '--plm-accent-hover',
+            '--plm-accent-dim',
+            '--plm-selection',
+            '--plm-highlight',
+            '--plm-success',
+            '--plm-warning',
+            '--plm-error',
+            '--plm-info',
+            '--plm-wip',
+            '--plm-released',
+            '--plm-in-review',
+            '--plm-obsolete',
+            '--plm-locked',
           ]
-          
+
           allPlmVars.forEach((key) => {
-            try { root.style.removeProperty(key) } catch { /* ignore */ }
+            try {
+              root.style.removeProperty(key)
+            } catch {
+              /* ignore */
+            }
           })
-          
+
           // Also clear any from previousColorsRef in case there were extra custom ones
           if (previousColorsRef.current) {
             Object.keys(previousColorsRef.current).forEach((key) => {
-              try { root.style.removeProperty(key) } catch { /* ignore */ }
+              try {
+                root.style.removeProperty(key)
+              } catch {
+                /* ignore */
+              }
             })
           }
         }
         previousColorsRef.current = null
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, [isActive])
-  
+
   if (!isActive || hasError) return null
-  
+
   const getWeatherIcon = (): string => {
     try {
       if (!weather?.condition) return '🌤️'
       switch (weather.condition) {
-        case 'clear': return weather.isDay ? '☀️' : '🌙'
-        case 'partly-cloudy': return weather.isDay ? '⛅' : '☁️'
+        case 'clear':
+          return weather.isDay ? '☀️' : '🌙'
+        case 'partly-cloudy':
+          return weather.isDay ? '⛅' : '☁️'
         case 'cloudy':
-        case 'overcast': return '☁️'
-        case 'fog': return '🌫️'
-        case 'drizzle': return '🌦️'
+        case 'overcast':
+          return '☁️'
+        case 'fog':
+          return '🌫️'
+        case 'drizzle':
+          return '🌦️'
         case 'rain':
-        case 'heavy-rain': return '🌧️'
+        case 'heavy-rain':
+          return '🌧️'
         case 'snow':
-        case 'heavy-snow': return '❄️'
-        case 'thunderstorm': return '⛈️'
-        default: return '🌤️'
+        case 'heavy-snow':
+          return '❄️'
+        case 'thunderstorm':
+          return '⛈️'
+        default:
+          return '🌤️'
       }
-    } catch { return '🌤️' }
+    } catch {
+      return '🌤️'
+    }
   }
-  
-  const isRainy = weather?.condition === 'rain' || weather?.condition === 'heavy-rain' || weather?.condition === 'drizzle'
+
+  const isRainy =
+    weather?.condition === 'rain' ||
+    weather?.condition === 'heavy-rain' ||
+    weather?.condition === 'drizzle'
   const isSnowy = weather?.condition === 'snow' || weather?.condition === 'heavy-snow'
-  
+
   return (
     <>
       {/* Rain effect - Canvas-based with wind physics */}
       {effectsEnabled && isRainy && (
-        <RainCanvas 
-          weather={weather}
-          densityRef={rainDensityRef}
-          opacityRef={rainOpacityRef}
-        />
+        <RainCanvas weather={weather} densityRef={rainDensityRef} opacityRef={rainOpacityRef} />
       )}
-      
+
       {/* Snow effect - Canvas-based with wind physics (shared with Christmas) */}
       {effectsEnabled && isSnowy && (
-        <SnowCanvas
-          weather={weather}
-          densityRef={snowDensityRef}
-          opacityRef={snowOpacityRef}
-        />
+        <SnowCanvas weather={weather} densityRef={snowDensityRef} opacityRef={snowOpacityRef} />
       )}
-      
+
       {/* Lightning flash */}
       {effectsEnabled && weather?.condition === 'thunderstorm' && <LightningEffect />}
-      
+
       {/* Fog overlay */}
       {effectsEnabled && weather?.condition === 'fog' && <FogEffect />}
-      
+
       {/* Settings panel - bottom right corner */}
-      <div 
+      <div
         className="fixed bottom-4 right-4"
         style={{ zIndex: 10001 }}
         onMouseEnter={() => setShowControls(true)}
@@ -305,13 +361,15 @@ function WeatherEffectsInner() {
               <span className="text-base">{getWeatherIcon()}</span>
               <span>Weather Effects</span>
             </div>
-            
+
             {/* Weather info */}
             {weather && (
               <div className="px-1 mb-2 pb-2 border-b border-plm-border">
                 <div className="flex items-center justify-between text-plm-fg">
                   <span>{Math.round(weather.temperature)}°C</span>
-                  <span className="text-plm-fg-muted capitalize">{weather.condition?.replace('-', ' ')}</span>
+                  <span className="text-plm-fg-muted capitalize">
+                    {weather.condition?.replace('-', ' ')}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between text-plm-fg-muted mt-0.5">
                   <span>💨 {Math.round(weather.windSpeed)} km/h</span>
@@ -331,7 +389,7 @@ function WeatherEffectsInner() {
                 </div>
               </div>
             )}
-            
+
             {/* Effects toggle */}
             <div className="flex items-center justify-between px-1 mb-2">
               <span className="text-plm-fg">✨ Effects</span>
@@ -348,7 +406,7 @@ function WeatherEffectsInner() {
                 />
               </button>
             </div>
-            
+
             {effectsEnabled && (
               <>
                 {/* Rain settings - only show if rainy */}
@@ -368,7 +426,7 @@ function WeatherEffectsInner() {
                         className="w-full h-1.5 bg-plm-border rounded-full appearance-none cursor-pointer accent-blue-400 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-400 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-sm"
                       />
                     </div>
-                    
+
                     <div className="mb-2 px-1">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-plm-fg">💧 Rain Density</span>
@@ -385,7 +443,7 @@ function WeatherEffectsInner() {
                     </div>
                   </>
                 )}
-                
+
                 {/* Snow settings - only show if snowy */}
                 {isSnowy && (
                   <>
@@ -403,7 +461,7 @@ function WeatherEffectsInner() {
                         className="w-full h-1.5 bg-plm-border rounded-full appearance-none cursor-pointer accent-white [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-sm"
                       />
                     </div>
-                    
+
                     <div className="mb-2 px-1">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-plm-fg">🌨️ Snow Density</span>
@@ -420,7 +478,7 @@ function WeatherEffectsInner() {
                     </div>
                   </>
                 )}
-                
+
                 {/* Wind indicator */}
                 {weather && (isRainy || isSnowy) && (
                   <div className="px-1 pt-1 border-t border-plm-border/50 text-plm-fg-muted">
@@ -434,9 +492,9 @@ function WeatherEffectsInner() {
             )}
           </div>
         )}
-        
+
         <button
-          onClick={() => setShowControls(s => !s)}
+          onClick={() => setShowControls((s) => !s)}
           className="w-10 h-10 rounded-full bg-plm-accent/20 hover:bg-plm-accent/30 border border-plm-accent/50 flex items-center justify-center text-xl transition-colors"
           title={getWeatherDescription(weather)}
         >
@@ -448,11 +506,11 @@ function WeatherEffectsInner() {
 }
 
 // Canvas-based rain with wind physics (uses shared wind from snowPhysics.ts)
-function RainCanvas({ 
-  weather, 
-  densityRef, 
-  opacityRef 
-}: { 
+function RainCanvas({
+  weather,
+  densityRef,
+  opacityRef,
+}: {
   weather: WeatherData | null
   densityRef: React.MutableRefObject<number>
   opacityRef: React.MutableRefObject<number>
@@ -463,21 +521,21 @@ function RainCanvas({
   const windRef = useRef<WindState>(createWindState())
   const gustRef = useRef<GustState>(createGustState())
   const timeRef = useRef(0)
-  
+
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    
+
     const ctx = canvas.getContext('2d')
     if (!ctx) return
-    
+
     const resizeCanvas = () => {
       canvas.width = window.innerWidth
       canvas.height = window.innerHeight
     }
     resizeCanvas()
     window.addEventListener('resize', resizeCanvas)
-    
+
     // Initialize rain drops
     const createDrop = (): RainDrop => ({
       x: Math.random() * 120 - 10,
@@ -485,46 +543,46 @@ function RainCanvas({
       vx: 0,
       vy: 15 + Math.random() * 10,
       length: 15 + Math.random() * 20,
-      opacity: 0.4 + Math.random() * 0.4
+      opacity: 0.4 + Math.random() * 0.4,
     })
-    
+
     const initialCount = densityRef.current
     dropsRef.current = Array.from({ length: initialCount }, createDrop)
-    dropsRef.current.forEach(d => d.y = Math.random() * 100)
-    
+    dropsRef.current.forEach((d) => (d.y = Math.random() * 100))
+
     let lastTime = performance.now()
-    
+
     const animate = (currentTime: number) => {
       const deltaTime = Math.min(currentTime - lastTime, 50)
       lastTime = currentTime
       timeRef.current += deltaTime
-      
+
       // Get wind from weather
       const windSpeed = weather?.windSpeed ?? 0
       windRef.current.weatherWind = Math.min(windSpeed / 50, 1)
-      
+
       const wind = windRef.current
       const gust = gustRef.current
       const time = timeRef.current
       const bluster = wind.weatherWind
-      
+
       // Update wind using shared physics
       updateWind(wind, gust, time, deltaTime, bluster)
-      
+
       // Calculate total wind force for rain
       const gustForceX = Math.cos(wind.gustDirection) * wind.gustStrength * bluster
       const baseWindX = (wind.baseWind + wind.turbulence + gustForceX) * bluster
-      
+
       // Weather direction (slow oscillation)
       const weatherDir = smoothNoise(time * 0.0001, 2) * Math.PI * 0.3
       const weatherWindX = Math.cos(weatherDir) * bluster * 1.5
-      
+
       const totalWindX = baseWindX + weatherWindX
-      
+
       // Handle density changes
       const targetDensity = densityRef.current
       const currentCount = dropsRef.current.length
-      
+
       if (currentCount < targetDensity) {
         const toAdd = Math.min(5, targetDensity - currentCount)
         for (let i = 0; i < toAdd; i++) {
@@ -534,42 +592,42 @@ function RainCanvas({
         const toRemove = Math.min(5, currentCount - targetDensity)
         dropsRef.current.splice(0, toRemove)
       }
-      
+
       // Clear canvas
       ctx.clearRect(0, 0, canvas.width, canvas.height)
-      
+
       const opacity = opacityRef.current / 100
-      
+
       // Update and render drops
       for (const drop of dropsRef.current) {
         // Wind affects horizontal velocity (rain is affected more than snow)
         const targetVx = totalWindX * 4 // Rain gets pushed more by wind
         drop.vx = drop.vx * 0.92 + targetVx * 0.08
-        
+
         // Update position
         drop.x += drop.vx * deltaTime * 0.01
         drop.y += drop.vy * deltaTime * 0.01
-        
+
         // Reset if off screen
         if (drop.y > 105) {
           drop.x = Math.random() * 120 - 10
           drop.y = Math.random() * -10
           drop.vx = totalWindX * 2
         }
-        
+
         // Wrap horizontally
         if (drop.x > 105) drop.x = -5
         if (drop.x < -5) drop.x = 105
-        
+
         // Calculate screen position
         const screenX = (drop.x / 100) * canvas.width
         const screenY = (drop.y / 100) * canvas.height
-        
+
         // Calculate rain angle based on wind (rain shows wind angle more dramatically)
         const angle = Math.atan2(drop.vy, drop.vx + drop.vx * 0.5) // Emphasize wind angle
         const endX = screenX + Math.cos(angle) * drop.length
         const endY = screenY + Math.sin(angle) * drop.length
-        
+
         // Draw rain drop as angled line
         ctx.beginPath()
         ctx.moveTo(screenX, screenY)
@@ -578,7 +636,7 @@ function RainCanvas({
         ctx.lineWidth = 2
         ctx.lineCap = 'round'
         ctx.stroke()
-        
+
         // Subtle glow
         ctx.beginPath()
         ctx.moveTo(screenX, screenY)
@@ -587,12 +645,12 @@ function RainCanvas({
         ctx.lineWidth = 4
         ctx.stroke()
       }
-      
+
       animationRef.current = requestAnimationFrame(animate)
     }
-    
+
     animationRef.current = requestAnimationFrame(animate)
-    
+
     return () => {
       window.removeEventListener('resize', resizeCanvas)
       if (animationRef.current) {
@@ -600,7 +658,7 @@ function RainCanvas({
       }
     }
   }, [weather])
-  
+
   return (
     <canvas
       ref={canvasRef}
@@ -611,11 +669,11 @@ function RainCanvas({
 }
 
 // Canvas-based snow with wind physics (uses shared snowPhysics.ts)
-function SnowCanvas({ 
-  weather, 
-  densityRef, 
-  opacityRef 
-}: { 
+function SnowCanvas({
+  weather,
+  densityRef,
+  opacityRef,
+}: {
   weather: WeatherData | null
   densityRef: React.MutableRefObject<number>
   opacityRef: React.MutableRefObject<number>
@@ -627,21 +685,21 @@ function SnowCanvas({
   const gustRef = useRef<GustState>(createGustState())
   const timeRef = useRef(0)
   const nextFlakeIdRef = useRef({ current: 0 })
-  
+
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    
+
     const ctx = canvas.getContext('2d')
     if (!ctx) return
-    
+
     const resizeCanvas = () => {
       canvas.width = window.innerWidth
       canvas.height = window.innerHeight
     }
     resizeCanvas()
     window.addEventListener('resize', resizeCanvas)
-    
+
     // Initialize snowflakes using shared function
     const initialCount = densityRef.current
     snowflakesRef.current = []
@@ -649,26 +707,26 @@ function SnowCanvas({
       snowflakesRef.current.push(createSnowflake(i))
     }
     nextFlakeIdRef.current.current = initialCount
-    
+
     let lastTime = performance.now()
-    
+
     const animate = (currentTime: number) => {
       const deltaTime = Math.min(currentTime - lastTime, 50)
       lastTime = currentTime
       timeRef.current += deltaTime
-      
+
       // Get wind from weather
       const windSpeed = weather?.windSpeed ?? 0
       windRef.current.weatherWind = Math.min(windSpeed / 50, 1)
-      
+
       const wind = windRef.current
       const gust = gustRef.current
       const time = timeRef.current
       const bluster = wind.weatherWind
-      
+
       // Update wind using shared physics
       updateWind(wind, gust, time, deltaTime, bluster)
-      
+
       // Calculate wind forces
       const gustForceX = Math.cos(wind.gustDirection) * wind.gustStrength * bluster
       const gustForceY = Math.sin(wind.gustDirection) * wind.gustStrength * bluster * 0.3
@@ -677,26 +735,26 @@ function SnowCanvas({
       const weatherWindY = Math.sin(weatherDir) * bluster * 0.25
       const baseWindX = (wind.baseWind + wind.turbulence + gustForceX) * bluster + weatherWindX
       const baseWindY = gustForceY * bluster + weatherWindY
-      
+
       // Handle density changes using shared function
       manageDensity(snowflakesRef.current, densityRef.current, nextFlakeIdRef.current)
-      
+
       // Clear canvas
       ctx.clearRect(0, 0, canvas.width, canvas.height)
-      
+
       const opacity = opacityRef.current / 100
-      
+
       // Update and render flakes using shared physics
       for (const flake of snowflakesRef.current) {
         updateSnowflake(flake, deltaTime, baseWindX, baseWindY, bluster, time)
         renderSnowflake(ctx, flake, canvas.width, canvas.height, opacity)
       }
-      
+
       animationRef.current = requestAnimationFrame(animate)
     }
-    
+
     animationRef.current = requestAnimationFrame(animate)
-    
+
     return () => {
       window.removeEventListener('resize', resizeCanvas)
       if (animationRef.current) {
@@ -704,7 +762,7 @@ function SnowCanvas({
       }
     }
   }, [weather])
-  
+
   return (
     <canvas
       ref={canvasRef}
@@ -717,7 +775,7 @@ function SnowCanvas({
 // Lightning flash effect
 function LightningEffect() {
   const [flash, setFlash] = useState(false)
-  
+
   useEffect(() => {
     try {
       const triggerFlash = () => {
@@ -732,16 +790,16 @@ function LightningEffect() {
           }
         }
       }
-      
+
       const interval = setInterval(triggerFlash, 8000 + Math.random() * 12000)
       return () => clearInterval(interval)
     } catch {
       return undefined
     }
   }, [])
-  
+
   if (!flash) return null
-  
+
   return (
     <div className="fixed inset-0 pointer-events-none z-50 bg-white/10 transition-opacity duration-100" />
   )
@@ -751,10 +809,11 @@ function LightningEffect() {
 function FogEffect() {
   return (
     <div className="fixed inset-0 pointer-events-none z-40">
-      <div 
+      <div
         className="absolute inset-0 opacity-10"
         style={{
-          background: 'linear-gradient(135deg, transparent 0%, rgba(200, 200, 200, 0.3) 50%, transparent 100%)',
+          background:
+            'linear-gradient(135deg, transparent 0%, rgba(200, 200, 200, 0.3) 50%, transparent 100%)',
           animation: 'fog-drift 30s ease-in-out infinite',
         }}
       />

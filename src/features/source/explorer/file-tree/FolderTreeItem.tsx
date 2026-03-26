@@ -55,13 +55,13 @@ interface FolderTreeItemProps {
  */
 function areFolderTreeItemPropsEqual(
   prevProps: FolderTreeItemProps,
-  nextProps: FolderTreeItemProps
+  nextProps: FolderTreeItemProps,
 ): boolean {
   // Compare file identity and key properties
   if (prevProps.file.path !== nextProps.file.path) return false
   if (prevProps.file.name !== nextProps.file.name) return false
   if (prevProps.file.diffStatus !== nextProps.file.diffStatus) return false
-  
+
   // Compare primitive props
   if (prevProps.depth !== nextProps.depth) return false
   if (prevProps.isExpanded !== nextProps.isExpanded) return false
@@ -70,7 +70,7 @@ function areFolderTreeItemPropsEqual(
   if (prevProps.operationType !== nextProps.operationType) return false
   if (prevProps.isDragTarget !== nextProps.isDragTarget) return false
   if (prevProps.isCut !== nextProps.isCut) return false
-  
+
   // Compare folder stats
   if (prevProps.localOnlyCount !== nextProps.localOnlyCount) return false
   if (prevProps.checkedOutByMeCount !== nextProps.checkedOutByMeCount) return false
@@ -79,7 +79,7 @@ function areFolderTreeItemPropsEqual(
   if (prevProps.checkoutStatus !== nextProps.checkoutStatus) return false
   if (prevProps.isSynced !== nextProps.isSynced) return false
   if (prevProps.iconColor !== nextProps.iconColor) return false
-  
+
   // Compare diffCounts object
   if (prevProps.diffCounts !== nextProps.diffCounts) {
     if (!prevProps.diffCounts || !nextProps.diffCounts) return false
@@ -89,16 +89,16 @@ function areFolderTreeItemPropsEqual(
     if (prevProps.diffCounts.deleted !== nextProps.diffCounts.deleted) return false
     if (prevProps.diffCounts.outdated !== nextProps.diffCounts.outdated) return false
   }
-  
+
   // Compare checkout users array length (shallow check)
   if (prevProps.checkoutUsers.length !== nextProps.checkoutUsers.length) return false
-  
+
   // Compare children by reference (React handles child reconciliation)
   if (prevProps.children !== nextProps.children) return false
-  
+
   // Compare action button props
   if (prevProps.isOfflineMode !== nextProps.isOfflineMode) return false
-  
+
   return true
 }
 
@@ -135,19 +135,19 @@ export const FolderTreeItem = memo(function FolderTreeItem({
   iconColor,
   children,
   onRefresh,
-  isOfflineMode
+  isOfflineMode,
 }: FolderTreeItemProps) {
   const isProcessing = operationType !== null
   // Don't apply diffClass to folders - folder visual state is derived from children (via isSynced prop)
   // The CSS sidebar-diff-cloud class would make text italic based on stale folder diffStatus
   const diffClass = ''
-  
+
   // Folder icon uses pre-computed iconColor from priority-based logic
   // Priority order: local-only > server-only > synced > mine > others
   const getFolderIcon = () => {
     return <FolderOpen size={16} className={iconColor} />
   }
-  
+
   return (
     <div key={file.path}>
       <div
@@ -164,27 +164,28 @@ export const FolderTreeItem = memo(function FolderTreeItem({
         onDrop={onDrop}
       >
         {/* Expand/collapse chevron */}
-        <span 
+        <span
           className="mr-1 cursor-pointer"
           onClick={(e) => {
             e.stopPropagation()
             onToggleExpand()
           }}
         >
-          {isExpanded 
-            ? <ChevronDown size={14} className="text-plm-fg-muted" /> 
-            : <ChevronRight size={14} className="text-plm-fg-muted" />
-          }
+          {isExpanded ? (
+            <ChevronDown size={14} className="text-plm-fg-muted" />
+          ) : (
+            <ChevronRight size={14} className="text-plm-fg-muted" />
+          )}
         </span>
-        
+
         {/* Folder icon */}
         <span className="tree-item-icon">{getFolderIcon()}</span>
-        
+
         {/* Folder name - italic/muted for unsynced folders (derived from computed isSynced) */}
         <span className={`truncate text-sm flex-1 ${!isSynced ? 'italic text-plm-fg-muted' : ''}`}>
           {file.name}
         </span>
-        
+
         {/* Action buttons */}
         <FolderActionButtons
           file={file}
@@ -199,7 +200,7 @@ export const FolderTreeItem = memo(function FolderTreeItem({
           isOfflineMode={isOfflineMode}
         />
       </div>
-      
+
       {/* Children when expanded */}
       {isExpanded && children}
     </div>

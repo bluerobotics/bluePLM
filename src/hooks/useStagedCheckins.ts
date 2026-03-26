@@ -18,15 +18,8 @@ interface StagedConflict {
  * - Managing conflict dialog state
  */
 export function useStagedCheckins(loadFiles: (silent?: boolean) => void) {
-  const {
-    user,
-    organization,
-    vaultPath,
-    isOfflineMode,
-    stagedCheckins,
-    unstageCheckin,
-    addToast,
-  } = usePDMStore()
+  const { user, organization, vaultPath, isOfflineMode, stagedCheckins, unstageCheckin, addToast } =
+    usePDMStore()
 
   // Track previous offline mode to detect transition
   const prevOfflineModeRef = useRef(isOfflineMode)
@@ -44,41 +37,46 @@ export function useStagedCheckins(loadFiles: (silent?: boolean) => void) {
     if (stagedCheckins.length === 0 || !organization || !user || !vaultPath) {
       return
     }
-    
+
     log.info('[StagedCheckins]', 'Processing staged check-ins', { count: stagedCheckins.length })
-    
+
     // Get current files to find the staged ones
     const { files } = usePDMStore.getState()
-    
+
     // Collect conflicts for dialog
     const conflicts: StagedConflict[] = []
-    
+
     let successCount = 0
-    
+
     for (const staged of stagedCheckins) {
-      const file = files.find(f => f.relativePath === staged.relativePath)
+      const file = files.find((f) => f.relativePath === staged.relativePath)
       if (!file) {
         log.warn('[StagedCheckins]', 'File not found', { relativePath: staged.relativePath })
         unstageCheckin(staged.relativePath)
         continue
       }
-      
+
       // Check for conflict: server version changed since we staged
-      const serverVersionChanged = staged.serverVersion !== undefined && 
-        file.pdmData?.version !== undefined && 
+      const serverVersionChanged =
+        staged.serverVersion !== undefined &&
+        file.pdmData?.version !== undefined &&
         file.pdmData.version > staged.serverVersion
-      
+
       if (serverVersionChanged) {
         // Conflict detected - add to conflicts list for dialog
-        log.warn('[StagedCheckins]', 'Conflict detected', { fileName: staged.fileName, stagedVersion: staged.serverVersion, currentVersion: file.pdmData?.version })
+        log.warn('[StagedCheckins]', 'Conflict detected', {
+          fileName: staged.fileName,
+          stagedVersion: staged.serverVersion,
+          currentVersion: file.pdmData?.version,
+        })
         conflicts.push({
           staged,
           serverVersion: file.pdmData?.version || 0,
-          localPath: file.path
+          localPath: file.path,
         })
         continue
       }
-      
+
       try {
         // For new files, use sync (first check-in)
         // For existing files, use checkout + checkin
@@ -88,49 +86,62 @@ export function useStagedCheckins(loadFiles: (silent?: boolean) => void) {
         } else {
           // Existing file - checkout then checkin
           await executeCommand('checkout', { files: [file] }, { silent: true })
-          await executeCommand('checkin', { files: [file], comment: staged.comment || 'Offline changes' }, { silent: true })
+          await executeCommand(
+            'checkin',
+            { files: [file], comment: staged.comment || 'Offline changes' },
+            { silent: true },
+          )
         }
-        
+
         // Remove from staged
         unstageCheckin(staged.relativePath)
         successCount++
-      } catch (err) {
-        log.error('[StagedCheckins]', 'Failed to process', { fileName: staged.fileName, error: err })
-        addToast('error', `Failed to check in "${staged.fileName}": ${err instanceof Error ? err.message : 'Unknown error'}`)
+      } catch (error) {
+        log.error('[StagedCheckins]', 'Failed to process', {
+          fileName: staged.fileName,
+          error: error,
+        })
+        addToast(
+          'error',
+          `Failed to check in "${staged.fileName}": ${error instanceof Error ? error.message : 'Unknown error'}`,
+        )
       }
     }
-    
+
     // Show success message for processed files
     if (successCount > 0) {
-      addToast('success', `Successfully checked in ${successCount} staged file${successCount > 1 ? 's' : ''}`)
+      addToast(
+        'success',
+        `Successfully checked in ${successCount} staged file${successCount > 1 ? 's' : ''}`,
+      )
     }
-    
+
     // Show conflict dialog if there are conflicts
     if (conflicts.length > 0) {
       setStagedConflicts(conflicts)
     }
-    
+
     // Refresh files after processing
     loadFiles(true)
   }, [stagedCheckins, organization, user, vaultPath, addToast, unstageCheckin, loadFiles])
-  
+
   // Handle staged check-ins when going back online
   useEffect(() => {
     const wasOffline = prevOfflineModeRef.current
     const isNowOnline = !isOfflineMode
-    
+
     // Update ref for next render
     prevOfflineModeRef.current = isOfflineMode
-    
+
     // Only process when transitioning from offline to online
     if (wasOffline && isNowOnline && stagedCheckins.length > 0) {
       // Show notification about staged check-ins
       addToast(
         'info',
         `Processing ${stagedCheckins.length} staged file${stagedCheckins.length > 1 ? 's' : ''} for check-in...`,
-        8000
+        8000,
       )
-      
+
       // Process staged check-ins in the background
       processStagedCheckins()
     }

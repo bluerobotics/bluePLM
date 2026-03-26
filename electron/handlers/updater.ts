@@ -70,47 +70,51 @@ function clearUpdateReminder(): void {
 function shouldShowUpdate(version: string): boolean {
   const reminder = loadUpdateReminder()
   if (!reminder) return true
-  
+
   if (reminder.version !== version) {
     clearUpdateReminder()
     return true
   }
-  
+
   const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000
   const timeSincePostponed = Date.now() - reminder.postponedAt
-  
+
   if (timeSincePostponed >= TWENTY_FOUR_HOURS) {
     log('Update reminder expired, showing update')
     clearUpdateReminder()
     return true
   }
-  
+
   return false
 }
 
 async function performAutoUpdateCheck(reason: string): Promise<void> {
   if (isDev) return
-  
+
   const now = Date.now()
   const timeSinceLastCheck = now - lastUpdateCheck
-  
+
   if (timeSinceLastCheck < UPDATE_CHECK_COOLDOWN) {
-    log(`[Update] Skipping check (${reason}) - checked ${Math.round(timeSinceLastCheck / 1000)}s ago`)
+    log(
+      `[Update] Skipping check (${reason}) - checked ${Math.round(timeSinceLastCheck / 1000)}s ago`,
+    )
     return
   }
-  
+
   if (updateAvailable && !updateDownloaded) {
-    log(`[Update] Skipping check (${reason}) - update already available: v${updateAvailable.version}`)
+    log(
+      `[Update] Skipping check (${reason}) - update already available: v${updateAvailable.version}`,
+    )
     return
   }
-  
+
   lastUpdateCheck = now
   log(`[Update] Checking for updates (${reason})...`)
-  
+
   try {
     await autoUpdater.checkForUpdates()
-  } catch (err) {
-    log(`[Update] Auto check failed: ${String(err)}`)
+  } catch (error) {
+    log(`[Update] Auto check failed: ${String(error)}`)
   }
 }
 
@@ -119,7 +123,10 @@ export interface UpdaterHandlerDependencies {
   logError: (message: string, data?: unknown) => void
 }
 
-export function registerUpdaterHandlers(window: BrowserWindow, deps: UpdaterHandlerDependencies): void {
+export function registerUpdaterHandlers(
+  window: BrowserWindow,
+  deps: UpdaterHandlerDependencies,
+): void {
   mainWindow = window
   log = deps.log
   logError = deps.logError
@@ -131,7 +138,7 @@ export function registerUpdaterHandlers(window: BrowserWindow, deps: UpdaterHand
     info: (message: string) => log(`[AutoUpdater] ${message}`),
     warn: (message: string) => log(`[AutoUpdater] ${message}`),
     error: (message: string) => logError(`[AutoUpdater] ${message}`),
-    debug: (message: string) => log(`[AutoUpdater] ${message}`)
+    debug: (message: string) => log(`[AutoUpdater] ${message}`),
   }
 
   // Auto-updater event handlers
@@ -143,17 +150,17 @@ export function registerUpdaterHandlers(window: BrowserWindow, deps: UpdaterHand
   autoUpdater.on('update-available', (info: UpdateInfo) => {
     log('Update available: ' + info.version)
     updateAvailable = info
-    
+
     if (shouldShowUpdate(info.version)) {
       mainWindow?.webContents.send('updater:available', {
         version: info.version,
         releaseDate: info.releaseDate,
-        releaseNotes: info.releaseNotes
+        releaseNotes: info.releaseNotes,
       })
     } else {
       log('Update notification suppressed - user postponed recently')
     }
-    
+
     isUserInitiatedCheck = false
   })
 
@@ -162,7 +169,7 @@ export function registerUpdaterHandlers(window: BrowserWindow, deps: UpdaterHand
     updateAvailable = null
     isUserInitiatedCheck = false
     mainWindow?.webContents.send('updater:not-available', {
-      version: info.version
+      version: info.version,
     })
   })
 
@@ -172,7 +179,7 @@ export function registerUpdaterHandlers(window: BrowserWindow, deps: UpdaterHand
       percent: progress.percent,
       bytesPerSecond: progress.bytesPerSecond,
       transferred: progress.transferred,
-      total: progress.total
+      total: progress.total,
     })
   })
 
@@ -183,7 +190,7 @@ export function registerUpdaterHandlers(window: BrowserWindow, deps: UpdaterHand
     mainWindow?.webContents.send('updater:downloaded', {
       version: info.version,
       releaseDate: info.releaseDate,
-      releaseNotes: info.releaseNotes
+      releaseNotes: info.releaseNotes,
     })
   })
 
@@ -192,7 +199,7 @@ export function registerUpdaterHandlers(window: BrowserWindow, deps: UpdaterHand
     downloadProgress = null
     if (isUserInitiatedCheck) {
       mainWindow?.webContents.send('updater:error', {
-        message: error.message
+        message: error.message,
       })
     }
     isUserInitiatedCheck = false
@@ -208,10 +215,10 @@ export function registerUpdaterHandlers(window: BrowserWindow, deps: UpdaterHand
       isUserInitiatedCheck = true
       await autoUpdater.checkForUpdates()
       return { success: true, updateInfo: updateAvailable }
-    } catch (err) {
-      logError('Failed to check for updates', { error: String(err) })
+    } catch (error) {
+      logError('Failed to check for updates', { error: String(error) })
       isUserInitiatedCheck = false
-      return { success: false, error: String(err) }
+      return { success: false, error: String(error) }
     }
   })
 
@@ -223,9 +230,9 @@ export function registerUpdaterHandlers(window: BrowserWindow, deps: UpdaterHand
       log('Starting update download...')
       await autoUpdater.downloadUpdate()
       return { success: true }
-    } catch (err) {
-      logError('Failed to download update', { error: String(err) })
-      return { success: false, error: String(err) }
+    } catch (error) {
+      logError('Failed to download update', { error: String(error) })
+      return { success: false, error: String(error) }
     }
   })
 
@@ -234,7 +241,7 @@ export function registerUpdaterHandlers(window: BrowserWindow, deps: UpdaterHand
       return { success: false, error: 'No update downloaded' }
     }
     log('Installing update and restarting...')
-    
+
     setImmediate(() => {
       try {
         if (process.platform === 'darwin') {
@@ -245,8 +252,8 @@ export function registerUpdaterHandlers(window: BrowserWindow, deps: UpdaterHand
         } else {
           autoUpdater.quitAndInstall(false, true)
         }
-      } catch (err) {
-        logError('[Update] quitAndInstall failed, trying fallback', { error: String(err) })
+      } catch (error) {
+        logError('[Update] quitAndInstall failed, trying fallback', { error: String(error) })
         try {
           app.relaunch()
           app.exit(0)
@@ -255,26 +262,31 @@ export function registerUpdaterHandlers(window: BrowserWindow, deps: UpdaterHand
         }
       }
     })
-    
+
     return { success: true }
   })
 
   ipcMain.handle('updater:get-status', () => {
     const shouldShow = updateAvailable ? shouldShowUpdate(updateAvailable.version) : false
-    
+
     return {
-      updateAvailable: (updateAvailable && shouldShow) ? {
-        version: updateAvailable.version,
-        releaseDate: updateAvailable.releaseDate,
-        releaseNotes: updateAvailable.releaseNotes
-      } : null,
+      updateAvailable:
+        updateAvailable && shouldShow
+          ? {
+              version: updateAvailable.version,
+              releaseDate: updateAvailable.releaseDate,
+              releaseNotes: updateAvailable.releaseNotes,
+            }
+          : null,
       updateDownloaded,
-      downloadProgress: downloadProgress ? {
-        percent: downloadProgress.percent,
-        bytesPerSecond: downloadProgress.bytesPerSecond,
-        transferred: downloadProgress.transferred,
-        total: downloadProgress.total
-      } : null
+      downloadProgress: downloadProgress
+        ? {
+            percent: downloadProgress.percent,
+            bytesPerSecond: downloadProgress.bytesPerSecond,
+            transferred: downloadProgress.transferred,
+            total: downloadProgress.total,
+          }
+        : null,
     }
   })
 
@@ -282,7 +294,7 @@ export function registerUpdaterHandlers(window: BrowserWindow, deps: UpdaterHand
     log(`User postponed update for version ${version}`)
     saveUpdateReminder({
       version,
-      postponedAt: Date.now()
+      postponedAt: Date.now(),
     })
     return { success: true }
   })
@@ -300,113 +312,117 @@ export function registerUpdaterHandlers(window: BrowserWindow, deps: UpdaterHand
   // Download specific version installer
   ipcMain.handle('updater:download-version', async (_, version: string, downloadUrl: string) => {
     log(`Downloading specific version: ${version} from ${downloadUrl}`)
-    
+
     try {
       const https = await import('https')
       const http = await import('http')
-      
+
       const tempDir = path.join(app.getPath('temp'), 'blueplm-updates')
       if (!fs.existsSync(tempDir)) {
         fs.mkdirSync(tempDir, { recursive: true })
       }
-      
+
       const urlParts = new URL(downloadUrl)
       const fileName = path.basename(urlParts.pathname)
       const filePath = path.join(tempDir, fileName)
-      
-      const downloadWithRedirects = (url: string): Promise<{ success: boolean; filePath?: string; error?: string }> => {
+
+      const downloadWithRedirects = (
+        url: string,
+      ): Promise<{ success: boolean; filePath?: string; error?: string }> => {
         return new Promise((resolve) => {
           const protocol = url.startsWith('https') ? https : http
-          
-          protocol.get(url, (response) => {
-            if (response.statusCode === 302 || response.statusCode === 301) {
-              const redirectUrl = response.headers.location
-              if (redirectUrl) {
-                log(`Following redirect to: ${redirectUrl}`)
-                downloadWithRedirects(redirectUrl).then(resolve)
+
+          protocol
+            .get(url, (response) => {
+              if (response.statusCode === 302 || response.statusCode === 301) {
+                const redirectUrl = response.headers.location
+                if (redirectUrl) {
+                  log(`Following redirect to: ${redirectUrl}`)
+                  downloadWithRedirects(redirectUrl).then(resolve)
+                  return
+                }
+              }
+
+              if (response.statusCode !== 200) {
+                resolve({ success: false, error: `HTTP ${response.statusCode}` })
                 return
               }
-            }
-            
-            if (response.statusCode !== 200) {
-              resolve({ success: false, error: `HTTP ${response.statusCode}` })
-              return
-            }
-            
-            const totalBytes = parseInt(response.headers['content-length'] || '0', 10)
-            let downloadedBytes = 0
-            let lastProgressUpdate = Date.now()
-            let lastBytes = 0
-            
-            const file = fs.createWriteStream(filePath)
-            
-            response.on('data', (chunk: Buffer) => {
-              downloadedBytes += chunk.length
-              
-              const now = Date.now()
-              if (now - lastProgressUpdate >= 100) {
-                const elapsed = (now - lastProgressUpdate) / 1000
-                const bytesPerSecond = elapsed > 0 ? (downloadedBytes - lastBytes) / elapsed : 0
-                const percent = totalBytes > 0 ? (downloadedBytes / totalBytes) * 100 : 0
-                
-                if (mainWindow) {
-                  mainWindow.webContents.send('updater:download-progress', {
-                    percent,
-                    bytesPerSecond,
-                    transferred: downloadedBytes,
-                    total: totalBytes
-                  })
+
+              const totalBytes = parseInt(response.headers['content-length'] || '0', 10)
+              let downloadedBytes = 0
+              let lastProgressUpdate = Date.now()
+              let lastBytes = 0
+
+              const file = fs.createWriteStream(filePath)
+
+              response.on('data', (chunk: Buffer) => {
+                downloadedBytes += chunk.length
+
+                const now = Date.now()
+                if (now - lastProgressUpdate >= 100) {
+                  const elapsed = (now - lastProgressUpdate) / 1000
+                  const bytesPerSecond = elapsed > 0 ? (downloadedBytes - lastBytes) / elapsed : 0
+                  const percent = totalBytes > 0 ? (downloadedBytes / totalBytes) * 100 : 0
+
+                  if (mainWindow) {
+                    mainWindow.webContents.send('updater:download-progress', {
+                      percent,
+                      bytesPerSecond,
+                      transferred: downloadedBytes,
+                      total: totalBytes,
+                    })
+                  }
+
+                  lastProgressUpdate = now
+                  lastBytes = downloadedBytes
                 }
-                
-                lastProgressUpdate = now
-                lastBytes = downloadedBytes
-              }
+              })
+
+              response.pipe(file)
+
+              file.on('finish', () => {
+                file.close()
+                log(`Downloaded installer to: ${filePath}`)
+                resolve({ success: true, filePath })
+              })
+
+              file.on('error', (error) => {
+                fs.unlink(filePath, () => {})
+                resolve({ success: false, error: String(error) })
+              })
             })
-            
-            response.pipe(file)
-            
-            file.on('finish', () => {
-              file.close()
-              log(`Downloaded installer to: ${filePath}`)
-              resolve({ success: true, filePath })
+            .on('error', (error) => {
+              resolve({ success: false, error: String(error) })
             })
-            
-            file.on('error', (err) => {
-              fs.unlink(filePath, () => {})
-              resolve({ success: false, error: String(err) })
-            })
-          }).on('error', (err) => {
-            resolve({ success: false, error: String(err) })
-          })
         })
       }
-      
+
       return await downloadWithRedirects(downloadUrl)
-    } catch (err) {
-      logError('Failed to download version installer', { error: String(err) })
-      return { success: false, error: String(err) }
+    } catch (error) {
+      logError('Failed to download version installer', { error: String(error) })
+      return { success: false, error: String(error) }
     }
   })
 
   // Run downloaded installer
   ipcMain.handle('updater:run-installer', async (_, filePath: string) => {
     log(`Running installer: ${filePath}`)
-    
+
     try {
       if (!fs.existsSync(filePath)) {
         return { success: false, error: 'Installer file not found' }
       }
-      
+
       await shell.openPath(filePath)
-      
+
       setTimeout(() => {
         app.quit()
       }, 1000)
-      
+
       return { success: true }
-    } catch (err) {
-      logError('Failed to run installer', { error: String(err) })
-      return { success: false, error: String(err) }
+    } catch (error) {
+      logError('Failed to run installer', { error: String(error) })
+      return { success: false, error: String(error) }
     }
   })
 
@@ -417,11 +433,11 @@ export function registerUpdaterHandlers(window: BrowserWindow, deps: UpdaterHand
       startupCheckTimer = null
       performAutoUpdateCheck('startup')
     }, 5000)
-    
+
     updateCheckTimer = setInterval(() => {
       performAutoUpdateCheck('periodic')
     }, UPDATE_CHECK_INTERVAL)
-    
+
     // Store focus handler reference so it can be removed on cleanup
     // CRITICAL: Without storing and removing this handler, it holds a reference
     // to mainWindow that prevents the process from exiting cleanly
@@ -437,13 +453,19 @@ export function unregisterUpdaterHandlers(): void {
     clearInterval(updateCheckTimer)
     updateCheckTimer = null
   }
-  
+
   const handlers = [
-    'updater:check', 'updater:download', 'updater:install', 'updater:get-status',
-    'updater:postpone', 'updater:clear-reminder', 'updater:get-reminder',
-    'updater:download-version', 'updater:run-installer'
+    'updater:check',
+    'updater:download',
+    'updater:install',
+    'updater:get-status',
+    'updater:postpone',
+    'updater:clear-reminder',
+    'updater:get-reminder',
+    'updater:download-version',
+    'updater:run-installer',
   ]
-  
+
   for (const handler of handlers) {
     ipcMain.removeHandler(handler)
   }
@@ -451,12 +473,12 @@ export function unregisterUpdaterHandlers(): void {
 
 /**
  * Cleanup updater resources on app quit.
- * 
+ *
  * CRITICAL FOR CLEAN EXIT: This function must be called during app shutdown to:
  * 1. Clear the periodic update check timer (keeps event loop alive)
  * 2. Clear any pending startup check timer
  * 3. Remove the focus event handler from mainWindow (holds reference, prevents GC)
- * 
+ *
  * Without proper cleanup, the process becomes a zombie that holds the single-instance lock.
  */
 export function cleanupUpdater(): void {
@@ -466,14 +488,14 @@ export function cleanupUpdater(): void {
     clearInterval(updateCheckTimer)
     updateCheckTimer = null
   }
-  
+
   // Clear startup check timer if still pending
   if (startupCheckTimer) {
     log('[Update] Clearing startup check timer')
     clearTimeout(startupCheckTimer)
     startupCheckTimer = null
   }
-  
+
   // Remove the focus event handler from mainWindow
   // CRITICAL: This handler holds a reference to mainWindow and prevents garbage collection
   // which keeps the event loop alive and causes the zombie process issue

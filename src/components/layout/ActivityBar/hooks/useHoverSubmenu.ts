@@ -22,11 +22,14 @@ export function useHoverSubmenu(hasChildren: boolean, isComingSoon: boolean) {
     }
   }
 
-  const handleMouseEnter = (isExpanded: boolean, onHoverWithChildren?: (rect: DOMRect | null) => void) => {
+  const handleMouseEnter = (
+    isExpanded: boolean,
+    onHoverWithChildren?: (rect: DOMRect | null) => void,
+  ) => {
     if (!isExpanded && (!hasChildren || isComingSoon)) {
       setShowTooltip(true)
     }
-    
+
     if (hasChildren && !isComingSoon) {
       // Clear any pending close timeout
       if (submenuTimeoutRef.current) {

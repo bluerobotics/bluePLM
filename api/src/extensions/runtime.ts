@@ -1,21 +1,18 @@
 /**
  * Extension Server Runtime API
- * 
+ *
  * Implements the ExtensionServerAPI that extension handlers use to interact
  * with storage, secrets, HTTP, and request context.
- * 
+ *
  * @module extensions/runtime
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type {
-  ExtensionRequestContext,
-  ExtensionUserContext,
-  ExtensionManifest
-} from './types.js'
+import type { ExtensionRequestContext, ExtensionUserContext, ExtensionManifest } from './types.js'
 import { ExtensionStorage } from './storage.js'
 import { ExtensionSecrets } from './secrets.js'
 import { logHttpRequest } from './http-logger.js'
+import { log } from '../infrastructure/logging.js'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // EXTENSION SERVER API INTERFACE
@@ -23,7 +20,7 @@ import { logHttpRequest } from './http-logger.js'
 
 /**
  * Server-side API available to extension handlers.
- * 
+ *
  * This is the primary interface extension code uses in sandbox execution.
  */
 export interface ExtensionServerAPI {
@@ -106,23 +103,15 @@ export interface RuntimeOptions {
 
 /**
  * Creates an ExtensionServerAPI instance for handler execution.
- * 
+ *
  * This API is injected into the sandbox context and provides controlled
  * access to storage, secrets, and HTTP functionality.
- * 
+ *
  * @param options - Runtime configuration
  * @returns Callable API reference for sandbox
  */
 export function createExtensionRuntime(options: RuntimeOptions): ExtensionServerAPICallable {
-  const {
-    orgId,
-    extensionId,
-    manifest,
-    supabase,
-    request,
-    user,
-    encryptionKey
-  } = options
+  const { orgId, extensionId, manifest, supabase, request, user, encryptionKey } = options
 
   // Get allowed domains from manifest permissions
   const allowedDomains = extractAllowedDomains(manifest.permissions.server ?? [])
@@ -134,13 +123,13 @@ export function createExtensionRuntime(options: RuntimeOptions): ExtensionServer
     orgId,
     extensionId,
     encryptionKey,
-    user?.id ?? 'system'
+    user?.id ?? 'system',
   )
 
   // Create callable API that the sandbox can invoke
   const apiCallable: ExtensionServerAPICallable = async (
     method: string,
-    args: unknown[]
+    args: unknown[],
   ): Promise<unknown> => {
     switch (method) {
       // Storage methods
@@ -169,7 +158,7 @@ export function createExtensionRuntime(options: RuntimeOptions): ExtensionServer
           allowedDomains,
           orgId,
           extensionId,
-          supabase
+          supabase,
         )
 
       // Context getters
@@ -189,10 +178,7 @@ export function createExtensionRuntime(options: RuntimeOptions): ExtensionServer
 /**
  * Callable API reference for isolated-vm.
  */
-export type ExtensionServerAPICallable = (
-  method: string,
-  args: unknown[]
-) => Promise<unknown>
+export type ExtensionServerAPICallable = (method: string, args: unknown[]) => Promise<unknown>
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // HTTP FETCH HANDLER
@@ -208,7 +194,7 @@ async function handleHttpFetch(
   allowedDomains: string[],
   orgId: string,
   extensionId: string,
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
 ): Promise<SerializableResponse> {
   const startTime = Date.now()
   let status = 0
@@ -221,7 +207,7 @@ async function handleHttpFetch(
 
     // Check domain allowlist (skip if wildcard allowed)
     if (!allowedDomains.includes('*')) {
-      const isAllowed = allowedDomains.some(allowed => {
+      const isAllowed = allowedDomains.some((allowed) => {
         if (allowed.startsWith('*.')) {
           // Wildcard subdomain match
           const baseDomain = allowed.slice(2)
@@ -232,7 +218,7 @@ async function handleHttpFetch(
 
       if (!isAllowed) {
         throw new Error(
-          `Domain ${domain} not in extension's allowed domains: ${allowedDomains.join(', ')}`
+          `Domain ${domain} not in extension's allowed domains: ${allowedDomains.join(', ')}`,
         )
       }
     }
@@ -242,25 +228,25 @@ async function handleHttpFetch(
       ...options,
       headers: {
         'User-Agent': `BluePLM-Extension/${extensionId}`,
-        ...options?.headers
-      }
+        ...options?.headers,
+      },
     })
 
     status = response.status
 
     // Convert response to serializable format for sandbox
     const responseBody = await response.text()
-    
+
     return {
       ok: response.ok,
       status: response.status,
       statusText: response.statusText,
       headers: Object.fromEntries(response.headers.entries()),
-      body: responseBody
+      body: responseBody,
     }
-  } catch (err) {
-    error = err instanceof Error ? err.message : String(err)
-    throw err
+  } catch (error) {
+    error = error instanceof Error ? error.message : String(error)
+    throw error
   } finally {
     // Log the HTTP request
     const duration = Date.now() - startTime
@@ -273,8 +259,8 @@ async function handleHttpFetch(
       duration_ms: duration,
       request_size: options?.body ? String(options.body).length : 0,
       response_size: 0, // Would need to capture this
-      error
-    }).catch(console.error) // Don't fail handler on log error
+      error,
+    }).catch((err) => log.error({ err }, '[Runtime] Failed to log HTTP request'))
   }
 }
 
@@ -324,6 +310,6 @@ export function createResponseHelpers() {
     },
     redirect(url: string, status = 302): ExtensionResponse {
       return { type: 'redirect', url, status }
-    }
+    },
   }
 }

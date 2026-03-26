@@ -1,4 +1,4 @@
-export { 
+export {
   SolidWorksContextMenuItems,
-  type SolidWorksContextMenuItemsProps 
+  type SolidWorksContextMenuItemsProps,
 } from './SolidWorksContextMenuItems'

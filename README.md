@@ -53,7 +53,7 @@ npm run build    # Production build
 
 | Component | Technologies |
 |-----------|--------------|
-| Desktop | Electron 34, React 19, TypeScript, Tailwind, Zustand |
+| Desktop | Electron 39, React 19, TypeScript, Tailwind, Zustand |
 | Backend | Supabase (PostgreSQL, Auth, Storage, Realtime) |
 | API | Fastify, Docker, OpenAPI |
 

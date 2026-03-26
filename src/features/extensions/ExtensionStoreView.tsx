@@ -1,19 +1,21 @@
 /**
  * ExtensionStoreView - Main view for browsing and managing extensions
- * 
+ *
  * This is the primary UI for the in-app extension store.
  * Provides tabs for browsing the store and managing installed extensions.
  */
 import { useEffect, useState } from 'react'
 import { Store, Package, RefreshCw, Upload, Bell } from 'lucide-react'
+
+import { usePDMStore } from '@/stores/pdmStore'
+import { useExtensions } from '@/hooks/useExtensions'
+import { log } from '@/lib/logger'
+
 import { ExtensionList } from './ExtensionList'
 import { ExtensionDetailsDialog } from './ExtensionDetailsDialog'
 import { InstallDialog } from './InstallDialog'
 import { UpdateDialog } from './UpdateDialog'
 import { SideloadDialog } from './SideloadDialog'
-import { usePDMStore } from '@/stores/pdmStore'
-import { useExtensions } from '@/hooks/useExtensions'
-import { log } from '@/lib/logger'
 
 type TabId = 'store' | 'installed'
 
@@ -25,15 +27,10 @@ export function ExtensionStoreView() {
   const [showUpdateDialog, setShowUpdateDialog] = useState(false)
   const [updateExtensionId, setUpdateExtensionId] = useState<string | null>(null)
   const [showSideloadDialog, setShowSideloadDialog] = useState(false)
-  
-  const {
-    installedExtensions,
-    storeExtensions,
-    availableUpdates,
-    storeLoading,
-    checkingUpdates,
-  } = useExtensions()
-  
+
+  const { installedExtensions, storeExtensions, availableUpdates, storeLoading, checkingUpdates } =
+    useExtensions()
+
   const {
     fetchStoreExtensions,
     loadInstalledExtensions,
@@ -58,9 +55,9 @@ export function ExtensionStoreView() {
     if (pendingDeepLinkInstall && storeExtensions.length > 0) {
       const { extensionId } = pendingDeepLinkInstall
       log.info('[ExtensionStore]', 'Processing deep link install', { extensionId })
-      
+
       // Check if extension exists in store
-      const storeExt = storeExtensions.find(e => e.extensionId === extensionId)
+      const storeExt = storeExtensions.find((e) => e.extensionId === extensionId)
       if (storeExt) {
         // Open install dialog for this extension
         setInstallExtensionId(extensionId)
@@ -68,7 +65,7 @@ export function ExtensionStoreView() {
       } else {
         log.warn('[ExtensionStore]', 'Extension not found in store', { extensionId })
       }
-      
+
       // Clear the pending install regardless (don't re-trigger)
       clearPendingDeepLinkInstall()
     }
@@ -123,7 +120,7 @@ export function ExtensionStoreView() {
             <Store size={24} className="text-blue-400" />
             <h1 className="text-xl font-semibold text-gray-100">Extension Store</h1>
           </div>
-          
+
           <div className="flex items-center gap-2">
             {/* Updates badge */}
             {availableUpdates.length > 0 && (
@@ -133,10 +130,12 @@ export function ExtensionStoreView() {
                   rounded-lg hover:bg-blue-600/30 transition-colors"
               >
                 <Bell size={16} />
-                <span className="text-sm font-medium">{availableUpdates.length} update{availableUpdates.length !== 1 ? 's' : ''}</span>
+                <span className="text-sm font-medium">
+                  {availableUpdates.length} update{availableUpdates.length !== 1 ? 's' : ''}
+                </span>
               </button>
             )}
-            
+
             {/* Sideload button */}
             <button
               onClick={() => setShowSideloadDialog(true)}
@@ -146,7 +145,7 @@ export function ExtensionStoreView() {
               <Upload size={16} />
               <span className="text-sm">Sideload</span>
             </button>
-            
+
             {/* Check updates button */}
             <button
               onClick={() => checkForUpdates()}
@@ -159,7 +158,7 @@ export function ExtensionStoreView() {
             </button>
           </div>
         </div>
-        
+
         {/* Tabs */}
         <div className="flex gap-1 mt-4">
           <button
@@ -176,7 +175,7 @@ export function ExtensionStoreView() {
               {storeExtensions.length}
             </span>
           </button>
-          
+
           <button
             onClick={() => setActiveTab('installed')}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
@@ -198,7 +197,7 @@ export function ExtensionStoreView() {
           </button>
         </div>
       </div>
-      
+
       {/* Content */}
       <div className="flex-1 p-6 overflow-hidden">
         {activeTab === 'store' ? (
@@ -232,7 +231,7 @@ export function ExtensionStoreView() {
           />
         )}
       </div>
-      
+
       {/* Dialogs */}
       <ExtensionDetailsDialog
         extensionId={selectedExtensionId}
@@ -255,7 +254,7 @@ export function ExtensionStoreView() {
           }
         }}
       />
-      
+
       <InstallDialog
         extensionId={installExtensionId}
         open={showInstallDialog}
@@ -264,7 +263,7 @@ export function ExtensionStoreView() {
           setInstallExtensionId(null)
         }}
       />
-      
+
       <UpdateDialog
         extensionId={updateExtensionId}
         open={showUpdateDialog}
@@ -273,11 +272,8 @@ export function ExtensionStoreView() {
           setUpdateExtensionId(null)
         }}
       />
-      
-      <SideloadDialog
-        open={showSideloadDialog}
-        onClose={() => setShowSideloadDialog(false)}
-      />
+
+      <SideloadDialog open={showSideloadDialog} onClose={() => setShowSideloadDialog(false)} />
     </div>
   )
 }

@@ -16,7 +16,7 @@ export const WorkflowCard = memo(function WorkflowCard({
   isSelected,
   onSelect,
   onEdit,
-  isAdmin
+  isAdmin,
 }: WorkflowCardProps) {
   return (
     <div
@@ -26,7 +26,10 @@ export const WorkflowCard = memo(function WorkflowCard({
       onClick={onSelect}
     >
       <div className="flex items-center gap-2 flex-1 min-w-0">
-        <GitBranch size={14} className={workflow.is_default ? 'text-plm-accent' : 'text-plm-fg-muted'} />
+        <GitBranch
+          size={14}
+          className={workflow.is_default ? 'text-plm-accent' : 'text-plm-fg-muted'}
+        />
         <span className="text-sm truncate">{workflow.name}</span>
         {workflow.is_default && (
           <span className="text-[10px] bg-plm-accent/20 text-plm-accent px-1.5 py-0.5 rounded">

@@ -21,7 +21,7 @@ export const WorkflowsList = memo(function WorkflowsList({
   isAdmin,
   onSelectWorkflow,
   onEditWorkflow,
-  onCreateWorkflow
+  onCreateWorkflow,
 }: WorkflowsListProps) {
   return (
     <div className="border-r border-plm-border w-48 flex-shrink-0 flex flex-col">
@@ -41,7 +41,7 @@ export const WorkflowsList = memo(function WorkflowsList({
           </button>
         )}
       </div>
-      
+
       {/* List */}
       <div className="flex-1 overflow-y-auto p-1">
         {isLoading ? (
@@ -49,11 +49,9 @@ export const WorkflowsList = memo(function WorkflowsList({
             <Loader2 size={16} className="animate-spin text-plm-fg-muted" />
           </div>
         ) : workflows.length === 0 ? (
-          <div className="text-center py-4 text-xs text-plm-fg-muted">
-            No workflows
-          </div>
+          <div className="text-center py-4 text-xs text-plm-fg-muted">No workflows</div>
         ) : (
-          workflows.map(workflow => (
+          workflows.map((workflow) => (
             <WorkflowCard
               key={workflow.id}
               workflow={workflow}

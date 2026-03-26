@@ -1,6 +1,6 @@
 /**
  * File JSON Schemas
- * 
+ *
  * Schemas for file and activity responses.
  */
 
@@ -20,6 +20,6 @@ export const fileSchema = {
     file_size: { type: 'integer' },
     state: { type: 'string', enum: ['not_tracked', 'wip', 'in_review', 'released', 'obsolete'] },
     checked_out_by: { type: ['string', 'null'] },
-    checked_out_at: { type: ['string', 'null'] }
-  }
+    checked_out_at: { type: ['string', 'null'] },
+  },
 } as const

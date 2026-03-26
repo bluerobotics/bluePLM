@@ -1,9 +1,9 @@
 /**
  * Extension System - API Server Module
- * 
+ *
  * Provides V8 sandbox execution, storage, secrets, and rate limiting
  * for extension server handlers.
- * 
+ *
  * @module extensions
  */
 
@@ -17,7 +17,7 @@ export {
   disposeIsolatePool,
   type IsolatePoolConfig,
   type PoolStats,
-  type SandboxResult
+  type SandboxResult,
 } from './sandbox.js'
 
 // Runtime
@@ -27,7 +27,7 @@ export {
   type ExtensionServerAPI,
   type ExtensionResponse,
   type RuntimeOptions,
-  type ExtensionServerAPICallable
+  type ExtensionServerAPICallable,
 } from './runtime.js'
 
 // Loader
@@ -40,29 +40,17 @@ export {
   uninstallExtension,
   setExtensionEnabled,
   type LoadedHandler,
-  type HandlerKey
+  type HandlerKey,
 } from './loader.js'
 
 // Router
-export {
-  routeExtensionRequest,
-  createExtensionRouteHandler,
-  type RouterOptions
-} from './router.js'
+export { routeExtensionRequest, createExtensionRouteHandler, type RouterOptions } from './router.js'
 
 // Storage
-export {
-  ExtensionStorage,
-  StorageError,
-  STORAGE_LIMITS
-} from './storage.js'
+export { ExtensionStorage, StorageError, STORAGE_LIMITS } from './storage.js'
 
 // Secrets
-export {
-  ExtensionSecrets,
-  SecretsError,
-  SECRETS_LIMITS
-} from './secrets.js'
+export { ExtensionSecrets, SecretsError, SECRETS_LIMITS } from './secrets.js'
 
 // Rate Limiting
 export {
@@ -73,13 +61,8 @@ export {
   getRateLimitHeaders,
   DEFAULT_RATE_LIMIT,
   type RateLimitConfig,
-  type RateLimitResult
+  type RateLimitResult,
 } from './ratelimit.js'
 
 // HTTP Logger
-export {
-  logHttpRequest,
-  getHttpLogs,
-  cleanupHttpLogs,
-  type HttpLogEntry
-} from './http-logger.js'
+export { logHttpRequest, getHttpLogs, cleanupHttpLogs, type HttpLogEntry } from './http-logger.js'

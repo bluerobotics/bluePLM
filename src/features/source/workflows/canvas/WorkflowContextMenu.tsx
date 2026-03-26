@@ -21,25 +21,25 @@ interface WorkflowContextMenuProps {
   onClose: () => void
 }
 
-export function WorkflowContextMenu({ 
-  x, 
-  y, 
-  type, 
-  isAdmin, 
-  targetState, 
+export function WorkflowContextMenu({
+  x,
+  y,
+  type,
+  isAdmin,
+  targetState,
   targetTransition,
   gates,
   allStates,
   hasWaypoints,
-  onEdit, 
-  onDelete, 
+  onEdit,
+  onDelete,
   onAddGate: _onAddGate,
   onResetWaypoints,
   onAddState,
-  onClose 
+  onClose,
 }: WorkflowContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
-  
+
   // Close on click outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -47,14 +47,14 @@ export function WorkflowContextMenu({
         onClose()
       }
     }
-    
+
     // Close on escape key
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose()
       }
     }
-    
+
     document.addEventListener('mousedown', handleClickOutside)
     document.addEventListener('keydown', handleKeyDown)
     return () => {
@@ -62,30 +62,34 @@ export function WorkflowContextMenu({
       document.removeEventListener('keydown', handleKeyDown)
     }
   }, [onClose])
-  
+
   // Adjust position to keep menu on screen
   const [adjustedPos, setAdjustedPos] = useState<{ x: number; y: number } | null>(null)
-  
+
   useEffect(() => {
     if (menuRef.current) {
       const rect = menuRef.current.getBoundingClientRect()
       let newX = x
       let newY = y
-      
+
       if (x + rect.width > window.innerWidth) {
         newX = window.innerWidth - rect.width - 8
       }
       if (y + rect.height > window.innerHeight) {
         newY = window.innerHeight - rect.height - 8
       }
-      
+
       setAdjustedPos({ x: newX, y: newY })
     }
   }, [x, y])
-  
-  const fromState = targetTransition ? allStates.find(s => s.id === targetTransition.from_state_id) : null
-  const toState = targetTransition ? allStates.find(s => s.id === targetTransition.to_state_id) : null
-  
+
+  const fromState = targetTransition
+    ? allStates.find((s) => s.id === targetTransition.from_state_id)
+    : null
+  const toState = targetTransition
+    ? allStates.find((s) => s.id === targetTransition.to_state_id)
+    : null
+
   return (
     <div
       ref={menuRef}
@@ -99,23 +103,33 @@ export function WorkflowContextMenu({
         <div className="px-3 py-2 border-b border-plm-border">
           {type === 'state' && targetState && (
             <div className="flex items-center gap-2">
-              <div 
+              <div
                 className="w-4 h-4 rounded flex items-center justify-center"
                 style={{ backgroundColor: targetState.color }}
               />
               <span className="text-sm font-medium">{targetState.label || targetState.name}</span>
-              <span className="text-xs text-plm-fg-muted">({targetState.is_editable ? 'Editable' : 'Locked'})</span>
+              <span className="text-xs text-plm-fg-muted">
+                ({targetState.is_editable ? 'Editable' : 'Locked'})
+              </span>
             </div>
           )}
           {type === 'transition' && targetTransition && (
             <div>
-              <div className="text-sm font-medium mb-1">{targetTransition.name || 'Unnamed transition'}</div>
+              <div className="text-sm font-medium mb-1">
+                {targetTransition.name || 'Unnamed transition'}
+              </div>
               <div className="flex items-center gap-1.5 text-xs text-plm-fg-muted">
-                <span className="px-1.5 py-0.5 rounded" style={{ backgroundColor: (fromState?.color || '#666') + '40' }}>
+                <span
+                  className="px-1.5 py-0.5 rounded"
+                  style={{ backgroundColor: (fromState?.color || '#666') + '40' }}
+                >
                   {fromState?.name || '?'}
                 </span>
                 <ArrowRight size={10} />
-                <span className="px-1.5 py-0.5 rounded" style={{ backgroundColor: (toState?.color || '#666') + '40' }}>
+                <span
+                  className="px-1.5 py-0.5 rounded"
+                  style={{ backgroundColor: (toState?.color || '#666') + '40' }}
+                >
                   {toState?.name || '?'}
                 </span>
               </div>
@@ -128,7 +142,7 @@ export function WorkflowContextMenu({
           )}
         </div>
       )}
-      
+
       {/* Menu items */}
       <div className="py-1">
         {type === 'canvas' && isAdmin && onAddState && (
@@ -140,7 +154,7 @@ export function WorkflowContextMenu({
             New State
           </button>
         )}
-        
+
         {type !== 'canvas' && (
           <button
             onClick={onEdit}
@@ -150,7 +164,7 @@ export function WorkflowContextMenu({
             Edit {type === 'state' ? 'State' : 'Transition'}...
           </button>
         )}
-        
+
         {type === 'transition' && isAdmin && hasWaypoints && onResetWaypoints && (
           <button
             onClick={onResetWaypoints}
@@ -160,7 +174,7 @@ export function WorkflowContextMenu({
             Reset Control Points
           </button>
         )}
-        
+
         {isAdmin && type !== 'canvas' && (
           <>
             <div className="my-1 border-t border-plm-border" />

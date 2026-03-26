@@ -1,20 +1,20 @@
 /**
  * Miscellaneous Commands
- * 
+ *
  * - open: Open file with default application
  * - show-in-explorer: Reveal in file explorer
  * - pin/unpin: Pin/unpin files/folders to sidebar
  * - ignore: Add ignore pattern
  */
 
-import type { 
-  Command, 
-  OpenParams, 
+import type {
+  Command,
+  OpenParams,
   ShowInExplorerParams,
   PinParams,
   UnpinParams,
   IgnoreParams,
-  CommandResult 
+  CommandResult,
 } from '../types'
 import { usePDMStore } from '../../../stores/pdmStore'
 
@@ -28,20 +28,20 @@ export const openCommand: Command<OpenParams> = {
   description: 'Open file or folder with default application',
   aliases: ['o'],
   usage: 'open <path>',
-  
+
   validate({ file }, _ctx) {
     if (!file) {
       return 'No file specified'
     }
-    
+
     // Cloud-only files don't exist locally
     if (file.diffStatus === 'cloud') {
       return 'File is cloud-only. Download first to open.'
     }
-    
+
     return null
   },
-  
+
   async execute({ file }, ctx): Promise<CommandResult> {
     try {
       if (file.isDirectory) {
@@ -51,26 +51,26 @@ export const openCommand: Command<OpenParams> = {
         // Open file with default application
         await window.electronAPI?.openFile(file.path)
       }
-      
+
       return {
         success: true,
         message: `Opened ${file.name}`,
         total: 1,
         succeeded: 1,
-        failed: 0
+        failed: 0,
       }
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Unknown error'
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error'
       ctx.addToast('error', `Failed to open: ${errorMsg}`)
       return {
         success: false,
         message: `Failed to open: ${errorMsg}`,
         total: 1,
         succeeded: 0,
-        failed: 1
+        failed: 1,
       }
     }
-  }
+  },
 }
 
 // ============================================
@@ -83,37 +83,37 @@ export const showInExplorerCommand: Command<ShowInExplorerParams> = {
   description: 'Reveal file or folder in system file explorer',
   aliases: ['reveal', 'finder'],
   usage: 'show-in-explorer <path>',
-  
+
   validate({ path }, _ctx) {
     if (!path) {
       return 'No path specified'
     }
     return null
   },
-  
+
   async execute({ path }, ctx): Promise<CommandResult> {
     try {
       await window.electronAPI?.showInExplorer(path)
-      
+
       return {
         success: true,
         message: 'Revealed in explorer',
         total: 1,
         succeeded: 1,
-        failed: 0
+        failed: 0,
       }
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Unknown error'
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error'
       ctx.addToast('error', `Failed to reveal: ${errorMsg}`)
       return {
         success: false,
         message: `Failed to reveal: ${errorMsg}`,
         total: 1,
         succeeded: 0,
-        failed: 1
+        failed: 1,
       }
     }
-  }
+  },
 }
 
 // ============================================
@@ -125,7 +125,7 @@ export const pinCommand: Command<PinParams> = {
   name: 'Pin',
   description: 'Pin a file or folder to the sidebar',
   usage: 'pin <path>',
-  
+
   validate({ file, vaultId }, _ctx) {
     if (!file) {
       return 'No file specified'
@@ -135,15 +135,15 @@ export const pinCommand: Command<PinParams> = {
     }
     return null
   },
-  
+
   async execute({ file, vaultId, vaultName }, ctx): Promise<CommandResult> {
     const { pinFolder, pinnedFolders } = usePDMStore.getState()
-    
+
     // Check if already pinned
-    const alreadyPinned = pinnedFolders.some(p => 
-      p.path === file.relativePath && p.vaultId === vaultId
+    const alreadyPinned = pinnedFolders.some(
+      (p) => p.path === file.relativePath && p.vaultId === vaultId,
     )
-    
+
     if (alreadyPinned) {
       ctx.addToast('info', `${file.name} is already pinned`)
       return {
@@ -151,21 +151,21 @@ export const pinCommand: Command<PinParams> = {
         message: 'Already pinned',
         total: 1,
         succeeded: 0,
-        failed: 0
+        failed: 0,
       }
     }
-    
+
     pinFolder(file.relativePath, vaultId, vaultName, file.isDirectory)
     ctx.addToast('success', `Pinned ${file.name}`)
-    
+
     return {
       success: true,
       message: `Pinned ${file.name}`,
       total: 1,
       succeeded: 1,
-      failed: 0
+      failed: 0,
     }
-  }
+  },
 }
 
 // ============================================
@@ -177,28 +177,28 @@ export const unpinCommand: Command<UnpinParams> = {
   name: 'Unpin',
   description: 'Unpin a file or folder from the sidebar',
   usage: 'unpin <path>',
-  
+
   validate({ path }, _ctx) {
     if (!path) {
       return 'No path specified'
     }
     return null
   },
-  
+
   async execute({ path }, ctx): Promise<CommandResult> {
     const { unpinFolder } = usePDMStore.getState()
-    
+
     unpinFolder(path)
     ctx.addToast('info', 'Unpinned')
-    
+
     return {
       success: true,
       message: 'Unpinned',
       total: 1,
       succeeded: 1,
-      failed: 0
+      failed: 0,
     }
-  }
+  },
 }
 
 // ============================================
@@ -210,7 +210,7 @@ export const ignoreCommand: Command<IgnoreParams> = {
   name: 'Ignore',
   description: 'Add a pattern to the ignore list (keep local only)',
   usage: 'ignore <pattern>',
-  
+
   validate({ vaultId, pattern }, _ctx) {
     if (!vaultId) {
       return 'No vault specified'
@@ -220,22 +220,21 @@ export const ignoreCommand: Command<IgnoreParams> = {
     }
     return null
   },
-  
+
   async execute({ vaultId, pattern }, ctx): Promise<CommandResult> {
     const { addIgnorePattern } = usePDMStore.getState()
-    
+
     addIgnorePattern(vaultId, pattern)
     ctx.addToast('success', `Added ${pattern} to ignore list`)
-    
+
     // Note: Removed onRefresh?.(true) - file watcher will pick up changes
-    
+
     return {
       success: true,
       message: `Added ${pattern} to ignore list`,
       total: 1,
       succeeded: 1,
-      failed: 0
+      failed: 0,
     }
-  }
+  },
 }
-

@@ -1,5 +1,13 @@
 import { StateCreator } from 'zustand'
-import type { PDMStoreState, SettingsSlice, ColumnConfig, CardViewFieldConfig, ColorSwatch, ThemeMode, Language } from '../types'
+import type {
+  PDMStoreState,
+  SettingsSlice,
+  ColumnConfig,
+  CardViewFieldConfig,
+  ColorSwatch,
+  ThemeMode,
+  Language,
+} from '../types'
 import type { KeybindingAction, Keybinding, KeybindingsConfig } from '../../types/settings'
 import { supabase } from '../../lib/supabase'
 
@@ -25,7 +33,7 @@ const defaultCardViewFields: CardViewFieldConfig[] = [
   { id: 'description', label: 'Description', visible: true },
   { id: 'revision', label: 'Revision', visible: true },
   { id: 'version', label: 'Version', visible: true },
-  { id: 'state', label: 'State', visible: false },  // Already shown as badge
+  { id: 'state', label: 'State', visible: false }, // Already shown as badge
   { id: 'ecoTags', label: 'ECOs', visible: false },
   { id: 'tabNumber', label: 'Tab Number', visible: false },
   { id: 'checkedOutBy', label: 'Checked Out By', visible: false },
@@ -68,7 +76,7 @@ export const createSettingsSlice: StateCreator<
     showUserName: true,
     showPanelToggles: true,
   },
-  
+
   // Initial state - SolidWorks
   solidworksIntegrationEnabled: true,
   solidworksPath: null,
@@ -82,10 +90,10 @@ export const createSettingsSlice: StateCreator<
   lockDrawingDescription: true,
   // Service logging - OFF by default
   solidworksServiceVerboseLogging: false,
-  
+
   // Initial state - API Server
   apiServerUrl: null,
-  
+
   // Initial state - Display
   lowercaseExtensions: true,
   viewMode: 'list',
@@ -96,10 +104,10 @@ export const createSettingsSlice: StateCreator<
   autoApplySeasonalThemes: true,
   language: 'en',
   keybindings: defaultKeybindings,
-  
+
   // Initial state - Tree Filtering
-  hideCloudOnlyFolders: false,  // Show all folders by default
-  
+  hideCloudOnlyFolders: false, // Show all folders by default
+
   // Initial state - Theme Effects
   christmasSnowOpacity: 40,
   christmasSnowDensity: 100,
@@ -117,64 +125,67 @@ export const createSettingsSlice: StateCreator<
   weatherSnowOpacity: 70,
   weatherSnowDensity: 60,
   weatherEffectsEnabled: true,
-  
+
   // Initial state - Auto-download
   autoDownloadCloudFiles: false,
   autoDownloadUpdates: false,
-  autoDownloadSizeLimit: 1024,  // Default: 1 GB (1024 MB) - 0 means no limit
+  autoDownloadSizeLimit: 1024, // Default: 1 GB (1024 MB) - 0 means no limit
   autoDownloadExcludedFiles: {},
-  
+
   // Initial state - Auto-discard orphaned files
-  autoDiscardOrphanedFiles: true,  // Default: ON - automatically remove local files that no longer exist on server
-  
+  autoDiscardOrphanedFiles: true, // Default: ON - automatically remove local files that no longer exist on server
+
   // Initial state - Upload warnings
-  uploadSizeWarningEnabled: true,  // Warn by default
-  uploadSizeWarningThreshold: 100,  // Default: 100 MB
-  
+  uploadSizeWarningEnabled: true, // Warn by default
+  uploadSizeWarningThreshold: 100, // Default: 100 MB
+
   // Initial state - Pinned items
   pinnedFolders: [],
   pinnedSectionExpanded: true,
-  
+
   // Initial state - Color swatches
   colorSwatches: [],
   orgColorSwatches: [],
-  
+
   // Initial state - Columns
   columns: defaultColumns,
   columnConfigLastSyncedAt: null,
-  
+
   // Initial state - Card View Fields
   cardViewFields: defaultCardViewFields,
-  
+
   // Initial state - Onboarding
   onboardingComplete: false,
   logSharingEnabled: true,
-  
+
   // Initial state - Windows Defender warning
   avExclusionWarningDismissed: false,
-  
+
   // Initial state - Test Runner
   testFolderName: '0 - Tests',
-  
+
   // Actions - Preview & Topbar
   setCadPreviewMode: (cadPreviewMode) => set({ cadPreviewMode }),
   setTopbarConfig: (config) => set((s) => ({ topbarConfig: { ...s.topbarConfig, ...config } })),
-  
+
   // Actions - SolidWorks
-  setSolidworksIntegrationEnabled: (solidworksIntegrationEnabled) => set({ solidworksIntegrationEnabled }),
+  setSolidworksIntegrationEnabled: (solidworksIntegrationEnabled) =>
+    set({ solidworksIntegrationEnabled }),
   setSolidworksPath: (solidworksPath) => set({ solidworksPath }),
   setSolidworksDmLicenseKey: (solidworksDmLicenseKey) => set({ solidworksDmLicenseKey }),
-  setAutoStartSolidworksService: (autoStartSolidworksService) => set({ autoStartSolidworksService }),
+  setAutoStartSolidworksService: (autoStartSolidworksService) =>
+    set({ autoStartSolidworksService }),
   setHideSolidworksTempFiles: (hideSolidworksTempFiles) => set({ hideSolidworksTempFiles }),
   setIgnoreSolidworksTempFiles: (ignoreSolidworksTempFiles) => set({ ignoreSolidworksTempFiles }),
   setLockDrawingRevision: (lockDrawingRevision) => set({ lockDrawingRevision }),
   setLockDrawingItemNumber: (lockDrawingItemNumber) => set({ lockDrawingItemNumber }),
   setLockDrawingDescription: (lockDrawingDescription) => set({ lockDrawingDescription }),
-  setSolidworksServiceVerboseLogging: (solidworksServiceVerboseLogging) => set({ solidworksServiceVerboseLogging }),
-  
+  setSolidworksServiceVerboseLogging: (solidworksServiceVerboseLogging) =>
+    set({ solidworksServiceVerboseLogging }),
+
   // Actions - API Server
   setApiServerUrl: (apiServerUrl) => set({ apiServerUrl }),
-  
+
   // Actions - Display
   setLowercaseExtensions: (lowercaseExtensions) => set({ lowercaseExtensions }),
   setViewMode: (viewMode) => set({ viewMode }),
@@ -184,14 +195,15 @@ export const createSettingsSlice: StateCreator<
   setTheme: (theme: ThemeMode) => set({ theme }),
   setAutoApplySeasonalThemes: (autoApplySeasonalThemes) => set({ autoApplySeasonalThemes }),
   setLanguage: (language: Language) => set({ language }),
-  setKeybinding: (action: KeybindingAction, keybinding: Keybinding) => set(state => ({
-    keybindings: { ...state.keybindings, [action]: keybinding }
-  })),
+  setKeybinding: (action: KeybindingAction, keybinding: Keybinding) =>
+    set((state) => ({
+      keybindings: { ...state.keybindings, [action]: keybinding },
+    })),
   resetKeybindings: () => set({ keybindings: defaultKeybindings }),
-  
+
   // Actions - Tree Filtering
   setHideCloudOnlyFolders: (hideCloudOnlyFolders) => set({ hideCloudOnlyFolders }),
-  
+
   // Actions - Theme Effects
   setChristmasSnowOpacity: (christmasSnowOpacity) => set({ christmasSnowOpacity }),
   setChristmasSnowDensity: (christmasSnowDensity) => set({ christmasSnowDensity }),
@@ -209,69 +221,75 @@ export const createSettingsSlice: StateCreator<
   setWeatherSnowOpacity: (weatherSnowOpacity) => set({ weatherSnowOpacity }),
   setWeatherSnowDensity: (weatherSnowDensity) => set({ weatherSnowDensity }),
   setWeatherEffectsEnabled: (weatherEffectsEnabled) => set({ weatherEffectsEnabled }),
-  
+
   // Actions - Auto-download
   setAutoDownloadCloudFiles: (autoDownloadCloudFiles) => set({ autoDownloadCloudFiles }),
   setAutoDownloadUpdates: (autoDownloadUpdates) => set({ autoDownloadUpdates }),
-  setAutoDownloadSizeLimit: (autoDownloadSizeLimit) => set({ autoDownloadSizeLimit: Math.max(0, autoDownloadSizeLimit) }),
-  
+  setAutoDownloadSizeLimit: (autoDownloadSizeLimit) =>
+    set({ autoDownloadSizeLimit: Math.max(0, autoDownloadSizeLimit) }),
+
   // Actions - Auto-discard orphaned files
   setAutoDiscardOrphanedFiles: (autoDiscardOrphanedFiles) => set({ autoDiscardOrphanedFiles }),
-  
+
   // Actions - Upload warnings
   setUploadSizeWarningEnabled: (uploadSizeWarningEnabled) => set({ uploadSizeWarningEnabled }),
-  setUploadSizeWarningThreshold: (uploadSizeWarningThreshold) => set({ uploadSizeWarningThreshold: Math.max(1, uploadSizeWarningThreshold) }),
-  
-  addAutoDownloadExclusion: (vaultId, relativePath) => set(state => {
-    const currentExclusions = state.autoDownloadExcludedFiles[vaultId] || []
-    // Don't add duplicates
-    if (currentExclusions.includes(relativePath)) return state
-    return {
+  setUploadSizeWarningThreshold: (uploadSizeWarningThreshold) =>
+    set({ uploadSizeWarningThreshold: Math.max(1, uploadSizeWarningThreshold) }),
+
+  addAutoDownloadExclusion: (vaultId, relativePath) =>
+    set((state) => {
+      const currentExclusions = state.autoDownloadExcludedFiles[vaultId] || []
+      // Don't add duplicates
+      if (currentExclusions.includes(relativePath)) return state
+      return {
+        autoDownloadExcludedFiles: {
+          ...state.autoDownloadExcludedFiles,
+          [vaultId]: [...currentExclusions, relativePath],
+        },
+      }
+    }),
+  removeAutoDownloadExclusion: (vaultId, relativePath) =>
+    set((state) => {
+      const currentExclusions = state.autoDownloadExcludedFiles[vaultId] || []
+      return {
+        autoDownloadExcludedFiles: {
+          ...state.autoDownloadExcludedFiles,
+          [vaultId]: currentExclusions.filter((p) => p !== relativePath),
+        },
+      }
+    }),
+  clearAutoDownloadExclusions: (vaultId) =>
+    set((state) => ({
       autoDownloadExcludedFiles: {
         ...state.autoDownloadExcludedFiles,
-        [vaultId]: [...currentExclusions, relativePath]
+        [vaultId]: [],
+      },
+    })),
+  cleanupStaleExclusions: (vaultId, serverFilePaths) =>
+    set((state) => {
+      const currentExclusions = state.autoDownloadExcludedFiles[vaultId] || []
+      // Keep only exclusions for files that still exist on the server
+      const validExclusions = currentExclusions.filter((path) => serverFilePaths.has(path))
+      // Only update if something changed
+      if (validExclusions.length === currentExclusions.length) return state
+      return {
+        autoDownloadExcludedFiles: {
+          ...state.autoDownloadExcludedFiles,
+          [vaultId]: validExclusions,
+        },
       }
-    }
-  }),
-  removeAutoDownloadExclusion: (vaultId, relativePath) => set(state => {
-    const currentExclusions = state.autoDownloadExcludedFiles[vaultId] || []
-    return {
-      autoDownloadExcludedFiles: {
-        ...state.autoDownloadExcludedFiles,
-        [vaultId]: currentExclusions.filter(p => p !== relativePath)
-      }
-    }
-  }),
-  clearAutoDownloadExclusions: (vaultId) => set(state => ({
-    autoDownloadExcludedFiles: {
-      ...state.autoDownloadExcludedFiles,
-      [vaultId]: []
-    }
-  })),
-  cleanupStaleExclusions: (vaultId, serverFilePaths) => set(state => {
-    const currentExclusions = state.autoDownloadExcludedFiles[vaultId] || []
-    // Keep only exclusions for files that still exist on the server
-    const validExclusions = currentExclusions.filter(path => serverFilePaths.has(path))
-    // Only update if something changed
-    if (validExclusions.length === currentExclusions.length) return state
-    return {
-      autoDownloadExcludedFiles: {
-        ...state.autoDownloadExcludedFiles,
-        [vaultId]: validExclusions
-      }
-    }
-  }),
-  
+    }),
+
   // Actions - Pinned items
   pinFolder: (path, vaultId, vaultName, isDirectory) => {
     const { pinnedFolders } = get()
     // Don't add duplicates
-    if (pinnedFolders.some(p => p.path === path && p.vaultId === vaultId)) return
+    if (pinnedFolders.some((p) => p.path === path && p.vaultId === vaultId)) return
     set({ pinnedFolders: [...pinnedFolders, { path, vaultId, vaultName, isDirectory }] })
   },
   unpinFolder: (path) => {
     const { pinnedFolders } = get()
-    set({ pinnedFolders: pinnedFolders.filter(p => p.path !== path) })
+    set({ pinnedFolders: pinnedFolders.filter((p) => p.path !== path) })
   },
   togglePinnedSection: () => {
     const { pinnedSectionExpanded } = get()
@@ -284,7 +302,7 @@ export const createSettingsSlice: StateCreator<
     newPinned.splice(toIndex, 0, removed)
     set({ pinnedFolders: newPinned })
   },
-  
+
   // Actions - Color Swatches
   addColorSwatch: async (color, isOrg) => {
     const { user, organization, addToast, getEffectiveRole } = get()
@@ -292,93 +310,90 @@ export const createSettingsSlice: StateCreator<
       addToast('error', 'You must be logged in to save colors')
       return
     }
-    
+
     // Only admins can add org swatches
     if (isOrg && getEffectiveRole() !== 'admin') {
       addToast('error', 'Only admins can add organization colors')
       return
     }
-    
+
     // For org swatches, need organization
     if (isOrg && !organization?.id) {
       addToast('error', 'No organization found')
       return
     }
-    
+
     // Insert to database (let DB generate UUID)
     try {
-      const insertData = isOrg 
+      const insertData = isOrg
         ? {
             color,
             org_id: organization!.id,
             user_id: null,
-            created_by: user.id
+            created_by: user.id,
           }
         : {
             color,
             org_id: null,
             user_id: user.id,
-            created_by: user.id
+            created_by: user.id,
           }
-      
+
       const { data, error } = await supabase
         .from('color_swatches')
         .insert(insertData as never)
         .select('id, color, created_at')
         .single()
-      
+
       if (error) {
         addToast('error', `Failed to save color: ${error.message}`)
         return
       }
-      
+
       // Add to local state with the DB-generated ID
       const swatchData = data as { id: string; color: string; created_at: string }
       const newSwatch: ColorSwatch = {
         id: swatchData.id,
         color: swatchData.color,
         isOrg,
-        createdAt: swatchData.created_at
+        createdAt: swatchData.created_at,
       }
-      
+
       if (isOrg) {
         set({ orgColorSwatches: [...get().orgColorSwatches, newSwatch] })
       } else {
         set({ colorSwatches: [...get().colorSwatches, newSwatch] })
       }
-      
+
       addToast('success', isOrg ? 'Color saved for organization' : 'Color saved')
-    } catch (err) {
+    } catch (error) {
       addToast('error', 'Failed to save color')
     }
   },
-  
+
   removeColorSwatch: async (swatchId) => {
     const { colorSwatches, orgColorSwatches, addToast, getEffectiveRole } = get()
-    
+
     // Find the swatch
-    const userSwatch = colorSwatches.find(s => s.id === swatchId)
-    const orgSwatch = orgColorSwatches.find(s => s.id === swatchId)
-    
+    const userSwatch = colorSwatches.find((s) => s.id === swatchId)
+    const orgSwatch = orgColorSwatches.find((s) => s.id === swatchId)
+
     if (orgSwatch && getEffectiveRole() !== 'admin') {
       addToast('error', 'Only admins can remove organization colors')
       return
     }
-    
+
     // Remove from local state immediately
     if (userSwatch) {
-      set({ colorSwatches: colorSwatches.filter(s => s.id !== swatchId) })
+      set({ colorSwatches: colorSwatches.filter((s) => s.id !== swatchId) })
     } else if (orgSwatch) {
-      set({ orgColorSwatches: orgColorSwatches.filter(s => s.id !== swatchId) })
+      set({ orgColorSwatches: orgColorSwatches.filter((s) => s.id !== swatchId) })
     }
-    
+
     // Sync to database
     try {
-      const { error } = await supabase
-        .from('color_swatches')
-        .delete()
-        .eq('id', swatchId)
-      
+      const { error } = await supabase.from('color_swatches').delete().eq('id', swatchId)
+
       if (error) {
         // Rollback on error
         if (userSwatch) {
@@ -387,40 +402,38 @@ export const createSettingsSlice: StateCreator<
           set({ orgColorSwatches: [...get().orgColorSwatches, orgSwatch] })
         }
       }
-    } catch (err) {
-    }
+    } catch (error) {}
   },
-  
+
   loadOrgColorSwatches: async () => {
     const { organization } = get()
     if (!organization?.id) return
-    
+
     try {
       const { data, error } = await supabase
         .from('color_swatches')
         .select('id, color, created_at')
         .eq('org_id', organization.id)
         .order('created_at', { ascending: true })
-      
+
       if (error) throw error
-      
+
       const swatches = (data || []) as { id: string; color: string; created_at: string }[]
       set({
-        orgColorSwatches: swatches.map(s => ({
+        orgColorSwatches: swatches.map((s) => ({
           id: s.id,
           color: s.color,
           isOrg: true,
-          createdAt: s.created_at
-        }))
+          createdAt: s.created_at,
+        })),
       })
-    } catch (err) {
-    }
+    } catch (error) {}
   },
-  
+
   syncColorSwatches: async () => {
     const { user, organization } = get()
     if (!user) return
-    
+
     try {
       // Load user's personal swatches
       const { data: userSwatches, error: userError } = await supabase
@@ -429,19 +442,23 @@ export const createSettingsSlice: StateCreator<
         .eq('user_id', user.id)
         .is('org_id', null)
         .order('created_at', { ascending: true })
-      
+
       if (userError) throw userError
-      
-      const userSwatchData = (userSwatches || []) as { id: string; color: string; created_at: string }[]
+
+      const userSwatchData = (userSwatches || []) as {
+        id: string
+        color: string
+        created_at: string
+      }[]
       set({
-        colorSwatches: userSwatchData.map(s => ({
+        colorSwatches: userSwatchData.map((s) => ({
           id: s.id,
           color: s.color,
           isOrg: false,
-          createdAt: s.created_at
-        }))
+          createdAt: s.created_at,
+        })),
       })
-      
+
       // Load org swatches
       if (organization?.id) {
         const { data: orgSwatches, error: orgError } = await supabase
@@ -449,38 +466,41 @@ export const createSettingsSlice: StateCreator<
           .select('id, color, created_at')
           .eq('org_id', organization.id)
           .order('created_at', { ascending: true })
-        
+
         if (orgError) throw orgError
-        
-        const orgSwatchData = (orgSwatches || []) as { id: string; color: string; created_at: string }[]
+
+        const orgSwatchData = (orgSwatches || []) as {
+          id: string
+          color: string
+          created_at: string
+        }[]
         set({
-          orgColorSwatches: orgSwatchData.map(s => ({
+          orgColorSwatches: orgSwatchData.map((s) => ({
             id: s.id,
             color: s.color,
             isOrg: true,
-            createdAt: s.created_at
-          }))
+            createdAt: s.created_at,
+          })),
         })
       }
-    } catch (err) {
-    }
+    } catch (error) {}
   },
-  
+
   // Actions - Columns
   setColumnWidth: (id, width) => {
     const { columns } = get()
     set({
-      columns: columns.map(c => c.id === id ? { ...c, width: Math.max(40, width) } : c)
+      columns: columns.map((c) => (c.id === id ? { ...c, width: Math.max(40, width) } : c)),
     })
   },
   toggleColumnVisibility: (id) => {
     const { columns } = get()
     set({
-      columns: columns.map(c => c.id === id ? { ...c, visible: !c.visible } : c)
+      columns: columns.map((c) => (c.id === id ? { ...c, visible: !c.visible } : c)),
     })
   },
   reorderColumns: (columns) => set({ columns }),
-  
+
   saveOrgColumnDefaults: async () => {
     const { organization, columns, getEffectiveRole } = get()
     if (!organization?.id) {
@@ -489,73 +509,73 @@ export const createSettingsSlice: StateCreator<
     if (getEffectiveRole() !== 'admin') {
       return { success: false, error: 'Only admins can save org defaults' }
     }
-    
+
     try {
       // Save column configs (just id, width, visible - not label/sortable which are fixed)
-      const columnDefaults = columns.map(c => ({
+      const columnDefaults = columns.map((c) => ({
         id: c.id,
         width: c.width,
-        visible: c.visible
+        visible: c.visible,
       }))
-      
-      const { error } = await (supabase.rpc as any)('set_org_column_defaults', {
+
+      const { error } = await (supabase.rpc as any)('set_org_column_defaults', { // TODO: type this
         p_org_id: organization.id,
-        p_column_defaults: columnDefaults
+        p_column_defaults: columnDefaults,
       })
-      
+
       if (error) throw error
       return { success: true }
-    } catch (err) {
-      return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
   },
-  
+
   loadOrgColumnDefaults: async () => {
     const { organization, columns } = get()
     if (!organization?.id) {
       return { success: false, error: 'No organization connected' }
     }
-    
+
     try {
-      const { data, error } = await (supabase.rpc as any)('get_org_column_defaults', {
-        p_org_id: organization.id
+      const { data, error } = await (supabase.rpc as any)('get_org_column_defaults', { // TODO: type this
+        p_org_id: organization.id,
       })
-      
+
       if (error) throw error
-      
+
       if (!data || !Array.isArray(data) || data.length === 0) {
         return { success: false, error: 'No org defaults configured' }
       }
-      
+
       // Rebuild columns in saved order (preserving label/sortable from current config)
       const savedIds = new Set(data.map((d: { id: string }) => d.id))
       const orderedColumns: ColumnConfig[] = []
-      
+
       for (const saved of data as Array<{ id: string; width?: number; visible?: boolean }>) {
-        const local = columns.find(c => c.id === saved.id)
+        const local = columns.find((c) => c.id === saved.id)
         if (local) {
           orderedColumns.push({
             ...local,
             width: saved.width ?? local.width,
-            visible: saved.visible ?? local.visible
+            visible: saved.visible ?? local.visible,
           })
         }
       }
-      
+
       // Append any columns that exist locally but weren't in saved defaults (new columns)
       for (const col of columns) {
         if (!savedIds.has(col.id)) {
           orderedColumns.push(col)
         }
       }
-      
+
       set({ columns: orderedColumns, columnConfigLastSyncedAt: Date.now() })
       return { success: true }
-    } catch (err) {
-      return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
   },
-  
+
   forceOrgColumnDefaults: async () => {
     const { organization, columns, getEffectiveRole } = get()
     if (!organization?.id) {
@@ -564,124 +584,126 @@ export const createSettingsSlice: StateCreator<
     if (getEffectiveRole() !== 'admin') {
       return { success: false, error: 'Only admins can force column defaults' }
     }
-    
+
     try {
-      const columnDefaults = columns.map(c => ({
+      const columnDefaults = columns.map((c) => ({
         id: c.id,
         width: c.width,
-        visible: c.visible
+        visible: c.visible,
       }))
-      
-      const { error } = await (supabase.rpc as any)('force_org_column_defaults', {
+
+      const { error } = await (supabase.rpc as any)('force_org_column_defaults', { // TODO: type this
         p_org_id: organization.id,
-        p_column_defaults: columnDefaults
+        p_column_defaults: columnDefaults,
       })
-      
+
       if (error) throw error
       set({ columnConfigLastSyncedAt: Date.now() })
       return { success: true }
-    } catch (err) {
-      return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
   },
-  
+
   saveUserColumnDefaults: async () => {
     const { user, columns } = get()
     if (!user) {
       return { success: false, error: 'Not authenticated' }
     }
-    
+
     try {
-      const columnDefaults = columns.map(c => ({
+      const columnDefaults = columns.map((c) => ({
         id: c.id,
         width: c.width,
-        visible: c.visible
+        visible: c.visible,
       }))
-      
-      const { error } = await (supabase.rpc as any)('set_user_column_defaults', {
-        p_column_defaults: columnDefaults
+
+      const { error } = await (supabase.rpc as any)('set_user_column_defaults', { // TODO: type this
+        p_column_defaults: columnDefaults,
       })
-      
+
       if (error) throw error
       return { success: true }
-    } catch (err) {
-      return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
   },
-  
+
   loadUserColumnDefaults: async () => {
     const { user, columns } = get()
     if (!user) {
       return { success: false, error: 'Not authenticated' }
     }
-    
+
     try {
-      const { data, error } = await (supabase.rpc as any)('get_user_column_defaults', {})
-      
+      const { data, error } = await (supabase.rpc as any)('get_user_column_defaults', {}) // TODO: type this
+
       if (error) throw error
-      
+
       if (!data || !Array.isArray(data) || data.length === 0) {
         return { success: false, error: 'No personal defaults saved' }
       }
-      
+
       // Rebuild columns in saved order (preserving label/sortable from current config)
       const savedIds = new Set(data.map((d: { id: string }) => d.id))
       const orderedColumns: ColumnConfig[] = []
-      
+
       for (const saved of data as Array<{ id: string; width?: number; visible?: boolean }>) {
-        const local = columns.find(c => c.id === saved.id)
+        const local = columns.find((c) => c.id === saved.id)
         if (local) {
           orderedColumns.push({
             ...local,
             width: saved.width ?? local.width,
-            visible: saved.visible ?? local.visible
+            visible: saved.visible ?? local.visible,
           })
         }
       }
-      
+
       for (const col of columns) {
         if (!savedIds.has(col.id)) {
           orderedColumns.push(col)
         }
       }
-      
+
       set({ columns: orderedColumns, columnConfigLastSyncedAt: Date.now() })
       return { success: true }
-    } catch (err) {
-      return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
   },
-  
+
   resetColumnsToDefaults: () => {
     set({ columns: defaultColumns })
   },
-  
+
   // Actions - Card View Fields
   toggleCardViewFieldVisibility: (id) => {
     const { cardViewFields } = get()
     set({
-      cardViewFields: cardViewFields.map(f => f.id === id ? { ...f, visible: !f.visible } : f)
+      cardViewFields: cardViewFields.map((f) => (f.id === id ? { ...f, visible: !f.visible } : f)),
     })
   },
   reorderCardViewFields: (fields) => set({ cardViewFields: fields }),
   resetCardViewFieldsToDefaults: () => {
     set({ cardViewFields: defaultCardViewFields })
   },
-  
+
   // Actions - Onboarding
-  completeOnboarding: (options) => set({ 
-    onboardingComplete: true,
-    // Note: auto-download settings are NOT force-enabled here anymore.
-    // They default to false and should only be enabled via VaultSetupDialog or Settings.
-    // Previously this was overriding user preferences made during vault setup.
-    autoStartSolidworksService: options?.solidworksIntegrationEnabled ?? true,
-    solidworksIntegrationEnabled: options?.solidworksIntegrationEnabled ?? true,
-  }),
+  completeOnboarding: (options) =>
+    set({
+      onboardingComplete: true,
+      // Note: auto-download settings are NOT force-enabled here anymore.
+      // They default to false and should only be enabled via VaultSetupDialog or Settings.
+      // Previously this was overriding user preferences made during vault setup.
+      autoStartSolidworksService: options?.solidworksIntegrationEnabled ?? true,
+      solidworksIntegrationEnabled: options?.solidworksIntegrationEnabled ?? true,
+    }),
   setLogSharingEnabled: (logSharingEnabled) => set({ logSharingEnabled }),
-  
+
   // Actions - Windows Defender warning
-  setAvExclusionWarningDismissed: (avExclusionWarningDismissed) => set({ avExclusionWarningDismissed }),
-  
+  setAvExclusionWarningDismissed: (avExclusionWarningDismissed) =>
+    set({ avExclusionWarningDismissed }),
+
   // Actions - Test Runner
   setTestFolderName: (testFolderName) => set({ testFolderName }),
 })

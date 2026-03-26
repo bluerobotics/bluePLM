@@ -15,30 +15,26 @@ interface ECOSearchResult {
 }
 
 export function SearchView() {
-  const { 
-    files, 
-    searchQuery, 
-    setSearchQuery,
-    toggleFileSelection,
-    selectedFiles,
-    organization
-  } = usePDMStore()
-  
+  const { files, searchQuery, setSearchQuery, toggleFileSelection, selectedFiles, organization } =
+    usePDMStore()
+
   const [localQuery, setLocalQuery] = useState(searchQuery)
   const [ecoResults, setEcoResults] = useState<ECOSearchResult[]>([])
   const [isSearchingECO, setIsSearchingECO] = useState(false)
   const [searchMode, setSearchMode] = useState<'files' | 'eco'>('files')
-  
+
   // Detect if query looks like an ECO search
   const isECOQuery = useMemo(() => {
     const query = localQuery.trim().toLowerCase()
     // Detect eco: prefix or ECO-xxx pattern
-    return query.startsWith('eco:') || 
-           query.startsWith('eco-') || 
-           query.startsWith('ecr-') ||
-           query.startsWith('ecn-')
+    return (
+      query.startsWith('eco:') ||
+      query.startsWith('eco-') ||
+      query.startsWith('ecr-') ||
+      query.startsWith('ecn-')
+    )
   }, [localQuery])
-  
+
   // Extract ECO search term
   const ecoSearchTerm = useMemo(() => {
     const query = localQuery.trim()
@@ -54,36 +50,37 @@ export function SearchView() {
       setEcoResults([])
       return
     }
-    
+
     const searchECOs = async () => {
       setIsSearchingECO(true)
       setSearchMode('eco')
-      
+
       try {
         const client = getSupabaseClient()
-        
+
         // First find ECOs matching the search
         const { data: ecos, error: ecoError } = await client
           .from('ecos')
           .select('id, eco_number, title')
           .eq('org_id', organization.id)
           .ilike('eco_number', `%${ecoSearchTerm}%`)
-        
+
         if (ecoError) {
           log.error('[Search]', 'ECO search error', { error: ecoError })
           return
         }
-        
+
         if (!ecos || ecos.length === 0) {
           setEcoResults([])
           return
         }
-        
+
         // Get files for matching ECOs
-        const ecoIds = ecos.map(e => e.id)
+        const ecoIds = ecos.map((e) => e.id)
         const { data: fileEcos, error: fileError } = await client
           .from('file_ecos')
-          .select(`
+          .select(
+            `
             eco_id,
             file:files!file_id(
               id,
@@ -91,19 +88,20 @@ export function SearchView() {
               file_path,
               part_number
             )
-          `)
+          `,
+          )
           .in('eco_id', ecoIds)
-        
+
         if (fileError) {
           log.error('[Search]', 'File ECO search error', { error: fileError })
           return
         }
-        
+
         // Build results with ECO info
         const results: ECOSearchResult[] = []
         for (const fe of fileEcos || []) {
-          const eco = ecos.find(e => e.id === fe.eco_id)
-          const file = fe.file as any
+          const eco = ecos.find((e) => e.id === fe.eco_id)
+          const file = fe.file as any // TODO: type this
           if (eco && file) {
             results.push({
               eco_number: eco.eco_number,
@@ -111,24 +109,24 @@ export function SearchView() {
               file_id: file.id,
               file_name: file.file_name,
               file_path: file.file_path,
-              part_number: file.part_number
+              part_number: file.part_number,
             })
           }
         }
-        
+
         setEcoResults(results)
-      } catch (err) {
-        log.error('[Search]', 'ECO search failed', { error: err })
+      } catch (error) {
+        log.error('[Search]', 'ECO search failed', { error: error })
       } finally {
         setIsSearchingECO(false)
       }
     }
-    
+
     // Debounce search
     const timer = setTimeout(searchECOs, 300)
     return () => clearTimeout(timer)
   }, [isECOQuery, ecoSearchTerm, organization])
-  
+
   // Update search mode when query changes
   useEffect(() => {
     if (!isECOQuery) {
@@ -139,14 +137,15 @@ export function SearchView() {
   // Filter files based on search (for regular file search)
   const fileSearchResults = useMemo(() => {
     if (!localQuery.trim() || isECOQuery) return []
-    
+
     const query = localQuery.toLowerCase()
-    return files.filter(f => (
-      f.name.toLowerCase().includes(query) ||
-      f.relativePath.toLowerCase().includes(query) ||
-      f.pdmData?.part_number?.toLowerCase().includes(query) ||
-      f.pdmData?.description?.toLowerCase().includes(query)
-    ))
+    return files.filter(
+      (f) =>
+        f.name.toLowerCase().includes(query) ||
+        f.relativePath.toLowerCase().includes(query) ||
+        f.pdmData?.part_number?.toLowerCase().includes(query) ||
+        f.pdmData?.description?.toLowerCase().includes(query),
+    )
   }, [localQuery, files, isECOQuery])
 
   const handleSearch = (e: React.FormEvent) => {
@@ -162,16 +161,17 @@ export function SearchView() {
     setSearchQuery('')
     setEcoResults([])
   }
-  
+
   // Handle clicking an ECO result
   const handleECOResultClick = (result: ECOSearchResult, ctrlKey: boolean) => {
     // Find the file in local files by path
     const normalizedPath = result.file_path.replace(/\//g, '\\')
-    const localFile = files.find(f => 
-      f.relativePath.toLowerCase() === result.file_path.toLowerCase() ||
-      f.relativePath.toLowerCase() === normalizedPath.toLowerCase()
+    const localFile = files.find(
+      (f) =>
+        f.relativePath.toLowerCase() === result.file_path.toLowerCase() ||
+        f.relativePath.toLowerCase() === normalizedPath.toLowerCase(),
     )
-    
+
     if (localFile) {
       toggleFileSelection(localFile.path, ctrlKey)
     }
@@ -210,16 +210,18 @@ export function SearchView() {
           </button>
         )}
       </form>
-      
+
       {/* Search mode indicator */}
       {localQuery.trim() && (
         <div className="flex items-center gap-2 mb-3 text-xs">
           <span className="text-plm-fg-muted">Searching:</span>
-          <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${
-            searchMode === 'eco' 
-              ? 'bg-plm-accent/20 text-plm-accent' 
-              : 'bg-plm-bg-light text-plm-fg-dim'
-          }`}>
+          <span
+            className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${
+              searchMode === 'eco'
+                ? 'bg-plm-accent/20 text-plm-accent'
+                : 'bg-plm-bg-light text-plm-fg-dim'
+            }`}
+          >
             {searchMode === 'eco' ? (
               <>
                 <ClipboardList size={10} />
@@ -243,7 +245,7 @@ export function SearchView() {
             <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-3">
               ECO Results ({ecoResults.length} files)
             </div>
-            
+
             {isSearchingECO ? (
               <div className="flex items-center justify-center py-8">
                 <div className="spinner" />
@@ -255,7 +257,10 @@ export function SearchView() {
             ) : (
               <div className="space-y-3">
                 {Object.entries(groupedECOResults).map(([ecoNumber, results]) => (
-                  <div key={ecoNumber} className="bg-plm-bg-light rounded border border-plm-border overflow-hidden">
+                  <div
+                    key={ecoNumber}
+                    className="bg-plm-bg-light rounded border border-plm-border overflow-hidden"
+                  >
                     <div className="flex items-center gap-2 p-2 bg-plm-bg border-b border-plm-border">
                       <Tag size={12} className="text-plm-accent" />
                       <span className="font-medium text-sm">{ecoNumber}</span>
@@ -266,20 +271,19 @@ export function SearchView() {
                     <div className="divide-y divide-plm-border">
                       {results.map((result) => {
                         const normalizedPath = result.file_path.replace(/\//g, '\\')
-                        const localFile = files.find(f => 
-                          f.relativePath.toLowerCase() === result.file_path.toLowerCase() ||
-                          f.relativePath.toLowerCase() === normalizedPath.toLowerCase()
+                        const localFile = files.find(
+                          (f) =>
+                            f.relativePath.toLowerCase() === result.file_path.toLowerCase() ||
+                            f.relativePath.toLowerCase() === normalizedPath.toLowerCase(),
                         )
                         const isSelected = localFile && selectedFiles.includes(localFile.path)
-                        
+
                         return (
                           <div
                             key={result.file_id}
                             onClick={(e) => handleECOResultClick(result, e.ctrlKey || e.metaKey)}
                             className={`flex items-center gap-2 px-2 py-1.5 cursor-pointer transition-colors ${
-                              isSelected 
-                                ? 'bg-plm-selection' 
-                                : 'hover:bg-plm-highlight'
+                              isSelected ? 'bg-plm-selection' : 'hover:bg-plm-highlight'
                             }`}
                           >
                             <File size={14} className="text-plm-fg-muted flex-shrink-0" />
@@ -293,7 +297,10 @@ export function SearchView() {
                               </div>
                             </div>
                             {!localFile && (
-                              <span className="text-xs text-plm-warning" title="File not in local vault">
+                              <span
+                                className="text-xs text-plm-warning"
+                                title="File not in local vault"
+                              >
                                 cloud
                               </span>
                             )}
@@ -312,32 +319,29 @@ export function SearchView() {
             <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-3">
               Results ({fileSearchResults.length})
             </div>
-            
+
             {fileSearchResults.length === 0 ? (
-              <div className="text-sm text-plm-fg-muted py-4 text-center">
-                No files found
-              </div>
+              <div className="text-sm text-plm-fg-muted py-4 text-center">No files found</div>
             ) : (
               <div className="space-y-1">
-                {fileSearchResults.slice(0, 50).map(file => (
+                {fileSearchResults.slice(0, 50).map((file) => (
                   <div
                     key={file.path}
                     onClick={(e) => toggleFileSelection(file.path, e.ctrlKey || e.metaKey)}
                     className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer ${
-                      selectedFiles.includes(file.path) 
-                        ? 'bg-plm-selection' 
+                      selectedFiles.includes(file.path)
+                        ? 'bg-plm-selection'
                         : 'hover:bg-plm-highlight'
                     }`}
                   >
-                    {file.isDirectory 
-                      ? <FolderOpen size={14} className="text-plm-warning flex-shrink-0" />
-                      : <File size={14} className="text-plm-fg-muted flex-shrink-0" />
-                    }
+                    {file.isDirectory ? (
+                      <FolderOpen size={14} className="text-plm-warning flex-shrink-0" />
+                    ) : (
+                      <File size={14} className="text-plm-fg-muted flex-shrink-0" />
+                    )}
                     <div className="min-w-0 flex-1">
                       <div className="text-sm truncate">{file.name}</div>
-                      <div className="text-xs text-plm-fg-muted truncate">
-                        {file.relativePath}
-                      </div>
+                      <div className="text-xs text-plm-fg-muted truncate">{file.relativePath}</div>
                     </div>
                   </div>
                 ))}
@@ -353,12 +357,9 @@ export function SearchView() {
       ) : (
         <div className="text-sm text-plm-fg-muted py-4 text-center space-y-2">
           <p>Enter a search term to find files</p>
-          <p className="text-xs">
-            Tip: Search "eco:ECO-001" to find files tagged with an ECO
-          </p>
+          <p className="text-xs">Tip: Search "eco:ECO-001" to find files tagged with an ECO</p>
         </div>
       )}
     </div>
   )
 }
-

@@ -1,15 +1,15 @@
 /**
  * Extension Routes
- * 
+ *
  * API endpoints for extension management and handler execution.
- * 
+ *
  * Admin Endpoints:
  * - POST /admin/extensions/install - Install an extension
  * - DELETE /admin/extensions/:id - Uninstall an extension
  * - GET /admin/extensions - List installed extensions
  * - GET /admin/extensions/:id/stats - Get extension statistics
  * - PATCH /admin/extensions/:id - Enable/disable extension
- * 
+ *
  * Handler Routing:
  * - ALL /extensions/:extensionId/* - Route to extension handlers
  */
@@ -22,9 +22,10 @@ import {
   setExtensionEnabled,
   createExtensionRouteHandler,
   getIsolatePool,
-  getRateLimiter
+  getRateLimiter,
 } from '../src/extensions/index.js'
 import type { InstallExtensionRequest, ExtensionManifest } from '../src/extensions/types.js'
+import { sendError } from '../utils/index.js'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ROUTE SCHEMAS
@@ -35,8 +36,8 @@ const errorResponseSchema = {
   type: 'object',
   properties: {
     error: { type: 'string' },
-    message: { type: 'string' }
-  }
+    message: { type: 'string' },
+  },
 }
 
 const installSchema = {
@@ -47,16 +48,19 @@ const installSchema = {
     type: 'object',
     required: ['extensionId', 'version', 'manifest', 'handlers'],
     properties: {
-      extensionId: { type: 'string', description: 'Extension identifier (e.g., blueplm.google-drive)' },
+      extensionId: {
+        type: 'string',
+        description: 'Extension identifier (e.g., blueplm.google-drive)',
+      },
       version: { type: 'string', description: 'Semantic version' },
       manifest: { type: 'object', description: 'Extension manifest (extension.json)' },
       handlers: { type: 'object', description: 'Handler code map { handlerPath: code }' },
-      allowedDomains: { 
-        type: 'array', 
+      allowedDomains: {
+        type: 'array',
         items: { type: 'string' },
-        description: 'Allowed HTTP domains for this extension'
-      }
-    }
+        description: 'Allowed HTTP domains for this extension',
+      },
+    },
   },
   response: {
     200: {
@@ -65,12 +69,12 @@ const installSchema = {
         success: { type: 'boolean' },
         extensionId: { type: 'string' },
         version: { type: 'string' },
-        message: { type: 'string' }
-      }
+        message: { type: 'string' },
+      },
     },
     403: errorResponseSchema,
-    500: errorResponseSchema
-  }
+    500: errorResponseSchema,
+  },
 }
 
 const uninstallSchema = {
@@ -80,20 +84,20 @@ const uninstallSchema = {
   params: {
     type: 'object',
     properties: {
-      id: { type: 'string', description: 'Extension identifier' }
-    }
+      id: { type: 'string', description: 'Extension identifier' },
+    },
   },
   response: {
     200: {
       type: 'object',
       properties: {
         success: { type: 'boolean' },
-        message: { type: 'string' }
-      }
+        message: { type: 'string' },
+      },
     },
     403: errorResponseSchema,
-    500: errorResponseSchema
-  }
+    500: errorResponseSchema,
+  },
 }
 
 const listSchema = {
@@ -113,13 +117,13 @@ const listSchema = {
               version: { type: 'string' },
               enabled: { type: 'boolean' },
               installed_at: { type: 'string' },
-              manifest: { type: 'object' }
-            }
-          }
-        }
-      }
-    }
-  }
+              manifest: { type: 'object' },
+            },
+          },
+        },
+      },
+    },
+  },
 }
 
 const statsSchema = {
@@ -129,8 +133,8 @@ const statsSchema = {
   params: {
     type: 'object',
     properties: {
-      id: { type: 'string', description: 'Extension identifier' }
-    }
+      id: { type: 'string', description: 'Extension identifier' },
+    },
   },
   response: {
     200: {
@@ -139,11 +143,11 @@ const statsSchema = {
         extensionId: { type: 'string' },
         handlers: { type: 'number' },
         rateLimit: { type: 'object' },
-        pool: { type: 'object' }
-      }
+        pool: { type: 'object' },
+      },
     },
-    404: errorResponseSchema
-  }
+    404: errorResponseSchema,
+  },
 }
 
 const updateSchema = {
@@ -153,27 +157,30 @@ const updateSchema = {
   params: {
     type: 'object',
     properties: {
-      id: { type: 'string', description: 'Extension identifier' }
-    }
+      id: { type: 'string', description: 'Extension identifier' },
+    },
   },
   body: {
     type: 'object',
     properties: {
       enabled: { type: 'boolean', description: 'Enable or disable the extension' },
-      pinnedVersion: { type: 'string', description: 'Pin to specific version (null for auto-update)' }
-    }
+      pinnedVersion: {
+        type: 'string',
+        description: 'Pin to specific version (null for auto-update)',
+      },
+    },
   },
   response: {
     200: {
       type: 'object',
       properties: {
         success: { type: 'boolean' },
-        message: { type: 'string' }
-      }
+        message: { type: 'string' },
+      },
     },
     403: errorResponseSchema,
-    500: errorResponseSchema
-  }
+    500: errorResponseSchema,
+  },
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -181,7 +188,6 @@ const updateSchema = {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const extensionRoutes: FastifyPluginAsync = async (fastify) => {
-  
   // ═══════════════════════════════════════════════════════════════════════════
   // ADMIN ENDPOINTS
   // ═══════════════════════════════════════════════════════════════════════════
@@ -189,198 +195,192 @@ const extensionRoutes: FastifyPluginAsync = async (fastify) => {
   /**
    * Install an extension
    */
-  fastify.post('/admin/extensions/install', {
-    schema: installSchema,
-    preHandler: fastify.authenticate
-  }, async (request, reply) => {
-    const user = request.user!
-    
-    // Only admins can install extensions
-    if (user.role !== 'admin') {
-      return reply.code(403).send({
-        error: 'Forbidden',
-        message: 'Only admins can install extensions'
-      })
-    }
+  fastify.post(
+    '/admin/extensions/install',
+    {
+      schema: installSchema,
+      preHandler: fastify.authenticate,
+    },
+    async (request, reply) => {
+      const user = request.user!
 
-    const body = request.body as InstallExtensionRequest
-
-    try {
-      await installExtension(
-        request.supabase!,
-        user.org_id!,
-        body.extensionId,
-        body.version,
-        body.manifest as ExtensionManifest,
-        body.handlers,
-        body.allowedDomains ?? [],
-        user.id
-      )
-
-      return {
-        success: true,
-        extensionId: body.extensionId,
-        version: body.version,
-        message: `Extension ${body.extensionId} v${body.version} installed successfully`
+      // Only admins can install extensions
+      if (user.role !== 'admin') {
+        return sendError(reply, 403, 'FORBIDDEN', 'Only admins can install extensions')
       }
-    } catch (error) {
-      request.log.error({ error }, 'Failed to install extension')
-      return reply.code(500).send({
-        error: 'Installation Failed',
-        message: error instanceof Error ? error.message : 'Unknown error'
-      })
-    }
-  })
+
+      const body = request.body as InstallExtensionRequest
+
+      try {
+        await installExtension(
+          request.supabase!,
+          user.org_id!,
+          body.extensionId,
+          body.version,
+          body.manifest as ExtensionManifest,
+          body.handlers,
+          body.allowedDomains ?? [],
+          user.id,
+        )
+
+        return {
+          success: true,
+          extensionId: body.extensionId,
+          version: body.version,
+          message: `Extension ${body.extensionId} v${body.version} installed successfully`,
+        }
+      } catch (error) {
+        request.log.error({ error }, 'Failed to install extension')
+        return sendError(reply, 500, 'INTERNAL_ERROR', error instanceof Error ? error.message : 'Unknown error')
+      }
+    },
+  )
 
   /**
    * Uninstall an extension
    */
-  fastify.delete('/admin/extensions/:id', {
-    schema: uninstallSchema,
-    preHandler: fastify.authenticate
-  }, async (request, reply) => {
-    const user = request.user!
-    const { id: extensionId } = request.params as { id: string }
+  fastify.delete(
+    '/admin/extensions/:id',
+    {
+      schema: uninstallSchema,
+      preHandler: fastify.authenticate,
+    },
+    async (request, reply) => {
+      const user = request.user!
+      const { id: extensionId } = request.params as { id: string }
 
-    if (user.role !== 'admin') {
-      return reply.code(403).send({
-        error: 'Forbidden',
-        message: 'Only admins can uninstall extensions'
-      })
-    }
-
-    try {
-      await uninstallExtension(request.supabase!, user.org_id!, extensionId)
-
-      return {
-        success: true,
-        message: `Extension ${extensionId} uninstalled successfully`
+      if (user.role !== 'admin') {
+        return sendError(reply, 403, 'FORBIDDEN', 'Only admins can uninstall extensions')
       }
-    } catch (error) {
-      request.log.error({ error }, 'Failed to uninstall extension')
-      return reply.code(500).send({
-        error: 'Uninstall Failed',
-        message: error instanceof Error ? error.message : 'Unknown error'
-      })
-    }
-  })
+
+      try {
+        await uninstallExtension(request.supabase!, user.org_id!, extensionId)
+
+        return {
+          success: true,
+          message: `Extension ${extensionId} uninstalled successfully`,
+        }
+      } catch (error) {
+        request.log.error({ error }, 'Failed to uninstall extension')
+        return sendError(reply, 500, 'INTERNAL_ERROR', error instanceof Error ? error.message : 'Unknown error')
+      }
+    },
+  )
 
   /**
    * List installed extensions
    */
-  fastify.get('/admin/extensions', {
-    schema: listSchema,
-    preHandler: fastify.authenticate
-  }, async (request) => {
-    const user = request.user!
-    const loader = getLoader(request.supabase!, user.org_id!)
-    
-    if (!loader.isLoaded()) {
-      await loader.loadAll()
-    }
+  fastify.get(
+    '/admin/extensions',
+    {
+      schema: listSchema,
+      preHandler: fastify.authenticate,
+    },
+    async (request) => {
+      const user = request.user!
+      const loader = getLoader(request.supabase!, user.org_id!)
 
-    const extensions = loader.getAllExtensions().map(ext => ({
-      extension_id: ext.extension_id,
-      version: ext.version,
-      enabled: ext.enabled,
-      installed_at: ext.installed_at,
-      manifest: {
-        name: ext.manifest.name,
-        description: ext.manifest.description,
-        publisher: ext.manifest.publisher,
-        category: ext.manifest.category
+      if (!loader.isLoaded()) {
+        await loader.loadAll()
       }
-    }))
 
-    return { extensions }
-  })
+      const extensions = loader.getAllExtensions().map((ext) => ({
+        extension_id: ext.extension_id,
+        version: ext.version,
+        enabled: ext.enabled,
+        installed_at: ext.installed_at,
+        manifest: {
+          name: ext.manifest.name,
+          description: ext.manifest.description,
+          publisher: ext.manifest.publisher,
+          category: ext.manifest.category,
+        },
+      }))
+
+      return { extensions }
+    },
+  )
 
   /**
    * Get extension statistics
    */
-  fastify.get('/admin/extensions/:id/stats', {
-    schema: statsSchema,
-    preHandler: fastify.authenticate
-  }, async (request, reply) => {
-    const user = request.user!
-    const { id: extensionId } = request.params as { id: string }
+  fastify.get(
+    '/admin/extensions/:id/stats',
+    {
+      schema: statsSchema,
+      preHandler: fastify.authenticate,
+    },
+    async (request, reply) => {
+      const user = request.user!
+      const { id: extensionId } = request.params as { id: string }
 
-    const loader = getLoader(request.supabase!, user.org_id!)
-    
-    if (!loader.isLoaded()) {
-      await loader.loadAll()
-    }
+      const loader = getLoader(request.supabase!, user.org_id!)
 
-    const extension = loader.getExtension(extensionId)
-    
-    if (!extension) {
-      return reply.code(404).send({
-        error: 'Not Found',
-        message: `Extension ${extensionId} not found`
-      })
-    }
+      if (!loader.isLoaded()) {
+        await loader.loadAll()
+      }
 
-    const handlers = loader.getExtensionHandlers(extensionId)
-    const pool = getIsolatePool()
-    const limiter = getRateLimiter()
+      const extension = loader.getExtension(extensionId)
 
-    return {
-      extensionId,
-      handlers: handlers.length,
-      handlerPaths: handlers.map(h => `${h.method} ${h.path}`),
-      rateLimit: limiter.getStatus(user.org_id!, extensionId),
-      pool: pool.getStats()
-    }
-  })
+      if (!extension) {
+        return sendError(reply, 404, 'NOT_FOUND', `Extension ${extensionId} not found`)
+      }
+
+      const handlers = loader.getExtensionHandlers(extensionId)
+      const pool = getIsolatePool()
+      const limiter = getRateLimiter()
+
+      return {
+        extensionId,
+        handlers: handlers.length,
+        handlerPaths: handlers.map((h) => `${h.method} ${h.path}`),
+        rateLimit: limiter.getStatus(user.org_id!, extensionId),
+        pool: pool.getStats(),
+      }
+    },
+  )
 
   /**
    * Update extension settings (enable/disable, pin version)
    */
-  fastify.patch('/admin/extensions/:id', {
-    schema: updateSchema,
-    preHandler: fastify.authenticate
-  }, async (request, reply) => {
-    const user = request.user!
-    const { id: extensionId } = request.params as { id: string }
-    const body = request.body as { enabled?: boolean; pinnedVersion?: string | null }
+  fastify.patch(
+    '/admin/extensions/:id',
+    {
+      schema: updateSchema,
+      preHandler: fastify.authenticate,
+    },
+    async (request, reply) => {
+      const user = request.user!
+      const { id: extensionId } = request.params as { id: string }
+      const body = request.body as { enabled?: boolean; pinnedVersion?: string | null }
 
-    if (user.role !== 'admin') {
-      return reply.code(403).send({
-        error: 'Forbidden',
-        message: 'Only admins can update extension settings'
-      })
-    }
-
-    try {
-      if (body.enabled !== undefined) {
-        await setExtensionEnabled(
-          request.supabase!,
-          user.org_id!,
-          extensionId,
-          body.enabled
-        )
+      if (user.role !== 'admin') {
+        return sendError(reply, 403, 'FORBIDDEN', 'Only admins can update extension settings')
       }
 
-      if (body.pinnedVersion !== undefined) {
-        await request.supabase!
-          .from('org_installed_extensions')
-          .update({ pinned_version: body.pinnedVersion })
-          .eq('org_id', user.org_id!)
-          .eq('extension_id', extensionId)
-      }
+      try {
+        if (body.enabled !== undefined) {
+          await setExtensionEnabled(request.supabase!, user.org_id!, extensionId, body.enabled)
+        }
 
-      return {
-        success: true,
-        message: `Extension ${extensionId} updated successfully`
+        if (body.pinnedVersion !== undefined) {
+          await request
+            .supabase!.from('org_installed_extensions')
+            .update({ pinned_version: body.pinnedVersion })
+            .eq('org_id', user.org_id!)
+            .eq('extension_id', extensionId)
+        }
+
+        return {
+          success: true,
+          message: `Extension ${extensionId} updated successfully`,
+        }
+      } catch (error) {
+        request.log.error({ error }, 'Failed to update extension')
+        return sendError(reply, 500, 'INTERNAL_ERROR', error instanceof Error ? error.message : 'Unknown error')
       }
-    } catch (error) {
-      request.log.error({ error }, 'Failed to update extension')
-      return reply.code(500).send({
-        error: 'Update Failed',
-        message: error instanceof Error ? error.message : 'Unknown error'
-      })
-    }
-  })
+    },
+  )
 
   // ═══════════════════════════════════════════════════════════════════════════
   // EXTENSION HANDLER ROUTING
@@ -388,7 +388,7 @@ const extensionRoutes: FastifyPluginAsync = async (fastify) => {
 
   /**
    * Route all requests to extension handlers
-   * 
+   *
    * Supports both authenticated and public endpoints.
    * Public endpoints require explicit declaration in the extension manifest.
    */
@@ -405,11 +405,11 @@ const extensionRoutes: FastifyPluginAsync = async (fastify) => {
         type: 'object',
         properties: {
           extensionId: { type: 'string' },
-          '*': { type: 'string' }
-        }
-      }
+          '*': { type: 'string' },
+        },
+      },
     },
-    handler: extensionHandler
+    handler: extensionHandler,
   })
 
   // Also handle root extension paths (no trailing path)
@@ -422,11 +422,11 @@ const extensionRoutes: FastifyPluginAsync = async (fastify) => {
       params: {
         type: 'object',
         properties: {
-          extensionId: { type: 'string' }
-        }
-      }
+          extensionId: { type: 'string' },
+        },
+      },
     },
-    handler: extensionHandler
+    handler: extensionHandler,
   })
 }
 

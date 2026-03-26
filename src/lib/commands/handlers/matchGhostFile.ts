@@ -1,6 +1,6 @@
 /**
  * Match Ghost File Command
- * 
+ *
  * Resolves a ghost file (server record with stale path, diffStatus === 'deleted')
  * by updating the server path to match a local candidate file via moveFileOnServer.
  * This is the user-driven resolution for files renamed outside of BluePLM's tracking.
@@ -56,7 +56,7 @@ export const matchGhostFileCommand: Command<MatchGhostFileParams> = {
       ghostFile.pdmData!.id,
       user.id,
       targetFile.relativePath,
-      targetFile.name
+      targetFile.name,
     )
 
     if (!result.success) {

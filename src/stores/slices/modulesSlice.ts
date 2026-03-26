@@ -1,7 +1,13 @@
 import { StateCreator } from 'zustand'
 import type { PDMStoreState, ModulesSlice } from '../types'
 import type { ModuleId, ModuleConfig, OrgModuleDefaults, OrderListItem } from '../../types/modules'
-import { getDefaultModuleConfig, MODULES, MODULE_GROUPS, isModuleVisible, extractFromCombinedList } from '../../types/modules'
+import {
+  getDefaultModuleConfig,
+  MODULES,
+  MODULE_GROUPS,
+  isModuleVisible,
+  extractFromCombinedList,
+} from '../../types/modules'
 import { supabase } from '../../lib/supabase'
 
 export const createModulesSlice: StateCreator<
@@ -13,14 +19,14 @@ export const createModulesSlice: StateCreator<
   // Initial state
   moduleConfig: getDefaultModuleConfig(),
   moduleConfigLastSyncedAt: null,
-  
+
   // Actions
   setModuleConfig: (config) => set({ moduleConfig: config }),
-  
+
   setModuleEnabled: (moduleId, enabled) => {
-    set(state => {
+    set((state) => {
       const newEnabledModules = { ...state.moduleConfig.enabledModules, [moduleId]: enabled }
-      
+
       // If disabling a module, check if any dependent modules need to be disabled
       if (!enabled) {
         for (const mod of MODULES) {
@@ -29,22 +35,22 @@ export const createModulesSlice: StateCreator<
           }
         }
       }
-      
+
       return {
         moduleConfig: {
           ...state.moduleConfig,
-          enabledModules: newEnabledModules
-        }
+          enabledModules: newEnabledModules,
+        },
       }
     })
   },
-  
+
   setGroupEnabled: (groupId, enabled) => {
-    set(state => {
-      const group = MODULE_GROUPS.find(g => g.id === groupId)
+    set((state) => {
+      const group = MODULE_GROUPS.find((g) => g.id === groupId)
       const newEnabledGroups = { ...state.moduleConfig.enabledGroups, [groupId]: enabled }
       const newEnabledModules = { ...state.moduleConfig.enabledModules }
-      
+
       // If this is a master toggle group, enable/disable all modules in the group
       if (group?.isMasterToggle) {
         for (const mod of MODULES) {
@@ -54,110 +60,113 @@ export const createModulesSlice: StateCreator<
           }
         }
       }
-      
+
       return {
         moduleConfig: {
           ...state.moduleConfig,
           enabledGroups: newEnabledGroups,
-          enabledModules: newEnabledModules
-        }
+          enabledModules: newEnabledModules,
+        },
       }
     })
   },
-  
+
   setModuleOrder: (moduleOrder) => {
-    set(state => ({
-      moduleConfig: { ...state.moduleConfig, moduleOrder }
+    set((state) => ({
+      moduleConfig: { ...state.moduleConfig, moduleOrder },
     }))
   },
-  
+
   reorderModule: (fromIndex, toIndex) => {
-    set(state => {
+    set((state) => {
       const newOrder = [...state.moduleConfig.moduleOrder]
       const [removed] = newOrder.splice(fromIndex, 1)
       newOrder.splice(toIndex, 0, removed)
       return {
-        moduleConfig: { ...state.moduleConfig, moduleOrder: newOrder }
+        moduleConfig: { ...state.moduleConfig, moduleOrder: newOrder },
       }
     })
   },
-  
+
   setDividerEnabled: (dividerId, enabled) => {
-    set(state => ({
+    set((state) => ({
       moduleConfig: {
         ...state.moduleConfig,
-        dividers: state.moduleConfig.dividers.map(d =>
-          d.id === dividerId ? { ...d, enabled } : d
-        )
-      }
+        dividers: state.moduleConfig.dividers.map((d) =>
+          d.id === dividerId ? { ...d, enabled } : d,
+        ),
+      },
     }))
   },
-  
+
   setCombinedOrder: (combinedList: OrderListItem[]) => {
     const { moduleConfig } = get()
     const { moduleOrder, dividers, customGroups } = extractFromCombinedList(
-      combinedList, 
+      combinedList,
       moduleConfig.dividers,
-      moduleConfig.customGroups
+      moduleConfig.customGroups,
     )
     set({
       moduleConfig: {
         ...moduleConfig,
         moduleOrder,
         dividers,
-        customGroups
-      }
+        customGroups,
+      },
     })
   },
-  
+
   addDivider: (afterPosition) => {
-    set(state => {
+    set((state) => {
       const newId = `divider-${Date.now()}`
       return {
         moduleConfig: {
           ...state.moduleConfig,
-          dividers: [...state.moduleConfig.dividers, { id: newId, enabled: true, position: afterPosition }]
-        }
+          dividers: [
+            ...state.moduleConfig.dividers,
+            { id: newId, enabled: true, position: afterPosition },
+          ],
+        },
       }
     })
   },
-  
+
   removeDivider: (dividerId) => {
-    set(state => ({
+    set((state) => ({
       moduleConfig: {
         ...state.moduleConfig,
-        dividers: state.moduleConfig.dividers.filter(d => d.id !== dividerId)
-      }
+        dividers: state.moduleConfig.dividers.filter((d) => d.id !== dividerId),
+      },
     }))
   },
-  
+
   setModuleParent: (moduleId, parentId) => {
-    set(state => ({
+    set((state) => ({
       moduleConfig: {
         ...state.moduleConfig,
         moduleParents: {
           ...state.moduleConfig.moduleParents,
-          [moduleId]: parentId
-        }
-      }
+          [moduleId]: parentId,
+        },
+      },
     }))
   },
-  
+
   setModuleIconColor: (moduleId, color) => {
-    set(state => ({
+    set((state) => ({
       moduleConfig: {
         ...state.moduleConfig,
         moduleIconColors: {
           ...state.moduleConfig.moduleIconColors,
-          [moduleId]: color
-        }
-      }
+          [moduleId]: color,
+        },
+      },
     }))
   },
-  
+
   addCustomGroup: (name, icon, iconColor) => {
     const groupId = `group-${Date.now()}`
-    set(state => {
+    set((state) => {
       // Add at the end of the module order
       const position = state.moduleConfig.moduleOrder.length
       return {
@@ -165,27 +174,27 @@ export const createModulesSlice: StateCreator<
           ...state.moduleConfig,
           customGroups: [
             ...state.moduleConfig.customGroups,
-            { id: groupId, name, icon, iconColor, position, enabled: true }
-          ]
-        }
+            { id: groupId, name, icon, iconColor, position, enabled: true },
+          ],
+        },
       }
     })
     return groupId
   },
-  
+
   updateCustomGroup: (groupId, updates) => {
-    set(state => ({
+    set((state) => ({
       moduleConfig: {
         ...state.moduleConfig,
-        customGroups: state.moduleConfig.customGroups.map(g =>
-          g.id === groupId ? { ...g, ...updates } : g
-        )
-      }
+        customGroups: state.moduleConfig.customGroups.map((g) =>
+          g.id === groupId ? { ...g, ...updates } : g,
+        ),
+      },
     }))
   },
-  
+
   removeCustomGroup: (groupId) => {
-    set(state => {
+    set((state) => {
       // Remove group and unset any modules that had this as parent
       const newModuleParents = { ...state.moduleConfig.moduleParents }
       for (const [moduleId, parentId] of Object.entries(newModuleParents)) {
@@ -193,38 +202,38 @@ export const createModulesSlice: StateCreator<
           newModuleParents[moduleId as ModuleId] = null
         }
       }
-      
+
       return {
         moduleConfig: {
           ...state.moduleConfig,
-          customGroups: state.moduleConfig.customGroups.filter(g => g.id !== groupId),
-          moduleParents: newModuleParents
-        }
+          customGroups: state.moduleConfig.customGroups.filter((g) => g.id !== groupId),
+          moduleParents: newModuleParents,
+        },
       }
     })
   },
-  
+
   resetModulesToDefaults: () => {
     set({ moduleConfig: getDefaultModuleConfig() })
   },
-  
+
   loadOrgModuleDefaults: async () => {
     const { organization } = get()
     if (!organization?.id) {
       return { success: false, error: 'No organization connected' }
     }
-    
+
     try {
-      const { data, error } = await (supabase.rpc as any)('get_org_module_defaults', {
-        p_org_id: organization.id
+      const { data, error } = await (supabase.rpc as any)('get_org_module_defaults', { // TODO: type this
+        p_org_id: organization.id,
       })
-      
+
       if (error) throw error
-      
+
       if (!data || (Array.isArray(data) && data.length === 0)) {
         return { success: false, error: 'No org module defaults configured' }
       }
-      
+
       const defaults = Array.isArray(data) ? data[0] : data
       if (defaults) {
         const appDefaults = getDefaultModuleConfig()
@@ -234,19 +243,22 @@ export const createModulesSlice: StateCreator<
           moduleOrder: defaults.module_order || appDefaults.moduleOrder,
           dividers: defaults.dividers || appDefaults.dividers,
           moduleParents: { ...appDefaults.moduleParents, ...(defaults.module_parents || {}) },
-          moduleIconColors: { ...appDefaults.moduleIconColors, ...(defaults.module_icon_colors || {}) },
+          moduleIconColors: {
+            ...appDefaults.moduleIconColors,
+            ...(defaults.module_icon_colors || {}),
+          },
           customGroups: defaults.custom_groups || appDefaults.customGroups,
         }
         // Update config and track sync time
         set({ moduleConfig, moduleConfigLastSyncedAt: Date.now() })
       }
-      
+
       return { success: true }
-    } catch (err) {
-      return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
   },
-  
+
   saveOrgModuleDefaults: async () => {
     const { organization, moduleConfig, getEffectiveRole } = get()
     if (!organization?.id) {
@@ -255,9 +267,9 @@ export const createModulesSlice: StateCreator<
     if (getEffectiveRole() !== 'admin') {
       return { success: false, error: 'Only admins can save org module defaults' }
     }
-    
+
     try {
-      const { error } = await (supabase.rpc as any)('set_org_module_defaults', {
+      const { error } = await (supabase.rpc as any)('set_org_module_defaults', { // TODO: type this
         p_org_id: organization.id,
         p_enabled_modules: moduleConfig.enabledModules,
         p_enabled_groups: moduleConfig.enabledGroups,
@@ -265,16 +277,16 @@ export const createModulesSlice: StateCreator<
         p_dividers: moduleConfig.dividers,
         p_module_parents: moduleConfig.moduleParents,
         p_module_icon_colors: moduleConfig.moduleIconColors,
-        p_custom_groups: moduleConfig.customGroups
+        p_custom_groups: moduleConfig.customGroups,
       })
-      
+
       if (error) throw error
       return { success: true }
-    } catch (err) {
-      return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
   },
-  
+
   forceOrgModuleDefaults: async () => {
     const { organization, moduleConfig, getEffectiveRole } = get()
     if (!organization?.id) {
@@ -283,9 +295,9 @@ export const createModulesSlice: StateCreator<
     if (getEffectiveRole() !== 'admin') {
       return { success: false, error: 'Only admins can force module defaults' }
     }
-    
+
     try {
-      const { error } = await (supabase.rpc as any)('force_org_module_defaults', {
+      const { error } = await (supabase.rpc as any)('force_org_module_defaults', { // TODO: type this
         p_org_id: organization.id,
         p_enabled_modules: moduleConfig.enabledModules,
         p_enabled_groups: moduleConfig.enabledGroups,
@@ -293,28 +305,28 @@ export const createModulesSlice: StateCreator<
         p_dividers: moduleConfig.dividers,
         p_module_parents: moduleConfig.moduleParents,
         p_module_icon_colors: moduleConfig.moduleIconColors,
-        p_custom_groups: moduleConfig.customGroups
+        p_custom_groups: moduleConfig.customGroups,
       })
-      
+
       if (error) throw error
-      
+
       // Update local sync timestamp since we just set the config
       set({ moduleConfigLastSyncedAt: Date.now() })
-      
+
       return { success: true }
-    } catch (err) {
-      return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
   },
-  
+
   loadTeamModuleDefaults: async (teamId: string) => {
     try {
-      const { data, error } = await (supabase.rpc as any)('get_team_module_defaults', {
-        p_team_id: teamId
+      const { data, error } = await (supabase.rpc as any)('get_team_module_defaults', { // TODO: type this
+        p_team_id: teamId,
       })
-      
+
       if (error) throw error
-      
+
       // Convert from database format (snake_case) to TypeScript format (camelCase)
       // Merge with app defaults so new modules added after save are included
       if (data) {
@@ -330,19 +342,23 @@ export const createModulesSlice: StateCreator<
         }
         return { success: true, defaults }
       }
-      
+
       return { success: true, defaults: null }
-    } catch (err) {
-      return { success: false, defaults: null, error: err instanceof Error ? err.message : 'Unknown error' }
+    } catch (error) {
+      return {
+        success: false,
+        defaults: null,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }
     }
   },
-  
+
   saveTeamModuleDefaults: async (teamId: string, config?: ModuleConfig) => {
     const { moduleConfig } = get()
     const configToSave = config || moduleConfig
-    
+
     try {
-      const { error } = await (supabase.rpc as any)('set_team_module_defaults', {
+      const { error } = await (supabase.rpc as any)('set_team_module_defaults', { // TODO: type this
         p_team_id: teamId,
         p_enabled_modules: configToSave.enabledModules,
         p_enabled_groups: configToSave.enabledGroups,
@@ -350,35 +366,35 @@ export const createModulesSlice: StateCreator<
         p_dividers: configToSave.dividers,
         p_module_parents: configToSave.moduleParents,
         p_module_icon_colors: configToSave.moduleIconColors,
-        p_custom_groups: configToSave.customGroups
+        p_custom_groups: configToSave.customGroups,
       })
-      
+
       if (error) throw error
       return { success: true }
-    } catch (err) {
-      return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
   },
-  
+
   clearTeamModuleDefaults: async (teamId: string) => {
     try {
-      const { error } = await (supabase.rpc as any)('clear_team_module_defaults', {
-        p_team_id: teamId
+      const { error } = await (supabase.rpc as any)('clear_team_module_defaults', { // TODO: type this
+        p_team_id: teamId,
       })
-      
+
       if (error) throw error
       return { success: true }
-    } catch (err) {
-      return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
   },
-  
+
   loadUserModuleDefaults: async () => {
     try {
-      const { data, error } = await (supabase.rpc as any)('get_user_module_defaults', {})
-      
+      const { data, error } = await (supabase.rpc as any)('get_user_module_defaults', {}) // TODO: type this
+
       if (error) throw error
-      
+
       // Convert from database format (snake_case) to TypeScript format (camelCase)
       // Merge with app defaults so new modules added after save are included
       if (data) {
@@ -394,13 +410,17 @@ export const createModulesSlice: StateCreator<
         }
         return { success: true, defaults }
       }
-      
+
       return { success: true, defaults: null }
-    } catch (err) {
-      return { success: false, defaults: null, error: err instanceof Error ? err.message : 'Unknown error' }
+    } catch (error) {
+      return {
+        success: false,
+        defaults: null,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }
     }
   },
-  
+
   isModuleVisible: (moduleId) => {
     const { moduleConfig } = get()
     return isModuleVisible(moduleId, moduleConfig)

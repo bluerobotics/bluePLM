@@ -1,18 +1,18 @@
 /**
  * Database Types - Re-exports and Custom Extensions
- * 
+ *
  * This file provides:
  *   1. Re-exports from auto-generated supabase.ts
  *   2. Helper types for extracting table rows/inserts/updates
  *   3. Convenience type aliases for common tables
  *   4. Custom interfaces with joined fields (for views/queries)
  *   5. Custom type unions not defined in the database
- * 
+ *
  * NOTE: supabase.ts is auto-generated. To regenerate after schema changes:
  *   npm run gen:types
- * 
+ *
  * Requires SUPABASE_ACCESS_TOKEN in .env file (get from supabase.com/dashboard/account/tokens)
- * 
+ *
  * @see ./supabase.ts for auto-generated types (DO NOT EDIT THAT FILE)
  */
 
@@ -40,8 +40,7 @@ export type TablesUpdate<T extends keyof Database['public']['Tables']> =
   Database['public']['Tables'][T]['Update']
 
 /** Extract an enum type */
-export type Enums<T extends keyof Database['public']['Enums']> =
-  Database['public']['Enums'][T]
+export type Enums<T extends keyof Database['public']['Enums']> = Database['public']['Enums'][T]
 
 // ===========================================
 // Convenience Type Aliases
@@ -73,7 +72,7 @@ export type ReviewResponse = Tables<'review_responses'>
 export type Notification = Tables<'notifications'>
 
 // ECO/Change Management
-export type ECO = Tables<'ecos'>
+export type ECORow = Tables<'ecos'>
 export type FileEco = Tables<'file_ecos'>
 export type EcoChecklistItem = Tables<'eco_checklist_items'>
 export type EcoGateApproval = Tables<'eco_gate_approvals'>
@@ -92,37 +91,73 @@ export type WebhookDelivery = Tables<'webhook_deliveries'>
 export type FileMetadataColumn = Tables<'file_metadata_columns'>
 
 // Suppliers
-export type Supplier = Tables<'suppliers'>
+export type SupplierRow = Tables<'suppliers'>
 export type SupplierContact = Tables<'supplier_contacts'>
 
 // ===========================================
 // Custom Type Unions (not in database)
-// =========================================== 
+// ===========================================
 
 export type ReviewStatus = 'pending' | 'approved' | 'rejected' | 'cancelled' | 'kicked_back'
 
-export type NotificationType = 
+export type NotificationType =
   // File Reviews
-  | 'review_request' | 'review_approved' | 'review_rejected' | 'review_kicked_back' | 'review_comment'
+  | 'review_request'
+  | 'review_approved'
+  | 'review_rejected'
+  | 'review_kicked_back'
+  | 'review_comment'
   // Change Management (ECO/ECR)
-  | 'eco_submitted' | 'eco_approved' | 'eco_rejected' | 'eco_comment'
-  | 'ecr_submitted' | 'ecr_approved' | 'ecr_rejected'
+  | 'eco_submitted'
+  | 'eco_approved'
+  | 'eco_rejected'
+  | 'eco_comment'
+  | 'ecr_submitted'
+  | 'ecr_approved'
+  | 'ecr_rejected'
   // Purchasing
-  | 'po_approval_request' | 'po_approved' | 'po_rejected'
-  | 'supplier_approval_request' | 'supplier_approved' | 'supplier_rejected'
+  | 'po_approval_request'
+  | 'po_approved'
+  | 'po_rejected'
+  | 'supplier_approval_request'
+  | 'supplier_approved'
+  | 'supplier_rejected'
   | 'rfq_response_received'
   // Quality
-  | 'ncr_created' | 'ncr_assigned' | 'ncr_resolved'
-  | 'capa_created' | 'capa_assigned' | 'capa_due_soon' | 'capa_overdue'
-  | 'fai_submitted' | 'fai_approved'
-  | 'calibration_due' | 'calibration_overdue'
+  | 'ncr_created'
+  | 'ncr_assigned'
+  | 'ncr_resolved'
+  | 'capa_created'
+  | 'capa_assigned'
+  | 'capa_due_soon'
+  | 'capa_overdue'
+  | 'fai_submitted'
+  | 'fai_approved'
+  | 'calibration_due'
+  | 'calibration_overdue'
   // Workflow
-  | 'workflow_state_change' | 'workflow_approval_request' | 'workflow_approved' | 'workflow_rejected'
+  | 'workflow_state_change'
+  | 'workflow_approval_request'
+  | 'workflow_approved'
+  | 'workflow_rejected'
   // General
-  | 'mention' | 'file_updated' | 'file_checked_in' | 'checkout_request'
-  | 'comment_added' | 'task_assigned' | 'task_due_soon' | 'task_overdue' | 'system_alert'
+  | 'mention'
+  | 'file_updated'
+  | 'file_checked_in'
+  | 'checkout_request'
+  | 'comment_added'
+  | 'task_assigned'
+  | 'task_due_soon'
+  | 'task_overdue'
+  | 'system_alert'
 
-export type NotificationCategory = 'review' | 'change' | 'purchasing' | 'quality' | 'workflow' | 'system'
+export type NotificationCategory =
+  | 'review'
+  | 'change'
+  | 'purchasing'
+  | 'quality'
+  | 'workflow'
+  | 'system'
 export type NotificationPriority = 'low' | 'normal' | 'high' | 'urgent'
 
 export type AccountType = 'user' | 'supplier'
@@ -130,7 +165,7 @@ export type SupplierAuthMethod = 'email' | 'phone' | 'wechat'
 
 export type MetadataColumnType = 'text' | 'number' | 'date' | 'boolean' | 'select'
 
-export type WebhookEvent = 
+export type WebhookEvent =
   | 'file.created'
   | 'file.updated'
   | 'file.deleted'
@@ -156,7 +191,7 @@ export type WebhookTriggerFilter = 'everyone' | 'roles' | 'users'
 
 export type ChecklistItemStatus = 'not_started' | 'in_progress' | 'complete' | 'blocked' | 'na'
 
-export type EcoChecklistAction = 
+export type EcoChecklistAction =
   | 'item_added'
   | 'item_removed'
   | 'status_changed'
@@ -208,6 +243,77 @@ export interface FileAnnotation {
 }
 
 // ===========================================
+// Shared Domain Types
+// ===========================================
+
+/** Base user info returned by org member queries (canonical shape — extend, don't redefine) */
+export interface OrgUser {
+  id: string
+  email: string
+  full_name: string | null
+  avatar_url: string | null
+}
+
+/** ECO with denormalized UI fields (file_count, created_by_name, etc.) */
+export interface ECO {
+  id: string
+  eco_number: string
+  title: string | null
+  description: string | null
+  status: 'open' | 'in_progress' | 'completed' | 'cancelled' | null
+  created_at: string | null
+  created_by: string
+  file_count?: number
+  created_by_name?: string | null
+  created_by_email?: string
+}
+
+/** Supplier summary for UI display */
+export interface Supplier {
+  id: string
+  name: string
+  code: string | null
+  contact_email: string | null
+  contact_phone: string | null
+  website: string | null
+  city: string | null
+  state: string | null
+  country: string | null
+  is_active: boolean | null
+  is_approved: boolean | null
+  erp_id: string | null
+  erp_synced_at: string | null
+  created_at: string | null
+}
+
+/** Part-Supplier association (vendors for a specific file/item) */
+export interface PartSupplier {
+  id: string
+  org_id: string
+  file_id: string
+  supplier_id: string
+  supplier?: Supplier
+  supplier_part_number: string | null
+  supplier_description: string | null
+  supplier_url: string | null
+  unit_price: number | null
+  currency: string | null
+  price_unit: string | null
+  price_breaks: Array<{ qty: number; price: number }> | null
+  min_order_qty: number | null
+  order_multiple: number | null
+  lead_time_days: number | null
+  is_preferred: boolean | null
+  is_active: boolean | null
+  is_qualified: boolean | null
+  qualified_at: string | null
+  notes: string | null
+  last_price_update: string | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+// ===========================================
 // Extended Interfaces (with joined fields)
 // These are for queries that join multiple tables
 // ===========================================
@@ -227,8 +333,8 @@ export interface FileWithCheckout extends Omit<FileRecord, 'checkout_info'> {
 /** User profile with organization details */
 export interface UserWithOrg extends UserProfile {
   organization?: {
-  id: string
-  name: string
+    id: string
+    name: string
     slug: string
   }
 }
@@ -248,14 +354,16 @@ export interface ReviewWithDetails extends Review {
     full_name: string | null
     avatar_url: string | null
   }
-  responses?: Array<ReviewResponse & {
-  reviewer?: {
-    id?: string
-    email: string
-    full_name: string | null
-    avatar_url: string | null
-  }
-  }>
+  responses?: Array<
+    ReviewResponse & {
+      reviewer?: {
+        id?: string
+        email: string
+        full_name: string | null
+        avatar_url: string | null
+      }
+    }
+  >
 }
 
 /** Notification with related entity details */
@@ -307,9 +415,11 @@ export interface EcoGateApprovalWithUser extends EcoGateApproval {
 
 /** Process template with phases and items */
 export interface ProcessTemplateWithPhases extends ProcessTemplate {
-  phases?: Array<ProcessTemplatePhase & {
-    items?: ProcessTemplateItem[]
-  }>
+  phases?: Array<
+    ProcessTemplatePhase & {
+      items?: ProcessTemplateItem[]
+    }
+  >
 }
 
 /** Supplier contact with supplier info */

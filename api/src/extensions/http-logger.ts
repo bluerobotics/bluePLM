@@ -1,12 +1,13 @@
 /**
  * Extension HTTP Request Logger
- * 
+ *
  * Logs all HTTP requests made by extension handlers for security auditing.
- * 
+ *
  * @module extensions/http-logger
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { log } from '../infrastructure/logging.js'
 
 /**
  * HTTP log entry structure.
@@ -25,30 +26,25 @@ export interface HttpLogEntry {
 
 /**
  * Log an HTTP request made by an extension.
- * 
+ *
  * This is a fire-and-forget operation - errors are logged but don't
  * affect the extension handler.
  */
-export async function logHttpRequest(
-  supabase: SupabaseClient,
-  entry: HttpLogEntry
-): Promise<void> {
+export async function logHttpRequest(supabase: SupabaseClient, entry: HttpLogEntry): Promise<void> {
   try {
-    await supabase
-      .from('extension_http_log')
-      .insert({
-        ...entry,
-        timestamp: new Date().toISOString()
-      })
+    await supabase.from('extension_http_log').insert({
+      ...entry,
+      timestamp: new Date().toISOString(),
+    })
   } catch (error) {
     // Log errors but don't throw - logging is best-effort
-    console.error('[ExtensionHttpLogger] Failed to log request:', error)
+    log.error({ err: error }, '[ExtensionHttpLogger] Failed to log request')
   }
 }
 
 /**
  * Get HTTP logs for an extension.
- * 
+ *
  * @param supabase - Supabase client
  * @param orgId - Organization ID
  * @param extensionId - Extension ID
@@ -59,7 +55,7 @@ export async function getHttpLogs(
   supabase: SupabaseClient,
   orgId: string,
   extensionId: string,
-  limit = 100
+  limit = 100,
 ): Promise<HttpLogEntry[]> {
   const { data, error } = await supabase
     .from('extension_http_log')
@@ -78,7 +74,7 @@ export async function getHttpLogs(
 
 /**
  * Delete old HTTP logs for an extension.
- * 
+ *
  * @param supabase - Supabase client
  * @param orgId - Organization ID
  * @param extensionId - Extension ID
@@ -88,7 +84,7 @@ export async function cleanupHttpLogs(
   supabase: SupabaseClient,
   orgId: string,
   extensionId: string,
-  olderThanDays = 30
+  olderThanDays = 30,
 ): Promise<void> {
   const cutoffDate = new Date()
   cutoffDate.setDate(cutoffDate.getDate() - olderThanDays)

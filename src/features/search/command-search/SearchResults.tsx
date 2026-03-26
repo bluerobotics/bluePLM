@@ -38,7 +38,8 @@ export function SearchResults({
   const hasLocalResults = searchResults.length > 0
   const hasDriveResults = driveResults.length > 0
   const hasRecentSearches = recentSearches && recentSearches.length > 0
-  const showDriveSection = hasQuery && isGdriveConnected && (currentFilter === 'all' || currentFilter === 'drive')
+  const showDriveSection =
+    hasQuery && isGdriveConnected && (currentFilter === 'all' || currentFilter === 'drive')
   const showNoResults = hasQuery && !hasLocalResults && !hasDriveResults && !isDriveSearching
   const showEmptyQuery = !hasQuery && !hasRecentSearches
 
@@ -46,7 +47,7 @@ export function SearchResults({
   const quickFilters = filters.slice(0, isGdriveConnected ? 6 : 5)
 
   return (
-    <div 
+    <div
       ref={dropdownRef}
       className="absolute top-full left-0 right-0 mt-1 bg-plm-bg border border-plm-border rounded-lg shadow-2xl z-[60] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150"
     >
@@ -63,7 +64,8 @@ export function SearchResults({
         {hasQuery && hasLocalResults && (
           <div className="p-1">
             <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-plm-fg-muted font-medium">
-              {currentFilter === 'all' && isGdriveConnected ? 'Local Files' : 'Results'} ({searchResults.length})
+              {currentFilter === 'all' && isGdriveConnected ? 'Local Files' : 'Results'} (
+              {searchResults.length})
             </div>
             {searchResults.map((file, index) => (
               <LocalFileResult

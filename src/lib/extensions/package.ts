@@ -1,14 +1,15 @@
 /**
  * BluePLM Extension Package (.bpx) Utilities
- * 
+ *
  * Handles extraction, verification, and validation of .bpx extension packages.
  * .bpx files are zip archives containing extension code, manifest, and signatures.
- * 
+ *
  * @module extensions/package
  */
 
 import JSZip from 'jszip'
 import { parseManifest } from './manifest'
+import { log } from '@/lib/logger'
 import type {
   PackageContents,
   ExtensionManifest,
@@ -44,11 +45,11 @@ const MAX_FILE_COUNT = 500
 
 /**
  * Extract and validate a .bpx package.
- * 
+ *
  * @param bpxData - Package data as ArrayBuffer
  * @returns Parsed and validated package contents
  * @throws {PackageError} If package is invalid
- * 
+ *
  * @example
  * const fileBuffer = await fs.promises.readFile('my-extension.bpx');
  * const contents = await extractPackage(fileBuffer.buffer);
@@ -59,10 +60,10 @@ export async function extractPackage(bpxData: ArrayBuffer): Promise<PackageConte
   if (bpxData.byteLength > MAX_PACKAGE_SIZE) {
     throw new PackageError(
       'PACKAGE_TOO_LARGE',
-      `Package size ${formatBytes(bpxData.byteLength)} exceeds maximum ${formatBytes(MAX_PACKAGE_SIZE)}`
+      `Package size ${formatBytes(bpxData.byteLength)} exceeds maximum ${formatBytes(MAX_PACKAGE_SIZE)}`,
     )
   }
-  
+
   // Load zip
   let zip: JSZip
   try {
@@ -70,27 +71,27 @@ export async function extractPackage(bpxData: ArrayBuffer): Promise<PackageConte
   } catch (error) {
     throw new PackageError('INVALID_ARCHIVE', 'Package is not a valid zip archive')
   }
-  
+
   // Count files
   const fileCount = Object.keys(zip.files).length
   if (fileCount > MAX_FILE_COUNT) {
     throw new PackageError(
       'TOO_MANY_FILES',
-      `Package contains ${fileCount} files, maximum is ${MAX_FILE_COUNT}`
+      `Package contains ${fileCount} files, maximum is ${MAX_FILE_COUNT}`,
     )
   }
-  
+
   // Check required files
   for (const required of REQUIRED_FILES) {
     if (!zip.file(required)) {
       throw new PackageError('MISSING_REQUIRED_FILE', `Package missing required file: ${required}`)
     }
   }
-  
+
   // Extract manifest
   const manifestFile = zip.file('extension.json')!
   const manifestContent = await manifestFile.async('string')
-  
+
   let manifest: ExtensionManifest
   try {
     manifest = parseManifest(JSON.parse(manifestContent))
@@ -100,18 +101,21 @@ export async function extractPackage(bpxData: ArrayBuffer): Promise<PackageConte
     }
     throw new PackageError('INVALID_MANIFEST', String(error))
   }
-  
+
   // Extract client bundle if present
   let clientBundle: string | undefined
   if (manifest.main) {
     const clientFile = zip.file(manifest.main)
     if (!clientFile) {
-      throw new PackageError('MISSING_ENTRY_POINT', `Client entry point not found: ${manifest.main}`)
+      throw new PackageError(
+        'MISSING_ENTRY_POINT',
+        `Client entry point not found: ${manifest.main}`,
+      )
     }
     clientBundle = await clientFile.async('string')
     validateFileSize(clientFile, manifest.main)
   }
-  
+
   // Extract server handlers if present
   const serverHandlers: Record<string, string> = {}
   if (manifest.contributes.apiRoutes) {
@@ -124,30 +128,30 @@ export async function extractPackage(bpxData: ArrayBuffer): Promise<PackageConte
       serverHandlers[route.handler] = await handlerFile.async('string')
     }
   }
-  
+
   // Extract signature if present
   let signature: string | undefined
   const signatureFile = zip.file('SIGNATURE')
   if (signatureFile) {
     signature = await signatureFile.async('string')
   }
-  
+
   // Extract optional metadata
   let readme: string | undefined
   const readmeFile = zip.file('README.md')
   if (readmeFile) {
     readme = await readmeFile.async('string')
   }
-  
+
   let changelog: string | undefined
   const changelogFile = zip.file('CHANGELOG.md')
   if (changelogFile) {
     changelog = await changelogFile.async('string')
   }
-  
+
   // Calculate hash
   const hash = await calculateHash(bpxData)
-  
+
   return {
     manifest,
     clientBundle,
@@ -162,7 +166,7 @@ export async function extractPackage(bpxData: ArrayBuffer): Promise<PackageConte
 
 /**
  * Extract package from a file path (Node.js/Electron only).
- * 
+ *
  * @param filePath - Path to .bpx file
  * @returns Package contents
  */
@@ -171,7 +175,7 @@ export async function extractPackageFromFile(filePath: string): Promise<PackageC
   if (!filePath.endsWith('.bpx')) {
     throw new PackageError('INVALID_EXTENSION', 'Extension package must have .bpx extension')
   }
-  
+
   // Read file via Electron IPC or Node.js fs
   const buffer = await readFileAsArrayBuffer(filePath)
   return extractPackage(buffer)
@@ -183,7 +187,7 @@ export async function extractPackageFromFile(filePath: string): Promise<PackageC
 
 /**
  * Calculate SHA-256 hash of package contents.
- * 
+ *
  * @param data - Package data
  * @returns Hex-encoded hash
  */
@@ -191,12 +195,12 @@ export async function calculateHash(data: ArrayBuffer): Promise<string> {
   // Use Web Crypto API (available in browser and Node.js 15+)
   const hashBuffer = await crypto.subtle.digest('SHA-256', data)
   const hashArray = Array.from(new Uint8Array(hashBuffer))
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
 /**
  * Verify package hash matches expected value.
- * 
+ *
  * @param contents - Package contents with hash
  * @param expectedHash - Expected SHA-256 hash (hex)
  * @returns True if hash matches
@@ -207,14 +211,14 @@ export function verifyPackageHash(contents: PackageContents, expectedHash: strin
 
 /**
  * Verify package integrity from raw data and expected hash.
- * 
+ *
  * @param data - Package data
  * @param expectedHash - Expected hash
  * @returns True if hash matches
  */
 export async function verifyPackageIntegrity(
   data: ArrayBuffer,
-  expectedHash: string
+  expectedHash: string,
 ): Promise<boolean> {
   const actualHash = await calculateHash(data)
   return actualHash.toLowerCase() === expectedHash.toLowerCase()
@@ -226,14 +230,14 @@ export async function verifyPackageIntegrity(
 
 /**
  * Verify Ed25519 signature of package.
- * 
+ *
  * @param contents - Package contents including signature
  * @param publicKey - Signing public key (base64)
  * @returns Verification result
  */
 export async function verifyPackageSignature(
   contents: PackageContents,
-  publicKey: SigningKey
+  publicKey: SigningKey,
 ): Promise<SignatureVerificationResult> {
   if (!contents.signature) {
     return {
@@ -241,7 +245,7 @@ export async function verifyPackageSignature(
       error: 'Package has no signature',
     }
   }
-  
+
   // Check key validity
   if (!publicKey.isActive) {
     return {
@@ -249,7 +253,7 @@ export async function verifyPackageSignature(
       error: 'Signing key is not active',
     }
   }
-  
+
   const now = new Date()
   if (now > publicKey.expiresAt) {
     return {
@@ -257,7 +261,7 @@ export async function verifyPackageSignature(
       error: 'Signing key has expired',
     }
   }
-  
+
   try {
     // Parse signature (format: keyId:signature)
     const [keyId, signatureBase64] = contents.signature.split(':')
@@ -267,7 +271,7 @@ export async function verifyPackageSignature(
         error: 'Invalid signature format',
       }
     }
-    
+
     // Verify key ID matches
     if (keyId !== publicKey.keyId) {
       return {
@@ -275,29 +279,20 @@ export async function verifyPackageSignature(
         error: `Signature key ID ${keyId} does not match provided key ${publicKey.keyId}`,
       }
     }
-    
+
     // Import the public key
     const keyData = base64ToArrayBuffer(publicKey.publicKey)
-    const cryptoKey = await crypto.subtle.importKey(
-      'raw',
-      keyData,
-      { name: 'Ed25519' },
-      false,
-      ['verify']
-    )
-    
+    const cryptoKey = await crypto.subtle.importKey('raw', keyData, { name: 'Ed25519' }, false, [
+      'verify',
+    ])
+
     // Prepare data to verify (hash of package without signature file)
     const dataToVerify = new TextEncoder().encode(contents.hash)
     const signature = base64ToArrayBuffer(signatureBase64)
-    
+
     // Verify signature
-    const valid = await crypto.subtle.verify(
-      'Ed25519',
-      cryptoKey,
-      signature,
-      dataToVerify
-    )
-    
+    const valid = await crypto.subtle.verify('Ed25519', cryptoKey, signature, dataToVerify)
+
     if (valid) {
       return {
         valid: true,
@@ -319,21 +314,21 @@ export async function verifyPackageSignature(
 
 /**
  * Check if a signing key has been revoked.
- * 
+ *
  * @param keyId - Key identifier to check
  * @param revocationList - List of revoked keys
  * @returns Revocation info if revoked, undefined otherwise
  */
 export function checkRevocationList(
   keyId: string,
-  revocationList: RevokedKey[]
+  revocationList: RevokedKey[],
 ): RevokedKey | undefined {
-  return revocationList.find(r => r.keyId === keyId)
+  return revocationList.find((r) => r.keyId === keyId)
 }
 
 /**
  * Fetch the current certificate revocation list from the store.
- * 
+ *
  * @param storeApiUrl - Extension store API URL
  * @returns List of revoked keys
  */
@@ -341,24 +336,24 @@ export async function fetchRevocationList(storeApiUrl: string): Promise<RevokedK
   try {
     const response = await fetch(`${storeApiUrl}/signing/revoked`)
     if (!response.ok) {
-      console.warn('Failed to fetch revocation list:', response.statusText)
+      log.warn('[Package]', 'Failed to fetch revocation list', { status: response.statusText })
       return []
     }
-    
-    const data = await response.json() as { keys: RevokedKey[] }
-    return data.keys.map(k => ({
+
+    const data = (await response.json()) as { keys: RevokedKey[] }
+    return data.keys.map((k) => ({
       ...k,
       revokedAt: new Date(k.revokedAt),
     }))
   } catch (error) {
-    console.warn('Error fetching revocation list:', error)
+    log.warn('[Package]', 'Error fetching revocation list', { error })
     return []
   }
 }
 
 /**
  * Fetch public signing keys from the store.
- * 
+ *
  * @param storeApiUrl - Extension store API URL
  * @returns List of valid signing keys
  */
@@ -368,15 +363,15 @@ export async function fetchSigningKeys(storeApiUrl: string): Promise<SigningKey[
     if (!response.ok) {
       throw new Error(`Failed to fetch signing keys: ${response.statusText}`)
     }
-    
-    const data = await response.json() as { keys: SigningKey[] }
-    return data.keys.map(k => ({
+
+    const data = (await response.json()) as { keys: SigningKey[] }
+    return data.keys.map((k) => ({
       ...k,
       createdAt: new Date(k.createdAt),
       expiresAt: new Date(k.expiresAt),
     }))
   } catch (error) {
-    console.error('Error fetching signing keys:', error)
+    log.error('[Package]', 'Error fetching signing keys', { error })
     throw new PackageError('FETCH_KEYS_FAILED', 'Failed to fetch signing keys from store')
   }
 }
@@ -402,9 +397,9 @@ export interface CreatePackageOptions {
 
 /**
  * Create a .bpx package from an extension directory.
- * 
+ *
  * This is primarily for development and the publish CLI.
- * 
+ *
  * @param _options - Package creation options
  * @returns Path to created .bpx file
  */
@@ -442,7 +437,7 @@ export type PackageErrorCode =
 export class PackageError extends Error {
   /** Error code for programmatic handling */
   public readonly code: PackageErrorCode
-  
+
   constructor(code: PackageErrorCode, message: string) {
     super(message)
     this.name = 'PackageError'
@@ -461,12 +456,12 @@ function formatBytes(bytes: number): string {
   const units = ['B', 'KB', 'MB', 'GB']
   let size = bytes
   let unitIndex = 0
-  
+
   while (size >= 1024 && unitIndex < units.length - 1) {
     size /= 1024
     unitIndex++
   }
-  
+
   return `${size.toFixed(1)} ${units[unitIndex]}`
 }
 
@@ -525,9 +520,11 @@ async function readFileAsArrayBuffer(filePath: string): Promise<ArrayBuffer> {
     }
     return bytes.buffer
   }
-  
+
   // Browser environment - should use File API instead
-  throw new Error('readFileAsArrayBuffer requires Electron environment. Use extractPackage with ArrayBuffer directly.')
+  throw new Error(
+    'readFileAsArrayBuffer requires Electron environment. Use extractPackage with ArrayBuffer directly.',
+  )
 }
 
 /**
@@ -542,7 +539,7 @@ export async function packageExists(filePath: string): Promise<boolean> {
 
 /**
  * Get basic package info without full extraction.
- * 
+ *
  * @param bpxData - Package data
  * @returns Basic manifest info
  */
@@ -560,15 +557,20 @@ export async function getPackageInfo(bpxData: ArrayBuffer): Promise<{
   } catch {
     throw new PackageError('INVALID_ARCHIVE', 'Package is not a valid zip archive')
   }
-  
+
   const manifestFile = zip.file('extension.json')
   if (!manifestFile) {
     throw new PackageError('MISSING_REQUIRED_FILE', 'Package missing extension.json')
   }
-  
+
   const manifestContent = await manifestFile.async('string')
-  const manifest = JSON.parse(manifestContent) as { id: string; name: string; version: string; publisher: string }
-  
+  const manifest = JSON.parse(manifestContent) as {
+    id: string
+    name: string
+    version: string
+    publisher: string
+  }
+
   return {
     id: manifest.id,
     name: manifest.name,

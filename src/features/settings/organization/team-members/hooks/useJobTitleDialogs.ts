@@ -11,7 +11,7 @@ export function useJobTitleDialogs() {
   const [jobTitleSearchQuery, setJobTitleSearchQuery] = useState('')
   const [editingJobTitle, setEditingJobTitle] = useState<JobTitle | null>(null)
   const [editingJobTitleUser, setEditingJobTitleUser] = useState<OrgUser | null>(null)
-  
+
   const resetTitleForm = useCallback(() => {
     setNewTitleName('')
     setNewTitleColor('#3b82f6')
@@ -20,15 +20,18 @@ export function useJobTitleDialogs() {
     setEditingJobTitle(null)
     setEditingJobTitleUser(null)
   }, [])
-  
-  const openCreateTitleDialog = useCallback((forUser?: OrgUser) => {
-    resetTitleForm()
-    if (forUser) {
-      setPendingTitleForUser(forUser)
-    }
-    setShowCreateTitleDialog(true)
-  }, [resetTitleForm])
-  
+
+  const openCreateTitleDialog = useCallback(
+    (forUser?: OrgUser) => {
+      resetTitleForm()
+      if (forUser) {
+        setPendingTitleForUser(forUser)
+      }
+      setShowCreateTitleDialog(true)
+    },
+    [resetTitleForm],
+  )
+
   const openEditTitleDialog = useCallback((title: JobTitle) => {
     setEditingJobTitle(title)
     setNewTitleName(title.name)
@@ -36,17 +39,17 @@ export function useJobTitleDialogs() {
     setNewTitleIcon(title.icon)
     setShowCreateTitleDialog(true)
   }, [])
-  
+
   const openEditJobTitleForUser = useCallback((user: OrgUser) => {
     setEditingJobTitleUser(user)
   }, [])
-  
+
   const closeAllTitleDialogs = useCallback(() => {
     setShowCreateTitleDialog(false)
     resetTitleForm()
     setJobTitleSearchQuery('')
   }, [resetTitleForm])
-  
+
   return {
     // State
     showCreateTitleDialog,
@@ -67,12 +70,12 @@ export function useJobTitleDialogs() {
     setEditingJobTitle,
     editingJobTitleUser,
     setEditingJobTitleUser,
-    
+
     // Actions
     resetTitleForm,
     openCreateTitleDialog,
     openEditTitleDialog,
     openEditJobTitleForUser,
-    closeAllTitleDialogs
+    closeAllTitleDialogs,
   }
 }

@@ -17,17 +17,17 @@ export const createUISlice: StateCreator<
   detailsPanelVisible: true,
   detailsPanelHeight: 250,
   detailsPanelTab: 'preview',
-  
+
   // Initial state - Right Panel
   rightPanelVisible: false,
   rightPanelWidth: 350,
   rightPanelTab: null,
   rightPanelTabs: [],
   bottomPanelTabOrder: [],
-  
+
   // Initial state - Settings navigation
   settingsTab: 'profile' as SettingsTab,
-  
+
   // Initial state - Google Drive
   gdriveCurrentFolderId: null,
   gdriveCurrentFolderName: null,
@@ -35,28 +35,28 @@ export const createUISlice: StateCreator<
   gdriveIsSharedDrive: false,
   gdriveOpenDocument: null,
   gdriveAuthVersion: 0,
-  
+
   // Initial state - Terminal
   terminalVisible: false,
   terminalHeight: 250,
   terminalHistory: [],
-  
+
   // Initial state - Deep Link
   pendingDeepLinkInstall: null,
-  
+
   // Initial state - Clipboard (unified across FilePane and FileTree)
   clipboard: null,
-  
+
   // Initial state - Command confirmation dialog
   pendingCommandConfirm: null,
-  
+
   // Initial state - Review preview
   reviewPreviewFile: null,
-  
+
   // Actions - Clipboard
   setClipboard: (clipboard: Clipboard | null) => set({ clipboard }),
   clearClipboard: () => set({ clipboard: null }),
-  
+
   // Actions - Sidebar
   toggleSidebar: () => {
     const { sidebarVisible, tabsEnabled, activeTabId, tabs } = get()
@@ -65,17 +65,19 @@ export const createUISlice: StateCreator<
     // Sync with active tab if tabs enabled
     if (tabsEnabled && activeTabId) {
       set({
-        tabs: tabs.map(t => 
-          t.id === activeTabId ? { ...t, panelState: { ...t.panelState, sidebarVisible: newVisible } } : t
-        )
+        tabs: tabs.map((t) =>
+          t.id === activeTabId
+            ? { ...t, panelState: { ...t.panelState, sidebarVisible: newVisible } }
+            : t,
+        ),
       })
     }
   },
-  
+
   setSidebarWidth: (width: number) => set({ sidebarWidth: Math.max(200, Math.min(900, width)) }),
-  
+
   setActivityBarMode: (mode) => set({ activityBarMode: mode }),
-  
+
   setActiveView: (activeView: SidebarView) => {
     let resolvedView = activeView
     if ((resolvedView as string).startsWith('group-')) {
@@ -89,19 +91,20 @@ export const createUISlice: StateCreator<
     }
     set(patch)
   },
-  
+
   // Actions - Google Drive
-  setGdriveNavigation: (folderId, folderName, isSharedDrive, driveId) => set({
-    gdriveCurrentFolderId: folderId,
-    gdriveCurrentFolderName: folderName || null,
-    gdriveIsSharedDrive: isSharedDrive || false,
-    gdriveDriveId: driveId || null
-  }),
-  
+  setGdriveNavigation: (folderId, folderName, isSharedDrive, driveId) =>
+    set({
+      gdriveCurrentFolderId: folderId,
+      gdriveCurrentFolderName: folderName || null,
+      gdriveIsSharedDrive: isSharedDrive || false,
+      gdriveDriveId: driveId || null,
+    }),
+
   setGdriveOpenDocument: (doc) => set({ gdriveOpenDocument: doc }),
-  
+
   incrementGdriveAuthVersion: () => set((s) => ({ gdriveAuthVersion: s.gdriveAuthVersion + 1 })),
-  
+
   // Actions - Details Panel
   toggleDetailsPanel: () => {
     const { detailsPanelVisible, tabsEnabled, activeTabId, tabs } = get()
@@ -110,17 +113,20 @@ export const createUISlice: StateCreator<
     // Sync with active tab if tabs enabled
     if (tabsEnabled && activeTabId) {
       set({
-        tabs: tabs.map(t => 
-          t.id === activeTabId ? { ...t, panelState: { ...t.panelState, detailsPanelVisible: newVisible } } : t
-        )
+        tabs: tabs.map((t) =>
+          t.id === activeTabId
+            ? { ...t, panelState: { ...t.panelState, detailsPanelVisible: newVisible } }
+            : t,
+        ),
       })
     }
   },
-  
-  setDetailsPanelHeight: (height: number) => set({ detailsPanelHeight: Math.max(100, Math.min(1200, height)) }),
-  
+
+  setDetailsPanelHeight: (height: number) =>
+    set({ detailsPanelHeight: Math.max(100, Math.min(1200, height)) }),
+
   setDetailsPanelTab: (detailsPanelTab: DetailsPanelTab) => set({ detailsPanelTab }),
-  
+
   // Actions - Right Panel
   toggleRightPanel: () => {
     const { rightPanelVisible, tabsEnabled, activeTabId, tabs } = get()
@@ -129,48 +135,52 @@ export const createUISlice: StateCreator<
     // Sync with active tab if tabs enabled
     if (tabsEnabled && activeTabId) {
       set({
-        tabs: tabs.map(t => 
-          t.id === activeTabId ? { ...t, panelState: { ...t.panelState, rightPanelVisible: newVisible } } : t
-        )
+        tabs: tabs.map((t) =>
+          t.id === activeTabId
+            ? { ...t, panelState: { ...t.panelState, rightPanelVisible: newVisible } }
+            : t,
+        ),
       })
     }
   },
-  
-  setRightPanelWidth: (width: number) => set({ rightPanelWidth: Math.max(200, Math.min(1200, width)) }),
-  
+
+  setRightPanelWidth: (width: number) =>
+    set({ rightPanelWidth: Math.max(200, Math.min(1200, width)) }),
+
   setRightPanelTab: (rightPanelTab) => set({ rightPanelTab }),
-  
+
   moveTabToRight: (tab: DetailsPanelTab) => {
     const { rightPanelTabs, detailsPanelTab } = get()
     // Add tab to right panel if not already there
     if (!rightPanelTabs.includes(tab)) {
-      set({ 
+      set({
         rightPanelTabs: [...rightPanelTabs, tab],
         rightPanelTab: tab,
         rightPanelVisible: true,
         // If we moved the active bottom tab, switch to another
-        detailsPanelTab: detailsPanelTab === tab ? 'properties' : detailsPanelTab
+        detailsPanelTab: detailsPanelTab === tab ? 'properties' : detailsPanelTab,
       })
     }
   },
-  
+
   moveTabToBottom: (tab: DetailsPanelTab) => {
     const { rightPanelTabs, rightPanelTab } = get()
-    const newTabs = rightPanelTabs.filter(t => t !== tab)
-    set({ 
+    const newTabs = rightPanelTabs.filter((t) => t !== tab)
+    set({
       rightPanelTabs: newTabs,
-      rightPanelTab: newTabs.length > 0 ? (rightPanelTab === tab ? newTabs[0] : rightPanelTab) : null,
+      rightPanelTab:
+        newTabs.length > 0 ? (rightPanelTab === tab ? newTabs[0] : rightPanelTab) : null,
       rightPanelVisible: newTabs.length > 0,
-      detailsPanelTab: tab
+      detailsPanelTab: tab,
     })
   },
-  
+
   reorderTabsInPanel: (panel, tabId, newIndex) => {
     if (panel === 'right') {
       const { rightPanelTabs } = get()
       const currentIndex = rightPanelTabs.indexOf(tabId)
       if (currentIndex === -1 || currentIndex === newIndex) return
-      
+
       const newTabs = [...rightPanelTabs]
       newTabs.splice(currentIndex, 1)
       newTabs.splice(newIndex, 0, tabId)
@@ -181,7 +191,7 @@ export const createUISlice: StateCreator<
       // Default order if no custom order set
       const defaultOrder: DetailsPanelTab[] = ['preview', 'properties', 'whereused', 'vendors']
       const currentOrder = bottomPanelTabOrder.length > 0 ? bottomPanelTabOrder : defaultOrder
-      
+
       const currentIndex = currentOrder.indexOf(tabId)
       if (currentIndex === -1) {
         // Tab not in order, add it at new index
@@ -196,29 +206,31 @@ export const createUISlice: StateCreator<
       }
     }
   },
-  
+
   // Actions - Terminal
   toggleTerminal: () => set((s) => ({ terminalVisible: !s.terminalVisible })),
-  
-  setTerminalHeight: (height: number) => set({ terminalHeight: Math.max(150, Math.min(600, height)) }),
-  
-  addTerminalHistory: (command: string) => set((s) => {
-    // Don't add duplicate consecutive commands
-    if (s.terminalHistory[0] === command) return s
-    // Keep last 100 commands
-    return { terminalHistory: [command, ...s.terminalHistory.slice(0, 99)] }
-  }),
-  
+
+  setTerminalHeight: (height: number) =>
+    set({ terminalHeight: Math.max(150, Math.min(600, height)) }),
+
+  addTerminalHistory: (command: string) =>
+    set((s) => {
+      // Don't add duplicate consecutive commands
+      if (s.terminalHistory[0] === command) return s
+      // Keep last 100 commands
+      return { terminalHistory: [command, ...s.terminalHistory.slice(0, 99)] }
+    }),
+
   // Actions - Settings navigation
   setSettingsTab: (tab: SettingsTab) => set({ settingsTab: tab }),
-  
+
   // Actions - Deep Link
   setPendingDeepLinkInstall: (data) => set({ pendingDeepLinkInstall: data }),
   clearPendingDeepLinkInstall: () => set({ pendingDeepLinkInstall: null }),
-  
+
   // Actions - Command confirmation dialog
   setPendingCommandConfirm: (confirm) => set({ pendingCommandConfirm: confirm }),
-  
+
   // Actions - Review preview
   setReviewPreviewFile: (file) => set({ reviewPreviewFile: file }),
   clearReviewPreviewFile: () => set({ reviewPreviewFile: null }),

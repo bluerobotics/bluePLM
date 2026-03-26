@@ -13,7 +13,7 @@ export const ExpandedContext = createContext(false)
 export const SidebarRectContext = createContext<DOMRect | null>(null)
 
 // Standardized hover timing constants (in ms)
-export const HOVER_OPEN_DELAY = 80   // Quick open, but prevents accidental triggers
+export const HOVER_OPEN_DELAY = 80 // Quick open, but prevents accidental triggers
 export const HOVER_CLOSE_DELAY = 200 // Consistent close delay across all components
 
 export interface ActivityItemProps {
@@ -29,11 +29,22 @@ export interface ActivityItemProps {
   inDevBadge?: boolean
 }
 
-export function ActivityItem({ icon, view, title, badge, hasChildren, children, depth = 0, onHoverWithChildren, isComingSoon = false, inDevBadge = false }: ActivityItemProps) {
+export function ActivityItem({
+  icon,
+  view,
+  title,
+  badge,
+  hasChildren,
+  children,
+  depth = 0,
+  onHoverWithChildren,
+  isComingSoon = false,
+  inDevBadge = false,
+}: ActivityItemProps) {
   // Selective selectors: only re-render when specific values change
-  const activeView = usePDMStore(s => s.activeView)
-  const setActiveView = usePDMStore(s => s.setActiveView)
-  const activityBarMode = usePDMStore(s => s.activityBarMode)
+  const activeView = usePDMStore((s) => s.activeView)
+  const setActiveView = usePDMStore((s) => s.setActiveView)
+  const activityBarMode = usePDMStore((s) => s.activityBarMode)
   const isExpanded = useContext(ExpandedContext)
   const sidebarRect = useContext(SidebarRectContext)
   const [showTooltip, setShowTooltip] = useState(false)
@@ -43,9 +54,15 @@ export function ActivityItem({ icon, view, title, badge, hasChildren, children, 
   const isActive = activeView === view && !isComingSoon
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const submenuTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  
+
   // Show chevron in collapsed mode only (not in hover mode) - not for coming soon items
-  const showCollapsedChevron = !isExpanded && activityBarMode === 'collapsed' && hasChildren && children && children.length > 0 && !isComingSoon
+  const showCollapsedChevron =
+    !isExpanded &&
+    activityBarMode === 'collapsed' &&
+    hasChildren &&
+    children &&
+    children.length > 0 &&
+    !isComingSoon
 
   const handleMouseEnter = () => {
     if (!isExpanded && (!hasChildren || isComingSoon)) {
@@ -59,7 +76,7 @@ export function ActivityItem({ icon, view, title, badge, hasChildren, children, 
       }
       setShowTooltip(true)
     }
-    
+
     if (hasChildren && children && children.length > 0 && !isComingSoon) {
       // Clear any pending close timeout
       if (submenuTimeoutRef.current) {
@@ -119,8 +136,8 @@ export function ActivityItem({ icon, view, title, badge, hasChildren, children, 
           isComingSoon
             ? 'opacity-40 cursor-not-allowed'
             : isActive
-            ? 'text-plm-accent bg-plm-highlight'
-            : 'text-plm-fg-dim hover:text-plm-fg hover:bg-plm-highlight'
+              ? 'text-plm-accent bg-plm-highlight'
+              : 'text-plm-fg-dim hover:text-plm-fg hover:bg-plm-highlight'
         }`}
         title={isComingSoon ? 'In Development' : undefined}
       >
@@ -136,30 +153,37 @@ export function ActivityItem({ icon, view, title, badge, hasChildren, children, 
         </div>
         {/* Small chevron for collapsed mode (not hover mode) */}
         {showCollapsedChevron && (
-          <ChevronRight 
-            size={12} 
-            className="absolute -right-0.5 text-plm-fg-dim"
-          />
+          <ChevronRight size={12} className="absolute -right-0.5 text-plm-fg-dim" />
         )}
         {isExpanded && (
           <>
-            <span className={`text-[15px] font-medium whitespace-nowrap overflow-hidden flex-1 text-left ${isComingSoon ? 'italic' : ''}`}>
+            <span
+              className={`text-[15px] font-medium whitespace-nowrap overflow-hidden flex-1 text-left ${isComingSoon ? 'italic' : ''}`}
+            >
               {title}
-              {inDevBadge && <span className="text-[9px] ml-1.5 not-italic px-1 py-0.5 rounded bg-plm-warning/20 text-plm-warning">In Dev</span>}
+              {inDevBadge && (
+                <span className="text-[9px] ml-1.5 not-italic px-1 py-0.5 rounded bg-plm-warning/20 text-plm-warning">
+                  In Dev
+                </span>
+              )}
             </span>
             {/* Chevron for items with children - not for coming soon items */}
             {hasChildren && children && children.length > 0 && !isComingSoon && (
-              <ChevronRight 
-                size={14} 
+              <ChevronRight
+                size={14}
                 className={`flex-shrink-0 text-plm-fg-dim transition-transform duration-200 ${showSubmenu ? 'translate-x-0.5' : ''}`}
               />
             )}
           </>
         )}
       </button>
-      
+
       {/* Cascading Sidebar Panel - rendered via portal to escape overflow constraints */}
-      {showSubmenu && hasChildren && children && children.length > 0 && sidebarRect &&
+      {showSubmenu &&
+        hasChildren &&
+        children &&
+        children.length > 0 &&
+        sidebarRect &&
         createPortal(
           <CascadingSidebar
             parentRect={sidebarRect}
@@ -181,17 +205,18 @@ export function ActivityItem({ icon, view, title, badge, hasChildren, children, 
               }, HOVER_CLOSE_DELAY)
             }}
           />,
-          document.body
-        )
-      }
+          document.body,
+        )}
 
       {/* Tooltip for collapsed state - rendered via portal to escape overflow constraints */}
-      {showTooltip && !isExpanded && (!hasChildren || isComingSoon) &&
+      {showTooltip &&
+        !isExpanded &&
+        (!hasChildren || isComingSoon) &&
         createPortal(
-          <div 
+          <div
             className="fixed z-50 pointer-events-none"
-            style={{ 
-              top: tooltipPos.top, 
+            style={{
+              top: tooltipPos.top,
               left: tooltipPos.left,
               transform: 'translateY(-50%)', // Vertically center on the button
             }}
@@ -200,9 +225,8 @@ export function ActivityItem({ icon, view, title, badge, hasChildren, children, 
               {isComingSoon ? `${title} - In Development` : title}
             </div>
           </div>,
-          document.body
-        )
-      }
+          document.body,
+        )}
     </div>
   )
 }

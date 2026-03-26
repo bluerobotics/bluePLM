@@ -1,11 +1,11 @@
 /**
  * Pack and Go Command
- * 
+ *
  * Creates a ZIP archive of an assembly and all its associated files:
  * - The root assembly file
  * - All recursive children (parts and sub-assemblies)
  * - All associated drawings
- * 
+ *
  * This provides a portable package that can be shared externally
  * or used for archival purposes.
  */
@@ -22,7 +22,7 @@ import { formatBytes } from '@/lib/utils'
 function logPackAndGo(
   level: 'info' | 'warn' | 'error' | 'debug',
   message: string,
-  context: Record<string, unknown>
+  context: Record<string, unknown>,
 ): void {
   log[level]('[PackAndGo]', message, context)
 }
@@ -33,7 +33,7 @@ function logPackAndGo(
 
 /**
  * Pack and Go command handler.
- * 
+ *
  * Exports an assembly and all its associated files (children, drawings) to a ZIP archive.
  * Can be invoked from context menu or command registry.
  */
@@ -79,14 +79,14 @@ export const packAndGoCommand: Command<PackAndGoParams> = {
     logPackAndGo('info', 'Starting Pack and Go operation', {
       operationId,
       fileName: file.name,
-      fileId: file.pdmData?.id
+      fileId: file.pdmData?.id,
     })
 
     try {
       // Step 1: Show save dialog for output location
       const defaultName = file.name.replace(/\.sldasm$/i, '_PackAndGo.zip')
       const saveResult = await window.electronAPI.showSaveDialog(defaultName, [
-        { name: 'ZIP Archives', extensions: ['zip'] }
+        { name: 'ZIP Archives', extensions: ['zip'] },
       ])
 
       if (!saveResult.success || saveResult.canceled || !saveResult.path) {
@@ -96,7 +96,7 @@ export const packAndGoCommand: Command<PackAndGoParams> = {
           message: 'Pack and Go cancelled',
           total: 0,
           succeeded: 0,
-          failed: 0
+          failed: 0,
         }
       }
 
@@ -108,23 +108,24 @@ export const packAndGoCommand: Command<PackAndGoParams> = {
       logPackAndGo('debug', 'Resolving associated files', {
         operationId,
         rootFileId: file.pdmData!.id,
-        orgId: ctx.organization!.id
+        orgId: ctx.organization!.id,
       })
 
       const resolveResult = await resolveAssociatedFiles(
         file.pdmData!.id,
         ctx.organization!.id,
         ctx.files,
-        (message) => logPackAndGo('debug', message, { operationId })
+        (message) => logPackAndGo('debug', message, { operationId }),
       )
 
       if (resolveResult.error) {
-        const errorMsg = resolveResult.error instanceof Error 
-          ? resolveResult.error.message 
-          : String(resolveResult.error)
+        const errorMsg =
+          resolveResult.error instanceof Error
+            ? resolveResult.error.message
+            : String(resolveResult.error)
         logPackAndGo('error', 'Failed to resolve associated files', {
           operationId,
-          error: errorMsg
+          error: errorMsg,
         })
         ctx.addToast('error', `Failed to resolve files: ${errorMsg}`)
         return {
@@ -133,7 +134,7 @@ export const packAndGoCommand: Command<PackAndGoParams> = {
           total: 0,
           succeeded: 0,
           failed: 1,
-          errors: [errorMsg]
+          errors: [errorMsg],
         }
       }
 
@@ -145,7 +146,7 @@ export const packAndGoCommand: Command<PackAndGoParams> = {
       if (rootLocalFile && rootLocalFile.diffStatus !== 'cloud') {
         filesToZip.push({
           path: rootLocalFile.path,
-          relativePath: rootLocalFile.relativePath
+          relativePath: rootLocalFile.relativePath,
         })
       }
 
@@ -155,7 +156,7 @@ export const packAndGoCommand: Command<PackAndGoParams> = {
         if (childLocalFile && childLocalFile.diffStatus !== 'cloud') {
           filesToZip.push({
             path: childLocalFile.path,
-            relativePath: childLocalFile.relativePath
+            relativePath: childLocalFile.relativePath,
           })
         }
       }
@@ -166,13 +167,13 @@ export const packAndGoCommand: Command<PackAndGoParams> = {
         if (drawingLocalFile && drawingLocalFile.diffStatus !== 'cloud') {
           filesToZip.push({
             path: drawingLocalFile.path,
-            relativePath: drawingLocalFile.relativePath
+            relativePath: drawingLocalFile.relativePath,
           })
         }
       }
 
       // Deduplicate by path (in case root file was also in children)
-      const uniqueFiles = [...new Map(filesToZip.map(f => [f.path, f])).values()]
+      const uniqueFiles = [...new Map(filesToZip.map((f) => [f.path, f])).values()]
 
       logPackAndGo('info', 'Files to include in ZIP', {
         operationId,
@@ -180,7 +181,7 @@ export const packAndGoCommand: Command<PackAndGoParams> = {
         rootFile: rootLocalFile?.name,
         children: resolveResult.stats.totalChildren,
         drawings: resolveResult.stats.drawings,
-        cloudOnlyFiles: filesToZip.length - uniqueFiles.length
+        cloudOnlyFiles: filesToZip.length - uniqueFiles.length,
       })
 
       if (uniqueFiles.length === 0) {
@@ -191,36 +192,37 @@ export const packAndGoCommand: Command<PackAndGoParams> = {
           message: 'No local files to package. Download the files first.',
           total: 0,
           succeeded: 0,
-          failed: 0
+          failed: 0,
         }
       }
 
       // Step 3: Create ZIP with progress tracking
       const startTime = Date.now()
-      ctx.addProgressToast(toastId, `Creating ZIP (${uniqueFiles.length} files)...`, uniqueFiles.length)
+      ctx.addProgressToast(
+        toastId,
+        `Creating ZIP (${uniqueFiles.length} files)...`,
+        uniqueFiles.length,
+      )
 
       // Subscribe to progress events
       let unsubscribeProgress: (() => void) | null = null
       if (window.electronAPI.archive.onProgress) {
         unsubscribeProgress = window.electronAPI.archive.onProgress((progressEvent) => {
-          const percent = Math.round((progressEvent.filesProcessed / progressEvent.filesTotal) * 100)
-          const phaseLabel = progressEvent.phase === 'reading' 
-            ? 'Reading files' 
-            : progressEvent.phase === 'compressing' 
-              ? 'Compressing' 
-              : 'Writing ZIP'
-          
-          const label = progressEvent.currentFile 
+          const percent = Math.round(
+            (progressEvent.filesProcessed / progressEvent.filesTotal) * 100,
+          )
+          const phaseLabel =
+            progressEvent.phase === 'reading'
+              ? 'Reading files'
+              : progressEvent.phase === 'compressing'
+                ? 'Compressing'
+                : 'Writing ZIP'
+
+          const label = progressEvent.currentFile
             ? `${phaseLabel}: ${progressEvent.currentFile}`
             : phaseLabel
-          
-          ctx.updateProgressToast(
-            toastId,
-            progressEvent.filesProcessed,
-            percent,
-            undefined,
-            label
-          )
+
+          ctx.updateProgressToast(toastId, progressEvent.filesProcessed, percent, undefined, label)
         })
       }
 
@@ -228,7 +230,7 @@ export const packAndGoCommand: Command<PackAndGoParams> = {
         logPackAndGo('debug', 'Creating ZIP archive', {
           operationId,
           outputPath,
-          fileCount: uniqueFiles.length
+          fileCount: uniqueFiles.length,
         })
 
         const zipResult = await window.electronAPI.archive.createZip(uniqueFiles, outputPath)
@@ -241,7 +243,7 @@ export const packAndGoCommand: Command<PackAndGoParams> = {
         if (!zipResult.success) {
           logPackAndGo('error', 'ZIP creation failed', {
             operationId,
-            error: zipResult.error
+            error: zipResult.error,
           })
           ctx.removeToast(toastId)
           ctx.addToast('error', `ZIP creation failed: ${zipResult.error}`)
@@ -251,7 +253,7 @@ export const packAndGoCommand: Command<PackAndGoParams> = {
             total: uniqueFiles.length,
             succeeded: 0,
             failed: uniqueFiles.length,
-            errors: [zipResult.error || 'Unknown error']
+            errors: [zipResult.error || 'Unknown error'],
           }
         }
 
@@ -259,14 +261,16 @@ export const packAndGoCommand: Command<PackAndGoParams> = {
         const duration = Date.now() - startTime
 
         // Format size for display
-        const sizeFormatted = zipResult.totalSize ? formatBytes(zipResult.totalSize) : 'unknown size'
+        const sizeFormatted = zipResult.totalSize
+          ? formatBytes(zipResult.totalSize)
+          : 'unknown size'
 
         logPackAndGo('info', 'Pack and Go complete', {
           operationId,
           fileCount: zipResult.fileCount,
           totalSize: zipResult.totalSize,
           outputPath,
-          duration
+          duration,
         })
 
         ctx.addToast('success', `Created ZIP with ${zipResult.fileCount} files (${sizeFormatted})`)
@@ -277,23 +281,21 @@ export const packAndGoCommand: Command<PackAndGoParams> = {
           total: uniqueFiles.length,
           succeeded: zipResult.fileCount || uniqueFiles.length,
           failed: 0,
-          duration
+          duration,
         }
-
-      } catch (err) {
+      } catch (error) {
         // Cleanup progress listener on error
         if (unsubscribeProgress) {
           unsubscribeProgress()
         }
-        throw err
+        throw error
       }
-
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : String(err)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
       logPackAndGo('error', 'Pack and Go failed with exception', {
         operationId,
         error: errorMessage,
-        stack: err instanceof Error ? err.stack : undefined
+        stack: error instanceof Error ? error.stack : undefined,
       })
       ctx.addToast('error', `Pack and Go failed: ${errorMessage}`)
       return {
@@ -302,8 +304,8 @@ export const packAndGoCommand: Command<PackAndGoParams> = {
         total: 0,
         succeeded: 0,
         failed: 1,
-        errors: [errorMessage]
+        errors: [errorMessage],
       }
     }
-  }
+  },
 }

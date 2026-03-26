@@ -7,4 +7,4 @@ export const SETTINGS_CATEGORIES = [
   { id: 'system', label: 'System' },
 ] as const
 
-export type SettingsCategory = typeof SETTINGS_CATEGORIES[number]['id']
+export type SettingsCategory = (typeof SETTINGS_CATEGORIES)[number]['id']

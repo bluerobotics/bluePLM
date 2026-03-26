@@ -18,9 +18,9 @@ interface KeyboardShortcutsOptions {
  * - F5: Refresh files
  */
 export function useKeyboardShortcuts({ onOpenVault, onRefresh }: KeyboardShortcutsOptions) {
-  const toggleSidebar = usePDMStore(s => s.toggleSidebar)
-  const toggleDetailsPanel = usePDMStore(s => s.toggleDetailsPanel)
-  const setActiveView = usePDMStore(s => s.setActiveView)
+  const toggleSidebar = usePDMStore((s) => s.toggleSidebar)
+  const toggleDetailsPanel = usePDMStore((s) => s.toggleDetailsPanel)
+  const setActiveView = usePDMStore((s) => s.setActiveView)
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -43,12 +43,12 @@ export function useKeyboardShortcuts({ onOpenVault, onRefresh }: KeyboardShortcu
             logKeyboard('Ctrl+D', 'Toggle details panel')
             toggleDetailsPanel()
             break
-          case '`':  // Ctrl+` or Cmd+` to switch to terminal view
+          case '`': // Ctrl+` or Cmd+` to switch to terminal view
             e.preventDefault()
             logKeyboard('Ctrl+`', 'Switch to terminal')
             setActiveView('terminal')
             break
-          case 'k':  // Ctrl+K or Cmd+K to focus search
+          case 'k': // Ctrl+K or Cmd+K to focus search
             e.preventDefault()
             logKeyboard('Ctrl+K', 'Focus search')
             // Dispatch custom event for search component to listen
@@ -56,7 +56,7 @@ export function useKeyboardShortcuts({ onOpenVault, onRefresh }: KeyboardShortcu
             break
         }
       }
-      
+
       if (e.key === 'F5') {
         e.preventDefault()
         logKeyboard('F5', 'Refresh files')

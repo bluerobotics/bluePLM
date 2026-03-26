@@ -1,10 +1,10 @@
 /**
  * SolidWorks Service Version Checking
- * 
+ *
  * Detects mismatches between the app's expected SolidWorks service version
  * and the actual service version running. This helps users understand
  * when their service needs to be rebuilt.
- * 
+ *
  * VERSION HISTORY:
  * - Version 1.0.0: Initial service with DM API, thumbnails, exports
  * - Version 1.1.0: Added releaseHandles for folder move operations
@@ -12,7 +12,7 @@
  * - Version 1.2.1: Use STA fallback in GetOpenDocuments for reliable COM reconnection
  * - Version 1.2.2: Add process detection when COM connection fails
  * - Version 1.2.3: Unified COM connection with caching/retry, add resetComConnection command
- * 
+ *
  * When making service changes:
  * 1. Increment SERVICE_VERSION in Program.cs
  * 2. Update EXPECTED_SW_SERVICE_VERSION here if app requires the new service
@@ -65,20 +65,22 @@ function parseVersion(version: string): { major: number; minor: number; patch: n
 function compareVersions(a: string, b: string): number {
   const vA = parseVersion(a)
   const vB = parseVersion(b)
-  
+
   if (!vA || !vB) return 0
-  
+
   if (vA.major !== vB.major) return vA.major < vB.major ? -1 : 1
   if (vA.minor !== vB.minor) return vA.minor < vB.minor ? -1 : 1
   if (vA.patch !== vB.patch) return vA.patch < vB.patch ? -1 : 1
-  
+
   return 0
 }
 
 /**
  * Check if the SolidWorks service version is compatible with this app version
  */
-export function checkSwServiceCompatibility(serviceVersion: string | null): SwServiceVersionCheckResult {
+export function checkSwServiceCompatibility(
+  serviceVersion: string | null,
+): SwServiceVersionCheckResult {
   // No version info available
   if (!serviceVersion) {
     return {
@@ -86,7 +88,8 @@ export function checkSwServiceCompatibility(serviceVersion: string | null): SwSe
       serviceVersion: null,
       expectedVersion: EXPECTED_SW_SERVICE_VERSION,
       message: 'Service version unknown',
-      details: 'Could not determine the service version. The service may be an old version without version reporting.',
+      details:
+        'Could not determine the service version. The service may be an old version without version reporting.',
     }
   }
 
@@ -110,7 +113,8 @@ export function checkSwServiceCompatibility(serviceVersion: string | null): SwSe
       serviceVersion,
       expectedVersion: EXPECTED_SW_SERVICE_VERSION,
       message: 'App update available',
-      details: `The SolidWorks service (v${serviceVersion}) is newer than this app expects (v${EXPECTED_SW_SERVICE_VERSION}). ` +
+      details:
+        `The SolidWorks service (v${serviceVersion}) is newer than this app expects (v${EXPECTED_SW_SERVICE_VERSION}). ` +
         'Consider updating BluePLM for the best experience.',
     }
   }
@@ -122,7 +126,8 @@ export function checkSwServiceCompatibility(serviceVersion: string | null): SwSe
       serviceVersion,
       expectedVersion: EXPECTED_SW_SERVICE_VERSION,
       message: 'Service rebuild required',
-      details: `The SolidWorks service (v${serviceVersion}) is too old for this app. ` +
+      details:
+        `The SolidWorks service (v${serviceVersion}) is too old for this app. ` +
         `Required: v${MINIMUM_COMPATIBLE_SW_SERVICE_VERSION}+. Rebuild the service in solidworks-service/ folder.`,
     }
   }
@@ -133,7 +138,8 @@ export function checkSwServiceCompatibility(serviceVersion: string | null): SwSe
     serviceVersion,
     expectedVersion: EXPECTED_SW_SERVICE_VERSION,
     message: 'Service update available',
-    details: `The SolidWorks service is on v${serviceVersion}, but v${EXPECTED_SW_SERVICE_VERSION} is available. ` +
+    details:
+      `The SolidWorks service is on v${serviceVersion}, but v${EXPECTED_SW_SERVICE_VERSION} is available. ` +
       'Some new features may not work until you rebuild the service.',
   }
 }
@@ -145,20 +151,20 @@ export function getSwServiceVersionChangelog(fromVersion: string, toVersion: str
   const changes: string[] = []
   const fromParsed = parseVersion(fromVersion)
   const toParsed = parseVersion(toVersion)
-  
+
   if (!fromParsed || !toParsed) return changes
-  
+
   // Get all versions between from and to
   for (const [version, description] of Object.entries(SW_SERVICE_VERSION_DESCRIPTIONS)) {
     const parsed = parseVersion(version)
     if (!parsed) continue
-    
+
     // Check if this version is > fromVersion and <= toVersion
     if (compareVersions(version, fromVersion) > 0 && compareVersions(version, toVersion) <= 0) {
       changes.push(`v${version}: ${description}`)
     }
   }
-  
+
   return changes.sort((a, b) => {
     const vA = a.match(/^v(\d+\.\d+\.\d+)/)?.[1] || ''
     const vB = b.match(/^v(\d+\.\d+\.\d+)/)?.[1] || ''

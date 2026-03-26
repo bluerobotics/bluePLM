@@ -16,7 +16,10 @@ export function useSelectionState() {
   const [hoverNodeId, setHoverNodeId] = useState<string | null>(null)
   const [hoveredTransitionId, setHoveredTransitionId] = useState<string | null>(null)
   const [hoveredStateId, setHoveredStateId] = useState<string | null>(null)
-  const [hoveredWaypoint, setHoveredWaypoint] = useState<{ transitionId: string; index: number } | null>(null)
+  const [hoveredWaypoint, setHoveredWaypoint] = useState<{
+    transitionId: string
+    index: number
+  } | null>(null)
 
   /**
    * Select a state (and deselect any transition)
@@ -77,6 +80,6 @@ export function useSelectionState() {
     selectState,
     selectTransition,
     clearSelection,
-    clearHoverStates
+    clearHoverStates,
   }
 }

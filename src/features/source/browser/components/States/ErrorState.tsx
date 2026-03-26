@@ -13,7 +13,7 @@ export interface ErrorStateProps {
 export const ErrorState = memo(function ErrorState({
   title = 'Failed to load files',
   message = 'There was an error loading the file list. Please try again.',
-  onRetry
+  onRetry,
 }: ErrorStateProps) {
   return (
     <div className="empty-state">
@@ -21,10 +21,7 @@ export const ErrorState = memo(function ErrorState({
       <div className="empty-state-title">{title}</div>
       <div className="empty-state-description">{message}</div>
       {onRetry && (
-        <button
-          onClick={onRetry}
-          className="btn btn-primary btn-sm mt-4"
-        >
+        <button onClick={onRetry} className="btn btn-primary btn-sm mt-4">
           <RefreshCw size={14} />
           Retry
         </button>

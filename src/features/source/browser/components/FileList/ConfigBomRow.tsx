@@ -16,7 +16,13 @@ export interface ConfigBomRowProps {
 /**
  * Icon component for file types in BOM rows
  */
-function BomFileIcon({ fileType, size = 12 }: { fileType: ConfigBomItem['file_type']; size?: number }) {
+function BomFileIcon({
+  fileType,
+  size = 12,
+}: {
+  fileType: ConfigBomItem['file_type']
+  size?: number
+}) {
   switch (fileType) {
     case 'part':
       return <FileBox size={size} className="text-plm-accent flex-shrink-0" />
@@ -34,7 +40,7 @@ function BomFileIcon({ fileType, size = 12 }: { fileType: ConfigBomItem['file_ty
  */
 function areConfigBomRowPropsEqual(
   prevProps: ConfigBomRowProps,
-  nextProps: ConfigBomRowProps
+  nextProps: ConfigBomRowProps,
 ): boolean {
   // Compare item identity and key properties
   if (prevProps.item.id !== nextProps.item.id) return false
@@ -43,19 +49,19 @@ function areConfigBomRowPropsEqual(
   if (prevProps.item.part_number !== nextProps.item.part_number) return false
   if (prevProps.item.description !== nextProps.item.description) return false
   if (prevProps.item.state !== nextProps.item.state) return false
-  
+
   // Compare primitive props
   if (prevProps.depth !== nextProps.depth) return false
   if (prevProps.configDepth !== nextProps.configDepth) return false
   if (prevProps.rowHeight !== nextProps.rowHeight) return false
-  
+
   // Compare visibleColumns array (shallow check on length and ids)
   if (prevProps.visibleColumns.length !== nextProps.visibleColumns.length) return false
   for (let i = 0; i < prevProps.visibleColumns.length; i++) {
     if (prevProps.visibleColumns[i].id !== nextProps.visibleColumns[i].id) return false
     if (prevProps.visibleColumns[i].width !== nextProps.visibleColumns[i].width) return false
   }
-  
+
   return true
 }
 
@@ -72,7 +78,7 @@ export const ConfigBomRow = memo(function ConfigBomRow({
   onClick,
 }: ConfigBomRowProps) {
   // Calculate indentation: base indent + parent config depth + item depth + extra for nesting under config
-  const indentPx = 24 + (configDepth * 16) + (depth * 16) + 32
+  const indentPx = 24 + configDepth * 16 + depth * 16 + 32
 
   return (
     <tr
@@ -80,21 +86,21 @@ export const ConfigBomRow = memo(function ConfigBomRow({
       style={{ height: rowHeight }}
       onClick={onClick}
     >
-      {visibleColumns.map(column => (
+      {visibleColumns.map((column) => (
         <td key={column.id} style={{ width: column.width }}>
           {column.id === 'name' ? (
-            <div 
-              className="flex items-center gap-1.5" 
-              style={{ 
+            <div
+              className="flex items-center gap-1.5"
+              style={{
                 minHeight: rowHeight - 8,
-                paddingLeft: `${indentPx}px`
+                paddingLeft: `${indentPx}px`,
               }}
             >
               <span className="text-plm-fg-dim text-[10px]">├</span>
               <BomFileIcon fileType={item.file_type} size={12} />
               <span className="truncate text-xs text-plm-fg-dim">{item.file_name}</span>
               {/* Quantity badge */}
-              <span 
+              <span
                 className="flex-shrink-0 text-[10px] px-1 py-0.5 rounded bg-plm-bg-light text-plm-fg-muted"
                 title={`Quantity: ${item.quantity}`}
               >

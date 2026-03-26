@@ -151,18 +151,7 @@ export interface FileContextMenuProps {
 // Helper Types
 // ============================================
 
-export interface OrgUser {
-  id: string
-  email: string
-  full_name: string | null
-  avatar_url: string | null
-}
-
-export interface ECO {
-  id: string
-  eco_number: string
-  title: string
-}
+export type { OrgUser } from '@/types/database'
 
 export interface ForceCheckinFilesState {
   filesOnDifferentMachine: LocalFile[]

@@ -1,11 +1,4 @@
-import {
-  CheckCircle2,
-  XCircle,
-  AlertTriangle,
-  RotateCcw,
-  Trash2,
-  Loader2
-} from 'lucide-react'
+import { CheckCircle2, XCircle, AlertTriangle, RotateCcw, Trash2, Loader2 } from 'lucide-react'
 import type { BackupSnapshot } from './types'
 import { formatDate, snapshotHasFiles, snapshotHasMetadata, getVaultNameFromTags } from './utils'
 
@@ -29,22 +22,20 @@ export function BackupHistoryItem({
   isDeleting,
   isRestoring,
   onSelect,
-  onRequestDelete
+  onRequestDelete,
 }: BackupHistoryItemProps) {
   const hasFiles = snapshotHasFiles(snapshot.tags)
   const hasMetadata = snapshotHasMetadata(snapshot.tags)
   const vaultName = getVaultNameFromTags(snapshot.tags)
-  
+
   // Status: success only if both files AND metadata
   const isComplete = hasFiles && hasMetadata
   const isIncomplete = hasFiles && !hasMetadata
-  
+
   return (
     <div
       className={`p-3 rounded border ${
-        isSelected
-          ? 'bg-amber-500/10 border-amber-500/30'
-          : 'bg-plm-bg-secondary border-plm-border'
+        isSelected ? 'bg-amber-500/10 border-amber-500/30' : 'bg-plm-bg-secondary border-plm-border'
       }`}
     >
       <div className="flex items-center justify-between">
@@ -56,7 +47,10 @@ export function BackupHistoryItem({
               Complete
             </span>
           ) : isIncomplete ? (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded border bg-amber-500/20 text-amber-400 border-amber-500/30" title="Files backed up but database metadata missing">
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded border bg-amber-500/20 text-amber-400 border-amber-500/30"
+              title="Files backed up but database metadata missing"
+            >
               <AlertTriangle className="w-3 h-3" />
               Partial
             </span>
@@ -114,7 +108,7 @@ export function BackupHistoryItem({
           )}
         </div>
       </div>
-      
+
       {/* Files/Database check indicators */}
       <div className="flex items-center gap-3 mt-2 pt-2 border-t border-plm-border">
         <div className="flex items-center gap-1.5">

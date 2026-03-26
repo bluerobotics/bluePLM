@@ -14,12 +14,12 @@ export function UserJobTitleModal({
   onCreateTitle,
   onUpdateTitle,
   onDeleteTitle,
-  isAdmin
+  isAdmin,
 }: UserJobTitleModalProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [selectedTitleId, setSelectedTitleId] = useState<string | null>(user.job_title?.id || null)
-  
+
   // Edit state
   const [editingTitleId, setEditingTitleId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
@@ -27,11 +27,11 @@ export function UserJobTitleModal({
   const [editIcon, setEditIcon] = useState('')
   const [isUpdating, setIsUpdating] = useState(false)
   const [deletingTitleId, setDeletingTitleId] = useState<string | null>(null)
-  
-  const filteredTitles = jobTitles.filter(t =>
-    !searchQuery || t.name.toLowerCase().includes(searchQuery.toLowerCase())
+
+  const filteredTitles = jobTitles.filter(
+    (t) => !searchQuery || t.name.toLowerCase().includes(searchQuery.toLowerCase()),
   )
-  
+
   const handleSave = async () => {
     setIsSaving(true)
     try {
@@ -41,21 +41,21 @@ export function UserJobTitleModal({
       setIsSaving(false)
     }
   }
-  
+
   const startEditing = (title: JobTitle) => {
     setEditingTitleId(title.id)
     setEditName(title.name)
     setEditColor(title.color)
     setEditIcon(title.icon)
   }
-  
+
   const cancelEditing = () => {
     setEditingTitleId(null)
     setEditName('')
     setEditColor('')
     setEditIcon('')
   }
-  
+
   const handleUpdateTitle = async () => {
     if (!editingTitleId || !editName.trim() || !onUpdateTitle) return
     setIsUpdating(true)
@@ -66,7 +66,7 @@ export function UserJobTitleModal({
       setIsUpdating(false)
     }
   }
-  
+
   const handleDeleteTitle = async (titleId: string) => {
     if (!onDeleteTitle) return
     setDeletingTitleId(titleId)
@@ -80,13 +80,18 @@ export function UserJobTitleModal({
       setDeletingTitleId(null)
     }
   }
-  
+
   const hasChanges = selectedTitleId !== (user.job_title?.id || null)
-  
-  
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={onClose}>
-      <div className="bg-plm-bg-light border border-plm-border rounded-xl w-full max-w-md mx-4 max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center"
+      onClick={onClose}
+    >
+      <div
+        className="bg-plm-bg-light border border-plm-border rounded-xl w-full max-w-md mx-4 max-h-[80vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-plm-border">
           <div className="flex items-center gap-3">
@@ -107,22 +112,25 @@ export function UserJobTitleModal({
             <X size={18} />
           </button>
         </div>
-        
+
         {/* Search */}
         <div className="p-4 border-b border-plm-border">
           <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
+            <Search
+              size={14}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted"
+            />
             <input
               type="text"
               value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
+              onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search job titles..."
               className="w-full pl-9 pr-3 py-2 text-sm bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-dim focus:outline-none focus:border-plm-accent"
               autoFocus
             />
           </div>
         </div>
-        
+
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4 space-y-2">
           {/* No title option */}
@@ -138,30 +146,33 @@ export function UserJobTitleModal({
               <X size={16} />
             </div>
             <span className="flex-1 text-left text-sm text-plm-fg-muted">No title</span>
-            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
-              selectedTitleId === null
-                ? 'border-plm-accent bg-plm-accent'
-                : 'border-plm-fg-muted'
-            }`}>
+            <div
+              className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+                selectedTitleId === null ? 'border-plm-accent bg-plm-accent' : 'border-plm-fg-muted'
+              }`}
+            >
               {selectedTitleId === null && <Check size={12} className="text-white" />}
             </div>
           </button>
-          
+
           {filteredTitles.length === 0 && searchQuery ? (
             <div className="text-center py-6 text-sm text-plm-fg-muted">
               No titles match "{searchQuery}"
             </div>
           ) : (
-            filteredTitles.map(title => {
+            filteredTitles.map((title) => {
               const TitleIcon = getTitleIcon(title.icon)
               const isSelected = selectedTitleId === title.id
               const isEditing = editingTitleId === title.id
               const isDeleting = deletingTitleId === title.id
-              
+
               if (isEditing && isAdmin) {
                 const EditIcon = getTitleIcon(editIcon)
                 return (
-                  <div key={title.id} className="p-3 rounded-lg border border-plm-accent bg-plm-accent/5 space-y-3">
+                  <div
+                    key={title.id}
+                    className="p-3 rounded-lg border border-plm-accent bg-plm-accent/5 space-y-3"
+                  >
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-plm-fg">Edit Job Title</span>
                       <button
@@ -174,7 +185,7 @@ export function UserJobTitleModal({
                     <input
                       type="text"
                       value={editName}
-                      onChange={e => setEditName(e.target.value)}
+                      onChange={(e) => setEditName(e.target.value)}
                       placeholder="Title name"
                       className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg text-sm placeholder:text-plm-fg-dim focus:outline-none focus:border-plm-accent"
                       autoFocus
@@ -207,21 +218,29 @@ export function UserJobTitleModal({
                         disabled={isDeleting}
                         className="btn btn-ghost btn-sm text-plm-error hover:bg-plm-error/10"
                       >
-                        {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                        {isDeleting ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <Trash2 size={14} />
+                        )}
                       </button>
                       <button
                         onClick={handleUpdateTitle}
                         disabled={isUpdating || !editName.trim()}
                         className="flex-1 btn btn-primary btn-sm flex items-center justify-center gap-2"
                       >
-                        {isUpdating ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                        {isUpdating ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <Check size={14} />
+                        )}
                         Save
                       </button>
                     </div>
                   </div>
                 )
               }
-              
+
               return (
                 <button
                   key={title.id}
@@ -238,28 +257,33 @@ export function UserJobTitleModal({
                   >
                     <TitleIcon size={16} />
                   </div>
-                  <span className="flex-1 text-left text-sm text-plm-fg font-medium">{title.name}</span>
+                  <span className="flex-1 text-left text-sm text-plm-fg font-medium">
+                    {title.name}
+                  </span>
                   {isAdmin && onUpdateTitle && (
                     <div
-                      onClick={e => { e.stopPropagation(); startEditing(title) }}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        startEditing(title)
+                      }}
                       className="p-1.5 text-plm-fg-muted hover:text-plm-accent hover:bg-plm-accent/10 rounded transition-colors opacity-0 group-hover:opacity-100"
                       title="Edit title"
                     >
                       <Pencil size={12} />
                     </div>
                   )}
-                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
-                    isSelected
-                      ? 'border-plm-accent bg-plm-accent'
-                      : 'border-plm-fg-muted'
-                  }`}>
+                  <div
+                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+                      isSelected ? 'border-plm-accent bg-plm-accent' : 'border-plm-fg-muted'
+                    }`}
+                  >
                     {isSelected && <Check size={12} className="text-white" />}
                   </div>
                 </button>
               )
             })
           )}
-          
+
           {/* Create new option */}
           {!searchQuery && (
             <button
@@ -271,10 +295,12 @@ export function UserJobTitleModal({
             </button>
           )}
         </div>
-        
+
         {/* Footer */}
         <div className="flex gap-2 justify-end p-4 border-t border-plm-border">
-          <button onClick={onClose} className="btn btn-ghost">Cancel</button>
+          <button onClick={onClose} className="btn btn-ghost">
+            Cancel
+          </button>
           <button
             onClick={handleSave}
             disabled={isSaving || !hasChanges}

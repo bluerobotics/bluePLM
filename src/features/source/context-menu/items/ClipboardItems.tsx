@@ -17,37 +17,51 @@ export function ClipboardItems({
   onCopy,
   onCut,
   onPaste,
-  onClose
+  onClose,
 }: ClipboardItemsProps) {
   if (!onCopy && !onCut && !onPaste) return null
 
   return (
     <>
       <div className="context-menu-separator" />
-      
+
       {onCopy && (
-        <div className="context-menu-item" onClick={() => { onCopy(); onClose(); }}>
+        <div
+          className="context-menu-item"
+          onClick={() => {
+            onCopy()
+            onClose()
+          }}
+        >
           <Copy size={14} />
           Copy
           <span className="text-xs text-plm-fg-muted ml-auto">Ctrl+C</span>
         </div>
       )}
-      
+
       {onCut && (
-        <div 
+        <div
           className="context-menu-item"
-          onClick={() => { onCut(); onClose(); }}
+          onClick={() => {
+            onCut()
+            onClose()
+          }}
         >
           <Scissors size={14} />
           Cut
           <span className="text-xs text-plm-fg-muted ml-auto">Ctrl+X</span>
         </div>
       )}
-      
+
       {onPaste && (
-        <div 
+        <div
           className={`context-menu-item ${!clipboard ? 'disabled' : ''}`}
-          onClick={() => { if (clipboard) { onPaste(); onClose(); } }}
+          onClick={() => {
+            if (clipboard) {
+              onPaste()
+              onClose()
+            }
+          }}
         >
           <ClipboardPaste size={14} />
           Paste

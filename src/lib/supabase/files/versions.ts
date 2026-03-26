@@ -1,6 +1,6 @@
 /**
  * File Version Operations
- * 
+ *
  * Functions for version rollback, history, and state transitions.
  */
 import { getSupabaseClient } from '../client'
@@ -18,26 +18,26 @@ export async function rollbackToVersion(
   fileId: string,
   userId: string,
   targetVersion: number,
-  comment?: string
+  comment?: string,
 ): Promise<{ success: boolean; targetVersionRecord?: any; maxVersion?: number; error?: string }> {
   const client = getSupabaseClient()
-  
+
   // Get current file
   const { data: file, error: fetchError } = await client
     .from('files')
     .select('*')
     .eq('id', fileId)
     .single()
-  
+
   if (fetchError) {
     return { success: false, error: fetchError.message }
   }
-  
+
   // File must be checked out by user
   if (file.checked_out_by !== userId) {
     return { success: false, error: 'You must check out the file before switching versions' }
   }
-  
+
   // Get target version
   const { data: targetVersionRecord, error: versionError } = await client
     .from('file_versions')
@@ -45,11 +45,11 @@ export async function rollbackToVersion(
     .eq('file_id', fileId)
     .eq('version', targetVersion)
     .single()
-  
+
   if (versionError) {
     return { success: false, error: `Version ${targetVersion} not found` }
   }
-  
+
   // Get max version for reference
   const { data: maxVersionData } = await client
     .from('file_versions')
@@ -58,27 +58,27 @@ export async function rollbackToVersion(
     .order('version', { ascending: false })
     .limit(1)
     .single()
-  
+
   const maxVersion = maxVersionData?.version || file.version
-  
+
   // Log activity (fire-and-forget)
   const isRollback = targetVersion < file.version
-  getCurrentUserEmail().then(userEmail => {
+  getCurrentUserEmail().then((userEmail) => {
     client.from('activity').insert({
       org_id: file.org_id,
       file_id: fileId,
       user_id: userId,
       user_email: userEmail,
       action: 'revision_change',
-      details: { 
+      details: {
         version_action: isRollback ? 'rollback' : 'roll_forward',
-        from_version: file.version, 
+        from_version: file.version,
         to_version: targetVersion,
-        comment: comment || null
-      }
+        comment: comment || null,
+      },
     })
   })
-  
+
   return { success: true, targetVersionRecord, maxVersion }
 }
 
@@ -90,36 +90,36 @@ export async function updateVersionNote(
   fileId: string,
   versionId: string,
   userId: string,
-  note: string
+  note: string,
 ): Promise<{ success: boolean; error?: string }> {
   const client = getSupabaseClient()
-  
+
   // Verify file is checked out by user
   const { data: file, error: fetchError } = await client
     .from('files')
     .select('checked_out_by')
     .eq('id', fileId)
     .single()
-  
+
   if (fetchError) {
     return { success: false, error: fetchError.message }
   }
-  
+
   if (file.checked_out_by !== userId) {
     return { success: false, error: 'You must check out the file to edit version notes' }
   }
-  
+
   // Update the version's comment
   const { error: updateError } = await client
     .from('file_versions')
     .update({ comment: note.trim() || null })
     .eq('id', versionId)
     .eq('file_id', fileId) // Extra safety: ensure version belongs to this file
-  
+
   if (updateError) {
     return { success: false, error: updateError.message }
   }
-  
+
   return { success: true }
 }
 
@@ -133,37 +133,37 @@ export async function transitionFileState(
   options: {
     incrementRevision?: boolean
     comment?: string
-  } = {}
+  } = {},
 ): Promise<{ success: boolean; file?: PDMFile; error?: string; triggersReview?: boolean }> {
   const client = getSupabaseClient()
-  
+
   // Get current file
   const { data: file, error: fetchError } = await client
     .from('files')
     .select('*, workflow_state:workflow_states(*)')
     .eq('id', fileId)
     .single()
-  
+
   if (fetchError) {
     return { success: false, error: fetchError.message }
   }
-  
+
   // Get the target state
   const { data: targetState, error: targetError } = await client
     .from('workflow_states')
     .select('*')
     .eq('id', targetStateId)
     .single()
-  
+
   if (targetError || !targetState) {
     return { success: false, error: 'Target state not found' }
   }
-  
+
   // Check if file-level revision is allowed for this file type
   // Parts/assemblies (.sldprt/.sldasm) may have file-level revision disabled org-wide
   const isModelFile = /\.(sldprt|sldasm)$/i.test(file.file_name || '')
   let revisionAllowed = true
-  
+
   if (isModelFile) {
     // Fetch org settings to check allow_file_level_revision_for_models
     const { data: org } = await client
@@ -171,18 +171,19 @@ export async function transitionFileState(
       .select('settings')
       .eq('id', file.org_id)
       .single()
-    
+
     const orgSettings = org?.settings as Record<string, unknown> | null
     revisionAllowed = orgSettings?.allow_file_level_revision_for_models === true
   }
-  
+
   // Calculate new revision if auto-increment is enabled on target state
   // Skip for model files when file-level revision is disabled by org policy
-  const shouldIncrementRevision = (options.incrementRevision || targetState.auto_increment_revision) && revisionAllowed
-  const newRevision = shouldIncrementRevision 
+  const shouldIncrementRevision =
+    (options.incrementRevision || targetState.auto_increment_revision) && revisionAllowed
+  const newRevision = shouldIncrementRevision
     ? getNextRevision(file.revision, 'letter')
     : file.revision
-  
+
   const { data: updated, error: updateError } = await client
     .from('files')
     .update({
@@ -191,34 +192,36 @@ export async function transitionFileState(
       state_changed_by: userId,
       revision: newRevision,
       updated_at: new Date().toISOString(),
-      updated_by: userId
+      updated_by: userId,
     })
     .eq('id', fileId)
     .select('*, workflow_state:workflow_states(*)')
     .single()
-  
+
   if (updateError) {
     return { success: false, error: updateError.message }
   }
-  
+
   // Map workflow_state to expected PDMFile structure
   const mappedFile: PDMFile = {
     ...updated,
-    workflow_state: updated.workflow_state ? {
-      id: updated.workflow_state.id,
-      name: updated.workflow_state.name,
-      label: updated.workflow_state.label ?? null,
-      color: updated.workflow_state.color ?? '#888888',
-      icon: updated.workflow_state.icon ?? 'file',
-      is_editable: updated.workflow_state.is_editable ?? true,
-      requires_checkout: updated.workflow_state.requires_checkout ?? false
-    } : null,
+    workflow_state: updated.workflow_state
+      ? {
+          id: updated.workflow_state.id,
+          name: updated.workflow_state.name,
+          label: updated.workflow_state.label ?? null,
+          color: updated.workflow_state.color ?? '#888888',
+          icon: updated.workflow_state.icon ?? 'file',
+          is_editable: updated.workflow_state.is_editable ?? true,
+          requires_checkout: updated.workflow_state.requires_checkout ?? false,
+        }
+      : null,
     // Cast configuration_revisions from Json to expected type
-    configuration_revisions: updated.configuration_revisions as Record<string, string> | null
+    configuration_revisions: updated.configuration_revisions as Record<string, string> | null,
   }
 
   // Check if the target workflow state triggers a review request
   const triggersReview: boolean = targetState.triggers_review === true
-  
+
   return { success: true, file: mappedFile, triggersReview }
 }

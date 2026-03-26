@@ -1,29 +1,33 @@
 /**
  * ExtensionList - Display a list of extensions with filtering
- * 
+ *
  * Supports both installed extensions and store extensions.
  * Provides filtering, sorting, and action callbacks.
  */
 import { useState, useMemo } from 'react'
 import { Search, Filter, Grid, List, RefreshCw } from 'lucide-react'
 import { ExtensionCard } from './ExtensionCard'
-import type { InstalledExtension, StoreExtensionListing, ExtensionUpdateAvailable } from '@/stores/types'
+import type {
+  InstalledExtension,
+  StoreExtensionListing,
+  ExtensionUpdateAvailable,
+} from '@/stores/types'
 
 interface ExtensionListProps {
   // Data sources
   installedExtensions?: InstalledExtension[]
   storeExtensions?: StoreExtensionListing[]
   updates?: ExtensionUpdateAvailable[]
-  
+
   // UI state
   loading?: boolean
   emptyMessage?: string
-  
+
   // Filters
   showSearch?: boolean
   showFilters?: boolean
   showViewToggle?: boolean
-  
+
   // Callbacks
   onViewDetails?: (extensionId: string) => void
   onInstall?: (extensionId: string) => void
@@ -32,7 +36,7 @@ interface ExtensionListProps {
   onEnable?: (extensionId: string) => void
   onDisable?: (extensionId: string) => void
   onRefresh?: () => void
-  
+
   className?: string
 }
 
@@ -84,31 +88,32 @@ export function ExtensionList({
   // Filter and sort store extensions
   const filteredStoreExtensions = useMemo(() => {
     let result = [...storeExtensions]
-    
+
     // Apply search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase()
-      result = result.filter(ext =>
-        ext.name.toLowerCase().includes(query) ||
-        ext.description?.toLowerCase().includes(query) ||
-        ext.publisher.name.toLowerCase().includes(query) ||
-        ext.tags.some(tag => tag.toLowerCase().includes(query))
+      result = result.filter(
+        (ext) =>
+          ext.name.toLowerCase().includes(query) ||
+          ext.description?.toLowerCase().includes(query) ||
+          ext.publisher.name.toLowerCase().includes(query) ||
+          ext.tags.some((tag) => tag.toLowerCase().includes(query)),
       )
     }
-    
+
     // Apply filter option
     switch (filterBy) {
       case 'verified':
-        result = result.filter(ext => ext.verified)
+        result = result.filter((ext) => ext.verified)
         break
       case 'installed':
-        result = result.filter(ext => installedMap.has(ext.extensionId))
+        result = result.filter((ext) => installedMap.has(ext.extensionId))
         break
       case 'updates':
-        result = result.filter(ext => updatesMap.has(ext.extensionId))
+        result = result.filter((ext) => updatesMap.has(ext.extensionId))
         break
     }
-    
+
     // Apply sorting
     switch (sortBy) {
       case 'name':
@@ -121,19 +126,20 @@ export function ExtensionList({
         result.sort((a, b) => b.downloadCount - a.downloadCount)
         break
     }
-    
+
     return result
   }, [storeExtensions, searchQuery, filterBy, sortBy, installedMap, updatesMap])
 
   // Filter installed extensions
   const filteredInstalledExtensions = useMemo(() => {
     if (!searchQuery) return installedExtensions
-    
+
     const query = searchQuery.toLowerCase()
-    return installedExtensions.filter(ext =>
-      ext.manifest.name.toLowerCase().includes(query) ||
-      ext.manifest.description?.toLowerCase().includes(query) ||
-      ext.manifest.publisher.toLowerCase().includes(query)
+    return installedExtensions.filter(
+      (ext) =>
+        ext.manifest.name.toLowerCase().includes(query) ||
+        ext.manifest.description?.toLowerCase().includes(query) ||
+        ext.manifest.publisher.toLowerCase().includes(query),
     )
   }, [installedExtensions, searchQuery])
 
@@ -157,34 +163,32 @@ export function ExtensionList({
                 type="text"
                 placeholder="Search extensions..."
                 value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-9 pr-3 py-2 bg-gray-800 border border-gray-700 rounded-lg
                   text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500"
               />
             </div>
           )}
-          
+
           {/* Filters */}
           {showFilters && (
             <div className="flex items-center gap-2">
               <Filter size={16} className="text-gray-500" />
               <select
                 value={filterBy}
-                onChange={e => setFilterBy(e.target.value as FilterOption)}
+                onChange={(e) => setFilterBy(e.target.value as FilterOption)}
                 className="px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm 
                   text-gray-200 focus:outline-none focus:border-blue-500"
               >
                 <option value="all">All</option>
                 <option value="verified">Verified</option>
                 <option value="installed">Installed</option>
-                {updates.length > 0 && (
-                  <option value="updates">Updates ({updates.length})</option>
-                )}
+                {updates.length > 0 && <option value="updates">Updates ({updates.length})</option>}
               </select>
-              
+
               <select
                 value={sortBy}
-                onChange={e => setSortBy(e.target.value as SortOption)}
+                onChange={(e) => setSortBy(e.target.value as SortOption)}
                 className="px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm 
                   text-gray-200 focus:outline-none focus:border-blue-500"
               >
@@ -194,7 +198,7 @@ export function ExtensionList({
               </select>
             </div>
           )}
-          
+
           {/* View toggle */}
           {showViewToggle && (
             <div className="flex items-center border border-gray-700 rounded-lg overflow-hidden">
@@ -214,7 +218,7 @@ export function ExtensionList({
               </button>
             </div>
           )}
-          
+
           {/* Refresh button */}
           {onRefresh && (
             <button
@@ -229,7 +233,7 @@ export function ExtensionList({
           )}
         </div>
       )}
-      
+
       {/* Loading state */}
       {loading && extensions.length === 0 && (
         <div className="flex-1 flex items-center justify-center">
@@ -239,7 +243,7 @@ export function ExtensionList({
           </div>
         </div>
       )}
-      
+
       {/* Empty state */}
       {!loading && extensions.length === 0 && (
         <div className="flex-1 flex items-center justify-center">
@@ -256,7 +260,7 @@ export function ExtensionList({
           </div>
         </div>
       )}
-      
+
       {/* Extension list */}
       {extensions.length > 0 && (
         <div
@@ -267,10 +271,10 @@ export function ExtensionList({
           }`}
         >
           {showingStoreExtensions
-            ? filteredStoreExtensions.map(storeExt => {
+            ? filteredStoreExtensions.map((storeExt) => {
                 const installed = installedMap.get(storeExt.extensionId)
                 const update = updatesMap.get(storeExt.extensionId)
-                
+
                 return (
                   <ExtensionCard
                     key={storeExt.id}
@@ -287,9 +291,9 @@ export function ExtensionList({
                   />
                 )
               })
-            : filteredInstalledExtensions.map(ext => {
+            : filteredInstalledExtensions.map((ext) => {
                 const update = updatesMap.get(ext.manifest.id)
-                
+
                 return (
                   <ExtensionCard
                     key={ext.manifest.id}

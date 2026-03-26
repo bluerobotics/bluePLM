@@ -1,6 +1,6 @@
 /**
  * Cell renderer - uses strategy pattern to delegate to column-specific components
- * 
+ *
  * Props have been simplified from 20+ to just 2 (file, columnId).
  * Cell components now get handlers from FilePaneHandlersContext.
  */
@@ -56,33 +56,30 @@ export interface CellRendererProps {
 
 /**
  * Main cell renderer - delegates to appropriate cell component based on columnId
- * 
+ *
  * Cell components get handlers from FilePaneHandlersContext, eliminating prop drilling.
  */
-export function CellRenderer({
-  file,
-  columnId,
-}: CellRendererProps): React.ReactNode {
+export function CellRenderer({ file, columnId }: CellRendererProps): React.ReactNode {
   const { customMetadataColumns } = useFilePaneContext()
-  
+
   // Check if this is a known column
   const Renderer = cellRenderers[columnId]
   if (Renderer) {
     return <Renderer file={file} />
   }
-  
+
   // Check if this is a custom metadata column
   if (columnId.startsWith('custom_')) {
     const columnName = columnId.replace('custom_', '')
     return (
-      <CustomCell 
+      <CustomCell
         file={file}
         columnName={columnName}
         customMetadataColumns={customMetadataColumns}
       />
     )
   }
-  
+
   // Unknown column
   return ''
 }

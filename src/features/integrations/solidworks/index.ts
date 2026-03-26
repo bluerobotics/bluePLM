@@ -1,29 +1,26 @@
-export { 
+export {
   useSolidWorksService,
-  WhereUsedTab, 
-  SWPropertiesPanel, 
-  SWPropertiesTab, 
-  SWDatacardTab, 
-  SWExportActions 
+  WhereUsedTab,
+  SWPropertiesPanel,
+  SWPropertiesTab,
+  SWDatacardTab,
+  SWExportActions,
 } from './SolidWorksPanel'
 export { SWDatacardPanel } from './SWDatacardPanel'
-export { 
-  BomTree, 
+export {
+  BomTree,
   convertLegacyBomToBomNodes,
   type BomNode,
   type BomTreeProps,
-  type LegacyBomItem 
+  type LegacyBomItem,
 } from './BomTree'
 
 // SOLIDWORKS file creation (for context menus)
-export { 
-  SolidWorksContextMenuItems,
-  type SolidWorksContextMenuItemsProps 
-} from './components'
-export { 
+export { SolidWorksContextMenuItems, type SolidWorksContextMenuItemsProps } from './components'
+export {
   useSolidWorksFileCreation,
   type UseSolidWorksFileCreationReturn,
   type AvailableTemplates,
   type TemplateFile,
-  type SolidWorksFileType
+  type SolidWorksFileType,
 } from './hooks'

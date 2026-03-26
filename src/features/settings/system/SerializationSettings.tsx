@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { 
-  Loader2, 
+import {
+  Loader2,
   Hash,
   Save,
   Plus,
@@ -11,7 +11,7 @@ import {
   FileBox,
   Layers,
   Search,
-  SplitSquareHorizontal
+  SplitSquareHorizontal,
 } from 'lucide-react'
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
@@ -88,7 +88,7 @@ const DEFAULT_SERIALIZATION_SETTINGS: SerializationSettingsData = {
   tab_allow_special: false,
   tab_special_chars: '-_',
   // Auto-format settings
-  auto_pad_numbers: true
+  auto_pad_numbers: true,
 }
 
 export function SerializationSettings() {
@@ -96,20 +96,22 @@ export function SerializationSettings() {
   const isAdmin = getEffectiveRole() === 'admin'
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [settings, setSettings] = useState<SerializationSettingsData>(DEFAULT_SERIALIZATION_SETTINGS)
+  const [settings, setSettings] = useState<SerializationSettingsData>(
+    DEFAULT_SERIALIZATION_SETTINGS,
+  )
   const [previewNumber, setPreviewNumber] = useState<string | null>(null)
   const [loadingPreview, setLoadingPreview] = useState(false)
-  
+
   // Track if we're currently saving to avoid overwriting with stale realtime data
   const savingRef = useRef(false)
-  
+
   // New keepout zone form
   const [newKeepout, setNewKeepout] = useState({ start: '', end: '', description: '' })
   const [showKeepoutForm, setShowKeepoutForm] = useState(false)
-  
+
   // Custom extension input
   const [customExtension, setCustomExtension] = useState('')
-  
+
   // Detect highest serial number
   const [detecting, setDetecting] = useState(false)
   const [detectedResult, setDetectedResult] = useState<{
@@ -121,52 +123,52 @@ export function SerializationSettings() {
   // Generate a live preview of what the serial number will look like
   const livePreview = useMemo(() => {
     if (!settings.enabled) return 'Disabled'
-    
+
     let nextNumber = settings.current_counter + 1
-    
+
     // Skip keepout zones
     for (const zone of settings.keepout_zones) {
       if (nextNumber >= zone.start && nextNumber <= zone.end_num) {
         nextNumber = zone.end_num + 1
       }
     }
-    
+
     let serial = settings.prefix
-    
+
     if (settings.letter_prefix) {
       serial += settings.letter_prefix
     }
-    
+
     serial += String(nextNumber).padStart(settings.padding_digits, '0')
-    
+
     // Add tab number example if enabled
     if (settings.tab_enabled) {
       serial += settings.tab_separator + '001'.padStart(settings.tab_padding_digits, '0')
     }
-    
+
     serial += settings.suffix
-    
+
     return serial
   }, [settings])
-  
+
   // Generate base-only preview (without tab)
   const basePreview = useMemo(() => {
     if (!settings.enabled) return ''
-    
+
     let nextNumber = settings.current_counter + 1
-    
+
     for (const zone of settings.keepout_zones) {
       if (nextNumber >= zone.start && nextNumber <= zone.end_num) {
         nextNumber = zone.end_num + 1
       }
     }
-    
+
     let serial = settings.prefix
     if (settings.letter_prefix) {
       serial += settings.letter_prefix
     }
     serial += String(nextNumber).padStart(settings.padding_digits, '0')
-    
+
     return serial
   }, [settings])
 
@@ -184,20 +186,21 @@ export function SerializationSettings() {
           .single()
 
         if (error) throw error
-        
+
         const rawSettings = data?.serialization_settings
-        const savedSettings = (rawSettings && typeof rawSettings === 'object' && !Array.isArray(rawSettings) 
-          ? rawSettings as unknown as SerializationSettingsData 
-          : DEFAULT_SERIALIZATION_SETTINGS)
+        const savedSettings =
+          rawSettings && typeof rawSettings === 'object' && !Array.isArray(rawSettings)
+            ? (rawSettings as unknown as SerializationSettingsData)
+            : DEFAULT_SERIALIZATION_SETTINGS
         // Ensure all fields exist with defaults
         setSettings({
           ...DEFAULT_SERIALIZATION_SETTINGS,
           ...savedSettings,
           keepout_zones: savedSettings.keepout_zones || [],
-          auto_apply_extensions: savedSettings.auto_apply_extensions || []
+          auto_apply_extensions: savedSettings.auto_apply_extensions || [],
         })
-      } catch (err) {
-        log.error('[Serialization]', 'Failed to load settings', { error: err })
+      } catch (error) {
+        log.error('[Serialization]', 'Failed to load settings', { error: error })
       } finally {
         setLoading(false)
       }
@@ -205,40 +208,40 @@ export function SerializationSettings() {
 
     loadSettings()
   }, [organization?.id])
-  
+
   // Sync with realtime organization changes (when another admin updates settings)
   useEffect(() => {
     // Skip if we're currently saving (to avoid overwriting our own changes)
     if (savingRef.current) return
     // Skip if still loading initial data
     if (loading) return
-    
+
     // Get serialization_settings from the organization object (updated via realtime)
-    const realtimeSettings = (organization as any)?.serialization_settings
+    const realtimeSettings = (organization as any)?.serialization_settings // TODO: type this
     if (realtimeSettings) {
       setSettings({
         ...DEFAULT_SERIALIZATION_SETTINGS,
         ...realtimeSettings,
         keepout_zones: realtimeSettings.keepout_zones || [],
-        auto_apply_extensions: realtimeSettings.auto_apply_extensions || []
+        auto_apply_extensions: realtimeSettings.auto_apply_extensions || [],
       })
     }
-  }, [(organization as any)?.serialization_settings])
+  }, [(organization as any)?.serialization_settings]) // TODO: type this
 
   // Fetch preview from server
   const fetchPreview = async () => {
     if (!organization?.id) return
-    
+
     setLoadingPreview(true)
     try {
-      const { data, error } = await (supabase.rpc as any)('preview_next_serial_number', {
-        p_org_id: organization.id
+      const { data, error } = await (supabase.rpc as any)('preview_next_serial_number', { // TODO: type this
+        p_org_id: organization.id,
       })
-      
+
       if (error) throw error
       setPreviewNumber(data as string)
-    } catch (err) {
-      log.error('[Serialization]', 'Failed to fetch preview', { error: err })
+    } catch (error) {
+      log.error('[Serialization]', 'Failed to fetch preview', { error: error })
       addToast('error', 'Failed to fetch serial number preview')
     } finally {
       setLoadingPreview(false)
@@ -257,63 +260,69 @@ export function SerializationSettings() {
     try {
       // Use safe RPC that preserves the current_counter from the database
       // This prevents accidentally overwriting a counter incremented by another user
-      const { error } = await (supabase.rpc as any)('update_serialization_settings_safe', {
+      const { error } = await (supabase.rpc as any)('update_serialization_settings_safe', { // TODO: type this
         p_org_id: organization.id,
-        p_settings: JSON.parse(JSON.stringify(settings))
+        p_settings: JSON.parse(JSON.stringify(settings)),
       })
 
       if (error) throw error
       addToast('success', 'Serialization settings saved')
-      
+
       // Refresh preview after save
       fetchPreview()
-    } catch (err) {
-      log.error('[Serialization]', 'Failed to save settings', { error: err })
+    } catch (error) {
+      log.error('[Serialization]', 'Failed to save settings', { error: error })
       addToast('error', 'Failed to save serialization settings')
     } finally {
       setSaving(false)
       // Small delay before allowing realtime sync again to let the update propagate
-      setTimeout(() => { savingRef.current = false }, 1000)
+      setTimeout(() => {
+        savingRef.current = false
+      }, 1000)
     }
   }
 
   // Update a setting
   const updateSetting = <K extends keyof SerializationSettingsData>(
-    key: K, 
-    value: SerializationSettingsData[K]
+    key: K,
+    value: SerializationSettingsData[K],
   ) => {
-    setSettings(prev => ({ ...prev, [key]: value }))
+    setSettings((prev) => ({ ...prev, [key]: value }))
   }
 
   // Add keepout zone
   const addKeepoutZone = () => {
     const start = parseInt(newKeepout.start)
     const end = parseInt(newKeepout.end)
-    
+
     if (isNaN(start) || isNaN(end) || start < 0 || end < start) {
       addToast('error', 'Invalid range: end must be greater than or equal to start')
       return
     }
-    
+
     // Check for overlapping zones
-    const overlaps = settings.keepout_zones.some(zone => 
-      (start >= zone.start && start <= zone.end_num) ||
-      (end >= zone.start && end <= zone.end_num) ||
-      (start <= zone.start && end >= zone.end_num)
+    const overlaps = settings.keepout_zones.some(
+      (zone) =>
+        (start >= zone.start && start <= zone.end_num) ||
+        (end >= zone.start && end <= zone.end_num) ||
+        (start <= zone.start && end >= zone.end_num),
     )
-    
+
     if (overlaps) {
       addToast('error', 'This range overlaps with an existing keepout zone')
       return
     }
-    
+
     const newZone: KeepoutZone = {
       start,
       end_num: end,
-      description: newKeepout.description || `Reserved range ${start}-${end}`
+      description: newKeepout.description || `Reserved range ${start}-${end}`,
     }
-    
-    updateSetting('keepout_zones', [...settings.keepout_zones, newZone].sort((a, b) => a.start - b.start))
+
+    updateSetting(
+      'keepout_zones',
+      [...settings.keepout_zones, newZone].sort((a, b) => a.start - b.start),
+    )
     setNewKeepout({ start: '', end: '', description: '' })
     setShowKeepoutForm(false)
   }
@@ -326,11 +335,16 @@ export function SerializationSettings() {
 
   // Toggle extension for auto-apply
   const toggleExtension = (ext: string) => {
-    const normalizedExt = ext.toLowerCase().startsWith('.') ? ext.toLowerCase() : `.${ext.toLowerCase()}`
+    const normalizedExt = ext.toLowerCase().startsWith('.')
+      ? ext.toLowerCase()
+      : `.${ext.toLowerCase()}`
     const current = settings.auto_apply_extensions || []
-    
+
     if (current.includes(normalizedExt)) {
-      updateSetting('auto_apply_extensions', current.filter(e => e !== normalizedExt))
+      updateSetting(
+        'auto_apply_extensions',
+        current.filter((e) => e !== normalizedExt),
+      )
     } else {
       updateSetting('auto_apply_extensions', [...current, normalizedExt])
     }
@@ -339,41 +353,44 @@ export function SerializationSettings() {
   // Add custom extension
   const addCustomExtension = () => {
     if (!customExtension.trim()) return
-    
-    const normalizedExt = customExtension.toLowerCase().startsWith('.') 
-      ? customExtension.toLowerCase().trim() 
+
+    const normalizedExt = customExtension.toLowerCase().startsWith('.')
+      ? customExtension.toLowerCase().trim()
       : `.${customExtension.toLowerCase().trim()}`
-    
+
     const current = settings.auto_apply_extensions || []
     if (!current.includes(normalizedExt)) {
       updateSetting('auto_apply_extensions', [...current, normalizedExt])
     }
     setCustomExtension('')
   }
-  
+
   // Detect highest serial number in vault
   const handleDetectHighest = async () => {
     if (!organization?.id) return
-    
+
     setDetecting(true)
     setDetectedResult(null)
     try {
       const result = await detectHighestSerialNumber(organization.id)
       setDetectedResult(result)
-      
+
       if (result && result.highestCounter > 0) {
-        addToast('success', `Found highest: ${result.highestPartNumber} (counter: ${result.highestCounter})`)
+        addToast(
+          'success',
+          `Found highest: ${result.highestPartNumber} (counter: ${result.highestCounter})`,
+        )
       } else if (result) {
         addToast('info', `Scanned ${result.totalScanned} files, no matching serial numbers found`)
       }
-    } catch (err) {
-      log.error('[Serialization]', 'Failed to detect highest serial', { error: err })
+    } catch (error) {
+      log.error('[Serialization]', 'Failed to detect highest serial', { error: error })
       addToast('error', 'Failed to scan files')
     } finally {
       setDetecting(false)
     }
   }
-  
+
   // Apply detected counter value
   const applyDetectedCounter = () => {
     if (detectedResult && detectedResult.highestCounter > 0) {
@@ -383,11 +400,7 @@ export function SerializationSettings() {
   }
 
   if (!organization) {
-    return (
-      <div className="text-center py-12 text-plm-fg-muted">
-        No organization connected
-      </div>
-    )
+    return <div className="text-center py-12 text-plm-fg-muted">No organization connected</div>
   }
 
   if (loading) {
@@ -410,22 +423,22 @@ export function SerializationSettings() {
           Configure how sequential item/part numbers are generated for your organization.
         </p>
       </div>
-      
+
       {/* Read-only notice for non-admins */}
       {!isAdmin && (
         <div className="p-3 bg-plm-highlight rounded-lg border border-plm-border text-sm text-plm-fg-muted">
           Only administrators can modify serialization settings. You are viewing in read-only mode.
         </div>
       )}
-      
+
       {/* Live Preview Card */}
       <div className="p-4 bg-gradient-to-br from-plm-accent/10 to-plm-accent/5 rounded-lg border border-plm-accent/30">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-xs text-plm-fg-muted uppercase tracking-wider mb-1">Next Serial Number Preview</div>
-            <div className="text-2xl font-mono font-bold text-plm-accent">
-              {livePreview}
+            <div className="text-xs text-plm-fg-muted uppercase tracking-wider mb-1">
+              Next Serial Number Preview
             </div>
+            <div className="text-2xl font-mono font-bold text-plm-accent">{livePreview}</div>
           </div>
           <button
             onClick={fetchPreview}
@@ -449,7 +462,9 @@ export function SerializationSettings() {
 
       {/* Enable/Disable Toggle */}
       <div className="p-4 bg-plm-bg rounded-lg border border-plm-border">
-        <label className={`flex items-center justify-between ${isAdmin ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
+        <label
+          className={`flex items-center justify-between ${isAdmin ? 'cursor-pointer' : 'cursor-not-allowed'}`}
+        >
           <div>
             <span className="text-sm font-medium text-plm-fg">Enable Auto-Serialization</span>
             <p className="text-xs text-plm-fg-muted mt-0.5">
@@ -463,7 +478,7 @@ export function SerializationSettings() {
               settings.enabled ? 'bg-plm-accent' : 'bg-plm-border'
             } ${!isAdmin ? 'opacity-60' : ''}`}
           >
-            <span 
+            <span
               className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
                 settings.enabled ? 'translate-x-5' : 'translate-x-0'
               }`}
@@ -473,14 +488,16 @@ export function SerializationSettings() {
       </div>
 
       {/* File Types for Auto-Serialization */}
-      <div className={`p-4 bg-plm-bg rounded-lg border border-plm-border ${!settings.enabled ? 'opacity-50' : ''}`}>
+      <div
+        className={`p-4 bg-plm-bg rounded-lg border border-plm-border ${!settings.enabled ? 'opacity-50' : ''}`}
+      >
         <div className="mb-4">
           <h3 className="text-base font-medium text-plm-fg">Auto-Apply File Types</h3>
           <p className="text-xs text-plm-fg-muted mt-0.5">
             Select which file types should automatically receive a serial number when created
           </p>
         </div>
-        
+
         {/* Common CAD extensions grid */}
         <div className="grid grid-cols-3 gap-2 mb-4">
           {COMMON_EXTENSIONS.map(({ ext, label, icon }) => {
@@ -491,21 +508,34 @@ export function SerializationSettings() {
                 onClick={() => isAdmin && settings.enabled && toggleExtension(ext)}
                 disabled={!isAdmin || !settings.enabled}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-left text-sm transition-colors ${
-                  isSelected 
-                    ? 'bg-plm-accent/20 border-plm-accent text-plm-fg' 
+                  isSelected
+                    ? 'bg-plm-accent/20 border-plm-accent text-plm-fg'
                     : 'bg-plm-highlight border-plm-border text-plm-fg-muted hover:border-plm-accent/50'
-                } ${(!isAdmin || !settings.enabled) ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+                } ${!isAdmin || !settings.enabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
               >
-                {icon === 'part' && <FileBox size={16} className={isSelected ? 'text-plm-accent' : 'text-plm-fg-muted'} />}
-                {icon === 'assembly' && <Layers size={16} className={isSelected ? 'text-amber-400' : 'text-plm-fg-muted'} />}
-                {(icon === 'drawing' || icon === 'step') && <FileBox size={16} className={isSelected ? 'text-plm-accent' : 'text-plm-fg-muted'} />}
+                {icon === 'part' && (
+                  <FileBox
+                    size={16}
+                    className={isSelected ? 'text-plm-accent' : 'text-plm-fg-muted'}
+                  />
+                )}
+                {icon === 'assembly' && (
+                  <Layers
+                    size={16}
+                    className={isSelected ? 'text-amber-400' : 'text-plm-fg-muted'}
+                  />
+                )}
+                {(icon === 'drawing' || icon === 'step') && (
+                  <FileBox
+                    size={16}
+                    className={isSelected ? 'text-plm-accent' : 'text-plm-fg-muted'}
+                  />
+                )}
                 <div className="flex-1 min-w-0">
                   <div className="font-mono text-xs">{ext}</div>
                   <div className="text-xs text-plm-fg-muted truncate">{label}</div>
                 </div>
-                {isSelected && (
-                  <div className="w-2 h-2 rounded-full bg-plm-accent flex-shrink-0" />
-                )}
+                {isSelected && <div className="w-2 h-2 rounded-full bg-plm-accent flex-shrink-0" />}
               </button>
             )
           })}
@@ -530,35 +560,34 @@ export function SerializationSettings() {
           >
             Add
           </button>
-          
+
           {/* Show selected extensions not in common list */}
           <div className="flex-1 flex flex-wrap gap-1 ml-2">
             {(settings.auto_apply_extensions || [])
-              .filter(ext => !COMMON_EXTENSIONS.some(c => c.ext === ext))
-              .map(ext => (
-                <span 
+              .filter((ext) => !COMMON_EXTENSIONS.some((c) => c.ext === ext))
+              .map((ext) => (
+                <span
                   key={ext}
                   className="inline-flex items-center gap-1 px-2 py-0.5 bg-plm-accent/20 text-plm-accent rounded text-xs font-mono"
                 >
                   {ext}
                   {isAdmin && settings.enabled && (
-                    <button 
-                      onClick={() => toggleExtension(ext)}
-                      className="hover:text-plm-error"
-                    >
+                    <button onClick={() => toggleExtension(ext)} className="hover:text-plm-error">
                       <X size={12} />
                     </button>
                   )}
                 </span>
-              ))
-            }
+              ))}
           </div>
         </div>
 
         {/* Summary */}
         {(settings.auto_apply_extensions || []).length > 0 && (
           <div className="mt-3 text-xs text-plm-fg-muted">
-            Auto-serialization enabled for: <span className="font-mono text-plm-fg">{(settings.auto_apply_extensions || []).join(', ')}</span>
+            Auto-serialization enabled for:{' '}
+            <span className="font-mono text-plm-fg">
+              {(settings.auto_apply_extensions || []).join(', ')}
+            </span>
           </div>
         )}
         {(settings.auto_apply_extensions || []).length === 0 && settings.enabled && (
@@ -570,9 +599,11 @@ export function SerializationSettings() {
       </div>
 
       {/* Format Settings */}
-      <div className={`p-4 bg-plm-bg rounded-lg border border-plm-border ${!settings.enabled ? 'opacity-50' : ''}`}>
+      <div
+        className={`p-4 bg-plm-bg rounded-lg border border-plm-border ${!settings.enabled ? 'opacity-50' : ''}`}
+      >
         <h3 className="text-base font-medium text-plm-fg mb-4">Number Format</h3>
-        
+
         <div className="grid grid-cols-2 gap-4">
           {/* Prefix */}
           <div>
@@ -614,7 +645,9 @@ export function SerializationSettings() {
               disabled={!isAdmin || !settings.enabled}
               className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent disabled:opacity-60 disabled:cursor-not-allowed font-mono uppercase"
             />
-            <p className="text-xs text-plm-fg-muted mt-1">Letters between prefix and number (e.g., AB in PN-AB00001)</p>
+            <p className="text-xs text-plm-fg-muted mt-1">
+              Letters between prefix and number (e.g., AB in PN-AB00001)
+            </p>
           </div>
 
           {/* Number of Digits */}
@@ -652,13 +685,18 @@ export function SerializationSettings() {
             <input
               type="number"
               value={settings.current_counter}
-              onChange={(e) => updateSetting('current_counter', Math.max(0, parseInt(e.target.value) || 0))}
+              onChange={(e) =>
+                updateSetting('current_counter', Math.max(0, parseInt(e.target.value) || 0))
+              }
               min="0"
               disabled={!isAdmin || !settings.enabled}
               className="w-32 px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg focus:outline-none focus:border-plm-accent disabled:opacity-60 disabled:cursor-not-allowed font-mono"
             />
             <span className="text-sm text-plm-fg-muted">
-              Next number will be: <span className="font-mono font-medium text-plm-fg">{settings.current_counter + 1}</span>
+              Next number will be:{' '}
+              <span className="font-mono font-medium text-plm-fg">
+                {settings.current_counter + 1}
+              </span>
             </span>
           </div>
           {isAdmin && (
@@ -667,7 +705,7 @@ export function SerializationSettings() {
               Changing this value can cause duplicate or skipped numbers. Use with caution.
             </p>
           )}
-          
+
           {/* Detect Highest Serial Number */}
           {isAdmin && settings.enabled && (
             <div className="mt-4 p-3 bg-plm-highlight/50 rounded-lg">
@@ -691,17 +729,22 @@ export function SerializationSettings() {
                   Scan Vault
                 </button>
               </div>
-              
+
               {detectedResult && (
                 <div className="mt-3 p-2 bg-plm-bg rounded border border-plm-border">
                   <div className="text-xs text-plm-fg-muted">
-                    Scanned <span className="font-medium text-plm-fg">{detectedResult.totalScanned}</span> files
+                    Scanned{' '}
+                    <span className="font-medium text-plm-fg">{detectedResult.totalScanned}</span>{' '}
+                    files
                   </div>
                   {detectedResult.highestCounter > 0 ? (
                     <div className="flex items-center justify-between mt-2">
                       <div>
                         <div className="text-sm text-plm-fg">
-                          Highest found: <span className="font-mono font-medium text-plm-accent">{detectedResult.highestPartNumber}</span>
+                          Highest found:{' '}
+                          <span className="font-mono font-medium text-plm-accent">
+                            {detectedResult.highestPartNumber}
+                          </span>
                         </div>
                         <div className="text-xs text-plm-fg-muted">
                           Counter value: {detectedResult.highestCounter}
@@ -727,25 +770,30 @@ export function SerializationSettings() {
       </div>
 
       {/* Tab Number Settings */}
-      <div className={`p-4 bg-plm-bg rounded-lg border border-plm-border ${!settings.enabled ? 'opacity-50' : ''}`}>
+      <div
+        className={`p-4 bg-plm-bg rounded-lg border border-plm-border ${!settings.enabled ? 'opacity-50' : ''}`}
+      >
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <SplitSquareHorizontal size={18} className="text-plm-accent" />
             <div>
               <h3 className="text-base font-medium text-plm-fg">Tab Numbers</h3>
               <p className="text-xs text-plm-fg-muted mt-0.5">
-                Add variant suffixes to base numbers (e.g., BR101101<span className="text-plm-accent">-104</span>)
+                Add variant suffixes to base numbers (e.g., BR101101
+                <span className="text-plm-accent">-104</span>)
               </p>
             </div>
           </div>
           <button
-            onClick={() => isAdmin && settings.enabled && updateSetting('tab_enabled', !settings.tab_enabled)}
+            onClick={() =>
+              isAdmin && settings.enabled && updateSetting('tab_enabled', !settings.tab_enabled)
+            }
             disabled={!isAdmin || !settings.enabled}
             className={`relative w-11 h-6 rounded-full transition-colors ${
               settings.tab_enabled ? 'bg-plm-accent' : 'bg-plm-border'
-            } ${(!isAdmin || !settings.enabled) ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+            } ${!isAdmin || !settings.enabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
           >
-            <span 
+            <span
               className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
                 settings.tab_enabled ? 'translate-x-5' : 'translate-x-0'
               }`}
@@ -767,7 +815,9 @@ export function SerializationSettings() {
                 disabled={!isAdmin || !settings.enabled}
                 className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent disabled:opacity-60 disabled:cursor-not-allowed font-mono"
               />
-              <p className="text-xs text-plm-fg-muted mt-1">Character(s) between base and tab (e.g., "-")</p>
+              <p className="text-xs text-plm-fg-muted mt-1">
+                Character(s) between base and tab (e.g., "-")
+              </p>
             </div>
 
             {/* Tab Digits */}
@@ -799,9 +849,7 @@ export function SerializationSettings() {
                 />
                 <span className="text-sm text-plm-fg">Auto-pad with zeros</span>
               </label>
-              <p className="text-xs text-plm-fg-muted mt-1 ml-6">
-                "1" → "001" on blur
-              </p>
+              <p className="text-xs text-plm-fg-muted mt-1 ml-6">"1" → "001" on blur</p>
             </div>
 
             {/* Tab Required */}
@@ -830,7 +878,9 @@ export function SerializationSettings() {
             <div className="grid grid-cols-2 gap-4">
               {/* Allow Numbers */}
               <div>
-                <label className={`flex items-center gap-2 ${isAdmin && settings.enabled ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
+                <label
+                  className={`flex items-center gap-2 ${isAdmin && settings.enabled ? 'cursor-pointer' : 'cursor-not-allowed'}`}
+                >
                   <input
                     type="checkbox"
                     checked={settings.tab_allow_numbers}
@@ -844,7 +894,9 @@ export function SerializationSettings() {
 
               {/* Allow Letters */}
               <div>
-                <label className={`flex items-center gap-2 ${isAdmin && settings.enabled ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
+                <label
+                  className={`flex items-center gap-2 ${isAdmin && settings.enabled ? 'cursor-pointer' : 'cursor-not-allowed'}`}
+                >
                   <input
                     type="checkbox"
                     checked={settings.tab_allow_letters}
@@ -858,7 +910,9 @@ export function SerializationSettings() {
 
               {/* Allow Special Characters */}
               <div>
-                <label className={`flex items-center gap-2 ${isAdmin && settings.enabled ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
+                <label
+                  className={`flex items-center gap-2 ${isAdmin && settings.enabled ? 'cursor-pointer' : 'cursor-not-allowed'}`}
+                >
                   <input
                     type="checkbox"
                     checked={settings.tab_allow_special}
@@ -873,7 +927,9 @@ export function SerializationSettings() {
               {/* Special Characters Input */}
               {settings.tab_allow_special && (
                 <div>
-                  <label className="text-sm text-plm-fg-muted block mb-1">Allowed special characters</label>
+                  <label className="text-sm text-plm-fg-muted block mb-1">
+                    Allowed special characters
+                  </label>
                   <input
                     type="text"
                     value={settings.tab_special_chars}
@@ -888,12 +944,14 @@ export function SerializationSettings() {
             </div>
 
             {/* Warning if no characters allowed */}
-            {!settings.tab_allow_numbers && !settings.tab_allow_letters && !settings.tab_allow_special && (
-              <div className="mt-3 text-xs text-plm-warning flex items-center gap-1">
-                <AlertTriangle size={12} />
-                No characters allowed. Tab input will be disabled.
-              </div>
-            )}
+            {!settings.tab_allow_numbers &&
+              !settings.tab_allow_letters &&
+              !settings.tab_allow_special && (
+                <div className="mt-3 text-xs text-plm-warning flex items-center gap-1">
+                  <AlertTriangle size={12} />
+                  No characters allowed. Tab input will be disabled.
+                </div>
+              )}
           </div>
         )}
 
@@ -903,15 +961,24 @@ export function SerializationSettings() {
               <div className="text-xs text-plm-fg-muted mb-1">Example with tab:</div>
               <div className="flex items-center gap-2">
                 <code className="px-2 py-1 bg-plm-bg rounded font-mono text-plm-accent">
-                  {basePreview}{settings.tab_separator}{'1'.padStart(settings.tab_padding_digits, '0')}{settings.suffix}
+                  {basePreview}
+                  {settings.tab_separator}
+                  {'1'.padStart(settings.tab_padding_digits, '0')}
+                  {settings.suffix}
                 </code>
                 <span className="text-xs text-plm-fg-muted">→</span>
                 <code className="px-2 py-1 bg-plm-bg rounded font-mono text-plm-accent">
-                  {basePreview}{settings.tab_separator}{'2'.padStart(settings.tab_padding_digits, '0')}{settings.suffix}
+                  {basePreview}
+                  {settings.tab_separator}
+                  {'2'.padStart(settings.tab_padding_digits, '0')}
+                  {settings.suffix}
                 </code>
                 <span className="text-xs text-plm-fg-muted">→</span>
                 <code className="px-2 py-1 bg-plm-bg rounded font-mono text-plm-accent">
-                  {basePreview}{settings.tab_separator}{'3'.padStart(settings.tab_padding_digits, '0')}{settings.suffix}
+                  {basePreview}
+                  {settings.tab_separator}
+                  {'3'.padStart(settings.tab_padding_digits, '0')}
+                  {settings.suffix}
                 </code>
               </div>
             </div>
@@ -919,7 +986,8 @@ export function SerializationSettings() {
               <div>
                 <div className="text-xs text-plm-fg-muted mb-1">Base only (no tab):</div>
                 <code className="px-2 py-1 bg-plm-bg rounded font-mono text-plm-accent">
-                  {basePreview}{settings.suffix}
+                  {basePreview}
+                  {settings.suffix}
                 </code>
               </div>
             )}
@@ -928,7 +996,9 @@ export function SerializationSettings() {
       </div>
 
       {/* Keepout Zones */}
-      <div className={`p-4 bg-plm-bg rounded-lg border border-plm-border ${!settings.enabled ? 'opacity-50' : ''}`}>
+      <div
+        className={`p-4 bg-plm-bg rounded-lg border border-plm-border ${!settings.enabled ? 'opacity-50' : ''}`}
+      >
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="text-base font-medium text-plm-fg">Keepout Zones</h3>
@@ -956,7 +1026,7 @@ export function SerializationSettings() {
                 <input
                   type="number"
                   value={newKeepout.start}
-                  onChange={(e) => setNewKeepout(prev => ({ ...prev, start: e.target.value }))}
+                  onChange={(e) => setNewKeepout((prev) => ({ ...prev, start: e.target.value }))}
                   placeholder="1000"
                   min="0"
                   className="w-full px-2 py-1.5 bg-plm-input border border-plm-border rounded text-sm text-plm-fg focus:outline-none focus:border-plm-accent font-mono"
@@ -967,7 +1037,7 @@ export function SerializationSettings() {
                 <input
                   type="number"
                   value={newKeepout.end}
-                  onChange={(e) => setNewKeepout(prev => ({ ...prev, end: e.target.value }))}
+                  onChange={(e) => setNewKeepout((prev) => ({ ...prev, end: e.target.value }))}
                   placeholder="1999"
                   min="0"
                   className="w-full px-2 py-1.5 bg-plm-input border border-plm-border rounded text-sm text-plm-fg focus:outline-none focus:border-plm-accent font-mono"
@@ -979,7 +1049,9 @@ export function SerializationSettings() {
                   <input
                     type="text"
                     value={newKeepout.description}
-                    onChange={(e) => setNewKeepout(prev => ({ ...prev, description: e.target.value }))}
+                    onChange={(e) =>
+                      setNewKeepout((prev) => ({ ...prev, description: e.target.value }))
+                    }
                     placeholder="Legacy part numbers"
                     className="flex-1 px-2 py-1.5 bg-plm-input border border-plm-border rounded text-sm text-plm-fg focus:outline-none focus:border-plm-accent"
                   />
@@ -1012,7 +1084,7 @@ export function SerializationSettings() {
         ) : (
           <div className="space-y-2">
             {settings.keepout_zones.map((zone, index) => (
-              <div 
+              <div
                 key={index}
                 className="flex items-center justify-between p-3 bg-plm-highlight rounded-lg"
               >
@@ -1022,9 +1094,7 @@ export function SerializationSettings() {
                     <span className="text-plm-fg-muted mx-2">→</span>
                     <span className="text-plm-warning">{zone.end_num.toLocaleString()}</span>
                   </div>
-                  <span className="text-sm text-plm-fg-muted">
-                    {zone.description}
-                  </span>
+                  <span className="text-sm text-plm-fg-muted">{zone.description}</span>
                   <span className="text-xs text-plm-fg-muted/60">
                     ({(zone.end_num - zone.start + 1).toLocaleString()} numbers)
                   </span>
@@ -1053,7 +1123,9 @@ export function SerializationSettings() {
             <span className="text-plm-fg-muted">Prefix: "PN-", 5 digits</span>
           </div>
           <div className="flex items-center gap-2">
-            <code className="px-2 py-1 bg-plm-bg rounded font-mono text-plm-accent">BR-AB00001</code>
+            <code className="px-2 py-1 bg-plm-bg rounded font-mono text-plm-accent">
+              BR-AB00001
+            </code>
             <span className="text-plm-fg-muted">Prefix: "BR-", Letters: "AB"</span>
           </div>
           <div className="flex items-center gap-2">
@@ -1061,7 +1133,9 @@ export function SerializationSettings() {
             <span className="text-plm-fg-muted">No prefix, 6 digits</span>
           </div>
           <div className="flex items-center gap-2">
-            <code className="px-2 py-1 bg-plm-bg rounded font-mono text-plm-accent">PN-00001-REV</code>
+            <code className="px-2 py-1 bg-plm-bg rounded font-mono text-plm-accent">
+              PN-00001-REV
+            </code>
             <span className="text-plm-fg-muted">With suffix: "-REV"</span>
           </div>
         </div>
@@ -1075,11 +1149,7 @@ export function SerializationSettings() {
             disabled={saving}
             className="btn btn-primary flex items-center gap-2"
           >
-            {saving ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              <Save size={16} />
-            )}
+            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
             Save Settings
           </button>
         </div>
@@ -1087,4 +1157,3 @@ export function SerializationSettings() {
     </div>
   )
 }
-

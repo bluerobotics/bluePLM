@@ -1,7 +1,7 @@
 /**
  * Weather Service - Fetches local weather data for dynamic theming
  * Uses Open-Meteo API (free, no API key required)
- * 
+ *
  * IMPORTANT: This module is designed to fail gracefully.
  * Any errors will return null/defaults and never crash the app.
  */
@@ -77,13 +77,13 @@ async function getGeolocation(): Promise<{ lat: number; lon: number } | null> {
           clearTimeout(timeoutId)
           try {
             if (position?.coords?.latitude && position?.coords?.longitude) {
-              weatherLog('Geolocation success', { 
-                lat: Number(position.coords.latitude.toFixed(2)), 
-                lon: Number(position.coords.longitude.toFixed(2)) 
+              weatherLog('Geolocation success', {
+                lat: Number(position.coords.latitude.toFixed(2)),
+                lon: Number(position.coords.longitude.toFixed(2)),
               })
               resolve({
                 lat: position.coords.latitude,
-                lon: position.coords.longitude
+                lon: position.coords.longitude,
               })
             } else {
               weatherWarn('Geolocation returned invalid coords')
@@ -99,10 +99,10 @@ async function getGeolocation(): Promise<{ lat: number; lon: number } | null> {
           weatherWarn('Geolocation denied/failed', { code: error.code, message: error.message })
           resolve(null)
         },
-        { timeout: 5000, maximumAge: 30 * 60 * 1000 }
+        { timeout: 5000, maximumAge: 30 * 60 * 1000 },
       )
-    } catch (err) {
-      weatherWarn('Geolocation exception', { error: String(err) })
+    } catch (error) {
+      weatherWarn('Geolocation exception', { error: String(error) })
       resolve(null)
     }
   })
@@ -121,21 +121,21 @@ async function getLocationFromIP(): Promise<{ lat: number; lon: number } | null>
     {
       name: 'ip-api.com',
       url: 'http://ip-api.com/json/?fields=lat,lon,status',
-      parse: (data: { status: string; lat: number; lon: number }) => 
-        data.status === 'success' ? { lat: data.lat, lon: data.lon } : null
+      parse: (data: { status: string; lat: number; lon: number }) =>
+        data.status === 'success' ? { lat: data.lat, lon: data.lon } : null,
     },
     {
       name: 'ipapi.co',
       url: 'https://ipapi.co/json/',
-      parse: (data: { latitude: number; longitude: number }) => 
-        data?.latitude && data?.longitude ? { lat: data.latitude, lon: data.longitude } : null
-    }
+      parse: (data: { latitude: number; longitude: number }) =>
+        data?.latitude && data?.longitude ? { lat: data.latitude, lon: data.longitude } : null,
+    },
   ]
 
   for (const service of services) {
     try {
       weatherLog(`Trying ${service.name}...`)
-      
+
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 5000)
 
@@ -149,17 +149,19 @@ async function getLocationFromIP(): Promise<{ lat: number; lon: number } | null>
 
       const data = await response.json()
       const location = service.parse(data)
-      
+
       if (location && typeof location.lat === 'number' && typeof location.lon === 'number') {
-        weatherLog(`${service.name} success`, { 
-          lat: Number(location.lat.toFixed(2)), 
-          lon: Number(location.lon.toFixed(2)) 
+        weatherLog(`${service.name} success`, {
+          lat: Number(location.lat.toFixed(2)),
+          lon: Number(location.lon.toFixed(2)),
         })
         return location
       }
       weatherWarn(`${service.name} returned invalid data`)
-    } catch (err) {
-      weatherWarn(`${service.name} error`, { error: err instanceof Error ? err.message : 'Unknown' })
+    } catch (error) {
+      weatherWarn(`${service.name} error`, {
+        error: error instanceof Error ? error.message : 'Unknown',
+      })
     }
   }
 
@@ -197,26 +199,26 @@ export async function fetchWeather(): Promise<WeatherData | null> {
       weatherLog('Geolocation unavailable, trying IP fallback...')
       location = await getLocationFromIP()
     }
-    
+
     if (!location) {
       // Can't determine location - use cached data if available
       weatherWarn('Could not determine location')
       return weatherCache?.data || null
     }
-    
+
     weatherLog('Got location, fetching weather data...')
 
     // Fetch weather from Open-Meteo
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${location.lat}&longitude=${location.lon}&current=temperature_2m,relative_humidity_2m,is_day,precipitation,weather_code,cloud_cover,wind_speed_10m&timezone=auto`
-    
+
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 10000)
 
     const response = await fetch(url, {
-      signal: controller.signal
+      signal: controller.signal,
     })
     clearTimeout(timeoutId)
-    
+
     if (!response.ok) {
       weatherWarn('API request failed', { status: response.status })
       failureCount++
@@ -225,7 +227,7 @@ export async function fetchWeather(): Promise<WeatherData | null> {
     }
 
     const data = await response.json()
-    
+
     // Validate response structure
     if (!data?.current) {
       weatherWarn('API returned invalid data structure')
@@ -242,28 +244,29 @@ export async function fetchWeather(): Promise<WeatherData | null> {
       temperature: typeof current.temperature_2m === 'number' ? current.temperature_2m : 20,
       isDay: current.is_day === 1,
       windSpeed: typeof current.wind_speed_10m === 'number' ? current.wind_speed_10m : 0,
-      humidity: typeof current.relative_humidity_2m === 'number' ? current.relative_humidity_2m : 50,
+      humidity:
+        typeof current.relative_humidity_2m === 'number' ? current.relative_humidity_2m : 50,
       cloudCover: typeof current.cloud_cover === 'number' ? current.cloud_cover : 0,
       precipitation: typeof current.precipitation === 'number' ? current.precipitation : 0,
       weatherCode: typeof current.weather_code === 'number' ? current.weather_code : 0,
-      location
+      location,
     }
 
     // Update cache and reset failure count on success
     weatherCache = { data: weatherData, timestamp: Date.now() }
     failureCount = 0
-    
-    weatherLog('Fetched weather', { 
-      condition: weatherData.condition, 
-      dayNight: weatherData.isDay ? 'day' : 'night', 
+
+    weatherLog('Fetched weather', {
+      condition: weatherData.condition,
+      dayNight: weatherData.isDay ? 'day' : 'night',
       temp: `${weatherData.temperature}°C`,
-      wind: `${weatherData.windSpeed} km/h`
+      wind: `${weatherData.windSpeed} km/h`,
     })
-    
+
     return weatherData
-  } catch (err) {
+  } catch (error) {
     // Log but don't throw - always return gracefully
-    weatherWarn('Failed to fetch', { error: err instanceof Error ? err.message : 'Unknown error' })
+    weatherWarn('Failed to fetch', { error: error instanceof Error ? error.message : 'Unknown error' })
     failureCount++
     lastFailureTime = Date.now()
     return weatherCache?.data || null
@@ -275,7 +278,9 @@ export async function fetchWeather(): Promise<WeatherData | null> {
  * All themes are dark/easy-on-the-eyes - never light mode
  * Returns safe defaults if weather data is invalid
  */
-export function getWeatherThemeColors(weather: WeatherData | null | undefined): Record<string, string> {
+export function getWeatherThemeColors(
+  weather: WeatherData | null | undefined,
+): Record<string, string> {
   // Default colors (dark theme) if weather is unavailable
   const defaults = {
     '--plm-bg': '#181818',
@@ -312,7 +317,7 @@ export function getWeatherThemeColors(weather: WeatherData | null | undefined): 
 
   try {
     const { condition, isDay, temperature, windSpeed } = weather
-    
+
     // Base colors that change with weather
     let bg = '#181818'
     let bgLight = '#1f1f1f'
@@ -322,7 +327,7 @@ export function getWeatherThemeColors(weather: WeatherData | null | undefined): 
     let fg = '#cccccc'
     let fgDim = '#b4b4b4'
     let border = '#2b2b2b'
-    
+
     // Day vs night base adjustment
     if (isDay) {
       bg = '#1a1918'
@@ -332,7 +337,7 @@ export function getWeatherThemeColors(weather: WeatherData | null | undefined): 
       bgLight = '#1a1d22'
       bgLighter = '#22262d'
     }
-    
+
     // Condition-specific theming
     switch (condition) {
       case 'clear':
@@ -356,7 +361,7 @@ export function getWeatherThemeColors(weather: WeatherData | null | undefined): 
           border = '#2d3548'
         }
         break
-        
+
       case 'partly-cloudy':
         if (isDay) {
           bg = '#1a1917'
@@ -378,7 +383,7 @@ export function getWeatherThemeColors(weather: WeatherData | null | undefined): 
           border = '#2a3344'
         }
         break
-        
+
       case 'cloudy':
       case 'overcast':
         bg = '#171819'
@@ -390,7 +395,7 @@ export function getWeatherThemeColors(weather: WeatherData | null | undefined): 
         fgDim = '#9ba3ad'
         border = '#2e3135'
         break
-        
+
       case 'fog':
         bg = '#18191c'
         bgLight = '#1f2124'
@@ -401,7 +406,7 @@ export function getWeatherThemeColors(weather: WeatherData | null | undefined): 
         fgDim = '#98a1ab'
         border = '#2d3038'
         break
-        
+
       case 'drizzle':
         bg = '#151719'
         bgLight = '#1b1e21'
@@ -412,7 +417,7 @@ export function getWeatherThemeColors(weather: WeatherData | null | undefined): 
         fgDim = '#8fa4b8'
         border = '#283038'
         break
-        
+
       case 'rain':
         bg = '#131619'
         bgLight = '#181c21'
@@ -423,7 +428,7 @@ export function getWeatherThemeColors(weather: WeatherData | null | undefined): 
         fgDim = '#7da4bf'
         border = '#24323e'
         break
-        
+
       case 'heavy-rain':
         bg = '#111417'
         bgLight = '#161a1f'
@@ -434,7 +439,7 @@ export function getWeatherThemeColors(weather: WeatherData | null | undefined): 
         fgDim = '#6896b5'
         border = '#1f2d3b'
         break
-        
+
       case 'snow':
         bg = '#161a1d'
         bgLight = '#1c2125'
@@ -445,7 +450,7 @@ export function getWeatherThemeColors(weather: WeatherData | null | undefined): 
         fgDim = '#a3c2d6'
         border = '#2a3540'
         break
-        
+
       case 'heavy-snow':
         bg = '#181c1f'
         bgLight = '#1f2428'
@@ -456,7 +461,7 @@ export function getWeatherThemeColors(weather: WeatherData | null | undefined): 
         fgDim = '#b0c9da'
         border = '#303942'
         break
-        
+
       case 'thunderstorm':
         bg = '#12101a'
         bgLight = '#1a1824'
@@ -467,18 +472,18 @@ export function getWeatherThemeColors(weather: WeatherData | null | undefined): 
         fgDim = '#a498c4'
         border = '#302a44'
         break
-        
+
       default:
         // Unknown - use neutral dark
         break
     }
-    
+
     // Wind intensity affects accent brightness
     if (typeof windSpeed === 'number' && windSpeed > 30) {
       const windAccent = '#14b8a6'
       accent = windSpeed > 50 ? windAccent : safeBlendColors(accent, windAccent, 0.3)
     }
-    
+
     // Temperature affects warmth of foreground
     if (typeof temperature === 'number') {
       if (temperature > 25) {
@@ -489,7 +494,7 @@ export function getWeatherThemeColors(weather: WeatherData | null | undefined): 
         fgDim = safeBlendColors(fgDim, '#a0c9e0', 0.15)
       }
     }
-    
+
     return {
       '--plm-bg': bg,
       '--plm-bg-light': bgLight,
@@ -534,15 +539,15 @@ function safeBlendColors(color1: string, color2: string, ratio: number): string 
     const r1 = parseInt(color1.slice(1, 3), 16) || 0
     const g1 = parseInt(color1.slice(3, 5), 16) || 0
     const b1 = parseInt(color1.slice(5, 7), 16) || 0
-    
+
     const r2 = parseInt(color2.slice(1, 3), 16) || 0
     const g2 = parseInt(color2.slice(3, 5), 16) || 0
     const b2 = parseInt(color2.slice(5, 7), 16) || 0
-    
+
     const r = Math.round(r1 + (r2 - r1) * ratio)
     const g = Math.round(g1 + (g2 - g1) * ratio)
     const b = Math.round(b1 + (b2 - b1) * ratio)
-    
+
     return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
   } catch {
     return color1 || '#888888'
@@ -594,24 +599,24 @@ function safeHexToRgba(hex: string, alpha: number): string {
 export function getWeatherDescription(weather: WeatherData | null | undefined): string {
   try {
     if (!weather) return 'Weather unavailable'
-    
+
     const { condition, isDay, temperature } = weather
-    
+
     const conditionNames: Record<WeatherCondition, string> = {
-      'clear': isDay ? 'Sunny' : 'Clear Night',
+      clear: isDay ? 'Sunny' : 'Clear Night',
       'partly-cloudy': 'Partly Cloudy',
-      'cloudy': 'Cloudy',
-      'overcast': 'Overcast',
-      'fog': 'Foggy',
-      'drizzle': 'Light Rain',
-      'rain': 'Rainy',
+      cloudy: 'Cloudy',
+      overcast: 'Overcast',
+      fog: 'Foggy',
+      drizzle: 'Light Rain',
+      rain: 'Rainy',
       'heavy-rain': 'Heavy Rain',
-      'snow': 'Snowy',
+      snow: 'Snowy',
       'heavy-snow': 'Heavy Snow',
-      'thunderstorm': 'Thunderstorm',
-      'unknown': 'Unknown'
+      thunderstorm: 'Thunderstorm',
+      unknown: 'Unknown',
     }
-    
+
     const temp = typeof temperature === 'number' ? Math.round(temperature) : '?'
     return `${conditionNames[condition] || 'Unknown'} • ${temp}°C`
   } catch {

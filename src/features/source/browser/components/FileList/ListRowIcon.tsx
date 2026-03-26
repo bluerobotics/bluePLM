@@ -14,11 +14,11 @@ export interface ListRowIconProps {
  * Memoized icon component for list view rows
  * Uses shared FileIcon for files, custom folder rendering for status colors
  */
-export const ListRowIcon = memo(function ListRowIcon({ 
-  file, 
-  size, 
-  folderCheckoutStatus, 
-  isFolderSynced: folderSynced 
+export const ListRowIcon = memo(function ListRowIcon({
+  file,
+  size,
+  folderCheckoutStatus,
+  isFolderSynced: folderSynced,
 }: ListRowIconProps) {
   // For folders, use React icons with status colors (matches FileTree)
   if (file.isDirectory) {
@@ -34,9 +34,14 @@ export const ListRowIcon = memo(function ListRowIcon({
       return <FolderOpen size={size} className="text-orange-400 flex-shrink-0" />
     }
     // Synced status
-    return <FolderOpen size={size} className={`${folderSynced ? 'text-plm-success' : 'text-plm-fg-muted'} flex-shrink-0`} />
+    return (
+      <FolderOpen
+        size={size}
+        className={`${folderSynced ? 'text-plm-success' : 'text-plm-fg-muted'} flex-shrink-0`}
+      />
+    )
   }
-  
+
   // For files, use shared FileIcon (includes thumbnail support)
   return <FileIcon file={file} size={size} className="flex-shrink-0" />
 })

@@ -13,7 +13,7 @@ export {
   type DeleteTeamDialogProps,
   type WorkflowRoleFormDialogProps,
   type JobTitleFormDialogProps,
-  type EditPendingMemberDialogProps
+  type EditPendingMemberDialogProps,
 } from './dialogs'
 
 // Modals - Selection/assignment modals
@@ -23,7 +23,7 @@ export {
   UserJobTitleModal,
   ViewNetPermissionsModal,
   AddToTeamModal,
-  type AddToTeamModalProps
+  type AddToTeamModalProps,
 } from './modals'
 
 // User components
@@ -34,7 +34,7 @@ export {
   CreateUserDialog,
   RemoveUserDialog,
   RemoveFromAdminsDialog,
-  type UserVaultAccessDialogProps
+  type UserVaultAccessDialogProps,
 } from './user'
 
 // Team components
@@ -42,5 +42,5 @@ export {
   TeamMembersDialog,
   TeamModulesDialog,
   TeamVaultAccessDialog,
-  type TeamVaultAccessDialogProps
+  type TeamVaultAccessDialogProps,
 } from './team'

@@ -39,7 +39,12 @@ function ReviewerAvatar({ user, size = 28 }: { user?: ReviewerInfo | null; size?
   if (!user) return null
 
   const initials = user.full_name
-    ? user.full_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+    ? user.full_name
+        .split(' ')
+        .map((n) => n[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2)
     : user.email[0].toUpperCase()
 
   if (user.avatar_url) {
@@ -55,10 +60,17 @@ function ReviewerAvatar({ user, size = 28 }: { user?: ReviewerInfo | null; size?
   }
 
   const colors = [
-    'bg-blue-500', 'bg-green-500', 'bg-yellow-500', 'bg-red-500',
-    'bg-purple-500', 'bg-pink-500', 'bg-indigo-500', 'bg-teal-500',
+    'bg-blue-500',
+    'bg-green-500',
+    'bg-yellow-500',
+    'bg-red-500',
+    'bg-purple-500',
+    'bg-pink-500',
+    'bg-indigo-500',
+    'bg-teal-500',
   ]
-  const colorIndex = user.email.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length
+  const colorIndex =
+    user.email.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length
 
   return (
     <div
@@ -110,9 +122,7 @@ function getStatusBadge(status: ReviewStatus): { label: string; className: strin
 export function ReviewerResponseList({ responses }: ReviewerResponseListProps) {
   if (!responses || responses.length === 0) {
     return (
-      <div className="px-3 py-2 text-xs text-plm-fg-muted text-center">
-        No reviewers assigned
-      </div>
+      <div className="px-3 py-2 text-xs text-plm-fg-muted text-center">No reviewers assigned</div>
     )
   }
 
@@ -122,7 +132,7 @@ export function ReviewerResponseList({ responses }: ReviewerResponseListProps) {
         Reviewers ({responses.length})
       </p>
 
-      {responses.map(response => {
+      {responses.map((response) => {
         const badge = getStatusBadge(response.status as ReviewStatus)
 
         return (
@@ -143,7 +153,9 @@ export function ReviewerResponseList({ responses }: ReviewerResponseListProps) {
               </div>
 
               <div className="flex items-center gap-1.5 flex-shrink-0">
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${badge.className}`}>
+                <span
+                  className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${badge.className}`}
+                >
                   {badge.label}
                 </span>
                 {response.responded_at && (

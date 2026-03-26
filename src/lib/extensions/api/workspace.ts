@@ -1,8 +1,8 @@
 /**
  * Extension Workspace API Implementation
- * 
+ *
  * Provides access to workspace state including open files, vaults, and file change events.
- * 
+ *
  * @module extensions/api/workspace
  */
 
@@ -41,8 +41,8 @@ export const WORKSPACE_IPC_CHANNELS = {
  * Send an IPC message to the main process.
  */
 async function sendIPC<T>(channel: string, ...args: unknown[]): Promise<T> {
-  if (typeof window !== 'undefined' && (window as any).__extensionIPC) {
-    return (window as any).__extensionIPC.invoke(channel, ...args)
+  if (typeof window !== 'undefined' && (window as any).__extensionIPC) { // TODO: type this
+    return (window as any).__extensionIPC.invoke(channel, ...args) // TODO: type this
   }
   throw new Error(`IPC not available: ${channel}`)
 }
@@ -82,29 +82,29 @@ export function handleFileChangeEvent(events: FileChangeEvent[]): void {
 
 /**
  * Create the Workspace API implementation for an extension.
- * 
+ *
  * @param extensionId - The ID of the extension using this API
  * @param grantedPermissions - Permissions granted to the extension
  * @returns The Workspace API implementation
- * 
+ *
  * @example
  * ```typescript
  * const workspace = createWorkspaceAPI('my-extension', ['workspace:files'])
- * 
+ *
  * // Subscribe to file changes
  * const disposable = workspace.onFileChanged((events) => {
  *   for (const event of events) {
  *     console.log(`File ${event.type}: ${event.path}`)
  *   }
  * })
- * 
+ *
  * // Get current vault
  * const vault = await workspace.getCurrentVault()
  * ```
  */
 export function createWorkspaceAPI(
   extensionId: string,
-  grantedPermissions: string[]
+  grantedPermissions: string[],
 ): WorkspaceAPI {
   return {
     /**
@@ -112,12 +112,12 @@ export function createWorkspaceAPI(
      */
     onFileChanged(callback: (events: FileChangeEvent[]) => void): Disposable {
       checkPermission(extensionId, 'workspace.onFileChanged', grantedPermissions)
-      
+
       const subscriptionId = generateSubscriptionId()
-      
+
       // Store callback locally
       fileChangeSubscriptions.set(subscriptionId, callback)
-      
+
       // Register with main process
       sendIPC(WORKSPACE_IPC_CHANNELS.SUBSCRIBE_FILE_CHANGES, {
         extensionId,
@@ -126,7 +126,7 @@ export function createWorkspaceAPI(
         console.error(`[Extension:${extensionId}] Failed to subscribe to file changes:`, error)
         fileChangeSubscriptions.delete(subscriptionId)
       })
-      
+
       // Return disposable for cleanup
       return toDisposable(() => {
         fileChangeSubscriptions.delete(subscriptionId)
@@ -134,7 +134,10 @@ export function createWorkspaceAPI(
           extensionId,
           subscriptionId,
         }).catch((error) => {
-          console.error(`[Extension:${extensionId}] Failed to unsubscribe from file changes:`, error)
+          console.error(
+            `[Extension:${extensionId}] Failed to unsubscribe from file changes:`,
+            error,
+          )
         })
       })
     },
@@ -144,12 +147,11 @@ export function createWorkspaceAPI(
      */
     async getOpenFiles(): Promise<OpenFile[]> {
       checkPermission(extensionId, 'workspace.getOpenFiles', grantedPermissions)
-      
-      const result = await sendIPC<{ files: OpenFile[] }>(
-        WORKSPACE_IPC_CHANNELS.GET_OPEN_FILES,
-        { extensionId }
-      )
-      
+
+      const result = await sendIPC<{ files: OpenFile[] }>(WORKSPACE_IPC_CHANNELS.GET_OPEN_FILES, {
+        extensionId,
+      })
+
       return result.files
     },
 
@@ -158,12 +160,12 @@ export function createWorkspaceAPI(
      */
     async getCurrentVault(): Promise<VaultInfo | undefined> {
       // No permission check needed for getting current vault
-      
+
       const result = await sendIPC<{ vault?: VaultInfo }>(
         WORKSPACE_IPC_CHANNELS.GET_CURRENT_VAULT,
-        { extensionId }
+        { extensionId },
       )
-      
+
       return result.vault
     },
 
@@ -172,12 +174,11 @@ export function createWorkspaceAPI(
      */
     async getVaults(): Promise<VaultInfo[]> {
       // No permission check needed for listing vaults
-      
-      const result = await sendIPC<{ vaults: VaultInfo[] }>(
-        WORKSPACE_IPC_CHANNELS.GET_VAULTS,
-        { extensionId }
-      )
-      
+
+      const result = await sendIPC<{ vaults: VaultInfo[] }>(WORKSPACE_IPC_CHANNELS.GET_VAULTS, {
+        extensionId,
+      })
+
       return result.vaults
     },
   }
@@ -194,7 +195,7 @@ export function createWorkspaceAPI(
 export function createFileChangeEvent(
   type: FileChangeType,
   path: string,
-  vaultId: string
+  vaultId: string,
 ): FileChangeEvent {
   return { type, path, vaultId }
 }
@@ -204,11 +205,9 @@ export function createFileChangeEvent(
  * Helps reduce IPC overhead for bulk operations.
  */
 export function batchFileChanges(
-  changes: Array<{ type: FileChangeType; path: string; vaultId: string }>
+  changes: Array<{ type: FileChangeType; path: string; vaultId: string }>,
 ): FileChangeEvent[] {
-  return changes.map(({ type, path, vaultId }) => 
-    createFileChangeEvent(type, path, vaultId)
-  )
+  return changes.map(({ type, path, vaultId }) => createFileChangeEvent(type, path, vaultId))
 }
 
 /**
@@ -216,7 +215,7 @@ export function batchFileChanges(
  */
 export function filterByChangeType(
   events: FileChangeEvent[],
-  type: FileChangeType
+  type: FileChangeType,
 ): FileChangeEvent[] {
   return events.filter((event) => event.type === type)
 }
@@ -224,10 +223,7 @@ export function filterByChangeType(
 /**
  * Filter file changes by vault.
  */
-export function filterByVault(
-  events: FileChangeEvent[],
-  vaultId: string
-): FileChangeEvent[] {
+export function filterByVault(events: FileChangeEvent[], vaultId: string): FileChangeEvent[] {
   return events.filter((event) => event.vaultId === vaultId)
 }
 

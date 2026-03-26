@@ -11,10 +11,10 @@ export function compareFiles(
   a: LocalFile,
   b: LocalFile,
   column: SortColumn,
-  direction: SortDirection
+  direction: SortDirection,
 ): number {
   let comparison = 0
-  
+
   switch (column) {
     case 'name':
       comparison = a.name.localeCompare(b.name)
@@ -79,17 +79,19 @@ export function sortFiles(
   files: LocalFile[],
   column: SortColumn,
   direction: SortDirection,
-  foldersFirst: boolean = true
+  foldersFirst: boolean = true,
 ): LocalFile[] {
-  return [...files].filter(f => f && f.name).sort((a, b) => {
-    // Folders always first (if enabled)
-    if (foldersFirst) {
-      if (a.isDirectory && !b.isDirectory) return -1
-      if (!a.isDirectory && b.isDirectory) return 1
-    }
-    
-    return compareFiles(a, b, column, direction)
-  })
+  return [...files]
+    .filter((f) => f && f.name)
+    .sort((a, b) => {
+      // Folders always first (if enabled)
+      if (foldersFirst) {
+        if (a.isDirectory && !b.isDirectory) return -1
+        if (!a.isDirectory && b.isDirectory) return 1
+      }
+
+      return compareFiles(a, b, column, direction)
+    })
 }
 
 /**
@@ -97,7 +99,7 @@ export function sortFiles(
  */
 export function sortByRelevance(
   files: LocalFile[],
-  getScore: (file: LocalFile) => number
+  getScore: (file: LocalFile) => number,
 ): LocalFile[] {
   return [...files].sort((a, b) => getScore(b) - getScore(a))
 }

@@ -4,13 +4,13 @@
 // ============================================
 // Client exports
 // ============================================
-export { 
+export {
   supabase,
   getSupabaseClient,
   isSupabaseConfigured,
   getCurrentConfig,
   reconfigureSupabase,
-  authLog
+  authLog,
 } from './client'
 
 // ============================================
@@ -29,7 +29,7 @@ export {
   getCurrentSession,
   getCurrentUserEmail,
   clearCachedUserEmail,
-  setCurrentAccessToken
+  setCurrentAccessToken,
 } from './auth'
 
 // ============================================
@@ -40,7 +40,7 @@ export {
   getOrganization,
   getOrgAuthProviders,
   linkUserToOrganization,
-  getOrgUsers
+  getOrgUsers,
 } from './organizations'
 
 export type { AuthProviders } from './organizations'
@@ -92,10 +92,17 @@ export {
   getVaultFolders,
   updateFolderServerPath,
   deleteFolderOnServer,
-  deleteFolderByPath
+  deleteFolderByPath,
 } from './files'
 
-export type { SWReference, UpsertReferencesResult, BomTreeNode, FileReferenceDiagnostic, VaultFileSummary, FolderRecord } from './files'
+export type {
+  SWReference,
+  UpsertReferencesResult,
+  BomTreeNode,
+  FileReferenceDiagnostic,
+  VaultFileSummary,
+  FolderRecord,
+} from './files'
 
 // ============================================
 // Team exports
@@ -113,7 +120,7 @@ export {
   getOrgTeams,
   getTeamReviewers,
   addTeamReviewer,
-  removeTeamReviewer
+  removeTeamReviewer,
 } from './teams'
 
 export type { TeamReviewerRow } from './teams'
@@ -129,16 +136,13 @@ export {
   setUserVaultAccess,
   checkVaultAccess,
   getEffectiveUserVaultAccess,
-  getAccessibleVaults
+  getAccessibleVaults,
 } from './vaults'
 
 // ============================================
 // Activity exports
 // ============================================
-export { 
-  getRecentActivity,
-  getFileActivity 
-} from './activity'
+export { getRecentActivity, getFileActivity } from './activity'
 
 // ============================================
 // Review exports
@@ -151,7 +155,7 @@ export {
   cancelReview,
   checkReviewTrigger,
   getOrgTeamsWithMembers,
-  resolveTeamReviewers
+  resolveTeamReviewers,
 } from './reviews'
 
 export type { TeamMember, TeamWithMembers, TeamReviewerConfig } from './reviews'
@@ -164,7 +168,7 @@ export {
   watchFile,
   unwatchFile,
   isWatchingFile,
-  getWatchedFiles
+  getWatchedFiles,
 } from './fileWatchers'
 
 // ============================================
@@ -174,7 +178,7 @@ export {
   createShareLink,
   getFileShareLinks,
   revokeShareLink,
-  validateShareLink
+  validateShareLink,
 } from './shareLinks'
 
 export type { ShareLinkOptions } from './shareLinks'
@@ -182,12 +186,7 @@ export type { ShareLinkOptions } from './shareLinks'
 // ============================================
 // ECO Helper exports
 // ============================================
-export {
-  getActiveECOs,
-  addFileToECO,
-  removeFileFromECO,
-  getFileECOs
-} from './ecoHelpers'
+export { getActiveECOs, addFileToECO, removeFileFromECO, getFileECOs } from './ecoHelpers'
 
 // ============================================
 // Session exports
@@ -206,7 +205,7 @@ export {
   subscribeToSessions,
   getOrgOnlineUsers,
   subscribeToOrgOnlineUsers,
-  updateLastOnline
+  updateLastOnline,
 } from './sessions'
 
 export type { UserSession, OnlineUser } from './sessions'
@@ -219,7 +218,7 @@ export {
   listAdminRecoveryCodes,
   revokeAdminRecoveryCode,
   deleteAdminRecoveryCode,
-  useAdminRecoveryCode
+  useAdminRecoveryCode,
 } from './recovery'
 
 export type { AdminRecoveryCode } from './recovery'
@@ -233,7 +232,7 @@ export {
   updatePartSupplier,
   setPreferredPartSupplier,
   removePartSupplier,
-  deletePartSupplier
+  deletePartSupplier,
 } from './partSuppliers'
 
 // ============================================
@@ -246,7 +245,7 @@ export {
   updateAnnotation,
   deleteAnnotation,
   resolveAnnotation,
-  unresolveAnnotation
+  unresolveAnnotation,
 } from './annotations'
 
 export type { CreateAnnotationParams } from './annotations'

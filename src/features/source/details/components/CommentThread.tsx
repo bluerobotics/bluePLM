@@ -91,13 +91,7 @@ function formatTimestamp(dateStr: string): string {
 // Avatar Sub-component
 // ============================================================================
 
-function UserAvatar({
-  user,
-  size = 24,
-}: {
-  user?: FileAnnotation['user']
-  size?: number
-}) {
+function UserAvatar({ user, size = 24 }: { user?: FileAnnotation['user']; size?: number }) {
   const name = getDisplayName(user)
   const initials = getInitials(name)
 
@@ -209,12 +203,8 @@ function CommentBubble({
         <UserAvatar user={annotation.user} size={isRoot ? 24 : 20} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
-            <span className="text-xs font-medium text-plm-fg truncate">
-              {displayName}
-            </span>
-            <span className="text-[10px] text-plm-fg-muted flex-shrink-0">
-              {timestamp}
-            </span>
+            <span className="text-xs font-medium text-plm-fg truncate">{displayName}</span>
+            <span className="text-[10px] text-plm-fg-muted flex-shrink-0">{timestamp}</span>
             {annotation.edited_at && (
               <span className="text-[10px] text-plm-fg-muted/60 italic flex-shrink-0">
                 (edited)
@@ -273,7 +263,9 @@ function CommentBubble({
           </div>
         </div>
       ) : (
-        <div className={`ml-8 text-xs text-plm-fg whitespace-pre-wrap break-words ${isResolved && isRoot ? 'line-through' : ''}`}>
+        <div
+          className={`ml-8 text-xs text-plm-fg whitespace-pre-wrap break-words ${isResolved && isRoot ? 'line-through' : ''}`}
+        >
           {annotation.comment}
         </div>
       )}
@@ -295,11 +287,7 @@ function CommentBubble({
             disabled={isDeleting}
             className="px-2 py-0.5 rounded bg-plm-error text-white text-[10px] hover:bg-plm-error/90 disabled:opacity-50"
           >
-            {isDeleting ? (
-              <Loader2 size={10} className="animate-spin" />
-            ) : (
-              'Delete'
-            )}
+            {isDeleting ? <Loader2 size={10} className="animate-spin" /> : 'Delete'}
           </button>
           <button
             onClick={() => setShowDeleteConfirm(false)}
@@ -401,10 +389,7 @@ export function CommentThread({
   const [showReplyInput, setShowReplyInput] = useState(false)
   const [isReplying, setIsReplying] = useState(false)
 
-  const replies = useMemo(
-    () => annotation.replies ?? [],
-    [annotation.replies],
-  )
+  const replies = useMemo(() => annotation.replies ?? [], [annotation.replies])
 
   const handleReplySubmit = useCallback(
     async (text: string) => {

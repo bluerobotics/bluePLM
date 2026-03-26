@@ -1,11 +1,11 @@
 /**
  * BluePLM Extension System - Public API
- * 
+ *
  * This module exports all public types, functions, and utilities for the
  * extension system. Import from this barrel file for clean imports.
- * 
+ *
  * @module extensions
- * 
+ *
  * @example
  * import {
  *   type ExtensionManifest,
@@ -23,15 +23,15 @@ export type {
   ExtensionCategory,
   VerificationStatus,
   ExtensionState,
-  
+
   // Activation
   ActivationEvent,
-  
+
   // Permissions
   ClientPermission,
   ServerPermission,
   ExtensionPermissions,
-  
+
   // Contributions
   ViewContribution,
   CommandContribution,
@@ -40,45 +40,45 @@ export type {
   ConfigurationProperty,
   ConfigurationContribution,
   ExtensionContributions,
-  
+
   // Native Extensions
   Platform,
   NativeExtensionConfig,
-  
+
   // Manifest
   ExtensionManifest,
-  
+
   // Runtime
   Disposable,
   ExtensionLogger,
   ExtensionContext,
   LoadedExtension,
   ExtensionModule,
-  
+
   // Package
   PackageContents,
-  
+
   // Signing & Verification
   SigningKey,
   RevokedKey,
   SignatureVerificationResult,
-  
+
   // Validation
   ValidationError,
   ValidationResult,
-  
+
   // Updates
   ExtensionUpdate,
-  
+
   // Store
   StoreExtension,
   StoreExtensionVersion,
-  
+
   // Watchdog
   ViolationType,
   WatchdogViolation,
   ExtensionStats,
-  
+
   // Utility
   DeepPartial,
   VersionCompare,
@@ -108,15 +108,15 @@ export {
   parseManifestString,
   validateManifest,
   isValidManifest,
-  
+
   // Utility functions
   extractExtensionId,
   getRequiredDomains,
   getActivationEventsByType,
-  
+
   // Schema (for advanced use)
   extensionManifestSchema,
-  
+
   // Error class
   ManifestParseError,
 } from './manifest'
@@ -131,22 +131,22 @@ export {
   extractPackageFromFile,
   getPackageInfo,
   packageExists,
-  
+
   // Hash verification
   calculateHash,
   verifyPackageHash,
   verifyPackageIntegrity,
-  
+
   // Signature verification
   verifyPackageSignature,
   checkRevocationList,
   fetchRevocationList,
   fetchSigningKeys,
-  
+
   // Package creation (CLI)
   createPackage,
   type CreatePackageOptions,
-  
+
   // Error class
   PackageError,
   type PackageErrorCode,
@@ -160,7 +160,7 @@ export {
   // Main registry
   ExtensionRegistry,
   getExtensionRegistry,
-  
+
   // Lifecycle
   ExtensionLifecycle,
   LifecycleManager,
@@ -168,7 +168,7 @@ export {
   isInstalledState,
   isErrorState,
   getStateDescription,
-  
+
   // Activation
   ActivationManager,
   parseActivationEvent,
@@ -177,7 +177,7 @@ export {
   createViewTrigger,
   createFileTypeTrigger,
   shouldActivateOnStartup,
-  
+
   // Discovery
   discoverLocalExtensions,
   discoverStoreExtensions,
@@ -189,14 +189,14 @@ export {
   searchExtensions,
   clearStoreCache,
   DEFAULT_STORE_API_URL,
-  
+
   // Installation
   installFromStore,
   sideloadFromFile,
   uninstallExtension,
   isExtensionInstalled,
   getInstalledVersion,
-  
+
   // Updates
   checkForUpdates,
   checkExtensionUpdate,
@@ -208,7 +208,7 @@ export {
   unpinVersion,
   getVersionPins,
   isPinned,
-  
+
   // Types
   type RegistryConfig,
   type ExtensionStateCallback,

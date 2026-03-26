@@ -7,11 +7,11 @@ export { WorkflowsList } from './WorkflowsList'
 export { WorkflowToolbar } from './WorkflowToolbar'
 
 // Re-export dialogs
-export { 
+export {
   CreateWorkflowDialog,
   EditWorkflowDialog,
   EditStateDialog,
-  EditTransitionDialog
+  EditTransitionDialog,
 } from './dialogs'
 
 // Re-export canvas components
@@ -24,14 +24,11 @@ export {
   TransitionLine,
   TransitionHandles,
   WorkflowContextMenu,
-  ContextMenus
+  ContextMenus,
 } from './canvas'
 
 // Re-export contexts
-export { 
-  WorkflowCanvasProvider, 
-  useWorkflowCanvasContext 
-} from './context'
+export { WorkflowCanvasProvider, useWorkflowCanvasContext } from './context'
 export type { WorkflowCanvasContextValue } from './context'
 
 // Re-export types

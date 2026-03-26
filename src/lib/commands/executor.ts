@@ -1,6 +1,6 @@
 /**
  * Command Executor
- * 
+ *
  * Handles running commands with:
  * - Validation
  * - Progress tracking
@@ -24,7 +24,7 @@ const commandRegistry = new Map<CommandId, Command<any>>()
 // ============================================
 
 // Module-level resolver for the confirm dialog promise.
-// The store holds the dialog state (title, message, items), 
+// The store holds the dialog state (title, message, items),
 // and this variable holds the resolve function to avoid storing functions in Zustand.
 let confirmResolver: ((confirmed: boolean) => void) | null = null
 
@@ -97,14 +97,14 @@ export function registerActiveOperation(
   operationId: string,
   commandId: CommandId,
   toastId: string,
-  description: string
+  description: string,
 ): void {
   activeOperations.set(operationId, {
     id: operationId,
     commandId,
     toastId,
     startTime: new Date(),
-    description
+    description,
   })
 }
 
@@ -136,17 +136,17 @@ export function hasActiveOperations(): boolean {
 export function cancelAllOperations(): number {
   const store = usePDMStore.getState()
   const operations = Array.from(activeOperations.values())
-  
+
   for (const op of operations) {
     // Request cancellation via the toast system
     store.requestCancelProgressToast(op.toastId)
   }
-  
+
   const count = operations.length
   if (count > 0) {
     store.addToast('warning', `Cancelling ${count} operation${count > 1 ? 's' : ''}...`)
   }
-  
+
   return count
 }
 
@@ -156,7 +156,7 @@ export function cancelAllOperations(): number {
 export function cancelOperation(operationId: string): boolean {
   const op = activeOperations.get(operationId)
   if (!op) return false
-  
+
   const store = usePDMStore.getState()
   store.requestCancelProgressToast(op.toastId)
   return true
@@ -165,10 +165,7 @@ export function cancelOperation(operationId: string): boolean {
 /**
  * Register a command in the registry
  */
-export function registerCommand<K extends CommandId>(
-  id: K,
-  command: CommandMap[K]
-): void {
+export function registerCommand<K extends CommandId>(id: K, command: CommandMap[K]): void {
   commandRegistry.set(id, command as Command<any>)
 }
 
@@ -189,9 +186,13 @@ export function getAllCommands(): Command<any>[] {
 /**
  * Build command context from the store
  */
-export function buildCommandContext(onRefresh?: (silent?: boolean) => void, existingToastId?: string, silent?: boolean): CommandContext {
+export function buildCommandContext(
+  onRefresh?: (silent?: boolean) => void,
+  existingToastId?: string,
+  silent?: boolean,
+): CommandContext {
   const store = usePDMStore.getState()
-  
+
   return {
     user: store.user,
     organization: store.organization,
@@ -200,17 +201,17 @@ export function buildCommandContext(onRefresh?: (silent?: boolean) => void, exis
     vaultPath: store.vaultPath,
     activeVaultId: store.activeVaultId,
     files: store.files,
-    
+
     // Confirmation dialog
     confirm: showCommandConfirm,
-    
+
     // Toast functions
     addToast: store.addToast,
     addProgressToast: store.addProgressToast,
     updateProgressToast: store.updateProgressToast,
     removeToast: store.removeToast,
     isProgressToastCancelled: store.isProgressToastCancelled,
-    
+
     // Store updates
     updateFileInStore: store.updateFileInStore,
     updateFilesInStore: store.updateFilesInStore,
@@ -226,7 +227,7 @@ export function buildCommandContext(onRefresh?: (silent?: boolean) => void, exis
     removeProcessingFoldersSync: store.removeProcessingFoldersSync,
     updateFilesAndClearProcessing: store.updateFilesAndClearProcessing,
     processingOperations: store.processingOperations,
-    
+
     // Auto-download exclusion (scoped to active vault)
     addAutoDownloadExclusion: (relativePath: string) => {
       const vaultId = store.activeVaultId
@@ -234,41 +235,41 @@ export function buildCommandContext(onRefresh?: (silent?: boolean) => void, exis
         store.addAutoDownloadExclusion(vaultId, relativePath)
       }
     },
-    
+
     // File watcher suppression
     addExpectedFileChanges: store.addExpectedFileChanges,
     clearExpectedFileChanges: store.clearExpectedFileChanges,
     setLastOperationCompletedAt: store.setLastOperationCompletedAt,
-    
+
     // Realtime update debouncing
     markFileAsRecentlyModified: store.markFileAsRecentlyModified,
     clearRecentlyModified: store.clearRecentlyModified,
-    
+
     // Refresh
     onRefresh,
-    
+
     // Existing toast ID (when operation was queued, toast was already created)
     existingToastId,
-    
+
     // Silent mode (skip success toasts)
-    silent
+    silent,
   }
 }
 
 // File operations that should be queued (run serially, one at a time)
 const QUEUED_FILE_OPERATIONS: CommandId[] = [
   'checkout',
-  'checkin', 
+  'checkin',
   'sync',
   'download',
   'get-latest',
   'discard',
-  'force-release'
+  'force-release',
 ]
 
 /**
  * Execute a command by ID
- * 
+ *
  * File operations (checkout, checkin, sync, download, etc.) are queued and
  * executed serially to prevent overlapping operations and provide cleaner UX.
  */
@@ -277,11 +278,11 @@ export async function executeCommand<K extends CommandId>(
   params: CommandMap[K] extends Command<infer P> ? P : never,
   options?: {
     onRefresh?: (silent?: boolean) => void
-    silent?: boolean  // Skip success toast
-  }
+    silent?: boolean // Skip success toast
+  },
 ): Promise<CommandResult> {
   const command = commandRegistry.get(commandId)
-  
+
   if (!command) {
     log.error('[Commands]', 'Unknown command', { commandId })
     return {
@@ -289,12 +290,12 @@ export async function executeCommand<K extends CommandId>(
       message: `Unknown command: ${commandId}`,
       total: 0,
       succeeded: 0,
-      failed: 0
+      failed: 0,
     }
   }
-  
+
   const ctx = buildCommandContext(options?.onRefresh, undefined, options?.silent)
-  
+
   // Validate before queuing
   const validationError = command.validate(params, ctx)
   if (validationError) {
@@ -304,25 +305,25 @@ export async function executeCommand<K extends CommandId>(
       message: validationError,
       total: 0,
       succeeded: 0,
-      failed: 0
+      failed: 0,
     }
   }
-  
+
   // Check for large files on upload commands (sync, checkin) before queuing
   if (commandId === 'sync' || commandId === 'checkin') {
     const store = usePDMStore.getState()
     const { uploadSizeWarningEnabled, uploadSizeWarningThreshold } = store
-    
+
     if (uploadSizeWarningEnabled) {
-      const files = (params as any)?.files || []
+      const files = (params as any)?.files || [] // TODO: type this
       // Dynamic import to avoid circular dependency
       const { checkFilesForSizeWarning } = await import('../../hooks/useUploadSizeWarning')
       const { largeFiles, smallFiles } = checkFilesForSizeWarning(
         files,
         uploadSizeWarningThreshold,
-        uploadSizeWarningEnabled
+        uploadSizeWarningEnabled,
       )
-      
+
       // If there are large files, set pending upload and return early
       if (largeFiles.length > 0) {
         store.setPendingLargeUpload({
@@ -330,63 +331,78 @@ export async function executeCommand<K extends CommandId>(
           largeFiles,
           smallFiles,
           command: commandId as 'sync' | 'checkin',
-          options: (params as any)?.extractReferences ? { extractReferences: true } : undefined,
-          onRefresh: options?.onRefresh
+          options: (params as any)?.extractReferences ? { extractReferences: true } : undefined, // TODO: type this
+          onRefresh: options?.onRefresh,
         })
-        
+
         // Return a "pending" result - the actual command will run after user decision
         return {
           success: true,
           message: 'Waiting for user decision on large files',
           total: 0,
           succeeded: 0,
-          failed: 0
+          failed: 0,
         }
       }
     }
   }
-  
+
   // Route file operations through the serial queue
   if (QUEUED_FILE_OPERATIONS.includes(commandId)) {
     const store = usePDMStore.getState()
-    const files = (params as any)?.files || []
+    const files = (params as any)?.files || [] // TODO: type this
     const paths = files.map((f: { relativePath?: string }) => f.relativePath || '').filter(Boolean)
     const fileCount = files.length
-    
+
     // Map command ID to queue operation type
-    const typeMap: Record<string, 'download' | 'get-latest' | 'delete' | 'upload' | 'sync' | 'checkin' | 'checkout' | 'discard' | 'force-release'> = {
-      'checkout': 'checkout',
-      'checkin': 'checkin',
-      'sync': 'sync',
-      'download': 'download',
+    const typeMap: Record<
+      string,
+      | 'download'
+      | 'get-latest'
+      | 'delete'
+      | 'upload'
+      | 'sync'
+      | 'checkin'
+      | 'checkout'
+      | 'discard'
+      | 'force-release'
+    > = {
+      checkout: 'checkout',
+      checkin: 'checkin',
+      sync: 'sync',
+      download: 'download',
       'get-latest': 'get-latest',
-      'discard': 'discard',
-      'force-release': 'force-release'
+      discard: 'discard',
+      'force-release': 'force-release',
     }
-    
+
     const opType = typeMap[commandId] || 'sync'
-    
+
     // Map to OperationType for processing state (spinners)
     // 'get-latest' maps to 'download' for spinner display
-    const processingType: import('../../stores/types').OperationType = 
-      commandId === 'get-latest' ? 'download' : 
-      commandId === 'force-release' ? 'checkout' :
-      commandId === 'discard' ? 'checkout' :
-      (opType as import('../../stores/types').OperationType)
-    
+    const processingType: import('../../stores/types').OperationType =
+      commandId === 'get-latest'
+        ? 'download'
+        : commandId === 'force-release'
+          ? 'checkout'
+          : commandId === 'discard'
+            ? 'checkout'
+            : (opType as import('../../stores/types').OperationType)
+
     // Create toast immediately (shows "Queued" until operation starts)
     const toastId = `${commandId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-    const toastMessage = fileCount === 1 
-      ? `${command.name} ${files[0]?.name || 'file'}...`
-      : `${command.name} ${fileCount} file${fileCount > 1 ? 's' : ''}...`
-    
+    const toastMessage =
+      fileCount === 1
+        ? `${command.name} ${files[0]?.name || 'file'}...`
+        : `${command.name} ${fileCount} file${fileCount > 1 ? 's' : ''}...`
+
     // Check if there are already operations running/queued - if so, this one is queued
     const isQueued = store.isOperationRunning || store.operationQueue.length > 0
     store.addProgressToast(toastId, toastMessage, fileCount, isQueued)
-    
+
     // Set processing state (spinners) immediately
     store.addProcessingFoldersSync(paths, processingType)
-    
+
     const operationId = store.queueOperation({
       type: opType,
       label: toastMessage,
@@ -396,38 +412,38 @@ export async function executeCommand<K extends CommandId>(
       execute: async () => {
         // Mark toast as active (not queued anymore)
         store.setProgressToastActive(toastId)
-        
+
         // Execute the actual command (pass toastId so it can update the existing toast)
         await executeCommandDirect(commandId, params, { ...options, existingToastId: toastId })
-      }
+      },
     })
-    
+
     // If operation was a duplicate, clean up and return early
     if (!operationId) {
       // Remove the processing state we just set (spinners)
       store.removeProcessingFolders(paths)
       // Remove the progress toast we just created
       store.removeToast(toastId)
-      
+
       return {
         success: true,
         message: 'Operation already in progress',
         total: 0,
         succeeded: 0,
-        failed: 0
+        failed: 0,
       }
     }
-    
+
     // Return result immediately
     return {
       success: true,
       message: isQueued ? 'Queued' : 'Started',
       total: 0,
       succeeded: 0,
-      failed: 0
+      failed: 0,
     }
   }
-  
+
   // Non-queued commands execute directly
   return executeCommandDirect(commandId, params, options)
 }
@@ -442,37 +458,37 @@ async function executeCommandDirect<K extends CommandId>(
   options?: {
     onRefresh?: (silent?: boolean) => void
     silent?: boolean
-    existingToastId?: string  // If provided, ProgressTracker will reuse this toast instead of creating a new one
-  }
+    existingToastId?: string // If provided, ProgressTracker will reuse this toast instead of creating a new one
+  },
 ): Promise<CommandResult> {
   const command = commandRegistry.get(commandId)
-  
+
   if (!command) {
     return {
       success: false,
       message: `Unknown command: ${commandId}`,
       total: 0,
       succeeded: 0,
-      failed: 0
+      failed: 0,
     }
   }
-  
+
   const ctx = buildCommandContext(options?.onRefresh, options?.existingToastId, options?.silent)
   const startTime = Date.now()
-  
+
   // Execute
   try {
     // Log user action for command execution
-    const fileCount = (params as any)?.files?.length
-    logUserAction('file', `Command: ${commandId}`, { 
+    const fileCount = (params as any)?.files?.length // TODO: type this
+    logUserAction('file', `Command: ${commandId}`, {
       fileCount: fileCount || 0,
-      commandId
+      commandId,
     })
     const result = await command.execute(params, ctx)
-    
+
     // Add timing
     result.duration = Date.now() - startTime
-    
+
     // Log command result when it indicates failure (red toast scenarios)
     if (!result.success) {
       log.warn('[Commands]', `Command ${commandId} completed with failure`, {
@@ -482,10 +498,10 @@ async function executeCommandDirect<K extends CommandId>(
         succeeded: result.succeeded,
         failed: result.failed,
         errors: result.errors?.slice(0, 5), // Limit logged errors for readability
-        duration: result.duration
+        duration: result.duration,
       })
     }
-    
+
     // Record in history
     const historyEntry: CommandHistoryEntry = {
       id: `${commandId}-${Date.now()}`,
@@ -493,21 +509,20 @@ async function executeCommandDirect<K extends CommandId>(
       params,
       result,
       timestamp: new Date(),
-      userId: ctx.user?.id
+      userId: ctx.user?.id,
     }
     commandHistory.unshift(historyEntry)
     if (commandHistory.length > MAX_HISTORY) {
       commandHistory.pop()
     }
-    
+
     return result
-    
   } catch (error) {
     log.error('[Commands]', `Error executing ${commandId}`, { error })
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    
+
     ctx.addToast('error', `Command failed: ${errorMessage}`)
-    
+
     return {
       success: false,
       message: errorMessage,
@@ -515,7 +530,7 @@ async function executeCommandDirect<K extends CommandId>(
       succeeded: 0,
       failed: 1,
       errors: [errorMessage],
-      duration: Date.now() - startTime
+      duration: Date.now() - startTime,
     }
   }
 }
@@ -538,7 +553,7 @@ export function clearCommandHistory(): void {
  * Progress tracker helper for commands
  * Standardized file count progress (no speed, no bytes)
  * Automatically registers/unregisters with the active operations registry
- * 
+ *
  * If ctx.existingToastId is provided, reuses that toast instead of creating a new one.
  * This happens when operations are queued - the toast is created immediately when queueing.
  */
@@ -550,13 +565,13 @@ export class ProgressTracker {
   private completed: number = 0
   private startTime: number
   private lastUpdateTime: number = 0
-  
+
   constructor(
     ctx: CommandContext,
     commandId: CommandId,
     toastId: string,
     message: string,
-    total: number
+    total: number,
   ) {
     this.ctx = ctx
     // Use existing toast from queue if available, otherwise use the provided toastId
@@ -564,19 +579,19 @@ export class ProgressTracker {
     this.operationId = `${commandId}-${this.toastId}`
     this.total = total
     this.startTime = Date.now()
-    
+
     // Only create a new toast if we don't have an existing one from the queue
     if (!ctx.existingToastId) {
       ctx.addProgressToast(this.toastId, message, total)
     }
-    
+
     // Set initial label so UI shows "0/X" immediately
     ctx.updateProgressToast(this.toastId, 0, 0, undefined, `0/${total}`)
-    
+
     // Register this operation for tracking/cancellation
     registerActiveOperation(this.operationId, commandId, this.toastId, message)
   }
-  
+
   /**
    * Update progress (call after each item completes)
    * Throttled to avoid excessive store updates - only updates if:
@@ -585,64 +600,51 @@ export class ProgressTracker {
    */
   update(): void {
     this.completed++
-    
+
     // Calculate percent
     const percent = Math.round((this.completed / this.total) * 100)
     const now = Date.now()
     const timeSinceLastUpdate = now - this.lastUpdateTime
     const isComplete = this.completed >= this.total
-    
+
     // Throttle updates: only update if enough time passed or complete
     // 100ms = 10 updates/second max, which is smooth enough for UI
     if (timeSinceLastUpdate < 100 && !isComplete) {
       return
     }
-    
+
     this.lastUpdateTime = now
-    
+
     // Build label - simple file count format
     const label = `${this.completed}/${this.total}`
-    
-    this.ctx.updateProgressToast(
-      this.toastId,
-      this.completed,
-      percent,
-      undefined,
-      label
-    )
+
+    this.ctx.updateProgressToast(this.toastId, this.completed, percent, undefined, label)
   }
-  
+
   /**
    * Set a custom status message on the progress toast.
    * Useful for showing validation phases before the main progress starts.
    */
   setStatus(message: string): void {
-    this.ctx.updateProgressToast(
-      this.toastId,
-      this.completed,
-      0,
-      undefined,
-      message
-    )
+    this.ctx.updateProgressToast(this.toastId, this.completed, 0, undefined, message)
   }
-  
+
   /**
    * Check if cancelled
    */
   isCancelled(): boolean {
     return this.ctx.isProgressToastCancelled(this.toastId)
   }
-  
+
   /**
    * Finish and remove toast
    */
   finish(): { duration: number } {
     // Unregister from active operations
     unregisterActiveOperation(this.operationId)
-    
+
     this.ctx.removeToast(this.toastId)
     const duration = Date.now() - this.startTime
     return { duration }
   }
 }
-

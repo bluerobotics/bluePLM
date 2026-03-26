@@ -1,5 +1,5 @@
 // Memoized selectors for the PDM store
-// 
+//
 // These selectors provide optimized access to derived state, preventing
 // unnecessary re-renders by using proper equality functions and memoization.
 //
@@ -20,24 +20,21 @@ import { usePDMStore } from './pdmStore'
  * Get files that are checked out by the current user
  */
 export function useCheckedOutFiles() {
-  const files = usePDMStore(s => s.files)
-  const userId = usePDMStore(s => s.user?.id)
-  
-  return useMemo(
-    () => files.filter(f => f.pdmData?.checked_out_by === userId),
-    [files, userId]
-  )
+  const files = usePDMStore((s) => s.files)
+  const userId = usePDMStore((s) => s.user?.id)
+
+  return useMemo(() => files.filter((f) => f.pdmData?.checked_out_by === userId), [files, userId])
 }
 
 /**
  * Get files with pending metadata changes
  */
 export function usePendingFiles() {
-  const files = usePDMStore(s => s.files)
-  
+  const files = usePDMStore((s) => s.files)
+
   return useMemo(
-    () => files.filter(f => f.pendingMetadata && Object.keys(f.pendingMetadata).length > 0),
-    [files]
+    () => files.filter((f) => f.pendingMetadata && Object.keys(f.pendingMetadata).length > 0),
+    [files],
   )
 }
 
@@ -45,16 +42,18 @@ export function usePendingFiles() {
  * Get files that need to be synced (added, modified, or deleted)
  */
 export function useFilesNeedingSync() {
-  const files = usePDMStore(s => s.files)
-  
+  const files = usePDMStore((s) => s.files)
+
   return useMemo(
-    () => files.filter(f => 
-      f.diffStatus === 'added' || 
-      f.diffStatus === 'modified' || 
-      f.diffStatus === 'deleted' ||
-      f.diffStatus === 'moved'
-    ),
-    [files]
+    () =>
+      files.filter(
+        (f) =>
+          f.diffStatus === 'added' ||
+          f.diffStatus === 'modified' ||
+          f.diffStatus === 'deleted' ||
+          f.diffStatus === 'moved',
+      ),
+    [files],
   )
 }
 
@@ -62,40 +61,34 @@ export function useFilesNeedingSync() {
  * Get files that need to be updated from server
  */
 export function useOutdatedFiles() {
-  const files = usePDMStore(s => s.files)
-  
-  return useMemo(
-    () => files.filter(f => f.diffStatus === 'outdated'),
-    [files]
-  )
+  const files = usePDMStore((s) => s.files)
+
+  return useMemo(() => files.filter((f) => f.diffStatus === 'outdated'), [files])
 }
 
 /**
  * Get cloud-only files (not downloaded locally)
  */
 export function useCloudOnlyFiles() {
-  const files = usePDMStore(s => s.files)
-  
-  return useMemo(
-    () => files.filter(f => f.diffStatus === 'cloud'),
-    [files]
-  )
+  const files = usePDMStore((s) => s.files)
+
+  return useMemo(() => files.filter((f) => f.diffStatus === 'cloud'), [files])
 }
 
 /**
  * Get files in a specific folder (direct children only)
  */
 export function useFilesInFolder(folderPath: string) {
-  const files = usePDMStore(s => s.files)
-  
+  const files = usePDMStore((s) => s.files)
+
   return useMemo(() => {
     if (!folderPath) {
       // Root level - files with no slash in relativePath
-      return files.filter(f => !f.relativePath.includes('/'))
+      return files.filter((f) => !f.relativePath.includes('/'))
     }
-    
+
     const prefix = folderPath + '/'
-    return files.filter(f => {
+    return files.filter((f) => {
       if (!f.relativePath.startsWith(prefix)) return false
       // Check it's a direct child (no more slashes after the prefix)
       const remainder = f.relativePath.slice(prefix.length)
@@ -108,8 +101,8 @@ export function useFilesInFolder(folderPath: string) {
  * Get count of files by diff status
  */
 export function useDiffStatusCounts() {
-  const files = usePDMStore(s => s.files)
-  
+  const files = usePDMStore((s) => s.files)
+
   return useMemo(() => {
     let added = 0
     let modified = 0
@@ -118,19 +111,31 @@ export function useDiffStatusCounts() {
     let cloud = 0
     let cloudNew = 0
     let moved = 0
-    
+
     for (const file of files) {
       if (file.isDirectory) continue
       switch (file.diffStatus) {
-        case 'added': added++; break
-        case 'modified': modified++; break
-        case 'deleted': deleted++; break
-        case 'outdated': outdated++; break
-        case 'cloud': cloud++; break
-        case 'moved': moved++; break
+        case 'added':
+          added++
+          break
+        case 'modified':
+          modified++
+          break
+        case 'deleted':
+          deleted++
+          break
+        case 'outdated':
+          outdated++
+          break
+        case 'cloud':
+          cloud++
+          break
+        case 'moved':
+          moved++
+          break
       }
     }
-    
+
     return { added, modified, deleted, outdated, cloud, cloudNew, moved }
   }, [files])
 }
@@ -139,12 +144,12 @@ export function useDiffStatusCounts() {
  * Get the active vault
  */
 export function useActiveVault() {
-  const connectedVaults = usePDMStore(s => s.connectedVaults)
-  const activeVaultId = usePDMStore(s => s.activeVaultId)
-  
+  const connectedVaults = usePDMStore((s) => s.connectedVaults)
+  const activeVaultId = usePDMStore((s) => s.activeVaultId)
+
   return useMemo(
-    () => connectedVaults.find(v => v.id === activeVaultId),
-    [connectedVaults, activeVaultId]
+    () => connectedVaults.find((v) => v.id === activeVaultId),
+    [connectedVaults, activeVaultId],
   )
 }
 
@@ -152,8 +157,8 @@ export function useActiveVault() {
  * Get all folder paths from files
  */
 export function useFolderPaths() {
-  const files = usePDMStore(s => s.files)
-  
+  const files = usePDMStore((s) => s.files)
+
   return useMemo(() => {
     const folders = new Set<string>()
     for (const file of files) {
@@ -169,8 +174,8 @@ export function useFolderPaths() {
  * Get unique file extensions
  */
 export function useFileExtensions() {
-  const files = usePDMStore(s => s.files)
-  
+  const files = usePDMStore((s) => s.files)
+
   return useMemo(() => {
     const extensions = new Set<string>()
     for (const file of files) {
@@ -186,23 +191,28 @@ export function useFileExtensions() {
  * Check if any operations are in progress
  */
 export function useIsOperationInProgress() {
-  const isLoading = usePDMStore(s => s.isLoading)
-  const isRefreshing = usePDMStore(s => s.isRefreshing)
-  const syncProgress = usePDMStore(s => s.syncProgress)
-  const operationQueue = usePDMStore(s => s.operationQueue)
-  const processingOperations = usePDMStore(s => s.processingOperations)
-  
-  return isLoading || isRefreshing || syncProgress.isActive || 
-         operationQueue.length > 0 || processingOperations.size > 0
+  const isLoading = usePDMStore((s) => s.isLoading)
+  const isRefreshing = usePDMStore((s) => s.isRefreshing)
+  const syncProgress = usePDMStore((s) => s.syncProgress)
+  const operationQueue = usePDMStore((s) => s.operationQueue)
+  const processingOperations = usePDMStore((s) => s.processingOperations)
+
+  return (
+    isLoading ||
+    isRefreshing ||
+    syncProgress.isActive ||
+    operationQueue.length > 0 ||
+    processingOperations.size > 0
+  )
 }
 
 /**
  * Get the effective user (considering impersonation)
  */
 export function useEffectiveUser() {
-  const user = usePDMStore(s => s.user)
-  const impersonatedUser = usePDMStore(s => s.impersonatedUser)
-  
+  const user = usePDMStore((s) => s.user)
+  const impersonatedUser = usePDMStore((s) => s.impersonatedUser)
+
   return useMemo(() => {
     if (impersonatedUser) {
       return {
@@ -211,7 +221,7 @@ export function useEffectiveUser() {
         full_name: impersonatedUser.full_name,
         avatar_url: impersonatedUser.avatar_url,
         role: impersonatedUser.role,
-        isImpersonating: true
+        isImpersonating: true,
       }
     }
     return user ? { ...user, isImpersonating: false } : null
@@ -229,10 +239,10 @@ export function useEffectiveUser() {
  * Groups related navigation state to reduce selector count.
  */
 export function useFileTreeNavigation() {
-  const currentFolder = usePDMStore(s => s.currentFolder)
-  const expandedFolders = usePDMStore(s => s.expandedFolders)
-  const pinnedSectionExpanded = usePDMStore(s => s.pinnedSectionExpanded)
-  
+  const currentFolder = usePDMStore((s) => s.currentFolder)
+  const expandedFolders = usePDMStore((s) => s.expandedFolders)
+  const pinnedSectionExpanded = usePDMStore((s) => s.pinnedSectionExpanded)
+
   return { currentFolder, expandedFolders, pinnedSectionExpanded }
 }
 
@@ -242,11 +252,11 @@ export function useFileTreeNavigation() {
  */
 export function useFileTreeActions() {
   return usePDMStore(
-    useShallow(s => ({
+    useShallow((s) => ({
       toggleFolder: s.toggleFolder,
       setCurrentFolder: s.setCurrentFolder,
-      togglePinnedSection: s.togglePinnedSection
-    }))
+      togglePinnedSection: s.togglePinnedSection,
+    })),
   )
 }
 
@@ -254,11 +264,11 @@ export function useFileTreeActions() {
  * Get vault management state (for FileTree and vault-related components)
  */
 export function useVaultState() {
-  const connectedVaults = usePDMStore(useShallow(s => s.connectedVaults))
-  const activeVaultId = usePDMStore(s => s.activeVaultId)
-  const vaultPath = usePDMStore(s => s.vaultPath)
-  const vaultName = usePDMStore(s => s.vaultName)
-  
+  const connectedVaults = usePDMStore(useShallow((s) => s.connectedVaults))
+  const activeVaultId = usePDMStore((s) => s.activeVaultId)
+  const vaultPath = usePDMStore((s) => s.vaultPath)
+  const vaultName = usePDMStore((s) => s.vaultName)
+
   return { connectedVaults, activeVaultId, vaultPath, vaultName }
 }
 
@@ -267,13 +277,13 @@ export function useVaultState() {
  */
 export function useVaultActions() {
   return usePDMStore(
-    useShallow(s => ({
+    useShallow((s) => ({
       switchVault: s.switchVault,
       toggleVaultExpanded: s.toggleVaultExpanded,
       removeConnectedVault: s.removeConnectedVault,
       setVaultPath: s.setVaultPath,
-      setVaultConnected: s.setVaultConnected
-    }))
+      setVaultConnected: s.setVaultConnected,
+    })),
   )
 }
 
@@ -281,15 +291,15 @@ export function useVaultActions() {
  * Get file selection state and actions
  */
 export function useFileSelectionState() {
-  const selectedFiles = usePDMStore(useShallow(s => s.selectedFiles))
+  const selectedFiles = usePDMStore(useShallow((s) => s.selectedFiles))
   const { setSelectedFiles, toggleFileSelection, clearSelection } = usePDMStore(
-    useShallow(s => ({
+    useShallow((s) => ({
       setSelectedFiles: s.setSelectedFiles,
       toggleFileSelection: s.toggleFileSelection,
-      clearSelection: s.clearSelection
-    }))
+      clearSelection: s.clearSelection,
+    })),
   )
-  
+
   return { selectedFiles, setSelectedFiles, toggleFileSelection, clearSelection }
 }
 
@@ -297,10 +307,10 @@ export function useFileSelectionState() {
  * Get file loading state
  */
 export function useFileLoadingState() {
-  const isLoading = usePDMStore(s => s.isLoading)
-  const filesLoaded = usePDMStore(s => s.filesLoaded)
-  const isRefreshing = usePDMStore(s => s.isRefreshing)
-  
+  const isLoading = usePDMStore((s) => s.isLoading)
+  const filesLoaded = usePDMStore((s) => s.filesLoaded)
+  const isRefreshing = usePDMStore((s) => s.isRefreshing)
+
   return { isLoading, filesLoaded, isRefreshing }
 }
 
@@ -309,12 +319,12 @@ export function useFileLoadingState() {
  */
 export function useToastActions() {
   return usePDMStore(
-    useShallow(s => ({
+    useShallow((s) => ({
       addToast: s.addToast,
       addProgressToast: s.addProgressToast,
       updateProgressToast: s.updateProgressToast,
-      removeToast: s.removeToast
-    }))
+      removeToast: s.removeToast,
+    })),
   )
 }
 
@@ -322,18 +332,25 @@ export function useToastActions() {
  * Get processing operations state for file operations feedback
  */
 export function useProcessingState() {
-  const processingOperations = usePDMStore(s => s.processingOperations)
-  const { addProcessingFolder, addProcessingFolders, addProcessingFoldersSync, removeProcessingFolder, removeProcessingFolders, getProcessingOperation } = usePDMStore(
-    useShallow(s => ({
+  const processingOperations = usePDMStore((s) => s.processingOperations)
+  const {
+    addProcessingFolder,
+    addProcessingFolders,
+    addProcessingFoldersSync,
+    removeProcessingFolder,
+    removeProcessingFolders,
+    getProcessingOperation,
+  } = usePDMStore(
+    useShallow((s) => ({
       addProcessingFolder: s.addProcessingFolder,
       addProcessingFolders: s.addProcessingFolders,
       addProcessingFoldersSync: s.addProcessingFoldersSync,
       removeProcessingFolder: s.removeProcessingFolder,
       removeProcessingFolders: s.removeProcessingFolders,
-      getProcessingOperation: s.getProcessingOperation
-    }))
+      getProcessingOperation: s.getProcessingOperation,
+    })),
   )
-  
+
   return {
     processingOperations,
     addProcessingFolder,
@@ -341,7 +358,7 @@ export function useProcessingState() {
     addProcessingFoldersSync,
     removeProcessingFolder,
     removeProcessingFolders,
-    getProcessingOperation
+    getProcessingOperation,
   }
 }
 
@@ -349,17 +366,17 @@ export function useProcessingState() {
  * Get view mode state for file pane display options
  */
 export function useViewModeState() {
-  const viewMode = usePDMStore(s => s.viewMode)
-  const iconSize = usePDMStore(s => s.iconSize)
-  const listRowSize = usePDMStore(s => s.listRowSize)
+  const viewMode = usePDMStore((s) => s.viewMode)
+  const iconSize = usePDMStore((s) => s.iconSize)
+  const listRowSize = usePDMStore((s) => s.listRowSize)
   const { setViewMode, setIconSize, setListRowSize } = usePDMStore(
-    useShallow(s => ({
+    useShallow((s) => ({
       setViewMode: s.setViewMode,
       setIconSize: s.setIconSize,
-      setListRowSize: s.setListRowSize
-    }))
+      setListRowSize: s.setListRowSize,
+    })),
   )
-  
+
   return { viewMode, iconSize, listRowSize, setViewMode, setIconSize, setListRowSize }
 }
 
@@ -367,18 +384,18 @@ export function useViewModeState() {
  * Get column configuration state for file list table
  */
 export function useColumnState() {
-  const columns = usePDMStore(useShallow(s => s.columns))
-  const sortColumn = usePDMStore(s => s.sortColumn)
-  const sortDirection = usePDMStore(s => s.sortDirection)
+  const columns = usePDMStore(useShallow((s) => s.columns))
+  const sortColumn = usePDMStore((s) => s.sortColumn)
+  const sortDirection = usePDMStore((s) => s.sortDirection)
   const { setColumnWidth, reorderColumns, toggleColumnVisibility, toggleSort } = usePDMStore(
-    useShallow(s => ({
+    useShallow((s) => ({
       setColumnWidth: s.setColumnWidth,
       reorderColumns: s.reorderColumns,
       toggleColumnVisibility: s.toggleColumnVisibility,
-      toggleSort: s.toggleSort
-    }))
+      toggleSort: s.toggleSort,
+    })),
   )
-  
+
   return {
     columns,
     sortColumn,
@@ -386,7 +403,7 @@ export function useColumnState() {
     setColumnWidth,
     reorderColumns,
     toggleColumnVisibility,
-    toggleSort
+    toggleSort,
   }
 }
 
@@ -394,15 +411,15 @@ export function useColumnState() {
  * Get search state for file filtering
  */
 export function useSearchState() {
-  const searchQuery = usePDMStore(s => s.searchQuery)
-  const searchType = usePDMStore(s => s.searchType)
+  const searchQuery = usePDMStore((s) => s.searchQuery)
+  const searchType = usePDMStore((s) => s.searchType)
   const { setSearchQuery, setSearchType } = usePDMStore(
-    useShallow(s => ({
+    useShallow((s) => ({
       setSearchQuery: s.setSearchQuery,
-      setSearchType: s.setSearchType
-    }))
+      setSearchType: s.setSearchType,
+    })),
   )
-  
+
   return { searchQuery, searchType, setSearchQuery, setSearchType }
 }
 
@@ -410,9 +427,9 @@ export function useSearchState() {
  * Get user display preferences affecting file display
  */
 export function useDisplayPreferences() {
-  const lowercaseExtensions = usePDMStore(s => s.lowercaseExtensions)
-  const hideSolidworksTempFiles = usePDMStore(s => s.hideSolidworksTempFiles)
-  
+  const lowercaseExtensions = usePDMStore((s) => s.lowercaseExtensions)
+  const hideSolidworksTempFiles = usePDMStore((s) => s.hideSolidworksTempFiles)
+
   return { lowercaseExtensions, hideSolidworksTempFiles }
 }
 
@@ -420,18 +437,18 @@ export function useDisplayPreferences() {
  * Get tabs state for multi-tab navigation
  */
 export function useTabsState() {
-  const tabsEnabled = usePDMStore(s => s.tabsEnabled)
-  const activeTabId = usePDMStore(s => s.activeTabId)
-  const tabs = usePDMStore(useShallow(s => s.tabs))
+  const tabsEnabled = usePDMStore((s) => s.tabsEnabled)
+  const activeTabId = usePDMStore((s) => s.activeTabId)
+  const tabs = usePDMStore(useShallow((s) => s.tabs))
   const { updateTabFolder, addTab, closeTab, setActiveTab } = usePDMStore(
-    useShallow(s => ({
+    useShallow((s) => ({
       updateTabFolder: s.updateTabFolder,
       addTab: s.addTab,
       closeTab: s.closeTab,
-      setActiveTab: s.setActiveTab
-    }))
+      setActiveTab: s.setActiveTab,
+    })),
   )
-  
+
   return { tabsEnabled, activeTabId, tabs, updateTabFolder, addTab, closeTab, setActiveTab }
 }
 
@@ -439,15 +456,15 @@ export function useTabsState() {
  * Get details panel state
  */
 export function useDetailsPanelState() {
-  const detailsPanelVisible = usePDMStore(s => s.detailsPanelVisible)
-  const detailsPanelTab = usePDMStore(s => s.detailsPanelTab)
+  const detailsPanelVisible = usePDMStore((s) => s.detailsPanelVisible)
+  const detailsPanelTab = usePDMStore((s) => s.detailsPanelTab)
   const { toggleDetailsPanel, setDetailsPanelTab } = usePDMStore(
-    useShallow(s => ({
+    useShallow((s) => ({
       toggleDetailsPanel: s.toggleDetailsPanel,
-      setDetailsPanelTab: s.setDetailsPanelTab
-    }))
+      setDetailsPanelTab: s.setDetailsPanelTab,
+    })),
   )
-  
+
   return { detailsPanelVisible, detailsPanelTab, toggleDetailsPanel, setDetailsPanelTab }
 }
 

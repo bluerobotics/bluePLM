@@ -1,15 +1,15 @@
 /**
  * WorkflowsView - Visual workflow editor for state machine management
- * 
+ *
  * State Management Pattern:
  * - Canvas interaction: WorkflowCanvasContext (slim, ~60 items)
  * - Global actions: usePDMStore (addToast)
  * - Dialog state: useWorkflowDialogs hook
  * - Core data: props from useWorkflowData hook
- * 
+ *
  * This follows the project's Zustand-first pattern where Context
  * is only used for component-tree-scoped ephemeral state.
- * 
+ *
  * @example
  * ```tsx
  * <WorkflowsView />
@@ -32,7 +32,7 @@ import {
   useFloatingToolbarActions,
   useCanvasHandlers,
   useCanvasEvents,
-  useWorkflowDialogs
+  useWorkflowDialogs,
 } from './hooks'
 
 // Components
@@ -42,11 +42,7 @@ import { WorkflowToolbar } from './WorkflowToolbar'
 import { WorkflowDialogs, WorkflowContextMenus } from './components'
 
 // Types
-import type { 
-  WorkflowTemplate,
-  WorkflowState,
-  WorkflowTransition
-} from './types'
+import type { WorkflowTemplate, WorkflowState, WorkflowTransition } from './types'
 
 // ============================================
 // MAIN COMPONENT - Wraps content with Provider
@@ -55,10 +51,10 @@ import type {
 export function WorkflowsView() {
   // Workflow data hook - manages Supabase data fetching
   const workflowData = useWorkflowData({})
-  
+
   return (
     <WorkflowCanvasProvider workflowId={workflowData.selectedWorkflow?.id}>
-      <WorkflowsViewContent 
+      <WorkflowsViewContent
         // Data props (from useWorkflowData)
         workflows={workflowData.workflows}
         selectedWorkflow={workflowData.selectedWorkflow}
@@ -120,14 +116,14 @@ function WorkflowsViewContent({
   selectWorkflow,
   createWorkflow,
   updateWorkflow,
-  deleteWorkflow
+  deleteWorkflow,
 }: WorkflowsViewContentProps) {
   // Canvas context (slim - only canvas interaction state)
   const canvas = useWorkflowCanvasContext()
-  
+
   // Toast from global store
   const { addToast } = usePDMStore()
-  
+
   // Import input ref
   const importInputRef = useRef<HTMLInputElement>(null)
 
@@ -139,16 +135,16 @@ function WorkflowsViewContent({
   // ============================================
   // BEHAVIOR HOOKS
   // ============================================
-  
+
   // Undo/redo
   const undoRedoState = useUndoRedo({
     isAdmin,
     addToast,
     setStates,
-    setTransitions
+    setTransitions,
   })
   const { pushToUndo, handleUndo, handleRedo } = undoRedoState
-  
+
   // CRUD operations
   const crudOperations = useWorkflowCRUD({
     selectedWorkflow,
@@ -177,7 +173,7 @@ function WorkflowsViewContent({
     transitionCompletedAtRef: canvas.transitionCompletedAtRef,
     setWaypoints: canvas.setWaypoints,
     addToast,
-    pushToUndo
+    pushToUndo,
   })
   const {
     addState,
@@ -187,7 +183,7 @@ function WorkflowsViewContent({
     completeTransition,
     deleteTransition,
     cancelConnectMode,
-    addTransitionGate
+    addTransitionGate,
   } = crudOperations
 
   // Import/export
@@ -200,9 +196,16 @@ function WorkflowsViewContent({
     setTransitions,
     setSelectedStateId: canvas.selectState,
     setSelectedTransitionId: canvas.selectTransition,
-    addToast
+    addToast,
   })
-  const { exportWorkflow, requestImport: importWorkflow, pendingImport, confirmImport, cancelImport, isImporting } = ioOperations
+  const {
+    exportWorkflow,
+    requestImport: importWorkflow,
+    pendingImport,
+    confirmImport,
+    cancelImport,
+    isImporting,
+  } = ioOperations
 
   // Clipboard operations
   const clipboardOps = useClipboardOperations({
@@ -220,7 +223,7 @@ function WorkflowsViewContent({
     setSelectedTransitionId: canvas.selectTransition,
     setFloatingToolbar: dialogs.setFloatingToolbar,
     addToast,
-    pushToUndo
+    pushToUndo,
   })
   const { handleCopy, handleCut, handlePaste, handleDeleteSelected } = clipboardOps
 
@@ -241,19 +244,15 @@ function WorkflowsViewContent({
     deleteState,
     deleteTransition,
     addTransitionGate,
-    addToast
+    addToast,
   })
 
   // Canvas mouse handlers - applySnapping now takes states as parameter
   const applySnappingWithStates = (stateId: string, x: number, y: number) => {
     return canvas.applySnapping(stateId, x, y, states)
   }
-  
-  const {
-    handleCanvasMouseDown,
-    handleCanvasMouseMove,
-    handleCanvasMouseUp
-  } = useCanvasHandlers({
+
+  const { handleCanvasMouseDown, handleCanvasMouseMove, handleCanvasMouseUp } = useCanvasHandlers({
     canvasRef: canvas.canvasRef,
     hasDraggedRef: canvas.hasDraggedRef,
     dragStartPosRef: canvas.dragStartPosRef,
@@ -303,7 +302,7 @@ function WorkflowsViewContent({
     stopLabelDrag: canvas.stopLabelDrag,
     cancelTransitionCreation: canvas.cancelTransitionCreation,
     clearSelection: canvas.clearSelection,
-    addToast
+    addToast,
   })
 
   // Canvas event handlers (click, context menu, keyboard shortcuts)
@@ -314,7 +313,7 @@ function WorkflowsViewContent({
     handleStateStartResize,
     handleStateShowToolbar,
     handleTransitionShowToolbar,
-    handleAddWaypointToTransition
+    handleAddWaypointToTransition,
   } = useCanvasEvents({
     canvasRef: canvas.canvasRef,
     hasDraggedRef: canvas.hasDraggedRef,
@@ -343,7 +342,7 @@ function WorkflowsViewContent({
     handlePaste,
     handleUndo,
     handleRedo,
-    handleDeleteSelected
+    handleDeleteSelected,
   })
 
   // ============================================
@@ -367,7 +366,7 @@ function WorkflowsViewContent({
           }}
           onCreateWorkflow={() => dialogs.setShowCreateWorkflow(true)}
         />
-        
+
         <div className="flex-1 flex flex-col">
           {selectedWorkflow && (
             <>
@@ -396,7 +395,7 @@ function WorkflowsViewContent({
                 importWorkflow={importWorkflow}
                 addState={addState}
               />
-              
+
               <WorkflowCanvas
                 states={states}
                 transitions={transitions}
@@ -475,7 +474,7 @@ function WorkflowsViewContent({
               />
             </>
           )}
-          
+
           {!selectedWorkflow && (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center text-plm-fg-muted">
@@ -486,7 +485,7 @@ function WorkflowsViewContent({
           )}
         </div>
       </div>
-      
+
       {/* Hidden file input for import */}
       <input
         ref={importInputRef}
@@ -503,7 +502,7 @@ function WorkflowsViewContent({
           }
         }}
       />
-      
+
       {/* Context menus */}
       <WorkflowContextMenus
         contextMenu={dialogs.contextMenu}
@@ -525,7 +524,7 @@ function WorkflowsViewContent({
         setWaypointContextMenu={dialogs.setWaypointContextMenu}
         addToast={addToast}
       />
-      
+
       {/* Dialogs */}
       <WorkflowDialogs
         showCreateWorkflow={dialogs.showCreateWorkflow}
@@ -549,23 +548,28 @@ function WorkflowsViewContent({
 
       {/* Import Workflow Confirmation Dialog */}
       {pendingImport && selectedWorkflow && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={cancelImport}>
-          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center"
+          onClick={cancelImport}
+        >
+          <div
+            className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3 className="text-lg font-medium text-plm-fg mb-4">Import Workflow</h3>
             <p className="text-base text-plm-fg-muted mb-4">
               Import workflow from <strong>{pendingImport.file.name}</strong>?
-              <br /><br />
-              This will replace all existing states and transitions in <strong>{selectedWorkflow.name}</strong> with {pendingImport.stateCount} states and {pendingImport.transitionCount} transitions.
+              <br />
+              <br />
+              This will replace all existing states and transitions in{' '}
+              <strong>{selectedWorkflow.name}</strong> with {pendingImport.stateCount} states and{' '}
+              {pendingImport.transitionCount} transitions.
             </p>
             <div className="flex gap-2 justify-end">
               <button onClick={cancelImport} className="btn btn-ghost" disabled={isImporting}>
                 Cancel
               </button>
-              <button
-                onClick={confirmImport}
-                disabled={isImporting}
-                className="btn btn-primary"
-              >
+              <button onClick={confirmImport} disabled={isImporting} className="btn btn-primary">
                 {isImporting ? 'Importing...' : 'Import'}
               </button>
             </div>

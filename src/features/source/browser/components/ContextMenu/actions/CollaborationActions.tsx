@@ -1,18 +1,18 @@
 /**
  * Collaboration actions for context menu (review, notify, watch, share, ECO)
  */
-import { 
-  ArrowDown, 
-  ClipboardList, 
-  Eye, 
-  EyeOff, 
-  Info, 
-  Link, 
-  Loader2, 
+import {
+  ArrowDown,
+  ClipboardList,
+  Eye,
+  EyeOff,
+  Info,
+  Link,
+  Loader2,
   Network,
-  Send, 
+  Send,
   Users,
-  ListChecks
+  ListChecks,
 } from 'lucide-react'
 import type { LocalFile } from '@/stores/pdmStore'
 import { usePDMStore } from '@/stores/pdmStore'
@@ -58,28 +58,29 @@ export function CollaborationActions({
 
   // Check for SolidWorks assembly files
   const assemblyExtensions = ['.sldasm']
-  const isAssemblyFile = !isFolder && state.isSynced && assemblyExtensions.includes(firstFile.extension.toLowerCase())
-  
+  const isAssemblyFile =
+    !isFolder && state.isSynced && assemblyExtensions.includes(firstFile.extension.toLowerCase())
+
   // Get assembly files in folder (for Extract References)
   const getAssemblyFilesInFolder = () => {
     if (!isFolder || multiSelect) return []
     const folderPath = firstFile.relativePath
-    return files.filter(f => 
-      !f.isDirectory && 
-      f.relativePath.startsWith(folderPath + '/') &&
-      assemblyExtensions.includes(f.extension.toLowerCase()) &&
-      f.pdmData?.id
+    return files.filter(
+      (f) =>
+        !f.isDirectory &&
+        f.relativePath.startsWith(folderPath + '/') &&
+        assemblyExtensions.includes(f.extension.toLowerCase()) &&
+        f.pdmData?.id,
     )
   }
   const assemblyFilesInFolder = getAssemblyFilesInFolder()
-  
+
   // Get synced assembly files from selection (for multi-select)
   const getAssemblyFilesInSelection = () => {
     if (!multiSelect) return []
-    return contextFiles.filter(f => 
-      !f.isDirectory && 
-      assemblyExtensions.includes(f.extension.toLowerCase()) &&
-      f.pdmData?.id
+    return contextFiles.filter(
+      (f) =>
+        !f.isDirectory && assemblyExtensions.includes(f.extension.toLowerCase()) && f.pdmData?.id,
     )
   }
   const assemblyFilesInSelection = getAssemblyFilesInSelection()
@@ -88,7 +89,7 @@ export function CollaborationActions({
     <>
       {/* Where Used - for synced files */}
       {!isFolder && state.isSynced && (
-        <div 
+        <div
           className="context-menu-item"
           onClick={() => {
             onClose()
@@ -100,9 +101,9 @@ export function CollaborationActions({
           Where Used
         </div>
       )}
-      
+
       {/* Properties */}
-      <div 
+      <div
         className="context-menu-item"
         onClick={() => {
           onClose()
@@ -113,10 +114,10 @@ export function CollaborationActions({
         <Info size={14} />
         Properties
       </div>
-      
+
       {/* Extract References - for synced assembly files */}
       {isAssemblyFile && (
-        <div 
+        <div
           className="context-menu-item"
           onClick={() => {
             onClose()
@@ -130,7 +131,7 @@ export function CollaborationActions({
       )}
       {/* Extract References - for multi-select with assemblies */}
       {multiSelect && assemblyFilesInSelection.length > 0 && (
-        <div 
+        <div
           className="context-menu-item"
           onClick={() => {
             onClose()
@@ -139,12 +140,13 @@ export function CollaborationActions({
           title="Extract and store assembly component references to enable Contains/Where-Used queries"
         >
           <Network size={14} className="text-plm-accent" />
-          Extract References ({assemblyFilesInSelection.length} {assemblyFilesInSelection.length === 1 ? 'assembly' : 'assemblies'})
+          Extract References ({assemblyFilesInSelection.length}{' '}
+          {assemblyFilesInSelection.length === 1 ? 'assembly' : 'assemblies'})
         </div>
       )}
       {/* Extract References - for folders containing assemblies */}
       {isFolder && !multiSelect && assemblyFilesInFolder.length > 0 && (
-        <div 
+        <div
           className="context-menu-item"
           onClick={() => {
             onClose()
@@ -153,24 +155,22 @@ export function CollaborationActions({
           title="Extract and store assembly component references for all assemblies in this folder"
         >
           <Network size={14} className="text-plm-accent" />
-          Extract References ({assemblyFilesInFolder.length} {assemblyFilesInFolder.length === 1 ? 'assembly' : 'assemblies'})
+          Extract References ({assemblyFilesInFolder.length}{' '}
+          {assemblyFilesInFolder.length === 1 ? 'assembly' : 'assemblies'})
         </div>
       )}
-      
+
       {/* Request Review - for synced files */}
       {!multiSelect && !isFolder && state.isSynced && firstFile.pdmData?.id && (
-        <div 
-          className="context-menu-item"
-          onClick={() => handleOpenReviewModal(firstFile)}
-        >
+        <div className="context-menu-item" onClick={() => handleOpenReviewModal(firstFile)}>
           <Send size={14} className="text-plm-accent" />
           Request Review
         </div>
       )}
-      
+
       {/* View Reviews - navigate to Reviews Dashboard */}
       {!multiSelect && !isFolder && state.isSynced && firstFile.pdmData?.id && (
-        <div 
+        <div
           className="context-menu-item"
           onClick={() => {
             onClose()
@@ -181,32 +181,33 @@ export function CollaborationActions({
           View Reviews
         </div>
       )}
-      
+
       {/* Request Checkout - for files checked out by others */}
-      {!multiSelect && !isFolder && state.isSynced && firstFile.pdmData?.checked_out_by && firstFile.pdmData.checked_out_by !== user?.id && (
-        <div 
-          className="context-menu-item"
-          onClick={() => handleOpenCheckoutRequestModal(firstFile)}
-        >
-          <ArrowDown size={14} className="text-plm-warning" />
-          Request Checkout
-        </div>
-      )}
-      
+      {!multiSelect &&
+        !isFolder &&
+        state.isSynced &&
+        firstFile.pdmData?.checked_out_by &&
+        firstFile.pdmData.checked_out_by !== user?.id && (
+          <div
+            className="context-menu-item"
+            onClick={() => handleOpenCheckoutRequestModal(firstFile)}
+          >
+            <ArrowDown size={14} className="text-plm-warning" />
+            Request Checkout
+          </div>
+        )}
+
       {/* Notify Someone - for synced files */}
       {!multiSelect && !isFolder && state.isSynced && firstFile.pdmData?.id && (
-        <div 
-          className="context-menu-item"
-          onClick={() => handleOpenMentionModal(firstFile)}
-        >
+        <div className="context-menu-item" onClick={() => handleOpenMentionModal(firstFile)}>
           <Users size={14} className="text-plm-fg-dim" />
           Notify Someone
         </div>
       )}
-      
+
       {/* Watch/Unwatch File - for synced files */}
       {!multiSelect && !isFolder && state.isSynced && firstFile.pdmData?.id && (
-        <div 
+        <div
           className={`context-menu-item ${isTogglingWatch ? 'opacity-50' : ''}`}
           onClick={() => handleToggleWatch(firstFile)}
         >
@@ -220,10 +221,10 @@ export function CollaborationActions({
           {watchingFiles.has(firstFile.pdmData!.id) ? 'Stop Watching' : 'Watch File'}
         </div>
       )}
-      
+
       {/* Copy Share Link - for synced files and folders */}
       {!multiSelect && (state.isSynced || isFolder) && (
-        <div 
+        <div
           className={`context-menu-item ${isCreatingShareLink ? 'opacity-50' : ''}`}
           onClick={() => {
             if (isFolder) {
@@ -242,13 +243,10 @@ export function CollaborationActions({
           Copy Share Link
         </div>
       )}
-      
+
       {/* Add to ECO - for synced files */}
       {!multiSelect && !isFolder && state.isSynced && firstFile.pdmData?.id && (
-        <div 
-          className="context-menu-item"
-          onClick={() => handleOpenECOModal(firstFile)}
-        >
+        <div className="context-menu-item" onClick={() => handleOpenECOModal(firstFile)}>
           <ClipboardList size={14} className="text-plm-fg-dim" />
           Add to ECO
         </div>

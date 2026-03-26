@@ -5,38 +5,44 @@ import type { Point } from '../types'
 export function useLabelState() {
   // Pinned label positions (absolute canvas position)
   const [pinnedLabelPositions, setPinnedLabelPositions] = useState<Record<string, Point>>({})
-  
+
   // Label offset from curve midpoint (relative position)
   const [labelOffsets, setLabelOffsets] = useState<Record<string, Point>>({})
-  
+
   // Dragging state
   const [draggingLabel, setDraggingLabel] = useState<string | null>(null)
   const [tempLabelPos, setTempLabelPos] = useState<Point | null>(null)
-  
+
   // Ref for tracking drag completion
   const justFinishedLabelDragRef = useRef(false)
 
   /**
    * Get label offset for a transition
    */
-  const getLabelOffset = useCallback((transitionId: string): Point | null => {
-    return labelOffsets[transitionId] || null
-  }, [labelOffsets])
+  const getLabelOffset = useCallback(
+    (transitionId: string): Point | null => {
+      return labelOffsets[transitionId] || null
+    },
+    [labelOffsets],
+  )
 
   /**
    * Get pinned label position for a transition
    */
-  const getPinnedPosition = useCallback((transitionId: string): Point | null => {
-    return pinnedLabelPositions[transitionId] || null
-  }, [pinnedLabelPositions])
+  const getPinnedPosition = useCallback(
+    (transitionId: string): Point | null => {
+      return pinnedLabelPositions[transitionId] || null
+    },
+    [pinnedLabelPositions],
+  )
 
   /**
    * Update label offset for a transition
    */
   const updateLabelOffset = useCallback((transitionId: string, offset: Point) => {
-    setLabelOffsets(prev => ({
+    setLabelOffsets((prev) => ({
       ...prev,
-      [transitionId]: offset
+      [transitionId]: offset,
     }))
   }, [])
 
@@ -44,9 +50,9 @@ export function useLabelState() {
    * Update pinned label position
    */
   const updatePinnedPosition = useCallback((transitionId: string, position: Point) => {
-    setPinnedLabelPositions(prev => ({
+    setPinnedLabelPositions((prev) => ({
       ...prev,
-      [transitionId]: position
+      [transitionId]: position,
     }))
   }, [])
 
@@ -54,7 +60,7 @@ export function useLabelState() {
    * Clear label offset for a transition
    */
   const clearLabelOffset = useCallback((transitionId: string) => {
-    setLabelOffsets(prev => {
+    setLabelOffsets((prev) => {
       const { [transitionId]: _, ...rest } = prev
       return rest
     })
@@ -64,7 +70,7 @@ export function useLabelState() {
    * Clear pinned position for a transition
    */
   const clearPinnedPosition = useCallback((transitionId: string) => {
-    setPinnedLabelPositions(prev => {
+    setPinnedLabelPositions((prev) => {
       const { [transitionId]: _, ...rest } = prev
       return rest
     })
@@ -132,6 +138,6 @@ export function useLabelState() {
     startLabelDrag,
     updateTempLabelPos,
     stopLabelDrag,
-    justFinishedDrag
+    justFinishedDrag,
   }
 }

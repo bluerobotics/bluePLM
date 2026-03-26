@@ -4,17 +4,17 @@ import type { LocalFile } from '@/stores/pdmStore'
 import type { OperationType, StagedCheckin, ToastType } from '@/stores/types'
 import type { User } from '@/types/pdm'
 import { getInitials, getAvatarColor } from '@/lib/utils'
-import { 
-  InlineCheckoutButton, 
-  InlineDownloadButton, 
-  InlineUploadButton, 
+import {
+  InlineCheckoutButton,
+  InlineDownloadButton,
+  InlineUploadButton,
   InlineSyncButton,
   InlineCheckinButton,
   InlineStageCheckinButton,
   FolderDownloadButton,
   FolderUploadButton,
   FolderCheckinButton,
-  InlineDiscardButton
+  InlineDiscardButton,
 } from '@/components/shared/InlineActions'
 import { NotifiableCheckoutAvatar } from '@/components/shared/Avatar'
 import { executeCommand } from '@/lib/commands'
@@ -61,7 +61,7 @@ export function FileActionButtons({
   stageCheckin,
   unstageCheckin,
   getStagedCheckin,
-  addToast
+  addToast,
 }: FileActionButtonsProps) {
   // Get hover refs and setters from context
   // PERFORMANCE: Reading from refs doesn't cause re-renders. The highlight
@@ -76,21 +76,21 @@ export function FileActionButtons({
     setIsUploadHovered,
     setIsCheckoutHovered,
     setIsCheckinHovered,
-    setIsUpdateHovered
+    setIsUpdateHovered,
   } = useTreeHover()
-  
+
   if (file.isDirectory) return null
-  
+
   // Inline action: Download a single file or get latest
   const handleInlineDownload = (e: React.MouseEvent) => {
     e.stopPropagation()
-    
+
     const isMultiSelect = selectedFiles.includes(file.path) && selectedDownloadableFiles.length > 1
-    
+
     if (isMultiSelect) {
-      const outdatedFiles = selectedDownloadableFiles.filter(f => f.diffStatus === 'outdated')
-      const cloudFiles = selectedDownloadableFiles.filter(f => f.diffStatus === 'cloud')
-      
+      const outdatedFiles = selectedDownloadableFiles.filter((f) => f.diffStatus === 'outdated')
+      const cloudFiles = selectedDownloadableFiles.filter((f) => f.diffStatus === 'cloud')
+
       if (outdatedFiles.length > 0) {
         executeCommand('get-latest', { files: outdatedFiles }, { onRefresh })
       }
@@ -101,7 +101,7 @@ export function FileActionButtons({
       setIsUpdateHovered(false)
       return
     }
-    
+
     if (file.diffStatus === 'outdated') {
       executeCommand('get-latest', { files: [file] }, { onRefresh })
     } else {
@@ -110,46 +110,46 @@ export function FileActionButtons({
     setIsDownloadHovered(false)
     setIsUpdateHovered(false)
   }
-  
+
   // Inline action: Check out a file
   const handleInlineCheckout = (e: React.MouseEvent) => {
     e.stopPropagation()
-    
+
     const isMultiSelect = selectedFiles.includes(file.path) && selectedCheckoutableFiles.length > 1
     const targetFiles = isMultiSelect ? selectedCheckoutableFiles : [file]
-    
+
     executeCommand('checkout', { files: targetFiles }, { onRefresh })
     setIsCheckoutHovered(false)
   }
-  
+
   // Inline action: Check in a file
   const handleInlineCheckin = (e: React.MouseEvent) => {
     e.stopPropagation()
-    
+
     const isMultiSelect = selectedFiles.includes(file.path) && selectedCheckinableFiles.length > 1
     const targetFiles = isMultiSelect ? selectedCheckinableFiles : [file]
-    
+
     executeCommand('checkin', { files: targetFiles }, { onRefresh })
     setIsCheckinHovered(false)
   }
-  
+
   // Inline action: First check in (upload) a file
   const handleInlineFirstCheckin = (e: React.MouseEvent) => {
     e.stopPropagation()
-    
+
     const isMultiSelect = selectedFiles.includes(file.path) && selectedUploadableFiles.length > 1
     const targetFiles = isMultiSelect ? selectedUploadableFiles : [file]
-    
+
     executeCommand('sync', { files: targetFiles }, { onRefresh })
     setIsUploadHovered(false)
   }
-  
+
   // Stage/unstage a file for check-in (offline mode)
   const handleStageCheckin = (e: React.MouseEvent) => {
     e.stopPropagation()
-    
+
     const existingStaged = getStagedCheckin(file.relativePath)
-    
+
     if (existingStaged) {
       unstageCheckin(file.relativePath)
       addToast('info', `Unstaged "${file.name}" from check-in queue`)
@@ -160,23 +160,23 @@ export function FileActionButtons({
         localHash: file.localHash || '',
         stagedAt: new Date().toISOString(),
         serverVersion: file.pdmData?.version,
-        serverHash: file.pdmData?.content_hash || undefined
+        serverHash: file.pdmData?.content_hash || undefined,
       })
       addToast('success', `Staged "${file.name}" for check-in when online`)
     }
   }
-  
+
   // Inline action: Discard changes on a deleted file (releases checkout)
   const handleInlineDiscard = (e: React.MouseEvent) => {
     e.stopPropagation()
     executeCommand('discard', { files: [file] }, { onRefresh })
   }
-  
+
   // Show delete spinner when deleting
   if (operationType === 'delete') {
     return <Loader2 size={16} className="text-red-400 animate-spin" />
   }
-  
+
   return (
     <>
       {/* Download for cloud files - only when online */}
@@ -184,73 +184,137 @@ export function FileActionButtons({
         <InlineDownloadButton
           onClick={handleInlineDownload}
           isProcessing={operationType === 'download'}
-          selectedCount={selectedFiles.includes(file.path) && selectedDownloadableFiles.length > 1 ? selectedDownloadableFiles.length : undefined}
-          isSelectionHovered={selectedFiles.includes(file.path) && selectedDownloadableFiles.length > 1 && downloadHoveredRef.current}
-          onMouseEnter={() => selectedDownloadableFiles.length > 1 && selectedFiles.includes(file.path) && setIsDownloadHovered(true)}
+          selectedCount={
+            selectedFiles.includes(file.path) && selectedDownloadableFiles.length > 1
+              ? selectedDownloadableFiles.length
+              : undefined
+          }
+          isSelectionHovered={
+            selectedFiles.includes(file.path) &&
+            selectedDownloadableFiles.length > 1 &&
+            downloadHoveredRef.current
+          }
+          onMouseEnter={() =>
+            selectedDownloadableFiles.length > 1 &&
+            selectedFiles.includes(file.path) &&
+            setIsDownloadHovered(true)
+          }
           onMouseLeave={() => setIsDownloadHovered(false)}
         />
       )}
-      
+
       {/* Sync outdated files - only when online */}
       {!isOfflineMode && file.diffStatus === 'outdated' && (
-        <InlineSyncButton 
+        <InlineSyncButton
           onClick={handleInlineDownload}
           isProcessing={operationType === 'sync'}
-          selectedCount={selectedFiles.includes(file.path) && selectedUpdatableFiles.length > 1 ? selectedUpdatableFiles.length : undefined}
-          isSelectionHovered={selectedFiles.includes(file.path) && selectedUpdatableFiles.length > 1 && updateHoveredRef.current}
-          onMouseEnter={() => selectedUpdatableFiles.length > 1 && selectedFiles.includes(file.path) && setIsUpdateHovered(true)}
+          selectedCount={
+            selectedFiles.includes(file.path) && selectedUpdatableFiles.length > 1
+              ? selectedUpdatableFiles.length
+              : undefined
+          }
+          isSelectionHovered={
+            selectedFiles.includes(file.path) &&
+            selectedUpdatableFiles.length > 1 &&
+            updateHoveredRef.current
+          }
+          onMouseEnter={() =>
+            selectedUpdatableFiles.length > 1 &&
+            selectedFiles.includes(file.path) &&
+            setIsUpdateHovered(true)
+          }
           onMouseLeave={() => setIsUpdateHovered(false)}
         />
       )}
-      
+
       {/* Stage Check-In button (offline mode) */}
-      {isOfflineMode && file.diffStatus !== 'cloud' && (() => {
-        const isStaged = !!getStagedCheckin(file.relativePath)
-        const hasLocalChanges = file.diffStatus === 'added' || file.diffStatus === 'modified'
-        if (!hasLocalChanges && !isStaged) return null
-        return (
-          <InlineStageCheckinButton
-            onClick={handleStageCheckin}
-            isStaged={isStaged}
-            title={isStaged 
-              ? 'Click to unstage (keep working on file)' 
-              : 'Stage for check-in when online'
-            }
-          />
-        )
-      })()}
-      
+      {isOfflineMode &&
+        file.diffStatus !== 'cloud' &&
+        (() => {
+          const isStaged = !!getStagedCheckin(file.relativePath)
+          const hasLocalChanges = file.diffStatus === 'added' || file.diffStatus === 'modified'
+          if (!hasLocalChanges && !isStaged) return null
+          return (
+            <InlineStageCheckinButton
+              onClick={handleStageCheckin}
+              isStaged={isStaged}
+              title={
+                isStaged
+                  ? 'Click to unstage (keep working on file)'
+                  : 'Stage for check-in when online'
+              }
+            />
+          )
+        })()}
+
       {/* First Check In for local-only files - only when online */}
-      {!isOfflineMode && (!file.pdmData || file.diffStatus === 'added' || file.diffStatus === 'deleted_remote') && file.diffStatus !== 'cloud' && (
-        <InlineUploadButton 
-          onClick={handleInlineFirstCheckin}
-          isProcessing={operationType === 'upload' || operationType === 'sync'}
-          selectedCount={selectedFiles.includes(file.path) && selectedUploadableFiles.length > 1 ? selectedUploadableFiles.length : undefined}
-          isSelectionHovered={selectedFiles.includes(file.path) && selectedUploadableFiles.length > 1 && uploadHoveredRef.current}
-          onMouseEnter={() => selectedUploadableFiles.length > 1 && selectedFiles.includes(file.path) && setIsUploadHovered(true)}
-          onMouseLeave={() => setIsUploadHovered(false)}
-        />
-      )}
-      
+      {!isOfflineMode &&
+        (!file.pdmData || file.diffStatus === 'added' || file.diffStatus === 'deleted_remote') &&
+        file.diffStatus !== 'cloud' && (
+          <InlineUploadButton
+            onClick={handleInlineFirstCheckin}
+            isProcessing={operationType === 'upload' || operationType === 'sync'}
+            selectedCount={
+              selectedFiles.includes(file.path) && selectedUploadableFiles.length > 1
+                ? selectedUploadableFiles.length
+                : undefined
+            }
+            isSelectionHovered={
+              selectedFiles.includes(file.path) &&
+              selectedUploadableFiles.length > 1 &&
+              uploadHoveredRef.current
+            }
+            onMouseEnter={() =>
+              selectedUploadableFiles.length > 1 &&
+              selectedFiles.includes(file.path) &&
+              setIsUploadHovered(true)
+            }
+            onMouseLeave={() => setIsUploadHovered(false)}
+          />
+        )}
+
       {/* Checkout/Checkin buttons for synced files */}
       {(() => {
-        const showCheckout = !isOfflineMode && file.pdmData && !file.pdmData.checked_out_by && file.diffStatus !== 'cloud' && file.diffStatus !== 'deleted'
-        const showCheckin = !isOfflineMode && file.pdmData?.checked_out_by === user?.id && file.diffStatus !== 'deleted'
-        const checkedOutByOther = file.pdmData?.checked_out_by && file.pdmData.checked_out_by !== user?.id
-        const checkedOutUser = checkedOutByOther ? (file.pdmData as any)?.checked_out_user : null
-        const showOfflineCheckoutIndicator = isOfflineMode && file.pdmData?.checked_out_by === user?.id
-        
-        if (!showCheckout && !showCheckin && !checkedOutByOther && !showOfflineCheckoutIndicator) return null
-        
+        const showCheckout =
+          !isOfflineMode &&
+          file.pdmData &&
+          !file.pdmData.checked_out_by &&
+          file.diffStatus !== 'cloud' &&
+          file.diffStatus !== 'deleted'
+        const showCheckin =
+          !isOfflineMode &&
+          file.pdmData?.checked_out_by === user?.id &&
+          file.diffStatus !== 'deleted'
+        const checkedOutByOther =
+          file.pdmData?.checked_out_by && file.pdmData.checked_out_by !== user?.id
+        const checkedOutUser = checkedOutByOther ? (file.pdmData as any)?.checked_out_user : null // TODO: type this
+        const showOfflineCheckoutIndicator =
+          isOfflineMode && file.pdmData?.checked_out_by === user?.id
+
+        if (!showCheckout && !showCheckin && !checkedOutByOther && !showOfflineCheckoutIndicator)
+          return null
+
         return (
           <span className="flex items-center gap-0.5 ml-1">
             {showCheckout && (
-              <InlineCheckoutButton 
+              <InlineCheckoutButton
                 onClick={handleInlineCheckout}
                 isProcessing={operationType === 'checkout'}
-                selectedCount={selectedFiles.includes(file.path) && selectedCheckoutableFiles.length > 1 ? selectedCheckoutableFiles.length : undefined}
-                isSelectionHovered={selectedFiles.includes(file.path) && selectedCheckoutableFiles.length > 1 && checkoutHoveredRef.current}
-                onMouseEnter={() => selectedCheckoutableFiles.length > 1 && selectedFiles.includes(file.path) && setIsCheckoutHovered(true)}
+                selectedCount={
+                  selectedFiles.includes(file.path) && selectedCheckoutableFiles.length > 1
+                    ? selectedCheckoutableFiles.length
+                    : undefined
+                }
+                isSelectionHovered={
+                  selectedFiles.includes(file.path) &&
+                  selectedCheckoutableFiles.length > 1 &&
+                  checkoutHoveredRef.current
+                }
+                onMouseEnter={() =>
+                  selectedCheckoutableFiles.length > 1 &&
+                  selectedFiles.includes(file.path) &&
+                  setIsCheckoutHovered(true)
+                }
                 onMouseLeave={() => setIsCheckoutHovered(false)}
               />
             )}
@@ -261,20 +325,32 @@ export function FileActionButtons({
                 userAvatarUrl={user?.avatar_url ?? undefined}
                 userFullName={user?.full_name ?? undefined}
                 userEmail={user?.email}
-                selectedCount={selectedFiles.includes(file.path) && selectedCheckinableFiles.length > 1 ? selectedCheckinableFiles.length : undefined}
-                isSelectionHovered={selectedFiles.includes(file.path) && selectedCheckinableFiles.length > 1 && checkinHoveredRef.current}
-                onMouseEnter={() => selectedCheckinableFiles.length > 1 && selectedFiles.includes(file.path) && setIsCheckinHovered(true)}
+                selectedCount={
+                  selectedFiles.includes(file.path) && selectedCheckinableFiles.length > 1
+                    ? selectedCheckinableFiles.length
+                    : undefined
+                }
+                isSelectionHovered={
+                  selectedFiles.includes(file.path) &&
+                  selectedCheckinableFiles.length > 1 &&
+                  checkinHoveredRef.current
+                }
+                onMouseEnter={() =>
+                  selectedCheckinableFiles.length > 1 &&
+                  selectedFiles.includes(file.path) &&
+                  setIsCheckinHovered(true)
+                }
                 onMouseLeave={() => setIsCheckinHovered(false)}
               />
             )}
             {showOfflineCheckoutIndicator && (
-              <div 
-                className="relative w-5 h-5 flex-shrink-0" 
+              <div
+                className="relative w-5 h-5 flex-shrink-0"
                 title="You have this file checked out (use stage button to queue check-in)"
               >
                 {user?.avatar_url ? (
-                  <img 
-                    src={user.avatar_url} 
+                  <img
+                    src={user.avatar_url}
                     alt={user?.full_name || user?.email?.split('@')[0] || 'You'}
                     className="w-5 h-5 rounded-full object-cover ring-2 ring-plm-accent"
                     referrerPolicy="no-referrer"
@@ -288,7 +364,7 @@ export function FileActionButtons({
                 {(() => {
                   const avatarColors = getAvatarColor(user?.email || user?.full_name)
                   return (
-                    <div 
+                    <div
                       className={`w-5 h-5 rounded-full ${avatarColors.bg} ${avatarColors.text} flex items-center justify-center text-[9px] font-medium ring-2 ring-plm-accent ${user?.avatar_url ? 'hidden' : ''}`}
                     >
                       {getInitials(user?.full_name || user?.email?.split('@')[0] || 'U')}
@@ -303,7 +379,7 @@ export function FileActionButtons({
                   id: file.pdmData.checked_out_by!,
                   email: checkedOutUser.email,
                   full_name: checkedOutUser.full_name,
-                  avatar_url: checkedOutUser.avatar_url
+                  avatar_url: checkedOutUser.avatar_url,
                 }}
                 fileId={file.pdmData.id}
                 fileName={file.name}
@@ -313,14 +389,16 @@ export function FileActionButtons({
           </span>
         )
       })()}
-      
+
       {/* Discard button for deleted files (checked out by me but missing locally) */}
-      {!isOfflineMode && file.diffStatus === 'deleted' && file.pdmData?.checked_out_by === user?.id && (
-        <InlineDiscardButton
-          onClick={handleInlineDiscard}
-          isProcessing={operationType === 'checkout'}
-        />
-      )}
+      {!isOfflineMode &&
+        file.diffStatus === 'deleted' &&
+        file.pdmData?.checked_out_by === user?.id && (
+          <InlineDiscardButton
+            onClick={handleInlineDiscard}
+            isProcessing={operationType === 'checkout'}
+          />
+        )}
     </>
   )
 }
@@ -344,7 +422,7 @@ interface FolderActionButtonsProps {
 /**
  * Inline action buttons for folders
  * Handles batch operations like download all, checkin all, etc.
- * 
+ *
  * PERFORMANCE: Uses pre-computed diffCounts instead of filtering allFiles.
  * This reduces per-folder operations from O(N) to O(1) lookups.
  */
@@ -358,20 +436,20 @@ export function FolderActionButtons({
   syncedCount,
   operationType,
   onRefresh,
-  isOfflineMode
+  isOfflineMode,
 }: FolderActionButtonsProps) {
-  
   if (!file.isDirectory) return null
-  
+
   // Use computed diffCounts.cloud instead of stale folder diffStatus
   // diffCounts.cloud is derived from actual children, so it updates when files are downloaded
-  const shouldShow = localOnlyCount > 0 || 
-    (diffCounts && (diffCounts.cloud > 0 || diffCounts.outdated > 0)) || 
-    checkoutUsers.length > 0 || 
+  const shouldShow =
+    localOnlyCount > 0 ||
+    (diffCounts && (diffCounts.cloud > 0 || diffCounts.outdated > 0)) ||
+    checkoutUsers.length > 0 ||
     syncedCount > 0
-  
+
   if (!shouldShow) return null
-  
+
   /**
    * Handle download/get-latest for folder.
    * Uses pre-computed diffCounts to determine which commands to execute.
@@ -380,12 +458,12 @@ export function FolderActionButtons({
    */
   const handleInlineDownload = (e: React.MouseEvent) => {
     e.stopPropagation()
-    
+
     // Use pre-computed diffCounts for O(1) lookup instead of O(N) filter
     // diffCounts.cloud is derived from actual children, so it updates when files are downloaded
     const hasOutdated = diffCounts && diffCounts.outdated > 0
     const hasCloud = diffCounts && diffCounts.cloud > 0
-    
+
     if (hasOutdated) {
       executeCommand('get-latest', { files: [file] }, { onRefresh })
     }
@@ -393,29 +471,29 @@ export function FolderActionButtons({
       executeCommand('download', { files: [file] }, { onRefresh })
     }
   }
-  
+
   const handleInlineCheckout = (e: React.MouseEvent) => {
     e.stopPropagation()
     executeCommand('checkout', { files: [file] }, { onRefresh })
   }
-  
+
   const handleInlineCheckin = (e: React.MouseEvent) => {
     e.stopPropagation()
     executeCommand('checkin', { files: [file] }, { onRefresh })
   }
-  
+
   const handleInlineFirstCheckin = (e: React.MouseEvent) => {
     e.stopPropagation()
     executeCommand('sync', { files: [file] }, { onRefresh })
   }
-  
+
   // Show delete spinner when deleting
   if (operationType === 'delete') {
     return <Loader2 size={16} className="text-red-400 animate-spin ml-auto mr-0.5" />
   }
-  
+
   return (
-    <span 
+    <span
       className="flex items-center gap-1 ml-auto mr-0.5 text-[10px]"
       onClick={(e) => e.stopPropagation()}
     >
@@ -437,22 +515,25 @@ export function FolderActionButtons({
         />
       )}
       {/* 3. Avatar checkout (users with check-in button) - only when online */}
-      {!isOfflineMode && checkoutUsers.length > 0 && (() => {
-        // Use folder's pdmData.id if available, otherwise fallback to first file ID from checkout users
-        // This enables notification functionality even when folders don't have their own PDM record
-        const folderId = file.pdmData?.id || checkoutUsers.find(u => u.fileIds?.length)?.fileIds?.[0]
-        return (
-          <FolderCheckinButton
-            onClick={handleInlineCheckin}
-            users={checkoutUsers}
-            myCheckedOutCount={checkedOutByMeCount}
-            totalCheckouts={totalCheckouts}
-            isProcessing={operationType === 'checkin'}
-            folderId={folderId}
-            folderName={file.name}
-          />
-        )
-      })()}
+      {!isOfflineMode &&
+        checkoutUsers.length > 0 &&
+        (() => {
+          // Use folder's pdmData.id if available, otherwise fallback to first file ID from checkout users
+          // This enables notification functionality even when folders don't have their own PDM record
+          const folderId =
+            file.pdmData?.id || checkoutUsers.find((u) => u.fileIds?.length)?.fileIds?.[0]
+          return (
+            <FolderCheckinButton
+              onClick={handleInlineCheckin}
+              users={checkoutUsers}
+              myCheckedOutCount={checkedOutByMeCount}
+              totalCheckouts={totalCheckouts}
+              isProcessing={operationType === 'checkin'}
+              folderId={folderId}
+              folderName={file.name}
+            />
+          )
+        })()}
       {/* 4. Green cloud - synced files ready to checkout - only when online */}
       {!isOfflineMode && syncedCount > 0 && (
         <InlineCheckoutButton

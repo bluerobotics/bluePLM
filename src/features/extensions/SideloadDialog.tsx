@@ -1,6 +1,6 @@
 /**
  * SideloadDialog - Install extension from local .bpx file
- * 
+ *
  * Shows a prominent warning about sideloading risks:
  * - Extension is not verified
  * - Could contain malicious code
@@ -8,7 +8,13 @@
  */
 import { useState, useEffect, useCallback } from 'react'
 import {
-  X, Upload, CheckCircle2, XCircle, AlertTriangle, FileWarning, FolderOpen
+  X,
+  Upload,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  FileWarning,
+  FolderOpen,
 } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 
@@ -19,19 +25,16 @@ interface SideloadDialogProps {
 
 type SideloadState = 'select' | 'warning' | 'installing' | 'success' | 'error'
 
-export function SideloadDialog({
-  open,
-  onClose,
-}: SideloadDialogProps) {
+export function SideloadDialog({ open, onClose }: SideloadDialogProps) {
   const [sideloadState, setSideloadState] = useState<SideloadState>('select')
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [fileName, setFileName] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [warningAccepted, setWarningAccepted] = useState(false)
-  
-  const installProgress = usePDMStore(s => s.installProgress)
-  const sideloadExtension = usePDMStore(s => s.sideloadExtension)
-  const addToast = usePDMStore(s => s.addToast)
+
+  const installProgress = usePDMStore((s) => s.installProgress)
+  const sideloadExtension = usePDMStore((s) => s.sideloadExtension)
+  const addToast = usePDMStore((s) => s.addToast)
 
   // Reset state when dialog opens
   useEffect(() => {
@@ -48,7 +51,7 @@ export function SideloadDialog({
   const handleSelectFile = async () => {
     try {
       const result = await window.electronAPI?.selectFiles()
-      
+
       if (result?.success && result.files && result.files.length > 0) {
         const file = result.files[0]
         if (file.path.endsWith('.bpx')) {
@@ -60,8 +63,8 @@ export function SideloadDialog({
           setSideloadState('error')
         }
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to select file')
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to select file')
       setSideloadState('error')
     }
   }
@@ -70,7 +73,7 @@ export function SideloadDialog({
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    
+
     const files = e.dataTransfer.files
     if (files.length > 0) {
       const file = files[0]
@@ -96,13 +99,13 @@ export function SideloadDialog({
   // Handle installation
   const handleInstall = async () => {
     if (!selectedFile) return
-    
+
     setSideloadState('installing')
     setError(null)
-    
+
     try {
       const result = await sideloadExtension(selectedFile, true)
-      
+
       if (result.success) {
         setSideloadState('success')
         addToast('success', `Extension installed from ${fileName}`)
@@ -110,8 +113,8 @@ export function SideloadDialog({
         setError(result.error || 'Installation failed')
         setSideloadState('error')
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Installation failed')
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Installation failed')
       setSideloadState('error')
     }
   }
@@ -119,10 +122,13 @@ export function SideloadDialog({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+      onClick={onClose}
+    >
       <div
         className="w-full max-w-md bg-gray-900 rounded-xl shadow-2xl border border-gray-700 overflow-hidden"
-        onClick={e => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="p-6 border-b border-gray-800">
@@ -133,7 +139,7 @@ export function SideloadDialog({
           >
             <X size={20} />
           </button>
-          
+
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-lg bg-amber-500/20 flex items-center justify-center">
               <Upload size={24} className="text-amber-400" />
@@ -144,7 +150,7 @@ export function SideloadDialog({
             </div>
           </div>
         </div>
-        
+
         {/* Content */}
         <div className="p-6">
           {/* Select state */}
@@ -157,15 +163,13 @@ export function SideloadDialog({
               onDragOver={handleDragOver}
             >
               <FolderOpen size={48} className="mx-auto mb-4 text-gray-500" />
-              <p className="text-gray-300 mb-2">
-                Drop a .bpx file here or click to browse
-              </p>
+              <p className="text-gray-300 mb-2">Drop a .bpx file here or click to browse</p>
               <p className="text-sm text-gray-500">
                 Only install extensions from sources you trust
               </p>
             </div>
           )}
-          
+
           {/* Warning state */}
           {sideloadState === 'warning' && (
             <>
@@ -177,7 +181,7 @@ export function SideloadDialog({
                   <div className="text-xs text-gray-500 truncate">{selectedFile}</div>
                 </div>
               </div>
-              
+
               {/* Warning */}
               <div className="mb-4 p-4 rounded-lg bg-red-500/10 border border-red-500/30">
                 <div className="flex items-center gap-2 text-red-400 font-semibold mb-2">
@@ -199,13 +203,13 @@ export function SideloadDialog({
                   </li>
                 </ul>
               </div>
-              
+
               {/* Checkbox */}
               <label className="flex items-start gap-3 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={warningAccepted}
-                  onChange={e => setWarningAccepted(e.target.checked)}
+                  onChange={(e) => setWarningAccepted(e.target.checked)}
                   className="mt-1 w-4 h-4 rounded border-gray-600 bg-gray-800 text-red-600 
                     focus:ring-red-500 focus:ring-offset-gray-900"
                 />
@@ -215,7 +219,7 @@ export function SideloadDialog({
               </label>
             </>
           )}
-          
+
           {/* Installing state */}
           {sideloadState === 'installing' && (
             <div className="py-8 text-center">
@@ -236,7 +240,7 @@ export function SideloadDialog({
               )}
             </div>
           )}
-          
+
           {/* Success state */}
           {sideloadState === 'success' && (
             <div className="py-8 text-center">
@@ -252,7 +256,7 @@ export function SideloadDialog({
               </p>
             </div>
           )}
-          
+
           {/* Error state */}
           {sideloadState === 'error' && (
             <div className="py-8 text-center">
@@ -270,7 +274,7 @@ export function SideloadDialog({
             </div>
           )}
         </div>
-        
+
         {/* Footer */}
         <div className="p-6 border-t border-gray-800 flex justify-end gap-3">
           {sideloadState === 'select' && (
@@ -281,7 +285,7 @@ export function SideloadDialog({
               Cancel
             </button>
           )}
-          
+
           {sideloadState === 'warning' && (
             <>
               <button
@@ -302,7 +306,7 @@ export function SideloadDialog({
               </button>
             </>
           )}
-          
+
           {sideloadState === 'installing' && (
             <button
               onClick={onClose}
@@ -311,7 +315,7 @@ export function SideloadDialog({
               Run in background
             </button>
           )}
-          
+
           {(sideloadState === 'success' || sideloadState === 'error') && (
             <button
               onClick={onClose}

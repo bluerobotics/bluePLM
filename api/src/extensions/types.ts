@@ -1,9 +1,9 @@
 /**
  * Extension System Types for API Server
- * 
+ *
  * Server-side type definitions for extension sandbox execution.
  * These complement the client-side types in src/lib/extensions/types.ts
- * 
+ *
  * @module extensions/types
  */
 

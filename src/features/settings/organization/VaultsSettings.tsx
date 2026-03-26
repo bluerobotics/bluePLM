@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
-import { 
-  Folder, 
+import {
+  Folder,
   FolderOpen,
-  Trash2, 
-  Star, 
-  Pencil, 
-  Check, 
+  Trash2,
+  Star,
+  Pencil,
+  Check,
   X,
   Link,
   Unlink,
@@ -20,7 +20,7 @@ import {
   Scale,
   ToggleLeft,
   ToggleRight,
-  Upload
+  Upload,
 } from 'lucide-react'
 import { usePDMStore, ConnectedVault } from '@/stores/pdmStore'
 import { supabase, getAccessibleVaults } from '@/lib/supabase'
@@ -46,15 +46,15 @@ interface Vault {
   name: string
   slug: string
   description: string | null
-  storage_bucket?: string  // Only used when creating vaults, not needed for display
+  storage_bucket?: string // Only used when creating vaults, not needed for display
   is_default: boolean
   created_at: string
 }
 
 export function VaultsSettings() {
-  const { 
-    user, 
-    organization, 
+  const {
+    user,
+    organization,
     connectedVaults,
     activeVaultId,
     addConnectedVault,
@@ -79,11 +79,11 @@ export function VaultsSettings() {
     uploadSizeWarningEnabled,
     setUploadSizeWarningEnabled,
     uploadSizeWarningThreshold,
-    setUploadSizeWarningThreshold
+    setUploadSizeWarningThreshold,
   } = usePDMStore()
-  
+
   const isAdmin = getEffectiveRole() === 'admin'
-  
+
   const [platform, setPlatform] = useState<string>('win32')
   const [orgVaults, setOrgVaults] = useState<Vault[]>([])
   const [isLoadingVaults, setIsLoadingVaults] = useState(false)
@@ -98,59 +98,65 @@ export function VaultsSettings() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [deleteConfirmText2, setDeleteConfirmText2] = useState('')
   const [isDeleting, setIsDeleting] = useState(false)
-  const [disconnectingVault, setDisconnectingVault] = useState<{ id: string; name: string } | null>(null)
+  const [disconnectingVault, setDisconnectingVault] = useState<{ id: string; name: string } | null>(
+    null,
+  )
   const [isDisconnecting, setIsDisconnecting] = useState(false)
-  
+
   // Wipe local files state
-  const [wipingVault, setWipingVault] = useState<{ id: string; name: string; localPath: string } | null>(null)
+  const [wipingVault, setWipingVault] = useState<{
+    id: string
+    name: string
+    localPath: string
+  } | null>(null)
   const [isWiping, setIsWiping] = useState(false)
-  
+
   // Vault setup dialog state
   const [setupVault, setSetupVault] = useState<Vault | null>(null)
   const [setupVaultPath, setSetupVaultPath] = useState<string | null>(null)
   const [setupVaultSyncStats, setSetupVaultSyncStats] = useState<VaultSyncStats | null>(null)
-  
+
   // Clear vault state
   const [clearingVault, setClearingVault] = useState<Vault | null>(null)
   const [clearConfirmText, setClearConfirmText] = useState('')
   const [clearConfirmText2, setClearConfirmText2] = useState('')
   const [isClearing, setIsClearing] = useState(false)
-  
+
   // Track if we're currently saving to avoid overwriting with stale realtime data
   const savingRef = useRef(false)
-  
+
   // Get platform on mount
   useEffect(() => {
     if (window.electronAPI) {
       window.electronAPI.getPlatform().then(setPlatform)
     }
   }, [])
-  
+
   // Load data on mount or when user changes
   useEffect(() => {
     if (organization && user) {
       loadOrgVaults()
     }
   }, [organization, user?.id])
-  
+
   // Real-time subscription for vault changes from other admins
   useEffect(() => {
     if (!organization?.id) return
-    
+
     const unsubscribe = subscribeToVaults(organization.id, (eventType, vault) => {
       // Skip if we initiated the change
       if (savingRef.current) return
-      
+
       log.debug('[VaultsSettings]', 'Real-time vault change', { eventType, vaultName: vault?.name })
       loadOrgVaults()
     })
-    
+
     return unsubscribe
   }, [organization?.id])
-  
+
   const loadOrgVaults = async () => {
     if (!organization || !user) return
-    
+
     setIsLoadingVaults(true)
     try {
       // Load vaults filtered by user's access permissions
@@ -158,44 +164,46 @@ export function VaultsSettings() {
       const { vaults, error } = await getAccessibleVaults(
         user.id,
         organization.id,
-        getEffectiveRole()
+        getEffectiveRole(),
       )
-      
+
       if (error) {
         log.error('[VaultsSettings]', 'Failed to load org vaults', { error })
       } else {
         // Map Supabase nullables to app types with defaults
-        setOrgVaults((vaults || []).map(v => ({
-          ...v,
-          description: v.description ?? null,
-          is_default: v.is_default ?? false,
-          created_at: v.created_at ?? new Date().toISOString()
-        })))
+        setOrgVaults(
+          (vaults || []).map((v) => ({
+            ...v,
+            description: v.description ?? null,
+            is_default: v.is_default ?? false,
+            created_at: v.created_at ?? new Date().toISOString(),
+          })),
+        )
       }
-    } catch (err) {
-      log.error('[VaultsSettings]', 'Failed to load org vaults', { error: err })
+    } catch (error) {
+      log.error('[VaultsSettings]', 'Failed to load org vaults', { error: error })
     } finally {
       setIsLoadingVaults(false)
     }
   }
-  
+
   const createSlug = (name: string) => {
     return name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '')
   }
-  
+
   const handleCreateVault = async () => {
     if (!newVaultName.trim() || !organization || !user) return
-    
+
     setIsSavingVault(true)
     savingRef.current = true
-    
+
     const name = newVaultName.trim()
     const slug = createSlug(name)
     const storageBucket = `vault-${organization.slug}-${slug}`
-    
+
     try {
       const { data: vault, error } = await supabase
         .from('vaults')
@@ -206,17 +214,17 @@ export function VaultsSettings() {
           description: newVaultDescription.trim() || null,
           storage_bucket: storageBucket,
           is_default: orgVaults.length === 0,
-          created_by: user.id
+          created_by: user.id,
         })
         .select()
         .single()
-      
+
       if (error) {
         log.error('[VaultsSettings]', 'Failed to create vault', { error })
         addToast('error', `Failed to create vault: ${error.message}`)
         return
       }
-      
+
       addToast('success', `Vault "${name}" created`)
       // Map Supabase nullables to app types with defaults
       const mappedVault: Vault = {
@@ -224,147 +232,161 @@ export function VaultsSettings() {
         description: vault.description ?? null,
         is_default: vault.is_default ?? false,
         created_at: vault.created_at ?? new Date().toISOString(),
-        storage_bucket: vault.storage_bucket ?? undefined
+        storage_bucket: vault.storage_bucket ?? undefined,
       }
       setOrgVaults([...orgVaults, mappedVault])
       setIsCreatingVault(false)
       setNewVaultName('')
       setNewVaultDescription('')
       triggerVaultsRefresh()
-    } catch (err) {
-      log.error('[VaultsSettings]', 'Failed to create vault', { error: err })
+    } catch (error) {
+      log.error('[VaultsSettings]', 'Failed to create vault', { error: error })
       addToast('error', 'Failed to create vault')
     } finally {
       setIsSavingVault(false)
       // Small delay before allowing realtime sync again to let the update propagate
-      setTimeout(() => { savingRef.current = false }, 1000)
+      setTimeout(() => {
+        savingRef.current = false
+      }, 1000)
     }
   }
-  
+
   const handleRenameVault = async (vault: Vault) => {
     if (!renameValue.trim() || renameValue === vault.name) {
       setRenamingVaultId(null)
       return
     }
-    
+
     const newName = renameValue.trim()
     const newSlug = createSlug(newName)
-    
+
     savingRef.current = true
     try {
       const { error } = await supabase
         .from('vaults')
         .update({ name: newName, slug: newSlug })
         .eq('id', vault.id)
-      
+
       if (error) {
         addToast('error', `Failed to rename vault: ${error.message}`)
         return
       }
-      
-      const connectedVault = connectedVaults.find(v => v.id === vault.id)
+
+      const connectedVault = connectedVaults.find((v) => v.id === vault.id)
       if (connectedVault) {
         updateConnectedVault(vault.id, { name: newName })
       }
-      
-      setOrgVaults(orgVaults.map(v => 
-        v.id === vault.id ? { ...v, name: newName, slug: newSlug } : v
-      ))
+
+      setOrgVaults(
+        orgVaults.map((v) => (v.id === vault.id ? { ...v, name: newName, slug: newSlug } : v)),
+      )
       addToast('success', `Vault renamed to "${newName}"`)
       setRenamingVaultId(null)
-    } catch (err) {
-      log.error('[VaultsSettings]', 'Failed to rename vault', { error: err })
+    } catch (error) {
+      log.error('[VaultsSettings]', 'Failed to rename vault', { error: error })
       addToast('error', 'Failed to rename vault')
     } finally {
-      setTimeout(() => { savingRef.current = false }, 1000)
+      setTimeout(() => {
+        savingRef.current = false
+      }, 1000)
     }
   }
-  
+
   const handleSetDefaultVault = async (vaultId: string) => {
     if (!organization) return
-    
+
     savingRef.current = true
     try {
-      await supabase
-        .from('vaults')
-        .update({ is_default: false })
-        .eq('org_id', organization.id)
-      
-      const { error } = await supabase
-        .from('vaults')
-        .update({ is_default: true })
-        .eq('id', vaultId)
-      
+      await supabase.from('vaults').update({ is_default: false }).eq('org_id', organization.id)
+
+      const { error } = await supabase.from('vaults').update({ is_default: true }).eq('id', vaultId)
+
       if (error) {
         addToast('error', 'Failed to set default vault')
         return
       }
-      
-      setOrgVaults(orgVaults.map(v => ({
-        ...v,
-        is_default: v.id === vaultId
-      })))
+
+      setOrgVaults(
+        orgVaults.map((v) => ({
+          ...v,
+          is_default: v.id === vaultId,
+        })),
+      )
       addToast('success', 'Default vault updated')
-    } catch (err) {
-      log.error('[VaultsSettings]', 'Failed to set default vault', { error: err })
+    } catch (error) {
+      log.error('[VaultsSettings]', 'Failed to set default vault', { error: error })
     } finally {
-      setTimeout(() => { savingRef.current = false }, 1000)
+      setTimeout(() => {
+        savingRef.current = false
+      }, 1000)
     }
   }
-  
+
   const handleDeleteVault = async () => {
-    if (!deletingVault || deleteConfirmText !== deletingVault.name || deleteConfirmText2 !== deletingVault.name) return
-    
+    if (
+      !deletingVault ||
+      deleteConfirmText !== deletingVault.name ||
+      deleteConfirmText2 !== deletingVault.name
+    )
+      return
+
     setIsDeleting(true)
     savingRef.current = true
-    
+
     try {
-      const connectedVault = connectedVaults.find(v => v.id === deletingVault.id)
+      const connectedVault = connectedVaults.find((v) => v.id === deletingVault.id)
       if (connectedVault?.localPath) {
         const api = window.electronAPI
         if (api) {
           try {
             await api.deleteItem(connectedVault.localPath)
-          } catch (err) {
-            log.error('[VaultsSettings]', 'Failed to delete local folder during vault delete', { error: err })
+          } catch (error) {
+            log.error('[VaultsSettings]', 'Failed to delete local folder during vault delete', {
+              error: error,
+            })
           }
         }
       }
-      
-      const { error } = await supabase
-        .from('vaults')
-        .delete()
-        .eq('id', deletingVault.id)
-      
+
+      const { error } = await supabase.from('vaults').delete().eq('id', deletingVault.id)
+
       if (error) {
         addToast('error', `Failed to delete vault: ${error.message}`)
         return
       }
-      
-      if (connectedVaults.some(v => v.id === deletingVault.id)) {
+
+      if (connectedVaults.some((v) => v.id === deletingVault.id)) {
         removeConnectedVault(deletingVault.id)
       }
-      
-      setOrgVaults(orgVaults.filter(v => v.id !== deletingVault.id))
+
+      setOrgVaults(orgVaults.filter((v) => v.id !== deletingVault.id))
       addToast('success', `Vault "${deletingVault.name}" permanently deleted`)
       setDeletingVault(null)
       setDeleteConfirmText('')
       triggerVaultsRefresh()
-    } catch (err) {
-      log.error('[VaultsSettings]', 'Failed to delete vault', { error: err })
+    } catch (error) {
+      log.error('[VaultsSettings]', 'Failed to delete vault', { error: error })
       addToast('error', 'Failed to delete vault')
     } finally {
       setIsDeleting(false)
-      setTimeout(() => { savingRef.current = false }, 1000)
+      setTimeout(() => {
+        savingRef.current = false
+      }, 1000)
     }
   }
-  
+
   const handleClearVault = async () => {
-    if (!clearingVault || clearConfirmText !== clearingVault.name || clearConfirmText2 !== clearingVault.name || !organization) return
-    
+    if (
+      !clearingVault ||
+      clearConfirmText !== clearingVault.name ||
+      clearConfirmText2 !== clearingVault.name ||
+      !organization
+    )
+      return
+
     setIsClearing(true)
     savingRef.current = true
-    
+
     try {
       // Delete all files from the vault in the database
       addToast('info', 'Clearing database records...')
@@ -372,15 +394,17 @@ export function VaultsSettings() {
         .from('files')
         .delete()
         .eq('vault_id', clearingVault.id)
-      
+
       if (filesError) {
-        log.error('[VaultsSettings]', 'Failed to delete files during vault clear', { error: filesError })
+        log.error('[VaultsSettings]', 'Failed to delete files during vault clear', {
+          error: filesError,
+        })
         addToast('error', `Failed to clear vault files: ${filesError.message}`)
         return
       }
-      
+
       // Clear local files if vault is connected
-      const connectedVault = connectedVaults.find(v => v.id === clearingVault.id)
+      const connectedVault = connectedVaults.find((v) => v.id === clearingVault.id)
       if (connectedVault?.localPath) {
         const api = window.electronAPI
         if (api) {
@@ -388,8 +412,8 @@ export function VaultsSettings() {
             addToast('info', 'Clearing local files...')
             // Stop file watcher first to release file handles
             await api.clearWorkingDir()
-            await new Promise(resolve => setTimeout(resolve, 200))
-            
+            await new Promise((resolve) => setTimeout(resolve, 200))
+
             // List all items in the local folder
             const listResult = await api.listDirFiles(connectedVault.localPath)
             if (listResult.success && listResult.files && listResult.files.length > 0) {
@@ -400,40 +424,45 @@ export function VaultsSettings() {
                 try {
                   await api.deleteItem(file.path)
                   deletedCount++
-                } catch (err) {
-                  log.error('[VaultsSettings]', 'Failed to delete local item', { path: file.path, error: err })
+                } catch (error) {
+                  log.error('[VaultsSettings]', 'Failed to delete local item', {
+                    path: file.path,
+                    error: error,
+                  })
                 }
               }
               addToast('success', `Deleted ${deletedCount} of ${totalItems} local items`)
             } else {
               addToast('info', 'No local files to delete')
             }
-          } catch (err) {
-            log.error('[VaultsSettings]', 'Failed to clear local files', { error: err })
+          } catch (error) {
+            log.error('[VaultsSettings]', 'Failed to clear local files', { error: error })
             addToast('warning', 'Could not clear some local files')
           }
         }
       }
-      
+
       // Delete files from storage bucket
       try {
         addToast('info', 'Clearing cloud storage...')
         const { data: storageFiles } = await supabase.storage
           .from('vault')
           .list(`${organization.id}/${clearingVault.id}`)
-        
+
         if (storageFiles && storageFiles.length > 0) {
-          const filePaths = storageFiles.map(f => `${organization.id}/${clearingVault.id}/${f.name}`)
+          const filePaths = storageFiles.map(
+            (f) => `${organization.id}/${clearingVault.id}/${f.name}`,
+          )
           await supabase.storage.from('vault').remove(filePaths)
           addToast('success', `Deleted ${storageFiles.length} files from cloud storage`)
         } else {
           addToast('info', 'No cloud storage files to delete')
         }
-      } catch (err) {
-        log.error('[VaultsSettings]', 'Failed to clear storage files', { error: err })
+      } catch (error) {
+        log.error('[VaultsSettings]', 'Failed to clear storage files', { error: error })
         addToast('warning', 'Could not clear cloud storage files')
       }
-      
+
       // Clear local state if this is the active vault
       if (clearingVault.id === activeVaultId) {
         setFiles([])
@@ -442,210 +471,226 @@ export function VaultsSettings() {
         // (setting to false would cause infinite loading spinner)
         setFilesLoaded(true)
       }
-      
+
       addToast('success', `Vault "${clearingVault.name}" cleared successfully`)
       setClearingVault(null)
       setClearConfirmText('')
       setClearConfirmText2('')
       triggerVaultsRefresh()
-    } catch (err) {
-      log.error('[VaultsSettings]', 'Failed to clear vault', { error: err })
+    } catch (error) {
+      log.error('[VaultsSettings]', 'Failed to clear vault', { error: error })
       addToast('error', 'Failed to clear vault')
     } finally {
       setIsClearing(false)
-      setTimeout(() => { savingRef.current = false }, 1000)
+      setTimeout(() => {
+        savingRef.current = false
+      }, 1000)
     }
   }
-  
+
   const handleConnectVault = async (vault: Vault) => {
     setConnectingVaultId(vault.id)
-    
+
     try {
       const api = window.electronAPI
       if (!api) {
         addToast('error', 'Electron API not available')
         return
       }
-      
+
       const localPath = buildVaultPath(platform, vault.slug)
       const result = await api.createWorkingDir(localPath)
-      
+
       if (result.success && result.path) {
         // Show setup dialog instead of directly connecting
         setSetupVault(vault)
         setSetupVaultPath(result.path)
-        
+
         // Calculate sync stats in background (show loading initially)
-        setSetupVaultSyncStats({ 
-          serverFileCount: 0, serverTotalSize: 0, localFileCount: 0, 
-          syncedCount: 0, cloudOnlyCount: 0, localOnlyCount: 0, outdatedCount: 0,
-          isLoading: true 
+        setSetupVaultSyncStats({
+          serverFileCount: 0,
+          serverTotalSize: 0,
+          localFileCount: 0,
+          syncedCount: 0,
+          cloudOnlyCount: 0,
+          localOnlyCount: 0,
+          outdatedCount: 0,
+          isLoading: true,
         })
-        
+
         // Set working directory and calculate stats
         const orgId = organization?.id
         const vaultPath = result.path
         if (orgId && vaultPath) {
-          api.setWorkingDir(vaultPath).then(async () => {
-            const stats = await calculateVaultSyncStats(vaultPath, vault.id, orgId)
-            setSetupVaultSyncStats(stats)
-          }).catch(err => {
-            log.warn('[VaultsSettings]', 'Failed to calculate sync stats', { error: String(err) })
-            setSetupVaultSyncStats(null) // Fall back to basic stats
-          })
+          api
+            .setWorkingDir(vaultPath)
+            .then(async () => {
+              const stats = await calculateVaultSyncStats(vaultPath, vault.id, orgId)
+              setSetupVaultSyncStats(stats)
+            })
+            .catch((error) => {
+              log.warn('[VaultsSettings]', 'Failed to calculate sync stats', { error: String(error) })
+              setSetupVaultSyncStats(null) // Fall back to basic stats
+            })
         }
       } else {
         addToast('error', `Failed to create vault folder: ${result.error}`)
       }
-    } catch (err) {
-      log.error('[VaultsSettings]', 'Failed to connect vault', { error: err })
+    } catch (error) {
+      log.error('[VaultsSettings]', 'Failed to connect vault', { error: error })
       addToast('error', 'Failed to connect vault')
     } finally {
       setConnectingVaultId(null)
     }
   }
-  
-  const handleVaultSetupComplete = (preferences: { autoDownloadCloudFiles: boolean; autoDownloadUpdates: boolean; autoDownloadSizeLimit: number }) => {
+
+  const handleVaultSetupComplete = (preferences: {
+    autoDownloadCloudFiles: boolean
+    autoDownloadUpdates: boolean
+    autoDownloadSizeLimit: number
+  }) => {
     if (!setupVault || !setupVaultPath) return
-    
-    log.info('[VaultsSettings]', 'Vault setup complete', { 
-      vaultName: setupVault.name, 
-      preferences 
+
+    log.info('[VaultsSettings]', 'Vault setup complete', {
+      vaultName: setupVault.name,
+      preferences,
     })
-    
+
     // Apply auto-download preferences
     setAutoDownloadCloudFiles(preferences.autoDownloadCloudFiles)
     setAutoDownloadUpdates(preferences.autoDownloadUpdates)
     setAutoDownloadSizeLimit(preferences.autoDownloadSizeLimit)
-    
+
     // Add vault with hasCompletedSetup flag
     const connectedVault: ConnectedVault = {
       id: setupVault.id,
       name: setupVault.name,
       localPath: setupVaultPath,
       isExpanded: true,
-      hasCompletedSetup: true
+      hasCompletedSetup: true,
     }
     addConnectedVault(connectedVault)
     setVaultPath(setupVaultPath)
     setVaultConnected(true)
-    
+
     addToast('success', `Connected to "${setupVault.name}"`)
-    
+
     // Clear setup state
     setSetupVault(null)
     setSetupVaultPath(null)
     setSetupVaultSyncStats(null)
   }
-  
+
   const handleVaultSetupCancel = () => {
     log.info('[VaultsSettings]', 'Vault setup cancelled', { vaultName: setupVault?.name })
     setSetupVault(null)
     setSetupVaultPath(null)
     setSetupVaultSyncStats(null)
   }
-  
+
   const handleDisconnectVault = (vaultId: string) => {
-    const vault = connectedVaults.find(v => v.id === vaultId)
+    const vault = connectedVaults.find((v) => v.id === vaultId)
     if (vault) {
       setDisconnectingVault({ id: vault.id, name: vault.name })
     }
   }
-  
+
   const confirmDisconnect = async () => {
     if (!disconnectingVault) return
-    
+
     setIsDisconnecting(true)
-    
+
     // Stop file watcher if this is the active vault
     if (disconnectingVault.id === activeVaultId) {
       const api = window.electronAPI
       if (api) {
         try {
           await api.clearWorkingDir()
-        } catch (err) {
-          log.error('[VaultsSettings]', 'Failed to clear working dir during disconnect', { error: err })
+        } catch (error) {
+          log.error('[VaultsSettings]', 'Failed to clear working dir during disconnect', {
+            error: error,
+          })
         }
       }
-      
+
       setFiles([])
       setServerFiles([])
       setFilesLoaded(false)
       setVaultPath(null)
       setVaultConnected(false)
     }
-    
+
     removeConnectedVault(disconnectingVault.id)
     setDisconnectingVault(null)
     setIsDisconnecting(false)
-    
+
     addToast('success', 'Vault disconnected (local files preserved)')
   }
-  
+
   const handleWipeLocalFiles = async () => {
     if (!wipingVault) return
-    
+
     setIsWiping(true)
-    
+
     try {
       const api = window.electronAPI
       if (!api) {
         addToast('error', 'Electron API not available')
         return
       }
-      
+
       // Stop file watcher if this is the active vault
       if (wipingVault.id === activeVaultId) {
         await api.clearWorkingDir()
-        await new Promise(resolve => setTimeout(resolve, 200))
+        await new Promise((resolve) => setTimeout(resolve, 200))
       }
-      
+
       // List all items in the local folder
       const listResult = await api.listDirFiles(wipingVault.localPath)
       if (listResult.success && listResult.files && listResult.files.length > 0) {
         const totalItems = listResult.files.length
         let deletedCount = 0
-        
+
         // Delete each item (files and folders)
         for (const file of listResult.files) {
           try {
             await api.deleteItem(file.path)
             deletedCount++
-          } catch (err) {
-            log.error('[VaultsSettings]', 'Failed to delete local item', { path: file.path, error: err })
+          } catch (error) {
+            log.error('[VaultsSettings]', 'Failed to delete local item', {
+              path: file.path,
+              error: error,
+            })
           }
         }
-        
+
         addToast('success', `Deleted ${deletedCount} of ${totalItems} local items`)
       } else {
         addToast('info', 'No local files to delete')
       }
-      
+
       // Clear local state if this is the active vault
       if (wipingVault.id === activeVaultId) {
         setFiles([])
         setServerFiles([])
-        setFilesLoaded(true)  // Set to true since empty state is valid
+        setFilesLoaded(true) // Set to true since empty state is valid
       }
-      
-    } catch (err) {
-      log.error('[VaultsSettings]', 'Failed to wipe local files', { error: err })
+    } catch (error) {
+      log.error('[VaultsSettings]', 'Failed to wipe local files', { error: error })
       addToast('error', 'Failed to wipe local files')
     } finally {
       setWipingVault(null)
       setIsWiping(false)
     }
   }
-  
+
   const isVaultConnected = (vaultId: string) => {
-    return connectedVaults.some(v => v.id === vaultId)
+    return connectedVaults.some((v) => v.id === vaultId)
   }
 
   if (!organization) {
     return (
-      <div className="text-center py-12 text-plm-fg-muted text-base">
-        No organization connected
-      </div>
+      <div className="text-center py-12 text-plm-fg-muted text-base">No organization connected</div>
     )
   }
 
@@ -655,9 +700,7 @@ export function VaultsSettings() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold text-plm-fg">Vaults</h2>
-          <p className="text-sm text-plm-fg-muted mt-1">
-            Manage vaults in your organization
-          </p>
+          <p className="text-sm text-plm-fg-muted mt-1">Manage vaults in your organization</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -679,7 +722,7 @@ export function VaultsSettings() {
           )}
         </div>
       </div>
-      
+
       {/* Create vault form */}
       {isCreatingVault && (
         <div className="p-4 bg-plm-bg rounded-lg border border-plm-accent space-y-3">
@@ -725,7 +768,7 @@ export function VaultsSettings() {
           </div>
         </div>
       )}
-      
+
       {/* Vaults list */}
       {isLoadingVaults ? (
         <div className="flex items-center justify-center py-8">
@@ -733,18 +776,21 @@ export function VaultsSettings() {
         </div>
       ) : orgVaults.length === 0 ? (
         <div className="text-center py-8 text-plm-fg-muted text-base">
-          {isAdmin 
+          {isAdmin
             ? 'No vaults created yet. Add a vault to get started.'
             : 'No vaults created yet. Ask an organization admin to create one.'}
         </div>
       ) : (
         <div className="space-y-2">
-          {orgVaults.map(vault => (
-            <div 
+          {orgVaults.map((vault) => (
+            <div
               key={vault.id}
               className="flex items-center gap-3 p-3 rounded-lg bg-plm-bg border border-plm-border hover:border-plm-border-light transition-colors"
             >
-              <Folder size={18} className={vault.is_default ? 'text-plm-accent' : 'text-plm-fg-muted'} />
+              <Folder
+                size={18}
+                className={vault.is_default ? 'text-plm-accent' : 'text-plm-fg-muted'}
+              />
               <div className="flex-1 min-w-0">
                 {renamingVaultId === vault.id ? (
                   <div className="flex items-center gap-2">
@@ -759,10 +805,16 @@ export function VaultsSettings() {
                       className="flex-1 bg-plm-bg-light border border-plm-border rounded px-2 py-1 text-base focus:border-plm-accent focus:outline-none"
                       autoFocus
                     />
-                    <button onClick={() => handleRenameVault(vault)} className="p-1 hover:bg-plm-highlight rounded">
+                    <button
+                      onClick={() => handleRenameVault(vault)}
+                      className="p-1 hover:bg-plm-highlight rounded"
+                    >
                       <Check size={14} className="text-plm-success" />
                     </button>
-                    <button onClick={() => setRenamingVaultId(null)} className="p-1 hover:bg-plm-highlight rounded">
+                    <button
+                      onClick={() => setRenamingVaultId(null)}
+                      className="p-1 hover:bg-plm-highlight rounded"
+                    >
                       <X size={14} className="text-plm-fg-muted" />
                     </button>
                   </div>
@@ -784,9 +836,7 @@ export function VaultsSettings() {
                       )}
                     </div>
                     {vault.description && (
-                      <div className="text-sm text-plm-fg-muted truncate">
-                        {vault.description}
-                      </div>
+                      <div className="text-sm text-plm-fg-muted truncate">{vault.description}</div>
                     )}
                   </>
                 )}
@@ -797,7 +847,7 @@ export function VaultsSettings() {
                   {isVaultConnected(vault.id) && (
                     <button
                       onClick={() => {
-                        const connectedVault = connectedVaults.find(v => v.id === vault.id)
+                        const connectedVault = connectedVaults.find((v) => v.id === vault.id)
                         if (connectedVault?.localPath) {
                           window.electronAPI?.showInExplorer(connectedVault.localPath)
                         }
@@ -808,7 +858,7 @@ export function VaultsSettings() {
                       <FolderOpen size={14} className="text-plm-fg-muted" />
                     </button>
                   )}
-                  
+
                   {/* Connect/Disconnect button */}
                   {isVaultConnected(vault.id) ? (
                     <>
@@ -822,9 +872,13 @@ export function VaultsSettings() {
                       </button>
                       <button
                         onClick={() => {
-                          const cv = connectedVaults.find(v => v.id === vault.id)
+                          const cv = connectedVaults.find((v) => v.id === vault.id)
                           if (cv?.localPath) {
-                            setWipingVault({ id: vault.id, name: vault.name, localPath: cv.localPath })
+                            setWipingVault({
+                              id: vault.id,
+                              name: vault.name,
+                              localPath: cv.localPath,
+                            })
                           }
                         }}
                         className="btn btn-ghost btn-sm flex items-center gap-1 text-plm-error"
@@ -848,7 +902,7 @@ export function VaultsSettings() {
                       Connect
                     </button>
                   )}
-                  
+
                   {/* Admin actions */}
                   {isAdmin && (
                     <div className="flex items-center gap-1 border-l border-plm-border pl-2">
@@ -933,7 +987,7 @@ export function VaultsSettings() {
                 )}
               </button>
             </div>
-            
+
             {/* Auto-download updates */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -958,7 +1012,7 @@ export function VaultsSettings() {
                 )}
               </button>
             </div>
-            
+
             {/* Size limit for auto-downloads */}
             {(autoDownloadCloudFiles || autoDownloadUpdates) && (
               <div className="pt-3 border-t border-plm-border">
@@ -985,16 +1039,16 @@ export function VaultsSettings() {
                     )}
                   </button>
                 </div>
-                
+
                 {autoDownloadSizeLimit > 0 && (
                   <div className="flex items-center gap-2 mt-3 ml-11">
-                    <span className="text-sm text-plm-fg-muted">
-                      Max file size:
-                    </span>
+                    <span className="text-sm text-plm-fg-muted">Max file size:</span>
                     <input
                       type="number"
                       value={autoDownloadSizeLimit}
-                      onChange={(e) => setAutoDownloadSizeLimit(Math.max(1, parseInt(e.target.value) || 1))}
+                      onChange={(e) =>
+                        setAutoDownloadSizeLimit(Math.max(1, parseInt(e.target.value) || 1))
+                      }
                       min={1}
                       className="w-24 px-2 py-1.5 text-sm bg-plm-bg-secondary border border-plm-border rounded-lg focus:border-plm-accent focus:outline-none text-plm-fg"
                     />
@@ -1003,7 +1057,7 @@ export function VaultsSettings() {
                 )}
               </div>
             )}
-            
+
             {/* Auto-discard orphaned files */}
             <div className="pt-3 border-t border-plm-border">
               <div className="flex items-center justify-between">
@@ -1025,17 +1079,24 @@ export function VaultsSettings() {
 
                     // When toggling ON, immediately discard any already-orphaned files
                     if (enablingNow) {
-                      const orphanedFiles = usePDMStore.getState().files.filter(
-                        f => !f.isDirectory && f.diffStatus === 'deleted_remote'
-                      )
+                      const orphanedFiles = usePDMStore
+                        .getState()
+                        .files.filter((f) => !f.isDirectory && f.diffStatus === 'deleted_remote')
                       if (orphanedFiles.length > 0) {
                         try {
-                          const result = await executeCommand('discard-orphaned', { files: orphanedFiles })
+                          const result = await executeCommand('discard-orphaned', {
+                            files: orphanedFiles,
+                          })
                           if (result.succeeded > 0) {
-                            addToast('info', `Auto-discarded ${result.succeeded} orphaned file${result.succeeded > 1 ? 's' : ''}`)
+                            addToast(
+                              'info',
+                              `Auto-discarded ${result.succeeded} orphaned file${result.succeeded > 1 ? 's' : ''}`,
+                            )
                           }
-                        } catch (err) {
-                          log.error('[AutoDiscard]', 'Failed to discard existing orphaned files', { error: err })
+                        } catch (error) {
+                          log.error('[AutoDiscard]', 'Failed to discard existing orphaned files', {
+                            error: error,
+                          })
                         }
                       }
                     }
@@ -1085,17 +1146,17 @@ export function VaultsSettings() {
                 )}
               </button>
             </div>
-            
+
             {/* Threshold input */}
             {uploadSizeWarningEnabled && (
               <div className="flex items-center gap-2 ml-11">
-                <span className="text-sm text-plm-fg-muted">
-                  Warn when file size exceeds:
-                </span>
+                <span className="text-sm text-plm-fg-muted">Warn when file size exceeds:</span>
                 <input
                   type="number"
                   value={uploadSizeWarningThreshold}
-                  onChange={(e) => setUploadSizeWarningThreshold(Math.max(1, parseInt(e.target.value) || 1))}
+                  onChange={(e) =>
+                    setUploadSizeWarningThreshold(Math.max(1, parseInt(e.target.value) || 1))
+                  }
                   min={1}
                   className="w-24 px-2 py-1.5 text-sm bg-plm-bg-secondary border border-plm-border rounded-lg focus:border-plm-accent focus:outline-none text-plm-fg"
                 />
@@ -1108,8 +1169,18 @@ export function VaultsSettings() {
 
       {/* Delete Vault Dialog */}
       {deletingVault && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={() => { setDeletingVault(null); setDeleteConfirmText(''); setDeleteConfirmText2('') }}>
-          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center"
+          onClick={() => {
+            setDeletingVault(null)
+            setDeleteConfirmText('')
+            setDeleteConfirmText2('')
+          }}
+        >
+          <div
+            className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center gap-3 mb-4">
               <div className="p-2 bg-plm-error/20 rounded-full">
                 <AlertTriangle size={20} className="text-plm-error" />
@@ -1117,20 +1188,22 @@ export function VaultsSettings() {
               <h3 className="text-lg font-medium text-plm-fg">Delete Vault</h3>
             </div>
             <p className="text-base text-plm-fg-muted mb-4">
-              This will permanently delete the vault <strong>"{deletingVault.name}"</strong> and all its files from the cloud.
-              This action cannot be undone.
+              This will permanently delete the vault <strong>"{deletingVault.name}"</strong> and all
+              its files from the cloud. This action cannot be undone.
             </p>
             <div className="space-y-3 mb-4">
               <div className="space-y-2">
-                <label className="text-sm text-plm-fg-dim">Type <strong>"{deletingVault.name}"</strong> to confirm:</label>
+                <label className="text-sm text-plm-fg-dim">
+                  Type <strong>"{deletingVault.name}"</strong> to confirm:
+                </label>
                 <input
                   type="text"
                   value={deleteConfirmText}
                   onChange={(e) => setDeleteConfirmText(e.target.value)}
                   placeholder={deletingVault.name}
                   className={`w-full px-3 py-2 bg-plm-bg border rounded-lg text-base focus:outline-none ${
-                    deleteConfirmText === deletingVault.name 
-                      ? 'border-plm-success focus:border-plm-success' 
+                    deleteConfirmText === deletingVault.name
+                      ? 'border-plm-success focus:border-plm-success'
                       : 'border-plm-border focus:border-plm-error'
                   }`}
                 />
@@ -1144,20 +1217,31 @@ export function VaultsSettings() {
                   placeholder={deletingVault.name}
                   disabled={deleteConfirmText !== deletingVault.name}
                   className={`w-full px-3 py-2 bg-plm-bg border rounded-lg text-base focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ${
-                    deleteConfirmText2 === deletingVault.name 
-                      ? 'border-plm-success focus:border-plm-success' 
+                    deleteConfirmText2 === deletingVault.name
+                      ? 'border-plm-success focus:border-plm-success'
                       : 'border-plm-border focus:border-plm-error'
                   }`}
                 />
               </div>
             </div>
             <div className="flex gap-2 justify-end">
-              <button onClick={() => { setDeletingVault(null); setDeleteConfirmText(''); setDeleteConfirmText2('') }} className="btn btn-ghost">
+              <button
+                onClick={() => {
+                  setDeletingVault(null)
+                  setDeleteConfirmText('')
+                  setDeleteConfirmText2('')
+                }}
+                className="btn btn-ghost"
+              >
                 Cancel
               </button>
               <button
                 onClick={handleDeleteVault}
-                disabled={deleteConfirmText !== deletingVault.name || deleteConfirmText2 !== deletingVault.name || isDeleting}
+                disabled={
+                  deleteConfirmText !== deletingVault.name ||
+                  deleteConfirmText2 !== deletingVault.name ||
+                  isDeleting
+                }
                 className="btn bg-plm-error text-white hover:bg-plm-error/90 disabled:opacity-50"
               >
                 {isDeleting ? 'Deleting...' : 'Delete Vault'}
@@ -1169,8 +1253,18 @@ export function VaultsSettings() {
 
       {/* Clear Vault Contents Dialog */}
       {clearingVault && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={() => { setClearingVault(null); setClearConfirmText(''); setClearConfirmText2('') }}>
-          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center"
+          onClick={() => {
+            setClearingVault(null)
+            setClearConfirmText('')
+            setClearConfirmText2('')
+          }}
+        >
+          <div
+            className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center gap-3 mb-4">
               <div className="p-2 bg-plm-warning/20 rounded-full">
                 <FolderX size={20} className="text-plm-warning" />
@@ -1178,7 +1272,8 @@ export function VaultsSettings() {
               <h3 className="text-lg font-medium text-plm-fg">Clear Vault Contents</h3>
             </div>
             <p className="text-base text-plm-fg-muted mb-2">
-              This will permanently delete all files and file history from <strong>"{clearingVault.name}"</strong>.
+              This will permanently delete all files and file history from{' '}
+              <strong>"{clearingVault.name}"</strong>.
             </p>
             <ul className="text-sm text-plm-fg-dim mb-4 list-disc list-inside space-y-1">
               <li>All files will be removed from the cloud</li>
@@ -1188,15 +1283,17 @@ export function VaultsSettings() {
             </ul>
             <div className="space-y-3 mb-4">
               <div className="space-y-2">
-                <label className="text-sm text-plm-fg-dim">Type <strong>"{clearingVault.name}"</strong> to confirm:</label>
+                <label className="text-sm text-plm-fg-dim">
+                  Type <strong>"{clearingVault.name}"</strong> to confirm:
+                </label>
                 <input
                   type="text"
                   value={clearConfirmText}
                   onChange={(e) => setClearConfirmText(e.target.value)}
                   placeholder={clearingVault.name}
                   className={`w-full px-3 py-2 bg-plm-bg border rounded-lg text-base focus:outline-none ${
-                    clearConfirmText === clearingVault.name 
-                      ? 'border-plm-success focus:border-plm-success' 
+                    clearConfirmText === clearingVault.name
+                      ? 'border-plm-success focus:border-plm-success'
                       : 'border-plm-border focus:border-plm-warning'
                   }`}
                 />
@@ -1210,20 +1307,31 @@ export function VaultsSettings() {
                   placeholder={clearingVault.name}
                   disabled={clearConfirmText !== clearingVault.name}
                   className={`w-full px-3 py-2 bg-plm-bg border rounded-lg text-base focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ${
-                    clearConfirmText2 === clearingVault.name 
-                      ? 'border-plm-success focus:border-plm-success' 
+                    clearConfirmText2 === clearingVault.name
+                      ? 'border-plm-success focus:border-plm-success'
                       : 'border-plm-border focus:border-plm-warning'
                   }`}
                 />
               </div>
             </div>
             <div className="flex gap-2 justify-end">
-              <button onClick={() => { setClearingVault(null); setClearConfirmText(''); setClearConfirmText2('') }} className="btn btn-ghost">
+              <button
+                onClick={() => {
+                  setClearingVault(null)
+                  setClearConfirmText('')
+                  setClearConfirmText2('')
+                }}
+                className="btn btn-ghost"
+              >
                 Cancel
               </button>
               <button
                 onClick={handleClearVault}
-                disabled={clearConfirmText !== clearingVault.name || clearConfirmText2 !== clearingVault.name || isClearing}
+                disabled={
+                  clearConfirmText !== clearingVault.name ||
+                  clearConfirmText2 !== clearingVault.name ||
+                  isClearing
+                }
                 className="btn bg-plm-warning text-white hover:bg-plm-warning/90 disabled:opacity-50"
               >
                 {isClearing ? 'Clearing...' : 'Clear Vault Contents'}
@@ -1235,8 +1343,14 @@ export function VaultsSettings() {
 
       {/* Disconnect Vault Dialog */}
       {disconnectingVault && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={() => setDisconnectingVault(null)}>
-          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center"
+          onClick={() => setDisconnectingVault(null)}
+        >
+          <div
+            className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center gap-3 mb-4">
               <div className="p-2 bg-plm-warning/20 rounded-full">
                 <Unlink size={20} className="text-plm-warning" />
@@ -1244,8 +1358,8 @@ export function VaultsSettings() {
               <h3 className="text-lg font-medium text-plm-fg">Disconnect Vault</h3>
             </div>
             <p className="text-base text-plm-fg-muted mb-4">
-              This will remove <strong>"{disconnectingVault.name}"</strong> from BluePLM.
-              Local files will be preserved and can be reconnected later.
+              This will remove <strong>"{disconnectingVault.name}"</strong> from BluePLM. Local
+              files will be preserved and can be reconnected later.
             </p>
             <div className="flex gap-2 justify-end">
               <button onClick={() => setDisconnectingVault(null)} className="btn btn-ghost">
@@ -1265,8 +1379,14 @@ export function VaultsSettings() {
 
       {/* Wipe Local Files Dialog */}
       {wipingVault && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={() => setWipingVault(null)}>
-          <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center"
+          onClick={() => setWipingVault(null)}
+        >
+          <div
+            className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center gap-3 mb-4">
               <div className="p-2 bg-plm-error/20 rounded-full">
                 <Eraser size={20} className="text-plm-error" />
@@ -1274,8 +1394,8 @@ export function VaultsSettings() {
               <h3 className="text-lg font-medium text-plm-fg">Wipe Local Files</h3>
             </div>
             <p className="text-base text-plm-fg-muted mb-4">
-              This will delete all local files for <strong>"{wipingVault.name}"</strong>.
-              Cloud files will not be affected and can be re-synced.
+              This will delete all local files for <strong>"{wipingVault.name}"</strong>. Cloud
+              files will not be affected and can be re-synced.
             </p>
             <div className="flex gap-2 justify-end">
               <button onClick={() => setWipingVault(null)} className="btn btn-ghost">
@@ -1309,4 +1429,3 @@ export function VaultsSettings() {
     </div>
   )
 }
-

@@ -31,14 +31,14 @@ export const ECOModal = memo(function ECOModal({
   onSelectECO,
   onNotesChange,
   onSubmit,
-  onClose
+  onClose,
 }: ECOModalProps) {
   return (
-    <div 
+    <div
       className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-center justify-center"
       onClick={onClose}
     >
-      <div 
+      <div
         className="bg-plm-bg-light border border-plm-border rounded-lg p-6 max-w-md w-full shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
@@ -51,26 +51,33 @@ export const ECOModal = memo(function ECOModal({
             <p className="text-sm text-plm-fg-muted">Add file to Engineering Change Order</p>
           </div>
         </div>
-        
+
         <div className="bg-plm-bg rounded border border-plm-border p-3 mb-4">
           <div className="flex items-center gap-2">
             <File size={16} className="text-plm-fg-muted" />
             <span className="text-plm-fg font-medium truncate">{file.name}</span>
           </div>
         </div>
-        
+
         <div className="mb-4">
-          <label className="block text-xs text-plm-fg-muted uppercase tracking-wide mb-2">Select ECO</label>
+          <label className="block text-xs text-plm-fg-muted uppercase tracking-wide mb-2">
+            Select ECO
+          </label>
           {loadingECOs ? (
             <div className="flex items-center justify-center p-4">
               <Loader2 size={20} className="animate-spin text-plm-accent" />
             </div>
           ) : activeECOs.length === 0 ? (
-            <p className="text-sm text-plm-fg-muted p-2">No active ECOs found. Create one in the ECO Manager first.</p>
+            <p className="text-sm text-plm-fg-muted p-2">
+              No active ECOs found. Create one in the ECO Manager first.
+            </p>
           ) : (
             <div className="max-h-48 overflow-y-auto border border-plm-border rounded bg-plm-bg">
-              {activeECOs.map(eco => (
-                <label key={eco.id} className="flex items-center gap-3 p-2 hover:bg-plm-highlight cursor-pointer">
+              {activeECOs.map((eco) => (
+                <label
+                  key={eco.id}
+                  className="flex items-center gap-3 p-2 hover:bg-plm-highlight cursor-pointer"
+                >
                   <input
                     type="radio"
                     name="eco"
@@ -81,16 +88,20 @@ export const ECOModal = memo(function ECOModal({
                   />
                   <div className="flex-1 min-w-0">
                     <div className="text-sm text-plm-fg font-medium">{eco.eco_number}</div>
-                    {eco.title && <div className="text-xs text-plm-fg-muted truncate">{eco.title}</div>}
+                    {eco.title && (
+                      <div className="text-xs text-plm-fg-muted truncate">{eco.title}</div>
+                    )}
                   </div>
                 </label>
               ))}
             </div>
           )}
         </div>
-        
+
         <div className="mb-4">
-          <label className="block text-xs text-plm-fg-muted uppercase tracking-wide mb-2">Notes (optional)</label>
+          <label className="block text-xs text-plm-fg-muted uppercase tracking-wide mb-2">
+            Notes (optional)
+          </label>
           <textarea
             value={notes}
             onChange={(e) => onNotesChange(e.target.value)}
@@ -99,15 +110,21 @@ export const ECOModal = memo(function ECOModal({
             rows={2}
           />
         </div>
-        
+
         <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="btn btn-ghost">Cancel</button>
+          <button onClick={onClose} className="btn btn-ghost">
+            Cancel
+          </button>
           <button
             onClick={onSubmit}
             disabled={!selectedECO || isSubmitting}
             className="btn bg-plm-accent hover:bg-plm-accent/90 text-white disabled:opacity-50"
           >
-            {isSubmitting ? <Loader2 size={14} className="animate-spin" /> : <ClipboardList size={14} />}
+            {isSubmitting ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <ClipboardList size={14} />
+            )}
             Add to ECO
           </button>
         </div>

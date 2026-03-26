@@ -10,20 +10,18 @@ export function UserTeamsModal({
   userTeamIds,
   onClose,
   onSave,
-  onCreateTeam
+  onCreateTeam,
 }: UserTeamsModalProps) {
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>(userTeamIds)
   const [isSaving, setIsSaving] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  
+
   const toggleTeam = (teamId: string) => {
-    setSelectedTeamIds(prev =>
-      prev.includes(teamId)
-        ? prev.filter(id => id !== teamId)
-        : [...prev, teamId]
+    setSelectedTeamIds((prev) =>
+      prev.includes(teamId) ? prev.filter((id) => id !== teamId) : [...prev, teamId],
     )
   }
-  
+
   const handleSave = async () => {
     setIsSaving(true)
     try {
@@ -32,28 +30,35 @@ export function UserTeamsModal({
       setIsSaving(false)
     }
   }
-  
-  const hasChanges = JSON.stringify([...selectedTeamIds].sort()) !== JSON.stringify([...userTeamIds].sort())
-  
-  const filteredTeams = allTeams.filter(t =>
-    !searchQuery || t.name.toLowerCase().includes(searchQuery.toLowerCase())
+
+  const hasChanges =
+    JSON.stringify([...selectedTeamIds].sort()) !== JSON.stringify([...userTeamIds].sort())
+
+  const filteredTeams = allTeams.filter(
+    (t) => !searchQuery || t.name.toLowerCase().includes(searchQuery.toLowerCase()),
   )
-  
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={onClose}>
-      <div className="bg-plm-bg-light border border-plm-border rounded-xl w-full max-w-md mx-4 max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center"
+      onClick={onClose}
+    >
+      <div
+        className="bg-plm-bg-light border border-plm-border rounded-xl w-full max-w-md mx-4 max-h-[80vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-plm-border">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-plm-accent/10">
               <Users size={20} className="text-plm-accent" />
-          </div>
-          <div>
-            <h3 className="text-lg font-medium text-plm-fg">Teams</h3>
+            </div>
+            <div>
+              <h3 className="text-lg font-medium text-plm-fg">Teams</h3>
               <p className="text-xs text-plm-fg-muted truncate max-w-[200px]">
                 {user.full_name || user.email}
-            </p>
-          </div>
+              </p>
+            </div>
           </div>
           <button
             onClick={onClose}
@@ -62,22 +67,25 @@ export function UserTeamsModal({
             <X size={18} />
           </button>
         </div>
-        
+
         {/* Search */}
         <div className="p-4 border-b border-plm-border">
           <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
+            <Search
+              size={14}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted"
+            />
             <input
               type="text"
               value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
+              onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search teams..."
               className="w-full pl-9 pr-3 py-2 text-sm bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-dim focus:outline-none focus:border-plm-accent"
               autoFocus
             />
           </div>
         </div>
-        
+
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4 space-y-2">
           {filteredTeams.length === 0 ? (
@@ -85,10 +93,10 @@ export function UserTeamsModal({
               {searchQuery ? `No teams match "${searchQuery}"` : 'No teams available'}
             </div>
           ) : (
-            filteredTeams.map(team => {
+            filteredTeams.map((team) => {
               const TeamIcon = getTeamIcon(team.icon)
               const isSelected = selectedTeamIds.includes(team.id)
-              
+
               return (
                 <button
                   key={team.id}
@@ -105,19 +113,21 @@ export function UserTeamsModal({
                   >
                     <TeamIcon size={16} />
                   </div>
-                  <span className="flex-1 text-left text-sm text-plm-fg font-medium">{team.name}</span>
-                  <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
-                    isSelected
-                      ? 'border-plm-accent bg-plm-accent'
-                      : 'border-plm-fg-muted'
-                  }`}>
+                  <span className="flex-1 text-left text-sm text-plm-fg font-medium">
+                    {team.name}
+                  </span>
+                  <div
+                    className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                      isSelected ? 'border-plm-accent bg-plm-accent' : 'border-plm-fg-muted'
+                    }`}
+                  >
                     {isSelected && <Check size={12} className="text-white" />}
                   </div>
                 </button>
               )
             })
           )}
-          
+
           {/* Create new team option */}
           {!searchQuery && onCreateTeam && (
             <button
@@ -129,10 +139,12 @@ export function UserTeamsModal({
             </button>
           )}
         </div>
-        
+
         {/* Footer */}
         <div className="flex gap-2 justify-end p-4 border-t border-plm-border">
-          <button onClick={onClose} className="btn btn-ghost">Cancel</button>
+          <button onClick={onClose} className="btn btn-ghost">
+            Cancel
+          </button>
           <button
             onClick={handleSave}
             disabled={isSaving || !hasChanges}

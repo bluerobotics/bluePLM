@@ -1,6 +1,6 @@
 /**
  * UsersTab - Displays and manages organization users
- * 
+ *
  * This component uses hooks directly instead of context:
  * - usePDMStore for user/org info
  * - useMembers for user data
@@ -25,7 +25,7 @@ import {
   MoreVertical,
   Eye,
   UserCog,
-  Loader2
+  Loader2,
 } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import {
@@ -34,7 +34,7 @@ import {
   useWorkflowRoles,
   useInvites,
   useVaultAccess,
-  useFilteredData
+  useFilteredData,
 } from '../hooks'
 import { ConnectedUserRow } from '../components/user'
 import { EditPendingMemberDialog } from '../components/dialogs'
@@ -59,12 +59,8 @@ export function UsersTab({ searchQuery = '', onShowCreateUserDialog }: UsersTabP
   const { teams } = useTeams(orgId)
   const { workflowRoles } = useWorkflowRoles(orgId)
   const { vaults: orgVaults } = useVaultAccess(orgId)
-  const {
-    pendingMembers,
-    deletePendingMember,
-    updatePendingMember,
-    resendInvite
-  } = useInvites(orgId)
+  const { pendingMembers, deletePendingMember, updatePendingMember, resendInvite } =
+    useInvites(orgId)
 
   // Filtered data
   const { filteredAllUsers } = useFilteredData({ orgUsers, teams, searchQuery })
@@ -73,29 +69,32 @@ export function UsersTab({ searchQuery = '', onShowCreateUserDialog }: UsersTabP
   const [showPendingMembers, setShowPendingMembers] = useState(true)
   const [pendingMemberDropdownOpen, setPendingMemberDropdownOpen] = useState<string | null>(null)
   const [resendingInviteId, setResendingInviteId] = useState<string | null>(null)
-  
+
   // Pending member editing state
   const [editingPendingMember, setEditingPendingMember] = useState<PendingMember | null>(null)
   const [pendingMemberForm, setPendingMemberForm] = useState<PendingMemberFormData>({
     full_name: '',
     team_ids: [],
     workflow_role_ids: [],
-    vault_ids: []
+    vault_ids: [],
   })
   const [isSavingPendingMember, setIsSavingPendingMember] = useState(false)
-  
+
   // View permissions modal state
   const [, setViewingPendingMemberPermissions] = useState<PendingMember | null>(null)
 
   // Handlers
-  const handleResendInvite = useCallback(async (pm: PendingMember) => {
-    setResendingInviteId(pm.id)
-    try {
-      await resendInvite(pm)
-    } finally {
-      setResendingInviteId(null)
-    }
-  }, [resendInvite])
+  const handleResendInvite = useCallback(
+    async (pm: PendingMember) => {
+      setResendingInviteId(pm.id)
+      try {
+        await resendInvite(pm)
+      } finally {
+        setResendingInviteId(null)
+      }
+    },
+    [resendInvite],
+  )
 
   const openEditPendingMember = useCallback((pm: PendingMember) => {
     setEditingPendingMember(pm)
@@ -103,7 +102,7 @@ export function UsersTab({ searchQuery = '', onShowCreateUserDialog }: UsersTabP
       full_name: pm.full_name || '',
       team_ids: pm.team_ids || [],
       workflow_role_ids: pm.workflow_role_ids || [],
-      vault_ids: pm.vault_ids || []
+      vault_ids: pm.vault_ids || [],
     })
   }, [])
 
@@ -113,7 +112,7 @@ export function UsersTab({ searchQuery = '', onShowCreateUserDialog }: UsersTabP
       full_name: '',
       team_ids: [],
       workflow_role_ids: [],
-      vault_ids: []
+      vault_ids: [],
     })
   }, [])
 
@@ -129,29 +128,29 @@ export function UsersTab({ searchQuery = '', onShowCreateUserDialog }: UsersTabP
   }, [editingPendingMember, pendingMemberForm, updatePendingMember, closeEditPendingMember])
 
   const togglePendingMemberTeam = useCallback((teamId: string) => {
-    setPendingMemberForm(prev => ({
+    setPendingMemberForm((prev) => ({
       ...prev,
       team_ids: prev.team_ids.includes(teamId)
-        ? prev.team_ids.filter(id => id !== teamId)
-        : [...prev.team_ids, teamId]
+        ? prev.team_ids.filter((id) => id !== teamId)
+        : [...prev.team_ids, teamId],
     }))
   }, [])
 
   const togglePendingMemberWorkflowRole = useCallback((roleId: string) => {
-    setPendingMemberForm(prev => ({
+    setPendingMemberForm((prev) => ({
       ...prev,
       workflow_role_ids: prev.workflow_role_ids.includes(roleId)
-        ? prev.workflow_role_ids.filter(id => id !== roleId)
-        : [...prev.workflow_role_ids, roleId]
+        ? prev.workflow_role_ids.filter((id) => id !== roleId)
+        : [...prev.workflow_role_ids, roleId],
     }))
   }, [])
 
   const togglePendingMemberVault = useCallback((vaultId: string) => {
-    setPendingMemberForm(prev => ({
+    setPendingMemberForm((prev) => ({
       ...prev,
       vault_ids: prev.vault_ids.includes(vaultId)
-        ? prev.vault_ids.filter(id => id !== vaultId)
-        : [...prev.vault_ids, vaultId]
+        ? prev.vault_ids.filter((id) => id !== vaultId)
+        : [...prev.vault_ids, vaultId],
     }))
   }, [])
 
@@ -166,10 +165,7 @@ export function UsersTab({ searchQuery = '', onShowCreateUserDialog }: UsersTabP
               {orgUsers.length === 0 ? 'No users yet' : 'No users match your search'}
             </p>
             {isAdmin && orgUsers.length === 0 && onShowCreateUserDialog && (
-              <button
-                onClick={onShowCreateUserDialog}
-                className="btn btn-primary btn-sm"
-              >
+              <button onClick={onShowCreateUserDialog} className="btn btn-primary btn-sm">
                 <UserPlus size={14} className="mr-1" />
                 Add First User
               </button>
@@ -178,7 +174,7 @@ export function UsersTab({ searchQuery = '', onShowCreateUserDialog }: UsersTabP
         ) : (
           <div className="rounded-lg overflow-hidden bg-plm-bg/50 ring-1 ring-white/5">
             <div className="divide-y divide-white/10">
-              {filteredAllUsers.map(u => (
+              {filteredAllUsers.map((u) => (
                 <ConnectedUserRow key={u.id} user={u} />
               ))}
             </div>
@@ -199,16 +195,17 @@ export function UsersTab({ searchQuery = '', onShowCreateUserDialog }: UsersTabP
             </span>
             {showPendingMembers ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
           </button>
-          
+
           {showPendingMembers && (
             <div className="border border-plm-border rounded-lg overflow-hidden bg-plm-bg/50">
               <div className="p-3 border-b border-plm-border bg-plm-bg/30">
                 <p className="text-xs text-plm-fg-muted">
-                  Pre-created accounts awaiting user sign-in. These users can sign in with the organization code.
+                  Pre-created accounts awaiting user sign-in. These users can sign in with the
+                  organization code.
                 </p>
               </div>
               <div className="divide-y divide-plm-border/50">
-                {pendingMembers.map(pm => (
+                {pendingMembers.map((pm) => (
                   <div key={pm.id} className="flex items-center gap-3 p-3 group">
                     <div className="w-10 h-10 rounded-full bg-plm-fg-muted/10 flex items-center justify-center">
                       <Clock size={18} className="text-plm-fg-muted" />
@@ -224,10 +221,16 @@ export function UsersTab({ searchQuery = '', onShowCreateUserDialog }: UsersTabP
                         <span className="truncate">{pm.email}</span>
                         {pm.workflow_role_ids && pm.workflow_role_ids.length > 0 && (
                           <span className="flex items-center gap-1">
-                            {pm.workflow_role_ids.slice(0, 2).map(roleId => {
-                              const role = workflowRoles.find(r => r.id === roleId)
+                            {pm.workflow_role_ids.slice(0, 2).map((roleId) => {
+                              const role = workflowRoles.find((r) => r.id === roleId)
                               if (!role) return null
-                              const RoleIcon = (LucideIcons as unknown as Record<string, React.ComponentType<{ size?: number }>>)[role.icon] || Shield
+                              const RoleIcon =
+                                (
+                                  LucideIcons as unknown as Record<
+                                    string,
+                                    React.ComponentType<{ size?: number }>
+                                  >
+                                )[role.icon] || Shield
                               return (
                                 <span
                                   key={roleId}
@@ -241,7 +244,9 @@ export function UsersTab({ searchQuery = '', onShowCreateUserDialog }: UsersTabP
                               )
                             })}
                             {pm.workflow_role_ids.length > 2 && (
-                              <span className="text-xs text-plm-fg-dim">+{pm.workflow_role_ids.length - 2}</span>
+                              <span className="text-xs text-plm-fg-dim">
+                                +{pm.workflow_role_ids.length - 2}
+                              </span>
                             )}
                           </span>
                         )}
@@ -282,30 +287,38 @@ export function UsersTab({ searchQuery = '', onShowCreateUserDialog }: UsersTabP
                       >
                         <X size={14} />
                       </button>
-                      
+
                       {/* More actions dropdown */}
                       <div className="relative">
                         <button
-                          onClick={() => setPendingMemberDropdownOpen(pendingMemberDropdownOpen === pm.id ? null : pm.id)}
+                          onClick={() =>
+                            setPendingMemberDropdownOpen(
+                              pendingMemberDropdownOpen === pm.id ? null : pm.id,
+                            )
+                          }
                           className="p-1.5 text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight rounded"
                           title="More actions"
                         >
                           <MoreVertical size={14} />
                         </button>
-                        
+
                         {pendingMemberDropdownOpen === pm.id && (
                           <>
-                            <div className="fixed inset-0 z-[100]" onClick={() => setPendingMemberDropdownOpen(null)} />
-                            <div 
+                            <div
+                              className="fixed inset-0 z-[100]"
+                              onClick={() => setPendingMemberDropdownOpen(null)}
+                            />
+                            <div
                               className="fixed z-[101] bg-plm-bg-light border border-plm-border rounded-lg shadow-xl py-1 min-w-[180px]"
                               ref={(el) => {
                                 if (el) {
-                                  const btn = el.previousElementSibling?.previousElementSibling as HTMLElement
+                                  const btn = el.previousElementSibling
+                                    ?.previousElementSibling as HTMLElement
                                   if (btn) {
                                     const rect = btn.getBoundingClientRect()
                                     const menuHeight = el.offsetHeight
                                     const spaceBelow = window.innerHeight - rect.bottom
-                                    
+
                                     if (spaceBelow < menuHeight) {
                                       el.style.bottom = `${window.innerHeight - rect.top + 4}px`
                                       el.style.top = 'auto'

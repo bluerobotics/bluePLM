@@ -31,15 +31,10 @@ export function SyncActions({
   setShowIgnoreSubmenu,
   ignoreSubmenuTimeoutRef,
 }: SyncActionsProps) {
-  const {
-    activeVaultId,
-    addIgnorePattern,
-    getIgnorePatterns,
-    addToast,
-  } = usePDMStore()
+  const { activeVaultId, addIgnorePattern, getIgnorePatterns, addToast } = usePDMStore()
 
-  const anyCloudOnly = counts.cloudOnlyCount > 0 || 
-    contextFiles.some(f => f.diffStatus === 'cloud')
+  const anyCloudOnly =
+    counts.cloudOnlyCount > 0 || contextFiles.some((f) => f.diffStatus === 'cloud')
   const currentVaultId = activeVaultId
 
   return (
@@ -48,7 +43,7 @@ export function SyncActions({
       {anyCloudOnly && (
         <>
           <div className="context-menu-separator" />
-          <div 
+          <div
             className="context-menu-item text-plm-success"
             onClick={() => {
               onClose()
@@ -57,14 +52,15 @@ export function SyncActions({
             }}
           >
             <ArrowDown size={14} className="text-plm-success" />
-            Download {counts.cloudOnlyCount > 0 ? `${counts.cloudOnlyCount} files` : (multiSelect ? '' : '')}
+            Download{' '}
+            {counts.cloudOnlyCount > 0 ? `${counts.cloudOnlyCount} files` : multiSelect ? '' : ''}
           </div>
         </>
       )}
-      
+
       {/* Keep Local Only (Ignore) - for unsynced files */}
       {state.anyUnsynced && !state.allCloudOnly && currentVaultId && (
-        <div 
+        <div
           className="context-menu-item relative"
           onMouseEnter={() => {
             if (ignoreSubmenuTimeoutRef.current) {
@@ -85,7 +81,6 @@ export function SyncActions({
           <EyeOff size={14} />
           Keep Local Only
           <span className="text-xs text-plm-fg-muted ml-auto">▶</span>
-          
           {/* Submenu */}
           {showIgnoreSubmenu && (
             <ContextSubmenu
@@ -103,7 +98,7 @@ export function SyncActions({
               }}
             >
               {/* Ignore this specific file/folder */}
-              <div 
+              <div
                 className="context-menu-item"
                 onClick={(e) => {
                   e.stopPropagation()
@@ -114,18 +109,22 @@ export function SyncActions({
                       addIgnorePattern(currentVaultId, file.relativePath)
                     }
                   }
-                  addToast('success', `Added ${contextFiles.length > 1 ? `${contextFiles.length} items` : contextFiles[0].name} to ignore list`)
+                  addToast(
+                    'success',
+                    `Added ${contextFiles.length > 1 ? `${contextFiles.length} items` : contextFiles[0].name} to ignore list`,
+                  )
                   onClose()
                   onRefresh(true)
                 }}
               >
                 {state.isFolder ? <FolderX size={14} /> : <FileX size={14} />}
-                This {state.isFolder ? 'folder' : 'file'}{multiSelect ? ` (${contextFiles.length})` : ''}
+                This {state.isFolder ? 'folder' : 'file'}
+                {multiSelect ? ` (${contextFiles.length})` : ''}
               </div>
-              
+
               {/* Ignore all files with this extension - only for single file */}
               {!state.isFolder && !multiSelect && firstFile.extension && (
-                <div 
+                <div
                   className="context-menu-item"
                   onClick={(e) => {
                     e.stopPropagation()
@@ -140,7 +139,7 @@ export function SyncActions({
                   All *{firstFile.extension} files
                 </div>
               )}
-              
+
               {/* Show current patterns count */}
               {(() => {
                 const currentPatterns = getIgnorePatterns(currentVaultId)
@@ -149,7 +148,8 @@ export function SyncActions({
                     <>
                       <div className="context-menu-separator" />
                       <div className="px-3 py-1.5 text-xs text-plm-fg-muted">
-                        {currentPatterns.length} pattern{currentPatterns.length > 1 ? 's' : ''} configured
+                        {currentPatterns.length} pattern{currentPatterns.length > 1 ? 's' : ''}{' '}
+                        configured
                       </div>
                     </>
                   )
@@ -160,10 +160,10 @@ export function SyncActions({
           )}
         </div>
       )}
-      
+
       {/* First Check In - for unsynced items */}
       {state.anyUnsynced && (
-        <div 
+        <div
           className="context-menu-item"
           onClick={() => {
             onClose()
@@ -171,7 +171,10 @@ export function SyncActions({
           }}
         >
           <ArrowUp size={14} className="text-plm-info" />
-          First Check In {unsyncedFilesInSelection.length > 0 ? `${unsyncedFilesInSelection.length} file${unsyncedFilesInSelection.length !== 1 ? 's' : ''}` : ''}
+          First Check In{' '}
+          {unsyncedFilesInSelection.length > 0
+            ? `${unsyncedFilesInSelection.length} file${unsyncedFilesInSelection.length !== 1 ? 's' : ''}`
+            : ''}
         </div>
       )}
     </>

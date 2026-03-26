@@ -1,14 +1,15 @@
 /**
  * Types for TeamMembersSettings components
- * 
+ *
  * This module defines all TypeScript interfaces and types used
  * across the team members settings feature.
- * 
+ *
  * @module team-members/types
  */
 
 import type { Team, TeamMember, PermissionAction } from '@/types/permissions'
 import type { Json } from '@/types/supabase'
+import type { OrgUser as OrgUserBase } from '@/types/database'
 
 // ============================================
 // Core Data Types
@@ -22,11 +23,7 @@ export interface WorkflowRoleBasic {
   description?: string | null
 }
 
-export interface OrgUser {
-  id: string
-  email: string
-  full_name: string | null
-  avatar_url: string | null
+export interface OrgUser extends OrgUserBase {
   custom_avatar_url: string | null
   role: string
   last_sign_in: string | null
@@ -242,7 +239,12 @@ export interface UseTeamsReturn {
   createTeam: (data: TeamFormData, copyFromTeamId?: string | null) => Promise<boolean>
   updateTeam: (teamId: string, data: Partial<TeamFormData>) => Promise<boolean>
   deleteTeam: (teamId: string) => Promise<boolean>
-  setDefaultTeam: (teamId: string | null, organizationId: string, setOrganization: (org: any) => void, organization: any) => Promise<boolean>
+  setDefaultTeam: (
+    teamId: string | null,
+    organizationId: string,
+    setOrganization: (org: any) => void,
+    organization: any,
+  ) => Promise<boolean>
 }
 
 /** Return type for useMembers hook */
@@ -274,7 +276,12 @@ export interface UseWorkflowRolesReturn {
   createWorkflowRole: (data: WorkflowRoleFormData) => Promise<boolean>
   updateWorkflowRole: (roleId: string, data: Partial<WorkflowRoleFormData>) => Promise<boolean>
   deleteWorkflowRole: (roleId: string) => Promise<boolean>
-  toggleUserRole: (userId: string, roleId: string, isAdding: boolean, addedBy?: string) => Promise<boolean>
+  toggleUserRole: (
+    userId: string,
+    roleId: string,
+    isAdding: boolean,
+    addedBy?: string,
+  ) => Promise<boolean>
 }
 
 /** Return type for useJobTitles hook */
@@ -282,7 +289,12 @@ export interface UseJobTitlesReturn {
   jobTitles: JobTitle[]
   isLoading: boolean
   loadJobTitles: () => Promise<void>
-  createJobTitle: (name: string, color: string, icon: string, assignToUserId?: string) => Promise<boolean>
+  createJobTitle: (
+    name: string,
+    color: string,
+    icon: string,
+    assignToUserId?: string,
+  ) => Promise<boolean>
   updateJobTitle: (titleId: string, name: string, color: string, icon: string) => Promise<boolean>
   deleteJobTitle: (titleId: string) => Promise<boolean>
   assignJobTitle: (user: OrgUser, titleId: string | null) => Promise<boolean>

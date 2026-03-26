@@ -14,12 +14,12 @@ export function WorkflowRolesModal({
   onSave,
   onUpdateRole,
   onDeleteRole,
-  onCreateRole
+  onCreateRole,
 }: WorkflowRolesModalProps) {
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>(userRoleIds)
   const [isSaving, setIsSaving] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  
+
   // Edit state
   const [editingRoleId, setEditingRoleId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
@@ -27,15 +27,13 @@ export function WorkflowRolesModal({
   const [editIcon, setEditIcon] = useState('')
   const [isUpdating, setIsUpdating] = useState(false)
   const [deletingRoleId, setDeletingRoleId] = useState<string | null>(null)
-  
+
   const toggleRole = (roleId: string) => {
-    setSelectedRoleIds(prev =>
-      prev.includes(roleId)
-        ? prev.filter(id => id !== roleId)
-        : [...prev, roleId]
+    setSelectedRoleIds((prev) =>
+      prev.includes(roleId) ? prev.filter((id) => id !== roleId) : [...prev, roleId],
     )
   }
-  
+
   const handleSave = async () => {
     setIsSaving(true)
     try {
@@ -44,21 +42,21 @@ export function WorkflowRolesModal({
       setIsSaving(false)
     }
   }
-  
+
   const startEditing = (role: WorkflowRoleBasic) => {
     setEditingRoleId(role.id)
     setEditName(role.name)
     setEditColor(role.color)
     setEditIcon(role.icon)
   }
-  
+
   const cancelEditing = () => {
     setEditingRoleId(null)
     setEditName('')
     setEditColor('')
     setEditIcon('')
   }
-  
+
   const handleUpdateRole = async () => {
     if (!editingRoleId || !editName.trim()) return
     setIsUpdating(true)
@@ -69,39 +67,46 @@ export function WorkflowRolesModal({
       setIsUpdating(false)
     }
   }
-  
+
   const handleDeleteRole = async (roleId: string) => {
     setDeletingRoleId(roleId)
     try {
       await onDeleteRole(roleId)
       // Remove from selected if it was selected
-      setSelectedRoleIds(prev => prev.filter(id => id !== roleId))
+      setSelectedRoleIds((prev) => prev.filter((id) => id !== roleId))
     } finally {
       setDeletingRoleId(null)
     }
   }
-  
-  const hasChanges = JSON.stringify([...selectedRoleIds].sort()) !== JSON.stringify([...userRoleIds].sort())
-  
-  const filteredRoles = workflowRoles.filter(r =>
-    !searchQuery || r.name.toLowerCase().includes(searchQuery.toLowerCase())
+
+  const hasChanges =
+    JSON.stringify([...selectedRoleIds].sort()) !== JSON.stringify([...userRoleIds].sort())
+
+  const filteredRoles = workflowRoles.filter(
+    (r) => !searchQuery || r.name.toLowerCase().includes(searchQuery.toLowerCase()),
   )
-  
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={onClose}>
-      <div className="bg-plm-bg-light border border-plm-border rounded-xl w-full max-w-md mx-4 max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center"
+      onClick={onClose}
+    >
+      <div
+        className="bg-plm-bg-light border border-plm-border rounded-xl w-full max-w-md mx-4 max-h-[80vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-plm-border">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-purple-500/10">
               <Shield size={20} className="text-purple-400" />
-          </div>
-          <div>
-            <h3 className="text-lg font-medium text-plm-fg">Workflow Roles</h3>
+            </div>
+            <div>
+              <h3 className="text-lg font-medium text-plm-fg">Workflow Roles</h3>
               <p className="text-xs text-plm-fg-muted truncate max-w-[200px]">
                 {user.full_name || user.email}
-            </p>
-          </div>
+              </p>
+            </div>
           </div>
           <button
             onClick={onClose}
@@ -110,22 +115,25 @@ export function WorkflowRolesModal({
             <X size={18} />
           </button>
         </div>
-        
+
         {/* Search */}
         <div className="p-4 border-b border-plm-border">
           <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
+            <Search
+              size={14}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted"
+            />
             <input
               type="text"
               value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
+              onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search roles..."
               className="w-full pl-9 pr-3 py-2 text-sm bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-dim focus:outline-none focus:border-plm-accent"
               autoFocus
             />
           </div>
         </div>
-        
+
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4 space-y-2">
           {filteredRoles.length === 0 ? (
@@ -142,16 +150,19 @@ export function WorkflowRolesModal({
             </div>
           ) : (
             <>
-              {filteredRoles.map(role => {
+              {filteredRoles.map((role) => {
                 const RoleIcon = getRoleIcon(role.icon)
                 const isSelected = selectedRoleIds.includes(role.id)
                 const isEditing = editingRoleId === role.id
                 const isDeleting = deletingRoleId === role.id
-                
+
                 if (isEditing) {
                   const EditIcon = getRoleIcon(editIcon)
                   return (
-                    <div key={role.id} className="p-3 rounded-lg border border-plm-accent bg-plm-accent/5 space-y-3">
+                    <div
+                      key={role.id}
+                      className="p-3 rounded-lg border border-plm-accent bg-plm-accent/5 space-y-3"
+                    >
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium text-plm-fg">Edit Role</span>
                         <button
@@ -164,7 +175,7 @@ export function WorkflowRolesModal({
                       <input
                         type="text"
                         value={editName}
-                        onChange={e => setEditName(e.target.value)}
+                        onChange={(e) => setEditName(e.target.value)}
                         placeholder="Role name"
                         className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg text-sm placeholder:text-plm-fg-dim focus:outline-none focus:border-plm-accent"
                         autoFocus
@@ -197,21 +208,29 @@ export function WorkflowRolesModal({
                           disabled={isDeleting}
                           className="btn btn-ghost btn-sm text-plm-error hover:bg-plm-error/10"
                         >
-                          {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                          {isDeleting ? (
+                            <Loader2 size={14} className="animate-spin" />
+                          ) : (
+                            <Trash2 size={14} />
+                          )}
                         </button>
                         <button
                           onClick={handleUpdateRole}
                           disabled={isUpdating || !editName.trim()}
                           className="flex-1 btn btn-primary btn-sm flex items-center justify-center gap-2"
                         >
-                          {isUpdating ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                          {isUpdating ? (
+                            <Loader2 size={14} className="animate-spin" />
+                          ) : (
+                            <Check size={14} />
+                          )}
                           Save
                         </button>
                       </div>
                     </div>
                   )
                 }
-                
+
                 return (
                   <button
                     key={role.id}
@@ -235,17 +254,20 @@ export function WorkflowRolesModal({
                       )}
                     </div>
                     <div
-                      onClick={e => { e.stopPropagation(); startEditing(role) }}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        startEditing(role)
+                      }}
                       className="p-1.5 text-plm-fg-muted hover:text-plm-accent hover:bg-plm-accent/10 rounded transition-colors opacity-0 group-hover:opacity-100"
                       title="Edit role"
                     >
                       <Pencil size={12} />
-                  </div>
-                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
-                      isSelected
-                        ? 'border-plm-accent bg-plm-accent'
-                        : 'border-plm-fg-muted'
-                    }`}>
+                    </div>
+                    <div
+                      className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                        isSelected ? 'border-plm-accent bg-plm-accent' : 'border-plm-fg-muted'
+                      }`}
+                    >
                       {isSelected && <Check size={12} className="text-white" />}
                     </div>
                   </button>
@@ -253,7 +275,7 @@ export function WorkflowRolesModal({
               })}
             </>
           )}
-          
+
           {/* Create new role option */}
           {!searchQuery && onCreateRole && (
             <button
@@ -265,10 +287,12 @@ export function WorkflowRolesModal({
             </button>
           )}
         </div>
-        
+
         {/* Footer */}
         <div className="flex gap-2 justify-end p-4 border-t border-plm-border">
-          <button onClick={onClose} className="btn btn-ghost">Cancel</button>
+          <button onClick={onClose} className="btn btn-ghost">
+            Cancel
+          </button>
           <button
             onClick={handleSave}
             disabled={isSaving || !hasChanges}

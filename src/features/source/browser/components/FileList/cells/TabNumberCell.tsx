@@ -1,6 +1,6 @@
 /**
  * Tab Number column cell renderer
- * 
+ *
  * File-level tab number editing for single-config or no-config SolidWorks files.
  * Uses both contexts:
  * - useFilePaneContext() for UI state (editing state, refs)
@@ -14,34 +14,41 @@ import type { CellRendererBaseProps } from './types'
 export function TabNumberCell({ file }: CellRendererBaseProps): React.ReactNode {
   // UI state from FilePaneContext
   const { editingCell, editValue, setEditValue, inlineEditInputRef } = useFilePaneContext()
-  
+
   // Handlers from FilePaneHandlersContext
-  const { isFileEditable, handleSaveCellEdit, handleCancelCellEdit, handleStartCellEdit, saveConfigsToSWFile, canHaveConfigs } = useFilePaneHandlers()
-  
+  const {
+    isFileEditable,
+    handleSaveCellEdit,
+    handleCancelCellEdit,
+    handleStartCellEdit,
+    saveConfigsToSWFile,
+    canHaveConfigs,
+  } = useFilePaneHandlers()
+
   // Store selectors for updating pending metadata and getting settings
-  const updatePendingMetadata = usePDMStore(s => s.updatePendingMetadata)
-  const expandedConfigFiles = usePDMStore(s => s.expandedConfigFiles)
-  const serializationSettings = usePDMStore(s => s.organization?.serialization_settings)
+  const updatePendingMetadata = usePDMStore((s) => s.updatePendingMetadata)
+  const expandedConfigFiles = usePDMStore((s) => s.expandedConfigFiles)
+  const serializationSettings = usePDMStore((s) => s.organization?.serialization_settings)
   const tabValidationOptions = getTabValidationOptions(serializationSettings)
-  
+
   if (file.isDirectory) return ''
-  
+
   // Only show for SolidWorks files that can have configs
   if (!canHaveConfigs(file)) return ''
-  
+
   // SW parts/assemblies: tab numbers are config-only, never file-level
   const isSWPartOrAsm = ['.sldprt', '.sldasm'].includes(file.extension?.toLowerCase() || '')
   if (isSWPartOrAsm) return ''
-  
+
   // If configs are expanded, don't show file-level tab (per-config tabs are shown instead)
   if (expandedConfigFiles.has(file.path)) return ''
-  
+
   const canEditTab = isFileEditable(file)
   const isEditingTab = editingCell?.path === file.path && editingCell?.column === 'tabNumber'
-  
+
   // Prioritize pendingMetadata over any stored value
   const displayValue = file.pendingMetadata?.tab_number ?? ''
-  
+
   if (isEditingTab && canEditTab) {
     return (
       <div className="relative w-full">
@@ -59,7 +66,10 @@ export function TabNumberCell({ file }: CellRendererBaseProps): React.ReactNode 
               // Auto-save to SW file
               const ext = file.extension?.toLowerCase() || ''
               if (['.sldprt', '.sldasm', '.slddrw'].includes(ext)) {
-                const updatedFile = { ...file, pendingMetadata: { ...file.pendingMetadata, tab_number: validated || null } }
+                const updatedFile = {
+                  ...file,
+                  pendingMetadata: { ...file.pendingMetadata, tab_number: validated || null },
+                }
                 saveConfigsToSWFile(updatedFile)
               }
             } else if (e.key === 'Escape') {
@@ -75,7 +85,10 @@ export function TabNumberCell({ file }: CellRendererBaseProps): React.ReactNode 
             // Auto-save to SW file
             const ext = file.extension?.toLowerCase() || ''
             if (['.sldprt', '.sldasm', '.slddrw'].includes(ext)) {
-              const updatedFile = { ...file, pendingMetadata: { ...file.pendingMetadata, tab_number: validated || null } }
+              const updatedFile = {
+                ...file,
+                pendingMetadata: { ...file.pendingMetadata, tab_number: validated || null },
+              }
               saveConfigsToSWFile(updatedFile)
             }
           }}
@@ -89,9 +102,9 @@ export function TabNumberCell({ file }: CellRendererBaseProps): React.ReactNode 
       </div>
     )
   }
-  
+
   return (
-    <div 
+    <div
       className={`group/cell relative flex items-center w-full h-full px-1 rounded ${canEditTab ? 'cursor-text hover:bg-plm-bg-light' : ''}`}
       onClick={(e) => {
         e.stopPropagation()
@@ -110,7 +123,13 @@ export function TabNumberCell({ file }: CellRendererBaseProps): React.ReactNode 
         e.stopPropagation()
       }}
       draggable={false}
-      title={canEditTab ? 'Click to edit tab number' : (file.pdmData?.id ? 'Check out file to edit' : 'Sign in to edit')}
+      title={
+        canEditTab
+          ? 'Click to edit tab number'
+          : file.pdmData?.id
+            ? 'Check out file to edit'
+            : 'Sign in to edit'
+      }
     >
       <span className={`flex-1 ${!displayValue || !canEditTab ? 'text-plm-fg-muted' : ''}`}>
         {displayValue || '-'}

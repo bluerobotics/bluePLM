@@ -1,27 +1,20 @@
 /**
  * EditPendingMemberDialog - Edit pre-registered pending member details
- * 
+ *
  * Allows admins to edit a pending member's name, teams, workflow roles,
  * and vault access before they sign in.
- * 
+ *
  * @module team-members/EditPendingMemberDialog
  */
 
-import {
-  Pencil,
-  X,
-  Loader2,
-  Check,
-  Folder,
-  Database
-} from 'lucide-react'
+import { Pencil, X, Loader2, Check, Folder, Database } from 'lucide-react'
 import { getRoleIcon, getTeamIcon } from '../../utils'
 import type {
   PendingMember,
   PendingMemberFormData,
   TeamWithDetails,
   WorkflowRoleBasic,
-  Vault
+  Vault,
 } from '../../types'
 
 export interface EditPendingMemberDialogProps {
@@ -51,24 +44,27 @@ export function EditPendingMemberDialog({
   isSaving,
   togglePendingMemberTeam,
   togglePendingMemberWorkflowRole,
-  togglePendingMemberVault
+  togglePendingMemberVault,
 }: EditPendingMemberDialogProps) {
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={onClose}>
-      <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center"
+      onClick={onClose}
+    >
+      <div
+        className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-medium text-plm-fg flex items-center gap-2">
             <Pencil size={18} className="text-plm-accent" />
             Edit Pending Member
           </h3>
-          <button
-            onClick={onClose}
-            className="p-1 text-plm-fg-muted hover:text-plm-fg rounded"
-          >
+          <button onClick={onClose} className="p-1 text-plm-fg-muted hover:text-plm-fg rounded">
             <X size={18} />
           </button>
         </div>
-        
+
         <div className="space-y-4">
           {/* Email (read-only) */}
           <div>
@@ -77,19 +73,21 @@ export function EditPendingMemberDialog({
               {pendingMember.email}
             </div>
           </div>
-          
+
           {/* Full Name */}
           <div>
             <label className="block text-sm text-plm-fg-muted mb-1">Full Name</label>
             <input
               type="text"
               value={pendingMemberForm.full_name}
-              onChange={e => setPendingMemberForm(prev => ({ ...prev, full_name: e.target.value }))}
+              onChange={(e) =>
+                setPendingMemberForm((prev) => ({ ...prev, full_name: e.target.value }))
+              }
               placeholder="Enter name"
               className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-muted focus:border-plm-accent focus:outline-none"
             />
           </div>
-          
+
           {/* Workflow Roles */}
           <div>
             <label className="block text-sm text-plm-fg-muted mb-2">Workflow Roles</label>
@@ -97,7 +95,7 @@ export function EditPendingMemberDialog({
               {workflowRoles.length === 0 ? (
                 <div className="text-sm text-plm-fg-muted p-2">No workflow roles defined yet</div>
               ) : (
-                workflowRoles.map(role => {
+                workflowRoles.map((role) => {
                   const RoleIcon = getRoleIcon(role.icon)
                   const isSelected = pendingMemberForm.workflow_role_ids.includes(role.id)
                   return (
@@ -105,8 +103,8 @@ export function EditPendingMemberDialog({
                       key={role.id}
                       onClick={() => togglePendingMemberWorkflowRole(role.id)}
                       className={`w-full flex items-center gap-2 p-2 rounded-lg transition-colors ${
-                        isSelected 
-                          ? 'bg-plm-accent/10 border border-plm-accent/30' 
+                        isSelected
+                          ? 'bg-plm-accent/10 border border-plm-accent/30'
                           : 'hover:bg-plm-highlight border border-transparent'
                       }`}
                     >
@@ -127,7 +125,7 @@ export function EditPendingMemberDialog({
               Roles for workflow approvals and state transitions.
             </p>
           </div>
-          
+
           {/* Teams */}
           <div>
             <label className="block text-sm text-plm-fg-muted mb-2">Pre-assigned Teams</label>
@@ -135,7 +133,7 @@ export function EditPendingMemberDialog({
               {teams.length === 0 ? (
                 <div className="text-sm text-plm-fg-muted p-2">No teams available</div>
               ) : (
-                teams.map(team => {
+                teams.map((team) => {
                   const TeamIcon = getTeamIcon(team.icon)
                   const isSelected = pendingMemberForm.team_ids.includes(team.id)
                   return (
@@ -143,8 +141,8 @@ export function EditPendingMemberDialog({
                       key={team.id}
                       onClick={() => togglePendingMemberTeam(team.id)}
                       className={`w-full flex items-center gap-2 p-2 rounded-lg transition-colors ${
-                        isSelected 
-                          ? 'bg-plm-accent/10 border border-plm-accent/30' 
+                        isSelected
+                          ? 'bg-plm-accent/10 border border-plm-accent/30'
                           : 'hover:bg-plm-highlight border border-transparent'
                       }`}
                     >
@@ -167,20 +165,31 @@ export function EditPendingMemberDialog({
               User will be automatically added to selected teams when they sign in.
             </p>
           </div>
-          
+
           {/* Vault Access */}
           <div>
             <label className="block text-sm text-plm-fg-muted mb-2">Vault Access</label>
-            <div className={`p-3 rounded-lg border mb-2 ${
-              pendingMemberForm.vault_ids.length === 0
-                ? 'bg-plm-success/10 border-plm-success/30'
-                : 'bg-plm-bg border-plm-border'
-            }`}>
+            <div
+              className={`p-3 rounded-lg border mb-2 ${
+                pendingMemberForm.vault_ids.length === 0
+                  ? 'bg-plm-success/10 border-plm-success/30'
+                  : 'bg-plm-bg border-plm-border'
+              }`}
+            >
               <div className="flex items-center gap-2">
-                <Database size={16} className={pendingMemberForm.vault_ids.length === 0 ? 'text-plm-success' : 'text-plm-fg-muted'} />
-                <span className={`text-sm ${pendingMemberForm.vault_ids.length === 0 ? 'text-plm-success' : 'text-plm-fg-muted'}`}>
-                  {pendingMemberForm.vault_ids.length === 0 
-                    ? 'All vaults (no restrictions)' 
+                <Database
+                  size={16}
+                  className={
+                    pendingMemberForm.vault_ids.length === 0
+                      ? 'text-plm-success'
+                      : 'text-plm-fg-muted'
+                  }
+                />
+                <span
+                  className={`text-sm ${pendingMemberForm.vault_ids.length === 0 ? 'text-plm-success' : 'text-plm-fg-muted'}`}
+                >
+                  {pendingMemberForm.vault_ids.length === 0
+                    ? 'All vaults (no restrictions)'
                     : `${pendingMemberForm.vault_ids.length} of ${orgVaults.length} vaults selected`}
                 </span>
               </div>
@@ -189,21 +198,23 @@ export function EditPendingMemberDialog({
               {orgVaults.length === 0 ? (
                 <div className="text-sm text-plm-fg-muted p-2">No vaults available</div>
               ) : (
-                orgVaults.map(vault => {
+                orgVaults.map((vault) => {
                   const isSelected = pendingMemberForm.vault_ids.includes(vault.id)
                   return (
                     <button
                       key={vault.id}
                       onClick={() => togglePendingMemberVault(vault.id)}
                       className={`w-full flex items-center gap-2 p-2 rounded-lg transition-colors ${
-                        isSelected 
-                          ? 'bg-plm-accent/10 border border-plm-accent/30' 
+                        isSelected
+                          ? 'bg-plm-accent/10 border border-plm-accent/30'
                           : 'hover:bg-plm-highlight border border-transparent'
                       }`}
                     >
                       <div
                         className={`w-6 h-6 rounded flex items-center justify-center ${
-                          isSelected ? 'bg-plm-accent text-white' : 'bg-plm-fg-muted/10 text-plm-fg-muted'
+                          isSelected
+                            ? 'bg-plm-accent text-white'
+                            : 'bg-plm-fg-muted/10 text-plm-fg-muted'
                         }`}
                       >
                         <Folder size={14} />
@@ -220,12 +231,9 @@ export function EditPendingMemberDialog({
             </p>
           </div>
         </div>
-        
+
         <div className="flex gap-2 justify-end mt-6">
-          <button
-            onClick={onClose}
-            className="btn btn-ghost"
-          >
+          <button onClick={onClose} className="btn btn-ghost">
             Cancel
           </button>
           <button

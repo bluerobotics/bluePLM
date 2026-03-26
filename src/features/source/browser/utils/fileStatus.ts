@@ -3,14 +3,14 @@
  */
 import type { LocalFile } from '@/stores/pdmStore'
 
-export type DiffStatus = 
-  | 'added' 
-  | 'modified' 
-  | 'moved' 
-  | 'deleted' 
-  | 'deleted_remote' 
-  | 'outdated' 
-  | 'cloud' 
+export type DiffStatus =
+  | 'added'
+  | 'modified'
+  | 'moved'
+  | 'deleted'
+  | 'deleted_remote'
+  | 'outdated'
+  | 'cloud'
   | 'ignored'
   | 'synced'
   | undefined
@@ -173,7 +173,7 @@ export function isCheckedOutByOthers(file: LocalFile, userId: string | undefined
  */
 export function getCheckoutStatus(
   file: LocalFile,
-  userId: string | undefined
+  userId: string | undefined,
 ): 'mine' | 'others' | 'none' {
   if (!file.pdmData?.checked_out_by) return 'none'
   return file.pdmData.checked_out_by === userId ? 'mine' : 'others'
@@ -185,22 +185,22 @@ export function getCheckoutStatus(
 export function getFolderCheckoutStatus(
   folderPath: string,
   files: LocalFile[],
-  userId: string | undefined
+  userId: string | undefined,
 ): 'mine' | 'others' | 'both' | null {
   const folderPrefix = folderPath + '/'
   const serverOnlyStatuses = ['cloud', 'deleted']
-  
-  const folderFiles = files.filter(f => {
+
+  const folderFiles = files.filter((f) => {
     if (f.isDirectory) return false
     if (serverOnlyStatuses.includes(f.diffStatus || '')) return false
     return f.relativePath.replace(/\\/g, '/').startsWith(folderPrefix)
   })
-  
-  const hasMyCheckouts = folderFiles.some(f => f.pdmData?.checked_out_by === userId)
-  const hasOthersCheckouts = folderFiles.some(f => 
-    f.pdmData?.checked_out_by && f.pdmData.checked_out_by !== userId
+
+  const hasMyCheckouts = folderFiles.some((f) => f.pdmData?.checked_out_by === userId)
+  const hasOthersCheckouts = folderFiles.some(
+    (f) => f.pdmData?.checked_out_by && f.pdmData.checked_out_by !== userId,
   )
-  
+
   if (hasMyCheckouts && hasOthersCheckouts) return 'both'
   if (hasOthersCheckouts) return 'others'
   if (hasMyCheckouts) return 'mine'
@@ -210,20 +210,17 @@ export function getFolderCheckoutStatus(
 /**
  * Check if a folder is fully synced (all files synced)
  */
-export function isFolderSynced(
-  folderPath: string,
-  files: LocalFile[]
-): boolean {
+export function isFolderSynced(folderPath: string, files: LocalFile[]): boolean {
   const folderPrefix = folderPath + '/'
-  
-  const folderFiles = files.filter(f => {
+
+  const folderFiles = files.filter((f) => {
     if (f.isDirectory) return false
     return f.relativePath.replace(/\\/g, '/').startsWith(folderPrefix)
   })
-  
+
   // No files means synced (empty folder)
   if (folderFiles.length === 0) return true
-  
+
   // Check if any files are not synced
-  return folderFiles.every(f => isFileSynced(f))
+  return folderFiles.every((f) => isFileSynced(f))
 }

@@ -48,7 +48,11 @@ export interface FolderCheckoutInfo {
  * Get the operation type for a file path if it's being processed
  * Spinners propagate DOWN to children, not UP to parents
  */
-function getProcessingOperation(processingPaths: Map<string, OperationType>, filePath: string, _isDirectory: boolean = false): OperationType | null {
+function getProcessingOperation(
+  processingPaths: Map<string, OperationType>,
+  filePath: string,
+  _isDirectory: boolean = false,
+): OperationType | null {
   const normalizedPath = filePath.replace(/\\/g, '/')
 
   if (processingPaths.has(filePath)) return processingPaths.get(filePath)!
@@ -80,10 +84,8 @@ function getDiffClass(diffStatus: string | undefined): string {
 function getCloudFilesCount(file: LocalFile, allFiles: LocalFile[]): number {
   if (!file.isDirectory) return 0
   const folderPrefix = file.relativePath + '/'
-  return allFiles.filter(f =>
-    !f.isDirectory &&
-    f.diffStatus === 'cloud' &&
-    f.relativePath.startsWith(folderPrefix)
+  return allFiles.filter(
+    (f) => !f.isDirectory && f.diffStatus === 'cloud' && f.relativePath.startsWith(folderPrefix),
   ).length
 }
 
@@ -93,12 +95,13 @@ function getCloudFilesCount(file: LocalFile, allFiles: LocalFile[]): number {
 function getLocalOnlyFilesCount(file: LocalFile, allFiles: LocalFile[]): number {
   if (!file.isDirectory) return 0
   const folderPrefix = file.relativePath + '/'
-  return allFiles.filter(f =>
-    !f.isDirectory &&
-    (!f.pdmData || f.diffStatus === 'added') &&
-    f.diffStatus !== 'cloud' &&
-    f.diffStatus !== 'ignored' &&
-    f.relativePath.startsWith(folderPrefix)
+  return allFiles.filter(
+    (f) =>
+      !f.isDirectory &&
+      (!f.pdmData || f.diffStatus === 'added') &&
+      f.diffStatus !== 'cloud' &&
+      f.diffStatus !== 'ignored' &&
+      f.relativePath.startsWith(folderPrefix),
   ).length
 }
 
@@ -112,35 +115,37 @@ function getCheckoutUsers(
   userFullName: string | undefined,
   userEmail: string | undefined,
   userAvatarUrl: string | undefined,
-  currentMachineId: string | null
+  currentMachineId: string | null,
 ): CheckoutUser[] {
   if (file.isDirectory) {
     const folderPrefix = file.relativePath + '/'
-    const folderFiles = allFiles.filter(f =>
-      !f.isDirectory &&
-      f.pdmData?.checked_out_by &&
-      f.pdmData?.id &&
-      f.relativePath.startsWith(folderPrefix)
+    const folderFiles = allFiles.filter(
+      (f) =>
+        !f.isDirectory &&
+        f.pdmData?.checked_out_by &&
+        f.pdmData?.id &&
+        f.relativePath.startsWith(folderPrefix),
     )
 
     const usersMap = new Map<string, CheckoutUser>()
     const userFileIds = new Map<string, string[]>()
-    
+
     for (const f of folderFiles) {
       const checkoutUserId = f.pdmData!.checked_out_by!
       const fileId = f.pdmData!.id
-      
+
       // Track file IDs per user
       if (!userFileIds.has(checkoutUserId)) {
         userFileIds.set(checkoutUserId, [])
       }
       userFileIds.get(checkoutUserId)!.push(fileId)
-      
+
       if (!usersMap.has(checkoutUserId)) {
         const isMe = checkoutUserId === userId
         const checkoutMachineId = f.pdmData?.checked_out_by_machine_id
         const checkoutMachineName = f.pdmData?.checked_out_by_machine_name
-        const isDifferentMachine = isMe && checkoutMachineId && currentMachineId && checkoutMachineId !== currentMachineId
+        const isDifferentMachine =
+          isMe && checkoutMachineId && currentMachineId && checkoutMachineId !== currentMachineId
 
         if (isMe) {
           usersMap.set(checkoutUserId, {
@@ -151,7 +156,7 @@ function getCheckoutUsers(
             isMe: true,
             isDifferentMachine: isDifferentMachine || false,
             machineName: checkoutMachineName ?? undefined,
-            fileIds: [] // Will be filled below
+            fileIds: [], // Will be filled below
           })
         } else {
           const checkedOutUser = f.pdmData?.checked_out_user
@@ -161,44 +166,49 @@ function getCheckoutUsers(
             email: checkedOutUser?.email ?? undefined,
             avatar_url: checkedOutUser?.avatar_url ?? undefined,
             isMe: false,
-            fileIds: [] // Will be filled below
+            fileIds: [], // Will be filled below
           })
         }
       }
     }
-    
+
     // Attach file IDs to each user
     const users = Array.from(usersMap.values())
     for (const user of users) {
       user.fileIds = userFileIds.get(user.id) || []
     }
-    
+
     return users
   } else if (file.pdmData?.checked_out_by) {
     const isMe = file.pdmData.checked_out_by === userId
     const checkoutMachineId = file.pdmData.checked_out_by_machine_id
     const checkoutMachineName = file.pdmData.checked_out_by_machine_name
-    const isDifferentMachine = isMe && checkoutMachineId && currentMachineId && checkoutMachineId !== currentMachineId
+    const isDifferentMachine =
+      isMe && checkoutMachineId && currentMachineId && checkoutMachineId !== currentMachineId
 
     if (isMe) {
-      return [{
-        id: file.pdmData.checked_out_by,
-        name: userFullName || userEmail || 'You',
-        email: userEmail,
-        avatar_url: userAvatarUrl,
-        isMe: true,
-        isDifferentMachine: isDifferentMachine || false,
-        machineName: checkoutMachineName ?? undefined
-      }]
+      return [
+        {
+          id: file.pdmData.checked_out_by,
+          name: userFullName || userEmail || 'You',
+          email: userEmail,
+          avatar_url: userAvatarUrl,
+          isMe: true,
+          isDifferentMachine: isDifferentMachine || false,
+          machineName: checkoutMachineName ?? undefined,
+        },
+      ]
     } else {
       const checkedOutUser = file.pdmData.checked_out_user
-      return [{
-        id: file.pdmData.checked_out_by,
-        name: checkedOutUser?.full_name || checkedOutUser?.email?.split('@')[0] || 'Someone',
-        email: checkedOutUser?.email ?? undefined,
-        avatar_url: checkedOutUser?.avatar_url ?? undefined,
-        isMe: false
-      }]
+      return [
+        {
+          id: file.pdmData.checked_out_by,
+          name: checkedOutUser?.full_name || checkedOutUser?.email?.split('@')[0] || 'Someone',
+          email: checkedOutUser?.email ?? undefined,
+          avatar_url: checkedOutUser?.avatar_url ?? undefined,
+          isMe: false,
+        },
+      ]
     }
   }
   return []
@@ -206,7 +216,7 @@ function getCheckoutUsers(
 
 /**
  * Get folder icon color using priority-based logic.
- * 
+ *
  * Priority order (highest to lowest):
  * 1. Local-only files -> grey
  * 2. Server-only (cloud) files -> grey
@@ -217,7 +227,7 @@ function getCheckoutUsers(
 function getFolderIconColor(
   file: LocalFile,
   allFiles: LocalFile[],
-  userId: string | undefined
+  userId: string | undefined,
 ): string {
   if (!file.isDirectory) return ''
 
@@ -225,28 +235,28 @@ function getFolderIconColor(
 
   const folderPath = file.relativePath.replace(/\\/g, '/')
   const folderPrefix = folderPath + '/'
-  
+
   // Compute file counts for priority logic
   let hasLocalOnly = false
   let hasServerOnly = false
   let hasSynced = false
   let hasMineCheckouts = false
   let hasOthersCheckouts = false
-  
+
   for (const f of allFiles) {
     if (f.isDirectory) continue
     const filePath = f.relativePath.replace(/\\/g, '/')
     if (!filePath.startsWith(folderPrefix)) continue
-    
+
     // Server-only files (cloud)
     if (f.diffStatus === 'cloud') {
       hasServerOnly = true
       continue
     }
-    
+
     // Skip deleted files (server-only status)
     if (f.diffStatus === 'deleted') continue
-    
+
     // Local-only files (no pdmData or added status)
     if (!f.pdmData || f.diffStatus === 'added') {
       if (f.diffStatus !== 'ignored') {
@@ -254,7 +264,7 @@ function getFolderIconColor(
       }
       continue
     }
-    
+
     // Files with pdmData - check checkout status
     if (f.pdmData.checked_out_by === userId) {
       hasMineCheckouts = true
@@ -265,15 +275,15 @@ function getFolderIconColor(
       hasSynced = true
     }
   }
-  
+
   const visualState = computeFolderVisualState(
     hasLocalOnly,
     hasServerOnly,
     hasSynced,
     hasMineCheckouts,
-    hasOthersCheckouts
+    hasOthersCheckouts,
   )
-  
+
   return visualState.iconColor
 }
 
@@ -283,24 +293,28 @@ function getFolderIconColor(
 function getFolderCheckoutInfo(
   file: LocalFile,
   allFiles: LocalFile[],
-  userId: string | undefined
+  userId: string | undefined,
 ): FolderCheckoutInfo | null {
   if (!file.isDirectory) return null
 
   const folderPath = file.relativePath.replace(/\\/g, '/')
   const folderPrefix = folderPath + '/'
-  const folderFiles = allFiles.filter(f => {
+  const folderFiles = allFiles.filter((f) => {
     if (f.isDirectory) return false
     const filePath = f.relativePath.replace(/\\/g, '/')
     return filePath.startsWith(folderPrefix)
   })
 
   const serverOnlyStatuses = ['cloud', 'deleted']
-  const localFiles = folderFiles.filter(f => !serverOnlyStatuses.includes(f.diffStatus || ''))
-  const checkedOutByMe = localFiles.filter(f => f.pdmData?.checked_out_by === userId).length
-  const checkedOutByOthers = localFiles.filter(f => f.pdmData?.checked_out_by && f.pdmData.checked_out_by !== userId).length
-  const syncedNotCheckedOut = localFiles.filter(f => f.pdmData && !f.pdmData.checked_out_by).length
-  const localOnly = localFiles.filter(f => !f.pdmData).length
+  const localFiles = folderFiles.filter((f) => !serverOnlyStatuses.includes(f.diffStatus || ''))
+  const checkedOutByMe = localFiles.filter((f) => f.pdmData?.checked_out_by === userId).length
+  const checkedOutByOthers = localFiles.filter(
+    (f) => f.pdmData?.checked_out_by && f.pdmData.checked_out_by !== userId,
+  ).length
+  const syncedNotCheckedOut = localFiles.filter(
+    (f) => f.pdmData && !f.pdmData.checked_out_by,
+  ).length
+  const localOnly = localFiles.filter((f) => !f.pdmData).length
 
   return { checkedOutByMe, checkedOutByOthers, syncedNotCheckedOut, localOnly }
 }
@@ -316,10 +330,14 @@ export function useFileCardStatus({
   userEmail,
   userAvatarUrl,
   currentMachineId,
-  processingPaths
+  processingPaths,
 }: UseFileCardStatusParams): FileCardStatus {
   return useMemo(() => {
-    const operationType = getProcessingOperation(processingPaths, file.relativePath, file.isDirectory)
+    const operationType = getProcessingOperation(
+      processingPaths,
+      file.relativePath,
+      file.isDirectory,
+    )
     const isProcessing = operationType !== null
     const diffClass = getDiffClass(file.diffStatus)
     const cloudFilesCount = getCloudFilesCount(file, allFiles)
@@ -331,7 +349,7 @@ export function useFileCardStatus({
       userFullName,
       userEmail,
       userAvatarUrl,
-      currentMachineId
+      currentMachineId,
     )
     const folderIconColor = getFolderIconColor(file, allFiles, userId)
     const folderCheckoutInfo = getFolderCheckoutInfo(file, allFiles, userId)
@@ -344,7 +362,7 @@ export function useFileCardStatus({
       checkoutUsers,
       diffClass,
       folderIconColor,
-      folderCheckoutInfo
+      folderCheckoutInfo,
     }
   }, [
     file,
@@ -354,6 +372,6 @@ export function useFileCardStatus({
     userEmail,
     userAvatarUrl,
     currentMachineId,
-    processingPaths
+    processingPaths,
   ])
 }

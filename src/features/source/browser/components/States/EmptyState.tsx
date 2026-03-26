@@ -13,7 +13,7 @@ export interface EmptyStateProps {
 export const EmptyState = memo(function EmptyState({
   onAddFiles,
   onAddFolder,
-  onCreateFolder
+  onCreateFolder,
 }: EmptyStateProps) {
   return (
     <div className="empty-state">
@@ -24,28 +24,19 @@ export const EmptyState = memo(function EmptyState({
       </div>
       <div className="flex gap-2 mt-4">
         {onAddFiles && (
-          <button
-            onClick={onAddFiles}
-            className="btn btn-primary btn-sm"
-          >
+          <button onClick={onAddFiles} className="btn btn-primary btn-sm">
             <Upload size={14} />
             Add Files
           </button>
         )}
         {onAddFolder && (
-          <button
-            onClick={onAddFolder}
-            className="btn btn-outline btn-sm"
-          >
+          <button onClick={onAddFolder} className="btn btn-outline btn-sm">
             <FolderPlus size={14} />
             Add Folder
           </button>
         )}
         {onCreateFolder && (
-          <button
-            onClick={onCreateFolder}
-            className="btn btn-outline btn-sm"
-          >
+          <button onClick={onCreateFolder} className="btn btn-outline btn-sm">
             <FolderPlus size={14} />
             New Folder
           </button>

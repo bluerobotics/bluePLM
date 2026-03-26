@@ -1,6 +1,6 @@
 /**
  * StateService - Type-safe database operations for workflow states
- * 
+ *
  * Uses the supabase client with runtime type assertions to work around
  * TypeScript inference issues with the database types.
  */
@@ -29,7 +29,7 @@ export const stateService = {
 
     return {
       data: data as WorkflowStateRow[] | null,
-      error: error ? new Error(error.message) : null
+      error: error ? new Error(error.message) : null,
     }
   },
 
@@ -37,21 +37,20 @@ export const stateService = {
    * Get a single state by ID
    */
   async getById(stateId: string): Promise<StateServiceResult<WorkflowStateRow>> {
-    const { data, error } = await workflowStates()
-      .select('*')
-      .eq('id', stateId)
-      .single()
+    const { data, error } = await workflowStates().select('*').eq('id', stateId).single()
 
     return {
       data: data as WorkflowStateRow | null,
-      error: error ? new Error(error.message) : null
+      error: error ? new Error(error.message) : null,
     }
   },
 
   /**
    * Create a new state
    */
-  async create(state: Partial<WorkflowStateRow> & { workflow_id: string; name: string }): Promise<StateServiceResult<WorkflowStateRow>> {
+  async create(
+    state: Partial<WorkflowStateRow> & { workflow_id: string; name: string },
+  ): Promise<StateServiceResult<WorkflowStateRow>> {
     const { data, error } = await workflowStates()
       .insert(state as never)
       .select()
@@ -59,7 +58,7 @@ export const stateService = {
 
     return {
       data: data as WorkflowStateRow | null,
-      error: error ? new Error(error.message) : null
+      error: error ? new Error(error.message) : null,
     }
   },
 
@@ -67,8 +66,8 @@ export const stateService = {
    * Update a state
    */
   async update(
-    stateId: string, 
-    updates: Partial<WorkflowStateRow>
+    stateId: string,
+    updates: Partial<WorkflowStateRow>,
   ): Promise<StateServiceResult<WorkflowStateRow>> {
     const { data, error } = await workflowStates()
       .update(updates as never)
@@ -78,7 +77,7 @@ export const stateService = {
 
     return {
       data: data as WorkflowStateRow | null,
-      error: error ? new Error(error.message) : null
+      error: error ? new Error(error.message) : null,
     }
   },
 
@@ -88,7 +87,7 @@ export const stateService = {
   async updatePosition(
     stateId: string,
     positionX: number,
-    positionY: number
+    positionY: number,
   ): Promise<StateServiceResult<void>> {
     const { error } = await workflowStates()
       .update({ position_x: positionX, position_y: positionY } as never)
@@ -96,7 +95,7 @@ export const stateService = {
 
     return {
       data: error ? null : undefined,
-      error: error ? new Error(error.message) : null
+      error: error ? new Error(error.message) : null,
     }
   },
 
@@ -104,13 +103,11 @@ export const stateService = {
    * Delete a state
    */
   async delete(stateId: string): Promise<StateServiceResult<void>> {
-    const { error } = await workflowStates()
-      .delete()
-      .eq('id', stateId)
+    const { error } = await workflowStates().delete().eq('id', stateId)
 
     return {
       data: error ? null : undefined,
-      error: error ? new Error(error.message) : null
+      error: error ? new Error(error.message) : null,
     }
   },
 
@@ -118,21 +115,21 @@ export const stateService = {
    * Batch update state positions
    */
   async batchUpdatePositions(
-    updates: Array<{ id: string; position_x: number; position_y: number }>
+    updates: Array<{ id: string; position_x: number; position_y: number }>,
   ): Promise<StateServiceResult<void>> {
     // Use individual updates since Supabase doesn't support batch updates well
     const results = await Promise.all(
       updates.map(({ id, position_x, position_y }) =>
         workflowStates()
           .update({ position_x, position_y } as never)
-          .eq('id', id)
-      )
+          .eq('id', id),
+      ),
     )
 
-    const firstError = results.find(r => r.error)?.error
+    const firstError = results.find((r) => r.error)?.error
     return {
       data: firstError ? null : undefined,
-      error: firstError ? new Error(firstError.message) : null
+      error: firstError ? new Error(firstError.message) : null,
     }
   },
 
@@ -148,5 +145,5 @@ export const stateService = {
       .single()
 
     return ((data as { sort_order: number } | null)?.sort_order ?? 0) + 1
-  }
+  },
 }

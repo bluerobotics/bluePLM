@@ -37,7 +37,12 @@ export function useThumbnail({ file, iconSize, isProcessing }: UseThumbnailParam
     const loadThumbnail = async () => {
       const ext = file.extension.toLowerCase()
 
-      if (!file.isDirectory && SW_THUMBNAIL_EXTENSIONS.includes(ext) && file.path && iconSize >= 64) {
+      if (
+        !file.isDirectory &&
+        SW_THUMBNAIL_EXTENSIONS.includes(ext) &&
+        file.path &&
+        iconSize >= 64
+      ) {
         setLoadingThumbnail(true)
         setThumbnailError(false)
         try {
@@ -62,6 +67,6 @@ export function useThumbnail({ file, iconSize, isProcessing }: UseThumbnailParam
     thumbnail,
     thumbnailError,
     loadingThumbnail,
-    setThumbnailError
+    setThumbnailError,
   }
 }

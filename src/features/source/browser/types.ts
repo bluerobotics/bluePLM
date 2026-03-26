@@ -106,7 +106,7 @@ export interface ColumnConfig {
 export interface SelectionState {
   selectedPaths: Set<string>
   lastSelectedPath: string | null
-  anchorIndex: number | null  // For shift-click range selection
+  anchorIndex: number | null // For shift-click range selection
 }
 
 /**
@@ -268,7 +268,20 @@ export type SortDirection = 'asc' | 'desc'
 /**
  * Sort column options
  */
-export type SortColumn = 'name' | 'extension' | 'size' | 'modifiedTime' | 'state' | 'revision' | 'itemNumber' | 'tabNumber' | 'fileStatus' | 'checkedOutBy' | 'version' | 'description' | 'ecoTags'
+export type SortColumn =
+  | 'name'
+  | 'extension'
+  | 'size'
+  | 'modifiedTime'
+  | 'state'
+  | 'revision'
+  | 'itemNumber'
+  | 'tabNumber'
+  | 'fileStatus'
+  | 'checkedOutBy'
+  | 'version'
+  | 'description'
+  | 'ecoTags'
 
 /**
  * Column ID to translation key mapping

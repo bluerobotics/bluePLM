@@ -13,10 +13,11 @@ export interface SearchIndicatorProps {
 export const SearchIndicator = memo(function SearchIndicator({
   searchQuery,
   searchType,
-  matchCount
+  matchCount,
 }: SearchIndicatorProps) {
-  const typeLabel = searchType === 'files' ? 'Files' : searchType === 'folders' ? 'Folders' : 'Results'
-  
+  const typeLabel =
+    searchType === 'files' ? 'Files' : searchType === 'folders' ? 'Folders' : 'Results'
+
   return (
     <div className="flex items-center gap-2 flex-1 min-w-0 text-sm text-plm-fg-dim">
       <Search size={14} className="text-plm-accent" />

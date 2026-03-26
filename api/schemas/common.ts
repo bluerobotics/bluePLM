@@ -1,6 +1,6 @@
 /**
  * Common JSON Schemas
- * 
+ *
  * Error and user response schemas used across endpoints.
  */
 
@@ -9,8 +9,8 @@ export const errorSchema = {
   properties: {
     error: { type: 'string' },
     message: { type: 'string' },
-    details: { type: 'array', items: { type: 'object' } }
-  }
+    details: { type: 'array', items: { type: 'object' } },
+  },
 } as const
 
 export const userSchema = {
@@ -20,6 +20,6 @@ export const userSchema = {
     email: { type: 'string', format: 'email' },
     full_name: { type: ['string', 'null'] },
     role: { type: 'string', enum: ['admin', 'engineer', 'viewer'] },
-    org_id: { type: ['string', 'null'] }
-  }
+    org_id: { type: ['string', 'null'] },
+  },
 } as const

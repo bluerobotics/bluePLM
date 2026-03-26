@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react'
 import {
-  Mail, 
-  LogOut, 
-  Monitor, 
-  Laptop, 
+  Mail,
+  LogOut,
+  Monitor,
+  Laptop,
   Loader2,
-  RefreshCw, 
-  Download, 
-  CheckCircle, 
+  RefreshCw,
+  Download,
+  CheckCircle,
   Plus,
   X,
   FileText,
@@ -21,7 +21,7 @@ import {
   Snowflake,
   Ghost,
   CloudSun,
-  Crown
+  Crown,
 } from 'lucide-react'
 import { log } from '@/lib/logger'
 import { usePDMStore, ThemeMode, Language } from '@/stores/pdmStore'
@@ -58,12 +58,12 @@ const languageOptions: { value: Language; label: string; nativeLabel: string }[]
 
 export function AccountSettings() {
   const { t } = useTranslation()
-  const { 
-    user, 
-    setUser, 
+  const {
+    user,
+    setUser,
     setOrganization,
     activeVaultId,
-    lowercaseExtensions, 
+    lowercaseExtensions,
     setLowercaseExtensions,
     ignorePatterns,
     addIgnorePattern,
@@ -71,29 +71,76 @@ export function AccountSettings() {
     theme,
     setTheme,
     language,
-    setLanguage
+    setLanguage,
   } = usePDMStore()
-  
+
   const [sessions, setSessions] = useState<UserSession[]>([])
   const [currentMachineId, setCurrentMachineId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [signingOutSessionId, setSigningOutSessionId] = useState<string | null>(null)
   const [appVersion, setAppVersion] = useState<string>('')
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false)
-  const [updateCheckResult, setUpdateCheckResult] = useState<'none' | 'available' | 'error' | null>(null)
+  const [updateCheckResult, setUpdateCheckResult] = useState<'none' | 'available' | 'error' | null>(
+    null,
+  )
   const [newIgnorePattern, setNewIgnorePattern] = useState('')
   const [isLanguageDropdownOpen, setIsLanguageDropdownOpen] = useState(false)
 
   // Theme options with translations
-  const themeOptions: { value: ThemeMode; label: string; icon: React.ReactNode; description: string }[] = [
-    { value: 'dark', label: t('preferences.themeDark'), icon: <Moon size={18} />, description: t('preferences.themeDarkDesc') },
-    { value: 'deep-blue', label: t('preferences.themeDeepBlue'), icon: <Waves size={18} />, description: t('preferences.themeDeepBlueDesc') },
-    { value: 'kenneth', label: t('preferences.themeKenneth'), icon: <Crown size={18} />, description: t('preferences.themeKennethDesc') },
-    { value: 'light', label: t('preferences.themeLight'), icon: <Sun size={18} />, description: t('preferences.themeLightDesc') },
-    { value: 'weather', label: t('preferences.themeWeather'), icon: <CloudSun size={18} />, description: t('preferences.themeWeatherDesc') },
-    { value: 'christmas', label: t('preferences.themeChristmas'), icon: <Snowflake size={18} />, description: t('preferences.themeChristmasDesc') },
-    { value: 'halloween', label: t('preferences.themeHalloween'), icon: <Ghost size={18} />, description: t('preferences.themeHalloweenDesc') },
-    { value: 'system', label: t('preferences.themeSystem'), icon: <Monitor size={18} />, description: t('preferences.themeSystemDesc') },
+  const themeOptions: {
+    value: ThemeMode
+    label: string
+    icon: React.ReactNode
+    description: string
+  }[] = [
+    {
+      value: 'dark',
+      label: t('preferences.themeDark'),
+      icon: <Moon size={18} />,
+      description: t('preferences.themeDarkDesc'),
+    },
+    {
+      value: 'deep-blue',
+      label: t('preferences.themeDeepBlue'),
+      icon: <Waves size={18} />,
+      description: t('preferences.themeDeepBlueDesc'),
+    },
+    {
+      value: 'kenneth',
+      label: t('preferences.themeKenneth'),
+      icon: <Crown size={18} />,
+      description: t('preferences.themeKennethDesc'),
+    },
+    {
+      value: 'light',
+      label: t('preferences.themeLight'),
+      icon: <Sun size={18} />,
+      description: t('preferences.themeLightDesc'),
+    },
+    {
+      value: 'weather',
+      label: t('preferences.themeWeather'),
+      icon: <CloudSun size={18} />,
+      description: t('preferences.themeWeatherDesc'),
+    },
+    {
+      value: 'christmas',
+      label: t('preferences.themeChristmas'),
+      icon: <Snowflake size={18} />,
+      description: t('preferences.themeChristmasDesc'),
+    },
+    {
+      value: 'halloween',
+      label: t('preferences.themeHalloween'),
+      icon: <Ghost size={18} />,
+      description: t('preferences.themeHalloweenDesc'),
+    },
+    {
+      value: 'system',
+      label: t('preferences.themeSystem'),
+      icon: <Monitor size={18} />,
+      description: t('preferences.themeSystemDesc'),
+    },
   ]
 
   // Get app version on mount
@@ -116,7 +163,7 @@ export function AccountSettings() {
         // Fetch all sessions for this user (active within last 5 minutes)
         const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
         const client = getSupabaseClient()
-        
+
         const { data, error } = await client
           .from('user_sessions')
           .select('*')
@@ -129,15 +176,15 @@ export function AccountSettings() {
           // Cast to UserSession[] - Supabase types may be out of sync with actual schema
           setSessions(data as unknown as UserSession[])
         }
-      } catch (err) {
-        log.error('[Account]', 'Error loading sessions', { error: err })
+      } catch (error) {
+        log.error('[Account]', 'Error loading sessions', { error: error })
       } finally {
         setIsLoading(false)
       }
     }
 
     loadSessions()
-    
+
     // Refresh every 30 seconds
     const interval = setInterval(loadSessions, 30000)
     return () => clearInterval(interval)
@@ -155,7 +202,7 @@ export function AccountSettings() {
     const now = new Date()
     const diffMs = now.getTime() - date.getTime()
     const diffMins = Math.floor(diffMs / 60000)
-    
+
     if (diffMins < 1) return 'Just now'
     if (diffMins < 60) return `${diffMins}m ago`
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -172,12 +219,12 @@ export function AccountSettings() {
       const { success, error } = await endRemoteSession(sessionId)
       if (success) {
         // Remove the session from state immediately
-        setSessions(prev => prev.filter(s => s.id !== sessionId))
+        setSessions((prev) => prev.filter((s) => s.id !== sessionId))
       } else {
         log.error('[Account]', 'Failed to sign out session', { error })
       }
-    } catch (err) {
-      log.error('[Account]', 'Error signing out session', { error: err })
+    } catch (error) {
+      log.error('[Account]', 'Error signing out session', { error: error })
     } finally {
       setSigningOutSessionId(null)
     }
@@ -186,10 +233,10 @@ export function AccountSettings() {
   // Handle manual update check
   const handleCheckForUpdates = async () => {
     if (!window.electronAPI || isCheckingUpdate) return
-    
+
     setIsCheckingUpdate(true)
     setUpdateCheckResult(null)
-    
+
     try {
       const result = await window.electronAPI.checkForUpdates()
       if (result.success && result.updateInfo) {
@@ -199,30 +246,26 @@ export function AccountSettings() {
       } else {
         setUpdateCheckResult('error')
       }
-    } catch (err) {
-      log.error('[Account]', 'Update check error', { error: err })
+    } catch (error) {
+      log.error('[Account]', 'Update check error', { error: error })
       setUpdateCheckResult('error')
     } finally {
       setIsCheckingUpdate(false)
       setTimeout(() => setUpdateCheckResult(null), 5000)
     }
   }
-  
+
   const handleAddIgnorePattern = () => {
     if (!newIgnorePattern.trim() || !activeVaultId) return
     addIgnorePattern(activeVaultId, newIgnorePattern.trim())
     setNewIgnorePattern('')
   }
-  
+
   // Get ignore patterns for current vault
-  const currentVaultPatterns = activeVaultId ? (ignorePatterns[activeVaultId] || []) : []
+  const currentVaultPatterns = activeVaultId ? ignorePatterns[activeVaultId] || [] : []
 
   if (!user) {
-    return (
-      <div className="text-center py-12 text-plm-fg-muted text-base">
-        Not signed in
-      </div>
-    )
+    return <div className="text-center py-12 text-plm-fg-muted text-base">Not signed in</div>
   }
 
   // Sort sessions so current device is first
@@ -242,8 +285,8 @@ export function AccountSettings() {
         <div className="flex items-center gap-4 p-4 bg-plm-bg rounded-lg border border-plm-border">
           {getEffectiveAvatarUrl(user) ? (
             <>
-              <img 
-                src={getEffectiveAvatarUrl(user) || ''} 
+              <img
+                src={getEffectiveAvatarUrl(user) || ''}
                 alt={user.full_name || user.email}
                 className="w-16 h-16 rounded-full object-cover"
                 referrerPolicy="no-referrer"
@@ -266,11 +309,7 @@ export function AccountSettings() {
             <div className="text-xl font-medium text-plm-fg truncate">
               {user.full_name || 'No name'}
             </div>
-            {user.job_title && (
-              <div className="text-base text-plm-fg-muted">
-                {user.job_title}
-              </div>
-            )}
+            {user.job_title && <div className="text-base text-plm-fg-muted">{user.job_title}</div>}
             <div className="text-base text-plm-fg-muted truncate flex items-center gap-1.5">
               <Mail size={16} />
               {user.email}
@@ -292,11 +331,9 @@ export function AccountSettings() {
         </h2>
         <div className="bg-plm-bg rounded-lg border border-plm-border overflow-hidden">
           <div className="px-4 py-3 border-b border-plm-border">
-            <p className="text-sm text-plm-fg-muted">
-              Devices where you're currently signed in
-            </p>
+            <p className="text-sm text-plm-fg-muted">Devices where you're currently signed in</p>
           </div>
-          
+
           <div className="p-4">
             {isLoading ? (
               <div className="flex items-center justify-center py-4 text-plm-fg-muted">
@@ -304,26 +341,26 @@ export function AccountSettings() {
                 <span className="text-base">Loading sessions...</span>
               </div>
             ) : sortedSessions.length === 0 ? (
-              <div className="text-center py-4 text-plm-fg-muted text-base">
-                No active sessions
-              </div>
+              <div className="text-center py-4 text-plm-fg-muted text-base">No active sessions</div>
             ) : (
               <div className="space-y-2">
-                {sortedSessions.map(session => {
+                {sortedSessions.map((session) => {
                   const isCurrentDevice = session.machine_id === currentMachineId
                   const isSigningOut = signingOutSessionId === session.id
                   return (
-                    <div 
+                    <div
                       key={session.id}
                       className={`flex items-center gap-3 p-3 rounded-lg border ${
-                        isCurrentDevice 
-                          ? 'bg-plm-accent/5 border-plm-accent/30' 
+                        isCurrentDevice
+                          ? 'bg-plm-accent/5 border-plm-accent/30'
                           : 'bg-plm-bg-light border-plm-border'
                       }`}
                     >
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                        isCurrentDevice ? 'bg-plm-accent/20' : 'bg-plm-highlight'
-                      }`}>
+                      <div
+                        className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                          isCurrentDevice ? 'bg-plm-accent/20' : 'bg-plm-highlight'
+                        }`}
+                      >
                         {getPlatformIcon(session.platform)}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -347,14 +384,18 @@ export function AccountSettings() {
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="text-sm text-plm-fg-muted flex items-center gap-1.5">
-                          <span className={`w-1.5 h-1.5 rounded-full bg-plm-success ${isCurrentDevice ? 'animate-pulse' : ''}`} />
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full bg-plm-success ${isCurrentDevice ? 'animate-pulse' : ''}`}
+                          />
                           {formatLastSeen(session.last_seen)}
                         </div>
                         <button
-                          onClick={() => isCurrentDevice ? handleSignOut() : handleRemoteSignOut(session.id)}
+                          onClick={() =>
+                            isCurrentDevice ? handleSignOut() : handleRemoteSignOut(session.id)
+                          }
                           disabled={isSigningOut}
                           className="p-1.5 rounded hover:bg-plm-error/20 text-plm-fg-muted hover:text-plm-error transition-colors disabled:opacity-50"
-                          title={isCurrentDevice ? "Sign out" : "Sign out this device"}
+                          title={isCurrentDevice ? 'Sign out' : 'Sign out this device'}
                         >
                           {isSigningOut ? (
                             <Loader2 size={14} className="animate-spin" />
@@ -380,14 +421,14 @@ export function AccountSettings() {
         <div className="p-4 bg-plm-bg rounded-lg border border-plm-border">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <div className="text-base font-medium text-plm-fg">
-                BluePLM {appVersion || '...'}
-              </div>
+              <div className="text-base font-medium text-plm-fg">BluePLM {appVersion || '...'}</div>
               <div className="text-sm text-plm-fg-muted mt-0.5">
                 {updateCheckResult === 'none' && t('preferences.youHaveLatest')}
                 {updateCheckResult === 'available' && t('preferences.updateAvailable')}
                 {updateCheckResult === 'error' && t('preferences.couldNotCheck')}
-                {updateCheckResult === null && !isCheckingUpdate && t('preferences.checkForNewVersions')}
+                {updateCheckResult === null &&
+                  !isCheckingUpdate &&
+                  t('preferences.checkForNewVersions')}
               </div>
             </div>
             <button
@@ -397,8 +438,8 @@ export function AccountSettings() {
                 updateCheckResult === 'none'
                   ? 'bg-green-600/20 text-green-400 border border-green-600/30'
                   : updateCheckResult === 'available'
-                  ? 'bg-plm-accent/20 text-plm-accent border border-plm-accent/30'
-                  : 'bg-plm-highlight text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight/80'
+                    ? 'bg-plm-accent/20 text-plm-accent border border-plm-accent/30'
+                    : 'bg-plm-highlight text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight/80'
               }`}
             >
               {isCheckingUpdate ? (
@@ -445,22 +486,22 @@ export function AccountSettings() {
                     : 'bg-plm-bg border-plm-border hover:border-plm-accent/50 hover:bg-plm-highlight cursor-pointer'
                 }`}
               >
-                <div className={`p-2.5 rounded-lg ${
-                  isSelected 
-                    ? 'bg-plm-accent text-white' 
-                    : 'bg-plm-bg-lighter text-plm-fg-muted'
-                }`}>
+                <div
+                  className={`p-2.5 rounded-lg ${
+                    isSelected ? 'bg-plm-accent text-white' : 'bg-plm-bg-lighter text-plm-fg-muted'
+                  }`}
+                >
                   {option.icon}
                 </div>
                 <div className="flex-1">
-                  <div className={`text-base font-medium ${isSelected ? 'text-plm-fg' : 'text-plm-fg-dim'}`}>
+                  <div
+                    className={`text-base font-medium ${isSelected ? 'text-plm-fg' : 'text-plm-fg-dim'}`}
+                  >
                     {option.label}
                   </div>
                   <div className="text-sm text-plm-fg-muted">{option.description}</div>
                 </div>
-                {isSelected && (
-                  <CheckCircle size={18} className="text-plm-accent flex-shrink-0" />
-                )}
+                {isSelected && <CheckCircle size={18} className="text-plm-accent flex-shrink-0" />}
               </button>
             )
           })}
@@ -494,21 +535,24 @@ export function AccountSettings() {
               >
                 <span className="flex-1 text-left">
                   <span className="text-plm-fg font-medium">
-                    {languageOptions.find(l => l.value === language)?.nativeLabel || 'English'}
+                    {languageOptions.find((l) => l.value === language)?.nativeLabel || 'English'}
                   </span>
                   <span className="text-plm-fg-muted text-sm ml-2">
-                    ({languageOptions.find(l => l.value === language)?.label || 'English'})
+                    ({languageOptions.find((l) => l.value === language)?.label || 'English'})
                   </span>
                 </span>
-                <ChevronDown size={16} className={`text-plm-fg-muted transition-transform ${isLanguageDropdownOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown
+                  size={16}
+                  className={`text-plm-fg-muted transition-transform ${isLanguageDropdownOpen ? 'rotate-180' : ''}`}
+                />
               </button>
-              
+
               {isLanguageDropdownOpen && (
                 <>
                   {/* Backdrop */}
-                  <div 
-                    className="fixed inset-0 z-40" 
-                    onClick={() => setIsLanguageDropdownOpen(false)} 
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setIsLanguageDropdownOpen(false)}
                   />
                   {/* Dropdown */}
                   <div className="absolute right-0 top-full mt-1 z-50 bg-plm-bg-secondary border border-plm-border rounded-lg shadow-xl max-h-[320px] overflow-y-auto min-w-[240px]">
@@ -540,9 +584,7 @@ export function AccountSettings() {
               )}
             </div>
           </div>
-          <p className="text-xs text-plm-fg-dim mt-3">
-            {t('preferences.translationsNote')}
-          </p>
+          <p className="text-xs text-plm-fg-dim mt-3">{t('preferences.translationsNote')}</p>
         </div>
       </section>
 
@@ -579,10 +621,8 @@ export function AccountSettings() {
           {t('preferences.ignorePatterns')}
         </h2>
         <div className="p-4 bg-plm-bg rounded-lg border border-plm-border space-y-3">
-          <p className="text-sm text-plm-fg-muted">
-            {t('preferences.ignorePatternsDesc')}
-          </p>
-          
+          <p className="text-sm text-plm-fg-muted">{t('preferences.ignorePatternsDesc')}</p>
+
           {/* Add new pattern */}
           <div className="flex gap-2">
             <input
@@ -605,18 +645,16 @@ export function AccountSettings() {
               {t('common.add')}
             </button>
           </div>
-          
+
           {!activeVaultId && (
-            <p className="text-sm text-plm-warning">
-              {t('preferences.connectVaultForPatterns')}
-            </p>
+            <p className="text-sm text-plm-warning">{t('preferences.connectVaultForPatterns')}</p>
           )}
-          
+
           {/* Pattern list */}
           {currentVaultPatterns.length > 0 ? (
             <div className="space-y-1">
               {currentVaultPatterns.map((pattern, index) => (
-                <div 
+                <div
                   key={index}
                   className="flex items-center gap-2 px-3 py-2 bg-plm-bg-secondary rounded-lg group"
                 >
@@ -638,7 +676,6 @@ export function AccountSettings() {
           ) : null}
         </div>
       </section>
-
     </div>
   )
 }

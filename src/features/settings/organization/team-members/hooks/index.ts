@@ -1,8 +1,8 @@
 /**
  * Hooks barrel export for team-members
- * 
+ *
  * This module provides all the hooks needed for the TeamMembersSettings component.
- * 
+ *
  * @module team-members/hooks
  */
 
@@ -23,7 +23,11 @@ export { useOrgCode } from './useOrgCode'
 export { useUIState } from './useUIState'
 
 // Computed/filtered data hook
-export { useFilteredData, type UseFilteredDataParams, type UseFilteredDataReturn } from './useFilteredData'
+export {
+  useFilteredData,
+  type UseFilteredDataParams,
+  type UseFilteredDataReturn,
+} from './useFilteredData'
 
 // Handler orchestration hook (composes domain-specific handlers)
 export { useHandlers, type UseHandlersParams } from './useHandlers'
@@ -39,7 +43,7 @@ export {
   type UseUserHandlersParams,
   type UseWorkflowRoleHandlersParams,
   type UseJobTitleHandlersParams,
-  type UsePendingMemberHandlersParams
+  type UsePendingMemberHandlersParams,
 } from './handlers'
 
 // Typed Supabase helpers (internal use, but exported for testing/extension)
@@ -52,5 +56,5 @@ export type {
   UserWorkflowRoleJoin,
   TeamVaultAccessJoin,
   WorkflowRoleBasic as WorkflowRoleBasicQuery,
-  JobTitleBasic as JobTitleBasicQuery
+  JobTitleBasic as JobTitleBasicQuery,
 } from './supabaseHelpers'

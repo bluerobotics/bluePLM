@@ -1,18 +1,13 @@
 /**
  * Extension Network API Implementation
- * 
+ *
  * Provides sandboxed network operations for extensions.
  * All requests are logged and subject to declared domain restrictions.
- * 
+ *
  * @module extensions/api/network
  */
 
-import type {
-  NetworkAPI,
-  FetchOptions,
-  FetchResponse,
-  HttpMethod,
-} from './types'
+import type { NetworkAPI, FetchOptions, FetchResponse, HttpMethod } from './types'
 import { checkPermission } from './permissions'
 
 // ============================================
@@ -50,8 +45,8 @@ const MAX_REQUEST_SIZE = 1024 * 1024
  * Send an IPC message to the main process.
  */
 async function sendIPC<T>(channel: string, ...args: unknown[]): Promise<T> {
-  if (typeof window !== 'undefined' && (window as any).__extensionIPC) {
-    return (window as any).__extensionIPC.invoke(channel, ...args)
+  if (typeof window !== 'undefined' && (window as any).__extensionIPC) { // TODO: type this
+    return (window as any).__extensionIPC.invoke(channel, ...args) // TODO: type this
   }
   throw new Error(`IPC not available: ${channel}`)
 }
@@ -72,12 +67,11 @@ function isDomainAllowed(url: string, allowedDomains: string[]): boolean {
   try {
     const parsed = new URL(url)
     const hostname = parsed.hostname.toLowerCase()
-    
+
     return allowedDomains.some((domain) => {
       const normalizedDomain = domain.toLowerCase()
       // Exact match or subdomain match
-      return hostname === normalizedDomain || 
-             hostname.endsWith('.' + normalizedDomain)
+      return hostname === normalizedDomain || hostname.endsWith('.' + normalizedDomain)
     })
   } catch {
     return false
@@ -99,12 +93,12 @@ function validateRequestSize(body: string | undefined): void {
 
 /**
  * Create the Network API implementation for an extension.
- * 
+ *
  * @param extensionId - The ID of the extension using this API
  * @param grantedPermissions - Permissions granted to the extension
  * @param allowedDomains - List of allowed external domains
  * @returns Object containing all network methods
- * 
+ *
  * @example
  * ```typescript
  * const network = createNetworkAPI('my-extension', ['network:orgApi'], ['api.example.com'])
@@ -114,35 +108,32 @@ function validateRequestSize(body: string | undefined): void {
 export function createNetworkAPI(
   extensionId: string,
   grantedPermissions: string[],
-  allowedDomains: string[] = []
+  allowedDomains: string[] = [],
 ): NetworkAPI {
   /**
    * Call the organization's API server.
    */
   async function callOrgApi<T>(
     endpoint: string,
-    options: FetchOptions = {}
+    options: FetchOptions = {},
   ): Promise<FetchResponse<T>> {
     checkPermission(extensionId, 'callOrgApi', grantedPermissions)
-    
+
     const method: HttpMethod = options.method || 'GET'
     const body = serializeBody(options.body)
     validateRequestSize(body)
-    
+
     const timeout = options.timeout || DEFAULT_TIMEOUT_MS
-    
-    const result = await sendIPC<FetchResponse<T>>(
-      NETWORK_IPC_CHANNELS.CALL_ORG_API,
-      {
-        extensionId,
-        endpoint,
-        method,
-        headers: options.headers,
-        body,
-        timeout,
-      }
-    )
-    
+
+    const result = await sendIPC<FetchResponse<T>>(NETWORK_IPC_CHANNELS.CALL_ORG_API, {
+      extensionId,
+      endpoint,
+      method,
+      headers: options.headers,
+      body,
+      timeout,
+    })
+
     return result
   }
 
@@ -151,15 +142,12 @@ export function createNetworkAPI(
    */
   async function callStoreApi<T>(endpoint: string): Promise<FetchResponse<T>> {
     checkPermission(extensionId, 'callStoreApi', grantedPermissions)
-    
-    const result = await sendIPC<FetchResponse<T>>(
-      NETWORK_IPC_CHANNELS.CALL_STORE_API,
-      {
-        extensionId,
-        endpoint,
-      }
-    )
-    
+
+    const result = await sendIPC<FetchResponse<T>>(NETWORK_IPC_CHANNELS.CALL_STORE_API, {
+      extensionId,
+      endpoint,
+    })
+
     return result
   }
 
@@ -168,37 +156,34 @@ export function createNetworkAPI(
    */
   async function fetchExternal<T>(
     url: string,
-    options: FetchOptions = {}
+    options: FetchOptions = {},
   ): Promise<FetchResponse<T>> {
     checkPermission(extensionId, 'fetch', grantedPermissions)
-    
+
     // Validate domain is allowed
     if (!isDomainAllowed(url, allowedDomains)) {
       throw new Error(
         `Domain not allowed. Extension '${extensionId}' can only access: ${
           allowedDomains.join(', ') || '(none declared)'
-        }`
+        }`,
       )
     }
-    
+
     const method: HttpMethod = options.method || 'GET'
     const body = serializeBody(options.body)
     validateRequestSize(body)
-    
+
     const timeout = options.timeout || DEFAULT_TIMEOUT_MS
-    
-    const result = await sendIPC<FetchResponse<T>>(
-      NETWORK_IPC_CHANNELS.FETCH,
-      {
-        extensionId,
-        url,
-        method,
-        headers: options.headers,
-        body,
-        timeout,
-      }
-    )
-    
+
+    const result = await sendIPC<FetchResponse<T>>(NETWORK_IPC_CHANNELS.FETCH, {
+      extensionId,
+      url,
+      method,
+      headers: options.headers,
+      body,
+      timeout,
+    })
+
     return result
   }
 
@@ -225,7 +210,7 @@ export function isSuccessResponse(response: FetchResponse): boolean {
  */
 export function createResponseError(response: FetchResponse): Error {
   const error = new Error(`HTTP ${response.status}: ${response.statusText}`)
-  ;(error as any).response = response
+  ;(error as any).response = response // TODO: type this
   return error
 }
 

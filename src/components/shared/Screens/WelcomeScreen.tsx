@@ -1,7 +1,40 @@
 import { useState, useEffect, useRef } from 'react'
-import { FolderPlus, Loader2, HardDrive, WifiOff, LogIn, Check, Database, Link, User, Truck, Mail, Phone, ArrowLeft, Eye, EyeOff, RotateCw, X, AlertTriangle, LogOut, Trash2 } from 'lucide-react'
+import {
+  FolderPlus,
+  Loader2,
+  HardDrive,
+  WifiOff,
+  LogIn,
+  Check,
+  Database,
+  Link,
+  User,
+  Truck,
+  Mail,
+  Phone,
+  ArrowLeft,
+  Eye,
+  EyeOff,
+  RotateCw,
+  X,
+  AlertTriangle,
+  LogOut,
+  Trash2,
+} from 'lucide-react'
 import { usePDMStore, ConnectedVault } from '@/stores/pdmStore'
-import { signInWithGoogle, signInWithEmail, signUpWithEmail, signInWithPhone, verifyPhoneOTP, isSupabaseConfigured, supabase, getAccessibleVaults, signOut as supabaseSignOut, getOrgAuthProviders, type AuthProviders } from '@/lib/supabase'
+import {
+  signInWithGoogle,
+  signInWithEmail,
+  signUpWithEmail,
+  signInWithPhone,
+  verifyPhoneOTP,
+  isSupabaseConfigured,
+  supabase,
+  getAccessibleVaults,
+  signOut as supabaseSignOut,
+  getOrgAuthProviders,
+  type AuthProviders,
+} from '@/lib/supabase'
 import { clearConfig, loadConfig } from '@/lib/supabaseConfig'
 import { getInitials, getEffectiveAvatarUrl } from '@/lib/utils'
 import { formatFileSize } from '@/lib/utils'
@@ -50,12 +83,12 @@ interface WelcomeScreenProps {
 const formatSize = formatFileSize
 
 export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenProps) {
-  const { 
-    recentVaults, 
-    user, 
-    organization, 
-    setStatusMessage, 
-    isOfflineMode, 
+  const {
+    recentVaults,
+    user,
+    organization,
+    setStatusMessage,
+    isOfflineMode,
     setOfflineMode,
     connectedVaults,
     activeVaultId,
@@ -66,27 +99,27 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
     setVaultConnected,
     addToast,
     vaultsRefreshKey,
-    isConnecting: isAuthConnecting,  // Global auth connecting state
+    isConnecting: isAuthConnecting, // Global auth connecting state
     getEffectiveRole,
-    permissionsLastUpdated,  // Triggers vault reload when permissions change via realtime
+    permissionsLastUpdated, // Triggers vault reload when permissions change via realtime
     setAutoDownloadCloudFiles,
     setAutoDownloadUpdates,
     autoDownloadSizeLimit,
     setAutoDownloadSizeLimit,
-    updateConnectedVault
+    updateConnectedVault,
   } = usePDMStore()
   const { t } = useTranslation()
   const isAdmin = getEffectiveRole() === 'admin'
-  
-  const [isConnectingVault, setIsConnectingVault] = useState(false)  // Local vault connection state
+
+  const [isConnectingVault, setIsConnectingVault] = useState(false) // Local vault connection state
   const [isSigningIn, setIsSigningIn] = useState(false)
   const [showLogsModal, setShowLogsModal] = useState(false)
   const signInTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const signInAbortControllerRef = useRef<AbortController | null>(null)
-  
+
   // Account type selection state
   const [accountType, setAccountType] = useState<AccountType | null>(null)
-  
+
   // Auth state (shared between supplier and team member email/phone auth)
   const [authMethod, setAuthMethod] = useState<'google' | 'email' | 'phone'>('google')
   const [authEmail, setAuthEmail] = useState('')
@@ -104,10 +137,10 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
   const [isLoadingVaults, setIsLoadingVaults] = useState(false)
   const [connectingVaultId, setConnectingVaultId] = useState<string | null>(null)
   const [platform, setPlatform] = useState<string>('win32')
-  
+
   // Auth providers settings (fetched from org settings for sign-in screen)
   const [orgAuthProviders, setOrgAuthProviders] = useState<AuthProviders | null>(null)
-  
+
   // Vault setup dialog state
   const [setupVault, setSetupVault] = useState<Vault | null>(null)
   const [setupVaultPath, setSetupVaultPath] = useState<string | null>(null)
@@ -125,12 +158,14 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
   useEffect(() => {
     // Only fetch when showing sign-in screen (user is null and not in offline mode)
     if (user || isOfflineMode) return
-    
+
     const fetchAuthProviders = async () => {
       const config = loadConfig()
       // Always fetch auth providers - the function handles missing orgSlug by
       // falling back to querying the first/only organization in the database
-      log.info('[WelcomeScreen]', 'Fetching auth providers for org', { orgSlug: config?.orgSlug || '(fallback)' })
+      log.info('[WelcomeScreen]', 'Fetching auth providers for org', {
+        orgSlug: config?.orgSlug || '(fallback)',
+      })
       const providers = await getOrgAuthProviders(config?.orgSlug)
       if (providers) {
         log.info('[WelcomeScreen]', 'Auth providers loaded', { providers })
@@ -146,10 +181,10 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
   // This handles cases where Google is disabled but authMethod defaults to 'google'
   useEffect(() => {
     if (!orgAuthProviders) return
-    
+
     const isUser = accountType === 'user'
     const providers = isUser ? orgAuthProviders.users : orgAuthProviders.suppliers
-    
+
     // If current method is disabled, switch to an enabled one
     if (authMethod === 'google' && providers?.google === false) {
       if (providers?.email !== false) {
@@ -174,29 +209,31 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
 
   // Log user/org state changes for debugging
   useEffect(() => {
-    log.info('[WelcomeScreen]', 'User state changed', { 
-      hasUser: !!user, 
+    log.info('[WelcomeScreen]', 'User state changed', {
+      hasUser: !!user,
       email: user?.email,
       hasOrg: !!organization,
       orgName: organization?.name,
-      isConnecting: isAuthConnecting
+      isConnecting: isAuthConnecting,
     })
   }, [user, organization, isAuthConnecting])
 
   // Track if we've seen a user sign in this session (to distinguish "signed out" from "not loaded yet")
   const [hasSeenUser, setHasSeenUser] = useState(false)
-  
+
   useEffect(() => {
     if (user) {
       setHasSeenUser(true)
     }
   }, [user])
-  
+
   // Clear connected vaults when user explicitly signs out (not just on initial load)
   // Only runs after we've seen a user sign in, then they sign out
   useEffect(() => {
     if (hasSeenUser && !user && !isOfflineMode && connectedVaults.length > 0) {
-      log.info('[WelcomeScreen]', 'Clearing connected vaults - user signed out', { count: connectedVaults.length })
+      log.info('[WelcomeScreen]', 'Clearing connected vaults - user signed out', {
+        count: connectedVaults.length,
+      })
       setConnectedVaults([])
     }
   }, [user, isOfflineMode, hasSeenUser])
@@ -209,10 +246,14 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
     // Get fresh state inside the effect to avoid stale closure issues
     const currentVaults = usePDMStore.getState().connectedVaults
     const currentActiveId = usePDMStore.getState().activeVaultId
-    const vault = currentVaults.find(v => v.id === currentActiveId) || currentVaults[0]
-    
+    const vault = currentVaults.find((v) => v.id === currentActiveId) || currentVaults[0]
+
     if (currentVaults.length > 0 && (user || isOfflineMode) && vault) {
-      log.info('[WelcomeScreen]', 'Auto-connecting to vault', { vaultName: vault.name, vaultId: vault.id, wasActiveVaultId: currentActiveId })
+      log.info('[WelcomeScreen]', 'Auto-connecting to vault', {
+        vaultName: vault.name,
+        vaultId: vault.id,
+        wasActiveVaultId: currentActiveId,
+      })
       // Auto-connect to the active vault (or first vault if no active vault)
       onOpenRecentVault(vault.localPath)
     }
@@ -225,44 +266,49 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
         log.debug('[WelcomeScreen]', 'No organization ID or user ID, skipping vault load')
         return
       }
-      
-      log.info('[WelcomeScreen]', 'Loading accessible vaults for user', { orgId: organization.id, orgName: organization.name, userId: user.id, role: user.role })
+
+      log.info('[WelcomeScreen]', 'Loading accessible vaults for user', {
+        orgId: organization.id,
+        orgName: organization.name,
+        userId: user.id,
+        role: user.role,
+      })
       setIsLoadingVaults(true)
       try {
         // Load vaults filtered by user's access permissions
         const { vaults: vaultsData, error: vaultsError } = await getAccessibleVaults(
           user.id,
           organization.id,
-          getEffectiveRole()
+          getEffectiveRole(),
         )
-        
-        log.info('[WelcomeScreen]', 'Accessible vaults query result', { 
-          count: vaultsData?.length || 0, 
-          error: vaultsError
+
+        log.info('[WelcomeScreen]', 'Accessible vaults query result', {
+          count: vaultsData?.length || 0,
+          error: vaultsError,
         })
-        
+
         if (vaultsError || !vaultsData) {
           log.error('[WelcomeScreen]', 'Error loading accessible vaults', { error: vaultsError })
           return
         }
-        
+
         // Load stats for each vault (with pagination to handle >1000 files)
         const vaultsWithStats = await Promise.all(
-          (vaultsData as any[]).map(async (vault: any) => {
+          (vaultsData as any[]).map(async (vault: any) => { // TODO: type this
             // Fetch file count and total size using pagination (Supabase default limit is 1000)
             const PAGE_SIZE = 1000
             let allFileSizes: number[] = []
             let offset = 0
             let hasMore = true
-            
+
             while (hasMore) {
               const { data: statsData } = await supabase
                 .from('files')
                 .select('file_size')
                 .eq('vault_id', vault.id)
-                .is('deleted_at', null)  // Exclude soft-deleted files
+                .is('deleted_at', null) // Exclude soft-deleted files
                 .range(offset, offset + PAGE_SIZE - 1)
-              
+
               if (statsData && statsData.length > 0) {
                 allFileSizes.push(...statsData.map((f: any) => f.file_size || 0))
                 offset += statsData.length
@@ -271,37 +317,45 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                 hasMore = false
               }
             }
-            
+
             const stats: VaultStats = {
               fileCount: allFileSizes.length,
-              totalSize: allFileSizes.reduce((acc, size) => acc + size, 0)
+              totalSize: allFileSizes.reduce((acc, size) => acc + size, 0),
             }
-            
+
             return { ...vault, stats } as Vault
-          })
+          }),
         )
-        
+
         setOrgVaults(vaultsWithStats)
-        
+
         // Clean up stale connected vaults that no longer exist on server
         const serverVaultIds = new Set(vaultsData.map((v: any) => v.id))
-        const staleVaults = connectedVaults.filter(cv => !serverVaultIds.has(cv.id))
-        const staleVaultIds = new Set(staleVaults.map(v => v.id))
-        const staleVaultPaths = new Set(staleVaults.map(v => v.localPath.toLowerCase().replace(/\\/g, '/')))
-        
+        const staleVaults = connectedVaults.filter((cv) => !serverVaultIds.has(cv.id))
+        const staleVaultIds = new Set(staleVaults.map((v) => v.id))
+        const staleVaultPaths = new Set(
+          staleVaults.map((v) => v.localPath.toLowerCase().replace(/\\/g, '/')),
+        )
+
         if (staleVaults.length > 0) {
-          log.info('[WelcomeScreen]', 'Removing stale connected vaults (not on server)', { count: staleVaults.length, ids: staleVaults.map(v => v.id) })
-          staleVaults.forEach(v => removeConnectedVault(v.id))
+          log.info('[WelcomeScreen]', 'Removing stale connected vaults (not on server)', {
+            count: staleVaults.length,
+            ids: staleVaults.map((v) => v.id),
+          })
+          staleVaults.forEach((v) => removeConnectedVault(v.id))
         }
-        
+
         // Also clean up connected vaults where local folder no longer exists
         if (window.electronAPI) {
-          const validVaults = connectedVaults.filter(cv => serverVaultIds.has(cv.id))
+          const validVaults = connectedVaults.filter((cv) => serverVaultIds.has(cv.id))
           for (const cv of validVaults) {
             try {
               const exists = await window.electronAPI.fileExists(cv.localPath)
               if (!exists) {
-                log.info('[WelcomeScreen]', 'Removing connected vault (local folder missing)', { vaultName: cv.name, path: cv.localPath })
+                log.info('[WelcomeScreen]', 'Removing connected vault (local folder missing)', {
+                  vaultName: cv.name,
+                  path: cv.localPath,
+                })
                 removeConnectedVault(cv.id)
               }
             } catch {
@@ -309,82 +363,100 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
             }
           }
         }
-        
+
         // Detect orphaned vault folders: folders that exist on disk but aren't in connectedVaults
         // This handles the case where user reinstalls the app and already has vault folders
         // NOTE: We exclude stale vault paths since those are being removed (state update is async)
         if (window.electronAPI) {
-          log.info('[WelcomeScreen]', 'Checking for orphaned vault folders...', { 
+          log.info('[WelcomeScreen]', 'Checking for orphaned vault folders...', {
             serverVaultCount: vaultsData.length,
-            connectedVaultCount: connectedVaults.length 
+            connectedVaultCount: connectedVaults.length,
           })
-          
+
           const connectedPaths = new Set(
             connectedVaults
-              .filter(cv => !staleVaultIds.has(cv.id)) // Exclude stale vaults being removed
-              .map(cv => cv.localPath.toLowerCase().replace(/\\/g, '/'))
+              .filter((cv) => !staleVaultIds.has(cv.id)) // Exclude stale vaults being removed
+              .map((cv) => cv.localPath.toLowerCase().replace(/\\/g, '/')),
           )
-          
-          for (const serverVault of vaultsData as any[]) {
+
+          for (const serverVault of vaultsData as any[]) { // TODO: type this
             // Check if this server vault is already connected (with correct ID)
-            const isConnected = connectedVaults.some(cv => cv.id === serverVault.id)
+            const isConnected = connectedVaults.some((cv) => cv.id === serverVault.id)
             if (isConnected) {
-              log.debug('[WelcomeScreen]', 'Vault already connected, skipping', { vaultName: serverVault.name })
+              log.debug('[WelcomeScreen]', 'Vault already connected, skipping', {
+                vaultName: serverVault.name,
+              })
               continue
             }
-            
+
             // Check if the expected folder path already exists on disk
             const expectedPath = buildVaultPath(platform, serverVault.slug)
-            log.debug('[WelcomeScreen]', 'Checking for orphaned vault folder', { 
-              vaultName: serverVault.name, 
+            log.debug('[WelcomeScreen]', 'Checking for orphaned vault folder', {
+              vaultName: serverVault.name,
               slug: serverVault.slug,
-              expectedPath 
+              expectedPath,
             })
-            
+
             try {
               // Use fileExists to check without side effects, then createWorkingDir to get resolved path
               const exists = await window.electronAPI.fileExists(expectedPath)
               log.debug('[WelcomeScreen]', 'Folder exists check', { expectedPath, exists })
-              
+
               if (exists) {
                 // Get the resolved path (handles ~ expansion on macOS/Linux)
                 const result = await window.electronAPI.createWorkingDir(expectedPath)
                 if (result.success && result.path) {
                   const normalizedPath = result.path.toLowerCase().replace(/\\/g, '/')
-                  
+
                   // Check if this path isn't already connected under a different valid vault ID
                   if (!connectedPaths.has(normalizedPath)) {
                     const wasStale = staleVaultPaths.has(normalizedPath)
-                    log.info('[WelcomeScreen]', wasStale ? 'Reconnecting vault after upgrade' : 'Found orphaned vault folder, auto-reconnecting', { 
-                      vaultName: serverVault.name, 
-                      vaultId: serverVault.id,
-                      path: result.path,
-                      wasStaleConnection: wasStale
-                    })
-                    
+                    log.info(
+                      '[WelcomeScreen]',
+                      wasStale
+                        ? 'Reconnecting vault after upgrade'
+                        : 'Found orphaned vault folder, auto-reconnecting',
+                      {
+                        vaultName: serverVault.name,
+                        vaultId: serverVault.id,
+                        path: result.path,
+                        wasStaleConnection: wasStale,
+                      },
+                    )
+
                     // Auto-reconnect the vault with correct server ID
                     const connectedVault: ConnectedVault = {
                       id: serverVault.id,
                       name: serverVault.name,
                       localPath: result.path,
-                      isExpanded: true
+                      isExpanded: true,
                     }
                     addConnectedVault(connectedVault)
-                    addToast('success', wasStale 
-                      ? `Reconnected vault "${serverVault.name}" after upgrade`
-                      : `Found existing vault folder "${serverVault.name}" - reconnected!`)
+                    addToast(
+                      'success',
+                      wasStale
+                        ? `Reconnected vault "${serverVault.name}" after upgrade`
+                        : `Found existing vault folder "${serverVault.name}" - reconnected!`,
+                    )
                   }
                 }
               }
-            } catch (err) {
-              log.debug('[WelcomeScreen]', 'Error checking vault folder', { expectedPath, error: String(err) })
+            } catch (error) {
+              log.debug('[WelcomeScreen]', 'Error checking vault folder', {
+                expectedPath,
+                error: String(error),
+              })
             }
           }
-          
+
           // Also scan the BluePLM base folder for any unrecognized vault folders
           // This catches cases where the folder name doesn't match any server vault slug
-          const basePath = platform === 'darwin' ? '~/Documents/BluePLM' : 
-                           platform === 'linux' ? '~/BluePLM' : 'C:\\BluePLM'
+          const basePath =
+            platform === 'darwin'
+              ? '~/Documents/BluePLM'
+              : platform === 'linux'
+                ? '~/BluePLM'
+                : 'C:\\BluePLM'
           try {
             const baseExists = await window.electronAPI.fileExists(basePath)
             if (baseExists) {
@@ -394,42 +466,43 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                 const diskFolders = result.files
                   .filter((f: any) => f.isDirectory)
                   .map((f: any) => f.name.toLowerCase())
-                
+
                 // Get connected vault folder names
-                const connectedFolderNames = connectedVaults.map(cv => {
+                const connectedFolderNames = connectedVaults.map((cv) => {
                   const parts = cv.localPath.replace(/\\/g, '/').split('/')
                   return parts[parts.length - 1].toLowerCase()
                 })
-                
+
                 // Get server vault slugs
-                const serverSlugs = (vaultsData as any[]).map(v => v.slug.toLowerCase())
-                
+                const serverSlugs = (vaultsData as any[]).map((v) => v.slug.toLowerCase()) // TODO: type this
+
                 // Find folders that aren't connected and don't match any server slug
-                const unmatchedFolders = diskFolders.filter((folder: string) => 
-                  !connectedFolderNames.includes(folder) && !serverSlugs.includes(folder)
+                const unmatchedFolders = diskFolders.filter(
+                  (folder: string) =>
+                    !connectedFolderNames.includes(folder) && !serverSlugs.includes(folder),
                 )
-                
+
                 if (unmatchedFolders.length > 0) {
-                  log.warn('[WelcomeScreen]', 'Found unmatched vault folders on disk', { 
+                  log.warn('[WelcomeScreen]', 'Found unmatched vault folders on disk', {
                     unmatchedFolders,
                     serverSlugs,
-                    connectedFolderNames 
+                    connectedFolderNames,
                   })
                   // Don't auto-connect these, but log them for debugging
                 }
               }
             }
-          } catch (err) {
-            log.debug('[WelcomeScreen]', 'Error scanning BluePLM folder', { error: String(err) })
+          } catch (error) {
+            log.debug('[WelcomeScreen]', 'Error scanning BluePLM folder', { error: String(error) })
           }
         }
-      } catch (err) {
-        log.error('[WelcomeScreen]', 'Error loading vaults', { error: err })
+      } catch (error) {
+        log.error('[WelcomeScreen]', 'Error loading vaults', { error: error })
       } finally {
         setIsLoadingVaults(false)
       }
     }
-    
+
     loadOrgVaults()
   }, [organization?.id, user?.id, vaultsRefreshKey, platform, permissionsLastUpdated]) // Refresh when vaultsRefreshKey changes, user changes, or permissions update via realtime
 
@@ -450,21 +523,21 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
   const handleSignIn = async () => {
     logAuth('Sign in with Google clicked')
     log.info('[WelcomeScreen]', 'Sign in button clicked')
-    
+
     if (!isSupabaseConfigured()) {
       log.warn('[WelcomeScreen]', 'Supabase not configured')
       setStatusMessage('Supabase not configured')
       return
     }
-    
+
     // Clear any previous errors
     setAuthError(null)
     setIsSigningIn(true)
     log.info('[WelcomeScreen]', 'Starting Google sign-in flow')
-    
+
     // Create abort controller for cancellation
     signInAbortControllerRef.current = new AbortController()
-    
+
     // Set timeout to prevent infinite hanging (30 seconds)
     signInTimeoutRef.current = setTimeout(() => {
       log.warn('[WelcomeScreen]', 'Sign in timeout after 30 seconds')
@@ -475,22 +548,22 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
       setAuthError('Sign in timed out. Please check your internet connection and try again.')
       signInTimeoutRef.current = null
     }, 30000)
-    
+
     try {
       const { data, error } = await signInWithGoogle()
-      
+
       // Clear timeout if sign-in completes
       if (signInTimeoutRef.current) {
         clearTimeout(signInTimeoutRef.current)
         signInTimeoutRef.current = null
       }
-      
-      log.info('[WelcomeScreen]', 'signInWithGoogle returned', { 
-        hasData: !!data, 
+
+      log.info('[WelcomeScreen]', 'signInWithGoogle returned', {
+        hasData: !!data,
         hasError: !!error,
-        errorMessage: error?.message 
+        errorMessage: error?.message,
       })
-      
+
       if (error) {
         log.error('[WelcomeScreen]', 'Sign in failed', { error: error.message })
         const errorMsg = error.message || 'Sign in failed'
@@ -499,15 +572,15 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
       } else {
         log.info('[WelcomeScreen]', 'Sign in completed successfully')
       }
-    } catch (err) {
+    } catch (error) {
       // Clear timeout on error
       if (signInTimeoutRef.current) {
         clearTimeout(signInTimeoutRef.current)
         signInTimeoutRef.current = null
       }
-      
-      log.error('[WelcomeScreen]', 'Sign in exception', { error: String(err) })
-      const errorMsg = err instanceof Error ? err.message : 'Sign in failed'
+
+      log.error('[WelcomeScreen]', 'Sign in exception', { error: String(error) })
+      const errorMsg = error instanceof Error ? error.message : 'Sign in failed'
       setAuthError(errorMsg)
       setStatusMessage('Sign in failed')
     } finally {
@@ -523,48 +596,52 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
       setAuthError('Please enter email and password')
       return
     }
-    
+
     // Validate password confirmation for new accounts
     if (isNewAccount && authPassword !== authPasswordConfirm) {
       setAuthError(t('welcome.passwordMismatch'))
       return
     }
-    
+
     setIsSigningIn(true)
     setAuthError(null)
-    
+
     try {
       if (isNewAccount) {
         // Sign up
         log.info('[WelcomeScreen]', 'Starting email sign-up', { accountType })
-        const { data, error } = await signUpWithEmail(authEmail, authPassword, authName || undefined)
-        
+        const { data, error } = await signUpWithEmail(
+          authEmail,
+          authPassword,
+          authName || undefined,
+        )
+
         if (error) {
           setAuthError(error.message)
           return
         }
-        
+
         if (!data?.session) {
           // Email confirmation needed
           setAuthError('Please check your email to confirm your account')
-          setIsNewAccount(false)  // Switch back to login view
+          setIsNewAccount(false) // Switch back to login view
           return
         }
-        
+
         log.info('[WelcomeScreen]', 'Email sign-up successful')
       } else {
         // Sign in
         log.info('[WelcomeScreen]', 'Starting email sign-in', { accountType })
         const { error } = await signInWithEmail(authEmail, authPassword)
-        
+
         if (error) {
           setAuthError(error.message)
           return
         }
-        
+
         log.info('[WelcomeScreen]', 'Email sign-in successful')
       }
-    } catch (err) {
+    } catch (error) {
       setAuthError('Authentication failed. Please try again.')
     } finally {
       setIsSigningIn(false)
@@ -577,22 +654,22 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
       setAuthError('Please enter your phone number')
       return
     }
-    
+
     setIsSigningIn(true)
     setAuthError(null)
-    
+
     try {
       log.info('[WelcomeScreen]', 'Sending phone OTP', { accountType })
       const { error } = await signInWithPhone(authPhone)
-      
+
       if (error) {
         setAuthError(error.message)
         return
       }
-      
+
       setIsOtpSent(true)
       log.info('[WelcomeScreen]', 'Phone OTP sent successfully')
-    } catch (err) {
+    } catch (error) {
       setAuthError('Failed to send verification code. Please try again.')
     } finally {
       setIsSigningIn(false)
@@ -604,21 +681,21 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
       setAuthError('Please enter the verification code')
       return
     }
-    
+
     setIsSigningIn(true)
     setAuthError(null)
-    
+
     try {
       log.info('[WelcomeScreen]', 'Verifying phone OTP', { accountType })
       const { error } = await verifyPhoneOTP(authPhone, phoneOtp)
-      
+
       if (error) {
         setAuthError(error.message)
         return
       }
-      
+
       log.info('[WelcomeScreen]', 'Phone verification successful')
-    } catch (err) {
+    } catch (error) {
       setAuthError('Verification failed. Please try again.')
     } finally {
       setIsSigningIn(false)
@@ -642,32 +719,32 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
   // Clear all saved data and start fresh (goes back to setup screen)
   const handleStartFresh = async () => {
     log.info('[WelcomeScreen]', 'Clearing all saved data for fresh start')
-    
+
     // Clear ALL vault-related state FIRST before sign out (sign out triggers re-render)
     setConnectedVaults([])
     setVaultPath(null)
     setVaultConnected(false)
     resetAuth()
     setAccountType(null)
-    
+
     // Sign out if there's any session
     try {
       await supabaseSignOut()
-    } catch (err) {
-      log.warn('[WelcomeScreen]', 'Error signing out during fresh start', { error: String(err) })
+    } catch (error) {
+      log.warn('[WelcomeScreen]', 'Error signing out during fresh start', { error: String(error) })
     }
-    
+
     // Clear the Supabase config to go back to setup screen
     clearConfig()
-    
+
     // Also clear the zustand persisted state directly to ensure clean slate
     try {
       localStorage.removeItem('blue-plm-storage')
       log.info('[WelcomeScreen]', 'Cleared zustand persisted storage')
-    } catch (err) {
-      log.warn('[WelcomeScreen]', 'Error clearing zustand storage', { error: String(err) })
+    } catch (error) {
+      log.warn('[WelcomeScreen]', 'Error clearing zustand storage', { error: String(error) })
     }
-    
+
     // Small delay to ensure localStorage writes complete, then reload
     setTimeout(() => {
       window.location.reload()
@@ -680,70 +757,86 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
 
   const handleConnectVault = async (vault: Vault) => {
     logClick('Connect vault button', { vaultName: vault.name, vaultId: vault.id })
-    log.info('[WelcomeScreen]', 'Connect vault clicked', { vaultName: vault.name, vaultId: vault.id })
-    
+    log.info('[WelcomeScreen]', 'Connect vault clicked', {
+      vaultName: vault.name,
+      vaultId: vault.id,
+    })
+
     if (!window.electronAPI) {
       log.error('[WelcomeScreen]', 'electronAPI not available')
       return
     }
-    
+
     setConnectingVaultId(vault.id)
-    
+
     try {
       // Build expected vault folder path based on platform
       const vaultPath = buildVaultPath(platform, vault.slug)
       log.info('[WelcomeScreen]', 'Checking vault path', { vaultPath, platform })
-      
+
       // Check if this vault ID is already connected (by ID)
-      const existingById = connectedVaults.find(v => v.id === vault.id)
+      const existingById = connectedVaults.find((v) => v.id === vault.id)
       if (existingById) {
         // If vault was already set up before, just open it
         // If hasCompletedSetup is undefined, treat as already set up (migration case)
         if (existingById.hasCompletedSetup !== false) {
-          log.info('[WelcomeScreen]', 'Vault already connected by ID, opening', { vaultName: vault.name, path: existingById.localPath })
+          log.info('[WelcomeScreen]', 'Vault already connected by ID, opening', {
+            vaultName: vault.name,
+            path: existingById.localPath,
+          })
           onOpenRecentVault(existingById.localPath)
           return
         }
         // Vault exists but setup wasn't completed - show setup dialog with sync stats
-        log.info('[WelcomeScreen]', 'Vault connected but setup incomplete, showing dialog', { vaultName: vault.name })
+        log.info('[WelcomeScreen]', 'Vault connected but setup incomplete, showing dialog', {
+          vaultName: vault.name,
+        })
         setSetupVault(vault)
         setSetupVaultPath(existingById.localPath)
-        
+
         // Calculate sync stats in background (show loading initially)
-        setSetupVaultSyncStats({ 
-          serverFileCount: 0, serverTotalSize: 0, localFileCount: 0, 
-          syncedCount: 0, cloudOnlyCount: 0, localOnlyCount: 0, outdatedCount: 0,
-          isLoading: true 
+        setSetupVaultSyncStats({
+          serverFileCount: 0,
+          serverTotalSize: 0,
+          localFileCount: 0,
+          syncedCount: 0,
+          cloudOnlyCount: 0,
+          localOnlyCount: 0,
+          outdatedCount: 0,
+          isLoading: true,
         })
-        
+
         // Set working directory and calculate stats
         const orgId = organization?.id
         if (orgId) {
-          window.electronAPI.setWorkingDir(existingById.localPath).then(async () => {
-            const stats = await calculateVaultSyncStats(existingById.localPath, vault.id, orgId)
-            setSetupVaultSyncStats(stats)
-          }).catch(err => {
-            log.warn('[WelcomeScreen]', 'Failed to calculate sync stats', { error: String(err) })
-            setSetupVaultSyncStats(null) // Fall back to basic stats
-          })
+          window.electronAPI
+            .setWorkingDir(existingById.localPath)
+            .then(async () => {
+              const stats = await calculateVaultSyncStats(existingById.localPath, vault.id, orgId)
+              setSetupVaultSyncStats(stats)
+            })
+            .catch((error) => {
+              log.warn('[WelcomeScreen]', 'Failed to calculate sync stats', { error: String(error) })
+              setSetupVaultSyncStats(null) // Fall back to basic stats
+            })
         }
         return
       }
-      
+
       // Check if a vault is already connected with the same local path
       // (handles case where vault ID changed but folder is the same)
       const result = await window.electronAPI.createWorkingDir(vaultPath)
       if (result.success && result.path) {
         const normalizedNewPath = result.path.toLowerCase().replace(/\\/g, '/')
-        const existingByPath = connectedVaults.find(v => 
-          v.localPath.toLowerCase().replace(/\\/g, '/') === normalizedNewPath
+        const existingByPath = connectedVaults.find(
+          (v) => v.localPath.toLowerCase().replace(/\\/g, '/') === normalizedNewPath,
         )
-        
+
         if (existingByPath) {
-          log.info('[WelcomeScreen]', 'Vault already connected by path, updating ID and opening', { 
-            vaultName: vault.name, 
-            oldId: existingByPath.id, 
-            newId: vault.id 
+          log.info('[WelcomeScreen]', 'Vault already connected by path, updating ID and opening', {
+            vaultName: vault.name,
+            oldId: existingByPath.id,
+            newId: vault.id,
           })
           // Update the existing vault entry with the correct ID from server
           removeConnectedVault(existingByPath.id)
@@ -752,66 +845,80 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
             name: vault.name,
             localPath: result.path,
             isExpanded: true,
-            hasCompletedSetup: existingByPath.hasCompletedSetup
+            hasCompletedSetup: existingByPath.hasCompletedSetup,
           }
           addConnectedVault(updatedVault)
           onOpenRecentVault(result.path)
           addToast('success', `Reconnected to "${vault.name}"`)
           return
         }
-        
+
         // No existing connection - show setup dialog for first-time connection
-        log.info('[WelcomeScreen]', 'New vault connection, showing setup dialog', { vaultName: vault.name })
+        log.info('[WelcomeScreen]', 'New vault connection, showing setup dialog', {
+          vaultName: vault.name,
+        })
         setSetupVault(vault)
         setSetupVaultPath(result.path)
-        
+
         // Calculate sync stats in background (show loading initially)
-        setSetupVaultSyncStats({ 
-          serverFileCount: 0, serverTotalSize: 0, localFileCount: 0, 
-          syncedCount: 0, cloudOnlyCount: 0, localOnlyCount: 0, outdatedCount: 0,
-          isLoading: true 
+        setSetupVaultSyncStats({
+          serverFileCount: 0,
+          serverTotalSize: 0,
+          localFileCount: 0,
+          syncedCount: 0,
+          cloudOnlyCount: 0,
+          localOnlyCount: 0,
+          outdatedCount: 0,
+          isLoading: true,
         })
-        
+
         // Set working directory and calculate stats
         const orgId = organization?.id
         const vaultPath = result.path
         if (orgId && vaultPath) {
-          window.electronAPI.setWorkingDir(vaultPath).then(async () => {
-            const stats = await calculateVaultSyncStats(vaultPath, vault.id, orgId)
-            setSetupVaultSyncStats(stats)
-          }).catch(err => {
-            log.warn('[WelcomeScreen]', 'Failed to calculate sync stats', { error: String(err) })
-            setSetupVaultSyncStats(null) // Fall back to basic stats
-          })
+          window.electronAPI
+            .setWorkingDir(vaultPath)
+            .then(async () => {
+              const stats = await calculateVaultSyncStats(vaultPath, vault.id, orgId)
+              setSetupVaultSyncStats(stats)
+            })
+            .catch((error) => {
+              log.warn('[WelcomeScreen]', 'Failed to calculate sync stats', { error: String(error) })
+              setSetupVaultSyncStats(null) // Fall back to basic stats
+            })
         }
       } else {
         log.error('[WelcomeScreen]', 'Failed to create vault folder', { error: result.error })
         addToast('error', result.error || 'Failed to create vault folder')
       }
-    } catch (err) {
-      log.error('[WelcomeScreen]', 'Exception connecting to vault', { error: String(err) })
+    } catch (error) {
+      log.error('[WelcomeScreen]', 'Exception connecting to vault', { error: String(error) })
       addToast('error', 'Failed to connect to vault')
     } finally {
       setConnectingVaultId(null)
     }
   }
-  
+
   // Handle vault setup completion
-  const handleVaultSetupComplete = (preferences: { autoDownloadCloudFiles: boolean; autoDownloadUpdates: boolean; autoDownloadSizeLimit: number }) => {
+  const handleVaultSetupComplete = (preferences: {
+    autoDownloadCloudFiles: boolean
+    autoDownloadUpdates: boolean
+    autoDownloadSizeLimit: number
+  }) => {
     if (!setupVault || !setupVaultPath) return
-    
-    log.info('[WelcomeScreen]', 'Vault setup complete', { 
-      vaultName: setupVault.name, 
-      preferences 
+
+    log.info('[WelcomeScreen]', 'Vault setup complete', {
+      vaultName: setupVault.name,
+      preferences,
     })
-    
+
     // Apply auto-download preferences
     setAutoDownloadCloudFiles(preferences.autoDownloadCloudFiles)
     setAutoDownloadUpdates(preferences.autoDownloadUpdates)
     setAutoDownloadSizeLimit(preferences.autoDownloadSizeLimit)
-    
+
     // Check if vault already exists (incomplete setup case)
-    const existingVault = connectedVaults.find(v => v.id === setupVault.id)
+    const existingVault = connectedVaults.find((v) => v.id === setupVault.id)
     if (existingVault) {
       // Update existing vault with hasCompletedSetup flag
       updateConnectedVault(setupVault.id, { hasCompletedSetup: true })
@@ -822,21 +929,21 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
         name: setupVault.name,
         localPath: setupVaultPath,
         isExpanded: true,
-        hasCompletedSetup: true
+        hasCompletedSetup: true,
       }
       addConnectedVault(connectedVault)
     }
-    
+
     // Open the vault
     onOpenRecentVault(setupVaultPath)
     addToast('success', `Connected to "${setupVault.name}"`)
-    
+
     // Clear setup state
     setSetupVault(null)
     setSetupVaultSyncStats(null)
     setSetupVaultPath(null)
   }
-  
+
   // Handle vault setup cancel
   const handleVaultSetupCancel = () => {
     log.info('[WelcomeScreen]', 'Vault setup cancelled', { vaultName: setupVault?.name })
@@ -848,12 +955,12 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
   const handleConnectLegacy = async () => {
     logClick('Connect legacy vault button')
     if (!window.electronAPI) return
-    
+
     setIsConnectingVault(true)
     try {
       // Determine vault path
       let vaultPath: string
-      
+
       if (recentVaults.length > 0) {
         vaultPath = recentVaults[0]
       } else if (organization) {
@@ -861,7 +968,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
       } else {
         vaultPath = buildVaultPath(platform, 'local-vault')
       }
-      
+
       const result = await window.electronAPI.createWorkingDir(vaultPath)
       if (result.success && result.path) {
         setStatusMessage(`Connected to vault: ${result.path}`)
@@ -869,8 +976,8 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
       } else {
         setStatusMessage(result.error || 'Failed to connect to vault')
       }
-    } catch (err) {
-      log.error('[WelcomeScreen]', 'Error connecting to vault', { error: err })
+    } catch (error) {
+      log.error('[WelcomeScreen]', 'Error connecting to vault', { error: error })
       setStatusMessage('Failed to connect to vault')
     } finally {
       setIsConnectingVault(false)
@@ -878,7 +985,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
   }
 
   const isVaultConnected = (vaultId: string) => {
-    return connectedVaults.some(v => v.id === vaultId)
+    return connectedVaults.some((v) => v.id === vaultId)
   }
 
   // ============================================
@@ -890,40 +997,40 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
       const { signOut: supabaseSignOut } = await import('@/lib/supabase')
       await supabaseSignOut()
     }
-    
+
     return (
       <div className="flex-1 flex items-center justify-center bg-plm-bg overflow-auto">
         <div className="max-w-md w-full p-8 text-center">
           <div className="flex justify-center items-center gap-3 mb-8">
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" className="text-plm-accent">
-              <path 
-                d="M12 2L2 7L12 12L22 7L12 2Z" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
+              <path
+                d="M12 2L2 7L12 12L22 7L12 2Z"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
                 strokeLinejoin="round"
               />
-              <path 
-                d="M2 17L12 22L22 17" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
+              <path
+                d="M2 17L12 22L22 17"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
                 strokeLinejoin="round"
               />
-              <path 
-                d="M2 12L12 17L22 12" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
+              <path
+                d="M2 12L12 17L22 12"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
                 strokeLinejoin="round"
               />
             </svg>
             <h1 className="text-3xl font-bold text-plm-fg">{t('welcome.title')}</h1>
           </div>
-          
+
           <Loader2 size={40} className="animate-spin text-plm-accent mx-auto mb-4" />
           <p className="text-plm-fg-muted">{t('welcome.connectingToOrg')}</p>
-          
+
           {/* Cancel / Start Fresh options */}
           <div className="mt-8 flex flex-col items-center gap-2">
             <button
@@ -955,39 +1062,43 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
         <div className="absolute top-4 right-4">
           <LanguageSelector compact dropdownPosition="bottom-right" />
         </div>
-        
+
         <div className="max-w-md w-full p-8">
           {/* Logo and Title */}
           <div className="text-center mb-10">
             <div className="flex justify-center items-center gap-3 mb-4">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" className="text-plm-accent">
-                <path 
-                  d="M12 2L2 7L12 12L22 7L12 2Z" 
-                  stroke="currentColor" 
-                  strokeWidth="2" 
-                  strokeLinecap="round" 
+              <svg
+                width="48"
+                height="48"
+                viewBox="0 0 24 24"
+                fill="none"
+                className="text-plm-accent"
+              >
+                <path
+                  d="M12 2L2 7L12 12L22 7L12 2Z"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
                   strokeLinejoin="round"
                 />
-                <path 
-                  d="M2 17L12 22L22 17" 
-                  stroke="currentColor" 
-                  strokeWidth="2" 
-                  strokeLinecap="round" 
+                <path
+                  d="M2 17L12 22L22 17"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
                   strokeLinejoin="round"
                 />
-                <path 
-                  d="M2 12L12 17L22 12" 
-                  stroke="currentColor" 
-                  strokeWidth="2" 
-                  strokeLinecap="round" 
+                <path
+                  d="M2 12L12 17L22 12"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
                   strokeLinejoin="round"
                 />
               </svg>
               <h1 className="text-3xl font-bold text-plm-fg">{t('welcome.title')}</h1>
             </div>
-            <p className="text-plm-fg-dim">
-              {t('welcome.tagline')}
-            </p>
+            <p className="text-plm-fg-dim">{t('welcome.tagline')}</p>
           </div>
 
           {/* ============================================ */}
@@ -998,12 +1109,12 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
               <p className="text-center text-sm text-plm-fg-muted mb-6">
                 {t('welcome.selectAccountType')}
               </p>
-              
+
               <button
-                onClick={() => { 
+                onClick={() => {
                   logClick('Account type: User selected')
                   setAccountType('user')
-                  setAuthMethod('google') 
+                  setAuthMethod('google')
                 }}
                 className="w-full bg-plm-bg-light border-2 border-plm-border hover:border-plm-accent rounded-xl p-6 transition-colors group"
               >
@@ -1013,18 +1124,16 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                   </div>
                   <div className="text-left flex-1">
                     <h3 className="font-semibold text-plm-fg text-lg">{t('welcome.teamMember')}</h3>
-                    <p className="text-sm text-plm-fg-muted">
-                      {t('welcome.teamMemberDesc')}
-                    </p>
+                    <p className="text-sm text-plm-fg-muted">{t('welcome.teamMemberDesc')}</p>
                   </div>
                 </div>
               </button>
 
               <button
-                onClick={() => { 
+                onClick={() => {
                   logClick('Account type: Supplier selected')
                   setAccountType('supplier')
-                  setAuthMethod('email') 
+                  setAuthMethod('email')
                 }}
                 className="w-full bg-plm-bg-light border-2 border-plm-border hover:border-amber-500 rounded-xl p-6 transition-colors group"
               >
@@ -1034,13 +1143,10 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                   </div>
                   <div className="text-left flex-1">
                     <h3 className="font-semibold text-plm-fg text-lg">{t('welcome.supplier')}</h3>
-                    <p className="text-sm text-plm-fg-muted">
-                      {t('welcome.supplierDesc')}
-                    </p>
+                    <p className="text-sm text-plm-fg-muted">{t('welcome.supplierDesc')}</p>
                   </div>
                 </div>
               </button>
-
             </div>
           )}
 
@@ -1050,7 +1156,10 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
           {accountType === 'user' && (
             <div className="space-y-4">
               <button
-                onClick={() => { setAccountType(null); resetAuth() }}
+                onClick={() => {
+                  setAccountType(null)
+                  resetAuth()
+                }}
                 className="flex items-center gap-2 text-sm text-plm-fg-muted hover:text-plm-fg transition-colors mb-4"
               >
                 <ArrowLeft size={16} />
@@ -1094,15 +1203,19 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                         <RotateCw size={20} />
                       ) : (
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
                         </svg>
                       )}
-                      {isSigningIn ? t('welcome.connecting') : authError ? t('welcome.tryAgain') : t('welcome.signInWithGoogle')}
+                      {isSigningIn
+                        ? t('welcome.connecting')
+                        : authError
+                          ? t('welcome.tryAgain')
+                          : t('welcome.signInWithGoogle')}
                     </button>
-                    
+
                     {/* Cancel button when signing in */}
                     {isSigningIn && (
                       <button
@@ -1116,7 +1229,8 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                   </div>
 
                   {/* Only show Email/Password option if email or phone is enabled */}
-                  {(orgAuthProviders?.users?.email !== false || orgAuthProviders?.users?.phone !== false) && (
+                  {(orgAuthProviders?.users?.email !== false ||
+                    orgAuthProviders?.users?.phone !== false) && (
                     <>
                       <div className="relative my-4">
                         <div className="absolute inset-0 flex items-center">
@@ -1128,7 +1242,11 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                       </div>
 
                       <button
-                        onClick={() => setAuthMethod(orgAuthProviders?.users?.email !== false ? 'email' : 'phone')}
+                        onClick={() =>
+                          setAuthMethod(
+                            orgAuthProviders?.users?.email !== false ? 'email' : 'phone',
+                          )
+                        }
                         className="w-full btn btn-secondary gap-3 justify-center py-3"
                       >
                         <Mail size={18} />
@@ -1143,32 +1261,39 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
               {authMethod !== 'google' && (
                 <>
                   {/* Auth Method Tabs - only show if both are enabled, otherwise just show the enabled one */}
-                  {orgAuthProviders?.users?.email !== false && orgAuthProviders?.users?.phone !== false && (
-                    <div className="flex rounded-lg bg-plm-bg-light p-1 mb-4">
-                      <button
-                        onClick={() => { setAuthMethod('email'); setIsOtpSent(false) }}
-                        className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-                          authMethod === 'email' 
-                            ? 'bg-plm-bg text-plm-fg shadow-sm' 
-                            : 'text-plm-fg-muted hover:text-plm-fg'
-                        }`}
-                      >
-                        <Mail size={16} />
-                        {t('welcome.email')}
-                      </button>
-                      <button
-                        onClick={() => { setAuthMethod('phone'); setIsNewAccount(false) }}
-                        className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-                          authMethod === 'phone' 
-                            ? 'bg-plm-bg text-plm-fg shadow-sm' 
-                            : 'text-plm-fg-muted hover:text-plm-fg'
-                        }`}
-                      >
-                        <Phone size={16} />
-                        {t('welcome.phone')}
-                      </button>
-                    </div>
-                  )}
+                  {orgAuthProviders?.users?.email !== false &&
+                    orgAuthProviders?.users?.phone !== false && (
+                      <div className="flex rounded-lg bg-plm-bg-light p-1 mb-4">
+                        <button
+                          onClick={() => {
+                            setAuthMethod('email')
+                            setIsOtpSent(false)
+                          }}
+                          className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                            authMethod === 'email'
+                              ? 'bg-plm-bg text-plm-fg shadow-sm'
+                              : 'text-plm-fg-muted hover:text-plm-fg'
+                          }`}
+                        >
+                          <Mail size={16} />
+                          {t('welcome.email')}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setAuthMethod('phone')
+                            setIsNewAccount(false)
+                          }}
+                          className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                            authMethod === 'phone'
+                              ? 'bg-plm-bg text-plm-fg shadow-sm'
+                              : 'text-plm-fg-muted hover:text-plm-fg'
+                          }`}
+                        >
+                          <Phone size={16} />
+                          {t('welcome.phone')}
+                        </button>
+                      </div>
+                    )}
 
                   {/* Error Message */}
                   {authError && (
@@ -1194,7 +1319,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                           />
                         </div>
                       )}
-                      
+
                       <div>
                         <label className="block text-sm font-medium text-plm-fg-muted mb-1.5">
                           {t('welcome.email')}
@@ -1207,7 +1332,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                           className="w-full px-4 py-3 bg-plm-bg-light border border-plm-border rounded-lg text-plm-fg placeholder-plm-fg-muted focus:outline-none focus:border-plm-accent transition-colors"
                         />
                       </div>
-                      
+
                       <div>
                         <label className="block text-sm font-medium text-plm-fg-muted mb-1.5">
                           {t('welcome.password')}
@@ -1243,8 +1368,8 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                               onChange={(e) => setAuthPasswordConfirm(e.target.value)}
                               placeholder="••••••••"
                               className={`w-full px-4 py-3 pr-12 bg-plm-bg-light border rounded-lg text-plm-fg placeholder-plm-fg-muted focus:outline-none transition-colors ${
-                                authPasswordConfirm && authPassword !== authPasswordConfirm 
-                                  ? 'border-red-500 focus:border-red-500' 
+                                authPasswordConfirm && authPassword !== authPasswordConfirm
+                                  ? 'border-red-500 focus:border-red-500'
                                   : 'border-plm-border focus:border-plm-accent'
                               }`}
                             />
@@ -1257,14 +1382,18 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                             </button>
                           </div>
                           {authPasswordConfirm && authPassword !== authPasswordConfirm && (
-                            <p className="text-xs text-red-400 mt-1">{t('welcome.passwordMismatch')}</p>
+                            <p className="text-xs text-red-400 mt-1">
+                              {t('welcome.passwordMismatch')}
+                            </p>
                           )}
                         </div>
                       )}
 
                       <button
                         onClick={handleEmailAuth}
-                        disabled={isSigningIn || (isNewAccount && authPassword !== authPasswordConfirm)}
+                        disabled={
+                          isSigningIn || (isNewAccount && authPassword !== authPasswordConfirm)
+                        }
                         className="w-full py-3 bg-plm-accent hover:bg-plm-accent-hover disabled:bg-plm-accent/50 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
                       >
                         {isSigningIn ? (
@@ -1277,12 +1406,14 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
 
                       <div className="text-center">
                         <button
-                          onClick={() => { setIsNewAccount(!isNewAccount); setAuthError(null); setAuthPasswordConfirm('') }}
+                          onClick={() => {
+                            setIsNewAccount(!isNewAccount)
+                            setAuthError(null)
+                            setAuthPasswordConfirm('')
+                          }}
                           className="text-sm text-plm-fg-muted hover:text-plm-fg transition-colors"
                         >
-                          {isNewAccount 
-                            ? t('welcome.alreadyHaveAccount') 
-                            : t('welcome.noAccount')}
+                          {isNewAccount ? t('welcome.alreadyHaveAccount') : t('welcome.noAccount')}
                         </button>
                       </div>
                     </div>
@@ -1325,9 +1456,10 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                       ) : (
                         <>
                           <div className="text-center text-sm text-plm-fg-muted mb-4">
-                            {t('welcome.verificationSent')} <span className="text-plm-fg font-medium">{authPhone}</span>
+                            {t('welcome.verificationSent')}{' '}
+                            <span className="text-plm-fg font-medium">{authPhone}</span>
                           </div>
-                          
+
                           <div>
                             <label className="block text-sm font-medium text-plm-fg-muted mb-1.5">
                               {t('welcome.verificationCode')}
@@ -1356,7 +1488,10 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                           </button>
 
                           <button
-                            onClick={() => { setIsOtpSent(false); setPhoneOtp('') }}
+                            onClick={() => {
+                              setIsOtpSent(false)
+                              setPhoneOtp('')
+                            }}
                             className="w-full text-sm text-plm-fg-muted hover:text-plm-fg transition-colors"
                           >
                             {t('welcome.useDifferentNumber')}
@@ -1369,7 +1504,10 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                   {/* Back to Google option */}
                   <div className="text-center pt-2">
                     <button
-                      onClick={() => { setAuthMethod('google'); setAuthError(null) }}
+                      onClick={() => {
+                        setAuthMethod('google')
+                        setAuthError(null)
+                      }}
                       className="text-sm text-plm-fg-muted hover:text-plm-fg transition-colors"
                     >
                       {t('welcome.useGoogleInstead')}
@@ -1407,7 +1545,10 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
           {accountType === 'supplier' && (
             <div className="space-y-4">
               <button
-                onClick={() => { setAccountType(null); resetAuth() }}
+                onClick={() => {
+                  setAccountType(null)
+                  resetAuth()
+                }}
                 className="flex items-center gap-2 text-sm text-plm-fg-muted hover:text-plm-fg transition-colors mb-4"
               >
                 <ArrowLeft size={16} />
@@ -1425,32 +1566,39 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
               </div>
 
               {/* Auth Method Tabs - only show if both email and phone are enabled for suppliers */}
-              {orgAuthProviders?.suppliers?.email !== false && orgAuthProviders?.suppliers?.phone !== false && (
-                <div className="flex rounded-lg bg-plm-bg-light p-1 mb-4">
-                  <button
-                    onClick={() => { setAuthMethod('email'); setIsOtpSent(false) }}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-                      authMethod === 'email' 
-                        ? 'bg-plm-bg text-plm-fg shadow-sm' 
-                        : 'text-plm-fg-muted hover:text-plm-fg'
-                    }`}
-                  >
-                    <Mail size={16} />
-                    {t('welcome.email')}
-                  </button>
-                  <button
-                    onClick={() => { setAuthMethod('phone'); setIsNewAccount(false) }}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-                      authMethod === 'phone' 
-                        ? 'bg-plm-bg text-plm-fg shadow-sm' 
-                        : 'text-plm-fg-muted hover:text-plm-fg'
-                    }`}
-                  >
-                    <Phone size={16} />
-                    {t('welcome.phone')}
-                  </button>
-                </div>
-              )}
+              {orgAuthProviders?.suppliers?.email !== false &&
+                orgAuthProviders?.suppliers?.phone !== false && (
+                  <div className="flex rounded-lg bg-plm-bg-light p-1 mb-4">
+                    <button
+                      onClick={() => {
+                        setAuthMethod('email')
+                        setIsOtpSent(false)
+                      }}
+                      className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                        authMethod === 'email'
+                          ? 'bg-plm-bg text-plm-fg shadow-sm'
+                          : 'text-plm-fg-muted hover:text-plm-fg'
+                      }`}
+                    >
+                      <Mail size={16} />
+                      {t('welcome.email')}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setAuthMethod('phone')
+                        setIsNewAccount(false)
+                      }}
+                      className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                        authMethod === 'phone'
+                          ? 'bg-plm-bg text-plm-fg shadow-sm'
+                          : 'text-plm-fg-muted hover:text-plm-fg'
+                      }`}
+                    >
+                      <Phone size={16} />
+                      {t('welcome.phone')}
+                    </button>
+                  </div>
+                )}
 
               {/* Error Message */}
               {authError && (
@@ -1476,7 +1624,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                       />
                     </div>
                   )}
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-plm-fg-muted mb-1.5">
                       {t('welcome.email')}
@@ -1489,7 +1637,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                       className="w-full px-4 py-3 bg-plm-bg-light border border-plm-border rounded-lg text-plm-fg placeholder-plm-fg-muted focus:outline-none focus:border-amber-500 transition-colors"
                     />
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-plm-fg-muted mb-1.5">
                       {t('welcome.password')}
@@ -1525,8 +1673,8 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                           onChange={(e) => setAuthPasswordConfirm(e.target.value)}
                           placeholder="••••••••"
                           className={`w-full px-4 py-3 pr-12 bg-plm-bg-light border rounded-lg text-plm-fg placeholder-plm-fg-muted focus:outline-none transition-colors ${
-                            authPasswordConfirm && authPassword !== authPasswordConfirm 
-                              ? 'border-red-500 focus:border-red-500' 
+                            authPasswordConfirm && authPassword !== authPasswordConfirm
+                              ? 'border-red-500 focus:border-red-500'
                               : 'border-plm-border focus:border-amber-500'
                           }`}
                         />
@@ -1559,12 +1707,14 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
 
                   <div className="text-center">
                     <button
-                      onClick={() => { setIsNewAccount(!isNewAccount); setAuthError(null); setAuthPasswordConfirm('') }}
+                      onClick={() => {
+                        setIsNewAccount(!isNewAccount)
+                        setAuthError(null)
+                        setAuthPasswordConfirm('')
+                      }}
                       className="text-sm text-plm-fg-muted hover:text-plm-fg transition-colors"
                     >
-                      {isNewAccount 
-                        ? t('welcome.alreadyHaveAccount') 
-                        : t('welcome.noAccount')}
+                      {isNewAccount ? t('welcome.alreadyHaveAccount') : t('welcome.noAccount')}
                     </button>
                   </div>
                 </div>
@@ -1607,9 +1757,10 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                   ) : (
                     <>
                       <div className="text-center text-sm text-plm-fg-muted mb-4">
-                        {t('welcome.verificationSent')} <span className="text-plm-fg font-medium">{authPhone}</span>
+                        {t('welcome.verificationSent')}{' '}
+                        <span className="text-plm-fg font-medium">{authPhone}</span>
                       </div>
-                      
+
                       <div>
                         <label className="block text-sm font-medium text-plm-fg-muted mb-1.5">
                           {t('welcome.verificationCode')}
@@ -1638,7 +1789,10 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                       </button>
 
                       <button
-                        onClick={() => { setIsOtpSent(false); setPhoneOtp('') }}
+                        onClick={() => {
+                          setIsOtpSent(false)
+                          setPhoneOtp('')
+                        }}
                         className="w-full text-sm text-plm-fg-muted hover:text-plm-fg transition-colors"
                       >
                         {t('welcome.useDifferentNumber')}
@@ -1655,10 +1809,8 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
           )}
 
           {/* Footer */}
-          <div className="text-center mt-12 text-xs text-plm-fg-muted">
-            {t('welcome.madeWith')}
-          </div>
-          
+          <div className="text-center mt-12 text-xs text-plm-fg-muted">{t('welcome.madeWith')}</div>
+
           {/* Start Fresh & Change Organization options */}
           <div className="text-center mt-4 space-y-2">
             <button
@@ -1698,26 +1850,32 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
           {/* Logo and Title */}
           <div className="text-center mb-8">
             <div className="flex justify-center items-center gap-3 mb-4">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" className="text-plm-warning">
-                <path 
-                  d="M12 2L2 7L12 12L22 7L12 2Z" 
-                  stroke="currentColor" 
-                  strokeWidth="2" 
-                  strokeLinecap="round" 
+              <svg
+                width="48"
+                height="48"
+                viewBox="0 0 24 24"
+                fill="none"
+                className="text-plm-warning"
+              >
+                <path
+                  d="M12 2L2 7L12 12L22 7L12 2Z"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
                   strokeLinejoin="round"
                 />
-                <path 
-                  d="M2 17L12 22L22 17" 
-                  stroke="currentColor" 
-                  strokeWidth="2" 
-                  strokeLinecap="round" 
+                <path
+                  d="M2 17L12 22L22 17"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
                   strokeLinejoin="round"
                 />
-                <path 
-                  d="M2 12L12 17L22 12" 
-                  stroke="currentColor" 
-                  strokeWidth="2" 
-                  strokeLinecap="round" 
+                <path
+                  d="M2 12L12 17L22 12"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
                   strokeLinejoin="round"
                 />
               </svg>
@@ -1729,15 +1887,18 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
           <div className="text-center mb-6">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-plm-bg-light border border-plm-border rounded-full mb-4">
               {getEffectiveAvatarUrl(user) ? (
-                <img src={getEffectiveAvatarUrl(user) || ''} alt="" className="w-5 h-5 rounded-full object-cover" referrerPolicy="no-referrer" />
+                <img
+                  src={getEffectiveAvatarUrl(user) || ''}
+                  alt=""
+                  className="w-5 h-5 rounded-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
               ) : (
                 <div className="w-5 h-5 rounded-full bg-plm-accent flex items-center justify-center text-[10px] text-white font-semibold">
                   {getInitials(user.full_name || user.email)}
                 </div>
               )}
-              <span className="text-sm text-plm-fg-dim">
-                {user.full_name || user.email}
-              </span>
+              <span className="text-sm text-plm-fg-dim">{user.full_name || user.email}</span>
             </div>
           </div>
 
@@ -1748,14 +1909,24 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                 <AlertTriangle className="w-6 h-6 text-plm-warning" />
               </div>
               <div>
-                <h3 className="text-plm-fg font-semibold mb-2">{t('welcome.noOrgTitle', 'No Organization Found')}</h3>
+                <h3 className="text-plm-fg font-semibold mb-2">
+                  {t('welcome.noOrgTitle', 'No Organization Found')}
+                </h3>
                 <p className="text-sm text-plm-fg-muted">
-                  {t('welcome.noOrgDesc', 'Your account isn\'t linked to any organization. This can happen if:')}
+                  {t(
+                    'welcome.noOrgDesc',
+                    "Your account isn't linked to any organization. This can happen if:",
+                  )}
                 </p>
                 <ul className="text-sm text-plm-fg-muted mt-2 space-y-1 list-disc list-inside">
-                  <li>{t('welcome.noOrgReason1', 'You haven\'t been invited yet')}</li>
-                  <li>{t('welcome.noOrgReason2', 'You signed in with a different email than the invite')}</li>
-                  <li>{t('welcome.noOrgReason3', 'The invite hasn\'t been processed yet')}</li>
+                  <li>{t('welcome.noOrgReason1', "You haven't been invited yet")}</li>
+                  <li>
+                    {t(
+                      'welcome.noOrgReason2',
+                      'You signed in with a different email than the invite',
+                    )}
+                  </li>
+                  <li>{t('welcome.noOrgReason3', "The invite hasn't been processed yet")}</li>
                 </ul>
               </div>
             </div>
@@ -1770,7 +1941,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
               <LogOut size={18} />
               {t('welcome.signOutAndRetry', 'Sign Out & Try Different Account')}
             </button>
-            
+
             <button
               onClick={handleOfflineMode}
               className="w-full py-3 bg-plm-bg-light border border-plm-border hover:bg-plm-bg-light/80 text-plm-fg font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
@@ -1783,7 +1954,10 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
           {/* Help Text */}
           <div className="mt-6 p-4 bg-plm-bg-light border border-plm-border rounded-lg">
             <p className="text-xs text-plm-fg-muted text-center">
-              {t('welcome.noOrgHelp', 'If you were invited, please check your email for the invite link and make sure to sign in with the same email address that received the invitation. Contact your administrator if you need help.')}
+              {t(
+                'welcome.noOrgHelp',
+                'If you were invited, please check your email for the invite link and make sure to sign in with the same email address that received the invitation. Contact your administrator if you need help.',
+              )}
             </p>
           </div>
         </div>
@@ -1801,73 +1975,73 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
         <div className="text-center mb-8">
           <div className="flex justify-center items-center gap-3 mb-4">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" className="text-plm-accent">
-              <path 
-                d="M12 2L2 7L12 12L22 7L12 2Z" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
+              <path
+                d="M12 2L2 7L12 12L22 7L12 2Z"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
                 strokeLinejoin="round"
               />
-              <path 
-                d="M2 17L12 22L22 17" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
+              <path
+                d="M2 17L12 22L22 17"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
                 strokeLinejoin="round"
               />
-              <path 
-                d="M2 12L12 17L22 12" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
+              <path
+                d="M2 12L12 17L22 12"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
                 strokeLinejoin="round"
               />
             </svg>
             <h1 className="text-2xl font-bold text-plm-fg">{t('welcome.title')}</h1>
           </div>
-          
+
           {/* User & Org Info or Offline Badge */}
           {isOfflineMode ? (
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-plm-warning/10 border border-plm-warning/30 rounded-full">
               <WifiOff size={14} className="text-plm-warning" />
-              <span className="text-sm text-plm-warning font-medium">{t('welcome.offlineMode')}</span>
+              <span className="text-sm text-plm-warning font-medium">
+                {t('welcome.offlineMode')}
+              </span>
             </div>
-          ) : user && (
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-plm-bg-light border border-plm-border rounded-full">
-              {getEffectiveAvatarUrl(user) ? (
-                <>
-                  <img 
-                    src={getEffectiveAvatarUrl(user) || ''} 
-                    alt="" 
-                    className="w-5 h-5 rounded-full object-cover"
-                    referrerPolicy="no-referrer"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement
-                      target.style.display = 'none'
-                      target.nextElementSibling?.classList.remove('hidden')
-                    }}
-                  />
-                  <div className="w-5 h-5 rounded-full bg-plm-accent flex items-center justify-center text-[10px] text-white font-semibold hidden">
+          ) : (
+            user && (
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-plm-bg-light border border-plm-border rounded-full">
+                {getEffectiveAvatarUrl(user) ? (
+                  <>
+                    <img
+                      src={getEffectiveAvatarUrl(user) || ''}
+                      alt=""
+                      className="w-5 h-5 rounded-full object-cover"
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement
+                        target.style.display = 'none'
+                        target.nextElementSibling?.classList.remove('hidden')
+                      }}
+                    />
+                    <div className="w-5 h-5 rounded-full bg-plm-accent flex items-center justify-center text-[10px] text-white font-semibold hidden">
+                      {getInitials(user.full_name || user.email)}
+                    </div>
+                  </>
+                ) : (
+                  <div className="w-5 h-5 rounded-full bg-plm-accent flex items-center justify-center text-[10px] text-white font-semibold">
                     {getInitials(user.full_name || user.email)}
                   </div>
-                </>
-              ) : (
-                <div className="w-5 h-5 rounded-full bg-plm-accent flex items-center justify-center text-[10px] text-white font-semibold">
-                  {getInitials(user.full_name || user.email)}
-                </div>
-              )}
-              <span className="text-sm text-plm-fg-dim">
-                {user.full_name || user.email}
-              </span>
-              {organization && (
-                <>
-                  <span className="text-plm-fg-muted">•</span>
-                  <span className="text-sm text-plm-accent font-medium">
-                    {organization.name}
-                  </span>
-                </>
-              )}
-            </div>
+                )}
+                <span className="text-sm text-plm-fg-dim">{user.full_name || user.email}</span>
+                {organization && (
+                  <>
+                    <span className="text-plm-fg-muted">•</span>
+                    <span className="text-sm text-plm-accent font-medium">{organization.name}</span>
+                  </>
+                )}
+              </div>
+            )
           )}
         </div>
 
@@ -1878,43 +2052,48 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
               <Database size={14} />
               {t('welcome.organizationVaults')}
             </div>
-            
+
             <div className="space-y-2">
-              {orgVaults.map(vault => {
+              {orgVaults.map((vault) => {
                 const connected = isVaultConnected(vault.id)
                 const isConnectingThis = connectingVaultId === vault.id
-                
+
                 return (
-                  <div 
+                  <div
                     key={vault.id}
                     className={`bg-plm-bg-light border rounded-xl p-4 transition-colors ${
-                      connected ? 'border-plm-accent' : 'border-plm-border hover:border-plm-border-light'
+                      connected
+                        ? 'border-plm-accent'
+                        : 'border-plm-border hover:border-plm-border-light'
                     }`}
                   >
                     <div className="flex items-center gap-4">
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                        connected ? 'bg-plm-accent/20' : 'bg-plm-bg'
-                      }`}>
-                        <HardDrive size={20} className={connected ? 'text-plm-accent' : 'text-plm-fg-muted'} />
+                      <div
+                        className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                          connected ? 'bg-plm-accent/20' : 'bg-plm-bg'
+                        }`}
+                      >
+                        <HardDrive
+                          size={20}
+                          className={connected ? 'text-plm-accent' : 'text-plm-fg-muted'}
+                        />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <h3 className="font-medium text-plm-fg truncate">
-                            {vault.name}
-                          </h3>
+                          <h3 className="font-medium text-plm-fg truncate">{vault.name}</h3>
                           {vault.is_default && (
                             <span className="px-1.5 py-0.5 bg-plm-accent/20 text-plm-accent text-[10px] rounded">
                               {t('common.default')}
                             </span>
                           )}
-                          {connected && (
-                            <Check size={14} className="text-plm-success" />
-                          )}
+                          {connected && <Check size={14} className="text-plm-success" />}
                         </div>
                         <div className="flex items-center gap-3 text-xs text-plm-fg-muted">
                           {vault.stats && (
                             <>
-                              <span>{vault.stats.fileCount} file{vault.stats.fileCount !== 1 ? 's' : ''}</span>
+                              <span>
+                                {vault.stats.fileCount} file{vault.stats.fileCount !== 1 ? 's' : ''}
+                              </span>
                               <span>•</span>
                               <span>{formatSize(vault.stats.totalSize)}</span>
                             </>
@@ -1927,11 +2106,11 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                           )}
                         </div>
                       </div>
-                      
+
                       {connected ? (
                         <button
                           onClick={() => {
-                            const cv = connectedVaults.find(v => v.id === vault.id)
+                            const cv = connectedVaults.find((v) => v.id === vault.id)
                             if (cv) onOpenRecentVault(cv.localPath)
                           }}
                           className="btn btn-primary btn-sm gap-1"
@@ -1960,25 +2139,19 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
             </div>
           </div>
         )}
-        
+
         {/* No vaults message */}
         {!isOfflineMode && organization && orgVaults.length === 0 && !isLoadingVaults && (
           <div className="mb-6 p-6 bg-plm-bg-light border border-plm-border rounded-xl text-center">
             <Database size={32} className="text-plm-fg-muted mx-auto mb-3" />
             <h3 className="font-medium text-plm-fg mb-1">{t('welcome.noVaultsCreated')}</h3>
             <p className="text-sm text-plm-fg-muted mb-4">
-              {isAdmin 
-                ? t('welcome.noVaultsAdminMsg')
-                : t('welcome.noVaultsUserMsg')}
+              {isAdmin ? t('welcome.noVaultsAdminMsg') : t('welcome.noVaultsUserMsg')}
             </p>
-            {isAdmin && (
-              <p className="text-xs text-plm-fg-dim">
-                {t('welcome.advancedOptions')}
-              </p>
-            )}
+            {isAdmin && <p className="text-xs text-plm-fg-dim">{t('welcome.advancedOptions')}</p>}
           </div>
         )}
-        
+
         {/* Loading vaults */}
         {isLoadingVaults && (
           <div className="mb-6 p-6 bg-plm-bg-light border border-plm-border rounded-xl flex items-center justify-center">
@@ -2029,16 +2202,12 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
         </div>
 
         {/* Footer */}
-        <div className="text-center mt-6 text-xs text-plm-fg-muted">
-          {t('welcome.madeWith')}
-        </div>
+        <div className="text-center mt-6 text-xs text-plm-fg-muted">{t('welcome.madeWith')}</div>
       </div>
-      
+
       {/* Logs Modal */}
-      {showLogsModal && (
-        <LogViewer onClose={() => setShowLogsModal(false)} />
-      )}
-      
+      {showLogsModal && <LogViewer onClose={() => setShowLogsModal(false)} />}
+
       {/* Vault Setup Dialog */}
       {setupVault && (
         <VaultSetupDialog

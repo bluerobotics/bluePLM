@@ -160,11 +160,7 @@ export function formatCompactNumber(num: number, decimals = 1): string {
  * formatCurrency(1234.56) // "$1,234.56"
  * formatCurrency(1234.56, "EUR", "de-DE") // "1.234,56 €"
  */
-export function formatCurrency(
-  amount: number,
-  currency = 'USD',
-  locale?: string
-): string {
+export function formatCurrency(amount: number, currency = 'USD', locale?: string): string {
   return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency,

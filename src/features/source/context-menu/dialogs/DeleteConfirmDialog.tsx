@@ -17,33 +17,36 @@ export function DeleteConfirmDialog({
   onClose,
   files,
   keepLocal,
-  onConfirm
+  onConfirm,
 }: DeleteConfirmDialogProps) {
   // Handle Enter key to confirm
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      onConfirm()
-    } else if (e.key === 'Escape') {
-      e.preventDefault()
-      onClose()
-    }
-  }, [onConfirm, onClose])
-  
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        onConfirm()
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        onClose()
+      }
+    },
+    [onConfirm, onClose],
+  )
+
   useEffect(() => {
     if (!isOpen) return
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [isOpen, handleKeyDown])
-  
+
   if (!isOpen) return null
 
   return (
-    <div 
+    <div
       className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center"
       onClick={onClose}
     >
-      <div 
+      <div
         className="bg-plm-bg-light border border-plm-border rounded-lg p-6 max-w-md shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
@@ -53,20 +56,18 @@ export function DeleteConfirmDialog({
           </div>
           <div>
             <h3 className="text-lg font-semibold text-plm-fg">
-              {keepLocal 
+              {keepLocal
                 ? `Delete from Server ${files.length > 1 ? `${files.length} Items` : 'Item'}?`
-                : `Delete Local & Server ${files.length > 1 ? `${files.length} Items` : 'Item'}?`
-              }
+                : `Delete Local & Server ${files.length > 1 ? `${files.length} Items` : 'Item'}?`}
             </h3>
             <p className="text-sm text-plm-fg-muted">
-              {keepLocal 
+              {keepLocal
                 ? 'Items will be deleted from the server. Local copies will be kept.'
-                : 'Items will be deleted locally AND from the server.'
-              }
+                : 'Items will be deleted locally AND from the server.'}
             </p>
           </div>
         </div>
-        
+
         <div className="bg-plm-bg rounded border border-plm-border p-3 mb-4 max-h-40 overflow-y-auto">
           {files.length === 1 ? (
             <div className="flex items-center gap-2">
@@ -94,34 +95,30 @@ export function DeleteConfirmDialog({
             </>
           )}
         </div>
-        
+
         {/* Warning */}
-        <div className={`${keepLocal ? 'bg-plm-info/10 border-plm-info/30' : 'bg-plm-warning/10 border-plm-warning/30'} border rounded p-3 mb-4`}>
+        <div
+          className={`${keepLocal ? 'bg-plm-info/10 border-plm-info/30' : 'bg-plm-warning/10 border-plm-warning/30'} border rounded p-3 mb-4`}
+        >
           <p className={`text-sm ${keepLocal ? 'text-plm-info' : 'text-plm-warning'} font-medium`}>
-            {keepLocal 
+            {keepLocal
               ? `ℹ️ ${files.length} file${files.length > 1 ? 's' : ''} will be removed from the server. Local copies will become unsynced.`
-              : `⚠️ ${files.length} synced file${files.length > 1 ? 's' : ''} will be deleted from the server.`
-            }
+              : `⚠️ ${files.length} synced file${files.length > 1 ? 's' : ''} will be deleted from the server.`}
           </p>
-          <p className="text-xs text-plm-fg-muted mt-1">Files can be recovered from trash within 30 days.</p>
+          <p className="text-xs text-plm-fg-muted mt-1">
+            Files can be recovered from trash within 30 days.
+          </p>
         </div>
-        
+
         <div className="flex justify-end gap-2">
-          <button
-            onClick={onClose}
-            className="btn btn-ghost"
-          >
+          <button onClick={onClose} className="btn btn-ghost">
             Cancel
           </button>
-          <button
-            onClick={onConfirm}
-            className="btn bg-plm-error hover:bg-plm-error/80 text-white"
-          >
+          <button onClick={onConfirm} className="btn bg-plm-error hover:bg-plm-error/80 text-white">
             {keepLocal ? <CloudOff size={14} /> : <Trash2 size={14} />}
-            {keepLocal 
+            {keepLocal
               ? `Delete from Server ${files.length > 1 ? `(${files.length})` : ''}`
-              : `Delete Local & Server ${files.length > 1 ? `(${files.length})` : ''}`
-            }
+              : `Delete Local & Server ${files.length > 1 ? `(${files.length})` : ''}`}
           </button>
         </div>
       </div>

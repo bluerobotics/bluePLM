@@ -1,6 +1,6 @@
 /**
  * Extension Host IPC Handler
- * 
+ *
  * Handles all IPC communication between the Extension Host process
  * and the Main process. Uses the preload-exposed API for secure
  * context-isolated communication.
@@ -12,7 +12,7 @@ import type {
   ExtensionManifest,
   WatchdogViolation,
   ExtensionStats,
-  WatchdogConfig
+  WatchdogConfig,
 } from './types'
 
 /**
@@ -37,21 +37,22 @@ export interface IPCHandlerConfig {
  */
 export class ExtensionHostIPC {
   private pendingCalls: Map<string, PendingCall> = new Map()
-  private messageHandlers: Map<string, (message: HostInboundMessage) => void | Promise<void>> = new Map()
+  private messageHandlers: Map<string, (message: HostInboundMessage) => void | Promise<void>> =
+    new Map()
   private sendMessage: (message: HostOutboundMessage) => void
   private callIdCounter = 0
   private config: Required<IPCHandlerConfig>
-  
+
   constructor(
     sendMessageFn: (message: HostOutboundMessage) => void,
-    config: IPCHandlerConfig = {}
+    config: IPCHandlerConfig = {},
   ) {
     this.sendMessage = sendMessageFn
     this.config = {
-      apiCallTimeout: config.apiCallTimeout ?? 30000
+      apiCallTimeout: config.apiCallTimeout ?? 30000,
     }
   }
-  
+
   /**
    * Handle incoming message from Main process
    */
@@ -60,8 +61,8 @@ export class ExtensionHostIPC {
     if (handler) {
       try {
         await handler(message)
-      } catch (err) {
-        console.error(`[IPC] Error handling message ${message.type}:`, err)
+      } catch (error) {
+        console.error(`[IPC] Error handling message ${message.type}:`, error)
       }
     } else if (message.type === 'api:call') {
       // Handle API call result forwarding - this shouldn't happen in host
@@ -70,7 +71,7 @@ export class ExtensionHostIPC {
       console.warn(`[IPC] No handler for message type: ${message.type}`)
     }
   }
-  
+
   /**
    * Handle API result from Main process
    */
@@ -82,7 +83,7 @@ export class ExtensionHostIPC {
       pending.resolve(result)
     }
   }
-  
+
   /**
    * Handle API error from Main process
    */
@@ -94,94 +95,102 @@ export class ExtensionHostIPC {
       pending.reject(new Error(error))
     }
   }
-  
+
   /**
    * Register a message handler
    */
-  on(type: HostInboundMessage['type'], handler: (message: HostInboundMessage) => void | Promise<void>): void {
+  on(
+    type: HostInboundMessage['type'],
+    handler: (message: HostInboundMessage) => void | Promise<void>,
+  ): void {
     this.messageHandlers.set(type, handler)
   }
-  
+
   /**
    * Remove a message handler
    */
   off(type: HostInboundMessage['type']): void {
     this.messageHandlers.delete(type)
   }
-  
+
   /**
    * Make an API call to Main process
    */
-  async callApi<T>(extensionId: string, api: string, method: string, args: unknown[] = []): Promise<T> {
+  async callApi<T>(
+    extensionId: string,
+    api: string,
+    method: string,
+    args: unknown[] = [],
+  ): Promise<T> {
     const callId = this.generateCallId()
-    
+
     return new Promise<T>((resolve, reject) => {
       // Set timeout for the call
       const timeout = setTimeout(() => {
         this.pendingCalls.delete(callId)
         reject(new Error(`API call timed out after ${this.config.apiCallTimeout}ms`))
       }, this.config.apiCallTimeout)
-      
+
       // Store pending call
       this.pendingCalls.set(callId, {
         resolve: resolve as (result: unknown) => void,
         reject,
-        timeout
+        timeout,
       })
-      
+
       // Send the API call request
       this.sendMessage({
         type: 'api:result',
         callId,
-        result: { extensionId, api, method, args }
+        result: { extensionId, api, method, args },
       })
     })
   }
-  
+
   // ============================================
   // Outbound Messages
   // ============================================
-  
+
   /**
    * Send host ready notification
    */
   sendReady(): void {
     this.sendMessage({
       type: 'host:ready',
-      timestamp: Date.now()
+      timestamp: Date.now(),
     })
   }
-  
+
   /**
    * Send extension loaded notification
    */
   sendExtensionLoaded(extensionId: string): void {
     this.sendMessage({
       type: 'extension:loaded',
-      extensionId
+      extensionId,
     })
   }
-  
+
   /**
    * Send extension activated notification
    */
   sendExtensionActivated(extensionId: string): void {
     this.sendMessage({
       type: 'extension:activated',
-      extensionId
+      extensionId,
     })
   }
-  
+
   /**
    * Send extension deactivated notification
    */
   sendExtensionDeactivated(extensionId: string): void {
     this.sendMessage({
       type: 'extension:deactivated',
-      extensionId
+      extensionId,
     })
   }
-  
+
   /**
    * Send extension error notification
    */
@@ -190,10 +199,10 @@ export class ExtensionHostIPC {
       type: 'extension:error',
       extensionId,
       error,
-      stack
+      stack,
     })
   }
-  
+
   /**
    * Send extension killed notification
    */
@@ -201,20 +210,20 @@ export class ExtensionHostIPC {
     this.sendMessage({
       type: 'extension:killed',
       extensionId,
-      reason
+      reason,
     })
   }
-  
+
   /**
    * Send watchdog violation notification
    */
   sendWatchdogViolation(violation: WatchdogViolation): void {
     this.sendMessage({
       type: 'watchdog:violation',
-      violation
+      violation,
     })
   }
-  
+
   /**
    * Send API call result
    */
@@ -222,10 +231,10 @@ export class ExtensionHostIPC {
     this.sendMessage({
       type: 'api:result',
       callId,
-      result
+      result,
     })
   }
-  
+
   /**
    * Send API call error
    */
@@ -233,37 +242,37 @@ export class ExtensionHostIPC {
     this.sendMessage({
       type: 'api:error',
       callId,
-      error
+      error,
     })
   }
-  
+
   /**
    * Send host stats
    */
   sendHostStats(extensions: ExtensionStats[]): void {
     this.sendMessage({
       type: 'host:stats',
-      extensions
+      extensions,
     })
   }
-  
+
   /**
    * Send host crash notification
    */
   sendHostCrash(error: string): void {
     this.sendMessage({
       type: 'host:crashed',
-      error
+      error,
     })
   }
-  
+
   /**
    * Generate unique call ID
    */
   private generateCallId(): string {
     return `call-${++this.callIdCounter}-${Date.now()}`
   }
-  
+
   /**
    * Cleanup all pending calls
    */
@@ -282,7 +291,7 @@ export class ExtensionHostIPC {
  */
 export function createExtensionHostIPC(
   sendMessageFn: (message: HostOutboundMessage) => void,
-  config?: IPCHandlerConfig
+  config?: IPCHandlerConfig,
 ): ExtensionHostIPC {
   return new ExtensionHostIPC(sendMessageFn, config)
 }
@@ -290,21 +299,21 @@ export function createExtensionHostIPC(
 /**
  * Create a mock client API that forwards calls via IPC
  */
-export function createIPCBridgedAPI(
-  ipc: ExtensionHostIPC,
-  extensionId: string
-): unknown {
+export function createIPCBridgedAPI(ipc: ExtensionHostIPC, extensionId: string): unknown {
   // Create a proxy-based API that forwards all calls via IPC
   const createApiProxy = (namespace: string): unknown => {
-    return new Proxy({}, {
-      get(_, method: string) {
-        return async (...args: unknown[]) => {
-          return ipc.callApi(extensionId, namespace, method, args)
-        }
-      }
-    })
+    return new Proxy(
+      {},
+      {
+        get(_, method: string) {
+          return async (...args: unknown[]) => {
+            return ipc.callApi(extensionId, namespace, method, args)
+          }
+        },
+      },
+    )
   }
-  
+
   return {
     ui: createApiProxy('ui'),
     storage: createApiProxy('storage'),
@@ -312,7 +321,7 @@ export function createIPCBridgedAPI(
     workspace: createApiProxy('workspace'),
     events: createApiProxy('events'),
     telemetry: createApiProxy('telemetry'),
-    
+
     // Direct methods
     callOrgApi: async <T>(endpoint: string, options?: RequestInit): Promise<T> => {
       return ipc.callApi<T>(extensionId, 'network', 'callOrgApi', [endpoint, options])
@@ -323,13 +332,13 @@ export function createIPCBridgedAPI(
     fetch: async (url: string, options?: RequestInit): Promise<Response> => {
       return ipc.callApi<Response>(extensionId, 'network', 'fetch', [url, options])
     },
-    
+
     // Context (read-only, provided at activation)
     context: {
       extensionId,
       version: '0.0.0', // Will be filled by actual extension manifest
       user: null,
-      organization: null
-    }
+      organization: null,
+    },
   }
 }

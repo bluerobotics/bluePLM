@@ -6,15 +6,15 @@ export function useDialogState() {
   // Workflow dialogs
   const [showCreateWorkflow, setShowCreateWorkflow] = useState(false)
   const [showEditWorkflow, setShowEditWorkflow] = useState(false)
-  
+
   // State dialogs
   const [showEditState, setShowEditState] = useState(false)
   const [editingState, setEditingState] = useState<WorkflowState | null>(null)
-  
+
   // Transition dialogs
   const [showEditTransition, setShowEditTransition] = useState(false)
   const [editingTransition, setEditingTransition] = useState<WorkflowTransition | null>(null)
-  
+
   // Gate dialogs
   const [showEditGate, setShowEditGate] = useState(false)
   const [editingGate, setEditingGate] = useState<WorkflowGate | null>(null)
@@ -141,6 +141,6 @@ export function useDialogState() {
     closeEditTransition,
     openEditGate,
     closeEditGate,
-    closeAllDialogs
+    closeAllDialogs,
   }
 }

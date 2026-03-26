@@ -1,6 +1,6 @@
 /**
  * Shared types for cell renderer components
- * 
+ *
  * Cell components now get handlers from FilePaneHandlersContext,
  * so these props are simplified to just the file data.
  */

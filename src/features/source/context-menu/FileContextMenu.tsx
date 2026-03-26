@@ -1,18 +1,14 @@
 // src/features/source/context-menu/FileContextMenu.tsx
 import { useRef } from 'react'
 import { usePDMStore } from '@/stores/pdmStore'
-import { 
+import {
   executeCommand,
   getSyncedFilesFromSelection,
   getUnsyncedFilesFromSelection,
   getCloudOnlyFilesFromSelection,
-  getDiscardableFilesFromSelection
+  getDiscardableFilesFromSelection,
 } from '@/lib/commands'
-import { 
-  watchFile,
-  unwatchFile,
-  createShareLink
-} from '@/lib/supabase'
+import { watchFile, unwatchFile, createShareLink } from '@/lib/supabase'
 import { copyToClipboard } from '@/lib/clipboard'
 
 // Import from local modules
@@ -49,7 +45,7 @@ import type { LocalFile } from '@/stores/pdmStore'
  */
 function folderHasLocalContent(folderPath: string, files: LocalFile[]): boolean {
   const normalizedPath = folderPath.replace(/\\/g, '/')
-  return files.some(f => {
+  return files.some((f) => {
     if (f.isDirectory) return false
     const filePath = f.relativePath.replace(/\\/g, '/')
     return filePath.startsWith(normalizedPath + '/') && f.diffStatus !== 'cloud'
@@ -68,20 +64,20 @@ export function FileContextMenu({
   onCut,
   onPaste,
   onRename,
-  onNewFolder
+  onNewFolder,
 }: FileContextMenuProps) {
-  const { 
-    user, 
-    activeVaultId, 
-    addToast, 
-    pinnedFolders, 
-    pinFolder, 
-    unpinFolder, 
-    connectedVaults, 
-    addIgnorePattern, 
-    getIgnorePatterns, 
-    serverFolderPaths, 
-    organization 
+  const {
+    user,
+    activeVaultId,
+    addToast,
+    pinnedFolders,
+    pinFolder,
+    unpinFolder,
+    connectedVaults,
+    addIgnorePattern,
+    getIgnorePatterns,
+    serverFolderPaths,
+    organization,
   } = usePDMStore()
 
   const menuRef = useRef<HTMLDivElement>(null)
@@ -91,52 +87,65 @@ export function FileContextMenu({
   const state = useContextMenuState({
     userId: user?.id,
     organizationId: organization?.id,
-    contextFiles
+    contextFiles,
   })
 
   // Early return if no files selected
   if (contextFiles.length === 0) return null
 
   // Computed values
-  const currentVault = connectedVaults.find(v => v.id === activeVaultId)
+  const currentVault = connectedVaults.find((v) => v.id === activeVaultId)
   const currentVaultName = currentVault?.name || 'Vault'
-  
+
   const multiSelect = contextFiles.length > 1
   const firstFile = contextFiles[0]
   const isFolder = firstFile.isDirectory
-  const allFolders = contextFiles.every(f => f.isDirectory)
-  const fileCount = contextFiles.filter(f => !f.isDirectory).length
-  const folderCount = contextFiles.filter(f => f.isDirectory).length
-  
+  const allFolders = contextFiles.every((f) => f.isDirectory)
+  const fileCount = contextFiles.filter((f) => !f.isDirectory).length
+  const folderCount = contextFiles.filter((f) => f.isDirectory).length
+
   // Use command system helpers for file categorization
   const syncedFilesInSelection = getSyncedFilesFromSelection(files, contextFiles)
   const unsyncedFilesInSelection = getUnsyncedFilesFromSelection(files, contextFiles)
   const cloudOnlyFilesInSelection = getCloudOnlyFilesFromSelection(files, contextFiles)
-  
+
   const anySynced = syncedFilesInSelection.length > 0
   const anyUnsynced = unsyncedFilesInSelection.length > 0
-  const anyCloudOnly = cloudOnlyFilesInSelection.length > 0 || contextFiles.some(f => f.diffStatus === 'cloud')
-  
+  const anyCloudOnly =
+    cloudOnlyFilesInSelection.length > 0 || contextFiles.some((f) => f.diffStatus === 'cloud')
+
   // Check out/in status
-  const allCheckedOut = syncedFilesInSelection.length > 0 && syncedFilesInSelection.every(f => f.pdmData?.checked_out_by)
-  const allCheckedIn = syncedFilesInSelection.length > 0 && syncedFilesInSelection.every(f => !f.pdmData?.checked_out_by)
-  
+  const allCheckedOut =
+    syncedFilesInSelection.length > 0 &&
+    syncedFilesInSelection.every((f) => f.pdmData?.checked_out_by)
+  const allCheckedIn =
+    syncedFilesInSelection.length > 0 &&
+    syncedFilesInSelection.every((f) => !f.pdmData?.checked_out_by)
+
   // Count files that can be checked out/in
-  const checkoutableCount = syncedFilesInSelection.filter(f => !f.pdmData?.checked_out_by).length
-  const checkinableCount = syncedFilesInSelection.filter(f => f.pdmData?.checked_out_by === user?.id).length
-  const checkedOutByOthersCount = syncedFilesInSelection.filter(f => f.pdmData?.checked_out_by && f.pdmData.checked_out_by !== user?.id).length
+  const checkoutableCount = syncedFilesInSelection.filter((f) => !f.pdmData?.checked_out_by).length
+  const checkinableCount = syncedFilesInSelection.filter(
+    (f) => f.pdmData?.checked_out_by === user?.id,
+  ).length
+  const checkedOutByOthersCount = syncedFilesInSelection.filter(
+    (f) => f.pdmData?.checked_out_by && f.pdmData.checked_out_by !== user?.id,
+  ).length
   const effectiveRole = usePDMStore.getState().getEffectiveRole()
   const isAdmin = effectiveRole === 'admin'
-  
+
   // Discardable files
-  const discardableFilesInSelection = getDiscardableFilesFromSelection(files, contextFiles, user?.id)
+  const discardableFilesInSelection = getDiscardableFilesFromSelection(
+    files,
+    contextFiles,
+    user?.id,
+  )
   const discardableCount = discardableFilesInSelection.length
-  
+
   const countLabel = getCountLabel(fileCount, folderCount)
-  
+
   // Check for cloud-only files
   // For folders, derive cloud-only status from children (not stale folder diffStatus)
-  const allCloudOnly = contextFiles.every(f => {
+  const allCloudOnly = contextFiles.every((f) => {
     if (f.isDirectory) {
       // A folder is cloud-only if it has NO local children (all cloud or empty)
       return !folderHasLocalContent(f.relativePath, files)
@@ -144,15 +153,15 @@ export function FileContextMenu({
     return f.diffStatus === 'cloud'
   })
   const cloudOnlyCount = cloudOnlyFilesInSelection.length
-  
+
   // Check for local folders (folders with local content)
   // Derive from children rather than relying on folder's own diffStatus
-  const hasLocalFolders = contextFiles.some(f => 
-    f.isDirectory && folderHasLocalContent(f.relativePath, files)
+  const hasLocalFolders = contextFiles.some(
+    (f) => f.isDirectory && folderHasLocalContent(f.relativePath, files),
   )
-  
+
   // Check if any selected folders exist on server
-  const hasFoldersOnServer = contextFiles.some(f => {
+  const hasFoldersOnServer = contextFiles.some((f) => {
     if (!f.isDirectory) return false
     const normalizedPath = f.relativePath.replace(/\\/g, '/')
     return serverFolderPaths.has(normalizedPath)
@@ -161,15 +170,15 @@ export function FileContextMenu({
   // ============================================
   // Handler functions
   // ============================================
-  
+
   const handleToggleWatch = async () => {
     if (!user?.id || !organization?.id) return
-    
-    const syncedFile = contextFiles.find(f => f.pdmData?.id)
+
+    const syncedFile = contextFiles.find((f) => f.pdmData?.id)
     if (!syncedFile || !syncedFile.pdmData) return
-    
+
     state.setIsTogglingWatch(true)
-    
+
     if (state.isWatching) {
       const { success, error } = await unwatchFile(syncedFile.pdmData.id, user.id)
       if (success) {
@@ -187,7 +196,7 @@ export function FileContextMenu({
         addToast('error', error || 'Failed to watch file')
       }
     }
-    
+
     state.setIsTogglingWatch(false)
     onClose()
   }
@@ -197,16 +206,13 @@ export function FileContextMenu({
       addToast('error', 'File must be synced to create a share link')
       return
     }
-    
+
     state.setIsCreatingShareLink(true)
-    
-    const { link, error } = await createShareLink(
-      organization.id,
-      firstFile.pdmData.id,
-      user.id,
-      { expiresInDays: 7 }
-    )
-    
+
+    const { link, error } = await createShareLink(organization.id, firstFile.pdmData.id, user.id, {
+      expiresInDays: 7,
+    })
+
     if (error) {
       addToast('error', error)
     } else if (link) {
@@ -218,14 +224,14 @@ export function FileContextMenu({
         state.openDialog('shareLink')
       }
     }
-    
+
     state.setIsCreatingShareLink(false)
     onClose()
   }
 
   const handleCopyShareLink = async () => {
     if (!state.generatedShareLink) return
-    
+
     const result = await copyToClipboard(state.generatedShareLink)
     if (result.success) {
       state.setCopiedLink(true)
@@ -279,17 +285,17 @@ export function FileContextMenu({
   return (
     <>
       {/* Backdrop */}
-      <div 
-        className="fixed inset-0 z-50" 
+      <div
+        className="fixed inset-0 z-50"
         onClick={onClose}
         onContextMenu={(e) => {
           e.preventDefault()
           onClose()
         }}
       />
-      
+
       {/* Context Menu */}
-      <div 
+      <div
         ref={menuRef}
         className="context-menu z-[60]"
         style={{ left: position.x, top: position.y }}
@@ -431,7 +437,11 @@ export function FileContextMenu({
 
       <DeleteConfirmDialog
         isOpen={state.dialogs.deleteConfirm}
-        onClose={() => { state.closeDialog('deleteConfirm'); state.setDeleteServerKeepLocal(false); onClose(); }}
+        onClose={() => {
+          state.closeDialog('deleteConfirm')
+          state.setDeleteServerKeepLocal(false)
+          onClose()
+        }}
         files={state.deleteConfirmFiles}
         keepLocal={state.deleteServerKeepLocal}
         onConfirm={handleDeleteConfirm}
@@ -439,7 +449,10 @@ export function FileContextMenu({
 
       <DeleteLocalConfirmDialog
         isOpen={state.dialogs.deleteLocalConfirm}
-        onClose={() => { state.closeDialog('deleteLocalConfirm'); onClose(); }}
+        onClose={() => {
+          state.closeDialog('deleteLocalConfirm')
+          onClose()
+        }}
         checkedOutFiles={state.deleteLocalCheckedOutFiles}
         onCheckinThenDelete={handleCheckinThenDeleteLocal}
         onDiscardAndDelete={handleDiscardAndDeleteLocal}
@@ -447,7 +460,11 @@ export function FileContextMenu({
 
       <ForceCheckinDialog
         isOpen={state.dialogs.forceCheckin}
-        onClose={() => { state.closeDialog('forceCheckin'); state.setForceCheckinFiles(null); onClose(); }}
+        onClose={() => {
+          state.closeDialog('forceCheckin')
+          state.setForceCheckinFiles(null)
+          onClose()
+        }}
         filesOnDifferentMachine={state.forceCheckinFiles?.filesOnDifferentMachine || []}
         machineNames={state.forceCheckinFiles?.machineNames || []}
         anyMachineOnline={state.forceCheckinFiles?.anyMachineOnline || false}
@@ -456,7 +473,10 @@ export function FileContextMenu({
 
       <PropertiesDialog
         isOpen={state.dialogs.properties}
-        onClose={() => { state.closeDialog('properties'); onClose(); }}
+        onClose={() => {
+          state.closeDialog('properties')
+          onClose()
+        }}
         file={firstFile}
         isFolder={isFolder}
         multiSelect={multiSelect}
@@ -496,7 +516,11 @@ export function FileContextMenu({
 
       <ShareLinkDialog
         isOpen={state.dialogs.shareLink}
-        onClose={() => { state.closeDialog('shareLink'); state.setGeneratedShareLink(null); onClose(); }}
+        onClose={() => {
+          state.closeDialog('shareLink')
+          state.setGeneratedShareLink(null)
+          onClose()
+        }}
         generatedLink={state.generatedShareLink}
         onCopyLink={handleCopyShareLink}
         copiedLink={state.copiedLink}
@@ -513,7 +537,12 @@ export function FileContextMenu({
 
       <MatchGhostFileDialog
         isOpen={state.dialogs.matchGhostFile}
-        onClose={() => { state.closeDialog('matchGhostFile'); state.setMatchGhostFile(null); state.setMatchGhostCandidates([]); onClose(); }}
+        onClose={() => {
+          state.closeDialog('matchGhostFile')
+          state.setMatchGhostFile(null)
+          state.setMatchGhostCandidates([])
+          onClose()
+        }}
         ghostFile={state.matchGhostFile}
         candidates={state.matchGhostCandidates}
         onConfirm={handleMatchGhostConfirm}

@@ -17,7 +17,7 @@ import {
   LayoutGrid,
   Wand2,
   AlertTriangle,
-  Folder
+  Folder,
 } from 'lucide-react'
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
@@ -27,7 +27,7 @@ import {
   PERMISSION_ACTIONS,
   PERMISSION_ACTION_LABELS,
   ALL_RESOURCES,
-  DEFAULT_PRESETS
+  DEFAULT_PRESETS,
 } from '@/types/permissions'
 
 interface Vault {
@@ -44,89 +44,176 @@ interface PermissionsEditorProps {
 }
 
 // Group resources by a custom category for better UX
-const RESOURCE_GROUPS: { id: string; name: string; icon: string; color: string; resources: string[] }[] = [
+const RESOURCE_GROUPS: {
+  id: string
+  name: string
+  icon: string
+  color: string
+  resources: string[]
+}[] = [
   {
     id: 'source-files',
     name: 'Source Files',
     icon: 'FolderTree',
     color: '#3b82f6',
-    resources: ['module:explorer', 'module:pending', 'module:history', 'module:workflows', 'module:trash']
+    resources: [
+      'module:explorer',
+      'module:pending',
+      'module:history',
+      'module:workflows',
+      'module:trash',
+    ],
   },
   {
     id: 'items',
     name: 'Items & BOMs',
     icon: 'Package',
     color: '#8b5cf6',
-    resources: ['module:items', 'module:boms', 'module:products']
+    resources: ['module:items', 'module:boms', 'module:products'],
   },
   {
     id: 'change-control',
     name: 'Change Control',
     icon: 'GitBranch',
     color: '#f59e0b',
-    resources: ['module:ecr', 'module:eco', 'module:reviews', 'module:deviations', 'module:release-schedule', 'module:process']
+    resources: [
+      'module:ecr',
+      'module:eco',
+      'module:reviews',
+      'module:deviations',
+      'module:release-schedule',
+      'module:process',
+    ],
   },
   {
     id: 'supply-chain',
     name: 'Supply Chain',
     icon: 'Truck',
     color: '#14b8a6',
-    resources: ['module:supplier-database', 'module:supplier-portal', 'module:purchase-requests', 'module:purchase-orders', 'module:invoices', 'module:shipping', 'module:receiving']
+    resources: [
+      'module:supplier-database',
+      'module:supplier-portal',
+      'module:purchase-requests',
+      'module:purchase-orders',
+      'module:invoices',
+      'module:shipping',
+      'module:receiving',
+    ],
   },
   {
     id: 'production',
     name: 'Production',
     icon: 'Factory',
     color: '#ec4899',
-    resources: ['module:manufacturing-orders', 'module:travellers', 'module:work-instructions', 'module:production-schedule', 'module:routings', 'module:work-centers', 'module:process-flows', 'module:equipment', 'module:yield-tracking', 'module:error-codes', 'module:downtime', 'module:oee', 'module:scrap-tracking']
+    resources: [
+      'module:manufacturing-orders',
+      'module:travellers',
+      'module:work-instructions',
+      'module:production-schedule',
+      'module:routings',
+      'module:work-centers',
+      'module:process-flows',
+      'module:equipment',
+      'module:yield-tracking',
+      'module:error-codes',
+      'module:downtime',
+      'module:oee',
+      'module:scrap-tracking',
+    ],
   },
   {
     id: 'quality',
     name: 'Quality',
     icon: 'ShieldCheck',
     color: '#22c55e',
-    resources: ['module:fai', 'module:ncr', 'module:imr', 'module:scar', 'module:capa', 'module:rma', 'module:certificates', 'module:calibration', 'module:quality-templates']
+    resources: [
+      'module:fai',
+      'module:ncr',
+      'module:imr',
+      'module:scar',
+      'module:capa',
+      'module:rma',
+      'module:certificates',
+      'module:calibration',
+      'module:quality-templates',
+    ],
   },
   {
     id: 'accounting',
     name: 'Accounting',
     icon: 'Calculator',
     color: '#a855f7',
-    resources: ['module:accounts-payable', 'module:accounts-receivable', 'module:general-ledger', 'module:cost-tracking', 'module:budgets']
+    resources: [
+      'module:accounts-payable',
+      'module:accounts-receivable',
+      'module:general-ledger',
+      'module:cost-tracking',
+      'module:budgets',
+    ],
   },
   {
     id: 'system',
     name: 'System & Admin',
     icon: 'Settings',
     color: '#64748b',
-    resources: ['module:google-drive', 'module:terminal', 'module:settings', 'system:users', 'system:teams', 'system:permissions', 'system:org-settings', 'system:vaults', 'system:backups', 'system:webhooks', 'system:workflows', 'system:metadata', 'system:integrations', 'system:recovery-codes', 'system:impersonation']
-  }
+    resources: [
+      'module:google-drive',
+      'module:terminal',
+      'module:settings',
+      'system:users',
+      'system:teams',
+      'system:permissions',
+      'system:org-settings',
+      'system:vaults',
+      'system:backups',
+      'system:webhooks',
+      'system:workflows',
+      'system:metadata',
+      'system:integrations',
+      'system:recovery-codes',
+      'system:impersonation',
+    ],
+  },
 ]
 
 export function PermissionsEditor({ team, onClose, userId, isAdmin }: PermissionsEditorProps) {
   const { addToast } = usePDMStore()
-  
+
   // State
   const [permissions, setPermissions] = useState<Record<string, PermissionAction[]>>({})
-  const [originalPermissions, setOriginalPermissions] = useState<Record<string, PermissionAction[]>>({})
+  const [originalPermissions, setOriginalPermissions] = useState<
+    Record<string, PermissionAction[]>
+  >({})
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(RESOURCE_GROUPS.map(g => g.id)))
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
+    new Set(RESOURCE_GROUPS.map((g) => g.id)),
+  )
   const [showPresets, setShowPresets] = useState(false)
   const [_presets, setPresets] = useState<PermissionPreset[]>([])
-  
+
   // Vault scope state - only for source files
   const [vaults, setVaults] = useState<Vault[]>([])
   const [selectedSourceFilesVaultId, setSelectedSourceFilesVaultId] = useState<string | null>(null) // null = "All Vaults"
-  const [sourceFilesPermsByVault, setSourceFilesPermsByVault] = useState<Record<string, Record<string, PermissionAction[]>>>({})
-  const [originalSourceFilesPermsByVault, setOriginalSourceFilesPermsByVault] = useState<Record<string, Record<string, PermissionAction[]>>>({})
+  const [sourceFilesPermsByVault, setSourceFilesPermsByVault] = useState<
+    Record<string, Record<string, PermissionAction[]>>
+  >({})
+  const [originalSourceFilesPermsByVault, setOriginalSourceFilesPermsByVault] = useState<
+    Record<string, Record<string, PermissionAction[]>>
+  >({})
   const [_vaultsLoading, setVaultsLoading] = useState(true)
-  
+
   // Source files resources
-  const sourceFilesResources = ['module:explorer', 'module:pending', 'module:history', 'module:workflows', 'module:trash']
-  
+  const sourceFilesResources = [
+    'module:explorer',
+    'module:pending',
+    'module:history',
+    'module:workflows',
+    'module:trash',
+  ]
+
   // Load vaults for this org
   useEffect(() => {
     const loadVaults = async () => {
@@ -136,39 +223,40 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
           .select('org_id')
           .eq('id', team.id)
           .single()
-        
+
         if (!orgData) return
-        
+
         const { data, error } = await supabase
           .from('vaults')
           .select('id, name, slug')
           .eq('org_id', orgData.org_id)
           .order('name')
-        
+
         if (error) throw error
         setVaults(data || [])
-      } catch (err) {
-        log.error('[PermissionsEditor]', 'Failed to load vaults', { error: err })
+      } catch (error) {
+        log.error('[PermissionsEditor]', 'Failed to load vaults', { error: error })
       } finally {
         setVaultsLoading(false)
       }
     }
     loadVaults()
   }, [team.id])
-  
+
   // Load permissions when team changes
   useEffect(() => {
     loadPermissions()
     loadPresets()
   }, [team.id])
-  
+
   // Track changes - check both global and source files permissions
   useEffect(() => {
     const globalChanged = JSON.stringify(permissions) !== JSON.stringify(originalPermissions)
-    const sourceFilesChanged = JSON.stringify(sourceFilesPermsByVault) !== JSON.stringify(originalSourceFilesPermsByVault)
+    const sourceFilesChanged =
+      JSON.stringify(sourceFilesPermsByVault) !== JSON.stringify(originalSourceFilesPermsByVault)
     setHasChanges(globalChanged || sourceFilesChanged)
   }, [permissions, originalPermissions, sourceFilesPermsByVault, originalSourceFilesPermsByVault])
-  
+
   const loadPermissions = async () => {
     setIsLoading(true)
     try {
@@ -178,9 +266,9 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
         .select('*')
         .eq('team_id', team.id)
         .is('vault_id', null)
-      
+
       if (globalError) throw globalError
-      
+
       const globalPermsMap: Record<string, PermissionAction[]> = {}
       for (const perm of globalData || []) {
         // Only include non-source-files resources in global permissions
@@ -188,19 +276,19 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
           globalPermsMap[perm.resource] = perm.actions as PermissionAction[]
         }
       }
-      
+
       setPermissions(globalPermsMap)
       setOriginalPermissions(globalPermsMap)
-      
+
       // Load source files permissions per vault
       const { data: vaultPermsData, error: vaultError } = await supabase
         .from('team_permissions')
         .select('*')
         .eq('team_id', team.id)
         .not('vault_id', 'is', null)
-      
+
       if (vaultError) throw vaultError
-      
+
       // Also load "All Vaults" source files permissions (vault_id IS NULL)
       const { data: allVaultsSourceFiles } = await supabase
         .from('team_permissions')
@@ -208,9 +296,9 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
         .eq('team_id', team.id)
         .is('vault_id', null)
         .in('resource', sourceFilesResources)
-      
+
       const vaultPermsMap: Record<string, Record<string, PermissionAction[]>> = {}
-      
+
       // Initialize "all" vaults entry
       vaultPermsMap['all'] = {}
       for (const perm of allVaultsSourceFiles || []) {
@@ -218,7 +306,7 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
           vaultPermsMap['all'][perm.resource] = perm.actions as PermissionAction[]
         }
       }
-      
+
       // Group by vault_id
       for (const perm of vaultPermsData || []) {
         if (sourceFilesResources.includes(perm.resource) && perm.vault_id) {
@@ -228,17 +316,17 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
           vaultPermsMap[perm.vault_id][perm.resource] = perm.actions as PermissionAction[]
         }
       }
-      
+
       setSourceFilesPermsByVault(vaultPermsMap)
       setOriginalSourceFilesPermsByVault(JSON.parse(JSON.stringify(vaultPermsMap)))
-    } catch (err) {
-      log.error('[PermissionsEditor]', 'Failed to load permissions', { error: err })
+    } catch (error) {
+      log.error('[PermissionsEditor]', 'Failed to load permissions', { error: error })
       addToast('error', 'Failed to load permissions')
     } finally {
       setIsLoading(false)
     }
   }
-  
+
   const loadPresets = async () => {
     try {
       const { data: orgData } = await supabase
@@ -246,49 +334,48 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
         .select('org_id')
         .eq('id', team.id)
         .single()
-      
+
       if (!orgData) return
-      
+
       const { data, error } = await supabase
         .from('permission_presets')
         .select('*')
         .eq('org_id', orgData.org_id)
         .order('name')
-      
+
       if (error) throw error
       // Map Supabase types to app types with defaults
-      setPresets((data || []).map(p => ({
-        id: p.id,
-        org_id: p.org_id,
-        name: p.name,
-        description: p.description ?? null,
-        color: p.color ?? '#64748b',
-        icon: p.icon ?? 'Shield',
-        permissions: (p.permissions as Record<string, PermissionAction[]>) ?? {},
-        is_system: p.is_system ?? false,
-        created_at: p.created_at ?? new Date().toISOString(),
-        created_by: p.created_by ?? null,
-        updated_at: p.updated_at ?? new Date().toISOString(),
-        updated_by: p.updated_by ?? null
-      })))
-    } catch (err) {
-      log.error('[PermissionsEditor]', 'Failed to load presets', { error: err })
+      setPresets(
+        (data || []).map((p) => ({
+          id: p.id,
+          org_id: p.org_id,
+          name: p.name,
+          description: p.description ?? null,
+          color: p.color ?? '#64748b',
+          icon: p.icon ?? 'Shield',
+          permissions: (p.permissions as Record<string, PermissionAction[]>) ?? {},
+          is_system: p.is_system ?? false,
+          created_at: p.created_at ?? new Date().toISOString(),
+          created_by: p.created_by ?? null,
+          updated_at: p.updated_at ?? new Date().toISOString(),
+          updated_by: p.updated_by ?? null,
+        })),
+      )
+    } catch (error) {
+      log.error('[PermissionsEditor]', 'Failed to load presets', { error: error })
     }
   }
-  
+
   const savePermissions = async () => {
     if (!userId) return
-    
+
     setIsSaving(true)
     try {
       // Delete all existing permissions for this team
-      await supabase
-        .from('team_permissions')
-        .delete()
-        .eq('team_id', team.id)
-      
+      await supabase.from('team_permissions').delete().eq('team_id', team.id)
+
       const allNewPerms: any[] = []
-      
+
       // Add global permissions (non-source-files with vault_id = null)
       for (const [resource, actions] of Object.entries(permissions)) {
         if (actions.length > 0 && !sourceFilesResources.includes(resource)) {
@@ -297,11 +384,11 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
             resource,
             vault_id: null,
             actions,
-            granted_by: userId
+            granted_by: userId,
           })
         }
       }
-      
+
       // Add source files permissions per vault
       for (const [vaultKey, vaultPerms] of Object.entries(sourceFilesPermsByVault)) {
         const vaultId = vaultKey === 'all' ? null : vaultKey
@@ -312,35 +399,33 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
               resource,
               vault_id: vaultId,
               actions,
-              granted_by: userId
+              granted_by: userId,
             })
           }
         }
       }
-      
+
       if (allNewPerms.length > 0) {
-        const { error } = await supabase
-          .from('team_permissions')
-          .insert(allNewPerms)
-        
+        const { error } = await supabase.from('team_permissions').insert(allNewPerms)
+
         if (error) throw error
       }
-      
+
       setOriginalPermissions({ ...permissions })
       setOriginalSourceFilesPermsByVault(JSON.parse(JSON.stringify(sourceFilesPermsByVault)))
       setHasChanges(false)
       addToast('success', 'Permissions saved')
-    } catch (err) {
-      log.error('[PermissionsEditor]', 'Failed to save permissions', { error: err })
+    } catch (error) {
+      log.error('[PermissionsEditor]', 'Failed to save permissions', { error: error })
       addToast('error', 'Failed to save permissions')
     } finally {
       setIsSaving(false)
     }
   }
-  
+
   // Get the current vault key for source files
   const getSourceFilesVaultKey = () => selectedSourceFilesVaultId || 'all'
-  
+
   // Get permissions for a resource (handles source files vs others)
   const getResourcePermissions = (resourceId: string): PermissionAction[] => {
     if (sourceFilesResources.includes(resourceId)) {
@@ -349,58 +434,60 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
     }
     return permissions[resourceId] || []
   }
-  
+
   const toggleAction = (resourceId: string, action: PermissionAction) => {
     if (!isAdmin) return
-    
+
     if (sourceFilesResources.includes(resourceId)) {
       // Handle source files - update vault-specific permissions
       const vaultKey = getSourceFilesVaultKey()
-      setSourceFilesPermsByVault(prev => {
+      setSourceFilesPermsByVault((prev) => {
         const vaultPerms = prev[vaultKey] || {}
         const current = vaultPerms[resourceId] || []
         const newActions = current.includes(action)
-          ? current.filter(a => a !== action)
+          ? current.filter((a) => a !== action)
           : [...current, action]
         return {
           ...prev,
           [vaultKey]: {
             ...vaultPerms,
-            [resourceId]: newActions
-          }
+            [resourceId]: newActions,
+          },
         }
       })
     } else {
       // Handle non-source files - update global permissions
-      setPermissions(prev => {
+      setPermissions((prev) => {
         const current = prev[resourceId] || []
         if (current.includes(action)) {
-          return { ...prev, [resourceId]: current.filter(a => a !== action) }
+          return { ...prev, [resourceId]: current.filter((a) => a !== action) }
         } else {
           return { ...prev, [resourceId]: [...current, action] }
         }
       })
     }
   }
-  
+
   const toggleAllInGroup = (groupId: string, action: PermissionAction) => {
     if (!isAdmin) return
-    
-    const group = RESOURCE_GROUPS.find(g => g.id === groupId)
+
+    const group = RESOURCE_GROUPS.find((g) => g.id === groupId)
     if (!group) return
-    
+
     if (groupId === 'source-files') {
       // Handle source files group
       const vaultKey = getSourceFilesVaultKey()
-      const allHave = group.resources.every(r => (sourceFilesPermsByVault[vaultKey]?.[r] || []).includes(action))
-      
-      setSourceFilesPermsByVault(prev => {
+      const allHave = group.resources.every((r) =>
+        (sourceFilesPermsByVault[vaultKey]?.[r] || []).includes(action),
+      )
+
+      setSourceFilesPermsByVault((prev) => {
         const vaultPerms = prev[vaultKey] || {}
         const updated = { ...vaultPerms }
         for (const resourceId of group.resources) {
           const current = updated[resourceId] || []
           if (allHave) {
-            updated[resourceId] = current.filter(a => a !== action)
+            updated[resourceId] = current.filter((a) => a !== action)
           } else if (!current.includes(action)) {
             updated[resourceId] = [...current, action]
           }
@@ -409,14 +496,14 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
       })
     } else {
       // Handle non-source files groups
-      const allHave = group.resources.every(r => (permissions[r] || []).includes(action))
-      
-      setPermissions(prev => {
+      const allHave = group.resources.every((r) => (permissions[r] || []).includes(action))
+
+      setPermissions((prev) => {
         const updated = { ...prev }
         for (const resourceId of group.resources) {
           const current = updated[resourceId] || []
           if (allHave) {
-            updated[resourceId] = current.filter(a => a !== action)
+            updated[resourceId] = current.filter((a) => a !== action)
           } else if (!current.includes(action)) {
             updated[resourceId] = [...current, action]
           }
@@ -425,30 +512,30 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
       })
     }
   }
-  
+
   const setAllActions = (resourceId: string, actions: PermissionAction[]) => {
     if (!isAdmin) return
-    
+
     if (sourceFilesResources.includes(resourceId)) {
       const vaultKey = getSourceFilesVaultKey()
-      setSourceFilesPermsByVault(prev => ({
+      setSourceFilesPermsByVault((prev) => ({
         ...prev,
         [vaultKey]: {
           ...prev[vaultKey],
-          [resourceId]: actions
-        }
+          [resourceId]: actions,
+        },
       }))
     } else {
-      setPermissions(prev => ({ ...prev, [resourceId]: actions }))
+      setPermissions((prev) => ({ ...prev, [resourceId]: actions }))
     }
   }
-  
+
   const applyPreset = (preset: PermissionPreset) => {
     if (!isAdmin) return
     // Split preset into source files and other permissions
     const globalPerms: Record<string, PermissionAction[]> = {}
     const sfPerms: Record<string, PermissionAction[]> = {}
-    
+
     for (const [resource, actions] of Object.entries(preset.permissions)) {
       if (sourceFilesResources.includes(resource)) {
         sfPerms[resource] = actions
@@ -456,30 +543,30 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
         globalPerms[resource] = actions
       }
     }
-    
+
     setPermissions(globalPerms)
     // Apply source files to "all" vault context
-    setSourceFilesPermsByVault(prev => ({ ...prev, all: sfPerms }))
+    setSourceFilesPermsByVault((prev) => ({ ...prev, all: sfPerms }))
     setShowPresets(false)
     addToast('success', `Applied "${preset.name}" preset`)
   }
-  
+
   const resetToOriginal = () => {
     setPermissions({ ...originalPermissions })
     setSourceFilesPermsByVault(JSON.parse(JSON.stringify(originalSourceFilesPermsByVault)))
   }
-  
+
   const clearAll = () => {
     if (!isAdmin) return
     setPermissions({})
     setSourceFilesPermsByVault({})
   }
-  
+
   const grantAll = () => {
     if (!isAdmin) return
     const globalPerms: Record<string, PermissionAction[]> = {}
     const sfPerms: Record<string, PermissionAction[]> = {}
-    
+
     for (const resource of ALL_RESOURCES) {
       if (sourceFilesResources.includes(resource.id)) {
         sfPerms[resource.id] = [...resource.applicableActions]
@@ -487,54 +574,54 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
         globalPerms[resource.id] = [...resource.applicableActions]
       }
     }
-    
+
     setPermissions(globalPerms)
     setSourceFilesPermsByVault({ all: sfPerms })
   }
-  
+
   // Toggle a specific action across ALL resources (including source files for current vault context)
   const toggleAllForAction = (action: PermissionAction) => {
     if (!isAdmin) return
-    
+
     // Get non-source-files resources
-    const nonSfResources = ALL_RESOURCES.filter(r => !sourceFilesResources.includes(r.id))
+    const nonSfResources = ALL_RESOURCES.filter((r) => !sourceFilesResources.includes(r.id))
     // Get source files resources
-    const sfResources = ALL_RESOURCES.filter(r => sourceFilesResources.includes(r.id))
+    const sfResources = ALL_RESOURCES.filter((r) => sourceFilesResources.includes(r.id))
     const vaultKey = getSourceFilesVaultKey()
-    
+
     // Check if all applicable resources have the action (both global and source files)
     const allNonSfHave = nonSfResources
-      .filter(r => r.applicableActions.includes(action))
-      .every(r => (permissions[r.id] || []).includes(action))
+      .filter((r) => r.applicableActions.includes(action))
+      .every((r) => (permissions[r.id] || []).includes(action))
     const allSfHave = sfResources
-      .filter(r => r.applicableActions.includes(action))
-      .every(r => (sourceFilesPermsByVault[vaultKey]?.[r.id] || []).includes(action))
+      .filter((r) => r.applicableActions.includes(action))
+      .every((r) => (sourceFilesPermsByVault[vaultKey]?.[r.id] || []).includes(action))
     const allHave = allNonSfHave && allSfHave
-    
+
     // Update non-source-files permissions
-    setPermissions(prev => {
+    setPermissions((prev) => {
       const updated = { ...prev }
       for (const resource of nonSfResources) {
         if (!resource.applicableActions.includes(action)) continue
         const current = updated[resource.id] || []
         if (allHave) {
-          updated[resource.id] = current.filter(a => a !== action)
+          updated[resource.id] = current.filter((a) => a !== action)
         } else if (!current.includes(action)) {
           updated[resource.id] = [...current, action]
         }
       }
       return updated
     })
-    
+
     // Update source files permissions for current vault context
-    setSourceFilesPermsByVault(prev => {
+    setSourceFilesPermsByVault((prev) => {
       const vaultPerms = prev[vaultKey] || {}
       const updated = { ...vaultPerms }
       for (const resource of sfResources) {
         if (!resource.applicableActions.includes(action)) continue
         const current = updated[resource.id] || []
         if (allHave) {
-          updated[resource.id] = current.filter(a => a !== action)
+          updated[resource.id] = current.filter((a) => a !== action)
         } else if (!current.includes(action)) {
           updated[resource.id] = [...current, action]
         }
@@ -542,46 +629,50 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
       return { ...prev, [vaultKey]: updated }
     })
   }
-  
+
   // Check if all applicable resources have a specific action (including source files for current vault)
   const allHaveAction = (action: PermissionAction): boolean => {
     const vaultKey = getSourceFilesVaultKey()
-    const nonSfResources = ALL_RESOURCES.filter(r => !sourceFilesResources.includes(r.id))
-    const sfResources = ALL_RESOURCES.filter(r => sourceFilesResources.includes(r.id))
-    
+    const nonSfResources = ALL_RESOURCES.filter((r) => !sourceFilesResources.includes(r.id))
+    const sfResources = ALL_RESOURCES.filter((r) => sourceFilesResources.includes(r.id))
+
     const allNonSfHave = nonSfResources
-      .filter(r => r.applicableActions.includes(action))
-      .every(r => (permissions[r.id] || []).includes(action))
+      .filter((r) => r.applicableActions.includes(action))
+      .every((r) => (permissions[r.id] || []).includes(action))
     const allSfHave = sfResources
-      .filter(r => r.applicableActions.includes(action))
-      .every(r => (sourceFilesPermsByVault[vaultKey]?.[r.id] || []).includes(action))
-    
+      .filter((r) => r.applicableActions.includes(action))
+      .every((r) => (sourceFilesPermsByVault[vaultKey]?.[r.id] || []).includes(action))
+
     return allNonSfHave && allSfHave
   }
-  
+
   // Check if some (but not all) applicable resources have a specific action (including source files)
   const someHaveAction = (action: PermissionAction): boolean => {
     const vaultKey = getSourceFilesVaultKey()
-    const nonSfResources = ALL_RESOURCES.filter(r => !sourceFilesResources.includes(r.id))
-    const sfResources = ALL_RESOURCES.filter(r => sourceFilesResources.includes(r.id))
-    
-    const applicableNonSf = nonSfResources.filter(r => r.applicableActions.includes(action))
-    const applicableSf = sfResources.filter(r => r.applicableActions.includes(action))
-    
-    const withActionNonSf = applicableNonSf.filter(r => (permissions[r.id] || []).includes(action))
-    const withActionSf = applicableSf.filter(r => (sourceFilesPermsByVault[vaultKey]?.[r.id] || []).includes(action))
-    
+    const nonSfResources = ALL_RESOURCES.filter((r) => !sourceFilesResources.includes(r.id))
+    const sfResources = ALL_RESOURCES.filter((r) => sourceFilesResources.includes(r.id))
+
+    const applicableNonSf = nonSfResources.filter((r) => r.applicableActions.includes(action))
+    const applicableSf = sfResources.filter((r) => r.applicableActions.includes(action))
+
+    const withActionNonSf = applicableNonSf.filter((r) =>
+      (permissions[r.id] || []).includes(action),
+    )
+    const withActionSf = applicableSf.filter((r) =>
+      (sourceFilesPermsByVault[vaultKey]?.[r.id] || []).includes(action),
+    )
+
     const totalApplicable = applicableNonSf.length + applicableSf.length
     const totalWithAction = withActionNonSf.length + withActionSf.length
-    
+
     return totalWithAction > 0 && totalWithAction < totalApplicable
   }
-  
+
   // Filter resources by search
   const filterResources = (resources: string[]): string[] => {
     if (!searchQuery) return resources
-    return resources.filter(resourceId => {
-      const resource = ALL_RESOURCES.find(r => r.id === resourceId)
+    return resources.filter((resourceId) => {
+      const resource = ALL_RESOURCES.find((r) => r.id === resourceId)
       if (!resource) return false
       return (
         resource.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -589,12 +680,12 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
       )
     })
   }
-  
+
   // Count permissions in a group
   const getGroupStats = (groupId: string) => {
-    const group = RESOURCE_GROUPS.find(g => g.id === groupId)
+    const group = RESOURCE_GROUPS.find((g) => g.id === groupId)
     if (!group) return { total: 0, withPerms: 0 }
-    
+
     let withPerms = 0
     for (const resourceId of group.resources) {
       if (getResourcePermissions(resourceId).length > 0) {
@@ -603,9 +694,9 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
     }
     return { total: group.resources.length, withPerms }
   }
-  
+
   const toggleGroup = (groupId: string) => {
-    setExpandedGroups(prev => {
+    setExpandedGroups((prev) => {
       const next = new Set(prev)
       if (next.has(groupId)) {
         next.delete(groupId)
@@ -615,12 +706,18 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
       return next
     })
   }
-  
-  const IconComponent = (LucideIcons as any)[team.icon] || Users
-  
+
+  const IconComponent = (LucideIcons as any)[team.icon] || Users // TODO: type this
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center overflow-hidden" onClick={onClose}>
-      <div className="bg-plm-bg-light border border-plm-border rounded-xl w-full max-w-6xl h-[90vh] mx-4 flex flex-col shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center overflow-hidden"
+      onClick={onClose}
+    >
+      <div
+        className="bg-plm-bg-light border border-plm-border rounded-xl w-full max-w-6xl h-[90vh] mx-4 flex flex-col shadow-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="p-4 border-b border-plm-border flex items-center gap-4 flex-shrink-0">
           <div
@@ -634,11 +731,9 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
               {team.name}
               <span className="text-sm font-normal text-plm-fg-muted">— Permissions</span>
             </h2>
-            <p className="text-sm text-plm-fg-muted">
-              Configure what this team can access and do
-            </p>
+            <p className="text-sm text-plm-fg-muted">Configure what this team can access and do</p>
           </div>
-          
+
           {/* Action buttons */}
           <div className="flex items-center gap-2">
             {hasChanges && (
@@ -651,7 +746,7 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
                 Reset
               </button>
             )}
-            
+
             {isAdmin && (
               <button
                 onClick={() => setShowPresets(!showPresets)}
@@ -661,7 +756,7 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
                 Presets
               </button>
             )}
-            
+
             <button
               onClick={savePermissions}
               disabled={!hasChanges || isSaving || !isAdmin}
@@ -669,14 +764,10 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
                 hasChanges ? 'btn-primary' : 'btn-ghost opacity-50'
               }`}
             >
-              {isSaving ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <Save size={14} />
-              )}
+              {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
               Save
             </button>
-            
+
             <button
               onClick={onClose}
               className="p-2 text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight rounded-lg transition-colors"
@@ -685,7 +776,7 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
             </button>
           </div>
         </div>
-        
+
         {/* Presets dropdown */}
         {showPresets && isAdmin && (
           <div className="border-b border-plm-border p-4 bg-gradient-to-r from-plm-accent/5 to-transparent">
@@ -710,8 +801,8 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              {DEFAULT_PRESETS.map(preset => {
-                const PresetIcon = (LucideIcons as any)[preset.icon] || Shield
+              {DEFAULT_PRESETS.map((preset) => {
+                const PresetIcon = (LucideIcons as any)[preset.icon] || Shield // TODO: type this
                 return (
                   <button
                     key={preset.name}
@@ -731,49 +822,64 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
             </div>
           </div>
         )}
-        
+
         {/* Toolbar */}
         <div className="p-3 border-b border-plm-border flex items-center gap-3 flex-shrink-0 bg-plm-bg/50">
           <div className="relative flex-1 max-w-xs">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
+            <Search
+              size={14}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted"
+            />
             <input
               type="text"
               value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
+              onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search resources..."
               className="w-full pl-9 pr-3 py-1.5 text-sm bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-dim focus:outline-none focus:border-plm-accent"
             />
           </div>
-          
+
           {/* Quick column toggles */}
           {isAdmin && (
             <div className="flex items-center gap-1">
               <span className="text-xs text-plm-fg-muted mr-1">Toggle All:</span>
-              {PERMISSION_ACTIONS.map(action => {
+              {PERMISSION_ACTIONS.map((action) => {
                 const allHave = allHaveAction(action)
                 const someHave = someHaveAction(action)
-                
-                const checkedClass = 
-                  action === 'view' ? 'bg-blue-500/35 text-blue-300 border-blue-400/70' :
-                  action === 'create' ? 'bg-green-500/35 text-green-300 border-green-400/70' :
-                  action === 'edit' ? 'bg-yellow-500/35 text-yellow-300 border-yellow-400/70' :
-                  action === 'delete' ? 'bg-red-500/35 text-red-300 border-red-400/70' :
-                  'bg-purple-500/35 text-purple-300 border-purple-400/70'
-                
-                const partialClass = 
-                  action === 'view' ? 'bg-blue-500/15 text-blue-400/60 border-blue-400/40' :
-                  action === 'create' ? 'bg-green-500/15 text-green-400/60 border-green-400/40' :
-                  action === 'edit' ? 'bg-yellow-500/15 text-yellow-400/60 border-yellow-400/40' :
-                  action === 'delete' ? 'bg-red-500/15 text-red-400/60 border-red-400/40' :
-                  'bg-purple-500/15 text-purple-400/60 border-purple-400/40'
-                
-                const uncheckedClass = 
-                  action === 'view' ? 'border-blue-500/20 bg-blue-500/5 text-blue-400/40 hover:border-blue-400/50 hover:bg-blue-500/15' :
-                  action === 'create' ? 'border-green-500/20 bg-green-500/5 text-green-400/40 hover:border-green-400/50 hover:bg-green-500/15' :
-                  action === 'edit' ? 'border-yellow-500/20 bg-yellow-500/5 text-yellow-400/40 hover:border-yellow-400/50 hover:bg-yellow-500/15' :
-                  action === 'delete' ? 'border-red-500/20 bg-red-500/5 text-red-400/40 hover:border-red-400/50 hover:bg-red-500/15' :
-                  'border-purple-500/20 bg-purple-500/5 text-purple-400/40 hover:border-purple-400/50 hover:bg-purple-500/15'
-                
+
+                const checkedClass =
+                  action === 'view'
+                    ? 'bg-blue-500/35 text-blue-300 border-blue-400/70'
+                    : action === 'create'
+                      ? 'bg-green-500/35 text-green-300 border-green-400/70'
+                      : action === 'edit'
+                        ? 'bg-yellow-500/35 text-yellow-300 border-yellow-400/70'
+                        : action === 'delete'
+                          ? 'bg-red-500/35 text-red-300 border-red-400/70'
+                          : 'bg-purple-500/35 text-purple-300 border-purple-400/70'
+
+                const partialClass =
+                  action === 'view'
+                    ? 'bg-blue-500/15 text-blue-400/60 border-blue-400/40'
+                    : action === 'create'
+                      ? 'bg-green-500/15 text-green-400/60 border-green-400/40'
+                      : action === 'edit'
+                        ? 'bg-yellow-500/15 text-yellow-400/60 border-yellow-400/40'
+                        : action === 'delete'
+                          ? 'bg-red-500/15 text-red-400/60 border-red-400/40'
+                          : 'bg-purple-500/15 text-purple-400/60 border-purple-400/40'
+
+                const uncheckedClass =
+                  action === 'view'
+                    ? 'border-blue-500/20 bg-blue-500/5 text-blue-400/40 hover:border-blue-400/50 hover:bg-blue-500/15'
+                    : action === 'create'
+                      ? 'border-green-500/20 bg-green-500/5 text-green-400/40 hover:border-green-400/50 hover:bg-green-500/15'
+                      : action === 'edit'
+                        ? 'border-yellow-500/20 bg-yellow-500/5 text-yellow-400/40 hover:border-yellow-400/50 hover:bg-yellow-500/15'
+                        : action === 'delete'
+                          ? 'border-red-500/20 bg-red-500/5 text-red-400/40 hover:border-red-400/50 hover:bg-red-500/15'
+                          : 'border-purple-500/20 bg-purple-500/5 text-purple-400/40 hover:border-purple-400/50 hover:bg-purple-500/15'
+
                 return (
                   <button
                     key={action}
@@ -783,11 +889,19 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
                     }`}
                     title={`${allHave ? 'Remove' : 'Grant'} ${PERMISSION_ACTION_LABELS[action]} for all resources`}
                   >
-                    {allHave ? <Check size={12} /> : someHave ? <Minus size={12} /> : <span className="text-[9px] font-medium">{action.charAt(0).toUpperCase()}</span>}
+                    {allHave ? (
+                      <Check size={12} />
+                    ) : someHave ? (
+                      <Minus size={12} />
+                    ) : (
+                      <span className="text-[9px] font-medium">
+                        {action.charAt(0).toUpperCase()}
+                      </span>
+                    )}
                   </button>
                 )
               })}
-              
+
               {/* Select All / Clear All button */}
               <div className="ml-2 flex items-center gap-1 border-l border-plm-border pl-2">
                 <button
@@ -809,24 +923,30 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
               </div>
             </div>
           )}
-          
+
           {/* Action legend */}
           <div className="flex items-center gap-4 ml-auto text-xs text-plm-fg-muted">
-            {PERMISSION_ACTIONS.map(action => (
+            {PERMISSION_ACTIONS.map((action) => (
               <div key={action} className="flex items-center gap-1.5">
-                <div className={`w-2 h-2 rounded-full ${
-                  action === 'view' ? 'bg-blue-400' :
-                  action === 'create' ? 'bg-green-400' :
-                  action === 'edit' ? 'bg-yellow-400' :
-                  action === 'delete' ? 'bg-red-400' :
-                  'bg-purple-400'
-                }`} />
+                <div
+                  className={`w-2 h-2 rounded-full ${
+                    action === 'view'
+                      ? 'bg-blue-400'
+                      : action === 'create'
+                        ? 'bg-green-400'
+                        : action === 'edit'
+                          ? 'bg-yellow-400'
+                          : action === 'delete'
+                            ? 'bg-red-400'
+                            : 'bg-purple-400'
+                  }`}
+                />
                 {PERMISSION_ACTION_LABELS[action]}
               </div>
             ))}
           </div>
         </div>
-        
+
         {/* Content */}
         <div className="flex-1 overflow-y-auto">
           {isLoading ? (
@@ -835,16 +955,19 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
             </div>
           ) : (
             <div className="p-4 space-y-2">
-              {RESOURCE_GROUPS.map(group => {
+              {RESOURCE_GROUPS.map((group) => {
                 const filteredResources = filterResources(group.resources)
                 if (filteredResources.length === 0) return null
-                
+
                 const isExpanded = expandedGroups.has(group.id)
                 const stats = getGroupStats(group.id)
-                const GroupIcon = (LucideIcons as any)[group.icon] || LayoutGrid
-                
+                const GroupIcon = (LucideIcons as any)[group.icon] || LayoutGrid // TODO: type this
+
                 return (
-                  <div key={group.id} className="border border-plm-border rounded-xl overflow-hidden bg-plm-bg/30">
+                  <div
+                    key={group.id}
+                    className="border border-plm-border rounded-xl overflow-hidden bg-plm-bg/30"
+                  >
                     {/* Group header */}
                     <div className="flex items-center gap-3 px-4 py-3 hover:bg-plm-highlight/50 transition-colors">
                       {/* Icon - same width as child icons */}
@@ -855,7 +978,7 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
                       >
                         <GroupIcon size={16} />
                       </button>
-                      
+
                       {/* Text content - flex-1 like children */}
                       <button
                         onClick={() => toggleGroup(group.id)}
@@ -866,8 +989,7 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
                           <div className="text-xs text-plm-fg-muted">
                             {group.id === 'source-files'
                               ? `${vaults.length} vault${vaults.length !== 1 ? 's' : ''} • ${stats.withPerms} of ${stats.total} configured`
-                              : `${stats.withPerms} of ${stats.total} resources configured`
-                            }
+                              : `${stats.withPerms} of ${stats.total} resources configured`}
                           </div>
                         </div>
                         {isExpanded ? (
@@ -876,36 +998,52 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
                           <ChevronRight size={18} className="text-plm-fg-muted flex-shrink-0" />
                         )}
                       </button>
-                      
+
                       {/* Group-level quick toggles - aligned with child checkboxes */}
                       {isAdmin && (
                         <div className="flex items-center gap-1 flex-shrink-0">
-                          {PERMISSION_ACTIONS.map(action => {
-                            const allHave = group.resources.every(r => getResourcePermissions(r).includes(action))
-                            const someHave = group.resources.some(r => getResourcePermissions(r).includes(action))
-                            
+                          {PERMISSION_ACTIONS.map((action) => {
+                            const allHave = group.resources.every((r) =>
+                              getResourcePermissions(r).includes(action),
+                            )
+                            const someHave = group.resources.some((r) =>
+                              getResourcePermissions(r).includes(action),
+                            )
+
                             // Match the styling from child buttons
-                            const checkedClass = 
-                              action === 'view' ? 'bg-blue-500/35 text-blue-300 border-blue-400/70' :
-                              action === 'create' ? 'bg-green-500/35 text-green-300 border-green-400/70' :
-                              action === 'edit' ? 'bg-yellow-500/35 text-yellow-300 border-yellow-400/70' :
-                              action === 'delete' ? 'bg-red-500/35 text-red-300 border-red-400/70' :
-                              'bg-purple-500/35 text-purple-300 border-purple-400/70'
-                            
-                            const partialClass = 
-                              action === 'view' ? 'bg-blue-500/15 text-blue-400/60 border-blue-400/40' :
-                              action === 'create' ? 'bg-green-500/15 text-green-400/60 border-green-400/40' :
-                              action === 'edit' ? 'bg-yellow-500/15 text-yellow-400/60 border-yellow-400/40' :
-                              action === 'delete' ? 'bg-red-500/15 text-red-400/60 border-red-400/40' :
-                              'bg-purple-500/15 text-purple-400/60 border-purple-400/40'
-                            
-                            const uncheckedClass = 
-                              action === 'view' ? 'border-blue-500/20 bg-blue-500/5 text-blue-400/40 hover:border-blue-400/50 hover:bg-blue-500/15' :
-                              action === 'create' ? 'border-green-500/20 bg-green-500/5 text-green-400/40 hover:border-green-400/50 hover:bg-green-500/15' :
-                              action === 'edit' ? 'border-yellow-500/20 bg-yellow-500/5 text-yellow-400/40 hover:border-yellow-400/50 hover:bg-yellow-500/15' :
-                              action === 'delete' ? 'border-red-500/20 bg-red-500/5 text-red-400/40 hover:border-red-400/50 hover:bg-red-500/15' :
-                              'border-purple-500/20 bg-purple-500/5 text-purple-400/40 hover:border-purple-400/50 hover:bg-purple-500/15'
-                            
+                            const checkedClass =
+                              action === 'view'
+                                ? 'bg-blue-500/35 text-blue-300 border-blue-400/70'
+                                : action === 'create'
+                                  ? 'bg-green-500/35 text-green-300 border-green-400/70'
+                                  : action === 'edit'
+                                    ? 'bg-yellow-500/35 text-yellow-300 border-yellow-400/70'
+                                    : action === 'delete'
+                                      ? 'bg-red-500/35 text-red-300 border-red-400/70'
+                                      : 'bg-purple-500/35 text-purple-300 border-purple-400/70'
+
+                            const partialClass =
+                              action === 'view'
+                                ? 'bg-blue-500/15 text-blue-400/60 border-blue-400/40'
+                                : action === 'create'
+                                  ? 'bg-green-500/15 text-green-400/60 border-green-400/40'
+                                  : action === 'edit'
+                                    ? 'bg-yellow-500/15 text-yellow-400/60 border-yellow-400/40'
+                                    : action === 'delete'
+                                      ? 'bg-red-500/15 text-red-400/60 border-red-400/40'
+                                      : 'bg-purple-500/15 text-purple-400/60 border-purple-400/40'
+
+                            const uncheckedClass =
+                              action === 'view'
+                                ? 'border-blue-500/20 bg-blue-500/5 text-blue-400/40 hover:border-blue-400/50 hover:bg-blue-500/15'
+                                : action === 'create'
+                                  ? 'border-green-500/20 bg-green-500/5 text-green-400/40 hover:border-green-400/50 hover:bg-green-500/15'
+                                  : action === 'edit'
+                                    ? 'border-yellow-500/20 bg-yellow-500/5 text-yellow-400/40 hover:border-yellow-400/50 hover:bg-yellow-500/15'
+                                    : action === 'delete'
+                                      ? 'border-red-500/20 bg-red-500/5 text-red-400/40 hover:border-red-400/50 hover:bg-red-500/15'
+                                      : 'border-purple-500/20 bg-purple-500/5 text-purple-400/40 hover:border-purple-400/50 hover:bg-purple-500/15'
+
                             return (
                               <button
                                 key={action}
@@ -915,7 +1053,15 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
                                 }`}
                                 title={`Toggle ${PERMISSION_ACTION_LABELS[action]} for all in ${group.name}`}
                               >
-                                {allHave ? <Check size={14} /> : someHave ? <Minus size={14} /> : <span className="text-[10px] font-medium">{action.charAt(0).toUpperCase()}</span>}
+                                {allHave ? (
+                                  <Check size={14} />
+                                ) : someHave ? (
+                                  <Minus size={14} />
+                                ) : (
+                                  <span className="text-[10px] font-medium">
+                                    {action.charAt(0).toUpperCase()}
+                                  </span>
+                                )}
                               </button>
                             )
                           })}
@@ -924,7 +1070,7 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
                         </div>
                       )}
                     </div>
-                    
+
                     {/* Group resources */}
                     {isExpanded && (
                       <div className="border-t border-plm-border">
@@ -943,7 +1089,7 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
                               <Database size={11} />
                               All
                             </button>
-                            {vaults.map(vault => (
+                            {vaults.map((vault) => (
                               <button
                                 key={vault.id}
                                 onClick={() => setSelectedSourceFilesVaultId(vault.id)}
@@ -959,26 +1105,28 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
                             ))}
                           </div>
                         )}
-                        
+
                         {filteredResources.map((resourceId, idx) => {
-                          const resource = ALL_RESOURCES.find(r => r.id === resourceId)
+                          const resource = ALL_RESOURCES.find((r) => r.id === resourceId)
                           if (!resource) return null
-                          
-                          const ResourceIcon = (LucideIcons as any)[resource.icon] || Shield
+
+                          const ResourceIcon = (LucideIcons as any)[resource.icon] || Shield // TODO: type this
                           const currentActions = getResourcePermissions(resourceId)
-                          
+
                           return (
                             <div
                               key={resourceId}
                               className={`flex items-center gap-3 px-4 py-2.5 hover:bg-plm-highlight/30 transition-colors ${
-                                idx !== filteredResources.length - 1 ? 'border-b border-plm-border/20' : ''
+                                idx !== filteredResources.length - 1
+                                  ? 'border-b border-plm-border/20'
+                                  : ''
                               }`}
                             >
                               {/* Resource icon */}
                               <div className="w-8 h-8 rounded-lg bg-plm-bg-secondary flex items-center justify-center text-plm-fg-muted">
                                 <ResourceIcon size={16} />
                               </div>
-                              
+
                               {/* Resource info */}
                               <div className="flex-1 min-w-0">
                                 <div className="text-sm text-plm-fg font-medium truncate">
@@ -988,13 +1136,13 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
                                   {resource.description}
                                 </div>
                               </div>
-                              
+
                               {/* Permission checkboxes */}
                               <div className="flex items-center gap-1">
-                                {PERMISSION_ACTIONS.map(action => {
+                                {PERMISSION_ACTIONS.map((action) => {
                                   const isApplicable = resource.applicableActions.includes(action)
                                   const isGranted = currentActions.includes(action)
-                                  
+
                                   if (!isApplicable) {
                                     return (
                                       <div
@@ -1006,47 +1154,55 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
                                       </div>
                                     )
                                   }
-                                  
+
                                   // Brighter colors for checked state
-                                  const colorClass = 
-                                    action === 'view' ? 'bg-blue-500/35 text-blue-300 border-blue-400/70' :
-                                    action === 'create' ? 'bg-green-500/35 text-green-300 border-green-400/70' :
-                                    action === 'edit' ? 'bg-yellow-500/35 text-yellow-300 border-yellow-400/70' :
-                                    action === 'delete' ? 'bg-red-500/35 text-red-300 border-red-400/70' :
-                                    'bg-purple-500/35 text-purple-300 border-purple-400/70'
-                                  
+                                  const colorClass =
+                                    action === 'view'
+                                      ? 'bg-blue-500/35 text-blue-300 border-blue-400/70'
+                                      : action === 'create'
+                                        ? 'bg-green-500/35 text-green-300 border-green-400/70'
+                                        : action === 'edit'
+                                          ? 'bg-yellow-500/35 text-yellow-300 border-yellow-400/70'
+                                          : action === 'delete'
+                                            ? 'bg-red-500/35 text-red-300 border-red-400/70'
+                                            : 'bg-purple-500/35 text-purple-300 border-purple-400/70'
+
                                   // Dimmer colors for unchecked state
-                                  const uncheckedColorClass = 
-                                    action === 'view' ? 'border-blue-500/20 bg-blue-500/5 text-blue-400/40 hover:border-blue-400/50 hover:bg-blue-500/15 hover:text-blue-400/70' :
-                                    action === 'create' ? 'border-green-500/20 bg-green-500/5 text-green-400/40 hover:border-green-400/50 hover:bg-green-500/15 hover:text-green-400/70' :
-                                    action === 'edit' ? 'border-yellow-500/20 bg-yellow-500/5 text-yellow-400/40 hover:border-yellow-400/50 hover:bg-yellow-500/15 hover:text-yellow-400/70' :
-                                    action === 'delete' ? 'border-red-500/20 bg-red-500/5 text-red-400/40 hover:border-red-400/50 hover:bg-red-500/15 hover:text-red-400/70' :
-                                    'border-purple-500/20 bg-purple-500/5 text-purple-400/40 hover:border-purple-400/50 hover:bg-purple-500/15 hover:text-purple-400/70'
-                                  
+                                  const uncheckedColorClass =
+                                    action === 'view'
+                                      ? 'border-blue-500/20 bg-blue-500/5 text-blue-400/40 hover:border-blue-400/50 hover:bg-blue-500/15 hover:text-blue-400/70'
+                                      : action === 'create'
+                                        ? 'border-green-500/20 bg-green-500/5 text-green-400/40 hover:border-green-400/50 hover:bg-green-500/15 hover:text-green-400/70'
+                                        : action === 'edit'
+                                          ? 'border-yellow-500/20 bg-yellow-500/5 text-yellow-400/40 hover:border-yellow-400/50 hover:bg-yellow-500/15 hover:text-yellow-400/70'
+                                          : action === 'delete'
+                                            ? 'border-red-500/20 bg-red-500/5 text-red-400/40 hover:border-red-400/50 hover:bg-red-500/15 hover:text-red-400/70'
+                                            : 'border-purple-500/20 bg-purple-500/5 text-purple-400/40 hover:border-purple-400/50 hover:bg-purple-500/15 hover:text-purple-400/70'
+
                                   // Get the first letter of the action for unchecked display
                                   const actionLetter = action.charAt(0).toUpperCase()
-                                  
+
                                   return (
                                     <button
                                       key={action}
                                       onClick={() => toggleAction(resourceId, action)}
                                       disabled={!isAdmin}
                                       className={`w-9 h-9 rounded-lg flex items-center justify-center border transition-all ${
-                                        isGranted
-                                          ? colorClass
-                                          : uncheckedColorClass
+                                        isGranted ? colorClass : uncheckedColorClass
                                       } ${!isAdmin ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
                                       title={`${isGranted ? 'Revoke' : 'Grant'} ${PERMISSION_ACTION_LABELS[action]}`}
                                     >
                                       {isGranted ? (
                                         <Check size={14} />
                                       ) : (
-                                        <span className="text-[10px] font-medium">{actionLetter}</span>
+                                        <span className="text-[10px] font-medium">
+                                          {actionLetter}
+                                        </span>
                                       )}
                                     </button>
                                   )
                                 })}
-                                
+
                                 {/* Quick actions */}
                                 {isAdmin && (
                                   <div className="ml-2 flex items-center gap-1 opacity-0 group-hover:opacity-100">
@@ -1058,7 +1214,9 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
                                       <X size={12} />
                                     </button>
                                     <button
-                                      onClick={() => setAllActions(resourceId, [...resource.applicableActions])}
+                                      onClick={() =>
+                                        setAllActions(resourceId, [...resource.applicableActions])
+                                      }
                                       className="p-1.5 text-plm-fg-dim hover:text-plm-accent hover:bg-plm-accent/10 rounded transition-colors"
                                       title="Grant all"
                                     >
@@ -1078,18 +1236,20 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
             </div>
           )}
         </div>
-        
+
         {/* Footer with summary */}
         <div className="p-4 border-t border-plm-border flex items-center justify-between bg-plm-bg/50 flex-shrink-0">
           <div className="flex items-center gap-4 text-sm text-plm-fg-muted">
             <div className="flex items-center gap-1.5">
               <Shield size={14} />
               <span>
-                {Object.entries(permissions).filter(([_, a]) => a.length > 0).length + 
-                  Object.values(sourceFilesPermsByVault).reduce((sum, vaultPerms) => 
-                    sum + Object.values(vaultPerms).filter(a => a.length > 0).length, 0
-                  )
-                } resources configured
+                {Object.entries(permissions).filter(([_, a]) => a.length > 0).length +
+                  Object.values(sourceFilesPermsByVault).reduce(
+                    (sum, vaultPerms) =>
+                      sum + Object.values(vaultPerms).filter((a) => a.length > 0).length,
+                    0,
+                  )}{' '}
+                resources configured
               </span>
             </div>
             {hasChanges && (
@@ -1099,7 +1259,7 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
               </div>
             )}
           </div>
-          
+
           <div className="flex items-center gap-2">
             <button onClick={onClose} className="btn btn-ghost">
               {hasChanges ? 'Cancel' : 'Close'}
@@ -1110,11 +1270,7 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
                 disabled={!hasChanges || isSaving}
                 className="btn btn-primary flex items-center gap-2"
               >
-                {isSaving ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  <Save size={16} />
-                )}
+                {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                 Save Permissions
               </button>
             )}
@@ -1124,4 +1280,3 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
     </div>
   )
 }
-

@@ -1,9 +1,9 @@
 /**
  * Extension Permissions System
- * 
+ *
  * Provides permission checking for extension API access.
  * All API methods check permissions before executing.
- * 
+ *
  * @module extensions/api/permissions
  */
 
@@ -20,11 +20,11 @@ export class PermissionDeniedError extends Error {
   constructor(
     public readonly extensionId: string,
     public readonly api: string,
-    public readonly requiredPermissions: string[]
+    public readonly requiredPermissions: string[],
   ) {
     super(
       `Extension '${extensionId}' does not have permission to access '${api}'. ` +
-      `Required permissions: ${requiredPermissions.join(', ')}`
+        `Required permissions: ${requiredPermissions.join(', ')}`,
     )
     this.name = 'PermissionDeniedError'
   }
@@ -33,12 +33,12 @@ export class PermissionDeniedError extends Error {
 /**
  * Check if an extension has permission to access an API method.
  * Throws PermissionDeniedError if permission is denied.
- * 
+ *
  * @param extensionId - The ID of the extension
  * @param api - The API method being accessed (e.g., 'ui.showToast')
  * @param grantedPermissions - Permissions granted to the extension
  * @throws PermissionDeniedError if permission is denied
- * 
+ *
  * @example
  * ```typescript
  * // In API implementation
@@ -49,20 +49,18 @@ export class PermissionDeniedError extends Error {
 export function checkPermission(
   extensionId: string,
   api: string,
-  grantedPermissions: string[]
+  grantedPermissions: string[],
 ): void {
   const required = getRequiredPermissions(api)
-  
+
   // If no permissions required, allow
   if (required.length === 0) {
     return
   }
-  
+
   // Check if all required permissions are granted
-  const missingPermissions = required.filter(
-    (perm) => !grantedPermissions.includes(perm)
-  )
-  
+  const missingPermissions = required.filter((perm) => !grantedPermissions.includes(perm))
+
   if (missingPermissions.length > 0) {
     throw new PermissionDeniedError(extensionId, api, missingPermissions)
   }
@@ -71,35 +69,32 @@ export function checkPermission(
 /**
  * Check if an extension has all specified permissions.
  * Returns boolean instead of throwing.
- * 
+ *
  * @param requiredPermissions - Permissions to check
  * @param grantedPermissions - Permissions granted to the extension
  * @returns True if all required permissions are granted
  */
 export function hasPermissions(
   requiredPermissions: ClientPermission[],
-  grantedPermissions: string[]
+  grantedPermissions: string[],
 ): boolean {
   return requiredPermissions.every((perm) => grantedPermissions.includes(perm))
 }
 
 /**
  * Check if an extension has a specific permission.
- * 
+ *
  * @param permission - Permission to check
  * @param grantedPermissions - Permissions granted to the extension
  * @returns True if the permission is granted
  */
-export function hasPermission(
-  permission: ClientPermission,
-  grantedPermissions: string[]
-): boolean {
+export function hasPermission(permission: ClientPermission, grantedPermissions: string[]): boolean {
   return grantedPermissions.includes(permission)
 }
 
 /**
  * Get the permissions required for an API method.
- * 
+ *
  * @param api - The API method (e.g., 'ui.showToast')
  * @returns Array of required permissions
  */
@@ -113,7 +108,7 @@ export function getRequiredPermissions(api: string): ClientPermission[] {
     'ui.showProgress': ['ui:progress'],
     'ui.showQuickPick': ['ui:dialog'],
     'ui.showInputBox': ['ui:dialog'],
-    
+
     // Storage
     'storage.get': ['storage:local'],
     'storage.set': ['storage:local'],
@@ -121,36 +116,36 @@ export function getRequiredPermissions(api: string): ClientPermission[] {
     'storage.keys': ['storage:local'],
     'storage.has': ['storage:local'],
     'storage.clear': ['storage:local'],
-    
+
     // Network
-    'callOrgApi': ['network:orgApi'],
-    'callStoreApi': ['network:storeApi'],
-    'fetch': ['network:fetch'],
-    
+    callOrgApi: ['network:orgApi'],
+    callStoreApi: ['network:storeApi'],
+    fetch: ['network:fetch'],
+
     // Commands
     'commands.registerCommand': ['commands:register'],
     'commands.executeCommand': ['commands:execute'],
     'commands.getCommands': [],
-    
+
     // Workspace
     'workspace.onFileChanged': ['workspace:files'],
     'workspace.getOpenFiles': ['workspace:files'],
     'workspace.getCurrentVault': [],
     'workspace.getVaults': [],
-    
+
     // Events (no permissions needed)
     'events.on': [],
     'events.emit': [],
-    
+
     // Telemetry
     'telemetry.trackEvent': ['telemetry'],
     'telemetry.trackError': ['telemetry'],
     'telemetry.trackTiming': ['telemetry'],
-    
+
     // Context (no permissions needed)
-    'context': [],
+    context: [],
   }
-  
+
   return apiPermissions[api] || []
 }
 
@@ -178,25 +173,25 @@ export const VALID_CLIENT_PERMISSIONS: ClientPermission[] = [
 
 /**
  * Validate that all permissions in a list are valid.
- * 
+ *
  * @param permissions - Permissions to validate
  * @returns Array of invalid permissions (empty if all valid)
  */
 export function validatePermissions(permissions: string[]): string[] {
   const invalid: string[] = []
-  
+
   for (const perm of permissions) {
     if (!VALID_CLIENT_PERMISSIONS.includes(perm as ClientPermission)) {
       invalid.push(perm)
     }
   }
-  
+
   return invalid
 }
 
 /**
  * Normalize permissions by removing duplicates and sorting.
- * 
+ *
  * @param permissions - Permissions to normalize
  * @returns Normalized permission list
  */
@@ -262,7 +257,7 @@ export const PERMISSION_CATEGORIES: PermissionCategory[] = [
 
 /**
  * Get human-readable description for a permission.
- * 
+ *
  * @param permission - The permission to describe
  * @returns Human-readable description
  */
@@ -279,15 +274,15 @@ export function getPermissionDescription(permission: ClientPermission): string {
     'commands:register': 'Register new commands',
     'commands:execute': 'Execute registered commands',
     'workspace:files': 'Monitor file changes',
-    'telemetry': 'Send anonymous analytics',
+    telemetry: 'Send anonymous analytics',
   }
-  
+
   return descriptions[permission] || permission
 }
 
 /**
  * Get the category for a permission.
- * 
+ *
  * @param permission - The permission
  * @returns The category ID
  */
@@ -307,7 +302,7 @@ export function getPermissionCategory(permission: ClientPermission): string {
 /**
  * Grant additional permissions to an extension.
  * This would be persisted to extension settings.
- * 
+ *
  * @param extensionId - The extension ID
  * @param currentPermissions - Current granted permissions
  * @param newPermissions - New permissions to grant
@@ -316,7 +311,7 @@ export function getPermissionCategory(permission: ClientPermission): string {
 export function grantPermissions(
   extensionId: string,
   currentPermissions: string[],
-  newPermissions: ClientPermission[]
+  newPermissions: ClientPermission[],
 ): string[] {
   const updated = normalizePermissions([...currentPermissions, ...newPermissions])
   console.info(`[Permissions] Granted to ${extensionId}:`, newPermissions)
@@ -325,7 +320,7 @@ export function grantPermissions(
 
 /**
  * Revoke permissions from an extension.
- * 
+ *
  * @param extensionId - The extension ID
  * @param currentPermissions - Current granted permissions
  * @param permissionsToRevoke - Permissions to revoke
@@ -334,10 +329,10 @@ export function grantPermissions(
 export function revokePermissions(
   extensionId: string,
   currentPermissions: string[],
-  permissionsToRevoke: ClientPermission[]
+  permissionsToRevoke: ClientPermission[],
 ): string[] {
   const updated = currentPermissions.filter(
-    (perm) => !permissionsToRevoke.includes(perm as ClientPermission)
+    (perm) => !permissionsToRevoke.includes(perm as ClientPermission),
   )
   console.info(`[Permissions] Revoked from ${extensionId}:`, permissionsToRevoke)
   return updated

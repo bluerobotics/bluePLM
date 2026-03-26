@@ -6,7 +6,12 @@ export { Avatar, AvatarWithStatus } from './Avatar'
 export { AvatarGroup } from './Avatar'
 
 // Pickers
-export { ColorPicker, ColorPickerDropdown, ColorSwatchRow, DEFAULT_PRESET_COLORS } from './ColorPicker'
+export {
+  ColorPicker,
+  ColorPickerDropdown,
+  ColorSwatchRow,
+  DEFAULT_PRESET_COLORS,
+} from './ColorPicker'
 export { IconPicker, IconGridPicker, ICON_LIBRARY, ICON_CATEGORIES, ICONS } from './IconPicker'
 
 // Tab/Panel components

@@ -1,6 +1,6 @@
 /**
  * Command Error Types
- * 
+ *
  * Custom error types for command execution.
  */
 
@@ -18,7 +18,10 @@ export class UnknownCommandError extends Error {
  * Error thrown when a command fails during execution
  */
 export class CommandExecutionError extends Error {
-  constructor(public command: string, public originalError: Error) {
+  constructor(
+    public command: string,
+    public originalError: Error,
+  ) {
     super(`Command '${command}' failed: ${originalError.message}`)
     this.name = 'CommandExecutionError'
   }

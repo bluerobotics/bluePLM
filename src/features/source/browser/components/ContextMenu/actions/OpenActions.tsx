@@ -15,17 +15,17 @@ export function OpenActions({
   onClose,
   navigateToFolder,
 }: OpenActionsProps) {
-  const allFiles = contextFiles.every(f => !f.isDirectory)
-  const allCloudOnly = contextFiles.every(f => f.diffStatus === 'cloud')
+  const allFiles = contextFiles.every((f) => !f.isDirectory)
+  const allCloudOnly = contextFiles.every((f) => f.diffStatus === 'cloud')
   const isFolder = firstFile.isDirectory
-  const fileCount = contextFiles.filter(f => !f.isDirectory).length
-  const folderCount = contextFiles.filter(f => f.isDirectory).length
+  const fileCount = contextFiles.filter((f) => !f.isDirectory).length
+  const folderCount = contextFiles.filter((f) => f.isDirectory).length
   const countLabel = getCountLabel(fileCount, folderCount)
 
   // Single file - not cloud only
   if (!multiSelect && !isFolder && !allCloudOnly) {
     return (
-      <div 
+      <div
         className="context-menu-item"
         onClick={() => {
           window.electronAPI?.openFile(firstFile.path)
@@ -40,7 +40,7 @@ export function OpenActions({
   // Multiple files - all are files, not cloud only
   if (multiSelect && allFiles && !allCloudOnly) {
     return (
-      <div 
+      <div
         className="context-menu-item"
         onClick={async () => {
           for (const file of contextFiles) {
@@ -57,7 +57,7 @@ export function OpenActions({
   // Single folder - not cloud only
   if (!multiSelect && isFolder && !allCloudOnly) {
     return (
-      <div 
+      <div
         className="context-menu-item"
         onClick={() => {
           navigateToFolder(firstFile.relativePath)

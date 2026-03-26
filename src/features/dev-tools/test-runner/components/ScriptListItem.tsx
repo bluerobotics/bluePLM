@@ -42,9 +42,7 @@ export function ScriptListItem({
 
       {/* Script info */}
       <div className="flex-1 min-w-0">
-        <div className="text-xs font-mono text-slate-200 truncate">
-          {displayName}
-        </div>
+        <div className="text-xs font-mono text-slate-200 truncate">{displayName}</div>
         {script.metadata.requires.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-0.5">
             {script.metadata.requires.map((req) => (

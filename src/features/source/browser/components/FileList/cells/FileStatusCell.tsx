@@ -13,18 +13,18 @@ const OPERATION_LABELS: Record<string, string> = {
   download: 'Downloading...',
   upload: 'Uploading...',
   sync: 'Syncing...',
-  delete: 'Deleting...'
+  delete: 'Deleting...',
 }
 
 export function FileStatusCell({ file }: CellRendererBaseProps): React.ReactNode {
   const { user, currentMachineId } = useFilePaneContext()
   const { getProcessingOperation } = useFilePaneHandlers()
-  
+
   if (file.isDirectory) return ''
-  
+
   // Get operation type for this file (if any operation is in progress)
   const operationType = getProcessingOperation(file.relativePath, false)
-  
+
   // Priority (highest to lowest):
   // 0. PROCESSING - always show spinner first (prevents flickering)
   // 1. Update files (outdated) - needs update from server
@@ -33,7 +33,7 @@ export function FileStatusCell({ file }: CellRendererBaseProps): React.ReactNode
   // 4. Drift warning (checked in but local differs from server)
   // 5. Green cloud (synced/checked in)
   // 6. Local files (not synced) - lowest priority
-  
+
   // 0. HIGHEST: Processing state - show spinner immediately
   if (operationType) {
     const label = OPERATION_LABELS[operationType] || 'Processing...'
@@ -44,48 +44,61 @@ export function FileStatusCell({ file }: CellRendererBaseProps): React.ReactNode
       </span>
     )
   }
-  
+
   // 1. Update files (outdated - server has newer version)
   if (file.diffStatus === 'outdated') {
     return (
-      <span className="flex items-center gap-1 text-purple-400" title="Server has a newer version - update available">
+      <span
+        className="flex items-center gap-1 text-purple-400"
+        title="Server has a newer version - update available"
+      >
         <ArrowDown size={12} className="flex-shrink-0" />
         Update
       </span>
     )
   }
-  
+
   // 2. Cloud files (exists on server, not downloaded locally)
   if (file.diffStatus === 'cloud') {
     return (
-      <span className="flex items-center gap-1 text-plm-info" title="Cloud file - download to work on it">
+      <span
+        className="flex items-center gap-1 text-plm-info"
+        title="Cloud file - download to work on it"
+      >
         <Cloud size={12} className="flex-shrink-0" />
         Cloud
       </span>
     )
   }
-  
+
   // 3. Avatar checkout (checked out by someone)
   if (file.pdmData?.checked_out_by) {
     const isMe = user?.id === file.pdmData.checked_out_by
     const checkoutUser = file.pdmData.checked_out_user
     const checkoutAvatarUrl = isMe ? user?.avatar_url : checkoutUser?.avatar_url
-    const checkoutName = isMe ? 'You' : (checkoutUser?.full_name || checkoutUser?.email?.split('@')[0] || 'Someone')
-    
+    const checkoutName = isMe
+      ? 'You'
+      : checkoutUser?.full_name || checkoutUser?.email?.split('@')[0] || 'Someone'
+
     // Check if checked out on different machine (only for current user)
     const checkoutMachineId = file.pdmData.checked_out_by_machine_id
     const checkoutMachineName = file.pdmData.checked_out_by_machine_name
-    const isDifferentMachine = isMe && checkoutMachineId && currentMachineId && checkoutMachineId !== currentMachineId
-    
+    const isDifferentMachine =
+      isMe && checkoutMachineId && currentMachineId && checkoutMachineId !== currentMachineId
+
     return (
-      <span 
-        className={`flex items-center gap-1 ${isMe ? 'text-plm-warning' : 'text-plm-error'}`} 
-        title={isDifferentMachine ? `Checked out by ${checkoutName} on ${checkoutMachineName || 'another computer'} (different computer)` : `Checked out by ${checkoutName}`}
+      <span
+        className={`flex items-center gap-1 ${isMe ? 'text-plm-warning' : 'text-plm-error'}`}
+        title={
+          isDifferentMachine
+            ? `Checked out by ${checkoutName} on ${checkoutMachineName || 'another computer'} (different computer)`
+            : `Checked out by ${checkoutName}`
+        }
       >
         <div className="relative w-5 h-5 flex-shrink-0">
           {checkoutAvatarUrl ? (
-            <img 
-              src={checkoutAvatarUrl} 
+            <img
+              src={checkoutAvatarUrl}
               alt={checkoutName}
               className="w-5 h-5 rounded-full object-cover"
               referrerPolicy="no-referrer"
@@ -96,19 +109,18 @@ export function FileStatusCell({ file }: CellRendererBaseProps): React.ReactNode
               }}
             />
           ) : null}
-          <div className={`w-5 h-5 rounded-full ${isMe ? 'bg-plm-warning/30' : 'bg-plm-error/30'} flex items-center justify-center text-[9px] font-medium absolute inset-0 ${checkoutAvatarUrl ? 'hidden' : ''}`}>
+          <div
+            className={`w-5 h-5 rounded-full ${isMe ? 'bg-plm-warning/30' : 'bg-plm-error/30'} flex items-center justify-center text-[9px] font-medium absolute inset-0 ${checkoutAvatarUrl ? 'hidden' : ''}`}
+          >
             {getInitials(checkoutName)}
           </div>
           {isDifferentMachine && (
-            <div 
+            <div
               className="absolute -bottom-0.5 -right-0.5 bg-plm-warning rounded-full p-0.5"
               style={{ width: 8, height: 8 }}
               title={`Checked out on ${checkoutMachineName || 'another computer'}`}
             >
-              <Monitor 
-                size={6} 
-                className="text-plm-bg w-full h-full" 
-              />
+              <Monitor size={6} className="text-plm-bg w-full h-full" />
             </div>
           )}
         </div>
@@ -116,7 +128,7 @@ export function FileStatusCell({ file }: CellRendererBaseProps): React.ReactNode
       </span>
     )
   }
-  
+
   // 4. Drift warning: checked in but local file differs from server.
   // SolidWorks can modify a file after check-in (e.g., reference rebuild),
   // leaving local changes that are NOT on the server and NOT protected by a lock.
@@ -131,7 +143,7 @@ export function FileStatusCell({ file }: CellRendererBaseProps): React.ReactNode
       </span>
     )
   }
-  
+
   // 5. Green cloud (synced/checked in - has pdmData, no checkout)
   if (file.pdmData) {
     return (
@@ -141,10 +153,13 @@ export function FileStatusCell({ file }: CellRendererBaseProps): React.ReactNode
       </span>
     )
   }
-  
+
   // 6. LOWEST: Local files (not synced - no pdmData)
   return (
-    <span className="flex items-center gap-1 text-plm-fg-muted" title="Local file - not yet synced to cloud">
+    <span
+      className="flex items-center gap-1 text-plm-fg-muted"
+      title="Local file - not yet synced to cloud"
+    >
       <HardDrive size={12} className="flex-shrink-0" />
       Local
     </span>

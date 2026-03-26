@@ -1,16 +1,16 @@
 /**
  * useHandlers - Consolidates all handler functions for TeamMembersSettings
- * 
+ *
  * This hook composes domain-specific handler hooks into a single interface.
  * It provides backward compatibility while internally using modular hooks.
- * 
+ *
  * For new code, consider using the domain-specific hooks directly:
  * - useTeamHandlers - Team CRUD and vault access
  * - useUserHandlers - User management and vault access
  * - useWorkflowRoleHandlers - Workflow role CRUD
  * - useJobTitleHandlers - Job title CRUD and assignments
  * - usePendingMemberHandlers - Pending member updates and invites
- * 
+ *
  * @example
  * ```tsx
  * const handlers = useHandlers({ ...params })
@@ -18,15 +18,15 @@
  * ```
  */
 import { useCallback } from 'react'
-import type { 
-  OrgUser, 
-  TeamWithDetails, 
+import type {
+  OrgUser,
+  TeamWithDetails,
   PendingMember,
   TeamFormData,
   WorkflowRoleFormData,
   PendingMemberFormData,
   WorkflowRoleBasic,
-  JobTitle
+  JobTitle,
 } from '../types'
 import { useTeamHandlers } from './handlers/useTeamHandlers'
 import { useUserHandlers } from './handlers/useUserHandlers'
@@ -37,12 +37,12 @@ import { usePendingMemberHandlers } from './handlers/usePendingMemberHandlers'
 export interface UseHandlersParams {
   // Current user
   user: { id: string } | null
-  
+
   // Organization
   organization: { id: string } | null
   setOrganization: (org: unknown) => void
   addToast: (type: 'success' | 'error' | 'warning' | 'info', message: string) => void
-  
+
   // Data hook methods - Teams
   hookCreateTeam: (formData: TeamFormData, copyFromTeamId?: string | null) => Promise<boolean>
   hookUpdateTeam: (teamId: string, formData: TeamFormData) => Promise<boolean>
@@ -51,35 +51,50 @@ export interface UseHandlersParams {
     teamId: string | null,
     orgId: string,
     setOrg: (org: T) => void,
-    org: T
+    org: T,
   ) => Promise<boolean>
-  
+
   // Data hook methods - Members
   removeMember: (userId: string) => Promise<boolean>
   hookRemoveFromTeam: (userId: string, teamId: string, teamName: string) => Promise<boolean>
   hookToggleTeam: (userId: string, teamId: string, isAdding: boolean) => Promise<boolean>
-  
+
   // Data hook methods - Invites
   hookUpdatePendingMember: (memberId: string, data: PendingMemberFormData) => Promise<boolean>
   hookResendInvite: (pm: PendingMember) => Promise<boolean>
-  
+
   // Data hook methods - Workflow Roles
   hookCreateWorkflowRole: (data: WorkflowRoleFormData) => Promise<boolean>
   hookUpdateWorkflowRole: (roleId: string, data: WorkflowRoleFormData) => Promise<boolean>
   hookDeleteWorkflowRole: (roleId: string) => Promise<boolean>
-  hookToggleUserRole: (userId: string, roleId: string, isAdding: boolean, addedBy?: string) => Promise<boolean>
-  
+  hookToggleUserRole: (
+    userId: string,
+    roleId: string,
+    isAdding: boolean,
+    addedBy?: string,
+  ) => Promise<boolean>
+
   // Data hook methods - Job Titles
-  hookCreateJobTitle: (name: string, color: string, icon: string, assignToUserId?: string) => Promise<boolean>
-  hookUpdateJobTitle: (titleId: string, name: string, color: string, icon: string) => Promise<boolean>
+  hookCreateJobTitle: (
+    name: string,
+    color: string,
+    icon: string,
+    assignToUserId?: string,
+  ) => Promise<boolean>
+  hookUpdateJobTitle: (
+    titleId: string,
+    name: string,
+    color: string,
+    icon: string,
+  ) => Promise<boolean>
   hookDeleteJobTitle: (titleId: string) => Promise<boolean>
   hookAssignJobTitle: (user: OrgUser, titleId: string | null) => Promise<boolean>
-  
+
   // Data hook methods - Vault Access
   saveTeamVaultAccess: (teamId: string, vaultIds: string[], teamName: string) => Promise<boolean>
   saveUserVaultAccess: (userId: string, vaultIds: string[], userName: string) => Promise<boolean>
   getUserAccessibleVaults: (userId: string) => string[]
-  
+
   // Data refresh functions
   loadTeams: () => Promise<void>
   loadOrgUsers: () => Promise<void>
@@ -88,7 +103,7 @@ export interface UseHandlersParams {
   loadJobTitles: () => Promise<void>
   loadTeamVaultAccess: () => Promise<void>
   loadAllVaultData: () => Promise<void>
-  
+
   // Team dialog state
   selectedTeam: TeamWithDetails | null
   setSelectedTeam: (team: TeamWithDetails | null) => void
@@ -115,7 +130,7 @@ export interface UseHandlersParams {
   teamVaultAccessMap: Record<string, string[]>
   setPendingTeamVaultAccess: (ids: string[]) => void
   resetTeamForm: () => void
-  
+
   // User dialog state
   removingUser: OrgUser | null
   setRemovingUser: (user: OrgUser | null) => void
@@ -131,7 +146,7 @@ export interface UseHandlersParams {
   setPendingVaultAccess: (ids: string[]) => void
   isSavingVaultAccess: boolean
   setIsSavingVaultAccess: (v: boolean) => void
-  
+
   // Workflow role dialog state
   showCreateWorkflowRoleDialog: boolean
   setShowCreateWorkflowRoleDialog: (v: boolean) => void
@@ -143,7 +158,7 @@ export interface UseHandlersParams {
   setWorkflowRoleFormData: (data: WorkflowRoleFormData) => void
   isSavingWorkflowRole: boolean
   setIsSavingWorkflowRole: (v: boolean) => void
-  
+
   // Job title dialog state
   showCreateTitleDialog: boolean
   setShowCreateTitleDialog: (v: boolean) => void
@@ -160,7 +175,7 @@ export interface UseHandlersParams {
   editingJobTitle: JobTitle | null
   setEditingJobTitle: (title: JobTitle | null) => void
   jobTitles: JobTitle[]
-  
+
   // Pending member state
   editingPendingMember: PendingMember | null
   setEditingPendingMember: (pm: PendingMember | null) => void
@@ -168,7 +183,7 @@ export interface UseHandlersParams {
   isSavingPendingMember: boolean
   setIsSavingPendingMember: (v: boolean) => void
   setResendingInviteId: (id: string | null) => void
-  
+
   // Default team state
   isSavingDefaultTeam: boolean
   setIsSavingDefaultTeam: (v: boolean) => void
@@ -181,7 +196,7 @@ export function useHandlers(params: UseHandlersParams) {
     loadPendingMembers,
     loadWorkflowRoles,
     loadJobTitles,
-    loadAllVaultData
+    loadAllVaultData,
   } = params
 
   // Team handlers
@@ -213,7 +228,7 @@ export function useHandlers(params: UseHandlersParams) {
     teamVaultAccessMap: params.teamVaultAccessMap,
     setPendingTeamVaultAccess: params.setPendingTeamVaultAccess,
     resetTeamForm: params.resetTeamForm,
-    setIsSavingDefaultTeam: params.setIsSavingDefaultTeam
+    setIsSavingDefaultTeam: params.setIsSavingDefaultTeam,
   })
 
   // User handlers
@@ -235,7 +250,7 @@ export function useHandlers(params: UseHandlersParams) {
     setEditingVaultAccessUser: params.setEditingVaultAccessUser,
     pendingVaultAccess: params.pendingVaultAccess,
     setPendingVaultAccess: params.setPendingVaultAccess,
-    setIsSavingVaultAccess: params.setIsSavingVaultAccess
+    setIsSavingVaultAccess: params.setIsSavingVaultAccess,
   })
 
   // Workflow role handlers
@@ -249,7 +264,7 @@ export function useHandlers(params: UseHandlersParams) {
     setEditingWorkflowRole: params.setEditingWorkflowRole,
     workflowRoleFormData: params.workflowRoleFormData,
     setWorkflowRoleFormData: params.setWorkflowRoleFormData,
-    setIsSavingWorkflowRole: params.setIsSavingWorkflowRole
+    setIsSavingWorkflowRole: params.setIsSavingWorkflowRole,
   })
 
   // Job title handlers
@@ -270,7 +285,7 @@ export function useHandlers(params: UseHandlersParams) {
     setIsCreatingTitle: params.setIsCreatingTitle,
     editingJobTitle: params.editingJobTitle,
     setEditingJobTitle: params.setEditingJobTitle,
-    jobTitles: params.jobTitles
+    jobTitles: params.jobTitles,
   })
 
   // Pending member handlers
@@ -281,7 +296,7 @@ export function useHandlers(params: UseHandlersParams) {
     setEditingPendingMember: params.setEditingPendingMember,
     pendingMemberForm: params.pendingMemberForm,
     setIsSavingPendingMember: params.setIsSavingPendingMember,
-    setResendingInviteId: params.setResendingInviteId
+    setResendingInviteId: params.setResendingInviteId,
   })
 
   // Data refresh
@@ -292,27 +307,34 @@ export function useHandlers(params: UseHandlersParams) {
       loadPendingMembers(),
       loadWorkflowRoles(),
       loadJobTitles(),
-      loadAllVaultData()
+      loadAllVaultData(),
     ])
-  }, [loadTeams, loadOrgUsers, loadPendingMembers, loadWorkflowRoles, loadJobTitles, loadAllVaultData])
+  }, [
+    loadTeams,
+    loadOrgUsers,
+    loadPendingMembers,
+    loadWorkflowRoles,
+    loadJobTitles,
+    loadAllVaultData,
+  ])
 
   return {
     // Pending member handlers
     ...pendingMemberHandlers,
-    
+
     // Team handlers
     ...teamHandlers,
-    
+
     // User handlers
     ...userHandlers,
-    
+
     // Workflow role handlers
     ...workflowRoleHandlers,
-    
+
     // Job title handlers
     ...jobTitleHandlers,
-    
+
     // Data refresh
-    loadAllData
+    loadAllData,
   }
 }

@@ -33,7 +33,7 @@ import {
   FilePlus,
   FileDown,
   CheckSquare,
-  Square
+  Square,
 } from 'lucide-react'
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
@@ -107,55 +107,61 @@ interface LogViewerProps {
 function parseLogLine(line: string, index: number): LogEntry | null {
   // Format: [2024-12-15T10:30:45.123Z] [LEVEL] message {optional json data}
   const match = line.match(/^\[(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)\]\s*\[(\w+)\]\s*(.+)$/)
-  
+
   if (!match) {
     // Try alternative format without milliseconds
     const altMatch = line.match(/^\[(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z?)\]\s*\[(\w+)\]\s*(.+)$/)
     if (!altMatch) return null
-    
+
     const [, timestamp, level, content] = altMatch
     return parseEntry(timestamp, level, content, line, index)
   }
-  
+
   const [, timestamp, level, content] = match
   return parseEntry(timestamp, level, content, line, index)
 }
 
-function parseEntry(timestamp: string, level: string, content: string, raw: string, index: number): LogEntry {
+function parseEntry(
+  timestamp: string,
+  level: string,
+  content: string,
+  raw: string,
+  index: number,
+): LogEntry {
   const normalizedLevel = level.toLowerCase() as LogLevel
   const validLevels: LogLevel[] = ['info', 'warn', 'error', 'debug']
-  
+
   // Try to extract JSON data from message
   let message = content
   let data: string | undefined
-  
+
   const jsonMatch = content.match(/(.+?)\s*(\{[\s\S]*\})\s*$/)
   if (jsonMatch) {
     message = jsonMatch[1].trim()
     data = jsonMatch[2]
   }
-  
+
   return {
     id: `${timestamp}-${index}`,
     timestamp: new Date(timestamp),
     level: validLevels.includes(normalizedLevel) ? normalizedLevel : 'info',
     message,
     data,
-    raw
+    raw,
   }
 }
 
 function parseLogContent(content: string): LogEntry[] {
-  const lines = content.split('\n').filter(line => line.trim())
+  const lines = content.split('\n').filter((line) => line.trim())
   const entries: LogEntry[] = []
-  
+
   lines.forEach((line, index) => {
     const entry = parseLogLine(line, index)
     if (entry) {
       entries.push(entry)
     }
   })
-  
+
   return entries
 }
 
@@ -163,7 +169,7 @@ function formatTime(date: Date): string {
   return date.toLocaleTimeString(undefined, {
     hour: '2-digit',
     minute: '2-digit',
-    second: '2-digit'
+    second: '2-digit',
   })
 }
 
@@ -172,7 +178,7 @@ function formatDateTime(date: Date): string {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
-    minute: '2-digit'
+    minute: '2-digit',
   })
 }
 
@@ -180,33 +186,45 @@ function formatDateTime(date: Date): string {
 
 function getTimePeriodMs(period: TimePeriod): number {
   switch (period) {
-    case '30s': return 30 * 1000
-    case '1m': return 60 * 1000
-    case '2m': return 2 * 60 * 1000
-    case '5m': return 5 * 60 * 1000
-    case '10m': return 10 * 60 * 1000
-    case '30m': return 30 * 60 * 1000
-    case '1h': return 60 * 60 * 1000
-    case '6h': return 6 * 60 * 60 * 1000
-    case '24h': return 24 * 60 * 60 * 1000
-    case '7d': return 7 * 24 * 60 * 60 * 1000
-    case 'all': return Infinity
+    case '30s':
+      return 30 * 1000
+    case '1m':
+      return 60 * 1000
+    case '2m':
+      return 2 * 60 * 1000
+    case '5m':
+      return 5 * 60 * 1000
+    case '10m':
+      return 10 * 60 * 1000
+    case '30m':
+      return 30 * 60 * 1000
+    case '1h':
+      return 60 * 60 * 1000
+    case '6h':
+      return 6 * 60 * 60 * 1000
+    case '24h':
+      return 24 * 60 * 60 * 1000
+    case '7d':
+      return 7 * 24 * 60 * 60 * 1000
+    case 'all':
+      return Infinity
   }
 }
 
 function createHistogramBuckets(entries: LogEntry[], period: TimePeriod): HistogramBucket[] {
   if (entries.length === 0) return []
-  
+
   const now = new Date()
   const periodMs = getTimePeriodMs(period)
-  const startTime = period === 'all' 
-    ? entries[entries.length - 1]?.timestamp || now
-    : new Date(now.getTime() - periodMs)
-  
+  const startTime =
+    period === 'all'
+      ? entries[entries.length - 1]?.timestamp || now
+      : new Date(now.getTime() - periodMs)
+
   // Determine bucket size based on period
   let bucketMs: number
   let labelFormat: (d: Date) => string
-  
+
   switch (period) {
     case '30s':
       bucketMs = 5 * 1000 // 5 seconds
@@ -222,7 +240,8 @@ function createHistogramBuckets(entries: LogEntry[], period: TimePeriod): Histog
       break
     case '5m':
       bucketMs = 30 * 1000 // 30 seconds
-      labelFormat = (d) => d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      labelFormat = (d) =>
+        d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
       break
     case '10m':
       bucketMs = 60 * 1000 // 1 minute
@@ -255,12 +274,12 @@ function createHistogramBuckets(entries: LogEntry[], period: TimePeriod): Histog
       labelFormat = (d) => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
       break
   }
-  
+
   // Create buckets
   const buckets: Map<number, HistogramBucket> = new Map()
   const bucketStart = Math.floor(startTime.getTime() / bucketMs) * bucketMs
   const bucketEnd = Math.ceil(now.getTime() / bucketMs) * bucketMs
-  
+
   // Initialize empty buckets
   for (let t = bucketStart; t <= bucketEnd; t += bucketMs) {
     const time = new Date(t)
@@ -271,12 +290,12 @@ function createHistogramBuckets(entries: LogEntry[], period: TimePeriod): Histog
       warn: 0,
       error: 0,
       debug: 0,
-      total: 0
+      total: 0,
     })
   }
-  
+
   // Fill buckets with entries
-  entries.forEach(entry => {
+  entries.forEach((entry) => {
     const bucketTime = Math.floor(entry.timestamp.getTime() / bucketMs) * bucketMs
     const bucket = buckets.get(bucketTime)
     if (bucket) {
@@ -284,7 +303,7 @@ function createHistogramBuckets(entries: LogEntry[], period: TimePeriod): Histog
       bucket.total++
     }
   })
-  
+
   return Array.from(buckets.values()).slice(-24) // Max 24 buckets for readability
 }
 
@@ -292,7 +311,13 @@ function createHistogramBuckets(entries: LogEntry[], period: TimePeriod): Histog
 // Sub-Components
 // ============================================
 
-const LevelIcon = memo(function LevelIcon({ level, size = 14 }: { level: LogLevel; size?: number }) {
+const LevelIcon = memo(function LevelIcon({
+  level,
+  size = 14,
+}: {
+  level: LogLevel
+  size?: number
+}) {
   switch (level) {
     case 'error':
       return <AlertCircle size={size} className="text-plm-error" />
@@ -310,11 +335,13 @@ const LevelBadge = memo(function LevelBadge({ level }: { level: LogLevel }) {
     error: 'bg-plm-error/20 text-plm-error border-plm-error/30',
     warn: 'bg-plm-warning/20 text-plm-warning border-plm-warning/30',
     info: 'bg-plm-info/20 text-plm-info border-plm-info/30',
-    debug: 'bg-plm-fg-muted/20 text-plm-fg-muted border-plm-fg-muted/30'
+    debug: 'bg-plm-fg-muted/20 text-plm-fg-muted border-plm-fg-muted/30',
   }
-  
+
   return (
-    <span className={`px-1.5 py-0.5 text-[10px] font-semibold uppercase rounded border ${styles[level]}`}>
+    <span
+      className={`px-1.5 py-0.5 text-[10px] font-semibold uppercase rounded border ${styles[level]}`}
+    >
       {level}
     </span>
   )
@@ -329,34 +356,44 @@ interface HistogramProps {
   onHeightChange: (height: number) => void
 }
 
-const Histogram = memo(function Histogram({ buckets, maxValue, onBucketClick, levelFilter, height, onHeightChange }: HistogramProps) {
+const Histogram = memo(function Histogram({
+  buckets,
+  maxValue,
+  onBucketClick,
+  levelFilter,
+  height,
+  onHeightChange,
+}: HistogramProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [isResizing, setIsResizing] = useState(false)
-  
+
   // Handle resize drag
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    setIsResizing(true)
-    
-    const startY = e.clientY
-    const startHeight = height
-    
-    const handleMouseMove = (e: MouseEvent) => {
-      const delta = e.clientY - startY
-      const newHeight = Math.max(60, Math.min(300, startHeight + delta))
-      onHeightChange(newHeight)
-    }
-    
-    const handleMouseUp = () => {
-      setIsResizing(false)
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
-    }
-    
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
-  }, [height, onHeightChange])
-  
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      setIsResizing(true)
+
+      const startY = e.clientY
+      const startHeight = height
+
+      const handleMouseMove = (e: MouseEvent) => {
+        const delta = e.clientY - startY
+        const newHeight = Math.max(60, Math.min(300, startHeight + delta))
+        onHeightChange(newHeight)
+      }
+
+      const handleMouseUp = () => {
+        setIsResizing(false)
+        document.removeEventListener('mousemove', handleMouseMove)
+        document.removeEventListener('mouseup', handleMouseUp)
+      }
+
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
+    },
+    [height, onHeightChange],
+  )
+
   if (buckets.length === 0) {
     return (
       <div className="h-24 flex items-center justify-center text-plm-fg-muted text-sm">
@@ -364,35 +401,35 @@ const Histogram = memo(function Histogram({ buckets, maxValue, onBucketClick, le
       </div>
     )
   }
-  
+
   const topPadding = 12 // Always leave some whitespace above tallest bar
   const barAreaHeight = height - topPadding
-  
+
   const getSegmentHeight = (value: number) => {
     if (maxValue === 0 || value === 0) return 0
     return Math.max(2, Math.round((value / maxValue) * barAreaHeight))
   }
-  
+
   // Level colors - order: error (bottom), warn, info, debug (top)
   // Using explicit colors to ensure visibility
   const levelColors = {
     error: 'bg-red-500',
-    warn: 'bg-amber-500', 
+    warn: 'bg-amber-500',
     info: 'bg-blue-500',
-    debug: 'bg-slate-500'
+    debug: 'bg-slate-500',
   }
-  
+
   return (
     <div className="px-2" ref={containerRef}>
       {/* Bar area with top padding */}
-      <div 
+      <div
         className="flex items-end gap-[2px] overflow-hidden"
         style={{ height: `${height}px`, paddingTop: `${topPadding}px` }}
       >
         {buckets.map((bucket, index) => {
           // Build stacked segments from bottom to top: error -> warn -> info -> debug
           const segments: { level: LogLevel; count: number; color: string }[] = []
-          
+
           if (levelFilter.has('error') && bucket.error > 0) {
             segments.push({ level: 'error', count: bucket.error, color: levelColors.error })
           }
@@ -405,9 +442,9 @@ const Histogram = memo(function Histogram({ buckets, maxValue, onBucketClick, le
           if (levelFilter.has('debug') && bucket.debug > 0) {
             segments.push({ level: 'debug', count: bucket.debug, color: levelColors.debug })
           }
-          
+
           const totalVisible = segments.reduce((sum, s) => sum + s.count, 0)
-          
+
           return (
             <div
               key={index}
@@ -419,18 +456,18 @@ const Histogram = memo(function Histogram({ buckets, maxValue, onBucketClick, le
               <div className="opacity-0 group-hover:opacity-100 absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-plm-bg-light border border-plm-border rounded-lg px-2 py-1.5 text-xs shadow-lg z-20 pointer-events-none whitespace-nowrap">
                 <div className="font-medium text-plm-fg">{bucket.label}</div>
                 <div className="flex gap-2 mt-0.5 text-[10px]">
-                  {bucket.error > 0 && <span className="text-plm-error">{bucket.error} err</span>}
+                  {bucket.error > 0 && <span className="text-plm-error">{bucket.error} error</span>}
                   {bucket.warn > 0 && <span className="text-plm-warning">{bucket.warn} warn</span>}
                   {bucket.info > 0 && <span className="text-plm-info">{bucket.info} info</span>}
-                  {bucket.debug > 0 && <span className="text-plm-fg-muted">{bucket.debug} dbg</span>}
+                  {bucket.debug > 0 && (
+                    <span className="text-plm-fg-muted">{bucket.debug} dbg</span>
+                  )}
                 </div>
               </div>
-              
+
               {/* Stacked bar segments - positioned at bottom */}
               {totalVisible > 0 && (
-                <div 
-                  className="absolute bottom-0 left-0 right-0 flex flex-col-reverse gap-[3px] opacity-80 group-hover:opacity-100 transition-opacity"
-                >
+                <div className="absolute bottom-0 left-0 right-0 flex flex-col-reverse gap-[3px] opacity-80 group-hover:opacity-100 transition-opacity">
                   {segments.map((segment) => {
                     // Calculate height based on count
                     const segmentHeight = getSegmentHeight(segment.count)
@@ -438,7 +475,7 @@ const Histogram = memo(function Histogram({ buckets, maxValue, onBucketClick, le
                       <div
                         key={segment.level}
                         className={`${segment.color} w-full flex-shrink-0 transition-all duration-150 rounded-sm`}
-                        style={{ 
+                        style={{
                           height: `${segmentHeight}px`,
                         }}
                       />
@@ -450,12 +487,14 @@ const Histogram = memo(function Histogram({ buckets, maxValue, onBucketClick, le
           )
         })}
       </div>
-      
+
       {/* Labels row */}
       <div className="flex gap-[2px] mt-1">
         {buckets.map((bucket, index) => (
           <div key={index} className="flex-1 text-center">
-            {(index === 0 || index === buckets.length - 1 || index % Math.ceil(buckets.length / 6) === 0) && (
+            {(index === 0 ||
+              index === buckets.length - 1 ||
+              index % Math.ceil(buckets.length / 6) === 0) && (
               <div className="text-[9px] text-plm-fg-muted truncate">
                 {bucket.label.split(' ')[0]}
               </div>
@@ -463,13 +502,15 @@ const Histogram = memo(function Histogram({ buckets, maxValue, onBucketClick, le
           </div>
         ))}
       </div>
-      
+
       {/* Resize handle */}
-      <div 
+      <div
         className={`h-2 cursor-ns-resize flex items-center justify-center group mt-1 ${isResizing ? 'bg-plm-accent/20' : ''}`}
         onMouseDown={handleMouseDown}
       >
-        <div className={`w-12 h-1 rounded-full transition-colors ${isResizing ? 'bg-plm-accent' : 'bg-plm-border group-hover:bg-plm-fg-muted'}`} />
+        <div
+          className={`w-12 h-1 rounded-full transition-colors ${isResizing ? 'bg-plm-accent' : 'bg-plm-border group-hover:bg-plm-fg-muted'}`}
+        />
       </div>
     </div>
   )
@@ -484,141 +525,164 @@ interface LogEntryRowProps {
   onSelect: (id: string, shiftKey: boolean) => void
 }
 
-const LogEntryRow = memo(function LogEntryRow({ entry, isExpanded, onToggle, searchQuery, isSelected, onSelect }: LogEntryRowProps) {
-  const [copied, setCopied] = useState(false)
-  
-  const highlightText = useCallback((text: string) => {
-    if (!searchQuery) return text
-    const parts = text.split(new RegExp(`(${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'))
-    return parts.map((part, i) => 
-      part.toLowerCase() === searchQuery.toLowerCase() 
-        ? <mark key={i} className="bg-plm-warning/40 text-plm-fg rounded px-0.5">{part}</mark>
-        : part
+const LogEntryRow = memo(
+  function LogEntryRow({
+    entry,
+    isExpanded,
+    onToggle,
+    searchQuery,
+    isSelected,
+    onSelect,
+  }: LogEntryRowProps) {
+    const [copied, setCopied] = useState(false)
+
+    const highlightText = useCallback(
+      (text: string) => {
+        if (!searchQuery) return text
+        const parts = text.split(
+          new RegExp(`(${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'),
+        )
+        return parts.map((part, i) =>
+          part.toLowerCase() === searchQuery.toLowerCase() ? (
+            <mark key={i} className="bg-plm-warning/40 text-plm-fg rounded px-0.5">
+              {part}
+            </mark>
+          ) : (
+            part
+          ),
+        )
+      },
+      [searchQuery],
     )
-  }, [searchQuery])
-  
-  const copyEntry = useCallback(async () => {
-    const result = await copyToClipboard(entry.raw)
-    if (result.success) {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    }
-  }, [entry.raw])
-  
-  const handleToggle = useCallback(() => {
-    onToggle(entry.id)
-  }, [onToggle, entry.id])
-  
-  const handleCopyClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation()
-    copyEntry()
-  }, [copyEntry])
-  
-  const handleCheckboxClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation()
-    onSelect(entry.id, e.shiftKey)
-  }, [onSelect, entry.id])
-  
-  return (
-    <div
-      className={`group hover:bg-plm-highlight/50 transition-colors border-b border-white/[0.08] ${
-        isSelected ? 'bg-plm-accent/10 hover:bg-plm-accent/20' :
-        entry.level === 'error' ? 'bg-plm-error/5' : 
-        entry.level === 'warn' ? 'bg-plm-warning/5' : ''
-      }`}
-    >
+
+    const copyEntry = useCallback(async () => {
+      const result = await copyToClipboard(entry.raw)
+      if (result.success) {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 1500)
+      }
+    }, [entry.raw])
+
+    const handleToggle = useCallback(() => {
+      onToggle(entry.id)
+    }, [onToggle, entry.id])
+
+    const handleCopyClick = useCallback(
+      (e: React.MouseEvent) => {
+        e.stopPropagation()
+        copyEntry()
+      },
+      [copyEntry],
+    )
+
+    const handleCheckboxClick = useCallback(
+      (e: React.MouseEvent) => {
+        e.stopPropagation()
+        onSelect(entry.id, e.shiftKey)
+      },
+      [onSelect, entry.id],
+    )
+
+    return (
       <div
-        className="flex items-start gap-3 px-3 py-2 cursor-pointer"
-        onClick={handleToggle}
+        className={`group hover:bg-plm-highlight/50 transition-colors border-b border-white/[0.08] ${
+          isSelected
+            ? 'bg-plm-accent/10 hover:bg-plm-accent/20'
+            : entry.level === 'error'
+              ? 'bg-plm-error/5'
+              : entry.level === 'warn'
+                ? 'bg-plm-warning/5'
+                : ''
+        }`}
       >
-        {/* Selection checkbox */}
-        <div 
-          className="mt-0.5 flex-shrink-0"
-          onClick={handleCheckboxClick}
-        >
-          <div 
-            className={`w-4 h-4 rounded border flex items-center justify-center transition-colors cursor-pointer ${
-              isSelected 
-                ? 'bg-plm-accent border-plm-accent' 
-                : 'border-plm-border hover:border-plm-fg-muted'
-            }`}
-          >
-            {isSelected && <Check size={10} className="text-plm-bg" />}
+        <div className="flex items-start gap-3 px-3 py-2 cursor-pointer" onClick={handleToggle}>
+          {/* Selection checkbox */}
+          <div className="mt-0.5 flex-shrink-0" onClick={handleCheckboxClick}>
+            <div
+              className={`w-4 h-4 rounded border flex items-center justify-center transition-colors cursor-pointer ${
+                isSelected
+                  ? 'bg-plm-accent border-plm-accent'
+                  : 'border-plm-border hover:border-plm-fg-muted'
+              }`}
+            >
+              {isSelected && <Check size={10} className="text-plm-bg" />}
+            </div>
+          </div>
+
+          {/* Level icon */}
+          <div className="mt-0.5 flex-shrink-0">
+            <LevelIcon level={entry.level} />
+          </div>
+
+          {/* Timestamp */}
+          <div className="text-[11px] text-plm-fg-muted font-mono flex-shrink-0 mt-0.5">
+            {formatTime(entry.timestamp)}
+          </div>
+
+          {/* Level badge */}
+          <div className="flex-shrink-0">
+            <LevelBadge level={entry.level} />
+          </div>
+
+          {/* Message */}
+          <div className="flex-1 min-w-0 text-sm text-plm-fg font-mono">
+            <span className={entry.level === 'error' ? 'text-plm-error' : ''}>
+              {highlightText(entry.message)}
+            </span>
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+            <button
+              onClick={handleCopyClick}
+              className="p-1 hover:bg-plm-bg rounded transition-colors"
+              title="Copy log entry"
+            >
+              {copied ? (
+                <Check size={12} className="text-plm-success" />
+              ) : (
+                <Copy size={12} className="text-plm-fg-muted" />
+              )}
+            </button>
+            {entry.data && (
+              <ChevronRight
+                size={14}
+                className={`text-plm-fg-muted transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+              />
+            )}
           </div>
         </div>
-        
-        {/* Level icon */}
-        <div className="mt-0.5 flex-shrink-0">
-          <LevelIcon level={entry.level} />
-        </div>
-        
-        {/* Timestamp */}
-        <div className="text-[11px] text-plm-fg-muted font-mono flex-shrink-0 mt-0.5">
-          {formatTime(entry.timestamp)}
-        </div>
-        
-        {/* Level badge */}
-        <div className="flex-shrink-0">
-          <LevelBadge level={entry.level} />
-        </div>
-        
-        {/* Message */}
-        <div className="flex-1 min-w-0 text-sm text-plm-fg font-mono">
-          <span className={entry.level === 'error' ? 'text-plm-error' : ''}>
-            {highlightText(entry.message)}
-          </span>
-        </div>
-        
-        {/* Actions */}
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-          <button
-            onClick={handleCopyClick}
-            className="p-1 hover:bg-plm-bg rounded transition-colors"
-            title="Copy log entry"
-          >
-            {copied ? (
-              <Check size={12} className="text-plm-success" />
-            ) : (
-              <Copy size={12} className="text-plm-fg-muted" />
-            )}
-          </button>
-          {entry.data && (
-            <ChevronRight
-              size={14}
-              className={`text-plm-fg-muted transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-            />
-          )}
-        </div>
+
+        {/* Expanded data */}
+        {isExpanded && entry.data && (
+          <div className="px-3 pb-3 pl-12">
+            <pre className="text-xs text-plm-fg-muted bg-plm-bg rounded-lg p-3 overflow-x-auto border border-plm-border/50">
+              {(() => {
+                try {
+                  return JSON.stringify(JSON.parse(entry.data), null, 2)
+                } catch {
+                  return entry.data
+                }
+              })()}
+            </pre>
+          </div>
+        )}
       </div>
-      
-      {/* Expanded data */}
-      {isExpanded && entry.data && (
-        <div className="px-3 pb-3 pl-12">
-          <pre className="text-xs text-plm-fg-muted bg-plm-bg rounded-lg p-3 overflow-x-auto border border-plm-border/50">
-            {(() => {
-              try {
-                return JSON.stringify(JSON.parse(entry.data), null, 2)
-              } catch {
-                return entry.data
-              }
-            })()}
-          </pre>
-        </div>
-      )}
-    </div>
-  )
-}, (prevProps, nextProps) => {
-  // Custom comparison for better memoization
-  return (
-    prevProps.entry.id === nextProps.entry.id &&
-    prevProps.entry.level === nextProps.entry.level &&
-    prevProps.entry.message === nextProps.entry.message &&
-    prevProps.entry.data === nextProps.entry.data &&
-    prevProps.isExpanded === nextProps.isExpanded &&
-    prevProps.isSelected === nextProps.isSelected &&
-    prevProps.searchQuery === nextProps.searchQuery
-  )
-})
+    )
+  },
+  (prevProps, nextProps) => {
+    // Custom comparison for better memoization
+    return (
+      prevProps.entry.id === nextProps.entry.id &&
+      prevProps.entry.level === nextProps.entry.level &&
+      prevProps.entry.message === nextProps.entry.message &&
+      prevProps.entry.data === nextProps.entry.data &&
+      prevProps.isExpanded === nextProps.isExpanded &&
+      prevProps.isSelected === nextProps.isSelected &&
+      prevProps.searchQuery === nextProps.searchQuery
+    )
+  },
+)
 
 // ============================================
 // Virtualized Log List Component
@@ -636,60 +700,56 @@ interface VirtualizedLogListProps {
 const ITEM_HEIGHT = 44 // Approximate height of each log entry row
 const OVERSCAN = 10 // Number of items to render above/below viewport
 
-const VirtualizedLogList = memo(function VirtualizedLogList({ 
-  entries, 
-  expandedEntries, 
-  onToggle, 
+const VirtualizedLogList = memo(function VirtualizedLogList({
+  entries,
+  expandedEntries,
+  onToggle,
   searchQuery,
   selectedEntries,
-  onSelect
+  onSelect,
 }: VirtualizedLogListProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [scrollTop, setScrollTop] = useState(0)
   const [containerHeight, setContainerHeight] = useState(0)
-  
+
   // Track container height
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
-    
+
     const updateHeight = () => {
       setContainerHeight(container.clientHeight)
     }
-    
+
     updateHeight()
-    
+
     const resizeObserver = new ResizeObserver(updateHeight)
     resizeObserver.observe(container)
-    
+
     return () => resizeObserver.disconnect()
   }, [])
-  
+
   // Handle scroll with throttling
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     setScrollTop(e.currentTarget.scrollTop)
   }, [])
-  
+
   // Calculate visible range
   const totalHeight = entries.length * ITEM_HEIGHT
   const startIndex = Math.max(0, Math.floor(scrollTop / ITEM_HEIGHT) - OVERSCAN)
   const endIndex = Math.min(
     entries.length,
-    Math.ceil((scrollTop + containerHeight) / ITEM_HEIGHT) + OVERSCAN
+    Math.ceil((scrollTop + containerHeight) / ITEM_HEIGHT) + OVERSCAN,
   )
-  
+
   const visibleEntries = entries.slice(startIndex, endIndex)
   const offsetY = startIndex * ITEM_HEIGHT
-  
+
   return (
-    <div 
-      ref={containerRef}
-      className="h-full overflow-y-auto"
-      onScroll={handleScroll}
-    >
+    <div ref={containerRef} className="h-full overflow-y-auto" onScroll={handleScroll}>
       <div style={{ height: totalHeight, position: 'relative' }}>
         <div style={{ transform: `translateY(${offsetY}px)` }}>
-          {visibleEntries.map(entry => (
+          {visibleEntries.map((entry) => (
             <LogEntryRow
               key={entry.id}
               entry={entry}
@@ -742,7 +802,7 @@ interface LogViewerContentProps {
 
 function LogViewerContent({ onClose }: LogViewerContentProps) {
   const { addToast } = usePDMStore()
-  
+
   // State
   const [logFiles, setLogFiles] = useState<LogFile[]>([])
   const [crashFiles, setCrashFiles] = useState<CrashFile[]>([])
@@ -753,16 +813,18 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
   const [entries, setEntries] = useState<LogEntry[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isLoadingContent, setIsLoadingContent] = useState(false)
-  
+
   // Filters
   const [searchQuery, setSearchQuery] = useState('')
-  const [levelFilter, setLevelFilter] = useState<Set<LogLevel>>(new Set(['info', 'warn', 'error', 'debug']))
+  const [levelFilter, setLevelFilter] = useState<Set<LogLevel>>(
+    new Set(['info', 'warn', 'error', 'debug']),
+  )
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('5m')
   const [showFilters] = useState(true)
   const [newestFirst, setNewestFirst] = useState(true)
   const [autoScroll, setAutoScroll] = useState(true)
   const [histogramHeight, setHistogramHeight] = useState(120) // Default 120px, resizable 60-300px
-  
+
   // UI state
   const [expandedEntries, setExpandedEntries] = useState<Set<string>>(new Set())
   const [selectedEntries, setSelectedEntries] = useState<Set<string>>(new Set())
@@ -771,7 +833,7 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
   const [copiedSelected, setCopiedSelected] = useState(false)
   const [showFileList, setShowFileList] = useState(true)
   const [periodDropdownOpen, setPeriodDropdownOpen] = useState(false)
-  
+
   // Retention settings state
   const [showRetentionSettings, setShowRetentionSettings] = useState(false)
   const [retentionSettings, setRetentionSettings] = useState<LogRetentionSettings | null>(null)
@@ -785,21 +847,21 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
   const [unlimitedFiles, setUnlimitedFiles] = useState(false)
   const [unlimitedAge, setUnlimitedAge] = useState(false)
   const [unlimitedTotalSize, setUnlimitedTotalSize] = useState(false)
-  
+
   // Recording state (on by default)
   const [isRecording, setIsRecording] = useState(true)
   const [togglingRecording, setTogglingRecording] = useState(false)
   const [startingNewLog, setStartingNewLog] = useState(false)
-  
+
   const contentRef = useRef<HTMLDivElement>(null)
   const refreshIntervalRef = useRef<number | null>(null)
-  
+
   // Load log files and recording state
   useEffect(() => {
     loadLogFiles()
     loadRecordingState()
   }, [])
-  
+
   // Load recording state from main process
   const loadRecordingState = async () => {
     if (!window.electronAPI?.getLogRecordingState) return
@@ -811,24 +873,24 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
       setIsRecording(true)
     }
   }
-  
+
   // Auto-select current session on load
   useEffect(() => {
     if (logFiles.length > 0 && !selectedFile) {
-      const currentSession = logFiles.find(f => f.isCurrentSession) || logFiles[0]
+      const currentSession = logFiles.find((f) => f.isCurrentSession) || logFiles[0]
       if (currentSession) {
         loadLogContent(currentSession)
       }
     }
   }, [logFiles])
-  
+
   // Real-time refresh when recording is enabled
   useEffect(() => {
     if (isRecording && selectedFile?.isCurrentSession) {
       refreshIntervalRef.current = window.setInterval(() => {
         loadLogContent(selectedFile, true)
       }, 2000) // Refresh every 2 seconds - balanced between real-time feel and performance
-      
+
       return () => {
         if (refreshIntervalRef.current) {
           clearInterval(refreshIntervalRef.current)
@@ -837,7 +899,7 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
     }
     return undefined
   }, [isRecording, selectedFile])
-  
+
   // Auto-scroll when entries change (when recording)
   useEffect(() => {
     if (isRecording && autoScroll && contentRef.current) {
@@ -848,43 +910,43 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
       }
     }
   }, [entries, isRecording, autoScroll, newestFirst])
-  
+
   const loadLogFiles = async () => {
     if (!window.electronAPI?.listLogFiles) {
       setIsLoading(false)
       return
     }
-    
+
     setIsLoading(true)
     try {
       // Load both logs and crashes in parallel
       const [logsResult, crashesResult] = await Promise.all([
         window.electronAPI.listLogFiles(),
-        window.electronAPI.listCrashFiles?.() || { success: true, files: [] }
+        window.electronAPI.listCrashFiles?.() || { success: true, files: [] },
       ])
-      
+
       if (logsResult.success && logsResult.files) {
         setLogFiles(logsResult.files)
       }
       if (crashesResult.success && crashesResult.files) {
         setCrashFiles(crashesResult.files)
       }
-    } catch (err) {
-      log.error('[LogViewer]', 'Failed to load log files', { error: err })
+    } catch (error) {
+      log.error('[LogViewer]', 'Failed to load log files', { error: error })
     } finally {
       setIsLoading(false)
     }
   }
-  
+
   const loadRetentionSettings = async () => {
     if (!window.electronAPI?.getLogRetentionSettings) return
-    
+
     try {
       const [settingsResult, storageResult] = await Promise.all([
         window.electronAPI.getLogRetentionSettings(),
-        window.electronAPI.getLogStorageInfo?.() || { success: false }
+        window.electronAPI.getLogStorageInfo?.() || { success: false },
       ])
-      
+
       if (settingsResult.success && settingsResult.settings) {
         setRetentionSettings(settingsResult.settings)
         setEditMaxFiles(settingsResult.settings.maxFiles.toString())
@@ -901,26 +963,26 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
         setStorageInfo({
           totalSize: storageResult.totalSize || 0,
           fileCount: storageResult.fileCount || 0,
-          logsDir: storageResult.logsDir
+          logsDir: storageResult.logsDir,
         })
       }
-    } catch (err) {
-      log.error('[LogViewer]', 'Failed to load retention settings', { error: err })
+    } catch (error) {
+      log.error('[LogViewer]', 'Failed to load retention settings', { error: error })
     }
   }
-  
+
   const saveRetentionSettings = async () => {
     if (!window.electronAPI?.setLogRetentionSettings) return
-    
+
     setSavingSettings(true)
     try {
       const newSettings = {
         maxFiles: unlimitedFiles ? 0 : Math.max(0, parseInt(editMaxFiles) || 0),
         maxAgeDays: unlimitedAge ? 0 : Math.max(0, parseInt(editMaxAgeDays) || 0),
         maxSizeMb: retentionSettings?.maxSizeMb || 10,
-        maxTotalSizeMb: unlimitedTotalSize ? 0 : Math.max(0, parseInt(editMaxTotalSizeMb) || 0)
+        maxTotalSizeMb: unlimitedTotalSize ? 0 : Math.max(0, parseInt(editMaxTotalSizeMb) || 0),
       }
-      
+
       const result = await window.electronAPI.setLogRetentionSettings(newSettings)
       if (result.success && result.settings) {
         setRetentionSettings(result.settings)
@@ -931,13 +993,13 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
       } else {
         addToast('error', result.error || 'Failed to save settings')
       }
-    } catch (err) {
+    } catch (error) {
       addToast('error', 'Failed to save retention settings')
     } finally {
       setSavingSettings(false)
     }
   }
-  
+
   const resetToDefaults = () => {
     if (defaultSettings) {
       setEditMaxFiles(defaultSettings.maxFiles.toString())
@@ -948,42 +1010,45 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
       setUnlimitedTotalSize(defaultSettings.maxTotalSizeMb === 0)
     }
   }
-  
+
   const runManualCleanup = async () => {
     if (!window.electronAPI?.cleanupOldLogs) return
-    
+
     setCleaningUp(true)
     try {
       const result = await window.electronAPI.cleanupOldLogs()
       if (result.success) {
-        addToast('success', `Cleaned up ${result.deleted} log file${result.deleted !== 1 ? 's' : ''}`)
+        addToast(
+          'success',
+          `Cleaned up ${result.deleted} log file${result.deleted !== 1 ? 's' : ''}`,
+        )
         loadLogFiles()
         loadRetentionSettings()
       } else {
         addToast('error', result.error || 'Cleanup failed')
       }
-    } catch (err) {
+    } catch (error) {
       addToast('error', 'Failed to run cleanup')
     } finally {
       setCleaningUp(false)
     }
   }
-  
+
   // Load retention settings when panel opens
   useEffect(() => {
     if (showRetentionSettings) {
       loadRetentionSettings()
     }
   }, [showRetentionSettings])
-  
+
   const loadCrashContent = async (file: CrashFile) => {
     if (!window.electronAPI?.readCrashFile) return
-    
+
     setIsLoadingContent(true)
     setSelectedCrash(file)
     setSelectedFile(null)
     setEntries([])
-    
+
     try {
       const result = await window.electronAPI.readCrashFile(file.path)
       if (result.success && result.content) {
@@ -997,10 +1062,10 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
       setIsLoadingContent(false)
     }
   }
-  
+
   const loadLogContent = async (file: LogFile, silent = false) => {
     if (!window.electronAPI?.readLogFile) return
-    
+
     if (!silent) {
       setIsLoadingContent(true)
       setSelectedFile(file)
@@ -1008,7 +1073,7 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
       setSelectedEntries(new Set())
       setLastSelectedId(null)
     }
-    
+
     try {
       const result = await window.electronAPI.readLogFile(file.path)
       if (result.success && result.content) {
@@ -1016,7 +1081,7 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
         setEntries(parsed)
         // Auto-scroll is handled by the useEffect that watches entries
       }
-    } catch (err) {
+    } catch (error) {
       if (!silent) {
         addToast('error', 'Failed to load log content')
       }
@@ -1026,9 +1091,9 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
       }
     }
   }
-  
+
   const toggleLevel = (level: LogLevel) => {
-    setLevelFilter(prev => {
+    setLevelFilter((prev) => {
       const next = new Set(prev)
       if (next.has(level)) {
         next.delete(level)
@@ -1038,9 +1103,9 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
       return next
     })
   }
-  
+
   const toggleEntry = useCallback((id: string) => {
-    setExpandedEntries(prev => {
+    setExpandedEntries((prev) => {
       const next = new Set(prev)
       if (next.has(id)) {
         next.delete(id)
@@ -1050,101 +1115,108 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
       return next
     })
   }, [])
-  
+
   // Filter entries
   const filteredEntries = useMemo(() => {
     const now = new Date()
     const periodMs = getTimePeriodMs(timePeriod)
     const cutoff = timePeriod === 'all' ? 0 : now.getTime() - periodMs
-    
-    const filtered = entries.filter(entry => {
+
+    const filtered = entries.filter((entry) => {
       // Level filter
       if (!levelFilter.has(entry.level)) return false
-      
+
       // Time filter
       if (entry.timestamp.getTime() < cutoff) return false
-      
+
       // Search filter
       if (searchQuery) {
         const query = searchQuery.toLowerCase()
-        if (!entry.message.toLowerCase().includes(query) && 
-            !entry.data?.toLowerCase().includes(query)) {
+        if (
+          !entry.message.toLowerCase().includes(query) &&
+          !entry.data?.toLowerCase().includes(query)
+        ) {
           return false
         }
       }
-      
+
       return true
     })
-    
+
     // Sort: newest first or oldest first
     if (newestFirst) {
       return [...filtered].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
     }
     return filtered
   }, [entries, levelFilter, timePeriod, searchQuery, newestFirst])
-  
+
   // Handle entry selection with shift+click for range selection
-  const handleEntrySelect = useCallback((id: string, shiftKey: boolean) => {
-    setSelectedEntries(prev => {
-      const next = new Set(prev)
-      
-      if (shiftKey && lastSelectedId) {
-        // Range selection: select all entries between lastSelectedId and current id
-        const lastIndex = filteredEntries.findIndex(e => e.id === lastSelectedId)
-        const currentIndex = filteredEntries.findIndex(e => e.id === id)
-        
-        if (lastIndex !== -1 && currentIndex !== -1) {
-          const start = Math.min(lastIndex, currentIndex)
-          const end = Math.max(lastIndex, currentIndex)
-          
-          for (let i = start; i <= end; i++) {
-            next.add(filteredEntries[i].id)
+  const handleEntrySelect = useCallback(
+    (id: string, shiftKey: boolean) => {
+      setSelectedEntries((prev) => {
+        const next = new Set(prev)
+
+        if (shiftKey && lastSelectedId) {
+          // Range selection: select all entries between lastSelectedId and current id
+          const lastIndex = filteredEntries.findIndex((e) => e.id === lastSelectedId)
+          const currentIndex = filteredEntries.findIndex((e) => e.id === id)
+
+          if (lastIndex !== -1 && currentIndex !== -1) {
+            const start = Math.min(lastIndex, currentIndex)
+            const end = Math.max(lastIndex, currentIndex)
+
+            for (let i = start; i <= end; i++) {
+              next.add(filteredEntries[i].id)
+            }
+          }
+        } else {
+          // Toggle single selection
+          if (next.has(id)) {
+            next.delete(id)
+          } else {
+            next.add(id)
           }
         }
-      } else {
-        // Toggle single selection
-        if (next.has(id)) {
-          next.delete(id)
-        } else {
-          next.add(id)
-        }
-      }
-      
-      return next
-    })
-    setLastSelectedId(id)
-  }, [lastSelectedId, filteredEntries])
-  
+
+        return next
+      })
+      setLastSelectedId(id)
+    },
+    [lastSelectedId, filteredEntries],
+  )
+
   // Select all visible entries
   const selectAllEntries = useCallback(() => {
-    setSelectedEntries(new Set(filteredEntries.map(e => e.id)))
+    setSelectedEntries(new Set(filteredEntries.map((e) => e.id)))
   }, [filteredEntries])
-  
+
   // Deselect all entries
   const deselectAllEntries = useCallback(() => {
     setSelectedEntries(new Set())
     setLastSelectedId(null)
   }, [])
-  
+
   // Copy selected entries with their full content (including expanded data)
   const copySelectedEntries = useCallback(async () => {
-    const selectedList = filteredEntries.filter(e => selectedEntries.has(e.id))
+    const selectedList = filteredEntries.filter((e) => selectedEntries.has(e.id))
     if (selectedList.length === 0) return
-    
+
     // Build content with both raw log line and formatted data
-    const content = selectedList.map(entry => {
-      let text = entry.raw
-      if (entry.data) {
-        try {
-          const formatted = JSON.stringify(JSON.parse(entry.data), null, 2)
-          text += '\n  Data: ' + formatted.split('\n').join('\n  ')
-        } catch {
-          text += '\n  Data: ' + entry.data
+    const content = selectedList
+      .map((entry) => {
+        let text = entry.raw
+        if (entry.data) {
+          try {
+            const formatted = JSON.stringify(JSON.parse(entry.data), null, 2)
+            text += '\n  Data: ' + formatted.split('\n').join('\n  ')
+          } catch {
+            text += '\n  Data: ' + entry.data
+          }
         }
-      }
-      return text
-    }).join('\n\n')
-    
+        return text
+      })
+      .join('\n\n')
+
     const result = await copyToClipboard(content)
     if (result.success) {
       setCopiedSelected(true)
@@ -1152,36 +1224,39 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
       setTimeout(() => setCopiedSelected(false), 2000)
     }
   }, [filteredEntries, selectedEntries, addToast])
-  
+
   // Create histogram
   const histogram = useMemo(() => {
     return createHistogramBuckets(filteredEntries, timePeriod)
   }, [filteredEntries, timePeriod])
-  
+
   const maxHistogramValue = useMemo(() => {
-    return Math.max(...histogram.map(b => {
-      let count = 0
-      if (levelFilter.has('error')) count += b.error
-      if (levelFilter.has('warn')) count += b.warn
-      if (levelFilter.has('info')) count += b.info
-      if (levelFilter.has('debug')) count += b.debug
-      return count
-    }), 1)
+    return Math.max(
+      ...histogram.map((b) => {
+        let count = 0
+        if (levelFilter.has('error')) count += b.error
+        if (levelFilter.has('warn')) count += b.warn
+        if (levelFilter.has('info')) count += b.info
+        if (levelFilter.has('debug')) count += b.debug
+        return count
+      }),
+      1,
+    )
   }, [histogram, levelFilter])
-  
+
   // Stats
   const stats = useMemo(() => {
     return {
       total: filteredEntries.length,
-      error: filteredEntries.filter(e => e.level === 'error').length,
-      warn: filteredEntries.filter(e => e.level === 'warn').length,
-      info: filteredEntries.filter(e => e.level === 'info').length,
-      debug: filteredEntries.filter(e => e.level === 'debug').length
+      error: filteredEntries.filter((e) => e.level === 'error').length,
+      warn: filteredEntries.filter((e) => e.level === 'warn').length,
+      info: filteredEntries.filter((e) => e.level === 'info').length,
+      debug: filteredEntries.filter((e) => e.level === 'debug').length,
     }
   }, [filteredEntries])
-  
+
   const copyAllFiltered = async () => {
-    const content = filteredEntries.map(e => e.raw).join('\n')
+    const content = filteredEntries.map((e) => e.raw).join('\n')
     const result = await copyToClipboard(content)
     if (result.success) {
       setCopied(true)
@@ -1189,10 +1264,10 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
       setTimeout(() => setCopied(false), 2000)
     }
   }
-  
+
   const deleteLogFile = async (file: LogFile) => {
     if (file.isCurrentSession) return
-    
+
     const result = await window.electronAPI?.deleteLogFile(file.path)
     if (result?.success) {
       addToast('success', 'Log file deleted')
@@ -1205,14 +1280,14 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
       addToast('error', result?.error || 'Failed to delete')
     }
   }
-  
+
   // State for delete all confirmation
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false)
   const [deletingAll, setDeletingAll] = useState(false)
-  
+
   const deleteAllLogFiles = async () => {
     if (!window.electronAPI?.deleteAllLogFiles) return
-    
+
     setDeletingAll(true)
     try {
       const result = await window.electronAPI.deleteAllLogFiles()
@@ -1227,18 +1302,18 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
       } else {
         addToast('error', result.error || 'Failed to delete log files')
       }
-    } catch (err) {
+    } catch (error) {
       addToast('error', 'Failed to delete log files')
     } finally {
       setDeletingAll(false)
       setShowDeleteAllConfirm(false)
     }
   }
-  
+
   // Toggle log recording on/off
   const toggleRecording = async () => {
     if (!window.electronAPI?.setLogRecordingState) return
-    
+
     setTogglingRecording(true)
     try {
       const result = await window.electronAPI.setLogRecordingState(!isRecording)
@@ -1246,17 +1321,17 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
         setIsRecording(result.enabled)
         addToast('success', `Log recording ${result.enabled ? 'enabled' : 'disabled'}`)
       }
-    } catch (err) {
+    } catch (error) {
       addToast('error', 'Failed to toggle recording')
     } finally {
       setTogglingRecording(false)
     }
   }
-  
+
   // Start a new log file
   const startNewLogFile = async () => {
     if (!window.electronAPI?.startNewLogFile) return
-    
+
     setStartingNewLog(true)
     try {
       const result = await window.electronAPI.startNewLogFile()
@@ -1267,19 +1342,19 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
       } else {
         addToast('error', result.error || 'Failed to start new log file')
       }
-    } catch (err) {
+    } catch (error) {
       addToast('error', 'Failed to start new log file')
     } finally {
       setStartingNewLog(false)
     }
   }
-  
+
   // Export only the filtered/visible entries
   const exportFilteredLogs = async () => {
     if (!window.electronAPI?.exportFilteredLogs || filteredEntries.length === 0) return
-    
+
     const result = await window.electronAPI.exportFilteredLogs(
-      filteredEntries.map(e => ({ raw: e.raw }))
+      filteredEntries.map((e) => ({ raw: e.raw })),
     )
     if (result?.success) {
       addToast('success', `Exported ${filteredEntries.length} filtered entries`)
@@ -1287,7 +1362,7 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
       addToast('error', result?.error || 'Failed to export')
     }
   }
-  
+
   const timePeriods: { value: TimePeriod; label: string }[] = [
     { value: '30s', label: '30 Seconds' },
     { value: '1m', label: '1 Minute' },
@@ -1299,15 +1374,18 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
     { value: '6h', label: '6 Hours' },
     { value: '24h', label: '24 Hours' },
     { value: '7d', label: '7 Days' },
-    { value: 'all', label: 'All Time' }
+    { value: 'all', label: 'All Time' },
   ]
 
-  const handleBucketClick = useCallback((bucket: HistogramBucket) => {
-    // Scroll to first entry in that time bucket
-    // For now just show a toast with the bucket info
-    addToast('info', `${bucket.label}: ${bucket.total} entries`)
-  }, [addToast])
-  
+  const handleBucketClick = useCallback(
+    (bucket: HistogramBucket) => {
+      // Scroll to first entry in that time bucket
+      // For now just show a toast with the bucket info
+      addToast('info', `${bucket.label}: ${bucket.total} entries`)
+    },
+    [addToast],
+  )
+
   return (
     <>
       {/* Retention Settings Panel */}
@@ -1318,7 +1396,9 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
             <div className="flex-shrink-0">
               <div className="flex items-center gap-2 mb-2">
                 <HardDrive size={14} className="text-plm-fg-muted" />
-                <span className="text-xs font-medium text-plm-fg-muted uppercase tracking-wider">Storage</span>
+                <span className="text-xs font-medium text-plm-fg-muted uppercase tracking-wider">
+                  Storage
+                </span>
               </div>
               {storageInfo ? (
                 <div className="text-sm">
@@ -1333,11 +1413,13 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
                 <div className="text-xs text-plm-fg-muted">Loading...</div>
               )}
             </div>
-            
+
             {/* Max Files Setting */}
             <div className="flex-shrink-0">
               <label className="flex items-center gap-2 mb-2">
-                <span className="text-xs font-medium text-plm-fg-muted uppercase tracking-wider">Max Files</span>
+                <span className="text-xs font-medium text-plm-fg-muted uppercase tracking-wider">
+                  Max Files
+                </span>
               </label>
               <div className="flex items-center gap-2">
                 <input
@@ -1372,11 +1454,13 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
                 </label>
               </div>
             </div>
-            
+
             {/* Max Age Setting */}
             <div className="flex-shrink-0">
               <label className="flex items-center gap-2 mb-2">
-                <span className="text-xs font-medium text-plm-fg-muted uppercase tracking-wider">Max Age (Days)</span>
+                <span className="text-xs font-medium text-plm-fg-muted uppercase tracking-wider">
+                  Max Age (Days)
+                </span>
               </label>
               <div className="flex items-center gap-2">
                 <input
@@ -1411,11 +1495,13 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
                 </label>
               </div>
             </div>
-            
+
             {/* Max Total Size Setting */}
             <div className="flex-shrink-0">
               <label className="flex items-center gap-2 mb-2">
-                <span className="text-xs font-medium text-plm-fg-muted uppercase tracking-wider">Max Total Size (MB)</span>
+                <span className="text-xs font-medium text-plm-fg-muted uppercase tracking-wider">
+                  Max Total Size (MB)
+                </span>
               </label>
               <div className="flex items-center gap-2">
                 <input
@@ -1450,7 +1536,7 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
                 </label>
               </div>
             </div>
-            
+
             {/* Actions */}
             <div className="flex-1 flex items-end justify-end gap-2">
               <button
@@ -1467,11 +1553,7 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-plm-fg-muted hover:text-plm-fg border border-plm-border rounded hover:bg-plm-highlight transition-colors disabled:opacity-50"
                 title="Run cleanup now based on current settings"
               >
-                {cleaningUp ? (
-                  <Loader2 size={12} className="animate-spin" />
-                ) : (
-                  <Trash2 size={12} />
-                )}
+                {cleaningUp ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
                 <span>Cleanup Now</span>
               </button>
               <button
@@ -1488,55 +1570,61 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
               </button>
             </div>
           </div>
-          
+
           {/* Info text */}
           <div className="mt-2 text-[10px] text-plm-fg-dim">
-            Set to 0 or check &quot;Unlimited&quot; to disable that limit. Changes apply immediately on save.
+            Set to 0 or check &quot;Unlimited&quot; to disable that limit. Changes apply immediately
+            on save.
           </div>
         </div>
       )}
-        
-        {/* Main content */}
-        <div className="flex-1 flex overflow-hidden">
-          {/* File list sidebar */}
-          {showFileList && (
-            <div className="w-72 border-r border-plm-border bg-plm-sidebar flex flex-col">
-              {/* View mode tabs */}
-              <div className="flex border-b border-plm-border">
-                <button
-                  onClick={() => setFileViewMode('logs')}
-                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium transition-colors ${
-                    fileViewMode === 'logs'
-                      ? 'text-plm-accent border-b-2 border-plm-accent bg-plm-accent/10'
-                      : 'text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight'
-                  }`}
-                >
-                  <FileText size={14} />
-                  <span>Logs</span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-plm-bg">{logFiles.length}</span>
-                </button>
-                <button
-                  onClick={() => setFileViewMode('crashes')}
-                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium transition-colors ${
-                    fileViewMode === 'crashes'
-                      ? 'text-plm-error border-b-2 border-plm-error bg-plm-error/10'
-                      : 'text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight'
-                  }`}
-                >
-                  <Skull size={14} />
-                  <span>Crashes</span>
-                  {crashFiles.length > 0 && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-plm-error/20 text-plm-error">{crashFiles.length}</span>
-                  )}
-                </button>
-              </div>
-              
-              <div className="p-2 border-b border-plm-border flex items-center justify-between">
-                <span className="text-xs font-medium text-plm-fg-muted uppercase tracking-wider">
-                  {fileViewMode === 'logs' ? 'Log Files' : 'Crash Reports'}
+
+      {/* Main content */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* File list sidebar */}
+        {showFileList && (
+          <div className="w-72 border-r border-plm-border bg-plm-sidebar flex flex-col">
+            {/* View mode tabs */}
+            <div className="flex border-b border-plm-border">
+              <button
+                onClick={() => setFileViewMode('logs')}
+                className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium transition-colors ${
+                  fileViewMode === 'logs'
+                    ? 'text-plm-accent border-b-2 border-plm-accent bg-plm-accent/10'
+                    : 'text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight'
+                }`}
+              >
+                <FileText size={14} />
+                <span>Logs</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-plm-bg">
+                  {logFiles.length}
                 </span>
-                <div className="flex items-center gap-1">
-                  {fileViewMode === 'logs' && logFiles.filter(f => !f.isCurrentSession).length > 0 && (
+              </button>
+              <button
+                onClick={() => setFileViewMode('crashes')}
+                className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium transition-colors ${
+                  fileViewMode === 'crashes'
+                    ? 'text-plm-error border-b-2 border-plm-error bg-plm-error/10'
+                    : 'text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight'
+                }`}
+              >
+                <Skull size={14} />
+                <span>Crashes</span>
+                {crashFiles.length > 0 && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-plm-error/20 text-plm-error">
+                    {crashFiles.length}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            <div className="p-2 border-b border-plm-border flex items-center justify-between">
+              <span className="text-xs font-medium text-plm-fg-muted uppercase tracking-wider">
+                {fileViewMode === 'logs' ? 'Log Files' : 'Crash Reports'}
+              </span>
+              <div className="flex items-center gap-1">
+                {fileViewMode === 'logs' &&
+                  logFiles.filter((f) => !f.isCurrentSession).length > 0 && (
                     <button
                       onClick={() => setShowDeleteAllConfirm(true)}
                       className="p-1 hover:bg-plm-error/20 rounded transition-colors"
@@ -1545,104 +1633,105 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
                       <Trash2 size={12} className="text-plm-fg-muted hover:text-plm-error" />
                     </button>
                   )}
-                  <button
-                    onClick={() => fileViewMode === 'logs' 
-                      ? window.electronAPI?.openLogsDir() 
+                <button
+                  onClick={() =>
+                    fileViewMode === 'logs'
+                      ? window.electronAPI?.openLogsDir()
                       : window.electronAPI?.openCrashesDir()
-                    }
-                    className="p-1 hover:bg-plm-highlight rounded transition-colors"
-                    title={`Open ${fileViewMode} folder`}
+                  }
+                  className="p-1 hover:bg-plm-highlight rounded transition-colors"
+                  title={`Open ${fileViewMode} folder`}
+                >
+                  <FolderOpen size={12} className="text-plm-fg-muted" />
+                </button>
+                <button
+                  onClick={loadLogFiles}
+                  className="p-1 hover:bg-plm-highlight rounded transition-colors"
+                  title="Refresh"
+                >
+                  <RefreshCw size={12} className="text-plm-fg-muted" />
+                </button>
+              </div>
+            </div>
+
+            {/* Delete All Confirmation Dialog */}
+            {showDeleteAllConfirm && (
+              <div className="p-3 border-b border-plm-border bg-plm-error/10">
+                <div className="flex items-start gap-2 mb-2">
+                  <AlertTriangle size={14} className="text-plm-error flex-shrink-0 mt-0.5" />
+                  <div className="text-xs text-plm-fg">
+                    Delete all {logFiles.filter((f) => !f.isCurrentSession).length} log files?
+                    <span className="text-plm-fg-muted"> (current session will be kept)</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 justify-end">
+                  <button
+                    onClick={() => setShowDeleteAllConfirm(false)}
+                    className="px-2 py-1 text-xs text-plm-fg-muted hover:text-plm-fg transition-colors"
+                    disabled={deletingAll}
                   >
-                    <FolderOpen size={12} className="text-plm-fg-muted" />
+                    Cancel
                   </button>
                   <button
-                    onClick={loadLogFiles}
-                    className="p-1 hover:bg-plm-highlight rounded transition-colors"
-                    title="Refresh"
+                    onClick={deleteAllLogFiles}
+                    disabled={deletingAll}
+                    className="flex items-center gap-1 px-2 py-1 text-xs bg-plm-error text-white rounded hover:bg-plm-error/90 transition-colors disabled:opacity-50"
                   >
-                    <RefreshCw size={12} className="text-plm-fg-muted" />
+                    {deletingAll ? (
+                      <Loader2 size={10} className="animate-spin" />
+                    ) : (
+                      <Trash2 size={10} />
+                    )}
+                    <span>Delete All</span>
                   </button>
                 </div>
               </div>
-              
-              {/* Delete All Confirmation Dialog */}
-              {showDeleteAllConfirm && (
-                <div className="p-3 border-b border-plm-border bg-plm-error/10">
-                  <div className="flex items-start gap-2 mb-2">
-                    <AlertTriangle size={14} className="text-plm-error flex-shrink-0 mt-0.5" />
-                    <div className="text-xs text-plm-fg">
-                      Delete all {logFiles.filter(f => !f.isCurrentSession).length} log files? 
-                      <span className="text-plm-fg-muted"> (current session will be kept)</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 justify-end">
-                    <button
-                      onClick={() => setShowDeleteAllConfirm(false)}
-                      className="px-2 py-1 text-xs text-plm-fg-muted hover:text-plm-fg transition-colors"
-                      disabled={deletingAll}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={deleteAllLogFiles}
-                      disabled={deletingAll}
-                      className="flex items-center gap-1 px-2 py-1 text-xs bg-plm-error text-white rounded hover:bg-plm-error/90 transition-colors disabled:opacity-50"
-                    >
-                      {deletingAll ? (
-                        <Loader2 size={10} className="animate-spin" />
-                      ) : (
-                        <Trash2 size={10} />
-                      )}
-                      <span>Delete All</span>
-                    </button>
-                  </div>
+            )}
+
+            <div className="flex-1 overflow-y-auto p-2 space-y-1">
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 size={20} className="animate-spin text-plm-fg-muted" />
                 </div>
-              )}
-              
-              <div className="flex-1 overflow-y-auto p-2 space-y-1">
-                {isLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 size={20} className="animate-spin text-plm-fg-muted" />
+              ) : fileViewMode === 'logs' ? (
+                // Log files view
+                logFiles.length === 0 ? (
+                  <div className="text-center py-8 text-xs text-plm-fg-muted">
+                    No log files found
                   </div>
-                ) : fileViewMode === 'logs' ? (
-                  // Log files view
-                  logFiles.length === 0 ? (
-                    <div className="text-center py-8 text-xs text-plm-fg-muted">
-                      No log files found
-                    </div>
-                  ) : (
-                    logFiles.map(file => (
-                      <div
-                        key={file.path}
-                        className={`group relative rounded-lg transition-colors cursor-pointer ${
-                          selectedFile?.path === file.path
-                            ? 'bg-plm-accent/20 border border-plm-accent/40'
-                            : 'hover:bg-plm-highlight border border-transparent'
-                        }`}
-                        onClick={() => {
-                          setSelectedCrash(null)
-                          setCrashContent('')
-                          loadLogContent(file)
-                        }}
-                      >
-                        <div className="p-2">
-                          <div className="flex items-center gap-2">
-                            <FileText 
-                              size={14} 
-                              className={file.isCurrentSession ? 'text-plm-accent' : 'text-plm-fg-muted'} 
-                            />
-                            <span className="text-xs text-plm-fg truncate flex-1">
-                              {file.name.replace('blueplm-', '').replace('.log', '')}
-                            </span>
-                            {file.isCurrentSession && (
-                              <Zap size={10} className="text-plm-accent" />
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 mt-1 text-[10px] text-plm-fg-muted">
-                            <span>{formatFileSize(file.size)}</span>
+                ) : (
+                  logFiles.map((file) => (
+                    <div
+                      key={file.path}
+                      className={`group relative rounded-lg transition-colors cursor-pointer ${
+                        selectedFile?.path === file.path
+                          ? 'bg-plm-accent/20 border border-plm-accent/40'
+                          : 'hover:bg-plm-highlight border border-transparent'
+                      }`}
+                      onClick={() => {
+                        setSelectedCrash(null)
+                        setCrashContent('')
+                        loadLogContent(file)
+                      }}
+                    >
+                      <div className="p-2">
+                        <div className="flex items-center gap-2">
+                          <FileText
+                            size={14}
+                            className={
+                              file.isCurrentSession ? 'text-plm-accent' : 'text-plm-fg-muted'
+                            }
+                          />
+                          <span className="text-xs text-plm-fg truncate flex-1">
+                            {file.name.replace('blueplm-', '').replace('.log', '')}
+                          </span>
+                          {file.isCurrentSession && <Zap size={10} className="text-plm-accent" />}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1 text-[10px] text-plm-fg-muted">
+                          <span>{formatFileSize(file.size)}</span>
                         </div>
                       </div>
-                      
+
                       {/* Delete button */}
                       {!file.isCurrentSession && (
                         <button
@@ -1658,403 +1747,422 @@ function LogViewerContent({ onClose }: LogViewerContentProps) {
                       )}
                     </div>
                   ))
-                  )
-                ) : (
-                  // Crash files view
-                  crashFiles.length === 0 ? (
-                    <div className="text-center py-8 text-xs text-plm-fg-muted">
-                      <Skull size={24} className="mx-auto mb-2 opacity-30" />
-                      <p>No crash reports found</p>
-                      <p className="mt-1 text-[10px]">That&apos;s a good thing!</p>
-                    </div>
-                  ) : (
-                    crashFiles.map(file => (
-                      <div
-                        key={file.path}
-                        className={`group relative rounded-lg transition-colors cursor-pointer ${
-                          selectedCrash?.path === file.path
-                            ? 'bg-plm-error/20 border border-plm-error/40'
-                            : 'hover:bg-plm-highlight border border-transparent'
-                        }`}
-                        onClick={() => loadCrashContent(file)}
-                      >
-                        <div className="p-2">
-                          <div className="flex items-center gap-2">
-                            <Skull size={14} className="text-plm-error" />
-                            <span className="text-xs text-plm-fg truncate flex-1">
-                              {file.name}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 mt-1 text-[10px] text-plm-fg-muted">
-                            <span>{formatFileSize(file.size)}</span>
-                            <span>•</span>
-                            <span>{new Date(file.modifiedTime).toLocaleDateString()}</span>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  )
-                )}
-              </div>
-            </div>
-          )}
-          
-          {/* Toggle sidebar button */}
-          <div className="relative flex-shrink-0">
-            <button
-              onClick={() => setShowFileList(!showFileList)}
-              className="absolute left-0 top-1/2 -translate-y-1/2 z-10 p-1 bg-plm-bg border border-plm-border rounded-r-lg hover:bg-plm-highlight transition-colors"
-            >
-              {showFileList ? (
-                <ChevronLeft size={14} className="text-plm-fg-muted" />
+                )
+              ) : // Crash files view
+              crashFiles.length === 0 ? (
+                <div className="text-center py-8 text-xs text-plm-fg-muted">
+                  <Skull size={24} className="mx-auto mb-2 opacity-30" />
+                  <p>No crash reports found</p>
+                  <p className="mt-1 text-[10px]">That&apos;s a good thing!</p>
+                </div>
               ) : (
-                <ChevronRight size={14} className="text-plm-fg-muted" />
+                crashFiles.map((file) => (
+                  <div
+                    key={file.path}
+                    className={`group relative rounded-lg transition-colors cursor-pointer ${
+                      selectedCrash?.path === file.path
+                        ? 'bg-plm-error/20 border border-plm-error/40'
+                        : 'hover:bg-plm-highlight border border-transparent'
+                    }`}
+                    onClick={() => loadCrashContent(file)}
+                  >
+                    <div className="p-2">
+                      <div className="flex items-center gap-2">
+                        <Skull size={14} className="text-plm-error" />
+                        <span className="text-xs text-plm-fg truncate flex-1">{file.name}</span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-1 text-[10px] text-plm-fg-muted">
+                        <span>{formatFileSize(file.size)}</span>
+                        <span>•</span>
+                        <span>{new Date(file.modifiedTime).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))
               )}
-            </button>
+            </div>
           </div>
-          
-          {/* Log content area */}
-          <div className="flex-1 flex flex-col overflow-hidden">
-            {/* Toolbar */}
-            <div className="px-3 py-2 border-b border-plm-border bg-plm-bg-light space-y-2">
-              {/* Row 1: Filters & Search */}
-              <div className="flex items-center gap-2">
-                {/* File info */}
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="p-1 bg-plm-accent/20 rounded">
-                    {selectedCrash ? (
-                      <Skull size={14} className="text-plm-error" />
-                    ) : (
-                      <BarChart3 size={14} className="text-plm-accent" />
-                    )}
-                  </div>
-                  <span className="text-xs font-medium text-plm-fg truncate max-w-[140px]">
-                    {selectedCrash?.name || selectedFile?.name?.replace('blueplm-', '').replace('.log', '') || 'Select file'}
-                  </span>
-                </div>
-                
-                <div className="w-px h-5 bg-plm-border flex-shrink-0" />
-                
-                {/* Search */}
-                <div className="relative flex-1 min-w-[120px] max-w-[200px]">
-                  <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search..."
-                    className="w-full pl-7 pr-2 py-1 text-xs bg-plm-input border border-plm-border rounded focus:outline-none focus:border-plm-accent text-plm-fg placeholder:text-plm-fg-muted"
-                  />
-                </div>
-                
-                {/* Time period dropdown */}
-                <div className="relative flex-shrink-0">
-                  <button
-                    onClick={() => setPeriodDropdownOpen(!periodDropdownOpen)}
-                    className="flex items-center gap-1 px-2 py-1 text-xs bg-plm-input border border-plm-border rounded hover:border-plm-fg-muted transition-colors"
-                  >
-                    <Clock size={11} className="text-plm-fg-muted" />
-                    <span className="text-plm-fg">{timePeriods.find(p => p.value === timePeriod)?.label}</span>
-                    <ChevronDown size={11} className="text-plm-fg-muted" />
-                  </button>
-                  
-                  {periodDropdownOpen && (
-                    <>
-                      <div className="fixed inset-0" onClick={() => setPeriodDropdownOpen(false)} />
-                      <div className="absolute right-0 mt-1 w-36 bg-plm-bg-light border border-plm-border rounded-lg shadow-xl z-20 overflow-hidden">
-                        {timePeriods.map(period => (
-                          <button
-                            key={period.value}
-                            onClick={() => {
-                              setTimePeriod(period.value)
-                              setPeriodDropdownOpen(false)
-                            }}
-                            className={`w-full px-3 py-1.5 text-xs text-left hover:bg-plm-highlight transition-colors ${
-                              timePeriod === period.value ? 'text-plm-accent bg-plm-highlight' : 'text-plm-fg'
-                            }`}
-                          >
-                            {period.label}
-                          </button>
-                        ))}
-                      </div>
-                    </>
+        )}
+
+        {/* Toggle sidebar button */}
+        <div className="relative flex-shrink-0">
+          <button
+            onClick={() => setShowFileList(!showFileList)}
+            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 p-1 bg-plm-bg border border-plm-border rounded-r-lg hover:bg-plm-highlight transition-colors"
+          >
+            {showFileList ? (
+              <ChevronLeft size={14} className="text-plm-fg-muted" />
+            ) : (
+              <ChevronRight size={14} className="text-plm-fg-muted" />
+            )}
+          </button>
+        </div>
+
+        {/* Log content area */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Toolbar */}
+          <div className="px-3 py-2 border-b border-plm-border bg-plm-bg-light space-y-2">
+            {/* Row 1: Filters & Search */}
+            <div className="flex items-center gap-2">
+              {/* File info */}
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="p-1 bg-plm-accent/20 rounded">
+                  {selectedCrash ? (
+                    <Skull size={14} className="text-plm-error" />
+                  ) : (
+                    <BarChart3 size={14} className="text-plm-accent" />
                   )}
                 </div>
-                
-                {/* Level filters with integrated counts */}
-                <div className="flex items-center gap-0.5 flex-shrink-0">
-                  {(['error', 'warn', 'info', 'debug'] as LogLevel[]).map(level => {
-                    const count = level === 'error' ? stats.error : 
-                                  level === 'warn' ? stats.warn : 
-                                  level === 'info' ? stats.info : stats.debug
-                    return (
-                      <button
-                        key={level}
-                        onClick={() => toggleLevel(level)}
-                        className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${
-                          levelFilter.has(level)
-                            ? level === 'error' ? 'bg-plm-error/20 text-plm-error' :
-                              level === 'warn' ? 'bg-plm-warning/20 text-plm-warning' :
-                              level === 'info' ? 'bg-plm-info/20 text-plm-info' :
-                              'bg-plm-fg-muted/20 text-plm-fg-muted'
-                            : 'text-plm-fg-dim opacity-40'
-                        }`}
-                        title={`${level}: ${count}`}
-                      >
-                        <LevelIcon level={level} size={10} />
-                        {count > 0 && <span>{count}</span>}
-                      </button>
-                    )
-                  })}
-                </div>
-                
-                <div className="flex-1" />
-                
-                {/* Total count */}
-                <span className="text-[10px] text-plm-fg-muted flex-shrink-0">{stats.total} total</span>
-                
-                {onClose && (
-                  <button
-                    onClick={onClose}
-                    className="p-1 hover:bg-plm-highlight rounded transition-colors flex-shrink-0"
-                  >
-                    <X size={14} className="text-plm-fg-muted" />
-                  </button>
-                )}
+                <span className="text-xs font-medium text-plm-fg truncate max-w-[140px]">
+                  {selectedCrash?.name ||
+                    selectedFile?.name?.replace('blueplm-', '').replace('.log', '') ||
+                    'Select file'}
+                </span>
               </div>
-              
-              {/* Row 2: Controls & Actions - consolidated with descriptive labels */}
-              <div className="flex items-center gap-2 flex-wrap">
-                {/* Recording toggle */}
-                <button
-                  onClick={toggleRecording}
-                  disabled={togglingRecording}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                    isRecording
-                      ? 'bg-plm-error/20 text-plm-error hover:bg-plm-error/30'
-                      : 'bg-plm-fg-muted/10 text-plm-fg-muted hover:bg-plm-fg-muted/20'
-                  }`}
-                  title={isRecording ? 'Recording: real-time updates' : 'Paused'}
-                >
-                  {togglingRecording ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    <Circle size={14} className={isRecording ? 'fill-current' : ''} />
-                  )}
-                  <span>{isRecording ? 'Recording' : 'Paused'}</span>
-                </button>
-                
-                {/* Sort order */}
-                <button
-                  onClick={() => setNewestFirst(!newestFirst)}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-plm-input hover:bg-plm-highlight text-plm-fg-muted transition-colors"
-                >
-                  {newestFirst ? (
-                    <ArrowUpToLine size={14} />
-                  ) : (
-                    <ArrowDownToLine size={14} />
-                  )}
-                  <span>{newestFirst ? 'Newest First' : 'Oldest First'}</span>
-                </button>
-                
-                {/* Auto-scroll */}
-                <button
-                  onClick={() => setAutoScroll(!autoScroll)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                    autoScroll 
-                      ? 'bg-plm-accent/20 text-plm-accent hover:bg-plm-accent/30' 
-                      : 'bg-plm-input text-plm-fg-muted hover:bg-plm-highlight'
-                  }`}
-                >
-                  {autoScroll ? <Pin size={14} /> : <PinOff size={14} />}
-                  <span>Auto-Scroll</span>
-                </button>
-                
-                {/* Select all */}
-                <button
-                  onClick={selectedEntries.size === filteredEntries.length ? deselectAllEntries : selectAllEntries}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-plm-input hover:bg-plm-highlight text-plm-fg-muted transition-colors"
-                >
-                  {selectedEntries.size === filteredEntries.length && filteredEntries.length > 0 ? (
-                    <CheckSquare size={14} className="text-plm-accent" />
-                  ) : (
-                    <Square size={14} />
-                  )}
-                  <span>{selectedEntries.size === filteredEntries.length && filteredEntries.length > 0 ? 'Deselect All' : 'Select All'}</span>
-                </button>
-                
-                {/* Selection actions */}
-                {selectedEntries.size > 0 && (
-                  <div className="flex items-center gap-1.5 bg-plm-accent/10 rounded-md px-2 py-1">
-                    <span className="text-xs text-plm-accent font-medium">
-                      {selectedEntries.size} selected
-                    </span>
-                    <button
-                      onClick={copySelectedEntries}
-                      className="flex items-center gap-1 px-2 py-0.5 text-xs text-plm-accent hover:bg-plm-accent/20 rounded transition-colors"
-                    >
-                      {copiedSelected ? <Check size={12} /> : <Copy size={12} />}
-                      <span>Copy</span>
-                    </button>
-                    <button
-                      onClick={deselectAllEntries}
-                      className="p-1 hover:bg-plm-accent/20 rounded transition-colors"
-                      title="Clear selection"
-                    >
-                      <X size={12} className="text-plm-accent" />
-                    </button>
-                  </div>
-                )}
-                
-                <div className="flex-1" />
-                
-                {/* Copy filtered */}
-                <button
-                  onClick={copyAllFiltered}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-plm-input hover:bg-plm-highlight text-plm-fg-muted transition-colors"
-                >
-                  {copied ? <Check size={14} className="text-plm-success" /> : <Copy size={14} />}
-                  <span>Copy All</span>
-                </button>
-                
-                {/* Export filtered */}
-                <button
-                  onClick={exportFilteredLogs}
-                  disabled={filteredEntries.length === 0}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-plm-input hover:bg-plm-highlight text-plm-fg-muted transition-colors disabled:opacity-40"
-                >
-                  <FileDown size={14} />
-                  <span>Export Filtered</span>
-                </button>
-                
-                {/* New log file */}
-                <button
-                  onClick={startNewLogFile}
-                  disabled={startingNewLog}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-plm-input hover:bg-plm-highlight text-plm-fg-muted transition-colors"
-                >
-                  {startingNewLog ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    <FilePlus size={14} />
-                  )}
-                  <span>New Log</span>
-                </button>
-                
-                {/* Retention settings */}
-                <button
-                  onClick={() => setShowRetentionSettings(!showRetentionSettings)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                    showRetentionSettings 
-                      ? 'bg-plm-accent/20 text-plm-accent hover:bg-plm-accent/30' 
-                      : 'bg-plm-input text-plm-fg-muted hover:bg-plm-highlight'
-                  }`}
-                >
-                  <Settings size={14} />
-                  <span>Settings</span>
-                </button>
-                
-                {/* Open folder */}
-                <button
-                  onClick={() => window.electronAPI?.openLogsDir()}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-plm-input hover:bg-plm-highlight text-plm-fg-muted transition-colors"
-                >
-                  <FolderOpen size={14} />
-                  <span>Open Folder</span>
-                </button>
-              </div>
-              
-              {/* Histogram */}
-              {showFilters && histogram.length > 0 && (
-                <div className="relative bg-plm-bg rounded-lg border border-plm-border p-2">
-                  <Histogram
-                    buckets={histogram}
-                    maxValue={maxHistogramValue}
-                    onBucketClick={handleBucketClick}
-                    levelFilter={levelFilter}
-                    height={histogramHeight}
-                    onHeightChange={setHistogramHeight}
-                  />
-                </div>
-              )}
-            </div>
-            
-            {/* Log entries / Crash content */}
-            <div 
-              ref={contentRef}
-              className={`flex-1 bg-plm-bg ${isLoadingContent || selectedCrash || !selectedFile || filteredEntries.length === 0 ? 'overflow-y-auto' : 'overflow-hidden'}`}
-            >
-              {isLoadingContent ? (
-                <div className="flex items-center justify-center py-16">
-                  <Loader2 size={24} className="animate-spin text-plm-fg-muted" />
-                </div>
-              ) : selectedCrash ? (
-                // Crash report view
-                <div className="p-4">
-                  <div className="flex items-center gap-3 mb-4 pb-4 border-b border-plm-border">
-                    <Skull size={24} className="text-plm-error" />
-                    <div>
-                      <h3 className="text-sm font-medium text-plm-fg">{selectedCrash.name}</h3>
-                      <p className="text-xs text-plm-fg-muted">
-                        {new Date(selectedCrash.modifiedTime).toLocaleString()} • {formatFileSize(selectedCrash.size)}
-                      </p>
-                    </div>
-                  </div>
-                  <pre className="text-xs text-plm-fg font-mono whitespace-pre-wrap break-all bg-plm-bg-light p-4 rounded-lg border border-plm-border">
-                    {crashContent}
-                  </pre>
-                </div>
-              ) : !selectedFile ? (
-                <div className="flex flex-col items-center justify-center py-16 text-plm-fg-muted">
-                  <FileText size={48} className="mb-4 opacity-30" />
-                  <p className="text-sm">Select a log file to view</p>
-                </div>
-              ) : filteredEntries.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16 text-plm-fg-muted">
-                  <Filter size={48} className="mb-4 opacity-30" />
-                  <p className="text-sm">No entries match your filters</p>
-                  <button
-                    onClick={() => {
-                      setSearchQuery('')
-                      setLevelFilter(new Set<LogLevel>(['info', 'warn', 'error', 'debug']))
-                      setTimePeriod('all')
-                    }}
-                    className="mt-3 text-xs text-plm-accent hover:underline"
-                  >
-                    Clear all filters
-                  </button>
-                </div>
-              ) : (
-                <VirtualizedLogList
-                  entries={filteredEntries}
-                  expandedEntries={expandedEntries}
-                  onToggle={toggleEntry}
-                  searchQuery={searchQuery}
-                  selectedEntries={selectedEntries}
-                  onSelect={handleEntrySelect}
+
+              <div className="w-px h-5 bg-plm-border flex-shrink-0" />
+
+              {/* Search */}
+              <div className="relative flex-1 min-w-[120px] max-w-[200px]">
+                <Search
+                  size={12}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 text-plm-fg-muted"
                 />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search..."
+                  className="w-full pl-7 pr-2 py-1 text-xs bg-plm-input border border-plm-border rounded focus:outline-none focus:border-plm-accent text-plm-fg placeholder:text-plm-fg-muted"
+                />
+              </div>
+
+              {/* Time period dropdown */}
+              <div className="relative flex-shrink-0">
+                <button
+                  onClick={() => setPeriodDropdownOpen(!periodDropdownOpen)}
+                  className="flex items-center gap-1 px-2 py-1 text-xs bg-plm-input border border-plm-border rounded hover:border-plm-fg-muted transition-colors"
+                >
+                  <Clock size={11} className="text-plm-fg-muted" />
+                  <span className="text-plm-fg">
+                    {timePeriods.find((p) => p.value === timePeriod)?.label}
+                  </span>
+                  <ChevronDown size={11} className="text-plm-fg-muted" />
+                </button>
+
+                {periodDropdownOpen && (
+                  <>
+                    <div className="fixed inset-0" onClick={() => setPeriodDropdownOpen(false)} />
+                    <div className="absolute right-0 mt-1 w-36 bg-plm-bg-light border border-plm-border rounded-lg shadow-xl z-20 overflow-hidden">
+                      {timePeriods.map((period) => (
+                        <button
+                          key={period.value}
+                          onClick={() => {
+                            setTimePeriod(period.value)
+                            setPeriodDropdownOpen(false)
+                          }}
+                          className={`w-full px-3 py-1.5 text-xs text-left hover:bg-plm-highlight transition-colors ${
+                            timePeriod === period.value
+                              ? 'text-plm-accent bg-plm-highlight'
+                              : 'text-plm-fg'
+                          }`}
+                        >
+                          {period.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Level filters with integrated counts */}
+              <div className="flex items-center gap-0.5 flex-shrink-0">
+                {(['error', 'warn', 'info', 'debug'] as LogLevel[]).map((level) => {
+                  const count =
+                    level === 'error'
+                      ? stats.error
+                      : level === 'warn'
+                        ? stats.warn
+                        : level === 'info'
+                          ? stats.info
+                          : stats.debug
+                  return (
+                    <button
+                      key={level}
+                      onClick={() => toggleLevel(level)}
+                      className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${
+                        levelFilter.has(level)
+                          ? level === 'error'
+                            ? 'bg-plm-error/20 text-plm-error'
+                            : level === 'warn'
+                              ? 'bg-plm-warning/20 text-plm-warning'
+                              : level === 'info'
+                                ? 'bg-plm-info/20 text-plm-info'
+                                : 'bg-plm-fg-muted/20 text-plm-fg-muted'
+                          : 'text-plm-fg-dim opacity-40'
+                      }`}
+                      title={`${level}: ${count}`}
+                    >
+                      <LevelIcon level={level} size={10} />
+                      {count > 0 && <span>{count}</span>}
+                    </button>
+                  )
+                })}
+              </div>
+
+              <div className="flex-1" />
+
+              {/* Total count */}
+              <span className="text-[10px] text-plm-fg-muted flex-shrink-0">
+                {stats.total} total
+              </span>
+
+              {onClose && (
+                <button
+                  onClick={onClose}
+                  className="p-1 hover:bg-plm-highlight rounded transition-colors flex-shrink-0"
+                >
+                  <X size={14} className="text-plm-fg-muted" />
+                </button>
               )}
             </div>
-            
-            {/* Status bar */}
-            <div className="px-3 py-1.5 border-t border-plm-border bg-plm-sidebar flex items-center gap-4 text-[11px] text-plm-fg-muted">
-              <span>{filteredEntries.length} entries</span>
+
+            {/* Row 2: Controls & Actions - consolidated with descriptive labels */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Recording toggle */}
+              <button
+                onClick={toggleRecording}
+                disabled={togglingRecording}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  isRecording
+                    ? 'bg-plm-error/20 text-plm-error hover:bg-plm-error/30'
+                    : 'bg-plm-fg-muted/10 text-plm-fg-muted hover:bg-plm-fg-muted/20'
+                }`}
+                title={isRecording ? 'Recording: real-time updates' : 'Paused'}
+              >
+                {togglingRecording ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Circle size={14} className={isRecording ? 'fill-current' : ''} />
+                )}
+                <span>{isRecording ? 'Recording' : 'Paused'}</span>
+              </button>
+
+              {/* Sort order */}
+              <button
+                onClick={() => setNewestFirst(!newestFirst)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-plm-input hover:bg-plm-highlight text-plm-fg-muted transition-colors"
+              >
+                {newestFirst ? <ArrowUpToLine size={14} /> : <ArrowDownToLine size={14} />}
+                <span>{newestFirst ? 'Newest First' : 'Oldest First'}</span>
+              </button>
+
+              {/* Auto-scroll */}
+              <button
+                onClick={() => setAutoScroll(!autoScroll)}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  autoScroll
+                    ? 'bg-plm-accent/20 text-plm-accent hover:bg-plm-accent/30'
+                    : 'bg-plm-input text-plm-fg-muted hover:bg-plm-highlight'
+                }`}
+              >
+                {autoScroll ? <Pin size={14} /> : <PinOff size={14} />}
+                <span>Auto-Scroll</span>
+              </button>
+
+              {/* Select all */}
+              <button
+                onClick={
+                  selectedEntries.size === filteredEntries.length
+                    ? deselectAllEntries
+                    : selectAllEntries
+                }
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-plm-input hover:bg-plm-highlight text-plm-fg-muted transition-colors"
+              >
+                {selectedEntries.size === filteredEntries.length && filteredEntries.length > 0 ? (
+                  <CheckSquare size={14} className="text-plm-accent" />
+                ) : (
+                  <Square size={14} />
+                )}
+                <span>
+                  {selectedEntries.size === filteredEntries.length && filteredEntries.length > 0
+                    ? 'Deselect All'
+                    : 'Select All'}
+                </span>
+              </button>
+
+              {/* Selection actions */}
               {selectedEntries.size > 0 && (
-                <span className="text-plm-accent">
-                  {selectedEntries.size} selected (Shift+click for range)
-                </span>
+                <div className="flex items-center gap-1.5 bg-plm-accent/10 rounded-md px-2 py-1">
+                  <span className="text-xs text-plm-accent font-medium">
+                    {selectedEntries.size} selected
+                  </span>
+                  <button
+                    onClick={copySelectedEntries}
+                    className="flex items-center gap-1 px-2 py-0.5 text-xs text-plm-accent hover:bg-plm-accent/20 rounded transition-colors"
+                  >
+                    {copiedSelected ? <Check size={12} /> : <Copy size={12} />}
+                    <span>Copy</span>
+                  </button>
+                  <button
+                    onClick={deselectAllEntries}
+                    className="p-1 hover:bg-plm-accent/20 rounded transition-colors"
+                    title="Clear selection"
+                  >
+                    <X size={12} className="text-plm-accent" />
+                  </button>
+                </div>
               )}
-              {searchQuery && <span>Filtered: &quot;{searchQuery}&quot;</span>}
-              {selectedFile && (
-                <span className="ml-auto flex items-center gap-1">
-                  <Calendar size={10} />
-                  {formatDateTime(new Date(selectedFile.modifiedTime))}
-                </span>
-              )}
+
+              <div className="flex-1" />
+
+              {/* Copy filtered */}
+              <button
+                onClick={copyAllFiltered}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-plm-input hover:bg-plm-highlight text-plm-fg-muted transition-colors"
+              >
+                {copied ? <Check size={14} className="text-plm-success" /> : <Copy size={14} />}
+                <span>Copy All</span>
+              </button>
+
+              {/* Export filtered */}
+              <button
+                onClick={exportFilteredLogs}
+                disabled={filteredEntries.length === 0}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-plm-input hover:bg-plm-highlight text-plm-fg-muted transition-colors disabled:opacity-40"
+              >
+                <FileDown size={14} />
+                <span>Export Filtered</span>
+              </button>
+
+              {/* New log file */}
+              <button
+                onClick={startNewLogFile}
+                disabled={startingNewLog}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-plm-input hover:bg-plm-highlight text-plm-fg-muted transition-colors"
+              >
+                {startingNewLog ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <FilePlus size={14} />
+                )}
+                <span>New Log</span>
+              </button>
+
+              {/* Retention settings */}
+              <button
+                onClick={() => setShowRetentionSettings(!showRetentionSettings)}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  showRetentionSettings
+                    ? 'bg-plm-accent/20 text-plm-accent hover:bg-plm-accent/30'
+                    : 'bg-plm-input text-plm-fg-muted hover:bg-plm-highlight'
+                }`}
+              >
+                <Settings size={14} />
+                <span>Settings</span>
+              </button>
+
+              {/* Open folder */}
+              <button
+                onClick={() => window.electronAPI?.openLogsDir()}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-plm-input hover:bg-plm-highlight text-plm-fg-muted transition-colors"
+              >
+                <FolderOpen size={14} />
+                <span>Open Folder</span>
+              </button>
             </div>
+
+            {/* Histogram */}
+            {showFilters && histogram.length > 0 && (
+              <div className="relative bg-plm-bg rounded-lg border border-plm-border p-2">
+                <Histogram
+                  buckets={histogram}
+                  maxValue={maxHistogramValue}
+                  onBucketClick={handleBucketClick}
+                  levelFilter={levelFilter}
+                  height={histogramHeight}
+                  onHeightChange={setHistogramHeight}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Log entries / Crash content */}
+          <div
+            ref={contentRef}
+            className={`flex-1 bg-plm-bg ${isLoadingContent || selectedCrash || !selectedFile || filteredEntries.length === 0 ? 'overflow-y-auto' : 'overflow-hidden'}`}
+          >
+            {isLoadingContent ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 size={24} className="animate-spin text-plm-fg-muted" />
+              </div>
+            ) : selectedCrash ? (
+              // Crash report view
+              <div className="p-4">
+                <div className="flex items-center gap-3 mb-4 pb-4 border-b border-plm-border">
+                  <Skull size={24} className="text-plm-error" />
+                  <div>
+                    <h3 className="text-sm font-medium text-plm-fg">{selectedCrash.name}</h3>
+                    <p className="text-xs text-plm-fg-muted">
+                      {new Date(selectedCrash.modifiedTime).toLocaleString()} •{' '}
+                      {formatFileSize(selectedCrash.size)}
+                    </p>
+                  </div>
+                </div>
+                <pre className="text-xs text-plm-fg font-mono whitespace-pre-wrap break-all bg-plm-bg-light p-4 rounded-lg border border-plm-border">
+                  {crashContent}
+                </pre>
+              </div>
+            ) : !selectedFile ? (
+              <div className="flex flex-col items-center justify-center py-16 text-plm-fg-muted">
+                <FileText size={48} className="mb-4 opacity-30" />
+                <p className="text-sm">Select a log file to view</p>
+              </div>
+            ) : filteredEntries.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-plm-fg-muted">
+                <Filter size={48} className="mb-4 opacity-30" />
+                <p className="text-sm">No entries match your filters</p>
+                <button
+                  onClick={() => {
+                    setSearchQuery('')
+                    setLevelFilter(new Set<LogLevel>(['info', 'warn', 'error', 'debug']))
+                    setTimePeriod('all')
+                  }}
+                  className="mt-3 text-xs text-plm-accent hover:underline"
+                >
+                  Clear all filters
+                </button>
+              </div>
+            ) : (
+              <VirtualizedLogList
+                entries={filteredEntries}
+                expandedEntries={expandedEntries}
+                onToggle={toggleEntry}
+                searchQuery={searchQuery}
+                selectedEntries={selectedEntries}
+                onSelect={handleEntrySelect}
+              />
+            )}
+          </div>
+
+          {/* Status bar */}
+          <div className="px-3 py-1.5 border-t border-plm-border bg-plm-sidebar flex items-center gap-4 text-[11px] text-plm-fg-muted">
+            <span>{filteredEntries.length} entries</span>
+            {selectedEntries.size > 0 && (
+              <span className="text-plm-accent">
+                {selectedEntries.size} selected (Shift+click for range)
+              </span>
+            )}
+            {searchQuery && <span>Filtered: &quot;{searchQuery}&quot;</span>}
+            {selectedFile && (
+              <span className="ml-auto flex items-center gap-1">
+                <Calendar size={10} />
+                {formatDateTime(new Date(selectedFile.modifiedTime))}
+              </span>
+            )}
           </div>
         </div>
+      </div>
     </>
   )
 }
-

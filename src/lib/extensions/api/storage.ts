@@ -1,9 +1,9 @@
 /**
  * Extension Storage API Implementation
- * 
+ *
  * Provides extension-scoped persistent storage.
  * Each extension has its own isolated storage namespace.
- * 
+ *
  * @module extensions/api/storage
  */
 
@@ -34,8 +34,8 @@ export const STORAGE_IPC_CHANNELS = {
  * Send an IPC message to the main process.
  */
 async function sendIPC<T>(channel: string, ...args: unknown[]): Promise<T> {
-  if (typeof window !== 'undefined' && (window as any).__extensionIPC) {
-    return (window as any).__extensionIPC.invoke(channel, ...args)
+  if (typeof window !== 'undefined' && (window as any).__extensionIPC) { // TODO: type this
+    return (window as any).__extensionIPC.invoke(channel, ...args) // TODO: type this
   }
   throw new Error(`IPC not available: ${channel}`)
 }
@@ -54,11 +54,11 @@ function getStoragePrefix(extensionId: string): string {
 
 /**
  * Create the Storage API implementation for an extension.
- * 
+ *
  * @param extensionId - The ID of the extension using this API
  * @param grantedPermissions - Permissions granted to the extension
  * @returns The Storage API implementation
- * 
+ *
  * @example
  * ```typescript
  * const storage = createStorageAPI('my-extension', ['storage:local'])
@@ -68,25 +68,25 @@ function getStoragePrefix(extensionId: string): string {
  */
 export function createStorageAPI(
   extensionId: string,
-  grantedPermissions: string[]
+  grantedPermissions: string[],
 ): ExtensionStorage {
   const prefix = getStoragePrefix(extensionId)
-  
+
   return {
     /**
      * Get a value from storage.
      */
     async get<T>(key: string): Promise<T | undefined> {
       checkPermission(extensionId, 'storage.get', grantedPermissions)
-      
+
       const prefixedKey = prefix + key
-      
+
       try {
-        const result = await sendIPC<{ value?: T; found: boolean }>(
-          STORAGE_IPC_CHANNELS.GET,
-          { extensionId, key: prefixedKey }
-        )
-        
+        const result = await sendIPC<{ value?: T; found: boolean }>(STORAGE_IPC_CHANNELS.GET, {
+          extensionId,
+          key: prefixedKey,
+        })
+
         return result.found ? result.value : undefined
       } catch (error) {
         console.error(`[Extension:${extensionId}] Storage get failed:`, error)
@@ -99,16 +99,16 @@ export function createStorageAPI(
      */
     async set<T>(key: string, value: T): Promise<void> {
       checkPermission(extensionId, 'storage.set', grantedPermissions)
-      
+
       const prefixedKey = prefix + key
-      
+
       // Validate that value is JSON-serializable
       try {
         JSON.stringify(value)
       } catch (error) {
         throw new Error(`Storage value must be JSON-serializable: ${error}`)
       }
-      
+
       await sendIPC(STORAGE_IPC_CHANNELS.SET, {
         extensionId,
         key: prefixedKey,
@@ -121,9 +121,9 @@ export function createStorageAPI(
      */
     async delete(key: string): Promise<void> {
       checkPermission(extensionId, 'storage.delete', grantedPermissions)
-      
+
       const prefixedKey = prefix + key
-      
+
       await sendIPC(STORAGE_IPC_CHANNELS.DELETE, {
         extensionId,
         key: prefixedKey,
@@ -135,12 +135,12 @@ export function createStorageAPI(
      */
     async keys(): Promise<string[]> {
       checkPermission(extensionId, 'storage.keys', grantedPermissions)
-      
-      const result = await sendIPC<{ keys: string[] }>(
-        STORAGE_IPC_CHANNELS.KEYS,
-        { extensionId, prefix }
-      )
-      
+
+      const result = await sendIPC<{ keys: string[] }>(STORAGE_IPC_CHANNELS.KEYS, {
+        extensionId,
+        prefix,
+      })
+
       // Remove prefix from returned keys
       return result.keys.map((k) => k.slice(prefix.length))
     },
@@ -150,14 +150,14 @@ export function createStorageAPI(
      */
     async has(key: string): Promise<boolean> {
       checkPermission(extensionId, 'storage.has', grantedPermissions)
-      
+
       const prefixedKey = prefix + key
-      
-      const result = await sendIPC<{ exists: boolean }>(
-        STORAGE_IPC_CHANNELS.HAS,
-        { extensionId, key: prefixedKey }
-      )
-      
+
+      const result = await sendIPC<{ exists: boolean }>(STORAGE_IPC_CHANNELS.HAS, {
+        extensionId,
+        key: prefixedKey,
+      })
+
       return result.exists
     },
 
@@ -166,7 +166,7 @@ export function createStorageAPI(
      */
     async clear(): Promise<void> {
       checkPermission(extensionId, 'storage.clear', grantedPermissions)
-      
+
       await sendIPC(STORAGE_IPC_CHANNELS.CLEAR, {
         extensionId,
         prefix,
@@ -182,13 +182,13 @@ export function createStorageAPI(
 /**
  * Create a Storage API implementation using localStorage.
  * Used for development/testing or when IPC is not available.
- * 
+ *
  * @param extensionId - The ID of the extension
  * @returns The Storage API implementation backed by localStorage
  */
 export function createLocalStorageAPI(extensionId: string): ExtensionStorage {
   const prefix = getStoragePrefix(extensionId)
-  
+
   return {
     async get<T>(key: string): Promise<T | undefined> {
       try {

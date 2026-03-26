@@ -24,13 +24,22 @@ export type { SolidWorksServiceStatus, UseSolidWorksStatusReturn } from './useSo
 export { useClipboard } from './useClipboard'
 export { useSelectionCategories } from './useSelectionCategories'
 export { useDragDrop } from './useDragDrop'
-export { useSelectionBox, type SelectionBox, type UseSelectionBoxOptions, type UseSelectionBoxReturn } from './useSelectionBox'
+export {
+  useSelectionBox,
+  type SelectionBox,
+  type UseSelectionBoxOptions,
+  type UseSelectionBoxReturn,
+} from './useSelectionBox'
 
 // App startup
 export { useAppStartup } from './useAppStartup'
 
 // Slow double-click for rename (Windows Explorer-style)
-export { useSlowDoubleClick, SLOW_DOUBLE_CLICK_MIN_MS, SLOW_DOUBLE_CLICK_MAX_MS } from './useSlowDoubleClick'
+export {
+  useSlowDoubleClick,
+  SLOW_DOUBLE_CLICK_MIN_MS,
+  SLOW_DOUBLE_CLICK_MAX_MS,
+} from './useSlowDoubleClick'
 export type { UseSlowDoubleClickOptions, UseSlowDoubleClickReturn } from './useSlowDoubleClick'
 
 // Deep link handling

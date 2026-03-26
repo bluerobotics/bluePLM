@@ -1,12 +1,12 @@
 /**
  * TeamMembersSettings - Main component for team members management
- * 
+ *
  * This component uses hooks directly to manage state:
  * - usePDMStore for organization data
  * - useTeams, useMembers, useWorkflowRoles, useJobTitles for data
  * - useTeamDialogs, useUserDialogs, etc. for dialog state
  * - useOrgCode for organization code management
- * 
+ *
  * IMPORTANT: Create dialogs are rendered here (not in tabs) because the header
  * buttons use the hook instances from this component. Tabs render their own
  * edit/delete dialogs which are triggered from within the tabs.
@@ -26,7 +26,7 @@ import {
   UsersRound,
   Briefcase,
   Mail,
-  X
+  X,
 } from 'lucide-react'
 import { log } from '@/lib/logger'
 import { copyToClipboard } from '@/lib/clipboard'
@@ -58,7 +58,7 @@ import {
   CreateUserDialog,
   TeamFormDialog,
   WorkflowRoleFormDialog,
-  JobTitleFormDialog
+  JobTitleFormDialog,
 } from './team-members'
 
 type TabType = 'users' | 'teams' | 'roles' | 'titles'
@@ -71,7 +71,7 @@ export function TeamMembersSettings() {
   const { user, organization, getEffectiveRole, apiServerUrl, addToast } = usePDMStore()
   const orgId = organization?.id ?? null
   const isAdmin = getEffectiveRole() === 'admin'
-  
+
   // Track if we're currently saving to avoid overwriting with stale realtime data
   const savingRef = useRef(false)
 
@@ -79,7 +79,12 @@ export function TeamMembersSettings() {
   const { teams, isLoading: teamsLoading, loadTeams, createTeam } = useTeams(orgId)
   const { members: orgUsers, isLoading: membersLoading, loadMembers } = useMembers(orgId)
   const { loadPendingMembers } = useInvites(orgId)
-  const { workflowRoles, isLoading: rolesLoading, loadWorkflowRoles, createWorkflowRole } = useWorkflowRoles(orgId)
+  const {
+    workflowRoles,
+    isLoading: rolesLoading,
+    loadWorkflowRoles,
+    createWorkflowRole,
+  } = useWorkflowRoles(orgId)
   const { jobTitles, isLoading: titlesLoading, loadJobTitles, createJobTitle } = useJobTitles(orgId)
   const { vaults } = useVaultAccess(orgId)
 
@@ -97,12 +102,7 @@ export function TeamMembersSettings() {
   const [searchQuery, setSearchQuery] = useState('')
 
   // ===== ORG CODE STATE =====
-  const {
-    orgCode,
-    setOrgCode,
-    codeCopied,
-    setCodeCopied
-  } = useOrgCode()
+  const { orgCode, setOrgCode, codeCopied, setCodeCopied } = useOrgCode()
 
   // ===== DIALOG STATE HOOKS =====
   // These hooks manage dialog visibility state
@@ -116,13 +116,10 @@ export function TeamMembersSettings() {
     setIsSavingTeam,
     copyFromTeamId,
     setCopyFromTeamId,
-    resetTeamForm
+    resetTeamForm,
   } = useTeamDialogs()
 
-  const {
-    showCreateUserDialog,
-    setShowCreateUserDialog
-  } = useUserDialogs()
+  const { showCreateUserDialog, setShowCreateUserDialog } = useUserDialogs()
 
   const {
     showCreateWorkflowRoleDialog,
@@ -130,7 +127,7 @@ export function TeamMembersSettings() {
     workflowRoleFormData,
     setWorkflowRoleFormData,
     isSavingWorkflowRole,
-    setIsSavingWorkflowRole
+    setIsSavingWorkflowRole,
   } = useWorkflowRoleDialogs()
 
   const {
@@ -147,7 +144,7 @@ export function TeamMembersSettings() {
     editingJobTitle,
     pendingTitleForUser,
     openCreateTitleDialog: openCreateJobTitle,
-    resetTitleForm
+    resetTitleForm,
   } = useJobTitleDialogs()
 
   // ===== DIALOG HANDLERS =====
@@ -185,7 +182,7 @@ export function TeamMembersSettings() {
         newTitleName.trim(),
         newTitleColor,
         newTitleIcon,
-        pendingTitleForUser?.id
+        pendingTitleForUser?.id,
       )
       if (success) {
         setShowCreateTitleDialog(false)
@@ -206,74 +203,78 @@ export function TeamMembersSettings() {
   const handleAddDomain = async () => {
     const domain = newDomain.trim().toLowerCase()
     if (!domain || !organization?.id) return
-    
+
     // Validate domain format
     if (!/^[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,}$/i.test(domain)) {
       addToast('error', 'Invalid domain format')
       return
     }
-    
+
     // Check if already exists
     if (emailDomains.includes(domain)) {
       addToast('error', 'Domain already added')
       return
     }
-    
+
     setSavingDomains(true)
     savingRef.current = true
     const newDomains = [...emailDomains, domain]
-    
+
     try {
       const { error } = await supabase
         .from('organizations')
         .update({ email_domains: newDomains })
         .eq('id', organization.id)
-      
+
       if (error) throw error
-      
+
       setEmailDomains(newDomains)
       setNewDomain('')
       addToast('success', `Added @${domain}`)
-    } catch (err) {
-      log.error('[TeamMembers]', 'Failed to add domain', { error: err })
+    } catch (error) {
+      log.error('[TeamMembers]', 'Failed to add domain', { error: error })
       addToast('error', 'Failed to add domain')
     } finally {
       setSavingDomains(false)
-      setTimeout(() => { savingRef.current = false }, 1000)
+      setTimeout(() => {
+        savingRef.current = false
+      }, 1000)
     }
   }
 
   const handleRemoveDomain = async (idx: number, domain: string) => {
     if (!organization?.id) return
-    
+
     const newDomains = emailDomains.filter((_, i) => i !== idx)
     setEmailDomains(newDomains)
     savingRef.current = true
-    
+
     try {
       const { error } = await supabase
         .from('organizations')
         .update({ email_domains: newDomains })
         .eq('id', organization.id)
-      
+
       if (error) throw error
       addToast('success', `Removed @${domain}`)
-    } catch (err) {
-      log.error('[TeamMembers]', 'Failed to remove domain', { error: err })
+    } catch (error) {
+      log.error('[TeamMembers]', 'Failed to remove domain', { error: error })
       setEmailDomains(emailDomains) // Revert
       addToast('error', 'Failed to remove domain')
     } finally {
-      setTimeout(() => { savingRef.current = false }, 1000)
+      setTimeout(() => {
+        savingRef.current = false
+      }, 1000)
     }
   }
 
   const handleToggleEnforcement = async () => {
     if (!organization?.id) return
-    
+
     const newValue = !enforceEmailDomain
     setEnforceEmailDomain(newValue)
     savingRef.current = true
-    
+
     try {
       // Fetch current settings from database first to avoid overwriting other fields
       const { data: currentOrg } = await supabase
@@ -281,23 +282,28 @@ export function TeamMembersSettings() {
         .select('settings')
         .eq('id', organization.id)
         .single()
-      
-      const currentSettings = (currentOrg as any)?.settings || organization?.settings || {}
+
+      const currentSettings = (currentOrg as any)?.settings || organization?.settings || {} // TODO: type this
       const newSettings = { ...currentSettings, enforce_email_domain: newValue }
-      
+
       const { error } = await supabase
         .from('organizations')
         .update({ settings: newSettings })
         .eq('id', organization.id)
-      
+
       if (error) throw error
-      addToast('success', newValue ? 'Email domain enforcement enabled' : 'Email domain enforcement disabled')
-    } catch (err) {
-      log.error('[TeamMembers]', 'Failed to update enforcement setting', { error: err })
+      addToast(
+        'success',
+        newValue ? 'Email domain enforcement enabled' : 'Email domain enforcement disabled',
+      )
+    } catch (error) {
+      log.error('[TeamMembers]', 'Failed to update enforcement setting', { error: error })
       setEnforceEmailDomain(!newValue) // Revert
       addToast('error', 'Failed to update setting')
     } finally {
-      setTimeout(() => { savingRef.current = false }, 1000)
+      setTimeout(() => {
+        savingRef.current = false
+      }, 1000)
     }
   }
 
@@ -327,13 +333,13 @@ export function TeamMembersSettings() {
           .single()
 
         if (error) throw error
-        
+
         // Load email domain settings
         setEmailDomains(data?.email_domains || [])
         const settings = (data?.settings || {}) as { enforce_email_domain?: boolean }
         setEnforceEmailDomain(settings.enforce_email_domain ?? false)
-      } catch (err) {
-        log.error('[TeamMembers]', 'Failed to load email domain settings', { error: err })
+      } catch (error) {
+        log.error('[TeamMembers]', 'Failed to load email domain settings', { error: error })
       } finally {
         setLoadingEmailSettings(false)
       }
@@ -341,21 +347,21 @@ export function TeamMembersSettings() {
 
     loadEmailSettings()
   }, [organization?.id])
-  
+
   // Sync with realtime organization changes (when another admin updates settings)
   useEffect(() => {
     // Skip if we're currently saving (to avoid overwriting our own changes)
     if (savingRef.current) return
     // Skip if still loading initial data
     if (loadingEmailSettings) return
-    
-    const org = organization as any
+
+    const org = organization as any // TODO: type this
     if (org) {
       // Sync email domains
       if (org.email_domains) {
         setEmailDomains(org.email_domains)
       }
-      
+
       // Sync enforce_email_domain from settings
       if (org.settings?.enforce_email_domain !== undefined) {
         setEnforceEmailDomain(org.settings.enforce_email_domain)
@@ -363,16 +369,13 @@ export function TeamMembersSettings() {
     }
   }, [
     loadingEmailSettings,
-    (organization as any)?.email_domains,
-    (organization as any)?.settings?.enforce_email_domain
+    (organization as any)?.email_domains, // TODO: type this
+    (organization as any)?.settings?.enforce_email_domain, // TODO: type this
   ])
 
   // ===== DATA LOADING =====
   const loadAllData = useCallback(async () => {
-    await Promise.all([
-      loadTeams(),
-      loadMembers()
-    ])
+    await Promise.all([loadTeams(), loadMembers()])
   }, [loadTeams, loadMembers])
 
   // ===== REALTIME SUBSCRIPTION =====
@@ -383,7 +386,7 @@ export function TeamMembersSettings() {
     const unsubscribe = subscribeToMemberChanges(orgId, (changeType, _eventType, _userId) => {
       // Debounce rapid updates - just reload the affected data
       log.info('[TeamMembers]', 'Realtime member change', { changeType })
-      
+
       switch (changeType) {
         case 'team_member':
           loadMembers()
@@ -405,9 +408,7 @@ export function TeamMembersSettings() {
   // ===== RENDER =====
   if (!organization) {
     return (
-      <div className="text-center py-12 text-plm-fg-muted text-base">
-        No organization connected
-      </div>
+      <div className="text-center py-12 text-plm-fg-muted text-base">No organization connected</div>
     )
   }
 
@@ -421,10 +422,13 @@ export function TeamMembersSettings() {
             Members
           </h2>
           <p className="text-sm text-plm-fg-muted mt-1">
-            {activeTab === 'users' ? 'Manage individual users in your organization' :
-             activeTab === 'teams' ? 'Organize members into teams and manage permissions' : 
-             activeTab === 'roles' ? 'Define workflow roles for approvals and reviews' :
-             'Manage job titles for your organization'}
+            {activeTab === 'users'
+              ? 'Manage individual users in your organization'
+              : activeTab === 'teams'
+                ? 'Organize members into teams and manage permissions'
+                : activeTab === 'roles'
+                  ? 'Define workflow roles for approvals and reviews'
+                  : 'Manage job titles for your organization'}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -481,7 +485,7 @@ export function TeamMembersSettings() {
           )}
         </div>
       </div>
-      
+
       {/* Organization Access Settings (Admin only) */}
       {isAdmin && (
         <div className="bg-plm-bg rounded-lg border border-plm-border divide-y divide-plm-border">
@@ -519,7 +523,11 @@ export function TeamMembersSettings() {
               <code className="text-sm font-mono text-plm-fg">
                 {orgCode ? `${orgCode.substring(0, 24)}...` : '...'}
               </code>
-              {codeCopied ? <Check size={14} className="text-green-500" /> : <Copy size={14} className="text-plm-fg-muted" />}
+              {codeCopied ? (
+                <Check size={14} className="text-green-500" />
+              ) : (
+                <Copy size={14} className="text-plm-fg-muted" />
+              )}
             </button>
           </div>
 
@@ -527,12 +535,17 @@ export function TeamMembersSettings() {
           <div>
             <div className="flex items-center justify-between p-3">
               <div className="flex items-center gap-3">
-                <Shield size={18} className={enforceEmailDomain ? 'text-plm-accent' : 'text-plm-fg-muted'} />
+                <Shield
+                  size={18}
+                  className={enforceEmailDomain ? 'text-plm-accent' : 'text-plm-fg-muted'}
+                />
                 <div>
                   <div className="text-sm font-medium text-plm-fg">Email Domain Restriction</div>
                   <div className="text-xs text-plm-fg-muted">
-                    {enforceEmailDomain 
-                      ? (emailDomains.length > 0 ? `Only @${emailDomains.join(', @')}` : 'Enabled (no domains set)')
+                    {enforceEmailDomain
+                      ? emailDomains.length > 0
+                        ? `Only @${emailDomains.join(', @')}`
+                        : 'Enabled (no domains set)'
                       : 'Anyone with the code can join'}
                   </div>
                 </div>
@@ -543,10 +556,10 @@ export function TeamMembersSettings() {
                   enforceEmailDomain ? 'bg-plm-accent' : 'bg-zinc-800'
                 }`}
               >
-                <span 
+                <span
                   className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${
                     enforceEmailDomain ? 'translate-x-5' : 'translate-x-0'
-                  }`} 
+                  }`}
                 />
               </button>
             </div>
@@ -563,7 +576,7 @@ export function TeamMembersSettings() {
                   ) : (
                     <div className="flex flex-wrap gap-2">
                       {emailDomains.map((domain, idx) => (
-                        <div 
+                        <div
                           key={idx}
                           className="flex items-center gap-1.5 px-2.5 py-1.5 bg-plm-bg-secondary border border-plm-border rounded-lg text-sm"
                         >
@@ -585,7 +598,9 @@ export function TeamMembersSettings() {
                 {/* Add domain */}
                 <div className="flex gap-2 ml-7">
                   <div className="relative flex-1">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted text-sm">@</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted text-sm">
+                      @
+                    </span>
                     <input
                       type="text"
                       value={newDomain}
@@ -618,7 +633,7 @@ export function TeamMembersSettings() {
           </div>
         </div>
       )}
-      
+
       {/* Tab Navigation */}
       <div className="flex gap-1 p-1 bg-plm-bg-secondary rounded-lg w-fit">
         <button
@@ -632,9 +647,11 @@ export function TeamMembersSettings() {
           <UsersRound size={16} />
           Users
           {orgUsers.length > 0 && (
-            <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-              activeTab === 'users' ? 'bg-plm-accent/20 text-plm-accent' : 'bg-plm-fg-muted/20'
-            }`}>
+            <span
+              className={`text-xs px-1.5 py-0.5 rounded-full ${
+                activeTab === 'users' ? 'bg-plm-accent/20 text-plm-accent' : 'bg-plm-fg-muted/20'
+              }`}
+            >
               {orgUsers.length}
             </span>
           )}
@@ -650,9 +667,11 @@ export function TeamMembersSettings() {
           <Users size={16} />
           Teams
           {teams.length > 0 && (
-            <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-              activeTab === 'teams' ? 'bg-plm-accent/20 text-plm-accent' : 'bg-plm-fg-muted/20'
-            }`}>
+            <span
+              className={`text-xs px-1.5 py-0.5 rounded-full ${
+                activeTab === 'teams' ? 'bg-plm-accent/20 text-plm-accent' : 'bg-plm-fg-muted/20'
+              }`}
+            >
               {teams.length}
             </span>
           )}
@@ -668,9 +687,11 @@ export function TeamMembersSettings() {
           <Shield size={16} />
           Roles
           {workflowRoles.length > 0 && (
-            <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-              activeTab === 'roles' ? 'bg-plm-accent/20 text-plm-accent' : 'bg-plm-fg-muted/20'
-            }`}>
+            <span
+              className={`text-xs px-1.5 py-0.5 rounded-full ${
+                activeTab === 'roles' ? 'bg-plm-accent/20 text-plm-accent' : 'bg-plm-fg-muted/20'
+              }`}
+            >
               {workflowRoles.length}
             </span>
           )}
@@ -686,27 +707,32 @@ export function TeamMembersSettings() {
           <Briefcase size={16} />
           Titles
           {jobTitles.length > 0 && (
-            <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-              activeTab === 'titles' ? 'bg-plm-accent/20 text-plm-accent' : 'bg-plm-fg-muted/20'
-            }`}>
+            <span
+              className={`text-xs px-1.5 py-0.5 rounded-full ${
+                activeTab === 'titles' ? 'bg-plm-accent/20 text-plm-accent' : 'bg-plm-fg-muted/20'
+              }`}
+            >
               {jobTitles.length}
             </span>
           )}
         </button>
       </div>
-      
+
       {/* Search */}
       <div className="relative">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted" />
         <input
           type="text"
           value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
+          onChange={(e) => setSearchQuery(e.target.value)}
           placeholder={
-            activeTab === 'users' ? "Search users..." :
-            activeTab === 'teams' ? "Search teams..." : 
-            activeTab === 'roles' ? "Search roles..." :
-            "Search titles..."
+            activeTab === 'users'
+              ? 'Search users...'
+              : activeTab === 'teams'
+                ? 'Search teams...'
+                : activeTab === 'roles'
+                  ? 'Search roles...'
+                  : 'Search titles...'
           }
           className="w-full pl-10 pr-4 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-dim focus:outline-none focus:border-plm-accent"
         />
@@ -719,14 +745,14 @@ export function TeamMembersSettings() {
       ) : (
         <div className="space-y-4">
           {activeTab === 'users' && (
-            <UsersTab 
-              searchQuery={searchQuery} 
+            <UsersTab
+              searchQuery={searchQuery}
               onShowCreateUserDialog={() => setShowCreateUserDialog(true)}
             />
           )}
           {activeTab === 'teams' && (
-            <TeamsTab 
-              searchQuery={searchQuery} 
+            <TeamsTab
+              searchQuery={searchQuery}
               onShowCreateTeamDialog={() => {
                 resetTeamForm()
                 setShowCreateTeamDialog(true)
@@ -734,13 +760,13 @@ export function TeamMembersSettings() {
             />
           )}
           {activeTab === 'roles' && (
-            <RolesTab 
+            <RolesTab
               searchQuery={searchQuery}
               onShowCreateRoleDialog={() => setShowCreateWorkflowRoleDialog(true)}
             />
           )}
           {activeTab === 'titles' && (
-            <TitlesTab 
+            <TitlesTab
               searchQuery={searchQuery}
               onShowCreateTitleDialog={() => openCreateJobTitle()}
             />
@@ -750,7 +776,7 @@ export function TeamMembersSettings() {
 
       {/* ===== CREATE DIALOGS ===== */}
       {/* Rendered here because header buttons use this component's hook instances */}
-      
+
       {/* Create User Dialog */}
       {showCreateUserDialog && orgId && (
         <CreateUserDialog
@@ -823,7 +849,6 @@ export function TeamMembersSettings() {
           isSaving={isCreatingTitle}
         />
       )}
-
     </div>
   )
 }

@@ -30,8 +30,8 @@ export function useWeatherData(enabled: boolean): UseWeatherDataResult {
     try {
       const data = await fetchWeather()
       setWeather(data)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch weather')
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to fetch weather')
     } finally {
       setLoading(false)
     }
@@ -54,9 +54,9 @@ export function useWeatherData(enabled: boolean): UseWeatherDataResult {
         if (!cancelled) {
           setWeather(data)
         }
-      } catch (err) {
+      } catch (error) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Failed to fetch weather')
+          setError(error instanceof Error ? error.message : 'Failed to fetch weather')
         }
       } finally {
         if (!cancelled) {

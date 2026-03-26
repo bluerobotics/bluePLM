@@ -19,18 +19,18 @@ import {
 import { CommentSidebar } from '@/features/source/details/components/CommentSidebar'
 
 export function ReviewPreviewPane() {
-  const reviewPreviewFile = usePDMStore(s => s.reviewPreviewFile)
-  const clearReviewPreviewFile = usePDMStore(s => s.clearReviewPreviewFile)
+  const reviewPreviewFile = usePDMStore((s) => s.reviewPreviewFile)
+  const clearReviewPreviewFile = usePDMStore((s) => s.clearReviewPreviewFile)
 
   // Annotation store selectors
-  const annotations = usePDMStore(s => s.annotations)
-  const activeAnnotationId = usePDMStore(s => s.activeAnnotationId)
-  const setActiveAnnotationId = usePDMStore(s => s.setActiveAnnotationId)
-  const hoveredAnnotationId = usePDMStore(s => s.hoveredAnnotationId)
-  const setHoveredAnnotationId = usePDMStore(s => s.setHoveredAnnotationId)
-  const setShowCommentInput = usePDMStore(s => s.setShowCommentInput)
-  const setPendingAnnotation = usePDMStore(s => s.setPendingAnnotation)
-  const clearAnnotations = usePDMStore(s => s.clearAnnotations)
+  const annotations = usePDMStore((s) => s.annotations)
+  const activeAnnotationId = usePDMStore((s) => s.activeAnnotationId)
+  const setActiveAnnotationId = usePDMStore((s) => s.setActiveAnnotationId)
+  const hoveredAnnotationId = usePDMStore((s) => s.hoveredAnnotationId)
+  const setHoveredAnnotationId = usePDMStore((s) => s.setHoveredAnnotationId)
+  const setShowCommentInput = usePDMStore((s) => s.setShowCommentInput)
+  const setPendingAnnotation = usePDMStore((s) => s.setPendingAnnotation)
+  const clearAnnotations = usePDMStore((s) => s.clearAnnotations)
 
   // Clear annotations when the preview file changes or unmounts
   useEffect(() => {

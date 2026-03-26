@@ -30,14 +30,15 @@ export function BackupHistory({
   historyVaultFilter,
   onHistoryVaultFilterChange,
   isRestoring,
-  isLoadingSnapshots
+  isLoadingSnapshots,
 }: BackupHistoryProps) {
   const vaultNames = status?.snapshots ? extractVaultNamesFromSnapshots(status.snapshots) : []
-  
-  const filteredSnapshots = status?.snapshots?.filter(snapshot => {
-    if (historyVaultFilter === 'all') return true
-    return snapshot.tags?.some(tag => tag === `vault:${historyVaultFilter}`)
-  }) || []
+
+  const filteredSnapshots =
+    status?.snapshots?.filter((snapshot) => {
+      if (historyVaultFilter === 'all') return true
+      return snapshot.tags?.some((tag) => tag === `vault:${historyVaultFilter}`)
+    }) || []
 
   return (
     <div className="space-y-3">
@@ -51,22 +52,24 @@ export function BackupHistory({
             <span className="text-xs text-plm-fg-muted">({status.totalSnapshots})</span>
           ) : null}
         </h4>
-        
+
         {/* Vault filter */}
         {vaultNames.length > 0 && (
           <select
             value={historyVaultFilter}
-            onChange={e => onHistoryVaultFilterChange(e.target.value)}
+            onChange={(e) => onHistoryVaultFilterChange(e.target.value)}
             className="px-2 py-1 rounded text-xs bg-plm-bg-primary border border-plm-border"
           >
             <option value="all">All vaults</option>
-            {vaultNames.map(name => (
-              <option key={name} value={name}>{name}</option>
+            {vaultNames.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
             ))}
           </select>
         )}
       </div>
-      
+
       <div className="max-h-80 overflow-y-auto space-y-2 pr-1">
         {!status?.isConfigured ? (
           <div className="text-sm text-plm-fg-muted py-8 text-center bg-plm-bg-secondary rounded-lg border border-plm-border">
@@ -88,7 +91,7 @@ export function BackupHistory({
             No backups yet. Click "Sync & Backup Now" to create your first backup.
           </div>
         ) : (
-          filteredSnapshots.map(snapshot => (
+          filteredSnapshots.map((snapshot) => (
             <BackupHistoryItem
               key={snapshot.id}
               snapshot={snapshot}
@@ -96,13 +99,17 @@ export function BackupHistory({
               isAdmin={isAdmin}
               isDeleting={deletingSnapshotIds.has(snapshot.id)}
               isRestoring={isRestoring}
-              onSelect={() => onSelectSnapshot(selectedSnapshot === snapshot.id ? null : snapshot.id)}
-              onRequestDelete={() => onRequestDelete({ id: snapshot.id, time: formatDate(snapshot.time) })}
+              onSelect={() =>
+                onSelectSnapshot(selectedSnapshot === snapshot.id ? null : snapshot.id)
+              }
+              onRequestDelete={() =>
+                onRequestDelete({ id: snapshot.id, time: formatDate(snapshot.time) })
+              }
             />
           ))
         )}
       </div>
-      
+
       {/* Non-admin notice */}
       {!isAdmin && (status?.snapshots?.length ?? 0) > 0 && (
         <div className="p-2 rounded bg-plm-bg-secondary border border-plm-border">

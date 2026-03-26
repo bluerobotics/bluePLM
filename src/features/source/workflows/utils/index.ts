@@ -1,20 +1,11 @@
 // Utils barrel export
 // Export from split utility files
 export { lightenColor } from './colors'
-export { 
+export {
   getNearestPointOnBoxEdge,
   getPointFromEdgePosition,
   getClosestPointOnBox,
-  getPerpendicularDirection
+  getPerpendicularDirection,
 } from './geometry'
-export {
-  getBezierMidpoint,
-  getControlPointFromMidpoint,
-  findInsertionIndex
-} from './pathHelpers'
-export {
-  generateSplinePath,
-  getPointOnSpline,
-  generateElbowPath
-} from './pathGeneration'
-
+export { getBezierMidpoint, getControlPointFromMidpoint, findInsertionIndex } from './pathHelpers'
+export { generateSplinePath, getPointOnSpline, generateElbowPath } from './pathGeneration'

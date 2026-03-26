@@ -1,6 +1,6 @@
 /**
  * Clipboard utility for reliable clipboard operations in Electron
- * 
+ *
  * Uses Electron's native clipboard API via IPC which is more reliable
  * than navigator.clipboard in Electron environments (avoids permission errors).
  */
@@ -23,12 +23,12 @@ export async function copyToClipboard(text: string): Promise<{ success: boolean;
       // Electron clipboard unavailable, try navigator.clipboard
     }
   }
-  
+
   // Fallback to navigator.clipboard (for browser dev or if Electron API unavailable)
   try {
     await navigator.clipboard.writeText(text)
     return { success: true }
-  } catch (err) {
+  } catch (error) {
     // Final fallback: use execCommand (deprecated but works in some cases)
     try {
       const textArea = document.createElement('textarea')
@@ -47,10 +47,10 @@ export async function copyToClipboard(text: string): Promise<{ success: boolean;
     } catch {
       // execCommand fallback failed
     }
-    
-    return { 
-      success: false, 
-      error: err instanceof Error ? err.message : 'Failed to copy to clipboard'
+
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to copy to clipboard',
     }
   }
 }
@@ -59,7 +59,11 @@ export async function copyToClipboard(text: string): Promise<{ success: boolean;
  * Read text from clipboard using the most reliable method available
  * @returns Promise that resolves to the clipboard text or error
  */
-export async function readFromClipboard(): Promise<{ success: boolean; text?: string; error?: string }> {
+export async function readFromClipboard(): Promise<{
+  success: boolean
+  text?: string
+  error?: string
+}> {
   // Try Electron's clipboard API first
   if (window.electronAPI?.readFromClipboard) {
     try {
@@ -71,16 +75,15 @@ export async function readFromClipboard(): Promise<{ success: boolean; text?: st
       // Electron clipboard read unavailable, try navigator.clipboard
     }
   }
-  
+
   // Fallback to navigator.clipboard
   try {
     const text = await navigator.clipboard.readText()
     return { success: true, text }
-  } catch (err) {
+  } catch (error) {
     return {
       success: false,
-      error: err instanceof Error ? err.message : 'Failed to read from clipboard'
+      error: error instanceof Error ? error.message : 'Failed to read from clipboard',
     }
   }
 }
-

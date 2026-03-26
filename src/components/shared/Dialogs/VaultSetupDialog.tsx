@@ -1,9 +1,9 @@
 /**
  * Vault Setup Dialog
- * 
+ *
  * Shows when a user first connects to a vault.
  * Prompts for auto-download preferences before syncing begins.
- * 
+ *
  * Features:
  * - Displays vault name and stats (file count, total size)
  * - Shows sync status breakdown (local, server, synced, mismatched)
@@ -14,7 +14,24 @@
  */
 
 import { useState } from 'react'
-import { HardDrive, CloudDownload, Download, Check, X, ToggleLeft, ToggleRight, FileText, Cloud, MonitorSmartphone, CheckCircle2, AlertCircle, Loader2, Scale, Shield, Copy } from 'lucide-react'
+import {
+  HardDrive,
+  CloudDownload,
+  Download,
+  Check,
+  X,
+  ToggleLeft,
+  ToggleRight,
+  FileText,
+  Cloud,
+  MonitorSmartphone,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+  Scale,
+  Shield,
+  Copy,
+} from 'lucide-react'
 import { formatFileSize } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n'
 import { log } from '@/lib/logger'
@@ -61,7 +78,11 @@ interface VaultSetupDialogProps {
   initialSizeLimit?: number
   /** Local path where the vault will be stored (for Windows Defender warning) */
   vaultLocalPath?: string
-  onComplete: (preferences: { autoDownloadCloudFiles: boolean; autoDownloadUpdates: boolean; autoDownloadSizeLimit: number }) => void
+  onComplete: (preferences: {
+    autoDownloadCloudFiles: boolean
+    autoDownloadUpdates: boolean
+    autoDownloadSizeLimit: number
+  }) => void
   onCancel: () => void
 }
 
@@ -78,25 +99,26 @@ export function VaultSetupDialog({
   initialSizeLimit = 1024,
   vaultLocalPath,
   onComplete,
-  onCancel
+  onCancel,
 }: VaultSetupDialogProps) {
   const { t } = useTranslation()
-  const avExclusionWarningDismissed = usePDMStore(s => s.avExclusionWarningDismissed)
-  const setAvExclusionWarningDismissed = usePDMStore(s => s.setAvExclusionWarningDismissed)
-  
+  const avExclusionWarningDismissed = usePDMStore((s) => s.avExclusionWarningDismissed)
+  const setAvExclusionWarningDismissed = usePDMStore((s) => s.setAvExclusionWarningDismissed)
+
   // Default both toggles to OFF - users must explicitly opt-in to automatic downloads
   const [autoDownloadCloudFiles, setAutoDownloadCloudFiles] = useState(false)
   const [autoDownloadUpdates, setAutoDownloadUpdates] = useState(false)
   const [sizeLimit, setSizeLimit] = useState(initialSizeLimit)
   const [sizeLimitEnabled, setSizeLimitEnabled] = useState(initialSizeLimit > 0)
   const [pathCopied, setPathCopied] = useState(false)
-  
+
   // Check if running on Windows
-  const isWindows = typeof navigator !== 'undefined' && navigator.platform?.toLowerCase().includes('win')
-  
+  const isWindows =
+    typeof navigator !== 'undefined' && navigator.platform?.toLowerCase().includes('win')
+
   // Show Windows Defender warning if on Windows, path provided, and not dismissed
   const showDefenderWarning = isWindows && vaultLocalPath && !avExclusionWarningDismissed
-  
+
   // Copy vault path to clipboard
   const handleCopyPath = async () => {
     if (vaultLocalPath) {
@@ -104,18 +126,18 @@ export function VaultSetupDialog({
         await navigator.clipboard.writeText(vaultLocalPath)
         setPathCopied(true)
         setTimeout(() => setPathCopied(false), 2000)
-      } catch (err) {
-        log.warn('[VaultSetup]', 'Failed to copy path to clipboard', { error: String(err) })
+      } catch (error) {
+        log.warn('[VaultSetup]', 'Failed to copy path to clipboard', { error: String(error) })
       }
     }
   }
-  
+
   // Dismiss the warning permanently
   const handleDismissWarning = () => {
     setAvExclusionWarningDismissed(true)
     log.info('[VaultSetup]', 'User dismissed Windows Defender exclusion warning')
   }
-  
+
   const handleConnect = () => {
     log.info('[VaultSetup]', 'User completed setup', {
       vaultId,
@@ -123,40 +145,45 @@ export function VaultSetupDialog({
       autoDownloadCloudFiles,
       autoDownloadUpdates,
       autoDownloadSizeLimit: sizeLimitEnabled ? sizeLimit : 0,
-      fileCount: syncStats?.serverFileCount ?? stats?.fileCount ?? 0
+      fileCount: syncStats?.serverFileCount ?? stats?.fileCount ?? 0,
     })
-    onComplete({ 
-      autoDownloadCloudFiles, 
+    onComplete({
+      autoDownloadCloudFiles,
       autoDownloadUpdates,
-      autoDownloadSizeLimit: sizeLimitEnabled ? sizeLimit : 0
+      autoDownloadSizeLimit: sizeLimitEnabled ? sizeLimit : 0,
     })
   }
-  
+
   const handleSkip = () => {
     log.info('[VaultSetup]', 'User skipped setup', { vaultId, vaultName })
     // When skipping, use defaults (OFF) - don't change existing settings
-    onComplete({ autoDownloadCloudFiles: false, autoDownloadUpdates: false, autoDownloadSizeLimit: 1024 })
+    onComplete({
+      autoDownloadCloudFiles: false,
+      autoDownloadUpdates: false,
+      autoDownloadSizeLimit: 1024,
+    })
   }
-  
+
   // Determine which stats to use - prefer syncStats if available
   const hasSyncStats = syncStats && !syncStats.isLoading
   const serverFileCount = hasSyncStats ? syncStats.serverFileCount : (stats?.fileCount ?? 0)
   const serverTotalSize = hasSyncStats ? syncStats.serverTotalSize : (stats?.totalSize ?? 0)
-  
+
   // Calculate what will be downloaded
   const willDownload = autoDownloadCloudFiles && serverFileCount > 0
   const formattedSize = formatFileSize(serverTotalSize)
-  const fileCountText = serverFileCount === 1 
-    ? t('vaultSetup.fileCountSingular', '1 file')
-    : t('vaultSetup.fileCount', '{{count}} files').replace('{{count}}', String(serverFileCount))
-  
+  const fileCountText =
+    serverFileCount === 1
+      ? t('vaultSetup.fileCountSingular', '1 file')
+      : t('vaultSetup.fileCount', '{{count}} files').replace('{{count}}', String(serverFileCount))
+
   // Check if there are any sync issues (mismatches)
-  const hasSyncIssues = hasSyncStats && (syncStats.outdatedCount > 0 || syncStats.localOnlyCount > 0)
-  
+  const hasSyncIssues =
+    hasSyncStats && (syncStats.outdatedCount > 0 || syncStats.localOnlyCount > 0)
+
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
       <div className="bg-plm-bg-light border border-plm-border rounded-xl shadow-2xl max-w-lg w-full mx-4 overflow-hidden">
-        
         {/* Header */}
         <div className="flex items-center gap-3 px-5 py-4 border-b border-plm-border bg-plm-accent/5">
           <div className="p-2 rounded-lg bg-plm-accent/10">
@@ -166,9 +193,7 @@ export function VaultSetupDialog({
             <h2 className="font-semibold text-plm-fg truncate">
               {t('vaultSetup.title', 'Set Up Your Vault')}
             </h2>
-            <p className="text-sm text-plm-fg-muted truncate">
-              {vaultName}
-            </p>
+            <p className="text-sm text-plm-fg-muted truncate">{vaultName}</p>
           </div>
           <button
             onClick={onCancel}
@@ -177,10 +202,9 @@ export function VaultSetupDialog({
             <X size={18} />
           </button>
         </div>
-        
+
         {/* Content */}
         <div className="px-5 py-4 space-y-4">
-          
           {/* Vault Info - Simple stats when no sync stats, or detailed when available */}
           {syncStats?.isLoading ? (
             <div className="flex items-center gap-3 p-4 bg-plm-bg rounded-lg border border-plm-border">
@@ -199,10 +223,12 @@ export function VaultSetupDialog({
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-xs text-plm-fg-muted">On Server</div>
-                    <div className="font-medium text-sm text-plm-fg">{syncStats.serverFileCount} files</div>
+                    <div className="font-medium text-sm text-plm-fg">
+                      {syncStats.serverFileCount} files
+                    </div>
                   </div>
                 </div>
-                
+
                 {/* Local Files */}
                 <div className="flex items-center gap-3 p-2.5 bg-plm-bg rounded-lg border border-plm-border">
                   <div className="p-1.5 rounded bg-amber-500/10">
@@ -210,10 +236,12 @@ export function VaultSetupDialog({
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-xs text-plm-fg-muted">On Your Computer</div>
-                    <div className="font-medium text-sm text-plm-fg">{syncStats.localFileCount} files</div>
+                    <div className="font-medium text-sm text-plm-fg">
+                      {syncStats.localFileCount} files
+                    </div>
                   </div>
                 </div>
-                
+
                 {/* Synced */}
                 <div className="flex items-center gap-3 p-2.5 bg-plm-bg rounded-lg border border-plm-border">
                   <div className="p-1.5 rounded bg-green-500/10">
@@ -221,50 +249,67 @@ export function VaultSetupDialog({
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-xs text-plm-fg-muted">Already Synced</div>
-                    <div className="font-medium text-sm text-plm-fg">{syncStats.syncedCount} files</div>
+                    <div className="font-medium text-sm text-plm-fg">
+                      {syncStats.syncedCount} files
+                    </div>
                   </div>
                 </div>
-                
+
                 {/* Cloud Only (need download) */}
                 <div className="flex items-center gap-3 p-2.5 bg-plm-bg rounded-lg border border-plm-border">
-                  <div className={`p-1.5 rounded ${syncStats.cloudOnlyCount > 0 ? 'bg-plm-accent/10' : 'bg-plm-bg-light'}`}>
-                    <CloudDownload size={14} className={syncStats.cloudOnlyCount > 0 ? 'text-plm-accent' : 'text-plm-fg-muted'} />
+                  <div
+                    className={`p-1.5 rounded ${syncStats.cloudOnlyCount > 0 ? 'bg-plm-accent/10' : 'bg-plm-bg-light'}`}
+                  >
+                    <CloudDownload
+                      size={14}
+                      className={
+                        syncStats.cloudOnlyCount > 0 ? 'text-plm-accent' : 'text-plm-fg-muted'
+                      }
+                    />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-xs text-plm-fg-muted">Need Download</div>
-                    <div className="font-medium text-sm text-plm-fg">{syncStats.cloudOnlyCount} files</div>
+                    <div className="font-medium text-sm text-plm-fg">
+                      {syncStats.cloudOnlyCount} files
+                    </div>
                   </div>
                 </div>
               </div>
-              
+
               {/* Mismatches warning if any */}
               {hasSyncIssues && (
                 <div className="flex items-start gap-2 p-2.5 bg-amber-500/5 rounded-lg border border-amber-500/20">
                   <AlertCircle size={14} className="text-amber-500 flex-shrink-0 mt-0.5" />
                   <div className="text-xs text-amber-600 dark:text-amber-400">
                     {syncStats.outdatedCount > 0 && (
-                      <span>{syncStats.outdatedCount} file{syncStats.outdatedCount !== 1 ? 's' : ''} outdated (newer version on server)</span>
+                      <span>
+                        {syncStats.outdatedCount} file{syncStats.outdatedCount !== 1 ? 's' : ''}{' '}
+                        outdated (newer version on server)
+                      </span>
                     )}
-                    {syncStats.outdatedCount > 0 && syncStats.localOnlyCount > 0 && <span> • </span>}
+                    {syncStats.outdatedCount > 0 && syncStats.localOnlyCount > 0 && (
+                      <span> • </span>
+                    )}
                     {syncStats.localOnlyCount > 0 && (
-                      <span>{syncStats.localOnlyCount} file{syncStats.localOnlyCount !== 1 ? 's' : ''} local only (not uploaded)</span>
+                      <span>
+                        {syncStats.localOnlyCount} file{syncStats.localOnlyCount !== 1 ? 's' : ''}{' '}
+                        local only (not uploaded)
+                      </span>
                     )}
                   </div>
                 </div>
               )}
-              
+
               {/* Total size */}
               {serverTotalSize > 0 && (
                 <div className="text-xs text-plm-fg-muted text-center pt-1">
                   Total vault size: {formattedSize}
                 </div>
               )}
-              
+
               {/* Vault description */}
               {vaultDescription && (
-                <p className="text-xs text-plm-fg-muted text-center">
-                  {vaultDescription}
-                </p>
+                <p className="text-xs text-plm-fg-muted text-center">{vaultDescription}</p>
               )}
             </div>
           ) : (
@@ -291,15 +336,14 @@ export function VaultSetupDialog({
               </div>
             </div>
           )}
-          
+
           {/* Subtitle */}
           <p className="text-sm text-plm-fg-muted">
             {t('vaultSetup.subtitle', 'Configure how files are synced to your computer')}
           </p>
-          
+
           {/* Toggles */}
           <div className="space-y-3">
-            
             {/* Auto-download cloud files */}
             <div className="flex items-start justify-between gap-4 p-3 bg-plm-bg rounded-lg border border-plm-border">
               <div className="flex items-start gap-3">
@@ -311,7 +355,10 @@ export function VaultSetupDialog({
                     {t('vaultSetup.autoDownloadCloudTitle', 'Auto-download cloud files')}
                   </div>
                   <div className="text-xs text-plm-fg-muted mt-0.5">
-                    {t('vaultSetup.autoDownloadCloudDesc', 'Automatically download files that exist on the server but not on your computer')}
+                    {t(
+                      'vaultSetup.autoDownloadCloudDesc',
+                      'Automatically download files that exist on the server but not on your computer',
+                    )}
                   </div>
                 </div>
               </div>
@@ -326,7 +373,7 @@ export function VaultSetupDialog({
                 )}
               </button>
             </div>
-            
+
             {/* Auto-download updates */}
             <div className="flex items-start justify-between gap-4 p-3 bg-plm-bg rounded-lg border border-plm-border">
               <div className="flex items-start gap-3">
@@ -338,7 +385,10 @@ export function VaultSetupDialog({
                     {t('vaultSetup.autoDownloadUpdatesTitle', 'Auto-download file updates')}
                   </div>
                   <div className="text-xs text-plm-fg-muted mt-0.5">
-                    {t('vaultSetup.autoDownloadUpdatesDesc', 'Automatically download newer versions when files are updated on the server')}
+                    {t(
+                      'vaultSetup.autoDownloadUpdatesDesc',
+                      'Automatically download newer versions when files are updated on the server',
+                    )}
                   </div>
                 </div>
               </div>
@@ -353,7 +403,7 @@ export function VaultSetupDialog({
                 )}
               </button>
             </div>
-            
+
             {/* Size limit for auto-downloads */}
             {(autoDownloadCloudFiles || autoDownloadUpdates) && (
               <div className="p-3 bg-plm-bg rounded-lg border border-plm-border space-y-3">
@@ -367,7 +417,10 @@ export function VaultSetupDialog({
                         {t('vaultSetup.sizeLimitTitle', 'Skip large files')}
                       </div>
                       <div className="text-xs text-plm-fg-muted mt-0.5">
-                        {t('vaultSetup.sizeLimitDesc', 'Avoid auto-downloading files larger than a specified size')}
+                        {t(
+                          'vaultSetup.sizeLimitDesc',
+                          'Avoid auto-downloading files larger than a specified size',
+                        )}
                       </div>
                     </div>
                   </div>
@@ -382,7 +435,7 @@ export function VaultSetupDialog({
                     )}
                   </button>
                 </div>
-                
+
                 {sizeLimitEnabled && (
                   <div className="flex items-center gap-2 ml-11">
                     <span className="text-sm text-plm-fg-muted">
@@ -401,7 +454,7 @@ export function VaultSetupDialog({
               </div>
             )}
           </div>
-          
+
           {/* Windows Defender Exclusion Warning */}
           {showDefenderWarning && (
             <div className="p-3 bg-red-500/10 rounded-lg border border-red-500/30">
@@ -414,9 +467,12 @@ export function VaultSetupDialog({
                     {t('vaultSetup.defenderWarningTitle', 'Windows Defender Exclusion Recommended')}
                   </div>
                   <p className="text-xs text-red-600/80 dark:text-red-400/80 mt-1">
-                    {t('vaultSetup.defenderWarningDesc', 'For best performance with SolidWorks files, add this folder to Windows Defender exclusions:')}
+                    {t(
+                      'vaultSetup.defenderWarningDesc',
+                      'For best performance with SolidWorks files, add this folder to Windows Defender exclusions:',
+                    )}
                   </p>
-                  
+
                   {/* Vault path with copy button */}
                   <div className="flex items-center gap-2 mt-2 p-2 bg-plm-bg rounded border border-plm-border">
                     <code className="flex-1 text-xs text-plm-fg font-mono truncate">
@@ -434,12 +490,15 @@ export function VaultSetupDialog({
                       )}
                     </button>
                   </div>
-                  
+
                   {/* Instructions */}
                   <p className="text-xs text-plm-fg-muted mt-2">
-                    {t('vaultSetup.defenderInstructions', 'Go to: Settings → Privacy & Security → Windows Security → Virus & threat protection → Manage settings → Exclusions → Add folder')}
+                    {t(
+                      'vaultSetup.defenderInstructions',
+                      'Go to: Settings → Privacy & Security → Windows Security → Virus & threat protection → Manage settings → Exclusions → Add folder',
+                    )}
                   </p>
-                  
+
                   {/* Dismiss link */}
                   <button
                     onClick={handleDismissWarning}
@@ -451,16 +510,21 @@ export function VaultSetupDialog({
               </div>
             </div>
           )}
-          
+
           {/* Summary */}
-          <div className={`p-3 rounded-lg border ${willDownload ? 'bg-plm-accent/5 border-plm-accent/20' : 'bg-plm-bg border-plm-border'}`}>
+          <div
+            className={`p-3 rounded-lg border ${willDownload ? 'bg-plm-accent/5 border-plm-accent/20' : 'bg-plm-bg border-plm-border'}`}
+          >
             {willDownload ? (
               <div className="flex items-start gap-2">
                 <CloudDownload size={16} className="text-plm-accent flex-shrink-0 mt-0.5" />
                 <p className="text-sm text-plm-fg">
                   {hasSyncStats && syncStats.cloudOnlyCount > 0
                     ? `After connecting, BluePLM will download ${syncStats.cloudOnlyCount} file${syncStats.cloudOnlyCount !== 1 ? 's' : ''} (${formatFileSize(serverTotalSize)})`
-                    : t('vaultSetup.summary', 'After connecting, BluePLM will download {{count}} files ({{size}})')
+                    : t(
+                        'vaultSetup.summary',
+                        'After connecting, BluePLM will download {{count}} files ({{size}})',
+                      )
                         .replace('{{count}}', String(serverFileCount))
                         .replace('{{size}}', formattedSize)}
                 </p>
@@ -471,14 +535,16 @@ export function VaultSetupDialog({
                 <p className="text-sm text-plm-fg-muted">
                   {hasSyncStats && syncStats.syncedCount > 0
                     ? `All ${syncStats.syncedCount} files are already synced!`
-                    : t('vaultSetup.summaryNoDownload', 'Files will only be downloaded when you request them')}
+                    : t(
+                        'vaultSetup.summaryNoDownload',
+                        'Files will only be downloaded when you request them',
+                      )}
                 </p>
               </div>
             )}
           </div>
-          
         </div>
-        
+
         {/* Footer */}
         <div className="px-5 py-4 border-t border-plm-border bg-plm-bg flex items-center justify-between">
           <button
@@ -495,7 +561,6 @@ export function VaultSetupDialog({
             {t('vaultSetup.connect', 'Connect Vault')}
           </button>
         </div>
-        
       </div>
     </div>
   )

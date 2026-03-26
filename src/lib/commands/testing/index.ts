@@ -8,12 +8,7 @@
 
 // Script Parser
 export { parseTestScript } from './scriptParser'
-export type {
-  ScriptMetadata,
-  TestCommand,
-  TestSection,
-  ParsedTestScript,
-} from './scriptParser'
+export type { ScriptMetadata, TestCommand, TestSection, ParsedTestScript } from './scriptParser'
 
 // Test Runner
 export { runTestScript, runAll } from './testRunner'

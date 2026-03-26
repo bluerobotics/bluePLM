@@ -12,12 +12,12 @@ interface ContextSubmenuProps {
   onMouseLeave?: MouseEventHandler<HTMLDivElement>
 }
 
-export function ContextSubmenu({ 
-  children, 
+export function ContextSubmenu({
+  children,
   className = '',
   minWidth = 160,
   onMouseEnter,
-  onMouseLeave
+  onMouseLeave,
 }: ContextSubmenuProps) {
   const submenuRef = useRef<HTMLDivElement>(null)
   const [verticalOffset, setVerticalOffset] = useState(-4) // Default marginTop
@@ -32,7 +32,7 @@ export function ContextSubmenu({
 
     // Calculate how much the submenu overflows below the viewport
     const bottomOverflow = rect.bottom - (viewportHeight - padding)
-    
+
     if (bottomOverflow > 0) {
       // Shift submenu up to fit within viewport
       // But don't shift so far that the top goes above the viewport
@@ -43,12 +43,12 @@ export function ContextSubmenu({
   }, [])
 
   return (
-    <div 
+    <div
       ref={submenuRef}
       className={`absolute left-full top-0 ml-1 bg-plm-bg-lighter border border-plm-border rounded-md py-1 shadow-lg z-[100] ${className}`}
-      style={{ 
+      style={{
         marginTop: verticalOffset,
-        minWidth
+        minWidth,
       }}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}

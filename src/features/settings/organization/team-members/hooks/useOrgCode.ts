@@ -5,10 +5,10 @@ export function useOrgCode() {
   const [showOrgCode, setShowOrgCode] = useState(false)
   const [orgCode, setOrgCode] = useState<string | null>(null)
   const [codeCopied, setCodeCopied] = useState(false)
-  
+
   const copyCode = useCallback(async () => {
     if (!orgCode) return false
-    
+
     const result = await copyToClipboard(orgCode)
     if (result.success) {
       setCodeCopied(true)
@@ -17,13 +17,13 @@ export function useOrgCode() {
     }
     return false
   }, [orgCode])
-  
+
   const hideCode = useCallback(() => {
     setShowOrgCode(false)
     setOrgCode(null)
     setCodeCopied(false)
   }, [])
-  
+
   return {
     showOrgCode,
     setShowOrgCode,
@@ -32,6 +32,6 @@ export function useOrgCode() {
     codeCopied,
     setCodeCopied,
     copyCode,
-    hideCode
+    hideCode,
   }
 }

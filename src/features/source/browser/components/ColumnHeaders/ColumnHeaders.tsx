@@ -38,14 +38,14 @@ export const ColumnHeaders = memo(function ColumnHeaders({
   onDragOver,
   onDragLeave,
   onDrop,
-  onDragEnd
+  onDragEnd,
 }: ColumnHeadersProps) {
-  const visibleColumns = columns.filter(c => c.visible)
+  const visibleColumns = columns.filter((c) => c.visible)
 
   return (
     <thead>
       <tr>
-        {visibleColumns.map(column => (
+        {visibleColumns.map((column) => (
           <th
             key={column.id}
             data-column-id={column.id}
@@ -72,11 +72,8 @@ export const ColumnHeaders = memo(function ColumnHeaders({
                 <GripVertical size={12} className="text-plm-fg-muted opacity-50" />
               </span>
               <span>{getColumnLabel(column.id)}</span>
-              {sortColumn === column.id && (
-                sortDirection === 'asc' 
-                  ? <ChevronUp size={12} />
-                  : <ChevronDown size={12} />
-              )}
+              {sortColumn === column.id &&
+                (sortDirection === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />)}
             </div>
             <div
               className={`column-resize-handle ${resizingColumn === column.id ? 'resizing' : ''}`}

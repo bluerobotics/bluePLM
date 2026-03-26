@@ -27,21 +27,23 @@ function formatDuration(seconds: number): string {
  * Shows the backup configuration status (configured/not configured)
  * and the total number of snapshots available.
  */
-export function BackupStatusCard({ 
-  status, 
+export function BackupStatusCard({
+  status,
   isLoadingSnapshots,
   isBackoffActive,
   backoffRemainingSeconds,
   cacheAgeSeconds,
-  isUsingCachedData
+  isUsingCachedData,
 }: BackupStatusCardProps) {
   return (
     <div className="space-y-2">
-      <div className={`p-4 rounded-lg border ${
-        status?.isConfigured 
-          ? 'bg-emerald-500/10 border-emerald-500/30' 
-          : 'bg-amber-500/10 border-amber-500/30'
-      }`}>
+      <div
+        className={`p-4 rounded-lg border ${
+          status?.isConfigured
+            ? 'bg-emerald-500/10 border-emerald-500/30'
+            : 'bg-amber-500/10 border-amber-500/30'
+        }`}
+      >
         <div className="flex items-center gap-3">
           {status?.isConfigured ? (
             <CheckCircle2 className="w-5 h-5 text-emerald-400" />
@@ -69,7 +71,7 @@ export function BackupStatusCard({
           </div>
         </div>
       </div>
-      
+
       {/* Rate limiting warning */}
       {isBackoffActive && backoffRemainingSeconds && backoffRemainingSeconds > 0 && (
         <div className="p-3 rounded-lg border bg-amber-500/10 border-amber-500/30">
@@ -84,14 +86,18 @@ export function BackupStatusCard({
           </div>
         </div>
       )}
-      
+
       {/* Cache age indicator (show when using cached data and not in backoff) */}
-      {status?.isConfigured && isUsingCachedData && !isBackoffActive && cacheAgeSeconds != null && cacheAgeSeconds > 60 && (
-        <div className="flex items-center gap-1.5 text-xs text-plm-fg-muted px-1">
-          <Clock className="w-3 h-3" />
-          <span>Showing cached data from {formatDuration(cacheAgeSeconds)} ago</span>
-        </div>
-      )}
+      {status?.isConfigured &&
+        isUsingCachedData &&
+        !isBackoffActive &&
+        cacheAgeSeconds != null &&
+        cacheAgeSeconds > 60 && (
+          <div className="flex items-center gap-1.5 text-xs text-plm-fg-muted px-1">
+            <Clock className="w-3 h-3" />
+            <span>Showing cached data from {formatDuration(cacheAgeSeconds)} ago</span>
+          </div>
+        )}
     </div>
   )
 }

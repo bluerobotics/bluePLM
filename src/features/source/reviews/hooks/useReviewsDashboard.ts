@@ -8,7 +8,13 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { usePDMStore } from '@/stores/pdmStore'
-import { getMyReviews, getPendingReviewsForUser, respondToReview, cancelReview, getUserTeams } from '@/lib/supabase'
+import {
+  getMyReviews,
+  getPendingReviewsForUser,
+  respondToReview,
+  cancelReview,
+  getUserTeams,
+} from '@/lib/supabase'
 import { log } from '@/lib/logger'
 import type { ReviewWithDetails, ReviewStatus } from '@/types/database'
 
@@ -64,7 +70,11 @@ export interface UseReviewsDashboardReturn {
 
   // Actions
   refresh: () => Promise<void>
-  handleRespond: (reviewResponseId: string, status: 'approved' | 'rejected' | 'kicked_back', comment?: string) => Promise<boolean>
+  handleRespond: (
+    reviewResponseId: string,
+    status: 'approved' | 'rejected' | 'kicked_back',
+    comment?: string,
+  ) => Promise<boolean>
   handleCancel: (reviewId: string) => Promise<boolean>
 
   // Navigation
@@ -90,17 +100,17 @@ export function useReviewsDashboard(): UseReviewsDashboardReturn {
   // ---------------------------------------------------------------------------
   // Store selectors (fine-grained to avoid unnecessary re-renders)
   // ---------------------------------------------------------------------------
-  const user = usePDMStore(s => s.user)
-  const organization = usePDMStore(s => s.organization)
-  const addToast = usePDMStore(s => s.addToast)
-  const setActiveView = usePDMStore(s => s.setActiveView)
-  const setCurrentFolder = usePDMStore(s => s.setCurrentFolder)
-  const setSelectedFiles = usePDMStore(s => s.setSelectedFiles)
-  const setReviewPreviewFile = usePDMStore(s => s.setReviewPreviewFile)
-  const files = usePDMStore(s => s.files)
-  const connectedVaults = usePDMStore(s => s.connectedVaults)
-  const activeVaultId = usePDMStore(s => s.activeVaultId)
-  const vaultPath = usePDMStore(s => s.vaultPath)
+  const user = usePDMStore((s) => s.user)
+  const organization = usePDMStore((s) => s.organization)
+  const addToast = usePDMStore((s) => s.addToast)
+  const setActiveView = usePDMStore((s) => s.setActiveView)
+  const setCurrentFolder = usePDMStore((s) => s.setCurrentFolder)
+  const setSelectedFiles = usePDMStore((s) => s.setSelectedFiles)
+  const setReviewPreviewFile = usePDMStore((s) => s.setReviewPreviewFile)
+  const files = usePDMStore((s) => s.files)
+  const connectedVaults = usePDMStore((s) => s.connectedVaults)
+  const activeVaultId = usePDMStore((s) => s.activeVaultId)
+  const vaultPath = usePDMStore((s) => s.vaultPath)
 
   // ---------------------------------------------------------------------------
   // Local state
@@ -138,10 +148,14 @@ export function useReviewsDashboard(): UseReviewsDashboardReturn {
       ])
 
       if (requesterResult.error) {
-        log.warn('[ReviewsDashboard]', 'Error fetching requester reviews', { error: requesterResult.error })
+        log.warn('[ReviewsDashboard]', 'Error fetching requester reviews', {
+          error: requesterResult.error,
+        })
       }
       if (reviewerResult.error) {
-        log.warn('[ReviewsDashboard]', 'Error fetching reviewer reviews', { error: reviewerResult.error })
+        log.warn('[ReviewsDashboard]', 'Error fetching reviewer reviews', {
+          error: reviewerResult.error,
+        })
       }
 
       // Merge, de-duplicate by review ID
@@ -164,10 +178,10 @@ export function useReviewsDashboard(): UseReviewsDashboardReturn {
       })
 
       setReviews(merged)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to load reviews'
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load reviews'
       setError(message)
-      log.error('[ReviewsDashboard]', 'Unexpected error fetching reviews', { error: err })
+      log.error('[ReviewsDashboard]', 'Unexpected error fetching reviews', { error: error })
     }
   }, [user?.id, organization?.id])
 
@@ -188,7 +202,7 @@ export function useReviewsDashboard(): UseReviewsDashboardReturn {
     getUserTeams(user.id).then(({ teams }) => {
       if (teams) {
         setOrgTeams(teams)
-        setVisibleTeamIds(new Set(teams.map(t => t.id)))
+        setVisibleTeamIds(new Set(teams.map((t) => t.id)))
       }
     })
   }, [user?.id])
@@ -209,34 +223,41 @@ export function useReviewsDashboard(): UseReviewsDashboardReturn {
   // Filtering
   // ---------------------------------------------------------------------------
   const filteredReviews = useMemo(() => {
-    let result = reviews.filter(r => r.status !== 'cancelled')
+    let result = reviews.filter((r) => r.status !== 'cancelled')
 
     // Scope filter: "mine" = reviews where the current user is a reviewer
     if (scope === 'mine' && user?.id) {
-      result = result.filter(r =>
-        r.responses?.some(resp => resp.reviewer?.email === user.email || (resp as Record<string, unknown>).reviewer_id === user.id)
-        || r.requested_by === user.id
+      result = result.filter(
+        (r) =>
+          r.responses?.some(
+            (resp) =>
+              resp.reviewer?.email === user.email ||
+              (resp as Record<string, unknown>).reviewer_id === user.id,
+          ) || r.requested_by === user.id,
       )
     }
 
     // Status filter
     if (statusFilter !== 'all') {
-      result = result.filter(r => r.status === statusFilter)
+      result = result.filter((r) => r.status === statusFilter)
     }
 
     // Team filter
     if (activeTeamFilter) {
-      result = result.filter(r => (r as unknown as { team_id?: string }).team_id === activeTeamFilter)
+      result = result.filter(
+        (r) => (r as unknown as { team_id?: string }).team_id === activeTeamFilter,
+      )
     }
 
     // Search filter (file name)
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase()
-      result = result.filter(r =>
-        r.file?.file_name?.toLowerCase().includes(q) ||
-        r.title?.toLowerCase().includes(q) ||
-        r.requester?.full_name?.toLowerCase().includes(q) ||
-        r.requester?.email?.toLowerCase().includes(q)
+      result = result.filter(
+        (r) =>
+          r.file?.file_name?.toLowerCase().includes(q) ||
+          r.title?.toLowerCase().includes(q) ||
+          r.requester?.full_name?.toLowerCase().includes(q) ||
+          r.requester?.email?.toLowerCase().includes(q),
       )
     }
 
@@ -276,123 +297,155 @@ export function useReviewsDashboard(): UseReviewsDashboardReturn {
   // ---------------------------------------------------------------------------
   // Actions
   // ---------------------------------------------------------------------------
-  const handleRespond = useCallback(async (
-    reviewResponseId: string,
-    status: 'approved' | 'rejected' | 'kicked_back',
-    comment?: string,
-  ): Promise<boolean> => {
-    if (!user?.id) return false
+  const handleRespond = useCallback(
+    async (
+      reviewResponseId: string,
+      status: 'approved' | 'rejected' | 'kicked_back',
+      comment?: string,
+    ): Promise<boolean> => {
+      if (!user?.id) return false
 
-    const { success, error: err } = await respondToReview(reviewResponseId, user.id, status, comment)
-    if (success) {
-      const label = status === 'approved' ? 'approved' : status === 'kicked_back' ? 'kicked back' : 'rejected'
-      addToast('success', `Review ${label}`)
-      await fetchReviews()
-      return true
-    } else {
-      const failLabel = status === 'approved' ? 'approve' : status === 'kicked_back' ? 'kick back' : 'reject'
-      addToast('error', err || `Failed to ${failLabel} review`)
-      return false
-    }
-  }, [user?.id, addToast, fetchReviews])
+      const { success, error: error } = await respondToReview(
+        reviewResponseId,
+        user.id,
+        status,
+        comment,
+      )
+      if (success) {
+        const label =
+          status === 'approved' ? 'approved' : status === 'kicked_back' ? 'kicked back' : 'rejected'
+        addToast('success', `Review ${label}`)
+        await fetchReviews()
+        return true
+      } else {
+        const failLabel =
+          status === 'approved' ? 'approve' : status === 'kicked_back' ? 'kick back' : 'reject'
+        addToast('error', error || `Failed to ${failLabel} review`)
+        return false
+      }
+    },
+    [user?.id, addToast, fetchReviews],
+  )
 
-  const handleCancel = useCallback(async (reviewId: string): Promise<boolean> => {
-    if (!user?.id) return false
+  const handleCancel = useCallback(
+    async (reviewId: string): Promise<boolean> => {
+      if (!user?.id) return false
 
-    const { success, error: err } = await cancelReview(reviewId, user.id)
-    if (success) {
-      addToast('success', 'Review cancelled')
-      setReviews(prev => prev.filter(r => r.id !== reviewId))
-      await fetchReviews()
-      return true
-    } else {
-      addToast('error', err || 'Failed to cancel review')
-      return false
-    }
-  }, [user?.id, addToast, fetchReviews])
+      const { success, error: error } = await cancelReview(reviewId, user.id)
+      if (success) {
+        addToast('success', 'Review cancelled')
+        setReviews((prev) => prev.filter((r) => r.id !== reviewId))
+        await fetchReviews()
+        return true
+      } else {
+        addToast('error', error || 'Failed to cancel review')
+        return false
+      }
+    },
+    [user?.id, addToast, fetchReviews],
+  )
 
   // ---------------------------------------------------------------------------
   // Navigation
   // ---------------------------------------------------------------------------
   const getActiveVaultPath = useCallback((): string | null => {
     if (activeVaultId && connectedVaults.length > 0) {
-      const vault = connectedVaults.find(v => v.id === activeVaultId)
+      const vault = connectedVaults.find((v) => v.id === activeVaultId)
       if (vault?.localPath) return vault.localPath
     }
     return vaultPath
   }, [connectedVaults, activeVaultId, vaultPath])
 
-  const getLocalFilePath = useCallback((review: ReviewWithDetails): string | null => {
-    const filePath = review.file?.file_path
-    if (!filePath) return null
+  const getLocalFilePath = useCallback(
+    (review: ReviewWithDetails): string | null => {
+      const filePath = review.file?.file_path
+      if (!filePath) return null
 
-    const basePath = getActiveVaultPath()
-    if (!basePath) return null
+      const basePath = getActiveVaultPath()
+      if (!basePath) return null
 
-    const sep = basePath.includes('\\') ? '\\' : '/'
-    return basePath + sep + filePath.replace(/\//g, sep)
-  }, [getActiveVaultPath])
+      const sep = basePath.includes('\\') ? '\\' : '/'
+      return basePath + sep + filePath.replace(/\//g, sep)
+    },
+    [getActiveVaultPath],
+  )
 
-  const previewFile = useCallback((review: ReviewWithDetails) => {
-    const fullPath = getLocalFilePath(review)
-    if (!fullPath) {
-      addToast('error', review.file?.file_path ? 'Cannot preview file: vault not connected' : 'File path not available')
-      return
-    }
+  const previewFile = useCallback(
+    (review: ReviewWithDetails) => {
+      const fullPath = getLocalFilePath(review)
+      if (!fullPath) {
+        addToast(
+          'error',
+          review.file?.file_path
+            ? 'Cannot preview file: vault not connected'
+            : 'File path not available',
+        )
+        return
+      }
 
-    const filePath = review.file!.file_path!
-    const normalizedPath = filePath.replace(/\\/g, '/')
-    const localFile = files.find(f => f.relativePath.replace(/\\/g, '/') === normalizedPath)
-    const fileId = localFile?.pdmData?.id ?? review.file_id ?? null
+      const filePath = review.file!.file_path!
+      const normalizedPath = filePath.replace(/\\/g, '/')
+      const localFile = files.find((f) => f.relativePath.replace(/\\/g, '/') === normalizedPath)
+      const fileId = localFile?.pdmData?.id ?? review.file_id ?? null
 
-    setReviewPreviewFile({
-      filePath: fullPath,
-      fileId,
-      fileName: review.file?.file_name ?? filePath.split('/').pop() ?? 'Unknown',
-      fileVersion: review.file_version ?? null,
-      reviewId: review.id,
-    })
-  }, [files, addToast, getLocalFilePath, setReviewPreviewFile])
+      setReviewPreviewFile({
+        filePath: fullPath,
+        fileId,
+        fileName: review.file?.file_name ?? filePath.split('/').pop() ?? 'Unknown',
+        fileVersion: review.file_version ?? null,
+        reviewId: review.id,
+      })
+    },
+    [files, addToast, getLocalFilePath, setReviewPreviewFile],
+  )
 
-  const navigateToFile = useCallback((filePath: string | undefined) => {
-    if (!filePath) {
-      addToast('error', 'File path not available')
-      return
-    }
+  const navigateToFile = useCallback(
+    (filePath: string | undefined) => {
+      if (!filePath) {
+        addToast('error', 'File path not available')
+        return
+      }
 
-    // Normalize path separators
-    const normalizedPath = filePath.replace(/\\/g, '/')
-    const parts = normalizedPath.split('/')
-    parts.pop()
-    const parentFolder = parts.join('/')
+      // Normalize path separators
+      const normalizedPath = filePath.replace(/\\/g, '/')
+      const parts = normalizedPath.split('/')
+      parts.pop()
+      const parentFolder = parts.join('/')
 
-    // Find the full local path
-    const fullPath = files.find(f => f.relativePath.replace(/\\/g, '/') === normalizedPath)?.path
+      // Find the full local path
+      const fullPath = files.find(
+        (f) => f.relativePath.replace(/\\/g, '/') === normalizedPath,
+      )?.path
 
-    setActiveView('explorer')
-    setCurrentFolder(parentFolder)
-    if (fullPath) {
-      setSelectedFiles([fullPath])
-    }
-  }, [files, setActiveView, setCurrentFolder, setSelectedFiles, addToast])
+      setActiveView('explorer')
+      setCurrentFolder(parentFolder)
+      if (fullPath) {
+        setSelectedFiles([fullPath])
+      }
+    },
+    [files, setActiveView, setCurrentFolder, setSelectedFiles, addToast],
+  )
 
-  const openFileExternally = useCallback((filePath: string | undefined) => {
-    if (!filePath) {
-      addToast('error', 'File path not available')
-      return
-    }
+  const openFileExternally = useCallback(
+    (filePath: string | undefined) => {
+      if (!filePath) {
+        addToast('error', 'File path not available')
+        return
+      }
 
-    const basePath = getActiveVaultPath()
-    if (!basePath) {
-      addToast('error', 'Cannot open file: vault not connected')
-      return
-    }
+      const basePath = getActiveVaultPath()
+      if (!basePath) {
+        addToast('error', 'Cannot open file: vault not connected')
+        return
+      }
 
-    // Build full path
-    const sep = basePath.includes('\\') ? '\\' : '/'
-    const fullPath = basePath + sep + filePath.replace(/\//g, sep)
-    window.electronAPI?.openFile(fullPath)
-  }, [addToast, getActiveVaultPath])
+      // Build full path
+      const sep = basePath.includes('\\') ? '\\' : '/'
+      const fullPath = basePath + sep + filePath.replace(/\//g, sep)
+      window.electronAPI?.openFile(fullPath)
+    },
+    [addToast, getActiveVaultPath],
+  )
 
   // ---------------------------------------------------------------------------
   // Return

@@ -16,7 +16,7 @@ const DEFAULT_LOG_RETENTION: LogRetentionSettings = {
   maxFiles: 100,
   maxAgeDays: 7,
   maxSizeMb: 10,
-  maxTotalSizeMb: 500
+  maxTotalSizeMb: 500,
 }
 
 // Module state
@@ -84,7 +84,7 @@ function loadLogRetentionSettings(): LogRetentionSettings {
         maxFiles: loaded.maxFiles ?? DEFAULT_LOG_RETENTION.maxFiles,
         maxAgeDays: loaded.maxAgeDays ?? DEFAULT_LOG_RETENTION.maxAgeDays,
         maxSizeMb: loaded.maxSizeMb ?? DEFAULT_LOG_RETENTION.maxSizeMb,
-        maxTotalSizeMb: loaded.maxTotalSizeMb ?? DEFAULT_LOG_RETENTION.maxTotalSizeMb
+        maxTotalSizeMb: loaded.maxTotalSizeMb ?? DEFAULT_LOG_RETENTION.maxTotalSizeMb,
       }
     }
   } catch {
@@ -120,21 +120,22 @@ function cleanupOldLogFiles(logsDir: string) {
     const now = Date.now()
     const maxAgeMs = maxAgeDays > 0 ? maxAgeDays * 24 * 60 * 60 * 1000 : 0
     const maxTotalSizeBytes = maxTotalSizeMb > 0 ? maxTotalSizeMb * 1024 * 1024 : 0
-    
-    let logFiles = fs.readdirSync(logsDir)
-      .filter(f => f.startsWith('blueplm-') && f.endsWith('.log'))
-      .map(filename => {
+
+    let logFiles = fs
+      .readdirSync(logsDir)
+      .filter((f) => f.startsWith('blueplm-') && f.endsWith('.log'))
+      .map((filename) => {
         const filePath = path.join(logsDir, filename)
         const stats = fs.statSync(filePath)
         return {
           name: filename,
           path: filePath,
           mtime: stats.mtime.getTime(),
-          size: stats.size
+          size: stats.size,
         }
       })
       .sort((a, b) => b.mtime - a.mtime)
-    
+
     // Delete old files by age
     if (maxAgeDays > 0) {
       for (const file of logFiles) {
@@ -146,22 +147,23 @@ function cleanupOldLogFiles(logsDir: string) {
         }
       }
     }
-    
+
     // Re-read after age cleanup
-    logFiles = fs.readdirSync(logsDir)
-      .filter(f => f.startsWith('blueplm-') && f.endsWith('.log'))
-      .map(filename => {
+    logFiles = fs
+      .readdirSync(logsDir)
+      .filter((f) => f.startsWith('blueplm-') && f.endsWith('.log'))
+      .map((filename) => {
         const filePath = path.join(logsDir, filename)
         const stats = fs.statSync(filePath)
         return {
           name: filename,
           path: filePath,
           mtime: stats.mtime.getTime(),
-          size: stats.size
+          size: stats.size,
         }
       })
       .sort((a, b) => b.mtime - a.mtime)
-    
+
     // Delete files beyond count limit
     if (maxFiles > 0 && logFiles.length >= maxFiles) {
       const filesToDelete = logFiles.slice(maxFiles - 1)
@@ -172,11 +174,11 @@ function cleanupOldLogFiles(logsDir: string) {
       }
       logFiles = logFiles.slice(0, maxFiles - 1)
     }
-    
+
     // Delete files beyond total size limit
     if (maxTotalSizeBytes > 0) {
       let totalSize = logFiles.reduce((sum, f) => sum + f.size, 0)
-      
+
       while (totalSize > maxTotalSizeBytes && logFiles.length > 1) {
         const oldestFile = logFiles.pop()!
         try {
@@ -194,15 +196,15 @@ function rotateLogFile() {
       logStream.end()
       logStream = null
     }
-    
+
     const logsDir = path.join(app.getPath('userData'), 'logs')
     cleanupOldLogFiles(logsDir)
-    
+
     const newTimestamp = formatDateForFilename(new Date())
     logFilePath = path.join(logsDir, `blueplm-${newTimestamp}.log`)
     logStream = fs.createWriteStream(logFilePath, { flags: 'w' })
     currentLogSize = 0
-    
+
     const header = `${'='.repeat(60)}\nBluePLM Log (continued)\nRotated: ${new Date().toISOString()}\nVersion: ${app.getVersion()}\n${'='.repeat(60)}\n\n`
     logStream.write(header)
     currentLogSize += Buffer.byteLength(header, 'utf8')
@@ -215,17 +217,17 @@ export function writeLog(level: LogEntry['level'], message: string, data?: unkno
     timestamp: new Date().toISOString(),
     level,
     message,
-    data
+    data,
   }
-  
+
   logBuffer.push(entry)
   if (logBuffer.length > LOG_BUFFER_MAX) {
     logBuffer.shift()
   }
-  
+
   const dataStr = data !== undefined ? ` ${JSON.stringify(data)}` : ''
   const logLine = `[${entry.timestamp}] [${level.toUpperCase()}] ${message}${dataStr}\n`
-  
+
   if (level === 'error') {
     console.error(logLine.trim())
   } else if (level === 'warn') {
@@ -233,15 +235,15 @@ export function writeLog(level: LogEntry['level'], message: string, data?: unkno
   } else {
     console.log(logLine.trim())
   }
-  
+
   if (logRecordingEnabled && logStream) {
     const lineBytes = Buffer.byteLength(logLine, 'utf8')
     const maxSize = logRetentionSettings.maxSizeMb * 1024 * 1024
-    
+
     if (currentLogSize + lineBytes > maxSize) {
       rotateLogFile()
     }
-    
+
     logStream.write(logLine)
     currentLogSize += lineBytes
   }
@@ -254,31 +256,34 @@ export function initializeLogging() {
   try {
     loadLogRetentionSettings()
     // logRecordingEnabled defaults to true (see line 25) - we do not persist/restore this
-    
+
     const logsDir = path.join(app.getPath('userData'), 'logs')
     if (!fs.existsSync(logsDir)) {
       fs.mkdirSync(logsDir, { recursive: true })
     }
-    
+
     const sessionTimestamp = formatDateForFilename(new Date())
     logFilePath = path.join(logsDir, `blueplm-${sessionTimestamp}.log`)
-    
+
     cleanupOldLogFiles(logsDir)
-    
+
     logStream = fs.createWriteStream(logFilePath, { flags: 'w' })
     currentLogSize = 0
-    
+
     const startupHeader = `${'='.repeat(60)}\nBluePLM Session Log\nStarted: ${new Date().toISOString()}\nVersion: ${app.getVersion()}\nPlatform: ${process.platform} ${process.arch}\nElectron: ${process.versions.electron}\nNode: ${process.versions.node}\n${'='.repeat(60)}\n\n`
     logStream.write(startupHeader)
     currentLogSize += Buffer.byteLength(startupHeader, 'utf8')
-  } catch (err) {
-    console.error('Failed to initialize logging:', err)
+  } catch (error) {
+    console.error('Failed to initialize logging:', error)
   }
 }
 
 export interface LoggingHandlerDependencies {}
 
-export function registerLoggingHandlers(window: BrowserWindow, _deps: LoggingHandlerDependencies): void {
+export function registerLoggingHandlers(
+  window: BrowserWindow,
+  _deps: LoggingHandlerDependencies,
+): void {
   mainWindow = window
 
   // Get log entries from buffer
@@ -296,27 +301,28 @@ export function registerLoggingHandlers(window: BrowserWindow, _deps: LoggingHan
     const result = await dialog.showSaveDialog(mainWindow!, {
       title: 'Export Logs',
       defaultPath: `blueplm-logs-${formatDateForFilename(new Date())}.log`,
-      filters: [{ name: 'Log Files', extensions: ['log'] }]
+      filters: [{ name: 'Log Files', extensions: ['log'] }],
     })
-    
+
     if (!result.canceled && result.filePath) {
       try {
         const logsDir = path.join(app.getPath('userData'), 'logs')
-        const logFiles = fs.readdirSync(logsDir)
-          .filter(f => f.startsWith('blueplm-') && f.endsWith('.log'))
+        const logFiles = fs
+          .readdirSync(logsDir)
+          .filter((f) => f.startsWith('blueplm-') && f.endsWith('.log'))
           .sort()
-        
+
         let content = ''
         for (const file of logFiles) {
           const filePath = path.join(logsDir, file)
           content += fs.readFileSync(filePath, 'utf8')
           content += '\n\n'
         }
-        
+
         fs.writeFileSync(result.filePath, content)
         return { success: true, path: result.filePath }
-      } catch (err) {
-        return { success: false, error: String(err) }
+      } catch (error) {
+        return { success: false, error: String(error) }
       }
     }
     return { success: false, canceled: true }
@@ -335,29 +341,30 @@ export function registerLoggingHandlers(window: BrowserWindow, _deps: LoggingHan
   // List crash files
   ipcMain.handle('logs:list-crashes', async () => {
     const crashDir = path.join(app.getPath('userData'), 'Crashpad', 'reports')
-    
+
     if (!fs.existsSync(crashDir)) {
       return { success: true, crashes: [] }
     }
-    
+
     try {
-      const files = fs.readdirSync(crashDir)
-        .filter(f => f.endsWith('.dmp'))
-        .map(filename => {
+      const files = fs
+        .readdirSync(crashDir)
+        .filter((f) => f.endsWith('.dmp'))
+        .map((filename) => {
           const filePath = path.join(crashDir, filename)
           const stats = fs.statSync(filePath)
           return {
             name: filename,
             path: filePath,
             size: stats.size,
-            date: stats.mtime.toISOString()
+            date: stats.mtime.toISOString(),
           }
         })
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      
+
       return { success: true, crashes: files }
-    } catch (err) {
-      return { success: false, error: String(err), crashes: [] }
+    } catch (error) {
+      return { success: false, error: String(error), crashes: [] }
     }
   })
 
@@ -371,11 +378,11 @@ export function registerLoggingHandlers(window: BrowserWindow, _deps: LoggingHan
           path: filePath,
           size: stats.size,
           date: stats.mtime.toISOString(),
-          content: `Binary crash dump (${stats.size} bytes)`
-        }
+          content: `Binary crash dump (${stats.size} bytes)`,
+        },
       }
-    } catch (err) {
-      return { success: false, error: String(err) }
+    } catch (error) {
+      return { success: false, error: String(error) }
     }
   })
 
@@ -392,25 +399,26 @@ export function registerLoggingHandlers(window: BrowserWindow, _deps: LoggingHan
   // List log files
   ipcMain.handle('logs:list-files', async () => {
     const logsDir = path.join(app.getPath('userData'), 'logs')
-    
+
     try {
-      const files = fs.readdirSync(logsDir)
-        .filter(f => f.startsWith('blueplm-') && f.endsWith('.log'))
-        .map(filename => {
+      const files = fs
+        .readdirSync(logsDir)
+        .filter((f) => f.startsWith('blueplm-') && f.endsWith('.log'))
+        .map((filename) => {
           const filePath = path.join(logsDir, filename)
           const stats = fs.statSync(filePath)
           return {
             name: filename,
             path: filePath,
             size: stats.size,
-            date: stats.mtime.toISOString()
+            date: stats.mtime.toISOString(),
           }
         })
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      
+
       return { success: true, files }
-    } catch (err) {
-      return { success: false, error: String(err), files: [] }
+    } catch (error) {
+      return { success: false, error: String(error), files: [] }
     }
   })
 
@@ -419,8 +427,8 @@ export function registerLoggingHandlers(window: BrowserWindow, _deps: LoggingHan
     try {
       const content = fs.readFileSync(filePath, 'utf8')
       return { success: true, content }
-    } catch (err) {
-      return { success: false, error: String(err) }
+    } catch (error) {
+      return { success: false, error: String(error) }
     }
   })
 
@@ -438,48 +446,49 @@ export function registerLoggingHandlers(window: BrowserWindow, _deps: LoggingHan
       if (filePath === logFilePath) {
         return { success: false, error: 'Cannot delete current log file' }
       }
-      
+
       fs.unlinkSync(filePath)
       return { success: true }
-    } catch (err) {
-      return { success: false, error: String(err) }
+    } catch (error) {
+      return { success: false, error: String(error) }
     }
   })
 
   // Delete all log files (except current session)
   ipcMain.handle('logs:delete-all-files', async () => {
     const logsDir = path.join(app.getPath('userData'), 'logs')
-    
+
     try {
-      const files = fs.readdirSync(logsDir)
-        .filter(f => f.startsWith('blueplm-') && f.endsWith('.log'))
-      
+      const files = fs
+        .readdirSync(logsDir)
+        .filter((f) => f.startsWith('blueplm-') && f.endsWith('.log'))
+
       let deletedCount = 0
       const errors: string[] = []
-      
+
       for (const filename of files) {
         const filePath = path.join(logsDir, filename)
-        
+
         // Don't delete current log file
         if (filePath === logFilePath) {
           continue
         }
-        
+
         try {
           fs.unlinkSync(filePath)
           deletedCount++
-        } catch (err) {
-          errors.push(`${filename}: ${String(err)}`)
+        } catch (error) {
+          errors.push(`${filename}: ${String(error)}`)
         }
       }
-      
-      return { 
-        success: true, 
+
+      return {
+        success: true,
         deleted: deletedCount,
-        errors: errors.length > 0 ? errors : undefined
+        errors: errors.length > 0 ? errors : undefined,
       }
-    } catch (err) {
-      return { success: false, error: String(err), deleted: 0 }
+    } catch (error) {
+      return { success: false, error: String(error), deleted: 0 }
     }
   })
 
@@ -495,47 +504,51 @@ export function registerLoggingHandlers(window: BrowserWindow, _deps: LoggingHan
     return {
       success: true,
       settings: logRetentionSettings,
-      defaults: DEFAULT_LOG_RETENTION
+      defaults: DEFAULT_LOG_RETENTION,
     }
   })
 
   // Set retention settings
-  ipcMain.handle('logs:set-retention-settings', async (_, settings: Partial<LogRetentionSettings>) => {
-    const newSettings: LogRetentionSettings = {
-      maxFiles: settings.maxFiles ?? logRetentionSettings.maxFiles,
-      maxAgeDays: settings.maxAgeDays ?? logRetentionSettings.maxAgeDays,
-      maxSizeMb: settings.maxSizeMb ?? logRetentionSettings.maxSizeMb,
-      maxTotalSizeMb: settings.maxTotalSizeMb ?? logRetentionSettings.maxTotalSizeMb
-    }
-    
-    const saved = saveLogRetentionSettings(newSettings)
-    return { success: saved, settings: newSettings }
-  })
+  ipcMain.handle(
+    'logs:set-retention-settings',
+    async (_, settings: Partial<LogRetentionSettings>) => {
+      const newSettings: LogRetentionSettings = {
+        maxFiles: settings.maxFiles ?? logRetentionSettings.maxFiles,
+        maxAgeDays: settings.maxAgeDays ?? logRetentionSettings.maxAgeDays,
+        maxSizeMb: settings.maxSizeMb ?? logRetentionSettings.maxSizeMb,
+        maxTotalSizeMb: settings.maxTotalSizeMb ?? logRetentionSettings.maxTotalSizeMb,
+      }
+
+      const saved = saveLogRetentionSettings(newSettings)
+      return { success: saved, settings: newSettings }
+    },
+  )
 
   // Get storage info
   ipcMain.handle('logs:get-storage-info', async () => {
     const logsDir = path.join(app.getPath('userData'), 'logs')
-    
+
     try {
-      const files = fs.readdirSync(logsDir)
-        .filter(f => f.startsWith('blueplm-') && f.endsWith('.log'))
-      
+      const files = fs
+        .readdirSync(logsDir)
+        .filter((f) => f.startsWith('blueplm-') && f.endsWith('.log'))
+
       let totalSize = 0
       for (const file of files) {
         const stats = fs.statSync(path.join(logsDir, file))
         totalSize += stats.size
       }
-      
+
       return {
         success: true,
         data: {
           fileCount: files.length,
           totalSizeBytes: totalSize,
-          totalSizeMb: Math.round(totalSize / 1024 / 1024 * 100) / 100
-        }
+          totalSizeMb: Math.round((totalSize / 1024 / 1024) * 100) / 100,
+        },
       }
-    } catch (err) {
-      return { success: false, error: String(err) }
+    } catch (error) {
+      return { success: false, error: String(error) }
     }
   })
 
@@ -560,16 +573,16 @@ export function registerLoggingHandlers(window: BrowserWindow, _deps: LoggingHan
     const result = await dialog.showSaveDialog(mainWindow!, {
       title: 'Export Filtered Logs',
       defaultPath: `blueplm-filtered-${formatDateForFilename(new Date())}.log`,
-      filters: [{ name: 'Log Files', extensions: ['log'] }]
+      filters: [{ name: 'Log Files', extensions: ['log'] }],
     })
-    
+
     if (!result.canceled && result.filePath) {
       try {
-        const content = entries.map(e => e.raw).join('\n')
+        const content = entries.map((e) => e.raw).join('\n')
         fs.writeFileSync(result.filePath, content)
         return { success: true, path: result.filePath }
-      } catch (err) {
-        return { success: false, error: String(err) }
+      } catch (error) {
+        return { success: false, error: String(error) }
       }
     }
     return { success: false, canceled: true }
@@ -583,16 +596,32 @@ export function registerLoggingHandlers(window: BrowserWindow, _deps: LoggingHan
 
 export function unregisterLoggingHandlers(): void {
   const handlers = [
-    'logs:get-entries', 'logs:get-path', 'logs:export', 'logs:get-dir', 'logs:get-crashes-dir',
-    'logs:list-crashes', 'logs:read-crash', 'logs:open-crashes-dir', 'logs:list-files',
-    'logs:read-file', 'logs:open-dir', 'logs:delete-file', 'logs:delete-all-files', 'logs:cleanup-old',
-    'logs:get-retention-settings', 'logs:set-retention-settings', 'logs:get-storage-info',
-    'logs:get-recording-state', 'logs:set-recording-state', 'logs:start-new-file', 'logs:export-filtered'
+    'logs:get-entries',
+    'logs:get-path',
+    'logs:export',
+    'logs:get-dir',
+    'logs:get-crashes-dir',
+    'logs:list-crashes',
+    'logs:read-crash',
+    'logs:open-crashes-dir',
+    'logs:list-files',
+    'logs:read-file',
+    'logs:open-dir',
+    'logs:delete-file',
+    'logs:delete-all-files',
+    'logs:cleanup-old',
+    'logs:get-retention-settings',
+    'logs:set-retention-settings',
+    'logs:get-storage-info',
+    'logs:get-recording-state',
+    'logs:set-recording-state',
+    'logs:start-new-file',
+    'logs:export-filtered',
   ]
-  
+
   for (const handler of handlers) {
     ipcMain.removeHandler(handler)
   }
-  
+
   ipcMain.removeAllListeners('logs:write')
 }

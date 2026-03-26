@@ -20,42 +20,42 @@ export function createAppMenu(window: BrowserWindow, deps: MenuDependencies): vo
         {
           label: 'Set Working Directory...',
           accelerator: 'CmdOrCtrl+Shift+O',
-          click: () => mainWindow?.webContents.send('menu:set-working-dir')
+          click: () => mainWindow?.webContents.send('menu:set-working-dir'),
         },
         { type: 'separator' },
         {
           label: 'Add Files...',
           accelerator: 'CmdOrCtrl+Shift+A',
-          click: () => mainWindow?.webContents.send('menu:add-files')
+          click: () => mainWindow?.webContents.send('menu:add-files'),
         },
         {
           label: 'Add Folder...',
-          click: () => mainWindow?.webContents.send('menu:add-folder')
+          click: () => mainWindow?.webContents.send('menu:add-folder'),
         },
         { type: 'separator' },
         {
           label: 'Check Out Selected',
           accelerator: 'CmdOrCtrl+Shift+O',
-          click: () => mainWindow?.webContents.send('menu:checkout')
+          click: () => mainWindow?.webContents.send('menu:checkout'),
         },
         {
           label: 'Check In Selected',
           accelerator: 'CmdOrCtrl+Shift+I',
-          click: () => mainWindow?.webContents.send('menu:checkin')
+          click: () => mainWindow?.webContents.send('menu:checkin'),
         },
         { type: 'separator' },
         {
           label: 'Refresh',
           accelerator: 'F5',
-          click: () => mainWindow?.webContents.send('menu:refresh')
+          click: () => mainWindow?.webContents.send('menu:refresh'),
         },
         { type: 'separator' },
         {
           label: 'Exit',
           accelerator: process.platform === 'darwin' ? 'Cmd+Q' : 'Alt+F4',
-          click: () => app.quit()
-        }
-      ]
+          click: () => app.quit(),
+        },
+      ],
     },
     {
       label: 'Edit',
@@ -70,15 +70,15 @@ export function createAppMenu(window: BrowserWindow, deps: MenuDependencies): vo
         {
           label: 'Select All',
           accelerator: 'CmdOrCtrl+A',
-          role: 'selectAll'
+          role: 'selectAll',
         },
         { type: 'separator' },
         {
           label: 'Find...',
           accelerator: 'CmdOrCtrl+F',
-          click: () => mainWindow?.webContents.send('menu:find')
-        }
-      ]
+          click: () => mainWindow?.webContents.send('menu:find'),
+        },
+      ],
     },
     {
       label: 'View',
@@ -86,44 +86,44 @@ export function createAppMenu(window: BrowserWindow, deps: MenuDependencies): vo
         {
           label: 'Toggle Sidebar',
           accelerator: 'CmdOrCtrl+B',
-          click: () => mainWindow?.webContents.send('menu:toggle-sidebar')
+          click: () => mainWindow?.webContents.send('menu:toggle-sidebar'),
         },
         {
           label: 'Toggle Details Panel',
           accelerator: 'CmdOrCtrl+D',
-          click: () => mainWindow?.webContents.send('menu:toggle-details')
+          click: () => mainWindow?.webContents.send('menu:toggle-details'),
         },
         { type: 'separator' },
-        { 
-          label: 'Zoom In', 
-          accelerator: 'CmdOrCtrl+=', 
+        {
+          label: 'Zoom In',
+          accelerator: 'CmdOrCtrl+=',
           click: () => {
             if (!mainWindow) return
             const current = mainWindow.webContents.getZoomFactor()
             const newZoom = Math.min(2.0, current + 0.1)
             mainWindow.webContents.setZoomFactor(newZoom)
             mainWindow.webContents.send('zoom-changed', newZoom)
-          }
+          },
         },
-        { 
-          label: 'Zoom Out', 
-          accelerator: 'CmdOrCtrl+-', 
+        {
+          label: 'Zoom Out',
+          accelerator: 'CmdOrCtrl+-',
           click: () => {
             if (!mainWindow) return
             const current = mainWindow.webContents.getZoomFactor()
             const newZoom = Math.max(0.5, current - 0.1)
             mainWindow.webContents.setZoomFactor(newZoom)
             mainWindow.webContents.send('zoom-changed', newZoom)
-          }
+          },
         },
-        { 
-          label: 'Reset Zoom', 
-          accelerator: 'CmdOrCtrl+0', 
+        {
+          label: 'Reset Zoom',
+          accelerator: 'CmdOrCtrl+0',
           click: () => {
             if (!mainWindow) return
             mainWindow.webContents.setZoomFactor(1)
             mainWindow.webContents.send('zoom-changed', 1)
-          }
+          },
         },
         { type: 'separator' },
         { label: 'Toggle Full Screen', accelerator: 'F11', role: 'togglefullscreen' },
@@ -131,9 +131,9 @@ export function createAppMenu(window: BrowserWindow, deps: MenuDependencies): vo
         {
           label: 'Toggle Developer Tools',
           accelerator: process.platform === 'darwin' ? 'Cmd+Alt+I' : 'Ctrl+Shift+I',
-          role: 'toggleDevTools'
-        }
-      ]
+          role: 'toggleDevTools',
+        },
+      ],
     },
     {
       label: 'Window',
@@ -161,21 +161,21 @@ export function createAppMenu(window: BrowserWindow, deps: MenuDependencies): vo
                 app.dock?.show()
               }
             }
-          }
+          },
         },
         { type: 'separator' },
-        { role: 'front' }
-      ]
+        { role: 'front' },
+      ],
     },
     {
       label: 'Help',
       submenu: [
         {
           label: 'About BluePLM',
-          click: () => mainWindow?.webContents.send('menu:about')
-        }
-      ]
-    }
+          click: () => mainWindow?.webContents.send('menu:about'),
+        },
+      ],
+    },
   ]
 
   // macOS-specific app menu
@@ -191,8 +191,8 @@ export function createAppMenu(window: BrowserWindow, deps: MenuDependencies): vo
         { label: 'Hide Others', accelerator: 'Cmd+Alt+H', role: 'hideOthers' },
         { label: 'Show All', role: 'unhide' },
         { type: 'separator' },
-        { label: 'Quit', accelerator: 'Cmd+Q', role: 'quit' }
-      ]
+        { label: 'Quit', accelerator: 'Cmd+Q', role: 'quit' },
+      ],
     })
   }
 

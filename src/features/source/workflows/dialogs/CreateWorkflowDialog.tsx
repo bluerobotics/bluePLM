@@ -5,12 +5,12 @@ import type { CreateWorkflowDialogProps } from '../types'
 export function CreateWorkflowDialog({ onClose, onCreate }: CreateWorkflowDialogProps) {
   const [name, setName] = useState('New Workflow')
   const [description, setDescription] = useState('')
-  
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-plm-sidebar rounded-lg shadow-xl w-96 p-4">
         <h3 className="font-semibold mb-4">Create Workflow</h3>
-        
+
         <div className="space-y-3">
           <div>
             <label className="block text-xs text-plm-fg-muted mb-1">Name</label>
@@ -22,7 +22,7 @@ export function CreateWorkflowDialog({ onClose, onCreate }: CreateWorkflowDialog
               autoFocus
             />
           </div>
-          
+
           <div>
             <label className="block text-xs text-plm-fg-muted mb-1">Description</label>
             <textarea
@@ -33,12 +33,9 @@ export function CreateWorkflowDialog({ onClose, onCreate }: CreateWorkflowDialog
             />
           </div>
         </div>
-        
+
         <div className="flex justify-end gap-2 mt-4">
-          <button
-            onClick={onClose}
-            className="px-3 py-1.5 text-sm hover:bg-plm-bg rounded"
-          >
+          <button onClick={onClose} className="px-3 py-1.5 text-sm hover:bg-plm-bg rounded">
             Cancel
           </button>
           <button

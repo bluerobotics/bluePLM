@@ -16,7 +16,7 @@ export function AdminItems({
   isAdmin,
   checkedOutByOthersCount,
   onClose,
-  onRefresh
+  onRefresh,
 }: AdminItemsProps) {
   if (!isAdmin || checkedOutByOthersCount === 0) return null
 
@@ -26,7 +26,7 @@ export function AdminItems({
   }
 
   return (
-    <div 
+    <div
       className="context-menu-item text-plm-error"
       onClick={handleForceRelease}
       title="Admin: Immediately release checkout. User's unsaved changes will be orphaned."

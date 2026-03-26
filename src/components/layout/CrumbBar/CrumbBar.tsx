@@ -1,5 +1,13 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { ChevronRight, ChevronUp, Home, ArrowLeft, ArrowRight, RefreshCw, Folder } from 'lucide-react'
+import {
+  ChevronRight,
+  ChevronUp,
+  Home,
+  ArrowLeft,
+  ArrowRight,
+  RefreshCw,
+  Folder,
+} from 'lucide-react'
 import { buildFullPath } from '@/lib/utils/path'
 import { logExplorer } from '@/lib/userActionLogger'
 
@@ -9,7 +17,7 @@ function parsePathToRelative(fullPath: string, vaultPath: string): string {
   const sep = isWindows ? '\\' : '/'
   const normalizedVault = vaultPath.replace(/[/\\]/g, sep)
   const normalizedFull = fullPath.replace(/[/\\]/g, sep)
-  
+
   if (normalizedFull.toLowerCase().startsWith(normalizedVault.toLowerCase())) {
     let relative = normalizedFull.slice(normalizedVault.length)
     // Remove leading separator
@@ -79,7 +87,7 @@ export function CrumbBar({
   onCrumbDragLeave,
   onCrumbDrop,
   dragOverPath,
-  getChildFolders
+  getChildFolders,
 }: CrumbBarProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState('')
@@ -114,14 +122,14 @@ export function CrumbBar({
 
     // Parse the path back to relative
     const relativePath = parsePathToRelative(trimmedPath, vaultPath)
-    
+
     if (relativePath === '') {
       // Navigating to root or path equals vault path
       onNavigateRoot()
     } else {
       onNavigate(relativePath)
     }
-    
+
     stopEditing()
   }, [editValue, vaultPath, onNavigate, onNavigateRoot, stopEditing])
 
@@ -163,13 +171,16 @@ export function CrumbBar({
 
   const handleDropdownToggle = useCallback((parentPath: string, e: React.MouseEvent) => {
     e.stopPropagation()
-    setOpenDropdown(prev => prev === parentPath ? null : parentPath)
+    setOpenDropdown((prev) => (prev === parentPath ? null : parentPath))
   }, [])
 
-  const handleDropdownNavigate = useCallback((relativePath: string) => {
-    setOpenDropdown(null)
-    onNavigate(relativePath)
-  }, [onNavigate])
+  const handleDropdownNavigate = useCallback(
+    (relativePath: string) => {
+      setOpenDropdown(null)
+      onNavigate(relativePath)
+    },
+    [onNavigate],
+  )
 
   // Handle keyboard events in edit mode
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -186,10 +197,7 @@ export function CrumbBar({
   const pathParts = currentPath ? currentPath.split('/').filter(Boolean) : []
 
   return (
-    <div
-      ref={containerRef}
-      className={`flex items-center flex-1 min-w-0 gap-1 ${className}`}
-    >
+    <div ref={containerRef} className={`flex items-center flex-1 min-w-0 gap-1 ${className}`}>
       {/* Navigation buttons - OUTSIDE the crumb field (Chrome-style) */}
       <div className="flex items-center gap-1 flex-shrink-0 mr-1">
         {/* Back */}
@@ -201,7 +209,7 @@ export function CrumbBar({
         >
           <ArrowLeft size={20} />
         </button>
-        
+
         {/* Forward */}
         <button
           onClick={onForward}
@@ -211,7 +219,7 @@ export function CrumbBar({
         >
           <ArrowRight size={20} />
         </button>
-        
+
         {/* Up */}
         <button
           onClick={onNavigateUp}
@@ -221,7 +229,7 @@ export function CrumbBar({
         >
           <ChevronUp size={20} />
         </button>
-        
+
         {/* Refresh */}
         <button
           onClick={() => {
@@ -230,7 +238,7 @@ export function CrumbBar({
           }}
           disabled={isRefreshing}
           className="p-1.5 rounded-md text-plm-fg-dim hover:text-plm-fg hover:bg-plm-highlight transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          title={isRefreshing ? "Refreshing..." : "Refresh"}
+          title={isRefreshing ? 'Refreshing...' : 'Refresh'}
         >
           <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} />
         </button>
@@ -239,9 +247,7 @@ export function CrumbBar({
       {/* Crumb field - dark rounded area (Chrome omnibox style) */}
       <div
         className={`flex items-center flex-1 min-w-0 h-9 bg-plm-bg rounded-full px-3 transition-colors ${
-          isEditing 
-            ? 'ring-2 ring-plm-accent' 
-            : 'hover:bg-plm-bg-light'
+          isEditing ? 'ring-2 ring-plm-accent' : 'hover:bg-plm-bg-light'
         }`}
       >
         {isEditing ? (
@@ -300,7 +306,10 @@ export function CrumbBar({
 
             {/* Root dropdown arrow */}
             {getChildFolders && (
-              <div className="relative flex-shrink-0" ref={openDropdown === '__root__' ? dropdownRef : undefined}>
+              <div
+                className="relative flex-shrink-0"
+                ref={openDropdown === '__root__' ? dropdownRef : undefined}
+              >
                 <button
                   onClick={(e) => handleDropdownToggle('__root__', e)}
                   className={`p-0.5 rounded text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight transition-colors ${
@@ -326,7 +335,7 @@ export function CrumbBar({
               const isLast = i === pathParts.length - 1
               const isDragTarget = dragOverPath === pathUpToHere
               const dropdownKey = `segment:${pathUpToHere}`
-              
+
               return (
                 <div key={pathUpToHere} className="flex items-center gap-0.5 min-w-0">
                   <button
@@ -350,9 +359,7 @@ export function CrumbBar({
                       onCrumbDrop?.(e, pathUpToHere)
                     }}
                     className={`px-2 py-1 rounded-md truncate max-w-[150px] hover:bg-plm-highlight transition-colors text-sm ${
-                      isLast
-                        ? 'text-plm-fg font-medium'
-                        : 'text-plm-fg-dim hover:text-plm-fg'
+                      isLast ? 'text-plm-fg font-medium' : 'text-plm-fg-dim hover:text-plm-fg'
                     } ${isDragTarget ? 'ring-2 ring-plm-accent ring-dashed bg-plm-accent/20' : ''}`}
                     title={part}
                   >
@@ -360,7 +367,10 @@ export function CrumbBar({
                   </button>
                   {/* Dropdown arrow for this segment's children */}
                   {getChildFolders && (
-                    <div className="relative flex-shrink-0" ref={openDropdown === dropdownKey ? dropdownRef : undefined}>
+                    <div
+                      className="relative flex-shrink-0"
+                      ref={openDropdown === dropdownKey ? dropdownRef : undefined}
+                    >
                       <button
                         onClick={(e) => handleDropdownToggle(dropdownKey, e)}
                         className={`p-0.5 rounded text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight transition-colors ${
@@ -410,7 +420,7 @@ function BreadcrumbDropdown({ folders, onNavigate, currentSegmentPath }: Breadcr
 
   return (
     <div className="absolute top-full left-0 mt-1 z-50 bg-plm-bg-lighter border border-plm-border rounded-lg shadow-lg py-1 min-w-[160px] max-h-[300px] overflow-y-auto">
-      {folders.map(folder => {
+      {folders.map((folder) => {
         const isActive = folder.relativePath === currentSegmentPath
         return (
           <button
@@ -431,4 +441,3 @@ function BreadcrumbDropdown({ folders, onNavigate, currentSegmentPath }: Breadcr
     </div>
   )
 }
-

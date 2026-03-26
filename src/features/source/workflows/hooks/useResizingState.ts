@@ -10,23 +10,26 @@ export function useResizingState() {
   /**
    * Start resizing a state
    */
-  const startResizing = useCallback((
-    stateId: string,
-    handle: ResizingState['handle'],
-    mouseX: number,
-    mouseY: number,
-    currentWidth?: number,
-    currentHeight?: number
-  ) => {
-    setResizingState({
-      stateId,
-      handle,
-      startMouseX: mouseX,
-      startMouseY: mouseY,
-      startWidth: currentWidth || DEFAULT_STATE_WIDTH,
-      startHeight: currentHeight || DEFAULT_STATE_HEIGHT
-    })
-  }, [])
+  const startResizing = useCallback(
+    (
+      stateId: string,
+      handle: ResizingState['handle'],
+      mouseX: number,
+      mouseY: number,
+      currentWidth?: number,
+      currentHeight?: number,
+    ) => {
+      setResizingState({
+        stateId,
+        handle,
+        startMouseX: mouseX,
+        startMouseY: mouseY,
+        startWidth: currentWidth || DEFAULT_STATE_WIDTH,
+        startHeight: currentHeight || DEFAULT_STATE_HEIGHT,
+      })
+    },
+    [],
+  )
 
   /**
    * Stop resizing
@@ -38,17 +41,22 @@ export function useResizingState() {
   /**
    * Get dimensions for a state (with defaults)
    */
-  const getDimensions = useCallback((stateId: string): StateDimensions => {
-    return stateDimensions[stateId] || { width: DEFAULT_STATE_WIDTH, height: DEFAULT_STATE_HEIGHT }
-  }, [stateDimensions])
+  const getDimensions = useCallback(
+    (stateId: string): StateDimensions => {
+      return (
+        stateDimensions[stateId] || { width: DEFAULT_STATE_WIDTH, height: DEFAULT_STATE_HEIGHT }
+      )
+    },
+    [stateDimensions],
+  )
 
   /**
    * Update dimensions for a state
    */
   const updateDimensions = useCallback((stateId: string, dimensions: StateDimensions) => {
-    setStateDimensions(prev => ({
+    setStateDimensions((prev) => ({
       ...prev,
-      [stateId]: dimensions
+      [stateId]: dimensions,
     }))
   }, [])
 
@@ -56,7 +64,7 @@ export function useResizingState() {
    * Remove dimensions for a state (when deleted)
    */
   const removeDimensions = useCallback((stateId: string) => {
-    setStateDimensions(prev => {
+    setStateDimensions((prev) => {
       const { [stateId]: _, ...rest } = prev
       return rest
     })
@@ -80,6 +88,6 @@ export function useResizingState() {
 
     // Constants
     DEFAULT_STATE_WIDTH,
-    DEFAULT_STATE_HEIGHT
+    DEFAULT_STATE_HEIGHT,
   }
 }

@@ -22,13 +22,13 @@ export interface FileToolbarProps {
   onRefresh: () => void
   /** Whether a refresh operation is in progress */
   isRefreshing?: boolean
-  
+
   // Search
   isSearching: boolean
   searchQuery: string
   searchType: 'all' | 'files' | 'folders'
   matchCount: number
-  
+
   // View
   viewMode: ViewMode
   iconSize: number
@@ -36,21 +36,21 @@ export interface FileToolbarProps {
   onViewModeChange: (mode: ViewMode) => void
   onIconSizeChange: (size: number) => void
   onListRowSizeChange: (size: number) => void
-  
+
   // Actions
   onAddFiles: () => void
   onAddFolder: () => void
-  
+
   // Misc
   platform: string
   addToast: (type: 'success' | 'error' | 'warning' | 'info', message: string) => void
-  
+
   // Drag-drop for breadcrumb
   onCrumbDragOver?: (e: React.DragEvent, path: string) => void
   onCrumbDragLeave?: (e: React.DragEvent) => void
   onCrumbDrop?: (e: React.DragEvent, path: string) => void
   dragOverPath?: string | null
-  
+
   // Breadcrumb folder dropdowns
   getChildFolders?: (parentPath: string) => Array<{ name: string; relativePath: string }>
 }
@@ -89,7 +89,7 @@ export const FileToolbar = memo(function FileToolbar({
   onCrumbDragLeave,
   onCrumbDrop,
   dragOverPath,
-  getChildFolders
+  getChildFolders,
 }: FileToolbarProps) {
   return (
     <div className="crumb-bar-container h-12 bg-plm-bg-lighter border-b border-plm-border flex items-center px-3 flex-shrink-0 gap-2">
@@ -121,7 +121,7 @@ export const FileToolbar = memo(function FileToolbar({
           getChildFolders={getChildFolders}
         />
       )}
-      
+
       {/* Path actions */}
       <PathActions
         currentPath={currentPath}
@@ -132,25 +132,17 @@ export const FileToolbar = memo(function FileToolbar({
 
       {/* Actions */}
       <div className="flex items-center gap-1">
-        <AddMenu
-          onAddFiles={onAddFiles}
-          onAddFolder={onAddFolder}
-        />
-        
+        <AddMenu onAddFiles={onAddFiles} onAddFolder={onAddFolder} />
+
         {/* Separator */}
         <div className="w-px h-5 bg-plm-border mx-1" />
-        
+
         {/* View mode toggle */}
-        <ViewToggle
-          viewMode={viewMode}
-          onViewModeChange={onViewModeChange}
-        />
-        
+        <ViewToggle viewMode={viewMode} onViewModeChange={onViewModeChange} />
+
         {/* Card view fields config - only show in icon view */}
-        {viewMode === 'icons' && (
-          <CardViewFieldsPopover />
-        )}
-        
+        {viewMode === 'icons' && <CardViewFieldsPopover />}
+
         {/* Size slider */}
         <SizeSlider
           viewMode={viewMode}

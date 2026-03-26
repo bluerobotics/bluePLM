@@ -4,8 +4,8 @@
  * Provides functions for creating Supabase clients with different authentication contexts.
  */
 
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { env } from '../config/env.js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
+import { env } from '../config/env.js'
 
 /**
  * Creates a Supabase client, optionally with a user's access token for RLS.
@@ -19,15 +19,15 @@ export function createSupabaseClient(accessToken?: string): SupabaseClient {
       autoRefreshToken: false,
       persistSession: false,
     },
-  };
+  }
 
   if (accessToken) {
     options.global = {
       headers: { Authorization: `Bearer ${accessToken}` },
-    };
+    }
   }
 
-  return createClient(env.SUPABASE_URL, env.SUPABASE_KEY, options);
+  return createClient(env.SUPABASE_URL, env.SUPABASE_KEY, options)
 }
 
 /**
@@ -39,9 +39,7 @@ export function createSupabaseClient(accessToken?: string): SupabaseClient {
  */
 export function createSupabaseAdminClient(): SupabaseClient {
   if (!env.SUPABASE_SERVICE_KEY) {
-    throw new Error(
-      'Supabase admin not configured. Set SUPABASE_SERVICE_KEY environment variable.'
-    );
+    throw new Error('Supabase admin not configured. Set SUPABASE_SERVICE_KEY environment variable.')
   }
 
   return createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY, {
@@ -49,29 +47,29 @@ export function createSupabaseAdminClient(): SupabaseClient {
       autoRefreshToken: false,
       persistSession: false,
     },
-  });
+  })
 }
 
 /**
  * Check database connectivity by running a simple query
  */
 export async function checkDatabaseHealth(): Promise<{
-  status: 'healthy' | 'unhealthy';
-  latencyMs?: number;
-  error?: string;
+  status: 'healthy' | 'unhealthy'
+  latencyMs?: number
+  error?: string
 }> {
-  const start = Date.now();
+  const start = Date.now()
   try {
-    const client = createSupabaseClient();
-    const { error } = await client.from('organizations').select('id').limit(1);
+    const client = createSupabaseClient()
+    const { error } = await client.from('organizations').select('id').limit(1)
     if (error) {
-      return { status: 'unhealthy', error: error.message };
+      return { status: 'unhealthy', error: error.message }
     }
-    return { status: 'healthy', latencyMs: Date.now() - start };
-  } catch (err) {
+    return { status: 'healthy', latencyMs: Date.now() - start }
+  } catch (error) {
     return {
       status: 'unhealthy',
-      error: err instanceof Error ? err.message : 'Unknown error',
-    };
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }
   }
 }

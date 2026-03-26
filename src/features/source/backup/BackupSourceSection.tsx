@@ -1,10 +1,4 @@
-import {
-  Server,
-  Monitor,
-  Loader2,
-  Play,
-  AlertTriangle
-} from 'lucide-react'
+import { Server, Monitor, Loader2, Play, AlertTriangle } from 'lucide-react'
 import type { BackupStatus, BackupProgress, ConnectedVault } from './types'
 import { formatRelativeTime } from './utils'
 import { VaultSelector } from './VaultSelector'
@@ -40,10 +34,10 @@ export function BackupSourceSection({
   backupProgress,
   onRunBackup,
   onDesignateThisMachine,
-  onClearDesignatedMachine
+  onClearDesignatedMachine,
 }: BackupSourceSectionProps) {
   const config = status.config
-  
+
   return (
     <div className="p-4 rounded-lg bg-plm-bg-secondary border border-plm-border space-y-3">
       <div className="flex items-center justify-between">
@@ -52,7 +46,7 @@ export function BackupSourceSection({
           Backup Source
         </h4>
         {config?.designated_machine_id ? (
-          (isThisDesignated || isDesignatedOnline) ? (
+          isThisDesignated || isDesignatedOnline ? (
             <span className="flex items-center gap-1.5 text-xs text-emerald-400">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               Online
@@ -67,7 +61,7 @@ export function BackupSourceSection({
           <span className="text-xs text-amber-400">Not set</span>
         )}
       </div>
-      
+
       {config?.designated_machine_id ? (
         // Show designated machine info
         <div className="space-y-3">
@@ -92,7 +86,7 @@ export function BackupSourceSection({
               )}
             </div>
           </div>
-          
+
           {/* Vaults to backup */}
           {isThisDesignated && (
             <VaultSelector
@@ -106,12 +100,10 @@ export function BackupSourceSection({
         // No machine designated
         <div className="flex items-center gap-3 py-2">
           <Monitor className="w-8 h-8 text-plm-fg-muted opacity-50" />
-          <div className="flex-1 text-sm text-plm-fg-muted">
-            No backup machine designated
-          </div>
+          <div className="flex-1 text-sm text-plm-fg-muted">No backup machine designated</div>
         </div>
       )}
-      
+
       {/* Backup request/running status */}
       {config?.backup_requested_at && !config?.backup_running_since && (
         <div className="p-2 rounded bg-blue-500/10 border border-blue-500/30 text-xs text-blue-300">
@@ -123,7 +115,7 @@ export function BackupSourceSection({
           🔄 Backup in progress...
         </div>
       )}
-      
+
       {/* Admin controls */}
       {isAdmin && (
         <div className="space-y-2 pt-2 border-t border-plm-border">
@@ -152,54 +144,58 @@ export function BackupSourceSection({
               Take over as backup source
             </button>
           ) : null}
-          
+
           {/* Backup Now button */}
-          {config?.designated_machine_id && (() => {
-            const noVaultsSelected = isThisDesignated && selectedVaultIds.length === 0
-            const isDisabled = isRunningBackup || (!isThisDesignated && !isDesignatedOnline) || !!config?.backup_requested_at || noVaultsSelected
-            const getTitle = () => {
-              if (noVaultsSelected) return 'Select at least one vault to backup'
-              if (!isThisDesignated && !isDesignatedOnline) return 'Backup machine is offline'
-              return undefined
-            }
-            return (
-              <button
-                onClick={onRunBackup}
-                disabled={isDisabled}
-                className={`w-full py-2.5 px-4 rounded font-medium flex items-center justify-center gap-2 ${
-                  isDisabled
-                    ? 'bg-plm-bg-tertiary text-plm-fg-muted cursor-not-allowed'
-                    : 'bg-emerald-600 text-white hover:bg-emerald-500'
-                }`}
-                title={getTitle()}
-              >
-                {isRunningBackup ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    {backupProgress?.message || 'Running Backup...'}
-                  </>
-                ) : config?.backup_requested_at ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Backup Requested...
-                  </>
-                ) : noVaultsSelected ? (
-                  <>
-                    <AlertTriangle className="w-4 h-4" />
-                    No Vaults Selected
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-4 h-4" />
-                    {isThisDesignated ? 'Sync & Backup Now' : 'Request Backup'}
-                  </>
-                )}
-              </button>
-            )
-          })()}
+          {config?.designated_machine_id &&
+            (() => {
+              const noVaultsSelected = isThisDesignated && selectedVaultIds.length === 0
+              const isDisabled =
+                isRunningBackup ||
+                (!isThisDesignated && !isDesignatedOnline) ||
+                !!config?.backup_requested_at ||
+                noVaultsSelected
+              const getTitle = () => {
+                if (noVaultsSelected) return 'Select at least one vault to backup'
+                if (!isThisDesignated && !isDesignatedOnline) return 'Backup machine is offline'
+                return undefined
+              }
+              return (
+                <button
+                  onClick={onRunBackup}
+                  disabled={isDisabled}
+                  className={`w-full py-2.5 px-4 rounded font-medium flex items-center justify-center gap-2 ${
+                    isDisabled
+                      ? 'bg-plm-bg-tertiary text-plm-fg-muted cursor-not-allowed'
+                      : 'bg-emerald-600 text-white hover:bg-emerald-500'
+                  }`}
+                  title={getTitle()}
+                >
+                  {isRunningBackup ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      {backupProgress?.message || 'Running Backup...'}
+                    </>
+                  ) : config?.backup_requested_at ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Backup Requested...
+                    </>
+                  ) : noVaultsSelected ? (
+                    <>
+                      <AlertTriangle className="w-4 h-4" />
+                      No Vaults Selected
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-4 h-4" />
+                      {isThisDesignated ? 'Sync & Backup Now' : 'Request Backup'}
+                    </>
+                  )}
+                </button>
+              )
+            })()}
         </div>
       )}
-      
     </div>
   )
 }

@@ -11,11 +11,7 @@ export function DeleteAccountSettings() {
   const [showConfirmation, setShowConfirmation] = useState(false)
 
   if (!user) {
-    return (
-      <div className="text-center py-12 text-plm-fg-muted text-base">
-        Not signed in
-      </div>
-    )
+    return <div className="text-center py-12 text-plm-fg-muted text-base">Not signed in</div>
   }
 
   // The text user must type to confirm deletion
@@ -45,8 +41,8 @@ export function DeleteAccountSettings() {
       setOrganization(null)
 
       addToast('success', 'Your account has been deleted successfully.')
-    } catch (err) {
-      log.error('[Account]', 'Error deleting account', { error: err })
+    } catch (error) {
+      log.error('[Account]', 'Error deleting account', { error: error })
       addToast('error', 'An unexpected error occurred while deleting your account.')
       setIsDeleting(false)
     }
@@ -69,7 +65,9 @@ export function DeleteAccountSettings() {
 
       {/* What happens section */}
       <section className="p-4 bg-plm-bg rounded-lg border border-plm-border">
-        <h3 className="text-base font-medium text-plm-fg mb-3">What happens when you delete your account:</h3>
+        <h3 className="text-base font-medium text-plm-fg mb-3">
+          What happens when you delete your account:
+        </h3>
         <ul className="space-y-2 text-sm text-plm-fg-muted">
           <li className="flex items-start gap-2">
             <span className="text-plm-error mt-0.5">•</span>
@@ -93,7 +91,9 @@ export function DeleteAccountSettings() {
           </li>
           <li className="flex items-start gap-2">
             <span className="text-plm-warning mt-0.5">•</span>
-            <span className="text-plm-warning">Activity history and file versions you created will be preserved for audit purposes</span>
+            <span className="text-plm-warning">
+              Activity history and file versions you created will be preserved for audit purposes
+            </span>
           </li>
         </ul>
       </section>
@@ -105,7 +105,8 @@ export function DeleteAccountSettings() {
           <div>
             <p className="text-base font-medium text-plm-error">This action is irreversible</p>
             <p className="text-sm text-plm-error/80 mt-1">
-              Once you delete your account, there is no way to recover it. You will need to create a new account and be re-invited to any organizations.
+              Once you delete your account, there is no way to recover it. You will need to create a
+              new account and be re-invited to any organizations.
             </p>
           </div>
         </div>
@@ -118,14 +119,17 @@ export function DeleteAccountSettings() {
             onClick={() => setShowConfirmation(true)}
             className="flex items-center gap-2 px-4 py-2.5 bg-plm-error/20 text-plm-error border border-plm-error/30 rounded-lg hover:bg-plm-error/30 transition-colors font-medium"
           >
-            <Trash2 size={18} />
-            I want to delete my account
+            <Trash2 size={18} />I want to delete my account
           </button>
         ) : (
           <div className="space-y-4">
             <div>
               <label className="block text-sm text-plm-fg-muted mb-2">
-                To confirm, type <span className="font-mono font-semibold text-plm-fg bg-plm-bg-secondary px-1.5 py-0.5 rounded">{requiredConfirmation}</span> below:
+                To confirm, type{' '}
+                <span className="font-mono font-semibold text-plm-fg bg-plm-bg-secondary px-1.5 py-0.5 rounded">
+                  {requiredConfirmation}
+                </span>{' '}
+                below:
               </label>
               <input
                 type="text"
@@ -137,7 +141,7 @@ export function DeleteAccountSettings() {
                 autoFocus
               />
             </div>
-            
+
             <div className="flex items-center gap-3">
               <button
                 onClick={handleDeleteAccount}
@@ -160,7 +164,7 @@ export function DeleteAccountSettings() {
                   </>
                 )}
               </button>
-              
+
               <button
                 onClick={() => {
                   setShowConfirmation(false)

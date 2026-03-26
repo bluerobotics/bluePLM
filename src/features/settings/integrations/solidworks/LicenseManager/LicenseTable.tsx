@@ -18,7 +18,7 @@ export function LicenseTable({
   onAssign,
   onUnassign,
   onUnassignPending,
-  onEdit
+  onEdit,
 }: LicenseTableProps) {
   return (
     <div className="overflow-x-auto min-h-[200px]">
@@ -29,9 +29,7 @@ export function LicenseTable({
             <th className="pb-3 font-medium text-plm-fg-muted">Serial Number</th>
             <th className="pb-3 font-medium text-plm-fg-muted">Type</th>
             <th className="pb-3 font-medium text-plm-fg-muted">Assigned To</th>
-            {isAdmin && (
-              <th className="pb-3 font-medium text-plm-fg-muted text-right">Actions</th>
-            )}
+            {isAdmin && <th className="pb-3 font-medium text-plm-fg-muted text-right">Actions</th>}
           </tr>
         </thead>
         <tbody>

@@ -6,11 +6,14 @@ import type { PartSupplier } from '@/stores/types'
 /**
  * Get all suppliers (vendors) for a specific file/item
  */
-export async function getPartSuppliers(fileId: string): Promise<{ data: PartSupplier[] | null; error: string | null }> {
+export async function getPartSuppliers(
+  fileId: string,
+): Promise<{ data: PartSupplier[] | null; error: string | null }> {
   try {
     const { data, error } = await supabase
       .from('part_suppliers')
-      .select(`
+      .select(
+        `
         id,
         org_id,
         file_id,
@@ -46,7 +49,8 @@ export async function getPartSuppliers(fileId: string): Promise<{ data: PartSupp
         last_price_update,
         created_at,
         updated_at
-      `)
+      `,
+      )
       .eq('file_id', fileId)
       .eq('is_active', true)
       .order('is_preferred', { ascending: false })
@@ -58,16 +62,16 @@ export async function getPartSuppliers(fileId: string): Promise<{ data: PartSupp
     }
 
     // Transform the data to match PartSupplier interface
-    const partSuppliers: PartSupplier[] = (data || []).map(row => ({
+    const partSuppliers: PartSupplier[] = (data || []).map((row) => ({
       ...row,
       supplier: row.supplier as unknown as PartSupplier['supplier'],
-      price_breaks: row.price_breaks as PartSupplier['price_breaks']
+      price_breaks: row.price_breaks as PartSupplier['price_breaks'],
     }))
 
     return { data: partSuppliers, error: null }
-  } catch (err) {
-    log.error('[PartSuppliers]', 'Exception getting part suppliers', { error: err })
-    return { data: null, error: err instanceof Error ? err.message : String(err) }
+  } catch (error) {
+    log.error('[PartSuppliers]', 'Exception getting part suppliers', { error: error })
+    return { data: null, error: error instanceof Error ? error.message : String(error) }
   }
 }
 
@@ -92,7 +96,7 @@ export async function addPartSupplier(
     is_preferred?: boolean
     notes?: string | null
   },
-  userId: string
+  userId: string,
 ): Promise<{ data: PartSupplier | null; error: string | null }> {
   try {
     const { data: result, error } = await supabase
@@ -116,9 +120,10 @@ export async function addPartSupplier(
         notes: data.notes || null,
         created_by: userId,
         updated_by: userId,
-        last_price_update: new Date().toISOString()
+        last_price_update: new Date().toISOString(),
       })
-      .select(`
+      .select(
+        `
         id,
         org_id,
         file_id,
@@ -154,7 +159,8 @@ export async function addPartSupplier(
         last_price_update,
         created_at,
         updated_at
-      `)
+      `,
+      )
       .single()
 
     if (error) {
@@ -165,13 +171,13 @@ export async function addPartSupplier(
     const partSupplier: PartSupplier = {
       ...result,
       supplier: result.supplier as unknown as PartSupplier['supplier'],
-      price_breaks: result.price_breaks as PartSupplier['price_breaks']
+      price_breaks: result.price_breaks as PartSupplier['price_breaks'],
     }
 
     return { data: partSupplier, error: null }
-  } catch (err) {
-    log.error('[PartSuppliers]', 'Exception adding part supplier', { error: err })
-    return { data: null, error: err instanceof Error ? err.message : String(err) }
+  } catch (error) {
+    log.error('[PartSuppliers]', 'Exception adding part supplier', { error: error })
+    return { data: null, error: error instanceof Error ? error.message : String(error) }
   }
 }
 
@@ -194,17 +200,19 @@ export async function updatePartSupplier(
     is_preferred?: boolean
     notes?: string | null
   },
-  userId: string
+  userId: string,
 ): Promise<{ success: boolean; error: string | null }> {
   try {
     const updateData: Record<string, unknown> = {
       updated_by: userId,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     }
 
     // Only include fields that are explicitly provided
-    if (data.supplier_part_number !== undefined) updateData.supplier_part_number = data.supplier_part_number
-    if (data.supplier_description !== undefined) updateData.supplier_description = data.supplier_description
+    if (data.supplier_part_number !== undefined)
+      updateData.supplier_part_number = data.supplier_part_number
+    if (data.supplier_description !== undefined)
+      updateData.supplier_description = data.supplier_description
     if (data.supplier_url !== undefined) updateData.supplier_url = data.supplier_url
     if (data.unit_price !== undefined) {
       updateData.unit_price = data.unit_price
@@ -230,9 +238,9 @@ export async function updatePartSupplier(
     }
 
     return { success: true, error: null }
-  } catch (err) {
-    log.error('[PartSuppliers]', 'Exception updating part supplier', { error: err })
-    return { success: false, error: err instanceof Error ? err.message : String(err) }
+  } catch (error) {
+    log.error('[PartSuppliers]', 'Exception updating part supplier', { error: error })
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
 }
 
@@ -242,16 +250,16 @@ export async function updatePartSupplier(
 export async function setPreferredPartSupplier(
   fileId: string,
   partSupplierId: string,
-  userId: string
+  userId: string,
 ): Promise<{ success: boolean; error: string | null }> {
   try {
     // First, clear preferred status on all suppliers for this file
     const { error: clearError } = await supabase
       .from('part_suppliers')
-      .update({ 
+      .update({
         is_preferred: false,
         updated_by: userId,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       })
       .eq('file_id', fileId)
 
@@ -263,10 +271,10 @@ export async function setPreferredPartSupplier(
     // Then set the new preferred supplier
     const { error: setError } = await supabase
       .from('part_suppliers')
-      .update({ 
+      .update({
         is_preferred: true,
         updated_by: userId,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       })
       .eq('id', partSupplierId)
 
@@ -276,9 +284,9 @@ export async function setPreferredPartSupplier(
     }
 
     return { success: true, error: null }
-  } catch (err) {
-    log.error('[PartSuppliers]', 'Exception setting preferred supplier', { error: err })
-    return { success: false, error: err instanceof Error ? err.message : String(err) }
+  } catch (error) {
+    log.error('[PartSuppliers]', 'Exception setting preferred supplier', { error: error })
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
 }
 
@@ -287,15 +295,15 @@ export async function setPreferredPartSupplier(
  */
 export async function removePartSupplier(
   partSupplierId: string,
-  userId: string
+  userId: string,
 ): Promise<{ success: boolean; error: string | null }> {
   try {
     const { error } = await supabase
       .from('part_suppliers')
-      .update({ 
+      .update({
         is_active: false,
         updated_by: userId,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       })
       .eq('id', partSupplierId)
 
@@ -305,9 +313,9 @@ export async function removePartSupplier(
     }
 
     return { success: true, error: null }
-  } catch (err) {
-    log.error('[PartSuppliers]', 'Exception removing part supplier', { error: err })
-    return { success: false, error: err instanceof Error ? err.message : String(err) }
+  } catch (error) {
+    log.error('[PartSuppliers]', 'Exception removing part supplier', { error: error })
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
 }
 
@@ -315,13 +323,10 @@ export async function removePartSupplier(
  * Permanently delete a part-supplier association
  */
 export async function deletePartSupplier(
-  partSupplierId: string
+  partSupplierId: string,
 ): Promise<{ success: boolean; error: string | null }> {
   try {
-    const { error } = await supabase
-      .from('part_suppliers')
-      .delete()
-      .eq('id', partSupplierId)
+    const { error } = await supabase.from('part_suppliers').delete().eq('id', partSupplierId)
 
     if (error) {
       log.error('[PartSuppliers]', 'Failed to delete part supplier', { error })
@@ -329,8 +334,8 @@ export async function deletePartSupplier(
     }
 
     return { success: true, error: null }
-  } catch (err) {
-    log.error('[PartSuppliers]', 'Exception deleting part supplier', { error: err })
-    return { success: false, error: err instanceof Error ? err.message : String(err) }
+  } catch (error) {
+    log.error('[PartSuppliers]', 'Exception deleting part supplier', { error: error })
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
 }

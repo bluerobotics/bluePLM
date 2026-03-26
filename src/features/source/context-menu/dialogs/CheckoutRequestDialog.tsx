@@ -19,10 +19,10 @@ export function CheckoutRequestDialog({
   file,
   organizationId,
   userId,
-  onSuccess
+  onSuccess,
 }: CheckoutRequestDialogProps) {
   const { addToast } = usePDMStore()
-  
+
   const [message, setMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -31,19 +31,19 @@ export function CheckoutRequestDialog({
       addToast('error', 'Missing required information')
       return
     }
-    
+
     if (!file.pdmData?.checked_out_by || file.pdmData.checked_out_by === userId) {
       addToast('error', 'File is not checked out by someone else')
       handleClose()
       return
     }
-    
+
     setIsSubmitting(true)
-    
+
     addToast('info', 'Checkout request noted')
     handleClose()
     onSuccess()
-    
+
     setIsSubmitting(false)
   }
 
@@ -55,11 +55,11 @@ export function CheckoutRequestDialog({
   if (!isOpen) return null
 
   return (
-    <div 
+    <div
       className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-center justify-center"
       onClick={handleClose}
     >
-      <div 
+      <div
         className="bg-plm-bg-light border border-plm-border rounded-lg p-6 max-w-md w-full shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
@@ -72,7 +72,7 @@ export function CheckoutRequestDialog({
             <p className="text-sm text-plm-fg-muted">Ask to check out this file</p>
           </div>
         </div>
-        
+
         {/* File info */}
         <div className="bg-plm-bg rounded border border-plm-border p-3 mb-4">
           <div className="flex items-center gap-2">
@@ -83,7 +83,7 @@ export function CheckoutRequestDialog({
             Currently checked out - a notification will be sent to the user who has this file.
           </div>
         </div>
-        
+
         {/* Message */}
         <div className="mb-4">
           <label className="block text-xs text-plm-fg-muted uppercase tracking-wide mb-2">
@@ -97,7 +97,7 @@ export function CheckoutRequestDialog({
             rows={3}
           />
         </div>
-        
+
         {/* Actions */}
         <div className="flex justify-end gap-2">
           <button onClick={handleClose} className="btn btn-ghost">
@@ -108,11 +108,7 @@ export function CheckoutRequestDialog({
             disabled={isSubmitting}
             className="btn bg-plm-warning hover:bg-plm-warning/90 text-white disabled:opacity-50"
           >
-            {isSubmitting ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <Send size={14} />
-            )}
+            {isSubmitting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
             Send Request
           </button>
         </div>

@@ -1,6 +1,6 @@
 /**
  * Navigation Command Handlers
- * 
+ *
  * Commands: ls, dir, list, pwd, cd, tree
  */
 
@@ -13,28 +13,30 @@ type OutputFn = (type: TerminalOutput['type'], content: string) => void
 /**
  * Handle ls/dir/list command - list files in a directory
  */
-export function handleLs(
-  parsed: ParsedCommand,
-  files: LocalFile[],
-  addOutput: OutputFn
-): void {
+export function handleLs(parsed: ParsedCommand, files: LocalFile[], addOutput: OutputFn): void {
   const path = parsed.args[0] || ''
   const normalizedPath = path.replace(/\\/g, '/').replace(/^\.\//, '')
-  
-  const items = files.filter(f => {
+
+  const items = files.filter((f) => {
     const parentPath = f.relativePath.replace(/\\/g, '/').split('/').slice(0, -1).join('/')
     if (normalizedPath === '' || normalizedPath === '.') {
       return parentPath === ''
     }
     return parentPath === normalizedPath
   })
-  
+
   if (items.length === 0) {
     addOutput('info', normalizedPath ? `No files in ${normalizedPath}` : 'No files in root')
   } else {
-    const lines = items.map(f => {
+    const lines = items.map((f) => {
       const icon = f.isDirectory ? '📁' : '📄'
-      const status = f.pdmData?.checked_out_by ? '🔒' : f.diffStatus === 'cloud' ? '☁️' : f.diffStatus === 'added' ? '➕' : ''
+      const status = f.pdmData?.checked_out_by
+        ? '🔒'
+        : f.diffStatus === 'cloud'
+          ? '☁️'
+          : f.diffStatus === 'added'
+            ? '➕'
+            : ''
       return `${icon} ${status} ${f.name}`
     })
     addOutput('info', lines.join('\n'))
@@ -52,14 +54,10 @@ export function handlePwd(addOutput: OutputFn): void {
 /**
  * Handle cd command - change directory
  */
-export function handleCd(
-  parsed: ParsedCommand,
-  files: LocalFile[],
-  addOutput: OutputFn
-): void {
+export function handleCd(parsed: ParsedCommand, files: LocalFile[], addOutput: OutputFn): void {
   const path = parsed.args[0] || ''
   const { setCurrentFolder, toggleFolder, expandedFolders, currentFolder } = usePDMStore.getState()
-  
+
   if (path === '' || path === '/' || path === '.') {
     setCurrentFolder('')
     addOutput('success', 'Changed to root')
@@ -70,8 +68,8 @@ export function handleCd(
     addOutput('success', `Changed to ${parts.join('/') || '/'}`)
   } else {
     const normalizedPath = path.replace(/\\/g, '/').replace(/^\.\//, '')
-    const folder = files.find(f => 
-      f.isDirectory && f.relativePath.replace(/\\/g, '/') === normalizedPath
+    const folder = files.find(
+      (f) => f.isDirectory && f.relativePath.replace(/\\/g, '/') === normalizedPath,
     )
     if (folder) {
       setCurrentFolder(normalizedPath)
@@ -89,56 +87,58 @@ export function handleCd(
 /**
  * Handle tree command - show directory tree
  */
-export function handleTree(
-  parsed: ParsedCommand,
-  files: LocalFile[],
-  addOutput: OutputFn
-): void {
+export function handleTree(parsed: ParsedCommand, files: LocalFile[], addOutput: OutputFn): void {
   const rootPath = parsed.args[0] || ''
   const normalizedRoot = rootPath.replace(/\\/g, '/').replace(/^\.\//, '')
   const maxDepth = parsed.flags['depth'] ? parseInt(parsed.flags['depth'] as string) : 3
-  
+
   // Build tree structure
   const buildTree = (parentPath: string, depth: number): string[] => {
     if (depth > maxDepth) return []
-    
-    const items = files.filter(f => {
+
+    const items = files.filter((f) => {
       const normalizedPath = f.relativePath.replace(/\\/g, '/')
       const parts = normalizedPath.split('/')
       const parentParts = parentPath ? parentPath.split('/') : []
-      
+
       // Direct children only
       if (parts.length !== parentParts.length + 1) return false
       if (parentPath && !normalizedPath.startsWith(parentPath + '/')) return false
       if (!parentPath && parts.length !== 1) return false
-      
+
       return true
     })
-    
+
     // Sort: folders first, then files
     items.sort((a, b) => {
       if (a.isDirectory && !b.isDirectory) return -1
       if (!a.isDirectory && b.isDirectory) return 1
       return a.name.localeCompare(b.name)
     })
-    
+
     const lines: string[] = []
     const indent = '  '.repeat(depth)
-    
+
     for (const item of items) {
       const icon = item.isDirectory ? '📁' : '📄'
-      const status = item.pdmData?.checked_out_by ? ' 🔒' : item.diffStatus === 'cloud' ? ' ☁️' : item.diffStatus === 'added' ? ' ➕' : ''
+      const status = item.pdmData?.checked_out_by
+        ? ' 🔒'
+        : item.diffStatus === 'cloud'
+          ? ' ☁️'
+          : item.diffStatus === 'added'
+            ? ' ➕'
+            : ''
       lines.push(`${indent}${icon} ${item.name}${status}`)
-      
+
       if (item.isDirectory) {
         const childPath = item.relativePath.replace(/\\/g, '/')
         lines.push(...buildTree(childPath, depth + 1))
       }
     }
-    
+
     return lines
   }
-  
+
   const treeLines = buildTree(normalizedRoot, 0)
   if (treeLines.length === 0) {
     addOutput('info', normalizedRoot ? `Empty directory: ${normalizedRoot}` : 'Empty vault')
@@ -151,39 +151,51 @@ export function handleTree(
 // Self-registration
 // ============================================
 
-registerTerminalCommand({
-  aliases: ['ls', 'dir', 'list'],
-  description: 'List files and folders in the current directory',
-  usage: 'ls [path] [--all]',
-  examples: ['ls', 'ls ./Parts', 'ls -a'],
-  category: 'navigation'
-}, (parsed, files, addOutput) => {
-  handleLs(parsed, files, addOutput)
-})
+registerTerminalCommand(
+  {
+    aliases: ['ls', 'dir', 'list'],
+    description: 'List files and folders in the current directory',
+    usage: 'ls [path] [--all]',
+    examples: ['ls', 'ls ./Parts', 'ls -a'],
+    category: 'navigation',
+  },
+  (parsed, files, addOutput) => {
+    handleLs(parsed, files, addOutput)
+  },
+)
 
-registerTerminalCommand({
-  aliases: ['pwd'],
-  description: 'Print current working directory',
-  category: 'navigation'
-}, (_parsed, _files, addOutput) => {
-  handlePwd(addOutput)
-})
+registerTerminalCommand(
+  {
+    aliases: ['pwd'],
+    description: 'Print current working directory',
+    category: 'navigation',
+  },
+  (_parsed, _files, addOutput) => {
+    handlePwd(addOutput)
+  },
+)
 
-registerTerminalCommand({
-  aliases: ['cd'],
-  description: 'Change current directory',
-  usage: 'cd <path>',
-  examples: ['cd Parts', 'cd ..', 'cd /'],
-  category: 'navigation'
-}, (parsed, files, addOutput) => {
-  handleCd(parsed, files, addOutput)
-})
+registerTerminalCommand(
+  {
+    aliases: ['cd'],
+    description: 'Change current directory',
+    usage: 'cd <path>',
+    examples: ['cd Parts', 'cd ..', 'cd /'],
+    category: 'navigation',
+  },
+  (parsed, files, addOutput) => {
+    handleCd(parsed, files, addOutput)
+  },
+)
 
-registerTerminalCommand({
-  aliases: ['tree'],
-  description: 'Display directory tree',
-  usage: 'tree [path] [--depth=N]',
-  category: 'navigation'
-}, (parsed, files, addOutput) => {
-  handleTree(parsed, files, addOutput)
-})
+registerTerminalCommand(
+  {
+    aliases: ['tree'],
+    description: 'Display directory tree',
+    usage: 'tree [path] [--depth=N]',
+    category: 'navigation',
+  },
+  (parsed, files, addOutput) => {
+    handleTree(parsed, files, addOutput)
+  },
+)

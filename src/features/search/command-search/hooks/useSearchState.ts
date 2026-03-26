@@ -8,12 +8,7 @@ import { parseQuery } from '../utils'
  * Hook for managing the main search state
  */
 export function useSearchState() {
-  const {
-    searchQuery,
-    setSearchQuery,
-    setSearchType,
-    addRecentSearch,
-  } = usePDMStore()
+  const { searchQuery, setSearchQuery, setSearchType, addRecentSearch } = usePDMStore()
 
   const [isOpen, setIsOpen] = useState(false)
   const [localQuery, setLocalQuery] = useState(searchQuery || '')
@@ -53,12 +48,15 @@ export function useSearchState() {
   }, [setSearchQuery])
 
   // Handle input change
-  const handleInputChange = useCallback((value: string) => {
-    setLocalQuery(value)
-    setSearchQuery(value)
-    setHighlightedIndex(-1)
-    if (!isOpen) setIsOpen(true)
-  }, [isOpen, setSearchQuery])
+  const handleInputChange = useCallback(
+    (value: string) => {
+      setLocalQuery(value)
+      setSearchQuery(value)
+      setHighlightedIndex(-1)
+      if (!isOpen) setIsOpen(true)
+    },
+    [isOpen, setSearchQuery],
+  )
 
   return {
     // State

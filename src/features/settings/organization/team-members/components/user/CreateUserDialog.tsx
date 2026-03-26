@@ -1,15 +1,7 @@
 import { useState } from 'react'
 import type React from 'react'
 import * as LucideIcons from 'lucide-react'
-import {
-  UserPlus,
-  Users,
-  Shield,
-  Database,
-  Mail,
-  Loader2,
-  UserCheck
-} from 'lucide-react'
+import { UserPlus, Users, Shield, Database, Mail, Loader2, UserCheck } from 'lucide-react'
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
@@ -47,7 +39,7 @@ export function CreateUserDialog({
   vaults,
   workflowRoles,
   apiUrl,
-  orgCode
+  orgCode,
 }: CreateUserDialogProps) {
   const { addToast } = usePDMStore()
   const [showEmailPreview, setShowEmailPreview] = useState(false)
@@ -59,41 +51,44 @@ export function CreateUserDialog({
   const [notes, setNotes] = useState('')
   const [sendInviteEmail, setSendInviteEmail] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
-  
+
   const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-  
+
   const handleCreate = async () => {
     if (!email || !isValidEmail || !currentUserId) return
-    
+
     setIsSaving(true)
     try {
       // If we have API URL and want to send invite, use API endpoint
       if (sendInviteEmail && apiUrl) {
         // Get current session token
-        const { data: { session } } = await supabase.auth.getSession()
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
         if (!session?.access_token) {
           addToast('error', 'Session expired, please log in again')
           return
         }
-        
+
         const response = await fetch(`${apiUrl}/auth/invite`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`
+            Authorization: `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({
             email: email.toLowerCase().trim(),
             full_name: fullName.trim() || undefined,
             team_ids: selectedTeamIds.length > 0 ? selectedTeamIds : undefined,
             vault_ids: selectedVaultIds.length > 0 ? selectedVaultIds : undefined,
-            workflow_role_ids: selectedWorkflowRoleIds.length > 0 ? selectedWorkflowRoleIds : undefined,
-            notes: notes.trim() || undefined
-          })
+            workflow_role_ids:
+              selectedWorkflowRoleIds.length > 0 ? selectedWorkflowRoleIds : undefined,
+            notes: notes.trim() || undefined,
+          }),
         })
-        
+
         const result = await response.json()
-        
+
         if (!response.ok) {
           if (response.status === 409) {
             addToast('error', 'A user with this email already exists or is pending')
@@ -102,11 +97,13 @@ export function CreateUserDialog({
           }
           return
         }
-        
+
         // If user already has an account, copy org code to clipboard
         if (result.existing_user && result.org_code) {
           await copyToClipboard(result.org_code)
-          log.info('[CreateUser]', 'User already has account, org code copied', { email: email.toLowerCase().trim() })
+          log.info('[CreateUser]', 'User already has account, org code copied', {
+            email: email.toLowerCase().trim(),
+          })
           addToast('success', `${result.message} (copied to clipboard)`)
         } else {
           log.info('[CreateUser]', 'Invite sent via API', { email: email.toLowerCase().trim() })
@@ -116,44 +113,44 @@ export function CreateUserDialog({
         onClose()
         return
       }
-      
+
       // Otherwise just create pending member without email
       const normalizedEmail = email.toLowerCase().trim()
-      
+
       // First check if user is already in the org
       const { data: existingUsers } = await supabase
         .from('users')
         .select('id, org_id')
         .ilike('email', normalizedEmail)
-      
+
       const typedUsers = (existingUsers || []) as unknown as UserOrgCheckResult[]
       const existingUser = typedUsers[0]
       if (existingUser?.org_id === orgId) {
         addToast('error', 'This user is already a member of your organization')
         return
       }
-      
+
       // Delete any existing pending record for this email (in case of re-invite)
       await supabase
         .from('pending_org_members')
         .delete()
         .eq('org_id', orgId)
         .ilike('email', normalizedEmail)
-      
+
       // Supabase v2 type inference incomplete for pending_org_members table
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase as any).from('pending_org_members').insert({
+      const { error } = await (supabase as any).from('pending_org_members').insert({ // TODO: type this
         org_id: orgId,
         email: normalizedEmail,
         full_name: fullName.trim() || null,
-        role: 'viewer',  // Default role, permissions come from teams
+        role: 'viewer', // Default role, permissions come from teams
         team_ids: selectedTeamIds,
         vault_ids: selectedVaultIds,
         workflow_role_ids: selectedWorkflowRoleIds,
         notes: notes.trim() || null,
-        invited_by: currentUserId
+        invited_by: currentUserId,
       })
-      
+
       if (error) {
         if (error.code === '23505') {
           addToast('error', 'A user with this email already exists or is pending')
@@ -162,49 +159,52 @@ export function CreateUserDialog({
         }
         return
       }
-      
+
       log.info('[CreateUser]', 'Created pending member', { email: normalizedEmail })
-      addToast('success', `Created pending account for ${email}. They will be set up automatically when they sign in.`)
+      addToast(
+        'success',
+        `Created pending account for ${email}. They will be set up automatically when they sign in.`,
+      )
       onCreated()
       onClose()
-    } catch (err) {
-      log.error('[CreateUser]', 'Failed to create pending user', { 
-        error: err instanceof Error ? err.message : String(err),
-        code: (err as { code?: string })?.code 
+    } catch (error) {
+      log.error('[CreateUser]', 'Failed to create pending user', {
+        error: error instanceof Error ? error.message : String(error),
+        code: (error as { code?: string })?.code,
       })
       addToast('error', 'Failed to create user account')
     } finally {
       setIsSaving(false)
     }
   }
-  
+
   const toggleTeam = (teamId: string) => {
-    setSelectedTeamIds(current =>
-      current.includes(teamId)
-        ? current.filter(id => id !== teamId)
-        : [...current, teamId]
+    setSelectedTeamIds((current) =>
+      current.includes(teamId) ? current.filter((id) => id !== teamId) : [...current, teamId],
     )
   }
-  
+
   const toggleVault = (vaultId: string) => {
-    setSelectedVaultIds(current =>
-      current.includes(vaultId)
-        ? current.filter(id => id !== vaultId)
-        : [...current, vaultId]
+    setSelectedVaultIds((current) =>
+      current.includes(vaultId) ? current.filter((id) => id !== vaultId) : [...current, vaultId],
     )
   }
-  
+
   const toggleWorkflowRole = (roleId: string) => {
-    setSelectedWorkflowRoleIds(current =>
-      current.includes(roleId)
-        ? current.filter(id => id !== roleId)
-        : [...current, roleId]
+    setSelectedWorkflowRoleIds((current) =>
+      current.includes(roleId) ? current.filter((id) => id !== roleId) : [...current, roleId],
     )
   }
-  
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={onClose}>
-      <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center"
+      onClick={onClose}
+    >
+      <div
+        className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-start gap-3 mb-6">
           <div className="p-2 rounded-lg bg-plm-accent/20 text-plm-accent">
             <UserPlus size={20} />
@@ -212,11 +212,12 @@ export function CreateUserDialog({
           <div>
             <h3 className="text-lg font-medium text-plm-fg">Add User</h3>
             <p className="text-sm text-plm-fg-muted mt-1">
-              Pre-create an account. When they sign in with this email, they'll automatically join with these settings.
+              Pre-create an account. When they sign in with this email, they'll automatically join
+              with these settings.
             </p>
           </div>
         </div>
-        
+
         <div className="space-y-4">
           {/* Email */}
           <div>
@@ -224,7 +225,7 @@ export function CreateUserDialog({
             <input
               type="email"
               value={email}
-              onChange={e => setEmail(e.target.value)}
+              onChange={(e) => setEmail(e.target.value)}
               placeholder="user@company.com"
               className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-dim focus:outline-none focus:border-plm-accent"
               autoFocus
@@ -233,26 +234,32 @@ export function CreateUserDialog({
               <p className="text-xs text-plm-error mt-1">Please enter a valid email address</p>
             )}
           </div>
-          
+
           {/* Full Name */}
           <div>
             <label className="block text-sm text-plm-fg-muted mb-1.5">Full Name</label>
             <input
               type="text"
               value={fullName}
-              onChange={e => setFullName(e.target.value)}
+              onChange={(e) => setFullName(e.target.value)}
               placeholder="John Smith"
               className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-dim focus:outline-none focus:border-plm-accent"
             />
           </div>
-          
+
           {/* Teams */}
           {teams.length > 0 && (
             <div>
               <label className="block text-sm text-plm-fg-muted mb-1.5">Assign to Teams</label>
               <div className="space-y-1 max-h-40 overflow-y-auto bg-plm-bg border border-plm-border rounded-lg p-2">
-                {teams.map(team => {
-                  const TeamIcon = (LucideIcons as unknown as Record<string, React.ComponentType<{ size?: number }>>)[team.icon] || Users
+                {teams.map((team) => {
+                  const TeamIcon =
+                    (
+                      LucideIcons as unknown as Record<
+                        string,
+                        React.ComponentType<{ size?: number }>
+                      >
+                    )[team.icon] || Users
                   const isSelected = selectedTeamIds.includes(team.id)
                   return (
                     <label
@@ -281,27 +288,36 @@ export function CreateUserDialog({
               </p>
             </div>
           )}
-          
+
           {/* Vault Access */}
           {vaults.length > 0 && (
             <div>
               <label className="block text-sm text-plm-fg-muted mb-1.5">Vault Access</label>
-              <div className={`p-3 rounded-lg border mb-2 ${
-                selectedVaultIds.length === 0
-                  ? 'bg-plm-success/10 border-plm-success/30'
-                  : 'bg-plm-warning/10 border-plm-warning/30'
-              }`}>
+              <div
+                className={`p-3 rounded-lg border mb-2 ${
+                  selectedVaultIds.length === 0
+                    ? 'bg-plm-success/10 border-plm-success/30'
+                    : 'bg-plm-warning/10 border-plm-warning/30'
+                }`}
+              >
                 <div className="flex items-center gap-2">
-                  <Database size={16} className={selectedVaultIds.length === 0 ? 'text-plm-success' : 'text-plm-warning'} />
-                  <span className={`text-sm ${selectedVaultIds.length === 0 ? 'text-plm-success' : 'text-plm-warning'}`}>
-                    {selectedVaultIds.length === 0 
-                      ? 'All vaults (no restrictions)' 
+                  <Database
+                    size={16}
+                    className={
+                      selectedVaultIds.length === 0 ? 'text-plm-success' : 'text-plm-warning'
+                    }
+                  />
+                  <span
+                    className={`text-sm ${selectedVaultIds.length === 0 ? 'text-plm-success' : 'text-plm-warning'}`}
+                  >
+                    {selectedVaultIds.length === 0
+                      ? 'All vaults (no restrictions)'
                       : `Restricted to ${selectedVaultIds.length} of ${vaults.length} vaults`}
                   </span>
                 </div>
               </div>
               <div className="space-y-1 max-h-40 overflow-y-auto bg-plm-bg border border-plm-border rounded-lg p-2">
-                {vaults.map(vault => {
+                {vaults.map((vault) => {
                   const isSelected = selectedVaultIds.includes(vault.id)
                   return (
                     <label
@@ -330,14 +346,20 @@ export function CreateUserDialog({
               </p>
             </div>
           )}
-          
+
           {/* Workflow Roles */}
           {workflowRoles.length > 0 && (
             <div>
               <label className="block text-sm text-plm-fg-muted mb-1.5">Workflow Roles</label>
               <div className="space-y-1 max-h-40 overflow-y-auto bg-plm-bg border border-plm-border rounded-lg p-2">
-                {workflowRoles.map(role => {
-                  const RoleIcon = (LucideIcons as unknown as Record<string, React.ComponentType<{ size?: number }>>)[role.icon] || Shield
+                {workflowRoles.map((role) => {
+                  const RoleIcon =
+                    (
+                      LucideIcons as unknown as Record<
+                        string,
+                        React.ComponentType<{ size?: number }>
+                      >
+                    )[role.icon] || Shield
                   const isSelected = selectedWorkflowRoleIds.includes(role.id)
                   return (
                     <label
@@ -371,7 +393,7 @@ export function CreateUserDialog({
               </p>
             </div>
           )}
-          
+
           {/* Send Invite Email */}
           <div className="pt-2 border-t border-plm-border">
             <div className="flex items-center justify-between">
@@ -379,13 +401,18 @@ export function CreateUserDialog({
                 <input
                   type="checkbox"
                   checked={sendInviteEmail}
-                  onChange={e => setSendInviteEmail(e.target.checked)}
+                  onChange={(e) => setSendInviteEmail(e.target.checked)}
                   disabled={!apiUrl}
                   className="w-4 h-4 rounded border-plm-border text-plm-accent focus:ring-plm-accent disabled:opacity-50"
                 />
                 <div className="flex items-center gap-2">
-                  <Mail size={16} className={sendInviteEmail && apiUrl ? 'text-plm-accent' : 'text-plm-fg-muted'} />
-                  <span className={`text-sm ${sendInviteEmail && apiUrl ? 'text-plm-fg' : 'text-plm-fg-muted'}`}>
+                  <Mail
+                    size={16}
+                    className={sendInviteEmail && apiUrl ? 'text-plm-accent' : 'text-plm-fg-muted'}
+                  />
+                  <span
+                    className={`text-sm ${sendInviteEmail && apiUrl ? 'text-plm-fg' : 'text-plm-fg-muted'}`}
+                  >
                     Send invite email
                   </span>
                 </div>
@@ -405,14 +432,20 @@ export function CreateUserDialog({
                 Configure API URL in Settings → REST API to enable invite emails
               </p>
             )}
-            
+
             {/* Email Preview */}
             {apiUrl && sendInviteEmail && showEmailPreview && (
               <div className="mt-3 ml-7 p-4 bg-white border border-plm-border rounded-lg text-sm">
                 <div className="text-gray-500 text-xs mb-3 pb-2 border-b border-gray-200">
-                  <div><strong>To:</strong> {email || 'user@example.com'}</div>
-                  <div><strong>From:</strong> BluePLM &lt;noreply@blueplm.app&gt;</div>
-                  <div><strong>Subject:</strong> You've been invited to {orgName || 'an organization'}</div>
+                  <div>
+                    <strong>To:</strong> {email || 'user@example.com'}
+                  </div>
+                  <div>
+                    <strong>From:</strong> BluePLM &lt;noreply@blueplm.app&gt;
+                  </div>
+                  <div>
+                    <strong>Subject:</strong> You've been invited to {orgName || 'an organization'}
+                  </div>
                 </div>
                 <div className="text-gray-800 space-y-3">
                   <p>Hi{fullName ? ` ${fullName}` : ''},</p>
@@ -439,22 +472,24 @@ export function CreateUserDialog({
               </div>
             )}
           </div>
-          
+
           {/* Notes */}
           <div>
             <label className="block text-sm text-plm-fg-muted mb-1.5">Notes (optional)</label>
             <textarea
               value={notes}
-              onChange={e => setNotes(e.target.value)}
+              onChange={(e) => setNotes(e.target.value)}
               placeholder="Internal notes about this user..."
               rows={2}
               className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-dim focus:outline-none focus:border-plm-accent resize-none"
             />
           </div>
         </div>
-        
+
         <div className="flex gap-2 justify-end mt-6">
-          <button onClick={onClose} className="btn btn-ghost">Cancel</button>
+          <button onClick={onClose} className="btn btn-ghost">
+            Cancel
+          </button>
           <button
             onClick={handleCreate}
             disabled={isSaving || !email || !isValidEmail}

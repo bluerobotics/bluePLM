@@ -14,7 +14,7 @@ export function RestoreActionBar({
   selectedSnapshot,
   isRestoring,
   onRestore,
-  onCancel
+  onCancel,
 }: RestoreActionBarProps) {
   return (
     <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 space-y-2">
@@ -27,10 +27,7 @@ export function RestoreActionBar({
             This will overwrite current files with the backed-up versions.
           </p>
         </div>
-        <button
-          onClick={onCancel}
-          className="text-amber-400 hover:text-amber-300"
-        >
+        <button onClick={onCancel} className="text-amber-400 hover:text-amber-300">
           <XCircle className="w-4 h-4" />
         </button>
       </div>

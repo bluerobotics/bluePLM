@@ -7,7 +7,23 @@ import fs from 'fs'
 import { fileURLToPath } from 'url'
 import * as Sentry from '@sentry/electron/main'
 
-import { registerAllHandlers, initializeLogging, writeLog, startCliServer, cleanupCli, cleanupSolidWorksService, cleanupExtensionHost, cleanupOAuth, cleanupUpdater, cleanupFs, performMigrationCheck, wasMigrationPerformed, handleDeepLink, storePendingDeepLink, setDeepLinkDependencies } from './handlers'
+import {
+  registerAllHandlers,
+  initializeLogging,
+  writeLog,
+  startCliServer,
+  cleanupCli,
+  cleanupSolidWorksService,
+  cleanupExtensionHost,
+  cleanupOAuth,
+  cleanupUpdater,
+  cleanupFs,
+  performMigrationCheck,
+  wasMigrationPerformed,
+  handleDeepLink,
+  storePendingDeepLink,
+  setDeepLinkDependencies,
+} from './handlers'
 import { createAppMenu } from './menu'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -42,9 +58,9 @@ function isProcessAlive(pid: number): boolean {
 function writeLockFile(): void {
   try {
     fs.writeFileSync(LOCK_FILE_PATH, String(process.pid), 'utf-8')
-  } catch (err) {
+  } catch (error) {
     // Non-fatal - log but continue
-    console.error('[Main] Failed to write lock file:', err)
+    console.error('[Main] Failed to write lock file:', error)
   }
 }
 
@@ -89,10 +105,10 @@ function tryKillZombieProcess(pid: number): boolean {
     if (!isProcessAlive(pid)) {
       return true // Already dead
     }
-    
+
     // Try to kill the zombie process
     process.kill(pid, 'SIGTERM')
-    
+
     // Wait a moment and check again
     // Using sync sleep via busy wait (acceptable for one-time startup)
     const start = Date.now()
@@ -101,14 +117,14 @@ function tryKillZombieProcess(pid: number): boolean {
         return true
       }
     }
-    
+
     // Force kill if still alive
     try {
       process.kill(pid, 'SIGKILL')
     } catch {
       // Ignore - may not have permission
     }
-    
+
     return !isProcessAlive(pid)
   } catch {
     // Permission denied or other error
@@ -120,7 +136,9 @@ function tryKillZombieProcess(pid: number): boolean {
 // Sentry Error Tracking (Main Process)
 // ============================================
 
-const SENTRY_DSN = process.env.VITE_SENTRY_DSN || 'https://7e0fa5359dedac9d87c951c593def9fa@o4510557909417984.ingest.us.sentry.io/4510557913350144'
+const SENTRY_DSN =
+  process.env.VITE_SENTRY_DSN ||
+  'https://7e0fa5359dedac9d87c951c593def9fa@o4510557909417984.ingest.us.sentry.io/4510557913350144'
 
 function getAnalyticsSettingsPath(): string {
   return path.join(app.getPath('userData'), 'analytics-settings.json')
@@ -143,9 +161,9 @@ let sentryInitialized = false
 
 function initSentryMain(): void {
   if (sentryInitialized) return
-  
+
   const analyticsEnabled = readAnalyticsEnabled()
-  
+
   if (analyticsEnabled && SENTRY_DSN) {
     try {
       Sentry.init({
@@ -156,8 +174,8 @@ function initSentryMain(): void {
       })
       sentryInitialized = true
       log('[Sentry] Main process initialized')
-    } catch (err) {
-      console.error('[Sentry] Failed to initialize:', err)
+    } catch (error) {
+      console.error('[Sentry] Failed to initialize:', error)
     }
   } else {
     log('[Sentry] Not initialized (disabled by user or no DSN)')
@@ -205,30 +223,30 @@ function loadWindowState(): WindowState {
       const data = fs.readFileSync(windowStateFile, 'utf-8')
       return JSON.parse(data)
     }
-  } catch (err) {
-    console.error('Failed to load window state:', err)
+  } catch (error) {
+    console.error('Failed to load window state:', error)
   }
   return { width: 1400, height: 900, isMaximized: false }
 }
 
 function saveWindowState(mainWindow: BrowserWindow) {
   if (!mainWindow) return
-  
+
   try {
     const isMaximized = mainWindow.isMaximized()
     const bounds = mainWindow.getBounds()
-    
+
     const state: WindowState = {
       x: bounds.x,
       y: bounds.y,
       width: bounds.width,
       height: bounds.height,
-      isMaximized
+      isMaximized,
     }
-    
+
     fs.writeFileSync(windowStateFile, JSON.stringify(state, null, 2))
-  } catch (err) {
-    console.error('Failed to save window state:', err)
+  } catch (error) {
+    console.error('Failed to save window state:', error)
   }
 }
 
@@ -237,6 +255,12 @@ function saveWindowState(mainWindow: BrowserWindow) {
 // ============================================
 
 let mainWindow: BrowserWindow | null = null
+
+// ============================================
+// Timing Constants
+// ============================================
+const SHOW_WINDOW_FALLBACK_MS = 5_000
+const HARD_EXIT_FALLBACK_MS = 500
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
 
@@ -264,7 +288,7 @@ if (process.defaultApp) {
 // Initialize deep link dependencies early for logging
 setDeepLinkDependencies({
   log: (message: string, data?: unknown) => writeLog('info', `[DeepLink] ${message}`, data),
-  logError: (message: string, data?: unknown) => writeLog('error', `[DeepLink] ${message}`, data)
+  logError: (message: string, data?: unknown) => writeLog('error', `[DeepLink] ${message}`, data),
 })
 
 // Check for deep link in startup arguments (Windows)
@@ -300,61 +324,61 @@ function acquireSingleInstanceLock(): boolean {
   if (isTestMode) {
     return true
   }
-  
+
   // First attempt
   if (app.requestSingleInstanceLock()) {
     return true
   }
-  
+
   // Lock is held - check if it's a stale lock from a zombie process
   log('Lock held by another process, checking for stale lock...')
-  
+
   const existingPid = readLockFilePid()
   if (existingPid === null) {
     // No PID file - can't determine if stale, assume legitimate instance
     log('No lock file found, assuming another instance is running')
     return false
   }
-  
+
   log(`Lock file shows PID: ${existingPid}`)
-  
+
   if (isProcessAlive(existingPid)) {
     // Process is actually running - legitimate lock
     log(`Process ${existingPid} is alive, another instance is running`)
     return false
   }
-  
+
   // Process is dead! This is a stale lock from a zombie
   log(`Process ${existingPid} is dead - stale lock detected, attempting recovery...`)
-  
+
   // Delete the stale lock file
   deleteLockFile()
-  
+
   // Try to kill any remaining zombie process (belt and suspenders)
   tryKillZombieProcess(existingPid)
-  
+
   // Small delay to let OS release resources
   const start = Date.now()
   while (Date.now() - start < 100) {
     // Brief busy-wait
   }
-  
+
   // Retry acquiring the lock
   if (app.requestSingleInstanceLock()) {
     log('✓ Successfully recovered from stale lock')
     return true
   }
-  
+
   // Still can't get the lock - try one more time after killing
   log('Still cannot acquire lock, attempting force cleanup...')
   tryKillZombieProcess(existingPid)
-  
+
   // Final attempt
   const finalWaitStart = Date.now()
   while (Date.now() - finalWaitStart < 500) {
     // Wait for process cleanup
   }
-  
+
   return app.requestSingleInstanceLock()
 }
 
@@ -366,11 +390,15 @@ if (!gotTheLock) {
   app.quit()
   // Don't register any handlers - the app should quit immediately
 } else {
-  log(isTestMode ? 'Running in test mode (single instance lock bypassed)' : '✓ Got single instance lock')
-  
+  log(
+    isTestMode
+      ? 'Running in test mode (single instance lock bypassed)'
+      : '✓ Got single instance lock',
+  )
+
   // Write our PID to the lock file for future stale lock detection
   writeLockFile()
-  
+
   // All app initialization happens inside this block to prevent
   // secondary instances from doing anything after calling app.quit()
   initializeApp()
@@ -384,26 +412,26 @@ function initializeApp() {
   // Handle second instance (Windows/Linux deep links come through here)
   app.on('second-instance', (_event, commandLine) => {
     log('Second instance detected')
-    
+
     // Check for deep link in command line args
     const deepLink = getDeepLinkFromArgs(commandLine)
     if (deepLink) {
       log('Deep link from second instance: ' + deepLink.substring(0, 80))
       handleDeepLink(deepLink)
     }
-    
+
     // Focus the main window
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore()
       mainWindow.focus()
     }
   })
-  
+
   // Handle deep links on macOS (open-url event)
   app.on('open-url', (event, url) => {
     event.preventDefault()
     log('Deep link received (open-url): ' + url.substring(0, 80))
-    
+
     if (mainWindow) {
       handleDeepLink(url)
     } else {
@@ -412,44 +440,47 @@ function initializeApp() {
     }
   })
 
-  app.whenReady().then(async () => {
-    // Note: Logging is already initialized before single instance lock check
-    // Initialize Sentry for crash reporting
-    initSentryMain()
-    
-    // Perform migration check BEFORE creating window
-    // This handles clean install when upgrading from 2.x to 3.0+
-    log('Checking for version migration...')
-    const migrationResult = await performMigrationCheck()
-    if (migrationResult.performed) {
-      log('Migration performed: cleaned ' + migrationResult.cleanedPaths.length + ' items', {
-        fromVersion: migrationResult.fromVersion,
-        toVersion: migrationResult.toVersion
-      })
-    }
-    
-    log('App ready, creating window...')
-    createWindow()
+  app
+    .whenReady()
+    .then(async () => {
+      // Note: Logging is already initialized before single instance lock check
+      // Initialize Sentry for crash reporting
+      initSentryMain()
 
-    app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) {
-        createWindow()
-      } else if (mainWindow) {
-        if (mainWindow.isMinimized()) {
-          mainWindow.restore()
+      // Perform migration check BEFORE creating window
+      // This handles clean install when upgrading from 2.x to 3.0+
+      log('Checking for version migration...')
+      const migrationResult = await performMigrationCheck()
+      if (migrationResult.performed) {
+        log('Migration performed: cleaned ' + migrationResult.cleanedPaths.length + ' items', {
+          fromVersion: migrationResult.fromVersion,
+          toVersion: migrationResult.toVersion,
+        })
+      }
+
+      log('App ready, creating window...')
+      createWindow()
+
+      app.on('activate', () => {
+        if (BrowserWindow.getAllWindows().length === 0) {
+          createWindow()
+        } else if (mainWindow) {
+          if (mainWindow.isMinimized()) {
+            mainWindow.restore()
+          }
+          mainWindow.show()
+          mainWindow.focus()
         }
-        mainWindow.show()
-        mainWindow.focus()
+      })
+
+      // Start CLI server in dev mode
+      if (isDev || process.env.BLUEPLM_CLI === '1') {
+        startCliServer()
       }
     })
-    
-    // Start CLI server in dev mode
-    if (isDev || process.env.BLUEPLM_CLI === '1') {
-      startCliServer()
-    }
-  }).catch(err => {
-    logError('Error during app ready', { error: String(err) })
-  })
+    .catch((error) => {
+      logError('Error during app ready', { error: String(error) })
+    })
 
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
@@ -466,13 +497,13 @@ function initializeApp() {
     if (isQuitting) {
       return
     }
-    
+
     // Prevent default quit behavior to allow async cleanup
     event.preventDefault()
     isQuitting = true
-    
+
     log('App quitting, cleaning up all resources...')
-    
+
     // ============================================
     // HARD DEADLINE: 8 seconds maximum for cleanup
     // This is the absolute maximum time we'll wait before force-killing
@@ -480,97 +511,99 @@ function initializeApp() {
     const HARD_DEADLINE_MS = 8000
     const CLEANUP_TIMEOUT_MS = 5000
     const cleanupStartTime = Date.now()
-    
+
     // Set up hard deadline - if we're still running after 8 seconds, force exit
     const hardDeadlineTimer = setTimeout(() => {
       logError('HARD DEADLINE EXCEEDED - Force exiting with process.exit(1)')
       deleteLockFile() // Ensure lock file is cleaned up
       process.exit(1)
     }, HARD_DEADLINE_MS)
-    
+
     // Wrap all cleanup in a timeout to prevent hangs
     const cleanupWithTimeout = async () => {
       // ================================================
       // CRITICAL: Stop all timers/intervals FIRST
       // These can prevent the Node.js event loop from exiting
       // ================================================
-      
+
       // Stop update check timer (ROOT CAUSE of zombie process issue)
       cleanupUpdater()
       log('✓ Updater cleanup complete')
-      
+
       // Stop file watcher
       try {
         await cleanupFs()
         log('✓ File watcher cleanup complete')
-      } catch (err) {
-        logError('Failed to cleanup file watcher', { error: String(err) })
+      } catch (error) {
+        logError('Failed to cleanup file watcher', { error: String(error) })
       }
-      
+
       // ================================================
       // Cleanup child processes and servers
       // ================================================
-      
+
       // Cleanup Extension Host (has 1 second internal timeout)
       try {
         await cleanupExtensionHost()
         log('✓ Extension Host cleanup complete')
-      } catch (err) {
-        logError('Failed to cleanup Extension Host', { error: String(err) })
+      } catch (error) {
+        logError('Failed to cleanup Extension Host', { error: String(error) })
       }
-      
+
       // Cleanup SolidWorks service (can hang if service is stuck)
       try {
         await cleanupSolidWorksService()
         log('✓ SolidWorks service cleanup complete')
-      } catch (err) {
-        logError('Failed to cleanup SolidWorks service', { error: String(err) })
+      } catch (error) {
+        logError('Failed to cleanup SolidWorks service', { error: String(error) })
       }
-      
+
       // Cleanup OAuth servers (sync, should be fast)
       cleanupOAuth()
       log('✓ OAuth cleanup complete')
-      
+
       // Cleanup CLI server (destroys active connections)
       cleanupCli()
       log('✓ CLI cleanup complete')
     }
-    
+
     try {
       // Race cleanup against timeout
       await Promise.race([
         cleanupWithTimeout(),
-        new Promise<void>((_, reject) => 
-          setTimeout(() => reject(new Error('Cleanup timeout')), CLEANUP_TIMEOUT_MS)
-        )
+        new Promise<void>((_, reject) =>
+          setTimeout(() => reject(new Error('Cleanup timeout')), CLEANUP_TIMEOUT_MS),
+        ),
       ])
-      
+
       const elapsed = Date.now() - cleanupStartTime
       log(`All cleanup complete in ${elapsed}ms, exiting...`)
-    } catch (err) {
+    } catch (error) {
       const elapsed = Date.now() - cleanupStartTime
-      logError(`Cleanup timed out or failed after ${elapsed}ms, force exiting...`, { error: String(err) })
+      logError(`Cleanup timed out or failed after ${elapsed}ms, force exiting...`, {
+        error: String(error),
+      })
     }
-    
+
     // Clear the hard deadline timer since we're about to exit
     clearTimeout(hardDeadlineTimer)
-    
+
     // Delete the lock file so next launch doesn't see stale lock
     deleteLockFile()
     log('✓ Lock file deleted')
-    
+
     // Exit the Electron app
     app.exit(0)
-    
+
     // ============================================
-    // HARD EXIT FALLBACK: 500ms after app.exit(0)
+    // HARD EXIT FALLBACK: after app.exit(0)
     // If app.exit(0) doesn't actually terminate the process
     // (e.g., due to lingering event handlers or refs), force it
     // ============================================
     setTimeout(() => {
       logError('Hard exit fallback triggered - app.exit(0) did not terminate process')
       process.exit(0)
-    }, 500)
+    }, HARD_EXIT_FALLBACK_MS)
   })
 }
 
@@ -587,15 +620,15 @@ function restoreMainWindowFocus() {
 
 function createWindow() {
   log('Creating BrowserWindow...')
-  
+
   const savedState = loadWindowState()
-  
+
   // Validate window position is on a visible display
   let x = savedState.x
   let y = savedState.y
   if (x !== undefined && y !== undefined) {
     const displays = screen.getAllDisplays()
-    const isOnDisplay = displays.some(display => {
+    const isOnDisplay = displays.some((display) => {
       const { x: dx, y: dy, width, height } = display.bounds
       return x! >= dx && x! < dx + width && y! >= dy && y! < dy + height
     })
@@ -604,7 +637,7 @@ function createWindow() {
       y = undefined
     }
   }
-  
+
   mainWindow = new BrowserWindow({
     x,
     y,
@@ -617,15 +650,15 @@ function createWindow() {
     titleBarOverlay: {
       color: '#181818',
       symbolColor: '#cccccc',
-      height: 36
+      height: 36,
     },
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
+      sandbox: false,
     },
-    show: false
+    show: false,
   })
 
   // Set up permission handler for geolocation
@@ -651,7 +684,7 @@ function createWindow() {
   const moveHandler = () => saveWindowState(mainWindow!)
   const maximizeHandler = () => saveWindowState(mainWindow!)
   const unmaximizeHandler = () => saveWindowState(mainWindow!)
-  
+
   mainWindow.on('resize', resizeHandler)
   mainWindow.on('move', moveHandler)
   mainWindow.on('maximize', maximizeHandler)
@@ -666,7 +699,7 @@ function createWindow() {
   }
 
   mainWindow.once('ready-to-show', showWindow)
-  setTimeout(showWindow, 5000)
+  setTimeout(showWindow, SHOW_WINDOW_FALLBACK_MS)
 
   mainWindow.webContents.on('render-process-gone', () => log('Renderer process crashed!'))
   mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
@@ -676,7 +709,9 @@ function createWindow() {
     log('Page finished loading')
     if (mainWindow) {
       // getTitleBarOverlayRect may not exist on all Electron versions
-      const win = mainWindow as BrowserWindow & { getTitleBarOverlayRect?: () => { x: number; y: number; width: number; height: number } }
+      const win = mainWindow as BrowserWindow & {
+        getTitleBarOverlayRect?: () => { x: number; y: number; width: number; height: number }
+      }
       const overlayRect = win.getTitleBarOverlayRect?.() || { x: 0, y: 0, width: 138, height: 38 }
       mainWindow.webContents.send('titlebar-overlay-rect', overlayRect)
     }
@@ -691,22 +726,20 @@ function createWindow() {
         { label: 'Copy', role: 'copy', enabled: params.editFlags.canCopy },
         { label: 'Paste', role: 'paste', enabled: params.editFlags.canPaste },
         { type: 'separator' },
-        { label: 'Select All', role: 'selectAll', enabled: params.editFlags.canSelectAll }
+        { label: 'Select All', role: 'selectAll', enabled: params.editFlags.canSelectAll },
       ])
       editMenu.popup()
     }
   })
 
-  const loadPath = isDev 
-    ? 'http://localhost:5173' 
-    : path.join(__dirname, '../dist/index.html')
-  
+  const loadPath = isDev ? 'http://localhost:5173' : path.join(__dirname, '../dist/index.html')
+
   log('Loading: ' + loadPath)
-  
+
   if (isDev) {
     mainWindow.loadURL(loadPath)
   } else {
-    mainWindow.loadFile(loadPath).catch(err => log('Error loading file: ' + String(err)))
+    mainWindow.loadFile(loadPath).catch((error) => log('Error loading file: ' + String(error)))
   }
 
   // In production, intercept OAuth redirects
@@ -715,15 +748,15 @@ function createWindow() {
       if (navUrl.startsWith('http://localhost') && navUrl.includes('access_token')) {
         log('Intercepting OAuth redirect in main window')
         event.preventDefault()
-        
+
         const url = new URL(navUrl)
         const hashFragment = url.hash || ''
         const queryString = url.search || ''
-        
+
         const prodPath = path.join(__dirname, '../dist/index.html')
         const normalizedPath = prodPath.replace(/\\/g, '/')
         const fileUrl = `file:///${normalizedPath}${queryString}${hashFragment}`
-        
+
         mainWindow?.loadURL(fileUrl)
       }
     })
@@ -731,47 +764,48 @@ function createWindow() {
 
   // Keep track of Google auth windows
   let googleAuthWindow: BrowserWindow | null = null
-  
+
   // Handle popup windows from iframes (like Google sign-in)
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     log('[Window] Popup requested: ' + url.substring(0, 100))
-    
-    const isGoogleAuth = url.includes('accounts.google.com') || 
-                         url.includes('google.com/o/oauth2') ||
-                         url.includes('google.com/signin')
-    
+
+    const isGoogleAuth =
+      url.includes('accounts.google.com') ||
+      url.includes('google.com/o/oauth2') ||
+      url.includes('google.com/signin')
+
     if (isGoogleAuth) {
       log('[Window] Opening Google auth in Electron window')
-      
+
       if (googleAuthWindow && !googleAuthWindow.isDestroyed()) {
         googleAuthWindow.close()
       }
-      
+
       googleAuthWindow = new BrowserWindow({
         width: 500,
         height: 700,
-        parent: process.platform === 'darwin' ? undefined : (mainWindow || undefined),
+        parent: process.platform === 'darwin' ? undefined : mainWindow || undefined,
         modal: false,
         show: true,
         title: 'Sign in to Google',
         webPreferences: {
           nodeIntegration: false,
-          contextIsolation: true
-        }
+          contextIsolation: true,
+        },
       })
-      
+
       googleAuthWindow.loadURL(url)
-      
+
       googleAuthWindow.webContents.on('did-navigate', (_, navUrl) => {
         log('[Window] Auth window navigated to: ' + navUrl.substring(0, 80))
-        
-        const isDocumentUrl = 
+
+        const isDocumentUrl =
           navUrl.includes('docs.google.com/document/d/') ||
           navUrl.includes('docs.google.com/spreadsheets/d/') ||
           navUrl.includes('docs.google.com/presentation/d/') ||
           navUrl.includes('docs.google.com/forms/d/') ||
           navUrl.includes('drive.google.com/file/d/')
-        
+
         if (isDocumentUrl) {
           log('[Window] Sign-in complete, closing auth window')
           if (googleAuthWindow && !googleAuthWindow.isDestroyed()) {
@@ -779,7 +813,7 @@ function createWindow() {
           }
         }
       })
-      
+
       googleAuthWindow.on('closed', () => {
         log('[Window] Google auth window closed')
         googleAuthWindow = null
@@ -788,10 +822,10 @@ function createWindow() {
           mainWindow.focus()
         }
       })
-      
+
       return { action: 'deny' }
     }
-    
+
     log('[Window] Opening in external browser: ' + url.substring(0, 80))
     shell.openExternal(url)
     return { action: 'deny' }
@@ -809,7 +843,7 @@ function createWindow() {
       mainWindow.removeListener('unmaximize', unmaximizeHandler)
     }
     mainWindow = null
-    
+
     // ============================================
     // CRITICAL: Close the Extension Host window when main window closes
     // The Extension Host is a hidden BrowserWindow that prevents the
@@ -825,7 +859,7 @@ function createWindow() {
 
   // Register all IPC handlers
   registerAllHandlers(mainWindow, {
-    restoreMainWindowFocus
+    restoreMainWindowFocus,
   })
 
   // Create application menu

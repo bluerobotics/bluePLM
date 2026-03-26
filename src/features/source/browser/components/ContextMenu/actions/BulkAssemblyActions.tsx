@@ -3,29 +3,32 @@
  * Provides operations on assemblies and all their associated files:
  * - Download All (assembly + children + drawings)
  * - Check Out All
- * - Check In All  
+ * - Check In All
  * - Remove Local All
  * - Pack and Go (ZIP export)
- * 
+ *
  * Shown for single .sldasm files that exist in the database (including cloud-only).
  * For cloud-only assemblies, only Download All and Pack and Go are shown.
  */
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { 
-  Package2, 
-  ArrowDownToLine, 
-  Lock, 
-  Unlock, 
-  Trash2, 
+import {
+  Package2,
+  ArrowDownToLine,
+  Lock,
+  Unlock,
+  Trash2,
   Archive,
   Loader2,
-  AlertTriangle
+  AlertTriangle,
 } from 'lucide-react'
 import type { ActionComponentProps } from './types'
 import { ContextSubmenu } from '../components'
 import { usePDMStore, type LocalFile } from '@/stores/pdmStore'
 import { executeCommand } from '@/lib/commands'
-import { resolveAssociatedFiles, type AssociatedFilesResult } from '@/lib/fileOperations/assemblyResolver'
+import {
+  resolveAssociatedFiles,
+  type AssociatedFilesResult,
+} from '@/lib/fileOperations/assemblyResolver'
 import { packAndGoCommand } from '@/lib/commands/handlers/packAndGo'
 import { log } from '@/lib/logger'
 import { useTranslation } from '@/lib/i18n'
@@ -38,11 +41,7 @@ interface ConfirmationState {
   warnings: string[]
 }
 
-export function BulkAssemblyActions({
-  multiSelect,
-  firstFile,
-  onClose,
-}: ActionComponentProps) {
+export function BulkAssemblyActions({ multiSelect, firstFile, onClose }: ActionComponentProps) {
   const { t } = useTranslation()
   const [showSubmenu, setShowSubmenu] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -50,13 +49,8 @@ export function BulkAssemblyActions({
   const [confirmState, setConfirmState] = useState<ConfirmationState | null>(null)
   const submenuTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const hasFetchedRef = useRef(false)
-  
-  const { 
-    files, 
-    organization, 
-    user,
-    addToast 
-  } = usePDMStore()
+
+  const { files, organization, user, addToast } = usePDMStore()
 
   const isAssembly = useCallback(() => {
     const ext = firstFile.extension?.toLowerCase()
@@ -84,23 +78,20 @@ export function BulkAssemblyActions({
       hasFetchedRef.current = true
       setIsLoading(true)
 
-      resolveAssociatedFiles(
-        firstFile.pdmData!.id,
-        organization.id,
-        files,
-        (msg) => log.debug('[BulkAssemblyActions]', msg)
+      resolveAssociatedFiles(firstFile.pdmData!.id, organization.id, files, (msg) =>
+        log.debug('[BulkAssemblyActions]', msg),
       )
-        .then(result => {
+        .then((result) => {
           setResolvedData(result)
           if (result.error) {
-            log.error('[BulkAssemblyActions]', 'Failed to resolve assembly', { 
-              error: result.error 
+            log.error('[BulkAssemblyActions]', 'Failed to resolve assembly', {
+              error: result.error,
             })
           }
         })
-        .catch(err => {
-          log.error('[BulkAssemblyActions]', 'Exception resolving assembly', { 
-            error: err instanceof Error ? err.message : String(err) 
+        .catch((err) => {
+          log.error('[BulkAssemblyActions]', 'Exception resolving assembly', {
+            error: err instanceof Error ? err.message : String(err),
           })
         })
         .finally(() => {
@@ -110,78 +101,90 @@ export function BulkAssemblyActions({
   }, [showSubmenu, canShow, firstFile, organization?.id, files])
 
   // Build warnings for confirmation dialog
-  const buildWarnings = useCallback((
-    action: ConfirmationState['action'],
-    data: AssociatedFilesResult
-  ): string[] => {
-    const warnings: string[] = []
-    const userId = user?.id
+  const buildWarnings = useCallback(
+    (action: ConfirmationState['action'], data: AssociatedFilesResult): string[] => {
+      const warnings: string[] = []
+      const userId = user?.id
 
-    // Check for files checked out by others
-    const checkedOutByOthers: LocalFile[] = []
-    for (const [, localFile] of data.allFiles) {
-      if (localFile.pdmData?.checked_out_by && 
-          localFile.pdmData.checked_out_by !== userId) {
-        checkedOutByOthers.push(localFile)
+      // Check for files checked out by others
+      const checkedOutByOthers: LocalFile[] = []
+      for (const [, localFile] of data.allFiles) {
+        if (localFile.pdmData?.checked_out_by && localFile.pdmData.checked_out_by !== userId) {
+          checkedOutByOthers.push(localFile)
+        }
       }
-    }
 
-    if (checkedOutByOthers.length > 0) {
-      const names = checkedOutByOthers.slice(0, 3).map(f => f.name).join(', ')
-      const suffix = checkedOutByOthers.length > 3 
-        ? ` +${checkedOutByOthers.length - 3} more` 
-        : ''
-      warnings.push(`${checkedOutByOthers.length} file${checkedOutByOthers.length !== 1 ? 's' : ''} checked out by others: ${names}${suffix}`)
-    }
-
-    // Check for cloud-only files for non-download actions
-    if (action !== 'download' && action !== 'packAndGo') {
-      const cloudOnlyCount = [...data.allFiles.values()]
-        .filter(f => f.diffStatus === 'cloud').length
-      if (cloudOnlyCount > 0) {
-        warnings.push(`${cloudOnlyCount} file${cloudOnlyCount !== 1 ? 's' : ''} exist only in the cloud (not downloaded)`)
+      if (checkedOutByOthers.length > 0) {
+        const names = checkedOutByOthers
+          .slice(0, 3)
+          .map((f) => f.name)
+          .join(', ')
+        const suffix =
+          checkedOutByOthers.length > 3 ? ` +${checkedOutByOthers.length - 3} more` : ''
+        warnings.push(
+          `${checkedOutByOthers.length} file${checkedOutByOthers.length !== 1 ? 's' : ''} checked out by others: ${names}${suffix}`,
+        )
       }
-    }
 
-    // Check for files not checked out by user (for checkin)
-    if (action === 'checkin') {
-      const notCheckedOutByUser = [...data.allFiles.values()]
-        .filter(f => f.pdmData?.checked_out_by !== userId).length
-      if (notCheckedOutByUser > 0) {
-        warnings.push(`${notCheckedOutByUser} file${notCheckedOutByUser !== 1 ? 's are' : ' is'} not checked out by you`)
+      // Check for cloud-only files for non-download actions
+      if (action !== 'download' && action !== 'packAndGo') {
+        const cloudOnlyCount = [...data.allFiles.values()].filter(
+          (f) => f.diffStatus === 'cloud',
+        ).length
+        if (cloudOnlyCount > 0) {
+          warnings.push(
+            `${cloudOnlyCount} file${cloudOnlyCount !== 1 ? 's' : ''} exist only in the cloud (not downloaded)`,
+          )
+        }
       }
-    }
 
-    return warnings
-  }, [user?.id])
+      // Check for files not checked out by user (for checkin)
+      if (action === 'checkin') {
+        const notCheckedOutByUser = [...data.allFiles.values()].filter(
+          (f) => f.pdmData?.checked_out_by !== userId,
+        ).length
+        if (notCheckedOutByUser > 0) {
+          warnings.push(
+            `${notCheckedOutByUser} file${notCheckedOutByUser !== 1 ? 's are' : ' is'} not checked out by you`,
+          )
+        }
+      }
+
+      return warnings
+    },
+    [user?.id],
+  )
 
   // Handle action selection - show confirmation dialog
-  const handleActionClick = useCallback((action: ConfirmationState['action']) => {
-    if (!resolvedData || resolvedData.error) {
-      addToast('error', t('contextMenu.assembly.resolveFailed'))
-      return
-    }
+  const handleActionClick = useCallback(
+    (action: ConfirmationState['action']) => {
+      if (!resolvedData || resolvedData.error) {
+        addToast('error', t('contextMenu.assembly.resolveFailed'))
+        return
+      }
 
-    const allLocalFiles = [...resolvedData.allFiles.values()]
-    const warnings = buildWarnings(action, resolvedData)
+      const allLocalFiles = [...resolvedData.allFiles.values()]
+      const warnings = buildWarnings(action, resolvedData)
 
-    // Title based on action
-    const titles: Record<ConfirmationState['action'], string> = {
-      download: t('contextMenu.assembly.confirmDownloadTitle'),
-      checkout: t('contextMenu.assembly.confirmCheckOutTitle'),
-      checkin: t('contextMenu.assembly.confirmCheckInTitle'),
-      delete: t('contextMenu.assembly.confirmRemoveLocalTitle'),
-      packAndGo: t('contextMenu.assembly.confirmPackAndGoTitle'),
-    }
+      // Title based on action
+      const titles: Record<ConfirmationState['action'], string> = {
+        download: t('contextMenu.assembly.confirmDownloadTitle'),
+        checkout: t('contextMenu.assembly.confirmCheckOutTitle'),
+        checkin: t('contextMenu.assembly.confirmCheckInTitle'),
+        delete: t('contextMenu.assembly.confirmRemoveLocalTitle'),
+        packAndGo: t('contextMenu.assembly.confirmPackAndGoTitle'),
+      }
 
-    setConfirmState({
-      action,
-      title: titles[action],
-      resolvedData,
-      filesToProcess: allLocalFiles,
-      warnings
-    })
-  }, [resolvedData, buildWarnings, addToast, t])
+      setConfirmState({
+        action,
+        title: titles[action],
+        resolvedData,
+        filesToProcess: allLocalFiles,
+        warnings,
+      })
+    },
+    [resolvedData, buildWarnings, addToast, t],
+  )
 
   // Execute the confirmed action
   const executeAction = useCallback(async () => {
@@ -195,27 +198,27 @@ export function BulkAssemblyActions({
 
     switch (action) {
       case 'download':
-        executeCommand('bulk-download-assembly', { 
-          files: filesToProcess, 
-          rootFileId 
+        executeCommand('bulk-download-assembly', {
+          files: filesToProcess,
+          rootFileId,
         })
         break
       case 'checkout':
-        executeCommand('bulk-checkout-assembly', { 
-          files: filesToProcess, 
-          rootFileId 
+        executeCommand('bulk-checkout-assembly', {
+          files: filesToProcess,
+          rootFileId,
         })
         break
       case 'checkin':
-        executeCommand('bulk-checkin-assembly', { 
-          files: filesToProcess, 
-          rootFileId 
+        executeCommand('bulk-checkin-assembly', {
+          files: filesToProcess,
+          rootFileId,
         })
         break
       case 'delete':
-        executeCommand('bulk-delete-assembly', { 
-          files: filesToProcess, 
-          rootFileId 
+        executeCommand('bulk-delete-assembly', {
+          files: filesToProcess,
+          rootFileId,
         })
         break
       case 'packAndGo':
@@ -229,7 +232,10 @@ export function BulkAssemblyActions({
           updateProgressToast: usePDMStore.getState().updateProgressToast,
           removeToast: usePDMStore.getState().removeToast,
         }
-        await packAndGoCommand.execute({ file: firstFile }, ctx as Parameters<typeof packAndGoCommand.execute>[1])
+        await packAndGoCommand.execute(
+          { file: firstFile },
+          ctx as Parameters<typeof packAndGoCommand.execute>[1],
+        )
         break
     }
   }, [confirmState, firstFile, onClose, organization, user, files, addToast])
@@ -260,15 +266,17 @@ export function BulkAssemblyActions({
   // Build stats display for confirmation
   const formatStats = (data: AssociatedFilesResult) => {
     const parts: string[] = []
-    
+
     // Root assembly
     if (data.rootFile) {
       parts.push('1 assembly')
     }
-    
+
     // Sub-assemblies and parts
     if (data.stats.subAssemblies > 0) {
-      parts.push(`${data.stats.subAssemblies} sub-assembl${data.stats.subAssemblies === 1 ? 'y' : 'ies'}`)
+      parts.push(
+        `${data.stats.subAssemblies} sub-assembl${data.stats.subAssemblies === 1 ? 'y' : 'ies'}`,
+      )
     }
     if (data.stats.parts > 0) {
       parts.push(`${data.stats.parts} part${data.stats.parts !== 1 ? 's' : ''}`)
@@ -280,14 +288,12 @@ export function BulkAssemblyActions({
     return parts.join(', ')
   }
 
-  const totalFileCount = resolvedData 
-    ? resolvedData.allFiles.size 
-    : 0
+  const totalFileCount = resolvedData ? resolvedData.allFiles.size : 0
 
   return (
     <>
       <div className="context-menu-separator" />
-      <div 
+      <div
         className="context-menu-item relative"
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
@@ -299,7 +305,7 @@ export function BulkAssemblyActions({
         <Package2 size={14} className="text-plm-accent-primary" />
         {t('contextMenu.assembly.title')}
         <span className="text-xs text-plm-fg-muted ml-auto">▶</span>
-        
+
         {showSubmenu && (
           <ContextSubmenu
             minWidth={220}
@@ -316,7 +322,9 @@ export function BulkAssemblyActions({
                 <AlertTriangle size={14} />
                 {t('contextMenu.assembly.resolveFailed')}
               </div>
-            ) : resolvedData && resolvedData.allFiles.size === 0 && resolvedData.stats.totalChildren === 0 ? (
+            ) : resolvedData &&
+              resolvedData.allFiles.size === 0 &&
+              resolvedData.stats.totalChildren === 0 ? (
               <div className="context-menu-item disabled text-plm-fg-muted">
                 <AlertTriangle size={14} className="text-plm-warning" />
                 {t('contextMenu.assembly.noComponents', 'No components found')}
@@ -412,18 +420,13 @@ export function BulkAssemblyActions({
       {confirmState && (
         <>
           {/* Overlay */}
-          <div 
-            className="fixed inset-0 bg-black/50 z-[200]"
-            onClick={handleCancelConfirm}
-          />
-          
+          <div className="fixed inset-0 bg-black/50 z-[200]" onClick={handleCancelConfirm} />
+
           {/* Dialog */}
           <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[201] bg-plm-bg-lighter border border-plm-border rounded-lg shadow-xl min-w-[400px] max-w-[500px]">
             {/* Header */}
             <div className="px-4 py-3 border-b border-plm-border">
-              <h3 className="text-sm font-semibold text-plm-fg">
-                {confirmState.title}
-              </h3>
+              <h3 className="text-sm font-semibold text-plm-fg">{confirmState.title}</h3>
             </div>
 
             {/* Content */}
@@ -431,9 +434,12 @@ export function BulkAssemblyActions({
               {/* File breakdown */}
               <div className="text-sm text-plm-fg-muted">
                 <p className="mb-2">
-                  {t('contextMenu.assembly.confirmMessage').replace('{{count}}', String(confirmState.filesToProcess.length))}
+                  {t('contextMenu.assembly.confirmMessage').replace(
+                    '{{count}}',
+                    String(confirmState.filesToProcess.length),
+                  )}
                 </p>
-                
+
                 {/* Stats breakdown */}
                 {confirmState.resolvedData && (
                   <div className="bg-plm-bg rounded px-3 py-2 text-xs space-y-1">
@@ -445,9 +451,7 @@ export function BulkAssemblyActions({
                     </div>
                     <div className="flex justify-between">
                       <span>{t('contextMenu.assembly.parts')}:</span>
-                      <span className="text-plm-fg">
-                        {confirmState.resolvedData.stats.parts}
-                      </span>
+                      <span className="text-plm-fg">{confirmState.resolvedData.stats.parts}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>{t('contextMenu.assembly.drawings')}:</span>

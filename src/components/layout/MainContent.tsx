@@ -8,11 +8,21 @@ import { TabBar } from './TabBar'
 import { ResizeHandle } from './ResizeHandle'
 
 // Lazy loaded main content components - only loaded when their module is active
-const FilePane = lazy(() => import('@/features/source/browser').then(m => ({ default: m.FilePane })))
-const DetailsPanel = lazy(() => import('@/features/source/details').then(m => ({ default: m.DetailsPanel })))
-const GoogleDrivePanel = lazy(() => import('@/features/integrations/google-drive').then(m => ({ default: m.GoogleDrivePanel })))
-const WorkflowsView = lazy(() => import('@/features/source/workflows/WorkflowsView').then(m => ({ default: m.WorkflowsView })))
-const ReviewPreviewPane = lazy(() => import('@/features/source/reviews').then(m => ({ default: m.ReviewPreviewPane })))
+const FilePane = lazy(() =>
+  import('@/features/source/browser').then((m) => ({ default: m.FilePane })),
+)
+const DetailsPanel = lazy(() =>
+  import('@/features/source/details').then((m) => ({ default: m.DetailsPanel })),
+)
+const GoogleDrivePanel = lazy(() =>
+  import('@/features/integrations/google-drive').then((m) => ({ default: m.GoogleDrivePanel })),
+)
+const WorkflowsView = lazy(() =>
+  import('@/features/source/workflows/WorkflowsView').then((m) => ({ default: m.WorkflowsView })),
+)
+const ReviewPreviewPane = lazy(() =>
+  import('@/features/source/reviews').then((m) => ({ default: m.ReviewPreviewPane })),
+)
 
 // Loading fallback for lazy-loaded components
 function ContentLoading() {
@@ -51,23 +61,23 @@ export function MainContent({
   handleChangeOrg,
 }: MainContentProps) {
   // Get settingsTab from store
-  const settingsTab = usePDMStore(s => s.settingsTab)
-  const reviewPreviewFile = usePDMStore(s => s.reviewPreviewFile)
-  
+  const settingsTab = usePDMStore((s) => s.settingsTab)
+  const reviewPreviewFile = usePDMStore((s) => s.reviewPreviewFile)
+
   // Call hooks directly instead of receiving as props
   const { loadFiles, refreshCurrentFolder } = useLoadFiles()
   const { handleOpenRecentVault } = useVaultManagement()
 
   return (
-    <div className={`flex-1 flex flex-col overflow-hidden min-w-0 ${isResizingSidebar || isResizingRightPanel ? 'pointer-events-none' : ''}`}>
+    <div
+      className={`flex-1 flex flex-col overflow-hidden min-w-0 ${isResizingSidebar || isResizingRightPanel ? 'pointer-events-none' : ''}`}
+    >
       {/* Tab bar (browser-like tabs) - shown when FilePane is visible (not settings, google-drive, workflows, or reviews) */}
-      {!showWelcome && !['settings', 'google-drive', 'workflows', 'reviews'].includes(activeView) && <TabBar />}
-      
+      {!showWelcome &&
+        !['settings', 'google-drive', 'workflows', 'reviews'].includes(activeView) && <TabBar />}
+
       {showWelcome ? (
-        <WelcomeScreen 
-          onOpenRecentVault={handleOpenRecentVault}
-          onChangeOrg={handleChangeOrg}
-        />
+        <WelcomeScreen onOpenRecentVault={handleOpenRecentVault} onChangeOrg={handleChangeOrg} />
       ) : activeView === 'settings' ? (
         /* Settings View - replaces entire main content area */
         <SettingsContent activeTab={settingsTab} />
@@ -102,10 +112,7 @@ export function MainContent({
           {/* Details Panel (lazy loaded) */}
           {detailsPanelVisible && (
             <>
-              <ResizeHandle
-                direction="vertical"
-                onResizeStart={onResizeDetailsStart}
-              />
+              <ResizeHandle direction="vertical" onResizeStart={onResizeDetailsStart} />
               <Suspense fallback={<ContentLoading />}>
                 <DetailsPanel />
               </Suspense>

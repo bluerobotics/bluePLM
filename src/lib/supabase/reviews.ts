@@ -23,10 +23,10 @@ export async function createReviewRequest(
   message?: string,
   dueDate?: string,
   priority?: 'low' | 'normal' | 'high' | 'urgent',
-  teamId?: string
+  teamId?: string,
 ): Promise<{ review: Review | null; error?: string }> {
   const client = getSupabaseClient()
-  
+
   // Create the review
   const insertData: Record<string, unknown> = {
     org_id: orgId,
@@ -43,23 +43,23 @@ export async function createReviewRequest(
   }
   const { data: review, error: reviewError } = await client
     .from('reviews')
-    .insert(insertData as any)
+    .insert(insertData as any) // TODO: type this
     .select()
     .single()
-  
+
   if (reviewError) {
     return { review: null, error: reviewError.message }
   }
-  
+
   // Create review_responses for each reviewer
-  const responses = reviewerIds.map(reviewerId => ({
+  const responses = reviewerIds.map((reviewerId) => ({
     review_id: review.id,
     reviewer_id: reviewerId,
-    status: 'pending' as ReviewStatus
+    status: 'pending' as ReviewStatus,
   }))
-  
+
   await client.from('review_responses').insert(responses)
-  
+
   return { review: review as Review }
 }
 
@@ -74,13 +74,14 @@ export async function getMyReviews(
     limit?: number
     asRequester?: boolean
     asReviewer?: boolean
-  }
+  },
 ): Promise<{ reviews: any[]; error?: string }> {
   const client = getSupabaseClient()
-  
+
   let query = client
     .from('reviews')
-    .select(`
+    .select(
+      `
       *,
       file:files(id, file_name, file_path, extension, version, part_number, description, revision),
       requester:users!requested_by(email, full_name, avatar_url),
@@ -92,24 +93,25 @@ export async function getMyReviews(
         responded_at,
         reviewer:users!reviewer_id(id, email, full_name, avatar_url)
       )
-    `)
+    `,
+    )
     .eq('requested_by', userId)
     .order('created_at', { ascending: false })
-  
+
   if (options?.status && options.status.length > 0) {
     query = query.in('status', options.status)
   }
-  
+
   if (options?.limit) {
     query = query.limit(options.limit)
   }
-  
+
   const { data, error } = await query
-  
+
   if (error) {
     return { reviews: [], error: error.message }
   }
-  
+
   return { reviews: data || [] }
 }
 
@@ -118,13 +120,14 @@ export async function getMyReviews(
  */
 export async function getPendingReviewsForUser(
   userId: string,
-  _orgId?: string
+  _orgId?: string,
 ): Promise<{ reviews: any[]; error?: string }> {
   const client = getSupabaseClient()
-  
+
   const { data, error } = await client
     .from('review_responses')
-    .select(`
+    .select(
+      `
       id,
       status,
       review:reviews!inner(
@@ -148,16 +151,17 @@ export async function getPendingReviewsForUser(
           reviewer:users!reviewer_id(id, email, full_name, avatar_url)
         )
       )
-    `)
+    `,
+    )
     .eq('reviewer_id', userId)
     .in('status', ['pending', 'kicked_back'])
     .eq('reviews.status', 'pending')
     .order('created_at', { ascending: false })
-  
+
   if (error) {
     return { reviews: [], error: error.message }
   }
-  
+
   return { reviews: data || [] }
 }
 
@@ -168,52 +172,54 @@ export async function respondToReview(
   reviewResponseId: string,
   reviewerId: string,
   status: 'approved' | 'rejected' | 'kicked_back',
-  comment?: string
+  comment?: string,
 ): Promise<{ success: boolean; error?: string }> {
   const client = getSupabaseClient()
-  
+
   const { data: response, error: updateError } = await client
     .from('review_responses')
     .update({
       status,
       comment: comment || null,
-      responded_at: new Date().toISOString()
+      responded_at: new Date().toISOString(),
     })
     .eq('id', reviewResponseId)
     .eq('reviewer_id', reviewerId)
     .select('review_id')
     .single()
-  
+
   if (updateError) {
     return { success: false, error: updateError.message }
   }
-  
+
   if (response?.review_id) {
     const reviewId = response.review_id
-    
+
     const { data: allResponses, error: responsesError } = await client
       .from('review_responses')
       .select('status')
       .eq('review_id', reviewId)
-    
+
     if (!responsesError && allResponses) {
-      const allResponded = allResponses.every(r => r.status !== 'pending' && r.status !== 'kicked_back')
-      
+      const allResponded = allResponses.every(
+        (r) => r.status !== 'pending' && r.status !== 'kicked_back',
+      )
+
       if (allResponded) {
-        const anyRejected = allResponses.some(r => r.status === 'rejected')
-        
+        const anyRejected = allResponses.some((r) => r.status === 'rejected')
+
         await client
           .from('reviews')
           .update({
             status: anyRejected ? 'rejected' : 'approved',
             completed_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
           })
           .eq('id', reviewId)
       }
     }
   }
-  
+
   return { success: true }
 }
 
@@ -222,42 +228,39 @@ export async function respondToReview(
  */
 export async function cancelReview(
   reviewId: string,
-  userId: string
+  userId: string,
 ): Promise<{ success: boolean; error?: string }> {
   const client = getSupabaseClient()
-  
+
   const { data: review, error: fetchError } = await client
     .from('reviews')
     .select('requested_by')
     .eq('id', reviewId)
     .single()
-  
+
   if (fetchError || !review) {
     return { success: false, error: 'Review not found' }
   }
-  
+
   if (review.requested_by !== userId) {
     return { success: false, error: 'Only the requester can cancel a review' }
   }
-  
+
   const { error } = await client
     .from('reviews')
     .update({
       status: 'cancelled',
       completed_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     })
     .eq('id', reviewId)
-  
+
   if (error) {
     return { success: false, error: error.message }
   }
-  
-  await client
-    .from('review_responses')
-    .update({ status: 'cancelled' })
-    .eq('review_id', reviewId)
-  
+
+  await client.from('review_responses').update({ status: 'cancelled' }).eq('review_id', reviewId)
+
   return { success: true }
 }
 
@@ -271,9 +274,7 @@ export async function cancelReview(
  * @param workflowStateId - UUID of the workflow state to check
  * @returns true when the state should automatically prompt for a review request
  */
-export async function checkReviewTrigger(
-  workflowStateId: string
-): Promise<boolean> {
+export async function checkReviewTrigger(workflowStateId: string): Promise<boolean> {
   const client = getSupabaseClient()
 
   const { data, error } = await client
@@ -332,13 +333,14 @@ export interface TeamWithMembers {
  * when a team is selected. If empty, all members are added (fallback).
  */
 export async function getOrgTeamsWithMembers(
-  orgId: string
+  orgId: string,
 ): Promise<{ teams: TeamWithMembers[]; error?: string }> {
   const client = getSupabaseClient()
 
   const { data, error } = await client
     .from('teams')
-    .select(`
+    .select(
+      `
       id,
       name,
       color,
@@ -347,12 +349,18 @@ export async function getOrgTeamsWithMembers(
       team_members(
         user:users(id, email, full_name, avatar_url, role)
       )
-    `)
+    `,
+    )
     .eq('org_id', orgId)
     .order('name')
 
   if (error) {
-    console.error('[getOrgTeamsWithMembers] Supabase query failed:', error.message, error.details, error.hint)
+    console.error(
+      '[getOrgTeamsWithMembers] Supabase query failed:',
+      error.message,
+      error.details,
+      error.hint,
+    )
     return { teams: [], error: error.message }
   }
 
@@ -360,9 +368,9 @@ export async function getOrgTeamsWithMembers(
   // table doesn't exist yet or RLS blocks access.
   let reviewersByTeam = new Map<string, TeamReviewerConfig[]>()
   try {
-    const { data: reviewerData } = await (client
-      .from as any)('team_reviewers')
-      .select('id, team_id, reviewer_type, user_id, workflow_role_id')
+    const { data: reviewerData } = await (client.from as any)('team_reviewers').select( // TODO: type this
+      'id, team_id, reviewer_type, user_id, workflow_role_id',
+    )
 
     if (reviewerData) {
       for (const r of reviewerData as Array<TeamReviewerConfig & { team_id: string }>) {
@@ -395,11 +403,12 @@ export async function getOrgTeamsWithMembers(
   }
 
   const teams: TeamWithMembers[] = (data || []).map((team: any) => {
-    const rawMembers = (team as Record<string, unknown>).team_members as Array<{ user: TeamMember | null }> || []
+    const rawMembers =
+      ((team as Record<string, unknown>).team_members as Array<{ user: TeamMember | null }>) || []
     const members: TeamMember[] = rawMembers
       .map((tm) => tm.user)
       .filter((u): u is TeamMember => u !== null)
-      .map(m => ({
+      .map((m) => ({
         ...m,
         workflow_role_ids: Array.from(userWorkflowRoles.get(m.id) || []),
       }))
@@ -424,14 +433,14 @@ export async function getOrgTeamsWithMembers(
  */
 export function resolveTeamReviewers(team: TeamWithMembers): string[] {
   if (team.reviewerConfigs.length === 0) {
-    return team.members.map(m => m.id)
+    return team.members.map((m) => m.id)
   }
 
   const reviewerIds = new Set<string>()
 
   for (const config of team.reviewerConfigs) {
     if (config.reviewer_type === 'user' && config.user_id) {
-      if (team.members.some(m => m.id === config.user_id)) {
+      if (team.members.some((m) => m.id === config.user_id)) {
         reviewerIds.add(config.user_id)
       }
     } else if (config.reviewer_type === 'workflow_role' && config.workflow_role_id) {

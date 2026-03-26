@@ -1,6 +1,17 @@
 import {
-  FolderOpen, File, FileBox, Layers, FilePen, FileType, FileImage,
-  FileSpreadsheet, FileArchive, FileCode, FileText, Cpu, Loader2
+  FolderOpen,
+  File,
+  FileBox,
+  Layers,
+  FilePen,
+  FileType,
+  FileImage,
+  FileSpreadsheet,
+  FileArchive,
+  FileCode,
+  FileText,
+  Cpu,
+  Loader2,
 } from 'lucide-react'
 import { getFileIconType } from '@/lib/utils'
 
@@ -28,7 +39,7 @@ export function FileCardIcon({
   thumbnailError,
   loadingThumbnail,
   folderIconColor,
-  onThumbnailError
+  onThumbnailError,
 }: FileCardIconProps) {
   const iconSizeScaled = iconSize * 0.6
   const iconType = getFileIconType(file.extension)

@@ -3,6 +3,10 @@ import { ipcMain, BrowserWindow, shell } from 'electron'
 import http from 'http'
 import type { AddressInfo } from 'net'
 
+const OAUTH_CALLBACK_TIMEOUT_MS = 5 * 60 * 1_000
+const OAUTH_SUCCESS_CLOSE_MS = 2_000
+const OAUTH_ERROR_CLOSE_MS = 5_000
+
 // Module state
 let mainWindow: BrowserWindow | null = null
 let log: (message: string, data?: unknown) => void = console.log
@@ -18,7 +22,7 @@ const GOOGLE_DRIVE_SCOPES = [
   'https://www.googleapis.com/auth/drive',
   'https://www.googleapis.com/auth/drive.file',
   'https://www.googleapis.com/auth/userinfo.email',
-  'https://www.googleapis.com/auth/userinfo.profile'
+  'https://www.googleapis.com/auth/userinfo.profile',
 ].join(' ')
 
 function cleanupOAuthServer() {
@@ -46,9 +50,9 @@ export function registerOAuthHandlers(window: BrowserWindow, deps: OAuthHandlerD
   ipcMain.handle('auth:open-oauth-window', async (_, url: string) => {
     return new Promise((resolve) => {
       cleanupOAuthServer()
-      
+
       log('[OAuth] Starting system browser OAuth flow')
-      
+
       let hasResolved = false
       const safeResolve = (result: { success: boolean; canceled?: boolean; error?: string }) => {
         if (!hasResolved) {
@@ -57,12 +61,12 @@ export function registerOAuthHandlers(window: BrowserWindow, deps: OAuthHandlerD
           resolve(result)
         }
       }
-      
+
       const server = http.createServer((req, res) => {
         const reqUrl = new URL(req.url || '/', `http://localhost`)
-        
+
         log('[OAuth] Received callback request: ' + reqUrl.pathname)
-        
+
         if (reqUrl.pathname === '/auth/callback' || reqUrl.pathname === '/') {
           const accessToken = reqUrl.searchParams.get('access_token')
           const refreshToken = reqUrl.searchParams.get('refresh_token')
@@ -70,7 +74,7 @@ export function registerOAuthHandlers(window: BrowserWindow, deps: OAuthHandlerD
           const expiresAt = reqUrl.searchParams.get('expires_at')
           const error = reqUrl.searchParams.get('error')
           const errorDescription = reqUrl.searchParams.get('error_description')
-          
+
           if (error) {
             log('[OAuth] OAuth error in callback: ' + error)
             res.writeHead(200, { 'Content-Type': 'text/html' })
@@ -78,58 +82,58 @@ export function registerOAuthHandlers(window: BrowserWindow, deps: OAuthHandlerD
             safeResolve({ success: false, error: errorDescription || error || 'OAuth error' })
             return
           }
-          
+
           if (accessToken && refreshToken) {
             log('[OAuth] Tokens received in query params, sending to renderer')
             res.writeHead(200, { 'Content-Type': 'text/html' })
             res.end(getSuccessHtml())
-            
+
             mainWindow?.webContents.send('auth:set-session', {
               access_token: accessToken,
               refresh_token: refreshToken,
               expires_in: expiresIn ? parseInt(expiresIn) : 3600,
-              expires_at: expiresAt ? parseInt(expiresAt) : undefined
+              expires_at: expiresAt ? parseInt(expiresAt) : undefined,
             })
-            
+
             if (mainWindow && !mainWindow.isDestroyed()) {
               if (mainWindow.isMinimized()) mainWindow.restore()
               mainWindow.focus()
             }
-            
+
             safeResolve({ success: true })
             return
           }
-          
+
           // Tokens in hash fragment
           log('[OAuth] No tokens in query params, serving hash extraction page')
           res.writeHead(200, { 'Content-Type': 'text/html' })
           res.end(getHashExtractHtml())
           return
         }
-        
+
         if (reqUrl.pathname === '/auth/tokens') {
           const accessToken = reqUrl.searchParams.get('access_token')
           const refreshToken = reqUrl.searchParams.get('refresh_token')
           const expiresIn = reqUrl.searchParams.get('expires_in')
           const expiresAt = reqUrl.searchParams.get('expires_at')
-          
+
           if (accessToken && refreshToken) {
             res.writeHead(200, { 'Content-Type': 'text/plain' })
             res.end('OK')
-            
+
             log('[OAuth] Tokens received from hash fragment, sending to renderer')
             mainWindow?.webContents.send('auth:set-session', {
               access_token: accessToken,
               refresh_token: refreshToken,
               expires_in: expiresIn ? parseInt(expiresIn) : 3600,
-              expires_at: expiresAt ? parseInt(expiresAt) : undefined
+              expires_at: expiresAt ? parseInt(expiresAt) : undefined,
             })
-            
+
             if (mainWindow && !mainWindow.isDestroyed()) {
               if (mainWindow.isMinimized()) mainWindow.restore()
               mainWindow.focus()
             }
-            
+
             safeResolve({ success: true })
           } else {
             log('[OAuth] /auth/tokens request missing tokens')
@@ -138,173 +142,185 @@ export function registerOAuthHandlers(window: BrowserWindow, deps: OAuthHandlerD
           }
           return
         }
-        
-        res.writeHead(302, { 'Location': '/auth/callback' + (reqUrl.search || '') })
+
+        res.writeHead(302, { Location: '/auth/callback' + (reqUrl.search || '') })
         res.end()
       })
-      
+
       server.listen(0, '127.0.0.1', () => {
         const address = server.address() as AddressInfo
         const port = address.port
         const callbackUrl = `http://127.0.0.1:${port}/auth/callback`
-        
+
         log('[OAuth] Local callback server started on port ' + port)
-        
+
         activeOAuthServer = server
-        
+
         try {
           const oauthUrl = new URL(url)
           oauthUrl.searchParams.set('redirect_to', callbackUrl)
-          
+
           const finalUrl = oauthUrl.toString()
           log('[OAuth] Opening system browser with OAuth URL')
-          
+
           shell.openExternal(finalUrl)
-          
-          oauthTimeout = setTimeout(() => {
-            log('[OAuth] Timeout waiting for OAuth callback')
-            safeResolve({ success: false, error: 'OAuth timed out. Please try again.' })
-          }, 5 * 60 * 1000)
-          
-        } catch (err) {
-          log('[OAuth] Error parsing OAuth URL: ' + String(err))
-          safeResolve({ success: false, error: String(err) })
+
+          oauthTimeout = setTimeout(
+            () => {
+              log('[OAuth] Timeout waiting for OAuth callback')
+              safeResolve({ success: false, error: 'OAuth timed out. Please try again.' })
+            },
+            OAUTH_CALLBACK_TIMEOUT_MS,
+          )
+        } catch (error) {
+          log('[OAuth] Error parsing OAuth URL: ' + String(error))
+          safeResolve({ success: false, error: String(error) })
         }
       })
-      
-      server.on('error', (err) => {
-        log('[OAuth] Server error: ' + String(err))
-        safeResolve({ success: false, error: String(err) })
+
+      server.on('error', (error) => {
+        log('[OAuth] Server error: ' + String(error))
+        safeResolve({ success: false, error: String(error) })
       })
     })
   })
 
   // Google Drive OAuth
-  ipcMain.handle('auth:google-drive', async (_, credentials?: { clientId?: string; clientSecret?: string }) => {
-    return new Promise((resolve) => {
-      log('[GoogleDrive] Starting OAuth flow')
-      
-      const GOOGLE_CLIENT_ID = credentials?.clientId || DEFAULT_GOOGLE_CLIENT_ID
-      const GOOGLE_CLIENT_SECRET = credentials?.clientSecret || DEFAULT_GOOGLE_CLIENT_SECRET
-      
-      if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
-        log('[GoogleDrive] OAuth credentials not configured')
-        resolve({ 
-          success: false, 
-          error: 'Google Drive integration requires OAuth credentials. Ask your admin to configure Google Drive in Settings → REST API → Google Drive Integration.' 
-        })
-        return
-      }
-      
-      let hasResolved = false
-      let gdAuthServer: http.Server | null = null
-      
-      const safeResolve = (result: { success: boolean; accessToken?: string; refreshToken?: string; expiry?: number; error?: string }) => {
-        if (!hasResolved) {
-          hasResolved = true
-          if (gdAuthServer) {
-            gdAuthServer.close()
-            gdAuthServer = null
-          }
-          resolve(result)
+  ipcMain.handle(
+    'auth:google-drive',
+    async (_, credentials?: { clientId?: string; clientSecret?: string }) => {
+      return new Promise((resolve) => {
+        log('[GoogleDrive] Starting OAuth flow')
+
+        const GOOGLE_CLIENT_ID = credentials?.clientId || DEFAULT_GOOGLE_CLIENT_ID
+        const GOOGLE_CLIENT_SECRET = credentials?.clientSecret || DEFAULT_GOOGLE_CLIENT_SECRET
+
+        if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
+          log('[GoogleDrive] OAuth credentials not configured')
+          resolve({
+            success: false,
+            error:
+              'Google Drive integration requires OAuth credentials. Ask your admin to configure Google Drive in Settings → REST API → Google Drive Integration.',
+          })
+          return
         }
-      }
-      
-      gdAuthServer = http.createServer(async (req, res) => {
-        const reqUrl = new URL(req.url || '/', 'http://localhost')
-        
-        log('[GoogleDrive] Received callback: ' + reqUrl.pathname)
-        
-        if (reqUrl.pathname === '/auth/google-callback') {
-          const code = reqUrl.searchParams.get('code')
-          const error = reqUrl.searchParams.get('error')
-          
-          if (error) {
-            log('[GoogleDrive] OAuth error: ' + error)
-            res.writeHead(200, { 'Content-Type': 'text/html' })
-            res.end(getGoogleErrorHtml(error))
-            safeResolve({ success: false, error })
-            return
-          }
-          
-          if (!code) {
-            res.writeHead(400, { 'Content-Type': 'text/html' })
-            res.end('<html><body>Missing authorization code</body></html>')
-            safeResolve({ success: false, error: 'Missing authorization code' })
-            return
-          }
-          
-          try {
-            const port = (gdAuthServer?.address() as AddressInfo)?.port || 8090
-            const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-              body: new URLSearchParams({
-                code,
-                client_id: GOOGLE_CLIENT_ID,
-                client_secret: GOOGLE_CLIENT_SECRET,
-                redirect_uri: `http://localhost:${port}/auth/google-callback`,
-                grant_type: 'authorization_code'
-              }).toString()
-            })
-            
-            const tokens = await tokenResponse.json() as { 
-              access_token?: string
-              refresh_token?: string
-              expires_in?: number
-              error?: string
-              error_description?: string 
+
+        let hasResolved = false
+        let gdAuthServer: http.Server | null = null
+
+        const safeResolve = (result: {
+          success: boolean
+          accessToken?: string
+          refreshToken?: string
+          expiry?: number
+          error?: string
+        }) => {
+          if (!hasResolved) {
+            hasResolved = true
+            if (gdAuthServer) {
+              gdAuthServer.close()
+              gdAuthServer = null
             }
-            
-            if (tokens.error) {
-              log('[GoogleDrive] Token exchange error: ' + tokens.error)
+            resolve(result)
+          }
+        }
+
+        gdAuthServer = http.createServer(async (req, res) => {
+          const reqUrl = new URL(req.url || '/', 'http://localhost')
+
+          log('[GoogleDrive] Received callback: ' + reqUrl.pathname)
+
+          if (reqUrl.pathname === '/auth/google-callback') {
+            const code = reqUrl.searchParams.get('code')
+            const error = reqUrl.searchParams.get('error')
+
+            if (error) {
+              log('[GoogleDrive] OAuth error: ' + error)
               res.writeHead(200, { 'Content-Type': 'text/html' })
-              res.end(getGoogleErrorHtml(tokens.error_description || tokens.error))
-              safeResolve({ success: false, error: tokens.error_description || tokens.error })
+              res.end(getGoogleErrorHtml(error))
+              safeResolve({ success: false, error })
               return
             }
-            
-            log('[GoogleDrive] Token exchange successful')
-            res.writeHead(200, { 'Content-Type': 'text/html' })
-            res.end(getGoogleSuccessHtml())
-            
-            safeResolve({
-              success: true,
-              accessToken: tokens.access_token,
-              refreshToken: tokens.refresh_token,
-              expiry: tokens.expires_in ? Date.now() + tokens.expires_in * 1000 : undefined
-            })
-          } catch (err) {
-            log('[GoogleDrive] Token exchange exception: ' + String(err))
-            res.writeHead(200, { 'Content-Type': 'text/html' })
-            res.end(getGoogleErrorHtml(String(err)))
-            safeResolve({ success: false, error: String(err) })
+
+            if (!code) {
+              res.writeHead(400, { 'Content-Type': 'text/html' })
+              res.end('<html><body>Missing authorization code</body></html>')
+              safeResolve({ success: false, error: 'Missing authorization code' })
+              return
+            }
+
+            try {
+              const port = (gdAuthServer?.address() as AddressInfo)?.port || 8090
+              const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({
+                  code,
+                  client_id: GOOGLE_CLIENT_ID,
+                  client_secret: GOOGLE_CLIENT_SECRET,
+                  redirect_uri: `http://localhost:${port}/auth/google-callback`,
+                  grant_type: 'authorization_code',
+                }).toString(),
+              })
+
+              const tokens = (await tokenResponse.json()) as {
+                access_token?: string
+                refresh_token?: string
+                expires_in?: number
+                error?: string
+                error_description?: string
+              }
+
+              if (tokens.error) {
+                log('[GoogleDrive] Token exchange error: ' + tokens.error)
+                res.writeHead(200, { 'Content-Type': 'text/html' })
+                res.end(getGoogleErrorHtml(tokens.error_description || tokens.error))
+                safeResolve({ success: false, error: tokens.error_description || tokens.error })
+                return
+              }
+
+              log('[GoogleDrive] Token exchange successful')
+              res.writeHead(200, { 'Content-Type': 'text/html' })
+              res.end(getGoogleSuccessHtml())
+
+              safeResolve({
+                success: true,
+                accessToken: tokens.access_token,
+                refreshToken: tokens.refresh_token,
+                expiry: tokens.expires_in ? Date.now() + tokens.expires_in * 1000 : undefined,
+              })
+            } catch (error) {
+              log('[GoogleDrive] Token exchange exception: ' + String(error))
+              res.writeHead(200, { 'Content-Type': 'text/html' })
+              res.end(getGoogleErrorHtml(String(error)))
+              safeResolve({ success: false, error: String(error) })
+            }
           }
-        }
+        })
+
+        gdAuthServer.listen(0, '127.0.0.1', () => {
+          const address = gdAuthServer!.address() as AddressInfo
+          const port = address.port
+
+          const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth')
+          authUrl.searchParams.set('client_id', GOOGLE_CLIENT_ID)
+          authUrl.searchParams.set('redirect_uri', `http://localhost:${port}/auth/google-callback`)
+          authUrl.searchParams.set('response_type', 'code')
+          authUrl.searchParams.set('scope', GOOGLE_DRIVE_SCOPES)
+          authUrl.searchParams.set('access_type', 'offline')
+          authUrl.searchParams.set('prompt', 'consent')
+
+          log('[GoogleDrive] Opening auth URL in browser')
+          shell.openExternal(authUrl.toString())
+        })
+
+        gdAuthServer.on('error', (error) => {
+          log('[GoogleDrive] Server error: ' + String(error))
+          safeResolve({ success: false, error: String(error) })
+        })
       })
-      
-      gdAuthServer.listen(0, '127.0.0.1', () => {
-        const address = gdAuthServer!.address() as AddressInfo
-        const port = address.port
-        
-        const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth')
-        authUrl.searchParams.set('client_id', GOOGLE_CLIENT_ID)
-        authUrl.searchParams.set('redirect_uri', `http://localhost:${port}/auth/google-callback`)
-        authUrl.searchParams.set('response_type', 'code')
-        authUrl.searchParams.set('scope', GOOGLE_DRIVE_SCOPES)
-        authUrl.searchParams.set('access_type', 'offline')
-        authUrl.searchParams.set('prompt', 'consent')
-        
-        log('[GoogleDrive] Opening auth URL in browser')
-        shell.openExternal(authUrl.toString())
-      })
-      
-      gdAuthServer.on('error', (err) => {
-        log('[GoogleDrive] Server error: ' + String(err))
-        safeResolve({ success: false, error: String(err) })
-      })
-    })
-  })
+    },
+  )
 }
 
 // HTML templates
@@ -336,7 +352,7 @@ p { margin: 0; font-size: 14px; color: #6e6e6e; }
 <p>You can close this window and return to the app.</p>
 <div class="brand"><span class="brand-text">BluePLM</span></div>
 </div>
-<script>setTimeout(() => window.close(), 2000);</script>
+<script>setTimeout(() => window.close(), ${OAUTH_SUCCESS_CLOSE_MS});</script>
 </body>
 </html>`
 }
@@ -371,7 +387,7 @@ p { margin: 0; font-size: 14px; color: #b4b4b4; line-height: 1.5; }
 <p class="hint">You can close this window and try again.</p>
 <div class="brand"><span class="brand-text">BluePLM</span></div>
 </div>
-<script>setTimeout(() => window.close(), 5000);</script>
+<script>setTimeout(() => window.close(), ${OAUTH_ERROR_CLOSE_MS});</script>
 </body>
 </html>`
 }
@@ -428,8 +444,8 @@ p { margin: 0; font-size: 14px; color: #6e6e6e; }
 </div>
 <script>
 (async function() {
-const showSuccess = () => { document.getElementById('loading').classList.add('hidden'); document.getElementById('success').classList.remove('hidden'); setTimeout(() => window.close(), 2000); };
-const showError = (msg) => { document.getElementById('loading').classList.add('hidden'); document.getElementById('error').classList.remove('hidden'); if (msg) document.getElementById('errorMsg').textContent = msg; setTimeout(() => window.close(), 5000); };
+const showSuccess = () => { document.getElementById('loading').classList.add('hidden'); document.getElementById('success').classList.remove('hidden'); setTimeout(() => window.close(), ${OAUTH_SUCCESS_CLOSE_MS}); };
+const showError = (msg) => { document.getElementById('loading').classList.add('hidden'); document.getElementById('error').classList.remove('hidden'); if (msg) document.getElementById('errorMsg').textContent = msg; setTimeout(() => window.close(), ${OAUTH_ERROR_CLOSE_MS}); };
 try {
 const hash = window.location.hash.substring(1);
 if (!hash) { showError('No authentication data received.'); return; }
@@ -442,7 +458,7 @@ if (!accessToken) { showError('No access token received.'); return; }
 if (!refreshToken) { showError('No refresh token received.'); return; }
 const response = await fetch('/auth/tokens?' + hash, { method: 'GET', cache: 'no-cache' });
 if (response.ok) { showSuccess(); } else { showError('Server error.'); }
-} catch (err) { showError('An unexpected error occurred.'); }
+} catch (error) { showError('An unexpected error occurred.'); }
 })();
 </script>
 </body>
@@ -477,7 +493,7 @@ p { margin: 0; font-size: 14px; color: #6e6e6e; }
 <p>You can close this window.</p>
 <div class="brand"><span class="brand-text">BluePLM</span></div>
 </div>
-<script>setTimeout(() => window.close(), 2000);</script>
+<script>setTimeout(() => window.close(), ${OAUTH_SUCCESS_CLOSE_MS});</script>
 </body>
 </html>`
 }
@@ -518,12 +534,9 @@ p { margin: 0; font-size: 14px; color: #b4b4b4; line-height: 1.5; }
 
 export function unregisterOAuthHandlers(): void {
   cleanupOAuthServer()
-  
-  const handlers = [
-    'auth:open-oauth-window',
-    'auth:google-drive'
-  ]
-  
+
+  const handlers = ['auth:open-oauth-window', 'auth:google-drive']
+
   for (const handler of handlers) {
     ipcMain.removeHandler(handler)
   }

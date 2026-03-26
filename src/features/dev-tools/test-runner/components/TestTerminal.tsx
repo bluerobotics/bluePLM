@@ -57,12 +57,13 @@ export function TestTerminal({ outputs, onCommand, inputDisabled = false }: Test
         onClick={() => inputRef.current?.focus()}
       >
         {outputs.length === 0 && (
-          <div className="text-slate-600 italic">
-            Waiting for test output...
-          </div>
+          <div className="text-slate-600 italic">Waiting for test output...</div>
         )}
         {outputs.map((line) => (
-          <div key={line.id} className={`${getOutputColor(line.type)} whitespace-pre-wrap break-words`}>
+          <div
+            key={line.id}
+            className={`${getOutputColor(line.type)} whitespace-pre-wrap break-words`}
+          >
             {line.content}
           </div>
         ))}
@@ -71,7 +72,9 @@ export function TestTerminal({ outputs, onCommand, inputDisabled = false }: Test
       {/* Input area */}
       <div className="border-t border-[#30363d] flex-shrink-0">
         <div className="flex items-center px-3 py-2 gap-2 bg-[#0d1117]">
-          <span className={`font-mono text-xs ${inputDisabled ? 'text-slate-600' : 'text-emerald-500'}`}>
+          <span
+            className={`font-mono text-xs ${inputDisabled ? 'text-slate-600' : 'text-emerald-500'}`}
+          >
             {inputDisabled ? '...' : '❯'}
           </span>
           <input

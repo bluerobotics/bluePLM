@@ -18,7 +18,7 @@ export const SizeSlider = memo(function SizeSlider({
   iconSize,
   listRowSize,
   onIconSizeChange,
-  onListRowSizeChange
+  onListRowSizeChange,
 }: SizeSliderProps) {
   if (viewMode === 'icons') {
     return (

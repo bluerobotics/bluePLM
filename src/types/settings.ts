@@ -1,36 +1,36 @@
 // Settings-related type definitions
 
-export type SettingsTab = 
-  | 'profile' 
-  | 'preferences' 
+export type SettingsTab =
+  | 'profile'
+  | 'preferences'
   | 'keybindings'
-  | 'modules'           // Displays as "Sidebar" in UI
+  | 'modules' // Displays as "Sidebar" in UI
   | 'vaults'
   | 'team-members'
-  | 'company-profile' 
+  | 'company-profile'
   | 'auth-providers'
   | 'serialization'
   | 'export'
-  | 'rfq' 
-  | 'metadata-columns' 
-  | 'backup' 
-  | 'solidworks' 
-  | 'google-drive' 
-  | 'odoo' 
-  | 'slack'             // Hidden from nav, coming soon
-  | 'webhooks' 
-  | 'api' 
-  | 'supabase' 
+  | 'rfq'
+  | 'metadata-columns'
+  | 'backup'
+  | 'solidworks'
+  | 'google-drive'
+  | 'odoo'
+  | 'slack' // Hidden from nav, coming soon
+  | 'webhooks'
+  | 'api'
+  | 'supabase'
   | 'recovery-codes'
   | 'performance'
-  | 'logs' 
+  | 'logs'
   | 'dev-tools'
   | 'about'
   | 'delete-account'
   | 'extension-store'
 
 // Keybinding action identifiers
-export type KeybindingAction = 
+export type KeybindingAction =
   | 'navigateUp'
   | 'navigateDown'
   | 'expandFolder'
@@ -47,7 +47,7 @@ export type KeybindingAction =
 
 // Keybinding configuration
 export interface Keybinding {
-  key: string        // e.g., 'ArrowUp', 'a', 'Delete'
+  key: string // e.g., 'ArrowUp', 'a', 'Delete'
   ctrlKey?: boolean
   shiftKey?: boolean
   altKey?: boolean

@@ -1,11 +1,22 @@
 import { useState, useEffect } from 'react'
-import { Key, Users, Loader2, Check, Copy, AlertCircle, ChevronRight, ExternalLink, Eye, EyeOff } from 'lucide-react'
-import { 
-  saveConfig, 
-  generateOrgCode, 
-  parseOrgCode, 
-  validateConfig, 
-  type SupabaseConfig 
+import {
+  Key,
+  Users,
+  Loader2,
+  Check,
+  Copy,
+  AlertCircle,
+  ChevronRight,
+  ExternalLink,
+  Eye,
+  EyeOff,
+} from 'lucide-react'
+import {
+  saveConfig,
+  generateOrgCode,
+  parseOrgCode,
+  validateConfig,
+  type SupabaseConfig,
 } from '@/lib/supabaseConfig'
 import { reconfigureSupabase } from '@/lib/supabase'
 import { LanguageSelector } from '@/components/shared/LanguageSelector'
@@ -38,47 +49,43 @@ function SetupTitleBar() {
   }, [])
 
   return (
-    <div 
-      className="h-[38px] bg-plm-activitybar border-b border-plm-border select-none flex-shrink-0 titlebar-drag-region relative"
-    >
+    <div className="h-[38px] bg-plm-activitybar border-b border-plm-border select-none flex-shrink-0 titlebar-drag-region relative">
       {/* Left side - App name (add padding on macOS for window buttons) */}
-      <div 
+      <div
         className="absolute left-0 top-0 h-full flex items-center"
         style={{ paddingLeft: platform === 'darwin' ? 72 : 16 }}
       >
         <div className="flex items-center gap-2 titlebar-no-drag">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="text-plm-accent">
-            <path 
-              d="M12 2L2 7L12 12L22 7L12 2Z" 
-              stroke="currentColor" 
-              strokeWidth="2" 
-              strokeLinecap="round" 
+            <path
+              d="M12 2L2 7L12 12L22 7L12 2Z"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
               strokeLinejoin="round"
             />
-            <path 
-              d="M2 17L12 22L22 17" 
-              stroke="currentColor" 
-              strokeWidth="2" 
-              strokeLinecap="round" 
+            <path
+              d="M2 17L12 22L22 17"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
               strokeLinejoin="round"
             />
-            <path 
-              d="M2 12L12 17L22 12" 
-              stroke="currentColor" 
-              strokeWidth="2" 
-              strokeLinecap="round" 
+            <path
+              d="M2 12L12 17L22 12"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
               strokeLinejoin="round"
             />
           </svg>
           <span className="text-sm font-semibold text-plm-fg">BluePLM</span>
-          {appVersion && (
-            <span className="text-xs text-plm-fg-muted">v{appVersion}</span>
-          )}
+          {appVersion && <span className="text-xs text-plm-fg-muted">v{appVersion}</span>}
         </div>
       </div>
 
       {/* Right side padding for window controls on Windows */}
-      <div 
+      <div
         className="absolute right-0 top-0 h-full"
         style={{ paddingRight: platform === 'darwin' ? 16 : titleBarPadding }}
       />
@@ -91,7 +98,7 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
   const [mode, setMode] = useState<SetupMode>('select')
   const [isValidating, setIsValidating] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  
+
   // Admin mode state
   const [projectId, setProjectId] = useState('')
   const [anonKey, setAnonKey] = useState('')
@@ -99,58 +106,58 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
   const [showKey, setShowKey] = useState(false)
   const [generatedCode, setGeneratedCode] = useState<string | null>(null)
   const [codeCopied, setCodeCopied] = useState(false)
-  
+
   // Member mode state
   const [orgCode, setOrgCode] = useState('')
-  
+
   const handleAdminSetup = async () => {
     if (!projectId.trim() || !anonKey.trim()) {
       setError(t('setup.enterBothFields'))
       return
     }
-    
+
     // Basic project ID validation (alphanumeric, typically 20 chars)
     const cleanProjectId = projectId.trim().toLowerCase()
     if (!/^[a-z0-9]+$/.test(cleanProjectId)) {
       setError(t('setup.invalidProjectId'))
       return
     }
-    
+
     setIsValidating(true)
     setError(null)
-    
+
     // Construct URL from project ID
     const supabaseUrl = `https://${cleanProjectId}.supabase.co`
-    
+
     const config: SupabaseConfig = {
       version: 1,
       url: supabaseUrl,
       anonKey: anonKey.trim(),
-      orgSlug: orgSlug.trim() || undefined
+      orgSlug: orgSlug.trim() || undefined,
     }
-    
+
     // Validate connection
     const { valid, error: validationError } = await validateConfig(config)
-    
+
     if (!valid) {
       setError(validationError || 'Failed to connect to Supabase')
       setIsValidating(false)
       return
     }
-    
+
     // Save config and reconfigure client
     saveConfig(config)
     reconfigureSupabase(config)
-    
+
     // Generate shareable code
     const code = generateOrgCode(config)
     setGeneratedCode(code)
     setIsValidating(false)
   }
-  
+
   const handleCopyCode = async () => {
     if (!generatedCode) return
-    
+
     const result = await copyToClipboard(generatedCode)
     if (result.success) {
       setCodeCopied(true)
@@ -159,45 +166,45 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
       log.error('[SetupScreen]', 'Failed to copy', { error: result.error })
     }
   }
-  
+
   const handleMemberSetup = async () => {
     if (!orgCode.trim()) {
       setError('Please enter the Organization Code')
       return
     }
-    
+
     setIsValidating(true)
     setError(null)
-    
+
     // Parse the code
     const config = parseOrgCode(orgCode.trim())
-    
+
     if (!config) {
       setError('Invalid Organization Code. Please check and try again.')
       setIsValidating(false)
       return
     }
-    
+
     // Validate connection
     const { valid, error: validationError } = await validateConfig(config)
-    
+
     if (!valid) {
       setError(validationError || 'Failed to connect to Supabase with provided code')
       setIsValidating(false)
       return
     }
-    
+
     // Save config and reconfigure client
     saveConfig(config)
     reconfigureSupabase(config)
     setIsValidating(false)
     onConfigured()
   }
-  
+
   const handleFinishAdminSetup = () => {
     onConfigured()
   }
-  
+
   // Selection mode - choose admin or member
   if (mode === 'select') {
     return (
@@ -208,115 +215,118 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
           <div className="absolute top-4 right-4">
             <LanguageSelector compact dropdownPosition="bottom-right" />
           </div>
-          
-        <div className="max-w-xl w-full">
-          {/* Logo and Title */}
-          <div className="text-center mb-8">
-            <svg width="80" height="80" viewBox="0 0 512 512" fill="none" className="mx-auto mb-4">
-              {/* Gradient matching app icon */}
-              <defs>
-                <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#0a1929"/>
-                  <stop offset="100%" stopColor="#0d2137"/>
-                </linearGradient>
-                <linearGradient id="iconGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stopColor="#00b4d8"/>
-                  <stop offset="100%" stopColor="#0096c7"/>
-                </linearGradient>
-              </defs>
-              {/* Rounded square background */}
-              <rect x="0" y="0" width="512" height="512" rx="100" fill="url(#bgGradient)"/>
-              {/* Top layer - filled */}
-              <path 
-                d="M256 96L96 176L256 256L416 176L256 96Z" 
-                fill="url(#iconGradient)"
-              />
-              {/* Middle layer - stroked */}
-              <path 
-                d="M96 256L256 336L416 256" 
-                stroke="url(#iconGradient)" 
-                strokeWidth="24" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
+
+          <div className="max-w-xl w-full">
+            {/* Logo and Title */}
+            <div className="text-center mb-8">
+              <svg
+                width="80"
+                height="80"
+                viewBox="0 0 512 512"
                 fill="none"
-              />
-              {/* Bottom layer - stroked */}
-              <path 
-                d="M96 336L256 416L416 336" 
-                stroke="url(#iconGradient)" 
-                strokeWidth="24" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-                fill="none"
-              />
-            </svg>
-            <h1 className="text-3xl font-bold text-plm-fg mb-2">{t('setup.welcome')}</h1>
-            <p className="text-plm-fg-muted">
-              {t('setup.connectToBackend')}
-            </p>
-          </div>
-          
-          {/* Setup Options */}
-          <div className="space-y-4">
-            <button
-              onClick={() => setMode('admin')}
-              className="w-full p-6 bg-plm-bg-light border border-plm-border rounded-xl hover:border-plm-accent transition-colors text-left group"
-            >
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-lg bg-plm-accent/20 flex items-center justify-center flex-shrink-0">
-                  <Key size={24} className="text-plm-accent" />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-plm-fg text-lg">{t('setup.imAdmin')}</h3>
-                    <ChevronRight size={20} className="text-plm-fg-muted group-hover:text-plm-accent transition-colors" />
+                className="mx-auto mb-4"
+              >
+                {/* Gradient matching app icon */}
+                <defs>
+                  <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#0a1929" />
+                    <stop offset="100%" stopColor="#0d2137" />
+                  </linearGradient>
+                  <linearGradient id="iconGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stopColor="#00b4d8" />
+                    <stop offset="100%" stopColor="#0096c7" />
+                  </linearGradient>
+                </defs>
+                {/* Rounded square background */}
+                <rect x="0" y="0" width="512" height="512" rx="100" fill="url(#bgGradient)" />
+                {/* Top layer - filled */}
+                <path d="M256 96L96 176L256 256L416 176L256 96Z" fill="url(#iconGradient)" />
+                {/* Middle layer - stroked */}
+                <path
+                  d="M96 256L256 336L416 256"
+                  stroke="url(#iconGradient)"
+                  strokeWidth="24"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  fill="none"
+                />
+                {/* Bottom layer - stroked */}
+                <path
+                  d="M96 336L256 416L416 336"
+                  stroke="url(#iconGradient)"
+                  strokeWidth="24"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  fill="none"
+                />
+              </svg>
+              <h1 className="text-3xl font-bold text-plm-fg mb-2">{t('setup.welcome')}</h1>
+              <p className="text-plm-fg-muted">{t('setup.connectToBackend')}</p>
+            </div>
+
+            {/* Setup Options */}
+            <div className="space-y-4">
+              <button
+                onClick={() => setMode('admin')}
+                className="w-full p-6 bg-plm-bg-light border border-plm-border rounded-xl hover:border-plm-accent transition-colors text-left group"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-lg bg-plm-accent/20 flex items-center justify-center flex-shrink-0">
+                    <Key size={24} className="text-plm-accent" />
                   </div>
-                  <p className="text-sm text-plm-fg-muted mt-1">
-                    {t('setup.imAdminDesc')}
-                  </p>
-                </div>
-              </div>
-            </button>
-            
-            <button
-              onClick={() => setMode('member')}
-              className="w-full p-6 bg-plm-bg-light border border-plm-border rounded-xl hover:border-plm-accent transition-colors text-left group"
-            >
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-lg bg-green-500/20 flex items-center justify-center flex-shrink-0">
-                  <Users size={24} className="text-green-500" />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-plm-fg text-lg">{t('setup.haveCode')}</h3>
-                    <ChevronRight size={20} className="text-plm-fg-muted group-hover:text-plm-accent transition-colors" />
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-plm-fg text-lg">{t('setup.imAdmin')}</h3>
+                      <ChevronRight
+                        size={20}
+                        className="text-plm-fg-muted group-hover:text-plm-accent transition-colors"
+                      />
+                    </div>
+                    <p className="text-sm text-plm-fg-muted mt-1">{t('setup.imAdminDesc')}</p>
                   </div>
-                  <p className="text-sm text-plm-fg-muted mt-1">
-                    {t('setup.haveCodeDesc')}
-                  </p>
                 </div>
-              </div>
-            </button>
+              </button>
+
+              <button
+                onClick={() => setMode('member')}
+                className="w-full p-6 bg-plm-bg-light border border-plm-border rounded-xl hover:border-plm-accent transition-colors text-left group"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-lg bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                    <Users size={24} className="text-green-500" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-plm-fg text-lg">{t('setup.haveCode')}</h3>
+                      <ChevronRight
+                        size={20}
+                        className="text-plm-fg-muted group-hover:text-plm-accent transition-colors"
+                      />
+                    </div>
+                    <p className="text-sm text-plm-fg-muted mt-1">{t('setup.haveCodeDesc')}</p>
+                  </div>
+                </div>
+              </button>
+            </div>
+
+            {/* Help Link */}
+            <div className="mt-8 text-center">
+              <a
+                href="https://docs.blueplm.io/admin-setup.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-sm text-plm-fg-muted hover:text-plm-accent transition-colors"
+              >
+                {t('setup.needHelp')}
+                <ExternalLink size={14} />
+              </a>
+            </div>
           </div>
-          
-          {/* Help Link */}
-          <div className="mt-8 text-center">
-            <a 
-              href="https://docs.blueplm.io/admin-setup.html" 
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-sm text-plm-fg-muted hover:text-plm-accent transition-colors"
-            >
-              {t('setup.needHelp')}
-              <ExternalLink size={14} />
-            </a>
-          </div>
-        </div>
         </div>
       </div>
     )
   }
-  
+
   // Admin setup mode
   if (mode === 'admin') {
     // Show success screen with code
@@ -325,244 +335,228 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
         <div className="h-full flex flex-col bg-plm-bg">
           <SetupTitleBar />
           <div className="flex-1 flex items-center justify-center p-8">
-          <div className="max-w-xl w-full">
-            <div className="text-center mb-8">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-500/20 flex items-center justify-center">
-                <Check size={32} className="text-green-500" />
-              </div>
-              <h1 className="text-2xl font-bold text-plm-fg mb-2">{t('setup.connectedSuccess')}</h1>
-              <p className="text-plm-fg-muted">
-                {t('setup.shareCode')}
-              </p>
-            </div>
-            
-            {/* Organization Code */}
-            <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 mb-6">
-              <label className="block text-xs text-plm-fg-muted uppercase tracking-wide mb-2">
-                {t('setup.organizationCode')}
-              </label>
-              <div className="relative">
-                <div className="font-mono text-sm bg-plm-bg border border-plm-border rounded-lg p-4 pr-12 break-all text-plm-fg">
-                  {generatedCode}
+            <div className="max-w-xl w-full">
+              <div className="text-center mb-8">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-500/20 flex items-center justify-center">
+                  <Check size={32} className="text-green-500" />
                 </div>
-                <button
-                  onClick={handleCopyCode}
-                  className="absolute top-1/2 right-3 -translate-y-1/2 p-2 hover:bg-plm-highlight rounded transition-colors"
-                  title="Copy to clipboard"
-                >
-                  {codeCopied ? (
-                    <Check size={18} className="text-green-500" />
-                  ) : (
-                    <Copy size={18} className="text-plm-fg-muted" />
-                  )}
-                </button>
+                <h1 className="text-2xl font-bold text-plm-fg mb-2">
+                  {t('setup.connectedSuccess')}
+                </h1>
+                <p className="text-plm-fg-muted">{t('setup.shareCode')}</p>
               </div>
-              <p className="text-xs text-plm-fg-muted mt-3">
-                {t('setup.keepCodeSecure')}
-              </p>
+
+              {/* Organization Code */}
+              <div className="bg-plm-bg-light border border-plm-border rounded-xl p-6 mb-6">
+                <label className="block text-xs text-plm-fg-muted uppercase tracking-wide mb-2">
+                  {t('setup.organizationCode')}
+                </label>
+                <div className="relative">
+                  <div className="font-mono text-sm bg-plm-bg border border-plm-border rounded-lg p-4 pr-12 break-all text-plm-fg">
+                    {generatedCode}
+                  </div>
+                  <button
+                    onClick={handleCopyCode}
+                    className="absolute top-1/2 right-3 -translate-y-1/2 p-2 hover:bg-plm-highlight rounded transition-colors"
+                    title="Copy to clipboard"
+                  >
+                    {codeCopied ? (
+                      <Check size={18} className="text-green-500" />
+                    ) : (
+                      <Copy size={18} className="text-plm-fg-muted" />
+                    )}
+                  </button>
+                </div>
+                <p className="text-xs text-plm-fg-muted mt-3">{t('setup.keepCodeSecure')}</p>
+              </div>
+
+              <button
+                onClick={handleFinishAdminSetup}
+                className="w-full btn btn-primary btn-lg justify-center"
+              >
+                {t('setup.continueToBluePLM')}
+              </button>
             </div>
-            
-            <button
-              onClick={handleFinishAdminSetup}
-              className="w-full btn btn-primary btn-lg justify-center"
-            >
-              {t('setup.continueToBluePLM')}
-            </button>
-          </div>
           </div>
         </div>
       )
     }
-    
+
     // Admin credential entry form
     return (
       <div className="h-full flex flex-col bg-plm-bg">
         <SetupTitleBar />
         <div className="flex-1 flex items-center justify-center p-8">
-        <div className="max-w-xl w-full">
-          <button
-            onClick={() => setMode('select')}
-            className="mb-6 text-sm text-plm-fg-muted hover:text-plm-fg transition-colors"
-          >
-            ← {t('common.back')}
-          </button>
-          
-          <div className="text-center mb-8">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-plm-accent/20 flex items-center justify-center">
-              <Key size={32} className="text-plm-accent" />
-            </div>
-            <h1 className="text-2xl font-bold text-plm-fg mb-2">{t('setup.adminSetup')}</h1>
-            <p className="text-plm-fg-muted">
-              {t('setup.enterCredentials')}
-            </p>
-          </div>
-          
-          <div className="space-y-4">
-            {/* Supabase Project ID */}
-            <div>
-              <label className="block text-sm text-plm-fg-muted mb-1.5">
-                {t('setup.projectId')}
-              </label>
-              <input
-                type="text"
-                value={projectId}
-                onChange={(e) => setProjectId(e.target.value)}
-                placeholder="vvyhpdzqdizvorrhjhvq"
-                className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-4 py-3 text-plm-fg placeholder-plm-fg-dim focus:border-plm-accent focus:outline-none font-mono"
-              />
-              <p className="text-xs text-plm-fg-dim mt-1">
-                {t('setup.projectIdHelp')}
-              </p>
-            </div>
-            
-            {/* Anon Key */}
-            <div>
-              <label className="block text-sm text-plm-fg-muted mb-1.5">
-                {t('setup.anonKey')}
-              </label>
-              <div className="relative">
-                <input
-                  type={showKey ? 'text' : 'password'}
-                  value={anonKey}
-                  onChange={(e) => setAnonKey(e.target.value)}
-                  placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                  className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-4 py-3 pr-12 text-plm-fg placeholder-plm-fg-dim focus:border-plm-accent focus:outline-none font-mono text-sm"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowKey(!showKey)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-plm-fg-muted hover:text-plm-fg"
-                >
-                  {showKey ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-            </div>
-            
-            {/* Organization Slug (optional) */}
-            <div>
-              <label className="block text-sm text-plm-fg-muted mb-1.5">
-                {t('setup.orgSlug')} <span className="text-plm-fg-dim">({t('common.optional')})</span>
-              </label>
-              <input
-                type="text"
-                value={orgSlug}
-                onChange={(e) => setOrgSlug(e.target.value)}
-                placeholder="e.g., bluerobotics"
-                className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-4 py-3 text-plm-fg placeholder-plm-fg-dim focus:border-plm-accent focus:outline-none"
-              />
-              <p className="text-xs text-plm-fg-dim mt-1">
-                {t('setup.orgSlugHelp')}
-              </p>
-            </div>
-            
-            {/* Error Message */}
-            {error && (
-              <div className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
-                <AlertCircle size={18} className="text-red-500 flex-shrink-0 mt-0.5" />
-                <span className="text-sm text-red-400">{error}</span>
-              </div>
-            )}
-            
-            {/* Submit Button */}
+          <div className="max-w-xl w-full">
             <button
-              onClick={handleAdminSetup}
-              disabled={isValidating || !projectId || !anonKey}
-              className="w-full btn btn-primary btn-lg justify-center mt-6"
+              onClick={() => setMode('select')}
+              className="mb-6 text-sm text-plm-fg-muted hover:text-plm-fg transition-colors"
             >
-              {isValidating ? (
-                <>
-                  <Loader2 size={20} className="animate-spin" />
-                  {t('common.connecting')}
-                </>
-              ) : (
-                <>
-                  {t('setup.connectToSupabase')}
-                </>
-              )}
+              ← {t('common.back')}
             </button>
+
+            <div className="text-center mb-8">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-plm-accent/20 flex items-center justify-center">
+                <Key size={32} className="text-plm-accent" />
+              </div>
+              <h1 className="text-2xl font-bold text-plm-fg mb-2">{t('setup.adminSetup')}</h1>
+              <p className="text-plm-fg-muted">{t('setup.enterCredentials')}</p>
+            </div>
+
+            <div className="space-y-4">
+              {/* Supabase Project ID */}
+              <div>
+                <label className="block text-sm text-plm-fg-muted mb-1.5">
+                  {t('setup.projectId')}
+                </label>
+                <input
+                  type="text"
+                  value={projectId}
+                  onChange={(e) => setProjectId(e.target.value)}
+                  placeholder="vvyhpdzqdizvorrhjhvq"
+                  className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-4 py-3 text-plm-fg placeholder-plm-fg-dim focus:border-plm-accent focus:outline-none font-mono"
+                />
+                <p className="text-xs text-plm-fg-dim mt-1">{t('setup.projectIdHelp')}</p>
+              </div>
+
+              {/* Anon Key */}
+              <div>
+                <label className="block text-sm text-plm-fg-muted mb-1.5">
+                  {t('setup.anonKey')}
+                </label>
+                <div className="relative">
+                  <input
+                    type={showKey ? 'text' : 'password'}
+                    value={anonKey}
+                    onChange={(e) => setAnonKey(e.target.value)}
+                    placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-4 py-3 pr-12 text-plm-fg placeholder-plm-fg-dim focus:border-plm-accent focus:outline-none font-mono text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowKey(!showKey)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-plm-fg-muted hover:text-plm-fg"
+                  >
+                    {showKey ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Organization Slug (optional) */}
+              <div>
+                <label className="block text-sm text-plm-fg-muted mb-1.5">
+                  {t('setup.orgSlug')}{' '}
+                  <span className="text-plm-fg-dim">({t('common.optional')})</span>
+                </label>
+                <input
+                  type="text"
+                  value={orgSlug}
+                  onChange={(e) => setOrgSlug(e.target.value)}
+                  placeholder="e.g., bluerobotics"
+                  className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-4 py-3 text-plm-fg placeholder-plm-fg-dim focus:border-plm-accent focus:outline-none"
+                />
+                <p className="text-xs text-plm-fg-dim mt-1">{t('setup.orgSlugHelp')}</p>
+              </div>
+
+              {/* Error Message */}
+              {error && (
+                <div className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                  <AlertCircle size={18} className="text-red-500 flex-shrink-0 mt-0.5" />
+                  <span className="text-sm text-red-400">{error}</span>
+                </div>
+              )}
+
+              {/* Submit Button */}
+              <button
+                onClick={handleAdminSetup}
+                disabled={isValidating || !projectId || !anonKey}
+                className="w-full btn btn-primary btn-lg justify-center mt-6"
+              >
+                {isValidating ? (
+                  <>
+                    <Loader2 size={20} className="animate-spin" />
+                    {t('common.connecting')}
+                  </>
+                ) : (
+                  <>{t('setup.connectToSupabase')}</>
+                )}
+              </button>
+            </div>
+
+            {/* Help Text */}
+            <p className="text-xs text-plm-fg-dim text-center mt-6">{t('setup.findInDashboard')}</p>
           </div>
-          
-          {/* Help Text */}
-          <p className="text-xs text-plm-fg-dim text-center mt-6">
-            {t('setup.findInDashboard')}
-          </p>
-        </div>
         </div>
       </div>
     )
   }
-  
+
   // Member setup mode
   if (mode === 'member') {
     return (
       <div className="h-full flex flex-col bg-plm-bg">
         <SetupTitleBar />
         <div className="flex-1 flex items-center justify-center p-8">
-        <div className="max-w-xl w-full">
-          <button
-            onClick={() => setMode('select')}
-            className="mb-6 text-sm text-plm-fg-muted hover:text-plm-fg transition-colors"
-          >
-            ← {t('common.back')}
-          </button>
-          
-          <div className="text-center mb-8">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-green-500/20 flex items-center justify-center">
-              <Users size={32} className="text-green-500" />
-            </div>
-            <h1 className="text-2xl font-bold text-plm-fg mb-2">{t('setup.joinOrg')}</h1>
-            <p className="text-plm-fg-muted">
-              {t('setup.enterCode')}
-            </p>
-          </div>
-          
-          <div className="space-y-4">
-            {/* Organization Code Input */}
-            <div>
-              <label className="block text-sm text-plm-fg-muted mb-1.5">
-                {t('setup.organizationCode')}
-              </label>
-              <textarea
-                value={orgCode}
-                onChange={(e) => setOrgCode(e.target.value)}
-                placeholder="PDM-XXXX-XXXX-XXXX..."
-                rows={4}
-                className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-4 py-3 text-plm-fg placeholder-plm-fg-dim focus:border-plm-accent focus:outline-none font-mono text-sm resize-none"
-              />
-            </div>
-            
-            {/* Error Message */}
-            {error && (
-              <div className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
-                <AlertCircle size={18} className="text-red-500 flex-shrink-0 mt-0.5" />
-                <span className="text-sm text-red-400">{error}</span>
-              </div>
-            )}
-            
-            {/* Submit Button */}
+          <div className="max-w-xl w-full">
             <button
-              onClick={handleMemberSetup}
-              disabled={isValidating || !orgCode}
-              className="w-full btn btn-primary btn-lg justify-center mt-6"
+              onClick={() => setMode('select')}
+              className="mb-6 text-sm text-plm-fg-muted hover:text-plm-fg transition-colors"
             >
-              {isValidating ? (
-                <>
-                  <Loader2 size={20} className="animate-spin" />
-                  {t('common.connecting')}
-                </>
-              ) : (
-                <>
-                  {t('common.connect')}
-                </>
-              )}
+              ← {t('common.back')}
             </button>
+
+            <div className="text-center mb-8">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-green-500/20 flex items-center justify-center">
+                <Users size={32} className="text-green-500" />
+              </div>
+              <h1 className="text-2xl font-bold text-plm-fg mb-2">{t('setup.joinOrg')}</h1>
+              <p className="text-plm-fg-muted">{t('setup.enterCode')}</p>
+            </div>
+
+            <div className="space-y-4">
+              {/* Organization Code Input */}
+              <div>
+                <label className="block text-sm text-plm-fg-muted mb-1.5">
+                  {t('setup.organizationCode')}
+                </label>
+                <textarea
+                  value={orgCode}
+                  onChange={(e) => setOrgCode(e.target.value)}
+                  placeholder="PDM-XXXX-XXXX-XXXX..."
+                  rows={4}
+                  className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-4 py-3 text-plm-fg placeholder-plm-fg-dim focus:border-plm-accent focus:outline-none font-mono text-sm resize-none"
+                />
+              </div>
+
+              {/* Error Message */}
+              {error && (
+                <div className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                  <AlertCircle size={18} className="text-red-500 flex-shrink-0 mt-0.5" />
+                  <span className="text-sm text-red-400">{error}</span>
+                </div>
+              )}
+
+              {/* Submit Button */}
+              <button
+                onClick={handleMemberSetup}
+                disabled={isValidating || !orgCode}
+                className="w-full btn btn-primary btn-lg justify-center mt-6"
+              >
+                {isValidating ? (
+                  <>
+                    <Loader2 size={20} className="animate-spin" />
+                    {t('common.connecting')}
+                  </>
+                ) : (
+                  <>{t('common.connect')}</>
+                )}
+              </button>
+            </div>
           </div>
-        </div>
         </div>
       </div>
     )
   }
-  
+
   return null
 }
-

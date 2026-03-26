@@ -1,6 +1,6 @@
 /**
  * WorkflowService - Type-safe database operations for workflow templates
- * 
+ *
  * Uses the supabase client with runtime type assertions to work around
  * TypeScript inference issues with the database types.
  */
@@ -31,7 +31,7 @@ export const workflowService = {
 
     return {
       data: data as WorkflowTemplateRow[] | null,
-      error: error ? new Error(error.message) : null
+      error: error ? new Error(error.message) : null,
     }
   },
 
@@ -39,14 +39,11 @@ export const workflowService = {
    * Get a single workflow by ID
    */
   async getById(workflowId: string): Promise<WorkflowServiceResult<WorkflowTemplateRow>> {
-    const { data, error } = await workflowTemplates()
-      .select('*')
-      .eq('id', workflowId)
-      .single()
+    const { data, error } = await workflowTemplates().select('*').eq('id', workflowId).single()
 
     return {
       data: data as WorkflowTemplateRow | null,
-      error: error ? new Error(error.message) : null
+      error: error ? new Error(error.message) : null,
     }
   },
 
@@ -56,19 +53,21 @@ export const workflowService = {
   async createDefault(orgId: string, userId: string): Promise<WorkflowServiceResult<string>> {
     const { data, error } = await supabase.rpc('create_default_workflow', {
       p_org_id: orgId,
-      p_created_by: userId
+      p_created_by: userId,
     })
 
     return {
       data: data as string | null,
-      error: error ? new Error(error.message) : null
+      error: error ? new Error(error.message) : null,
     }
   },
 
   /**
    * Create a workflow with custom data
    */
-  async create(workflow: Partial<WorkflowTemplateRow> & { org_id: string; name: string }): Promise<WorkflowServiceResult<WorkflowTemplateRow>> {
+  async create(
+    workflow: Partial<WorkflowTemplateRow> & { org_id: string; name: string },
+  ): Promise<WorkflowServiceResult<WorkflowTemplateRow>> {
     const { data, error } = await workflowTemplates()
       .insert(workflow as never)
       .select()
@@ -76,7 +75,7 @@ export const workflowService = {
 
     return {
       data: data as WorkflowTemplateRow | null,
-      error: error ? new Error(error.message) : null
+      error: error ? new Error(error.message) : null,
     }
   },
 
@@ -84,8 +83,8 @@ export const workflowService = {
    * Update a workflow
    */
   async update(
-    workflowId: string, 
-    updates: Partial<WorkflowTemplateRow>
+    workflowId: string,
+    updates: Partial<WorkflowTemplateRow>,
   ): Promise<WorkflowServiceResult<WorkflowTemplateRow>> {
     const { data, error } = await workflowTemplates()
       .update(updates as never)
@@ -95,7 +94,7 @@ export const workflowService = {
 
     return {
       data: data as WorkflowTemplateRow | null,
-      error: error ? new Error(error.message) : null
+      error: error ? new Error(error.message) : null,
     }
   },
 
@@ -109,7 +108,7 @@ export const workflowService = {
 
     return {
       data: error ? null : undefined,
-      error: error ? new Error(error.message) : null
+      error: error ? new Error(error.message) : null,
     }
   },
 
@@ -118,7 +117,7 @@ export const workflowService = {
    */
   async updateCanvasConfig(
     workflowId: string,
-    config: { zoom: number; panX: number; panY: number }
+    config: { zoom: number; panX: number; panY: number },
   ): Promise<WorkflowServiceResult<void>> {
     const { error } = await workflowTemplates()
       .update({ canvas_config: config } as never)
@@ -126,7 +125,7 @@ export const workflowService = {
 
     return {
       data: error ? null : undefined,
-      error: error ? new Error(error.message) : null
+      error: error ? new Error(error.message) : null,
     }
-  }
+  },
 }

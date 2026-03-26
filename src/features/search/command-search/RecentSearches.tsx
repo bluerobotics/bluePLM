@@ -4,13 +4,13 @@ import type { RecentSearchesProps } from './types'
 /**
  * Recent searches section with clear button
  */
-export function RecentSearches({ 
-  searches, 
+export function RecentSearches({
+  searches,
   startIndex,
-  highlightedIndex, 
-  onSelect, 
+  highlightedIndex,
+  onSelect,
   onClear,
-  onMouseEnter 
+  onMouseEnter,
 }: RecentSearchesProps) {
   return (
     <div className="p-1">
@@ -33,9 +33,7 @@ export function RecentSearches({
             onClick={() => onSelect(search)}
             onMouseEnter={() => onMouseEnter(resultIndex)}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-left transition-colors ${
-              highlightedIndex === resultIndex
-                ? 'bg-plm-accent/20'
-                : 'hover:bg-plm-bg-lighter'
+              highlightedIndex === resultIndex ? 'bg-plm-accent/20' : 'hover:bg-plm-bg-lighter'
             }`}
           >
             <Clock size={14} className="text-plm-fg-muted" />

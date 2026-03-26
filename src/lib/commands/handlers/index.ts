@@ -1,6 +1,6 @@
 /**
  * Command Handlers Index
- * 
+ *
  * This barrel file imports all handler modules to trigger self-registration.
  * Import this file once to register all terminal commands with the registry.
  */

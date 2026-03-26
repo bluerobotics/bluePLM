@@ -14,7 +14,7 @@ export function CloudStatusBadge({
   cloudFilesCount,
   localOnlyFilesCount,
   statusIconSize,
-  spacing
+  spacing,
 }: CloudStatusBadgeProps) {
   return (
     <>

@@ -1,6 +1,4 @@
-import { 
-  Folder, FileSpreadsheet, Presentation, FileText, HardDrive 
-} from 'lucide-react'
+import { Folder, FileSpreadsheet, Presentation, FileText, HardDrive } from 'lucide-react'
 import type { ParsedQuery, SearchFilter, FilterOption } from './types'
 import { FILTER_OPTIONS } from './constants'
 
@@ -13,7 +11,7 @@ export function parseQuery(query: string, activeFilter: SearchFilter): ParsedQue
     if (filter.prefix && trimmedQuery.toLowerCase().startsWith(filter.prefix)) {
       return {
         filter: filter.id,
-        searchTerm: trimmedQuery.slice(filter.prefix.length).trim()
+        searchTerm: trimmedQuery.slice(filter.prefix.length).trim(),
       }
     }
   }
@@ -24,7 +22,7 @@ export function parseQuery(query: string, activeFilter: SearchFilter): ParsedQue
  * Get the current filter option from parsed query filter
  */
 export function getCurrentFilter(filterType: SearchFilter): FilterOption {
-  return FILTER_OPTIONS.find(f => f.id === filterType) || FILTER_OPTIONS[0]
+  return FILTER_OPTIONS.find((f) => f.id === filterType) || FILTER_OPTIONS[0]
 }
 
 /**
@@ -47,11 +45,13 @@ export function getDriveFileIcon(mimeType: string) {
 /**
  * Get workflow state indicator element
  */
-export function getStateIndicator(workflowState?: { name: string; label: string | null; color: string } | null) {
+export function getStateIndicator(
+  workflowState?: { name: string; label: string | null; color: string } | null,
+) {
   if (!workflowState) return null
   return (
-    <span 
-      className="w-2 h-2 rounded-full" 
+    <span
+      className="w-2 h-2 rounded-full"
       style={{ backgroundColor: workflowState.color }}
       title={workflowState.label || workflowState.name}
     />
@@ -62,5 +62,7 @@ export function getStateIndicator(workflowState?: { name: string; label: string 
  * Get available filters based on auth state
  */
 export function getAvailableFilters(isGdriveConnected: boolean): FilterOption[] {
-  return FILTER_OPTIONS.filter(f => !f.requiresAuth || (f.requiresAuth === 'gdrive' && isGdriveConnected))
+  return FILTER_OPTIONS.filter(
+    (f) => !f.requiresAuth || (f.requiresAuth === 'gdrive' && isGdriveConnected),
+  )
 }

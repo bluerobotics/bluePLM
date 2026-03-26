@@ -28,15 +28,15 @@ function csvEscapeCell(value: string): string {
 
 async function getBrNumberForFile(
   file: LocalFile,
-  organizationId: string | undefined
+  organizationId: string | undefined,
 ): Promise<string> {
   const baseNumber = file.pdmData?.part_number || file.pendingMetadata?.part_number || ''
   let tabNumber = ''
   const configTabs =
     file.pendingMetadata?.config_tabs ||
-    (file.pdmData?.custom_properties as Record<string, unknown> | undefined)?._config_tabs as
+    ((file.pdmData?.custom_properties as Record<string, unknown> | undefined)?._config_tabs as
       | Record<string, string>
-      | undefined
+      | undefined)
   if (configTabs) {
     tabNumber = configTabs['Default'] || configTabs['default'] || Object.values(configTabs)[0] || ''
   }
@@ -49,8 +49,8 @@ async function getBrNumberForFile(
       } else if (baseNumber && tabNumber) {
         fullItemNumber = `${baseNumber}-${tabNumber}`
       }
-    } catch (err) {
-      log.debug('[ExportTable]', 'Serialization settings', { error: err })
+    } catch (error) {
+      log.debug('[ExportTable]', 'Serialization settings', { error: error })
       if (baseNumber && tabNumber) {
         fullItemNumber = `${baseNumber}-${tabNumber}`
       }
@@ -59,10 +59,7 @@ async function getBrNumberForFile(
   return fullItemNumber
 }
 
-export function ExportMetadataTableActions({
-  contextFiles,
-  onClose,
-}: ActionComponentProps) {
+export function ExportMetadataTableActions({ contextFiles, onClose }: ActionComponentProps) {
   const { addToast, organization } = usePDMStore()
   const [isSaving, setIsSaving] = useState(false)
   const [submenuOpen, setSubmenuOpen] = useState(false)
@@ -93,8 +90,7 @@ export function ExportMetadataTableActions({
 
     for (const file of tableFiles) {
       const brNumber = await getBrNumberForFile(file, orgId)
-      const description =
-        file.pendingMetadata?.description ?? file.pdmData?.description ?? ''
+      const description = file.pendingMetadata?.description ?? file.pdmData?.description ?? ''
       const revision = (file.pendingMetadata?.revision ?? file.pdmData?.revision ?? '').trim()
       rows.push([
         csvEscapeCell(brNumber),
@@ -114,11 +110,9 @@ export function ExportMetadataTableActions({
       const body = await buildCsv()
       const utf8 = `\uFEFF${body}`
       const defaultName = `export-${tableFiles.length}-files.csv`
-      const result = await window.electronAPI.saveTextFileWithDialog(
-        defaultName,
-        utf8,
-        [{ name: 'CSV', extensions: ['csv'] }]
-      )
+      const result = await window.electronAPI.saveTextFileWithDialog(defaultName, utf8, [
+        { name: 'CSV', extensions: ['csv'] },
+      ])
       if (result?.success && result.path) {
         addToast('success', `Saved table (${tableFiles.length} rows)`)
       } else if (result?.canceled) {
@@ -126,8 +120,8 @@ export function ExportMetadataTableActions({
       } else {
         addToast('error', result?.error ? `Save failed: ${result.error}` : 'Save failed')
       }
-    } catch (err) {
-      addToast('error', `Export failed: ${err}`)
+    } catch (error) {
+      addToast('error', `Export failed: ${error}`)
     } finally {
       setIsSaving(false)
     }
@@ -152,7 +146,6 @@ export function ExportMetadataTableActions({
       )}
       Table{countLabel}
       <span className="text-xs text-plm-fg-muted ml-auto">▶</span>
-
       {submenuOpen && (
         <ContextSubmenu
           minWidth={160}

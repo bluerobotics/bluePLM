@@ -1,11 +1,17 @@
 /**
  * Terminal Command Handlers
- * 
+ *
  * Commands: echo, clear, cls, help, history, cancel, settings, set, get
  */
 
 import { usePDMStore } from '../../../stores/pdmStore'
-import { getCommandHistory, cancelAllOperations, hasActiveOperations, getActiveOperations, getAllCommands } from '../executor'
+import {
+  getCommandHistory,
+  cancelAllOperations,
+  hasActiveOperations,
+  getActiveOperations,
+  getAllCommands,
+} from '../executor'
 import { registerTerminalCommand, getTerminalCommandMeta } from '../registry'
 import type { ParsedCommand, TerminalOutput } from '../parser'
 
@@ -27,9 +33,12 @@ export function handleHistory(addOutput: OutputFn): void {
   if (history.length === 0) {
     addOutput('info', 'No command history')
   } else {
-    const lines = history.slice(0, 10).map((entry, i) => 
-      `${i + 1}. ${entry.commandId} - ${entry.result.message} (${formatTimeAgo(entry.timestamp)})`
-    )
+    const lines = history
+      .slice(0, 10)
+      .map(
+        (entry, i) =>
+          `${i + 1}. ${entry.commandId} - ${entry.result.message} (${formatTimeAgo(entry.timestamp)})`,
+      )
     addOutput('info', lines.join('\n'))
   }
 }
@@ -44,7 +53,7 @@ export function handleCancel(addOutput: OutputFn): void {
     const ops = getActiveOperations()
     const count = cancelAllOperations()
     addOutput('info', `⚠️ Cancelling ${count} operation${count > 1 ? 's' : ''}:`)
-    ops.forEach(op => addOutput('info', `  • ${op.description}`))
+    ops.forEach((op) => addOutput('info', `  • ${op.description}`))
   }
 }
 
@@ -53,7 +62,7 @@ export function handleCancel(addOutput: OutputFn): void {
  */
 export function handleSettings(addOutput: OutputFn): void {
   const state = usePDMStore.getState()
-  
+
   const lines = [
     '⚙️ Settings:',
     '',
@@ -115,7 +124,7 @@ export function handleSettings(addOutput: OutputFn): void {
     `   weatherSnowOpacity: ${state.weatherSnowOpacity}`,
     `   weatherSnowDensity: ${state.weatherSnowDensity}`,
     '',
-    'Use: set <setting> <value>'
+    'Use: set <setting> <value>',
   ]
   addOutput('info', lines.join('\n'))
 }
@@ -126,14 +135,14 @@ export function handleSettings(addOutput: OutputFn): void {
 export function handleSet(parsed: ParsedCommand, addOutput: OutputFn): void {
   const setting = parsed.args[0]
   const value = parsed.args[1]
-  
+
   if (!setting || value === undefined) {
     addOutput('error', 'Usage: set <setting> <value>')
     return
   }
-  
+
   const store = usePDMStore.getState()
-  
+
   switch (setting) {
     // Display settings
     case 'cadPreviewMode':
@@ -159,23 +168,48 @@ export function handleSet(parsed: ParsedCommand, addOutput: OutputFn): void {
     case 'listRowSize':
       store.setListRowSize(parseInt(value) || 24)
       break
-      
+
     // Theme & Appearance
     case 'theme':
-      const validThemes = ['dark', 'deep-blue', 'light', 'christmas', 'halloween', 'weather', 'kenneth', 'system']
+      const validThemes = [
+        'dark',
+        'deep-blue',
+        'light',
+        'christmas',
+        'halloween',
+        'weather',
+        'kenneth',
+        'system',
+      ]
       if (!validThemes.includes(value)) {
         addOutput('error', `Value must be one of: ${validThemes.join(', ')}`)
         return
       }
-      store.setTheme(value as any)
+      store.setTheme(value as any) // TODO: type this
       break
     case 'language':
-      const validLangs = ['en', 'fr', 'de', 'es', 'it', 'pt', 'ja', 'zh-CN', 'zh-TW', 'ko', 'nl', 'sv', 'pl', 'ru', 'sindarin']
+      const validLangs = [
+        'en',
+        'fr',
+        'de',
+        'es',
+        'it',
+        'pt',
+        'ja',
+        'zh-CN',
+        'zh-TW',
+        'ko',
+        'nl',
+        'sv',
+        'pl',
+        'ru',
+        'sindarin',
+      ]
       if (!validLangs.includes(value)) {
         addOutput('error', `Value must be one of: ${validLangs.join(', ')}`)
         return
       }
-      store.setLanguage(value as any)
+      store.setLanguage(value as any) // TODO: type this
       break
     case 'autoApplySeasonalThemes':
       store.setAutoApplySeasonalThemes(value === 'true')
@@ -185,9 +219,9 @@ export function handleSet(parsed: ParsedCommand, addOutput: OutputFn): void {
         addOutput('error', 'Value must be "expanded", "collapsed", or "hover"')
         return
       }
-      store.setActivityBarMode(value as any)
+      store.setActivityBarMode(value as any) // TODO: type this
       break
-      
+
     // Layout settings
     case 'sidebarWidth':
       store.setSidebarWidth(parseInt(value) || 280)
@@ -214,7 +248,7 @@ export function handleSet(parsed: ParsedCommand, addOutput: OutputFn): void {
       }
       store.setSortDirection(value)
       break
-      
+
     // SolidWorks settings
     case 'solidworksIntegrationEnabled':
       store.setSolidworksIntegrationEnabled(value === 'true')
@@ -231,7 +265,7 @@ export function handleSet(parsed: ParsedCommand, addOutput: OutputFn): void {
     case 'solidworksPath':
       store.setSolidworksPath(value === 'null' ? null : value)
       break
-      
+
     // Auto-Download settings
     case 'autoDownloadCloudFiles':
       store.setAutoDownloadCloudFiles(value === 'true')
@@ -242,12 +276,12 @@ export function handleSet(parsed: ParsedCommand, addOutput: OutputFn): void {
     case 'autoConnect':
       store.setAutoConnect(value === 'true')
       break
-      
+
     // Logging
     case 'logSharingEnabled':
       store.setLogSharingEnabled(value === 'true')
       break
-      
+
     // Christmas Theme settings
     case 'christmasSnowOpacity':
       store.setChristmasSnowOpacity(parseFloat(value) || 0.8)
@@ -274,7 +308,7 @@ export function handleSet(parsed: ParsedCommand, addOutput: OutputFn): void {
       }
       store.setChristmasSleighDirection(value)
       break
-      
+
     // Halloween Theme settings
     case 'halloweenSparksEnabled':
       store.setHalloweenSparksEnabled(value === 'true')
@@ -288,7 +322,7 @@ export function handleSet(parsed: ParsedCommand, addOutput: OutputFn): void {
     case 'halloweenGhostsOpacity':
       store.setHalloweenGhostsOpacity(parseFloat(value) || 0.4)
       break
-      
+
     // Weather Theme settings
     case 'weatherEffectsEnabled':
       store.setWeatherEffectsEnabled(value === 'true')
@@ -305,12 +339,15 @@ export function handleSet(parsed: ParsedCommand, addOutput: OutputFn): void {
     case 'weatherSnowDensity':
       store.setWeatherSnowDensity(parseFloat(value) || 0.5)
       break
-      
+
     default:
-      addOutput('error', `Unknown setting: ${setting}. Type 'settings' to see all available settings.`)
+      addOutput(
+        'error',
+        `Unknown setting: ${setting}. Type 'settings' to see all available settings.`,
+      )
       return
   }
-  
+
   addOutput('success', `Set ${setting} = ${value}`)
 }
 
@@ -323,10 +360,10 @@ export function handleGet(parsed: ParsedCommand, addOutput: OutputFn): void {
     addOutput('error', 'Usage: get <setting>')
     return
   }
-  
+
   const store = usePDMStore.getState()
-  const value = (store as any)[setting]
-  
+  const value = (store as any)[setting] // TODO: type this
+
   if (value === undefined) {
     addOutput('error', `Unknown setting: ${setting}`)
   } else {
@@ -349,35 +386,34 @@ function formatHelp(command?: string): string {
     // First try the registry
     const meta = getTerminalCommandMeta(command)
     if (meta) {
-      const lines = [
-        `📖 ${meta.aliases[0].toUpperCase()}`,
-        `   ${meta.description}`
-      ]
+      const lines = [`📖 ${meta.aliases[0].toUpperCase()}`, `   ${meta.description}`]
       if (meta.usage) lines.push(`   Usage: ${meta.usage}`)
       if (meta.examples?.length) {
         lines.push(`   Examples:`)
-        meta.examples.forEach(ex => lines.push(`     ${ex}`))
+        meta.examples.forEach((ex) => lines.push(`     ${ex}`))
       }
       if (meta.aliases.length > 1) {
         lines.push(`   Aliases: ${meta.aliases.join(', ')}`)
       }
       return lines.join('\n')
     }
-    
+
     // Fall back to executor commands
     const commands = getAllCommands()
-    const cmd = commands.find(c => c.id === command || c.aliases?.includes(command))
+    const cmd = commands.find((c) => c.id === command || c.aliases?.includes(command))
     if (cmd) {
       return [
         `📖 ${cmd.name}`,
         `   ${cmd.description}`,
         cmd.usage ? `   Usage: ${cmd.usage}` : '',
-        cmd.aliases?.length ? `   Aliases: ${cmd.aliases.join(', ')}` : ''
-      ].filter(Boolean).join('\n')
+        cmd.aliases?.length ? `   Aliases: ${cmd.aliases.join(', ')}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n')
     }
     return `Unknown command: ${command}`
   }
-  
+
   // Return static help text for now - registry is used for command-specific help above
   // The static text is comprehensive and well-organized
   return `
@@ -548,64 +584,85 @@ function formatTimeAgo(date: Date): string {
 // Self-registration
 // ============================================
 
-registerTerminalCommand({
-  aliases: ['echo'],
-  description: 'Output text to terminal',
-  usage: 'echo <text>',
-  category: 'terminal'
-}, (parsed, _files, addOutput) => {
-  handleEcho(parsed, addOutput)
-})
+registerTerminalCommand(
+  {
+    aliases: ['echo'],
+    description: 'Output text to terminal',
+    usage: 'echo <text>',
+    category: 'terminal',
+  },
+  (parsed, _files, addOutput) => {
+    handleEcho(parsed, addOutput)
+  },
+)
 
-registerTerminalCommand({
-  aliases: ['history', 'h'],
-  description: 'Show command history',
-  category: 'terminal'
-}, (_parsed, _files, addOutput) => {
-  handleHistory(addOutput)
-})
+registerTerminalCommand(
+  {
+    aliases: ['history', 'h'],
+    description: 'Show command history',
+    category: 'terminal',
+  },
+  (_parsed, _files, addOutput) => {
+    handleHistory(addOutput)
+  },
+)
 
-registerTerminalCommand({
-  aliases: ['cancel', 'stop', 'abort'],
-  description: 'Cancel running operations',
-  category: 'terminal'
-}, (_parsed, _files, addOutput) => {
-  handleCancel(addOutput)
-})
+registerTerminalCommand(
+  {
+    aliases: ['cancel', 'stop', 'abort'],
+    description: 'Cancel running operations',
+    category: 'terminal',
+  },
+  (_parsed, _files, addOutput) => {
+    handleCancel(addOutput)
+  },
+)
 
-registerTerminalCommand({
-  aliases: ['settings'],
-  description: 'Show all settings',
-  category: 'terminal'
-}, (_parsed, _files, addOutput) => {
-  handleSettings(addOutput)
-})
+registerTerminalCommand(
+  {
+    aliases: ['settings'],
+    description: 'Show all settings',
+    category: 'terminal',
+  },
+  (_parsed, _files, addOutput) => {
+    handleSettings(addOutput)
+  },
+)
 
-registerTerminalCommand({
-  aliases: ['set'],
-  description: 'Change a setting',
-  usage: 'set <setting> <value>',
-  examples: ['set theme dark', 'set viewMode icons'],
-  category: 'terminal'
-}, (parsed, _files, addOutput) => {
-  handleSet(parsed, addOutput)
-})
+registerTerminalCommand(
+  {
+    aliases: ['set'],
+    description: 'Change a setting',
+    usage: 'set <setting> <value>',
+    examples: ['set theme dark', 'set viewMode icons'],
+    category: 'terminal',
+  },
+  (parsed, _files, addOutput) => {
+    handleSet(parsed, addOutput)
+  },
+)
 
-registerTerminalCommand({
-  aliases: ['get'],
-  description: 'Get a setting value',
-  usage: 'get <setting>',
-  category: 'terminal'
-}, (parsed, _files, addOutput) => {
-  handleGet(parsed, addOutput)
-})
+registerTerminalCommand(
+  {
+    aliases: ['get'],
+    description: 'Get a setting value',
+    usage: 'get <setting>',
+    category: 'terminal',
+  },
+  (parsed, _files, addOutput) => {
+    handleGet(parsed, addOutput)
+  },
+)
 
-registerTerminalCommand({
-  aliases: ['help', '?'],
-  description: 'Show help for commands',
-  usage: 'help [command]',
-  examples: ['help', 'help checkout'],
-  category: 'terminal'
-}, (parsed, _files, addOutput) => {
-  handleHelp(parsed.args[0], addOutput)
-})
+registerTerminalCommand(
+  {
+    aliases: ['help', '?'],
+    description: 'Show help for commands',
+    usage: 'help [command]',
+    examples: ['help', 'help checkout'],
+    category: 'terminal',
+  },
+  (parsed, _files, addOutput) => {
+    handleHelp(parsed.args[0], addOutput)
+  },
+)

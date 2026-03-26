@@ -1,12 +1,14 @@
 // High-speed telemetry service for performance monitoring
 // Collects CPU, memory, network, FPS data at configurable intervals
 
+const SYSTEM_STATS_POLL_MS = 500
+
 export interface TelemetrySnapshot {
   timestamp: number
   fps: number
   cpu: number
   memory: {
-    system: number  // System memory percent
+    system: number // System memory percent
     app: {
       heapUsed: number
       heapTotal: number
@@ -28,15 +30,15 @@ export interface ModuleMemory {
 }
 
 export interface TelemetryConfig {
-  sampleRateHz: number      // How often to sample (default 50Hz)
-  retentionSeconds: number  // How long to keep data (default 60s)
+  sampleRateHz: number // How often to sample (default 50Hz)
+  retentionSeconds: number // How long to keep data (default 60s)
   enabled: boolean
 }
 
 const DEFAULT_CONFIG: TelemetryConfig = {
   sampleRateHz: 50,
   retentionSeconds: 60,
-  enabled: false
+  enabled: false,
 }
 
 // Circular buffer for efficient time-series storage
@@ -45,22 +47,22 @@ class CircularBuffer<T> {
   private head = 0
   private tail = 0
   private count = 0
-  
+
   constructor(private capacity: number) {
     this.buffer = new Array(capacity)
   }
-  
+
   push(item: T): void {
     this.buffer[this.tail] = item
     this.tail = (this.tail + 1) % this.capacity
-    
+
     if (this.count < this.capacity) {
       this.count++
     } else {
       this.head = (this.head + 1) % this.capacity
     }
   }
-  
+
   toArray(): T[] {
     const result: T[] = []
     for (let i = 0; i < this.count; i++) {
@@ -68,17 +70,17 @@ class CircularBuffer<T> {
     }
     return result
   }
-  
+
   get length(): number {
     return this.count
   }
-  
+
   clear(): void {
     this.head = 0
     this.tail = 0
     this.count = 0
   }
-  
+
   resize(newCapacity: number): void {
     const data = this.toArray()
     this.capacity = newCapacity
@@ -86,7 +88,7 @@ class CircularBuffer<T> {
     this.head = 0
     this.tail = 0
     this.count = 0
-    
+
     // Keep only the most recent data that fits
     const start = Math.max(0, data.length - newCapacity)
     for (let i = start; i < data.length; i++) {
@@ -95,45 +97,44 @@ class CircularBuffer<T> {
   }
 }
 
-
 // Telemetry service singleton
 class TelemetryService {
   private config: TelemetryConfig = { ...DEFAULT_CONFIG }
   private buffer: CircularBuffer<TelemetrySnapshot>
   private intervalId: number | null = null
   private listeners: Set<(snapshot: TelemetrySnapshot) => void> = new Set()
-  
+
   // FPS tracking
   private frameCount = 0
   private lastFpsTime = performance.now()
   private currentFps = 60
   private rafId: number | null = null
-  
+
   // System stats cache (from slower API)
   private cachedSystemStats: {
     cpu: number
     memory: { system: number; app: { heapUsed: number; heapTotal: number; rss: number } }
     network: { rxSpeed: number; txSpeed: number }
   } | null = null
-  
+
   constructor() {
     // Calculate buffer size based on config
     const bufferSize = this.config.sampleRateHz * this.config.retentionSeconds
     this.buffer = new CircularBuffer(bufferSize)
   }
-  
+
   // Configure the service
   configure(config: Partial<TelemetryConfig>): void {
     const wasEnabled = this.config.enabled
     this.config = { ...this.config, ...config }
-    
+
     // Resize buffer if retention changed
     const newBufferSize = this.config.sampleRateHz * this.config.retentionSeconds
     this.buffer.resize(newBufferSize)
-    
+
     // Persist config
     localStorage.setItem('telemetry.config', JSON.stringify(this.config))
-    
+
     // Start/stop based on enabled state
     if (this.config.enabled && !wasEnabled) {
       this.start()
@@ -141,7 +142,7 @@ class TelemetryService {
       this.stop()
     }
   }
-  
+
   // Load saved config
   loadConfig(): TelemetryConfig {
     const saved = localStorage.getItem('telemetry.config')
@@ -154,30 +155,30 @@ class TelemetryService {
     }
     return this.config
   }
-  
+
   getConfig(): TelemetryConfig {
     return { ...this.config }
   }
-  
+
   // Start collecting telemetry
   start(): void {
     if (this.intervalId) return
-    
+
     this.config.enabled = true
-    
+
     // Start FPS counter
     this.startFpsCounter()
-    
+
     // Start system stats polling (slower rate - 2Hz for actual system calls)
     this.startSystemStatsPolling()
-    
+
     // Start high-speed sampling
     const intervalMs = 1000 / this.config.sampleRateHz
     this.intervalId = window.setInterval(() => this.sample(), intervalMs)
-    
+
     // Telemetry started
   }
-  
+
   // Stop collecting
   stop(): void {
     if (this.intervalId) {
@@ -190,58 +191,58 @@ class TelemetryService {
     }
     this.config.enabled = false
   }
-  
+
   // Check if running
   isRunning(): boolean {
     return this.intervalId !== null
   }
-  
+
   // Subscribe to real-time updates
   subscribe(callback: (snapshot: TelemetrySnapshot) => void): () => void {
     this.listeners.add(callback)
     return () => this.listeners.delete(callback)
   }
-  
+
   // Get historical data
   getHistory(): TelemetrySnapshot[] {
     return this.buffer.toArray()
   }
-  
+
   // Get current FPS (can be used externally)
   getCurrentFps(): number {
     return this.currentFps
   }
-  
+
   // Clear all data
   clear(): void {
     this.buffer.clear()
   }
-  
+
   private startFpsCounter(): void {
     const measureFrame = () => {
       this.frameCount++
       const now = performance.now()
       const delta = now - this.lastFpsTime
-      
+
       // Update FPS every 100ms for smoother display
       if (delta >= 100) {
         this.currentFps = Math.round((this.frameCount / delta) * 1000)
         this.frameCount = 0
         this.lastFpsTime = now
       }
-      
+
       if (this.config.enabled) {
         this.rafId = requestAnimationFrame(measureFrame)
       }
     }
     this.rafId = requestAnimationFrame(measureFrame)
   }
-  
+
   private startSystemStatsPolling(): void {
     // Poll system stats at 2Hz (slower rate since it involves IPC)
     const pollStats = async () => {
       if (!this.config.enabled) return
-      
+
       try {
         const stats = await window.electronAPI?.getSystemStats?.()
         if (stats) {
@@ -249,25 +250,25 @@ class TelemetryService {
             cpu: stats.cpu.usage,
             memory: {
               system: stats.memory.percent,
-              app: stats.app || { heapUsed: 0, heapTotal: 0, rss: 0 }
+              app: stats.app || { heapUsed: 0, heapTotal: 0, rss: 0 },
             },
             network: {
               rxSpeed: stats.network.rxSpeed,
-              txSpeed: stats.network.txSpeed
-            }
+              txSpeed: stats.network.txSpeed,
+            },
           }
         }
       } catch {
         // System stats unavailable
       }
-      
+
       if (this.config.enabled) {
-        setTimeout(pollStats, 500) // 2Hz
+        setTimeout(pollStats, SYSTEM_STATS_POLL_MS)
       }
     }
     pollStats()
   }
-  
+
   private sample(): void {
     const snapshot: TelemetrySnapshot = {
       timestamp: Date.now(),
@@ -275,14 +276,14 @@ class TelemetryService {
       cpu: this.cachedSystemStats?.cpu ?? 0,
       memory: this.cachedSystemStats?.memory ?? {
         system: 0,
-        app: { heapUsed: 0, heapTotal: 0, rss: 0 }
+        app: { heapUsed: 0, heapTotal: 0, rss: 0 },
       },
       network: this.cachedSystemStats?.network ?? { rxSpeed: 0, txSpeed: 0 },
-      modules: {} // Module tracking removed - using lazy loading instead
+      modules: {}, // Module tracking removed - using lazy loading instead
     }
-    
+
     this.buffer.push(snapshot)
-    
+
     // Notify listeners
     for (const listener of this.listeners) {
       try {
@@ -301,4 +302,3 @@ export const telemetry = new TelemetryService()
 export function getFps(): number {
   return telemetry.getCurrentFps()
 }
-

@@ -7,26 +7,26 @@ import type { SidebarMode } from './types'
 
 export function SidebarControl() {
   // Selective selectors: only re-render when specific values change
-  const activityBarMode = usePDMStore(s => s.activityBarMode)
-  const setActivityBarMode = usePDMStore(s => s.setActivityBarMode)
+  const activityBarMode = usePDMStore((s) => s.activityBarMode)
+  const setActivityBarMode = usePDMStore((s) => s.setActivityBarMode)
   const { t } = useTranslation()
   const [showMenu, setShowMenu] = useState(false)
-  
+
   const modeLabels: Record<SidebarMode, string> = {
     expanded: t('sidebar.expanded'),
-    collapsed: t('sidebar.collapsed'), 
-    hover: t('sidebar.expandOnHover')
+    collapsed: t('sidebar.collapsed'),
+    hover: t('sidebar.expandOnHover'),
   }
-  
+
   // Close menu when clicking outside
   useEffect(() => {
     if (!showMenu) return
-    
+
     const handleClickOutside = () => setShowMenu(false)
     document.addEventListener('click', handleClickOutside)
     return () => document.removeEventListener('click', handleClickOutside)
   }, [showMenu])
-  
+
   return (
     <div className="py-[2px] pb-[6px] px-[6px]">
       <div className="relative">
@@ -39,14 +39,16 @@ export function SidebarControl() {
         >
           <PanelLeft size={18} />
         </button>
-        
+
         {showMenu && (
-          <div 
+          <div
             className="absolute bottom-full left-0 mb-1 w-44 bg-plm-bg border border-plm-border rounded-md shadow-xl overflow-hidden z-50"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-3 py-2 border-b border-plm-border">
-              <div className="text-[10px] uppercase tracking-wider text-plm-fg-muted">{t('sidebar.sidebarControl')}</div>
+              <div className="text-[10px] uppercase tracking-wider text-plm-fg-muted">
+                {t('sidebar.sidebarControl')}
+              </div>
             </div>
             {(['expanded', 'collapsed', 'hover'] as SidebarMode[]).map((mode) => (
               <button
@@ -57,8 +59,8 @@ export function SidebarControl() {
                   setShowMenu(false)
                 }}
                 className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors ${
-                  activityBarMode === mode 
-                    ? 'bg-plm-highlight text-plm-fg' 
+                  activityBarMode === mode
+                    ? 'bg-plm-highlight text-plm-fg'
                     : 'text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight/50'
                 }`}
               >

@@ -64,14 +64,14 @@ export const zhTW: TranslationDict = {
     supplierDesc: '供應商入口存取',
     workOffline: '離線工作',
     offlineMode: '離線模式',
-    
+
     teamSignIn: '團隊成員登入',
     signInWithOrg: '使用您的組織帳戶登入',
     signInWithGoogle: '使用 Google 登入',
     tryAgain: '重試',
     connecting: '連線中...',
     roleSetByOrg: '您的角色（管理員、工程師、檢視者）由您的組織設定',
-    
+
     supplierPortal: '供應商入口',
     createAccount: '建立您的供應商帳戶',
     signInToAccount: '登入您的帳戶',
@@ -95,7 +95,7 @@ export const zhTW: TranslationDict = {
     verificationSent: '驗證碼已傳送至',
     includeCountryCode: '請包含國碼（例如：+886 台灣，+1 美國）',
     supplierInviteNote: '供應商由組織邀請。如需存取權限，請聯繫您的採購方。',
-    
+
     connectingToOrg: '正在連線到您的組織...',
     organizationVaults: '組織保險庫',
     noVaultsCreated: '未建立保險庫',
@@ -103,7 +103,7 @@ export const zhTW: TranslationDict = {
     noVaultsUserMsg: '請聯繫組織管理員建立保險庫。',
     advancedOptions: '或使用下方進階選項手動連線。',
     localVault: '本機保險庫',
-    
+
     madeWith: '由 Blue Robotics 用 💙 製作',
   },
 
@@ -115,7 +115,7 @@ export const zhTW: TranslationDict = {
     haveCode: '我有組織代碼',
     haveCodeDesc: '輸入組織管理員提供的代碼進行連線。',
     needHelp: '需要 Supabase 設定說明？',
-    
+
     adminSetup: '管理員設定',
     enterCredentials: '從專案的 API 設定中輸入您的 Supabase 憑證',
     projectId: '專案 ID',
@@ -125,16 +125,17 @@ export const zhTW: TranslationDict = {
     orgSlugHelp: '這有助於在產生的代碼中識別您的組織',
     connectToSupabase: '連線到 Supabase',
     findInDashboard: '在 Supabase 控制台 → 專案設定 → API 中找到這些值',
-    
+
     connectedSuccess: '連線成功！',
     shareCode: '將此代碼分享給您的團隊成員，以便他們進行連線',
     organizationCode: '組織代碼',
-    keepCodeSecure: '團隊成員在首次開啟 BluePLM 時可以貼上此代碼。請妥善保管此代碼 - 它包含您的 Supabase 憑證。',
+    keepCodeSecure:
+      '團隊成員在首次開啟 BluePLM 時可以貼上此代碼。請妥善保管此代碼 - 它包含您的 Supabase 憑證。',
     continueToBluePLM: '繼續使用 BluePLM',
-    
+
     joinOrg: '加入您的組織',
     enterCode: '輸入組織管理員提供的代碼',
-    
+
     enterBothFields: '請輸入專案 ID 和匿名金鑰',
     invalidProjectId: '請輸入有效的專案 ID（僅限字母和數字）',
     failedToConnect: '連線 Supabase 失敗',
@@ -168,7 +169,7 @@ export const zhTW: TranslationDict = {
     updateAvailable: '有可用更新！請查看通知。',
     couldNotCheck: '無法檢查更新',
     checkForNewVersions: '檢查新版本',
-    
+
     appearance: '外觀',
     themeDark: '深色',
     themeDarkDesc: 'VS Code Dark+ 風格',
@@ -188,22 +189,22 @@ export const zhTW: TranslationDict = {
     themeSystemDesc: '跟隨作業系統偏好',
     autoSeasonalThemes: '自動應用季節性主題',
     autoSeasonalThemesDesc: '在10月1日自動切換到萬聖節主題，12月1日自動切換到聖誕節主題',
-    
+
     language: '語言',
     displayLanguage: '顯示語言',
     chooseLanguage: '選擇介面語言',
     translationsNote: '注意：部分翻譯可能不完整。可能需要重新啟動應用程式。',
-    
+
     fileExtensions: '副檔名',
     lowercaseExtensions: '上傳時使用小寫副檔名',
     lowercaseExtensionsDesc: '簽入檔案時將 .SLDPRT 轉換為 .sldprt',
-    
+
     ignorePatterns: '忽略模式（僅保留在本機）',
     ignorePatternsDesc: '符合這些模式的檔案將保留在本機，不會同步到雲端。',
     ignorePlaceholder: '例如：*.tmp, .git/*, thumbs.db',
     connectVaultForPatterns: '連線到保險庫以管理忽略模式。',
     noIgnorePatterns: '未設定忽略模式',
-    
+
     syncSettings: '同步設定',
     autoDownloadCloudFiles: '自動下載雲端檔案',
     autoDownloadCloudFilesDesc: '自動下載伺服器上存在但本機不存在的檔案',

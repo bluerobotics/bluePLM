@@ -1,20 +1,25 @@
 import { useEffect, useState, useCallback } from 'react'
+import { useShallow } from 'zustand/react/shallow'
+
 import { usePDMStore } from '@/stores/pdmStore'
 import { setAnalyticsUser, clearAnalyticsUser } from '@/lib/analytics'
-import { 
-  supabase, 
-  isSupabaseConfigured, 
-  linkUserToOrganization, 
-  getUserProfile, 
-  setCurrentAccessToken, 
-  signOut, 
+import {
+  supabase,
+  isSupabaseConfigured,
+  linkUserToOrganization,
+  getUserProfile,
+  setCurrentAccessToken,
+  signOut,
   syncUserSessionsOrgId,
-  updateLastOnline
+  updateLastOnline,
 } from '@/lib/supabase'
 import { logUserAction } from '@/lib/userActionLogger'
 import { clearConfig } from '@/lib/supabaseConfig'
 import { log } from '@/lib/logger'
 import { recordMetric } from '@/lib/performanceMetrics'
+
+const STATUS_MESSAGE_CLEAR_MS = 3_000
+const CONNECT_TIMEOUT_MS = 90_000
 
 /**
  * Truncate email for safe logging (e.g., "jo***@example.com")
@@ -47,7 +52,18 @@ export function useAuth() {
     setAuthInitialized,
     setOfflineMode,
     addToast,
-  } = usePDMStore()
+  } = usePDMStore(
+    useShallow((s) => ({
+      setUser: s.setUser,
+      setOrganization: s.setOrganization,
+      setStatusMessage: s.setStatusMessage,
+      setVaultConnected: s.setVaultConnected,
+      setIsConnecting: s.setIsConnecting,
+      setAuthInitialized: s.setAuthInitialized,
+      setOfflineMode: s.setOfflineMode,
+      addToast: s.addToast,
+    })),
+  )
 
   // Track if Supabase is configured (can change at runtime)
   const [supabaseReady, setSupabaseReady] = useState(() => isSupabaseConfigured())
@@ -76,156 +92,202 @@ export function useAuth() {
     }
 
     // Listen for auth state changes (also handles session restoration on startup)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        // Handle session events: INITIAL_SESSION (startup restore), SIGNED_IN (new login), TOKEN_REFRESHED
-        if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
-          // Show connecting state while loading organization
-          // Add timeout to prevent infinite hanging if network/db is slow
-          let connectingTimeout: ReturnType<typeof setTimeout> | null = null
-          if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
-            setIsConnecting(true)
-            // Safety timeout: clear isConnecting after 90s to prevent infinite hang
-            // Increased from 30s to handle slow networks and avoid false "timeout" warnings
-            connectingTimeout = setTimeout(() => {
-              log.warn('[Auth]', 'Organization loading timeout - clearing connecting state')
-              setIsConnecting(false)
-              addToast('warning', 'Loading your organization is taking longer than expected. Please check your internet connection.')
-            }, 90000)
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // Handle session events: INITIAL_SESSION (startup restore), SIGNED_IN (new login), TOKEN_REFRESHED
+      if (
+        (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') &&
+        session?.user
+      ) {
+        // Show connecting state while loading organization
+        // Add timeout to prevent infinite hanging if network/db is slow
+        let connectingTimeout: ReturnType<typeof setTimeout> | null = null
+        if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+          setIsConnecting(true)
+          connectingTimeout = setTimeout(() => {
+            log.warn('[Auth]', 'Organization loading timeout - clearing connecting state')
+            setIsConnecting(false)
+            addToast(
+              'warning',
+              'Loading your organization is taking longer than expected. Please check your internet connection.',
+            )
+          }, CONNECT_TIMEOUT_MS)
+        }
+
+        // Store access token for raw fetch calls (Supabase client methods hang)
+        setCurrentAccessToken(session.access_token)
+
+        try {
+          // NOTE: ensureUserOrgId() removed - it used client.rpc() which hangs
+          // linkUserToOrganization() handles org_id setup correctly as fallback
+
+          // Fetch user profile from database to get role
+          const profileStart = performance.now()
+          const { profile, error: profileError } = await getUserProfile(session.user.id)
+          const profileDuration = performance.now() - profileStart
+          recordMetric('Startup', 'getUserProfile complete', {
+            durationMs: Math.round(profileDuration),
+            hasProfile: !!profile,
+            hasOrgId: !!profile?.org_id,
+          })
+          if (profileError) {
+            log.warn('[Auth]', 'Profile fetch error', { error: profileError.message })
           }
-          
-          // Store access token for raw fetch calls (Supabase client methods hang)
-          setCurrentAccessToken(session.access_token)
-          
-          try {
-            // NOTE: ensureUserOrgId() removed - it used client.rpc() which hangs
-            // linkUserToOrganization() handles org_id setup correctly as fallback
-            
-            // Fetch user profile from database to get role
-            const profileStart = performance.now()
-            const { profile, error: profileError } = await getUserProfile(session.user.id)
-            const profileDuration = performance.now() - profileStart
-            recordMetric('Startup', 'getUserProfile complete', { 
-              durationMs: Math.round(profileDuration),
-              hasProfile: !!profile,
-              hasOrgId: !!(profile as any)?.org_id
+
+          const userProfile = profile as {
+            full_name?: string
+            avatar_url?: string
+            custom_avatar_url?: string
+            job_title?: string
+            org_id?: string
+            role?: string
+            last_sign_in?: string
+          } | null
+
+          // Set user from profile (includes role) or fallback to session data
+          // Note: Google OAuth stores avatar as 'picture' in user_metadata, not 'avatar_url'
+          setUser({
+            id: session.user.id,
+            email: session.user.email || '',
+            full_name:
+              userProfile?.full_name ||
+              session.user.user_metadata?.full_name ||
+              session.user.user_metadata?.name ||
+              null,
+            avatar_url:
+              userProfile?.avatar_url ||
+              session.user.user_metadata?.avatar_url ||
+              session.user.user_metadata?.picture ||
+              null,
+            custom_avatar_url: userProfile?.custom_avatar_url || null,
+            job_title: userProfile?.job_title || null,
+            org_id: userProfile?.org_id || null,
+            role: (userProfile?.role || 'engineer') as 'admin' | 'engineer' | 'viewer',
+            created_at: session.user.created_at,
+            last_sign_in: userProfile?.last_sign_in || null,
+          })
+          log.info('[Auth]', 'User signed in', {
+            email: truncateEmail(session.user.email),
+            role: userProfile?.role || 'engineer',
+          })
+
+          // Update last_online timestamp
+          updateLastOnline().catch((error) =>
+            log.warn('[Auth]', 'Failed to update last_online', { error: error }),
+          )
+
+          // Set user for Sentry analytics (uses hashed IDs for privacy)
+          setAnalyticsUser(session.user.id, userProfile?.org_id || undefined)
+
+          if (event === 'SIGNED_IN') {
+            // Only show welcome message for new sign-ins, not session restoration
+            setStatusMessage(
+              `Welcome, ${session.user.user_metadata?.full_name || session.user.email}!`,
+            )
+            setTimeout(() => setStatusMessage(''), STATUS_MESSAGE_CLEAR_MS)
+
+            // Disable offline mode when user signs in (they're now authenticated)
+            // Use getState() to get current value, not stale closure value
+            const currentOfflineMode = usePDMStore.getState().isOfflineMode
+            if (currentOfflineMode && navigator.onLine) {
+              setOfflineMode(false)
+              addToast('success', 'Back online')
+            }
+          } else if (event === 'INITIAL_SESSION') {
+            // Session restored from storage - user is already signed in
+            log.info('[Auth]', 'Session restored from storage', {
+              email: truncateEmail(session.user.email),
             })
-            if (profileError) {
-              log.warn('[Auth]', 'Profile fetch error', { error: profileError.message })
+          }
+
+          // Load organization (setOrganization will clear isConnecting)
+          // Pass cached org_id to avoid duplicate profile fetch in linkUserToOrganization
+          const orgStart = performance.now()
+          const { org, error: orgError } = await linkUserToOrganization(
+            session.user.id,
+            session.user.email || '',
+            userProfile?.org_id,
+          )
+          const orgDuration = performance.now() - orgStart
+          recordMetric('Startup', 'linkUserToOrganization complete', {
+            durationMs: Math.round(orgDuration),
+            hasOrg: !!org,
+            usedCachedOrgId: !!userProfile?.org_id,
+          })
+          if (org) {
+            log.info('[Auth]', 'Organization loaded', { name: org.name })
+            if (connectingTimeout) clearTimeout(connectingTimeout)
+            setOrganization(org)
+
+            // Update user's org_id in store if it wasn't set (triggers session re-registration with correct org_id)
+            // This fixes the "no other users showing online" bug where sessions were registered with org_id=null
+            const currentUser = usePDMStore.getState().user
+            if (currentUser && !currentUser.org_id) {
+              setUser({ ...currentUser, org_id: org.id })
+              setAnalyticsUser(currentUser.id, org.id)
             }
-            
-            const userProfile = profile as { full_name?: string; avatar_url?: string; custom_avatar_url?: string; job_title?: string; org_id?: string; role?: string; last_sign_in?: string } | null
-            
-            // Set user from profile (includes role) or fallback to session data
-            // Note: Google OAuth stores avatar as 'picture' in user_metadata, not 'avatar_url'
-            setUser({
-              id: session.user.id,
-              email: session.user.email || '',
-              full_name: userProfile?.full_name || session.user.user_metadata?.full_name || session.user.user_metadata?.name || null,
-              avatar_url: userProfile?.avatar_url || session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || null,
-              custom_avatar_url: userProfile?.custom_avatar_url || null,
-              job_title: userProfile?.job_title || null,
-              org_id: userProfile?.org_id || null,
-              role: (userProfile?.role || 'engineer') as 'admin' | 'engineer' | 'viewer',
-              created_at: session.user.created_at,
-              last_sign_in: userProfile?.last_sign_in || null
-            })
-            log.info('[Auth]', 'User signed in', { email: truncateEmail(session.user.email), role: userProfile?.role || 'engineer' })
-            
-            // Update last_online timestamp
-            updateLastOnline().catch(err => log.warn('[Auth]', 'Failed to update last_online', { error: err }))
-            
-            // Set user for Sentry analytics (uses hashed IDs for privacy)
-            setAnalyticsUser(session.user.id, userProfile?.org_id || undefined)
-            
-            if (event === 'SIGNED_IN') {
-              // Only show welcome message for new sign-ins, not session restoration
-              setStatusMessage(`Welcome, ${session.user.user_metadata?.full_name || session.user.email}!`)
-              setTimeout(() => setStatusMessage(''), 3000)
-              
-              // Disable offline mode when user signs in (they're now authenticated)
-              // Use getState() to get current value, not stale closure value
-              const currentOfflineMode = usePDMStore.getState().isOfflineMode
-              if (currentOfflineMode && navigator.onLine) {
-                setOfflineMode(false)
-                addToast('success', 'Back online')
-              }
-            } else if (event === 'INITIAL_SESSION') {
-              // Session restored from storage - user is already signed in
-              log.info('[Auth]', 'Session restored from storage', { email: truncateEmail(session.user.email) })
-            }
-            
-            // Load organization (setOrganization will clear isConnecting)
-            // Pass cached org_id to avoid duplicate profile fetch in linkUserToOrganization
-            const orgStart = performance.now()
-            const { org, error: orgError } = await linkUserToOrganization(session.user.id, session.user.email || '', userProfile?.org_id)
-            const orgDuration = performance.now() - orgStart
-            recordMetric('Startup', 'linkUserToOrganization complete', { 
-              durationMs: Math.round(orgDuration),
-              hasOrg: !!org,
-              usedCachedOrgId: !!userProfile?.org_id
-            })
-            if (org) {
-              log.info('[Auth]', 'Organization loaded', { name: (org as any).name })
-              if (connectingTimeout) clearTimeout(connectingTimeout)
-              setOrganization(org as any)
-              
-              // Update user's org_id in store if it wasn't set (triggers session re-registration with correct org_id)
-              // This fixes the "no other users showing online" bug where sessions were registered with org_id=null
-              const currentUser = usePDMStore.getState().user
-              if (currentUser && !currentUser.org_id) {
-                setUser({ ...currentUser, org_id: (org as any).id })
-                // Update analytics user with org_id
-                setAnalyticsUser(currentUser.id, (org as any).id)
-              }
-              
-              // Sync all user sessions to have the correct org_id (fixes sessions created before org was linked)
-              syncUserSessionsOrgId(session.user.id, (org as any).id)
-              
-              // Load user's team permissions
-              usePDMStore.getState().loadUserPermissions()
-              
-              // Load user's workflow roles for real-time sync
-              usePDMStore.getState().loadUserWorkflowRoles()
-            } else {
-              log.warn('[Auth]', 'No organization found', { error: orgError })
-              if (connectingTimeout) clearTimeout(connectingTimeout)
-              setIsConnecting(false)
-              // Show a toast with helpful message
-              addToast('warning', orgError?.message || 'No organization found. Please enter an organization code or contact your administrator.')
-            }
-            if (event === 'INITIAL_SESSION') {
-              setAuthInitialized(true)
-            }
-          } catch (err) {
-            log.error('[Auth]', 'Error in auth state handler', { error: err })
+
+            // Sync all user sessions to have the correct org_id (fixes sessions created before org was linked)
+            syncUserSessionsOrgId(session.user.id, org.id)
+
+            // Load user's team permissions
+            usePDMStore.getState().loadUserPermissions()
+
+            // Load user's workflow roles for real-time sync
+            usePDMStore.getState().loadUserWorkflowRoles()
+          } else {
+            log.warn('[Auth]', 'No organization found', { error: orgError })
             if (connectingTimeout) clearTimeout(connectingTimeout)
             setIsConnecting(false)
-            if (event === 'INITIAL_SESSION') {
-              setAuthInitialized(true)
-            }
+            // Show a toast with helpful message
+            addToast(
+              'warning',
+              (orgError instanceof Error ? orgError.message : orgError) ||
+                'No organization found. Please enter an organization code or contact your administrator.',
+            )
           }
-        } else if (event === 'INITIAL_SESSION' && !session?.user) {
-          log.info('[Auth]', 'No stored session found')
-          setAuthInitialized(true)
-        } else if (event === 'SIGNED_OUT') {
-          logUserAction('auth', 'User signed out')
-          log.info('[Auth]', 'User signed out')
-          clearAnalyticsUser()
-          setUser(null)
-          setOrganization(null)
-          setVaultConnected(false)
+          if (event === 'INITIAL_SESSION') {
+            setAuthInitialized(true)
+          }
+        } catch (error) {
+          log.error('[Auth]', 'Error in auth state handler', { error: error })
+          if (connectingTimeout) clearTimeout(connectingTimeout)
           setIsConnecting(false)
-          setStatusMessage('Signed out')
-          setTimeout(() => setStatusMessage(''), 3000)
+          if (event === 'INITIAL_SESSION') {
+            setAuthInitialized(true)
+          }
         }
+      } else if (event === 'INITIAL_SESSION' && !session?.user) {
+        log.info('[Auth]', 'No stored session found')
+        setAuthInitialized(true)
+      } else if (event === 'SIGNED_OUT') {
+        logUserAction('auth', 'User signed out')
+        log.info('[Auth]', 'User signed out')
+        clearAnalyticsUser()
+        setUser(null)
+        setOrganization(null)
+        setVaultConnected(false)
+        setIsConnecting(false)
+        setStatusMessage('Signed out')
+        setTimeout(() => setStatusMessage(''), STATUS_MESSAGE_CLEAR_MS)
       }
-    )
+    })
 
     return () => {
       subscription.unsubscribe()
     }
-  }, [supabaseReady, setUser, setOrganization, setStatusMessage, setVaultConnected, setIsConnecting, setAuthInitialized, setOfflineMode, addToast])
+  }, [
+    supabaseReady,
+    setUser,
+    setOrganization,
+    setStatusMessage,
+    setVaultConnected,
+    setIsConnecting,
+    setAuthInitialized,
+    setOfflineMode,
+    addToast,
+  ])
 
   return {
     supabaseReady,

@@ -24,8 +24,8 @@ export const supplierSchema = {
     is_active: { type: 'boolean' },
     is_approved: { type: 'boolean' },
     notes: { type: ['string', 'null'] },
-    erp_id: { type: ['string', 'null'] }
-  }
+    erp_id: { type: ['string', 'null'] },
+  },
 } as const
 
 export const partSupplierSchema = {
@@ -40,15 +40,15 @@ export const partSupplierSchema = {
     unit_price: { type: ['number', 'null'] },
     currency: { type: 'string' },
     price_unit: { type: 'string' },
-    price_breaks: { 
+    price_breaks: {
       type: 'array',
       items: {
         type: 'object',
         properties: {
           qty: { type: 'integer' },
-          price: { type: 'number' }
-        }
-      }
+          price: { type: 'number' },
+        },
+      },
     },
     min_order_qty: { type: 'integer' },
     order_multiple: { type: 'integer' },
@@ -56,6 +56,6 @@ export const partSupplierSchema = {
     is_preferred: { type: 'boolean' },
     is_active: { type: 'boolean' },
     is_qualified: { type: 'boolean' },
-    notes: { type: ['string', 'null'] }
-  }
+    notes: { type: ['string', 'null'] },
+  },
 } as const

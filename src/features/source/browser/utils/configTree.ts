@@ -14,7 +14,7 @@ export interface ConfigInput {
 /**
  * Build a flat tree structure from a list of configurations with parent references.
  * Returns the configurations sorted in tree order with depth information.
- * 
+ *
  * @param configs - Array of configurations with potential parent references
  * @returns Array of configurations with depth property for indentation
  */
@@ -24,17 +24,17 @@ export function buildConfigTreeFlat(configs: ConfigInput[]): ConfigWithDepth[] {
     children: TreeNode[]
     depth: number
   }
-  
+
   const nodeMap = new Map<string, TreeNode>()
   const roots: TreeNode[] = []
-  
+
   // Create nodes
-  configs.forEach(config => {
+  configs.forEach((config) => {
     nodeMap.set(config.name, { config, children: [], depth: 0 })
   })
-  
+
   // Build tree
-  configs.forEach(config => {
+  configs.forEach((config) => {
     const node = nodeMap.get(config.name)!
     if (config.parentConfiguration && nodeMap.has(config.parentConfiguration)) {
       const parent = nodeMap.get(config.parentConfiguration)!
@@ -44,16 +44,16 @@ export function buildConfigTreeFlat(configs: ConfigInput[]): ConfigWithDepth[] {
       roots.push(node)
     }
   })
-  
+
   // Flatten (depth-first)
   const flatten = (nodes: TreeNode[]): ConfigWithDepth[] => {
     const result: ConfigWithDepth[] = []
-    nodes.forEach(node => {
+    nodes.forEach((node) => {
       result.push({ ...node.config, depth: node.depth })
       result.push(...flatten(node.children))
     })
     return result
   }
-  
+
   return flatten(roots)
 }
