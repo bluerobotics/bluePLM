@@ -18,8 +18,5 @@ export {
   clearLastXmlResponses
 } from './odoo.js'
 
-// WooCommerce integration
-export { normalizeWooCommerceUrl, testWooCommerceConnection } from './woocommerce.js'
-
 // Webhooks
 export { webhooks, triggerWebhooks } from './webhooks.js'

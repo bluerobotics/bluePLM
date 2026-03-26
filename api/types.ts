@@ -188,17 +188,6 @@ export interface OdooConnectionResult {
 }
 
 // ============================================
-// WooCommerce Integration Types
-// ============================================
-
-export interface WooCommerceConnectionResult {
-  success: boolean
-  store_name?: string
-  version?: string
-  error?: string
-}
-
-// ============================================
 // Fastify Extensions
 // ============================================
 

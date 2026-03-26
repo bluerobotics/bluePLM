@@ -54,10 +54,6 @@ DROP TABLE IF EXISTS supplier_contacts CASCADE;
 -- Custom metadata
 DROP TABLE IF EXISTS file_metadata_columns CASCADE;
 
--- WooCommerce
-DROP TABLE IF EXISTS woocommerce_product_mappings CASCADE;
-DROP TABLE IF EXISTS woocommerce_saved_configs CASCADE;
-
 -- Odoo
 DROP TABLE IF EXISTS odoo_saved_configs CASCADE;
 DROP TABLE IF EXISTS integration_sync_log CASCADE;
@@ -223,7 +219,6 @@ DROP FUNCTION IF EXISTS generate_rfq_number(UUID) CASCADE;
 DROP FUNCTION IF EXISTS get_rfq_summary(UUID) CASCADE;
 DROP FUNCTION IF EXISTS get_org_integration_status(UUID, TEXT) CASCADE;
 DROP FUNCTION IF EXISTS get_org_odoo_configs(UUID) CASCADE;
-DROP FUNCTION IF EXISTS get_org_woocommerce_configs(UUID) CASCADE;
 DROP FUNCTION IF EXISTS is_supplier_account(TEXT) CASCADE;
 DROP FUNCTION IF EXISTS update_org_rfq_settings(UUID, JSONB) CASCADE;
 DROP FUNCTION IF EXISTS update_org_branding(UUID, TEXT, TEXT) CASCADE;

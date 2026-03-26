@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS schema_version (
 
 -- Insert initial version for new installations
 INSERT INTO schema_version (id, version, description, applied_at, applied_by)
-VALUES (1, 59, 'Removed org roles from team reviewers; simplified to user + workflow_role types only', NOW(), 'migration')
+VALUES (1, 60, 'Removed WooCommerce integration tables (woocommerce_saved_configs, woocommerce_product_mappings)', NOW(), 'migration')
 ON CONFLICT (id) DO UPDATE SET 
   version = EXCLUDED.version,
   description = EXCLUDED.description,

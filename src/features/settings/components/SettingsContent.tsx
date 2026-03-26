@@ -22,7 +22,6 @@ const SolidWorksSettings = lazy(() => import('../integrations/solidworks').then(
 const GoogleDriveSettings = lazy(() => import('../integrations/google-drive').then(m => ({ default: m.GoogleDriveSettings })))
 const OdooSettings = lazy(() => import('../integrations/odoo').then(m => ({ default: m.OdooSettings })))
 const SlackSettings = lazy(() => import('../integrations/slack').then(m => ({ default: m.SlackSettings })))
-const WooCommerceSettings = lazy(() => import('../integrations/woocommerce').then(m => ({ default: m.WooCommerceSettings })))
 const WebhooksSettings = lazy(() => import('../integrations/WebhooksSettings').then(m => ({ default: m.WebhooksSettings })))
 const ApiSettings = lazy(() => import('../integrations/ApiSettings').then(m => ({ default: m.ApiSettings })))
 const PerformanceSettings = lazy(() => import('../system/PerformanceSettings').then(m => ({ default: m.PerformanceSettings })))
@@ -83,8 +82,6 @@ export function SettingsContent({ activeTab }: SettingsContentProps) {
         return <OdooSettings />
       case 'slack':
         return <SlackSettings />
-      case 'woocommerce':
-        return <WooCommerceSettings />
       case 'webhooks':
         return <WebhooksSettings />
       case 'api':

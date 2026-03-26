@@ -1487,7 +1487,7 @@ export interface OrganizationDataSlice {
 // ============================================================================
 
 /** Integration identifiers for status tracking */
-export type IntegrationId = 'supabase' | 'solidworks' | 'google-drive' | 'odoo' | 'slack' | 'woocommerce' | 'webhooks' | 'api'
+export type IntegrationId = 'supabase' | 'solidworks' | 'google-drive' | 'odoo' | 'slack' | 'webhooks' | 'api'
 
 /** Status of an individual integration */
 export type IntegrationStatusValue = 'online' | 'partial' | 'offline' | 'not-configured' | 'checking' | 'coming-soon'

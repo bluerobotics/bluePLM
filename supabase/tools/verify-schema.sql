@@ -28,7 +28,7 @@ DECLARE
     'suppliers', 'part_suppliers', 'rfqs', 'rfq_items', 'rfq_suppliers', 'rfq_quotes',
     -- Integrations
     'organization_integrations', 'integration_sync_log', 'odoo_saved_configs',
-    'woocommerce_saved_configs', 'woocommerce_product_mappings', 'webhooks',
+    'webhooks',
     'webhook_deliveries'
   ];
   missing_tables TEXT[] := '{}';

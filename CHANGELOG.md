@@ -4,13 +4,16 @@ All notable changes to BluePLM will be documented in this file.
 
 ![1774273238438](image/CHANGELOG/1774273238438.png)
 
-## [3.18.0] - 2026-03-23
+## [3.18.0] - Unreleased
 
 ### Security
 - **App & IPC** — Vault-scoped `fs:read-file` / `fs:write-file`; extension secrets require `EXTENSION_ENCRYPTION_KEY` (no default key); drag-preview file names use `createTextNode` (DOM XSS); dependency audit fixes (Fastify, systeminformation, rollup, etc.)
 - **API** — `@fastify/helmet` security headers; production CORS deny-by-default (`CORS_ORIGINS` allowlist); stricter `/auth/login` and `/auth/refresh` rate limits; `/health` errors sanitized; Swagger UI disabled in production; search on `/files` and `/suppliers` protected from PostgREST filter injection; webhooks reject private/internal URLs (SSRF)
 - **Database** — RLS tightened so `organizations` / `users` are not enumerable across orgs
 - **CLI** — Local HTTP server CORS limited to localhost
+
+### Removed
+- **WooCommerce integration** — removed unshipped WooCommerce connector (tables, API routes, settings UI); may return as an extension
 
 ### Fixed
 - **Backup** — Running state survives leaving the Backup tab; stuck `backup_running_since` auto-clears after 2 hours

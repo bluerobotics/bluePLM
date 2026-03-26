@@ -7,8 +7,6 @@
 --   - Organization Integrations (generic integration settings)
 --   - Integration Sync Log
 --   - Odoo saved configurations
---   - WooCommerce saved configurations
---   - WooCommerce product mappings
 --   - Webhooks
 --   - Webhook deliveries
 --   - Google Drive integration functions
@@ -181,97 +179,6 @@ CREATE INDEX IF NOT EXISTS idx_odoo_saved_configs_org_id ON odoo_saved_configs(o
 CREATE INDEX IF NOT EXISTS idx_odoo_saved_configs_active ON odoo_saved_configs(is_active) WHERE is_active = true;
 
 -- ===========================================
--- WOOCOMMERCE SAVED CONFIGURATIONS
--- ===========================================
-
-CREATE TABLE IF NOT EXISTS woocommerce_saved_configs (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  
-  -- Configuration identity
-  name TEXT NOT NULL,
-  description TEXT,
-  
-  -- Connection settings
-  store_url TEXT NOT NULL,
-  store_name TEXT,
-  consumer_key_encrypted TEXT,
-  consumer_secret_encrypted TEXT,
-  
-  -- Sync settings
-  sync_settings JSONB DEFAULT '{
-    "sync_products": true,
-    "sync_on_release": false,
-    "sync_categories": true,
-    "default_status": "draft"
-  }'::jsonb,
-  
-  -- Status
-  is_active BOOLEAN DEFAULT true,
-  last_tested_at TIMESTAMPTZ,
-  last_test_success BOOLEAN,
-  last_test_error TEXT,
-  wc_version TEXT,
-  
-  -- Sync tracking
-  last_sync_at TIMESTAMPTZ,
-  last_sync_status TEXT,
-  last_sync_count INTEGER,
-  
-  -- Visual
-  color TEXT,
-  
-  -- Metadata
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  created_by UUID REFERENCES users(id),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_by UUID REFERENCES users(id),
-  
-  UNIQUE(org_id, name)
-);
-
-CREATE INDEX IF NOT EXISTS idx_woocommerce_saved_configs_org_id ON woocommerce_saved_configs(org_id);
-CREATE INDEX IF NOT EXISTS idx_woocommerce_saved_configs_active ON woocommerce_saved_configs(is_active) WHERE is_active = true;
-
--- ===========================================
--- WOOCOMMERCE PRODUCT MAPPINGS
--- ===========================================
-
-CREATE TABLE IF NOT EXISTS woocommerce_product_mappings (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  config_id UUID NOT NULL REFERENCES woocommerce_saved_configs(id) ON DELETE CASCADE,
-  
-  -- BluePLM file reference
-  file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-  
-  -- WooCommerce product info
-  wc_product_id INTEGER NOT NULL,
-  wc_product_name TEXT,
-  wc_product_sku TEXT,
-  wc_product_type TEXT DEFAULT 'simple',
-  wc_product_status TEXT DEFAULT 'draft',
-  
-  -- Sync tracking
-  last_synced_at TIMESTAMPTZ,
-  last_synced_version INTEGER,
-  last_synced_revision TEXT,
-  sync_status TEXT DEFAULT 'pending',
-  sync_error TEXT,
-  
-  -- Metadata
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  
-  UNIQUE(config_id, file_id),
-  UNIQUE(config_id, wc_product_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_wc_product_mappings_org_id ON woocommerce_product_mappings(org_id);
-CREATE INDEX IF NOT EXISTS idx_wc_product_mappings_config_id ON woocommerce_product_mappings(config_id);
-CREATE INDEX IF NOT EXISTS idx_wc_product_mappings_file_id ON woocommerce_product_mappings(file_id);
-
--- ===========================================
 -- WEBHOOKS
 -- ===========================================
 
@@ -384,8 +291,6 @@ CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_created_at ON webhook_deliveri
 ALTER TABLE organization_integrations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE integration_sync_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE odoo_saved_configs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE woocommerce_saved_configs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE woocommerce_product_mappings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE webhooks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE webhook_deliveries ENABLE ROW LEVEL SECURITY;
 
@@ -442,37 +347,6 @@ CREATE POLICY "Admins can delete odoo configs"
   ON odoo_saved_configs FOR DELETE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
--- WooCommerce Saved Configs
-DROP POLICY IF EXISTS "Org members can view woocommerce configs" ON woocommerce_saved_configs;
-CREATE POLICY "Org members can view woocommerce configs"
-  ON woocommerce_saved_configs FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
-
-DROP POLICY IF EXISTS "Admins can insert woocommerce configs" ON woocommerce_saved_configs;
-CREATE POLICY "Admins can insert woocommerce configs"
-  ON woocommerce_saved_configs FOR INSERT
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
-
-DROP POLICY IF EXISTS "Admins can update woocommerce configs" ON woocommerce_saved_configs;
-CREATE POLICY "Admins can update woocommerce configs"
-  ON woocommerce_saved_configs FOR UPDATE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
-
-DROP POLICY IF EXISTS "Admins can delete woocommerce configs" ON woocommerce_saved_configs;
-CREATE POLICY "Admins can delete woocommerce configs"
-  ON woocommerce_saved_configs FOR DELETE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
-
--- WooCommerce Product Mappings
-DROP POLICY IF EXISTS "Org members can view wc product mappings" ON woocommerce_product_mappings;
-CREATE POLICY "Org members can view wc product mappings"
-  ON woocommerce_product_mappings FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
-
-DROP POLICY IF EXISTS "Admins can manage wc product mappings" ON woocommerce_product_mappings;
-CREATE POLICY "Admins can manage wc product mappings"
-  ON woocommerce_product_mappings FOR ALL
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 -- Webhooks
 DROP POLICY IF EXISTS "Users can view their org webhooks" ON webhooks;
@@ -645,14 +519,11 @@ CREATE TRIGGER webhooks_updated_at
 ALTER TABLE webhooks REPLICA IDENTITY FULL;
 ALTER TABLE organization_integrations REPLICA IDENTITY FULL;
 ALTER TABLE odoo_saved_configs REPLICA IDENTITY FULL;
-ALTER TABLE woocommerce_saved_configs REPLICA IDENTITY FULL;
-
 DO $$
 BEGIN
   BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE webhooks; EXCEPTION WHEN duplicate_object THEN NULL; END;
   BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE organization_integrations; EXCEPTION WHEN duplicate_object THEN NULL; END;
   BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE odoo_saved_configs; EXCEPTION WHEN duplicate_object THEN NULL; END;
-  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE woocommerce_saved_configs; EXCEPTION WHEN duplicate_object THEN NULL; END;
 END $$;
 
 -- ===========================================
@@ -662,8 +533,6 @@ END $$;
 COMMENT ON TABLE organization_integrations IS 'Generic integration configurations for orgs';
 COMMENT ON TABLE integration_sync_log IS 'Audit trail for integration sync operations';
 COMMENT ON TABLE odoo_saved_configs IS 'Saved Odoo ERP connection configurations';
-COMMENT ON TABLE woocommerce_saved_configs IS 'Saved WooCommerce store configurations';
-COMMENT ON TABLE woocommerce_product_mappings IS 'Maps BluePLM files to WooCommerce products';
 COMMENT ON TABLE webhooks IS 'Webhook configurations for external integrations';
 COMMENT ON TABLE webhook_deliveries IS 'Webhook delivery attempts and history';
 

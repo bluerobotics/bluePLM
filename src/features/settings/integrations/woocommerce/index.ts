@@ -1,1 +1,0 @@
-export { WooCommerceSettings } from './WooCommerceSettings'

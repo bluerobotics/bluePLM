@@ -7,7 +7,7 @@
  * - Google Drive connection status
  * - Odoo ERP connection status
  * - REST API server status
- * - Other integrations (Slack, WooCommerce, Webhooks)
+ * - Other integrations (Slack, Webhooks)
  * 
  * The slice provides:
  * - Centralized status state (no more race conditions)
@@ -32,7 +32,6 @@ const initialIntegrations: Record<IntegrationId, IntegrationState> = {
   'google-drive': { ...defaultIntegrationState },
   'odoo': { ...defaultIntegrationState },
   'slack': { ...defaultIntegrationState, status: 'coming-soon' },
-  'woocommerce': { ...defaultIntegrationState },
   'webhooks': { ...defaultIntegrationState },
   'api': { ...defaultIntegrationState },
 }
@@ -145,9 +144,6 @@ export const createIntegrationsSlice: StateCreator<
       case 'slack':
         setIntegrationStatus('slack', 'coming-soon')
         break
-      case 'woocommerce':
-        await checkWooCommerceStatus(get, setIntegrationStatus)
-        break
       case 'webhooks':
         await checkWebhooksStatus(get, setIntegrationStatus)
         break
@@ -175,7 +171,6 @@ export const createIntegrationsSlice: StateCreator<
         checkIntegration('api', silent),
         checkIntegration('odoo', silent),
         checkIntegration('slack', silent),
-        checkIntegration('woocommerce', silent),
         checkIntegration('webhooks', silent),
       ])
       
@@ -450,50 +445,6 @@ async function checkOdooStatus(
   } catch (err) {
     log.warn('[Integrations]', 'Failed to check Odoo status', { error: err instanceof Error ? err.message : String(err) })
     setStatus('odoo', 'not-configured')
-  }
-}
-
-async function checkWooCommerceStatus(
-  get: () => PDMStoreState,
-  setStatus: (id: IntegrationId, status: IntegrationStatusValue, error?: string) => void
-) {
-  // WooCommerce status check - similar pattern to Odoo
-  const { organization } = get()
-  const apiUrl = getApiUrl(organization)
-  
-  if (!apiUrl) {
-    setStatus('woocommerce', 'not-configured')
-    return
-  }
-  
-  try {
-    const { data: { session } } = await supabase.auth.getSession()
-    const token = session?.access_token
-    
-    if (!token) {
-      setStatus('woocommerce', 'not-configured')
-      return
-    }
-    
-    const response = await fetch(`${apiUrl}/integrations/woocommerce`, {
-      headers: { 'Authorization': `Bearer ${token}` },
-      signal: AbortSignal.timeout(3000)
-    })
-    
-    if (response.ok) {
-      const data = await response.json() as { is_connected?: boolean; configured?: boolean }
-      if (data.is_connected) {
-        setStatus('woocommerce', 'online')
-      } else if (data.configured) {
-        setStatus('woocommerce', 'offline')
-      } else {
-        setStatus('woocommerce', 'not-configured')
-      }
-    } else {
-      setStatus('woocommerce', 'not-configured')
-    }
-  } catch {
-    setStatus('woocommerce', 'not-configured')
   }
 }
 

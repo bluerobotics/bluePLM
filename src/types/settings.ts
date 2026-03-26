@@ -18,7 +18,6 @@ export type SettingsTab =
   | 'google-drive' 
   | 'odoo' 
   | 'slack'             // Hidden from nav, coming soon
-  | 'woocommerce'       // Hidden from nav, coming soon
   | 'webhooks' 
   | 'api' 
   | 'supabase' 
