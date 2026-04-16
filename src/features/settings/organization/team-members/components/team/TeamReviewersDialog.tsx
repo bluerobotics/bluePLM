@@ -243,7 +243,7 @@ export function TeamReviewersDialog({
                   >
                     {getEffectiveAvatarUrl(u) ? (
                       <img
-                        src={getEffectiveAvatarUrl(u) || ''}
+                        src={getEffectiveAvatarUrl(u)!}
                         alt=""
                         className="w-7 h-7 rounded-full object-cover"
                         referrerPolicy="no-referrer"

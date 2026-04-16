@@ -74,7 +74,7 @@ export function UserRow({
           const avatarColors = getAvatarColor(user.email || user.full_name)
           return getEffectiveAvatarUrl(user) ? (
             <img
-              src={getEffectiveAvatarUrl(user) || ''}
+              src={getEffectiveAvatarUrl(user)!}
               alt=""
               className={`${compact ? 'w-8 h-8' : 'w-10 h-10'} rounded-full object-cover`}
               referrerPolicy="no-referrer"

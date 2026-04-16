@@ -29,15 +29,15 @@ export function handleLs(parsed: ParsedCommand, files: LocalFile[], addOutput: O
     addOutput('info', normalizedPath ? `No files in ${normalizedPath}` : 'No files in root')
   } else {
     const lines = items.map((f) => {
-      const icon = f.isDirectory ? '📁' : '📄'
+      const icon = f.isDirectory ? '[dir]' : '     '
       const status = f.pdmData?.checked_out_by
-        ? '🔒'
+        ? '[locked]'
         : f.diffStatus === 'cloud'
-          ? '☁️'
+          ? '[cloud]'
           : f.diffStatus === 'added'
-            ? '➕'
+            ? '[local]'
             : ''
-      return `${icon} ${status} ${f.name}`
+      return `${icon} ${status ? status + ' ' : ''}${f.name}`
     })
     addOutput('info', lines.join('\n'))
   }
@@ -120,13 +120,13 @@ export function handleTree(parsed: ParsedCommand, files: LocalFile[], addOutput:
     const indent = '  '.repeat(depth)
 
     for (const item of items) {
-      const icon = item.isDirectory ? '📁' : '📄'
+      const icon = item.isDirectory ? '[dir]' : '     '
       const status = item.pdmData?.checked_out_by
-        ? ' 🔒'
+        ? ' [locked]'
         : item.diffStatus === 'cloud'
-          ? ' ☁️'
+          ? ' [cloud]'
           : item.diffStatus === 'added'
-            ? ' ➕'
+            ? ' [local]'
             : ''
       lines.push(`${indent}${icon} ${item.name}${status}`)
 

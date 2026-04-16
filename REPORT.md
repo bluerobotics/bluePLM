@@ -1,4 +1,4 @@
-# BluePLM
+![1775066225939](image/REPORT/1775066225939.png)![1775066227408](image/REPORT/1775066227408.png)![1775066234402](image/REPORT/1775066234402.png)# BluePLM![1775066274977](image/REPORT/1775066274977.png)![1775066276319](image/REPORT/1775066276319.png)
 
 ## Introduction
 
@@ -144,6 +144,58 @@ Backup history, machine registration, and scheduling are all tracked in the data
 | Docs | VitePress |
 | Testing | Playwright |
 | Error tracking | Sentry |
+
+### Libraries
+
+**UI**
+
+- `react` / `react-dom` — UI framework
+- `zustand` — State management
+- `lucide-react` — Icon set
+- `@tanstack/react-virtual` — Virtualized lists
+
+**Data & networking**
+
+- `@supabase/supabase-js` — Database client, auth, storage, and realtime
+- `fastify` — HTTP server
+- `@fastify/cors` — CORS middleware
+- `@fastify/helmet` — Security headers (API)
+- `@fastify/rate-limit` — Rate limiting (API)
+- `@fastify/swagger` / `@fastify/swagger-ui` — OpenAPI spec and docs UI (API)
+- `fastify-plugin` — Plugin encapsulation helper (API)
+- `@sinclair/typebox` — JSON Schema type builder (API)
+- `zod` — Runtime schema validation
+
+**Desktop & system**
+
+- `electron-updater` — Auto-updates
+- `@sentry/electron` — Error tracking (main + renderer)
+- `chokidar` — Filesystem watcher
+- `systeminformation` — Hardware and OS info
+
+**File handling**
+
+- `jszip` — ZIP archive read/write
+- `cfb` — Compound Binary File parsing (SolidWorks native files)
+- `pdfjs-dist` — PDF rendering
+- `node-addon-api` — Native C++ bindings (eDrawings preview)
+
+**Utilities**
+
+- `date-fns` — Date formatting and arithmetic
+- `pino-pretty` — Structured log formatting
+
+**Dev tooling**
+
+- `vite` / `vite-plugin-electron` — Bundler with Electron integration
+- `typescript` / `typescript-eslint` — Type system and typed linting
+- `eslint` / `prettier` — Linting and formatting
+- `playwright` — End-to-end testing
+- `electron-builder` — App packaging and signing
+- `tailwindcss` / `postcss` / `autoprefixer` — CSS toolchain
+- `vitepress` — Documentation site generator
+- `sharp` / `png-to-ico` — Image processing for build assets
+- `patch-package` — Post-install patch application
 
 ### Project structure
 

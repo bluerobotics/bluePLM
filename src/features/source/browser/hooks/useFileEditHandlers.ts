@@ -189,11 +189,10 @@ export function useFileEditHandlers(deps: FileEditHandlersDeps): UseFileEditHand
     try {
       await executeCommand('rename', { file: renamingFile, newName }, { onRefresh })
     } finally {
+      setRenamingFile(null)
+      setRenameValue('')
       isRenamingRef.current = false
     }
-
-    setRenamingFile(null)
-    setRenameValue('')
   }, [renamingFile, renameValue, vaultPath, setRenamingFile, setRenameValue, onRefresh])
 
   // Check if file metadata is editable

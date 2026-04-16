@@ -69,6 +69,17 @@ export function useRealtimeSubscriptions(
       locationFlushTimeout = null
       if (pendingLocationUpdates.size === 0) return
 
+      // Defer if a refresh is in progress to prevent concurrent store mutations
+      // (refreshCurrentFolder uses startTransition which defers setFiles — writing
+      // here would race with that deferred update and can crash React)
+      if (usePDMStore.getState().isLoading) {
+        log.debug('[Realtime]', 'Deferring location flush - refresh in progress', {
+          pendingCount: pendingLocationUpdates.size,
+        })
+        locationFlushTimeout = setTimeout(flushLocationUpdates, LOCATION_FLUSH_DEBOUNCE_MS)
+        return
+      }
+
       const updates = Array.from(pendingLocationUpdates.values())
       pendingLocationUpdates.clear()
 
@@ -319,7 +330,7 @@ export function useRealtimeSubscriptions(
                         updateFilePdmData(newFile.id, {
                           ...newFile,
                           checked_out_user: user,
-                        } as any) // TODO: type this
+                        } as Partial<PDMFile>)
                       } else {
                         // Still update even without user info
                         updateFilePdmData(newFile.id, newFile)

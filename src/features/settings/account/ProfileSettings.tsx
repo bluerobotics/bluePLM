@@ -352,7 +352,7 @@ export function ProfileSettings() {
             {/* Avatar display (preview > custom > google > initials) */}
             {avatarPreview || effectiveAvatarUrl ? (
               <img
-                src={avatarPreview || effectiveAvatarUrl || ''}
+                src={(avatarPreview || effectiveAvatarUrl)!}
                 alt={user.full_name || user.email}
                 className="w-20 h-20 rounded-full object-cover border-2 border-plm-border"
                 referrerPolicy="no-referrer"

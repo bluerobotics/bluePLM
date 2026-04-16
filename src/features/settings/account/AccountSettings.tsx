@@ -286,7 +286,7 @@ export function AccountSettings() {
           {getEffectiveAvatarUrl(user) ? (
             <>
               <img
-                src={getEffectiveAvatarUrl(user) || ''}
+                src={getEffectiveAvatarUrl(user)!}
                 alt={user.full_name || user.email}
                 className="w-16 h-16 rounded-full object-cover"
                 referrerPolicy="no-referrer"

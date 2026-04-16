@@ -87,7 +87,7 @@ export async function handleBackupStatus(addOutput: OutputFn): Promise<void> {
 
   try {
     const status = await getBackupStatus(organization.id)
-    const lines = ['📦 Backup Status']
+    const lines = ['Backup Status']
 
     if (!status.isConfigured) {
       lines.push('   Status: Not configured')
@@ -98,11 +98,11 @@ export async function handleBackupStatus(addOutput: OutputFn): Promise<void> {
 
       if (status.config?.backup_running_since) {
         lines.push(
-          `   🔄 Backup in progress since ${new Date(status.config.backup_running_since).toLocaleString()}`,
+          `   Backup in progress since ${new Date(status.config.backup_running_since).toLocaleString()}`,
         )
       } else if (status.config?.backup_requested_at) {
         lines.push(
-          `   ⏳ Backup pending (requested ${new Date(status.config.backup_requested_at).toLocaleString()})`,
+          `   Backup pending (requested ${new Date(status.config.backup_requested_at).toLocaleString()})`,
         )
       }
 
@@ -143,7 +143,7 @@ export async function handleBackupHistory(addOutput: OutputFn): Promise<void> {
       return
     }
 
-    const lines = ['📦 Backup Snapshots:']
+    const lines = ['Backup Snapshots:']
     for (const snap of snapshots.slice(0, 10)) {
       const date = new Date(snap.time).toLocaleString()
       const snapId = snap.short_id || snap.id?.substring(0, 8) || 'unknown'
@@ -176,11 +176,11 @@ export async function handleTrash(addOutput: OutputFn): Promise<void> {
     }
 
     if (result.files.length === 0) {
-      addOutput('info', '🗑️ Trash is empty')
+      addOutput('info', 'Trash is empty')
       return
     }
 
-    const lines = [`🗑️ Trash (${result.files.length} files):`]
+    const lines = [`Trash (${result.files.length} files):`]
     for (const file of result.files.slice(0, 20)) {
       const deletedDate = file.deleted_at ? new Date(file.deleted_at).toLocaleDateString() : ''
       const deletedBy = file.deleted_by_user?.full_name || file.deleted_by_user?.email || ''
@@ -260,7 +260,7 @@ export async function handleVersions(
       return
     }
 
-    const lines = [`📜 Version History for ${matches[0].name}:`]
+    const lines = [`Version History for ${matches[0].name}:`]
     for (const ver of result.versions.slice(0, 15)) {
       const date = ver.created_at ? new Date(ver.created_at).toLocaleString() : 'Unknown'
       const user = ver.created_by_user?.full_name || ver.created_by_user?.email || ''
@@ -354,7 +354,7 @@ export async function handleActivity(parsed: ParsedCommand, addOutput: OutputFn)
       return
     }
 
-    const lines = ['📋 Recent Activity:']
+    const lines = ['Recent Activity:']
     for (const act of result.activity) {
       const time = act.created_at ? new Date(act.created_at).toLocaleString() : 'Unknown'
       const details = act.details as { file_name?: string } | null

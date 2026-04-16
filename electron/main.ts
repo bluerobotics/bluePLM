@@ -440,12 +440,13 @@ function initializeApp() {
     }
   })
 
+  // Initialize Sentry before app 'ready' event fires (required by @sentry/electron)
+  initSentryMain()
+
   app
     .whenReady()
     .then(async () => {
       // Note: Logging is already initialized before single instance lock check
-      // Initialize Sentry for crash reporting
-      initSentryMain()
 
       // Perform migration check BEFORE creating window
       // This handles clean install when upgrading from 2.x to 3.0+

@@ -63,7 +63,7 @@ export function handleStatus(parsed: ParsedCommand, files: LocalFile[], addOutpu
     addOutput(
       'info',
       [
-        `📊 Vault Status`,
+        `Vault Status`,
         `   Synced files: ${synced}`,
         `   Cloud only: ${cloudOnly}`,
         `   Local only: ${local}`,
@@ -77,14 +77,14 @@ export function handleStatus(parsed: ParsedCommand, files: LocalFile[], addOutpu
     } else {
       const lines = matches.slice(0, 20).map((f) => {
         const status = f.pdmData?.checked_out_by
-          ? '🔒 Checked out'
+          ? 'Checked out'
           : f.diffStatus === 'cloud'
-            ? '☁️ Cloud only'
+            ? 'Cloud only'
             : f.diffStatus === 'added'
-              ? '➕ Local only'
+              ? 'Local only'
               : f.pdmData
-                ? '✅ Synced'
-                : '❓ Unknown'
+                ? 'Synced'
+                : 'Unknown'
         return `${f.name}: ${status}`
       })
       if (matches.length > 20) {
@@ -113,7 +113,7 @@ export function handleInfo(parsed: ParsedCommand, files: LocalFile[], addOutput:
 
   const file = matches[0]
   const lines = [
-    `📋 ${file.name}`,
+    `${file.name}`,
     `   Path: ${file.relativePath}`,
     `   Type: ${file.isDirectory ? 'Folder' : file.extension || 'File'}`,
   ]
@@ -126,7 +126,7 @@ export function handleInfo(parsed: ParsedCommand, files: LocalFile[], addOutput:
   }
 
   if (file.pdmData) {
-    lines.push(`   Status: ${file.pdmData.checked_out_by ? '🔒 Checked Out' : '✅ Synced'}`)
+    lines.push(`   Status: ${file.pdmData.checked_out_by ? 'Checked Out' : 'Synced'}`)
     if (file.pdmData.checked_out_by) {
       const { user } = usePDMStore.getState()
       const isMe = file.pdmData.checked_out_by === user?.id
@@ -138,9 +138,9 @@ export function handleInfo(parsed: ParsedCommand, files: LocalFile[], addOutput:
       lines.push(`   Version: ${file.pdmData.version}`)
     }
   } else if (file.diffStatus === 'cloud') {
-    lines.push(`   Status: ☁️ Cloud only (not downloaded)`)
+    lines.push(`   Status: Cloud only (not downloaded)`)
   } else if (file.diffStatus === 'added') {
-    lines.push(`   Status: ➕ Local only (not synced)`)
+    lines.push(`   Status: Local only (not synced)`)
   }
 
   addOutput('info', lines.join('\n'))
@@ -157,7 +157,7 @@ export function handleWhoami(addOutput: OutputFn): void {
     addOutput(
       'info',
       [
-        `👤 ${user.full_name || user.email}`,
+        `${user.full_name || user.email}`,
         `   Email: ${user.email}`,
         organization ? `   Organization: ${organization.name}` : '',
         `   Role: ${user.role === 'admin' ? 'Admin' : user.role === 'engineer' ? 'Engineer' : 'Viewer'}`,
@@ -189,7 +189,7 @@ export function handleMetadata(
   }
 
   const file = matches[0]
-  const lines = [`📋 Metadata for ${file.name}:`]
+  const lines = [`Metadata for ${file.name}:`]
   lines.push(`   Path: ${file.relativePath}`)
   lines.push(`   Type: ${file.extension || 'Unknown'}`)
   lines.push(`   Size: ${formatBytes(file.size || 0)}`)
@@ -317,7 +317,7 @@ export function handleEnv(addOutput: OutputFn): void {
   addOutput(
     'info',
     [
-      '🔧 BluePLM Environment',
+      'BluePLM Environment',
       `   Version: ${window.electronAPI ? 'Desktop' : 'Web'}`,
       `   Organization: ${organization?.name || 'None'}`,
       `   Active Vault: ${activeVault?.name || 'None'}`,
@@ -387,7 +387,7 @@ export function handlePending(files: LocalFile[], addOutput: OutputFn): void {
   const { user } = usePDMStore.getState()
   const myCheckouts = checkedOut.filter((f) => f.pdmData?.checked_out_by === user?.id)
 
-  const lines = ['📋 Pending Operations:']
+  const lines = ['Pending Operations:']
   lines.push(`   Unsynced files: ${unsynced.length}`)
   lines.push(`   My checkouts: ${myCheckouts.length}`)
   lines.push(`   All checkouts: ${checkedOut.length}`)
@@ -707,7 +707,7 @@ export async function handleVersionHistory(
     }
 
     const lines = [
-      `📜 Version History for ${file.name} (${versions.length} version${versions.length !== 1 ? 's' : ''}):`,
+      `Version History for ${file.name} (${versions.length} version${versions.length !== 1 ? 's' : ''}):`,
     ]
 
     for (const v of versions) {

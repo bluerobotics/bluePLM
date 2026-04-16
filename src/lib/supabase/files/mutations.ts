@@ -1,5 +1,5 @@
 import { getSupabaseClient } from '../client'
-import { getCurrentUserEmail } from '../auth'
+import { getCurrentUser, getCurrentUserEmail } from '../auth'
 import { withRetry } from '../../network'
 
 // ============================================
@@ -758,20 +758,13 @@ export async function updateFilePath(
   return { success: true, file: data }
 }
 
-export async function updateFolderPath(
+async function updateFolderPathLegacy(
   oldFolderPath: string,
   newFolderPath: string,
   vaultId?: string,
-): Promise<{ success: boolean; updated: number; total: number; errors: string[]; error?: string }> {
+): Promise<{ success: boolean; updated: number; total: number; errors: string[] }> {
   const client = getSupabaseClient()
 
-  // Normalize: strip trailing slashes so the '/%' suffix is always correct
-  oldFolderPath = oldFolderPath.replace(/\/+$/, '')
-  newFolderPath = newFolderPath.replace(/\/+$/, '')
-
-  // Use '/%' to prevent prefix collisions (e.g. renaming "A" matching "AB/file.txt")
-  // Only files live in this table; folders are in the separate `folders` table.
-  // Filter out trashed files -- they keep their frozen paths for restore.
   let query = client
     .from('files')
     .select('id, file_path, file_name')
@@ -785,26 +778,22 @@ export async function updateFolderPath(
   const { data: files, error: fetchError } = await query
 
   if (fetchError) {
-    return {
-      success: false,
-      updated: 0,
-      total: 0,
-      errors: [fetchError.message],
-      error: fetchError.message,
-    }
+    return { success: false, updated: 0, total: 0, errors: [fetchError.message] }
   }
 
   if (!files || files.length === 0) {
     return { success: true, updated: 0, total: 0, errors: [] }
   }
 
-  let updated = 0
   const errors: string[] = []
   const escapedOldPath = oldFolderPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const oldPathPattern = new RegExp(escapedOldPath, 'i')
-  for (const file of files) {
-    const newFilePath = file.file_path.replace(oldPathPattern, newFolderPath)
 
+  const CONCURRENCY = 10
+  let updated = 0
+
+  const updateOne = async (file: { id: string; file_path: string; file_name: string }) => {
+    const newFilePath = file.file_path.replace(oldPathPattern, newFolderPath)
     const { error } = await client
       .from('files')
       .update({
@@ -814,20 +803,64 @@ export async function updateFolderPath(
       .eq('id', file.id)
 
     if (error) {
-      const msg = `Failed to update file ${file.id} (${file.file_path}): ${error.message}`
-      errors.push(msg)
-      console.warn('[updateFolderPath]', msg)
+      errors.push(`Failed to update file ${file.id} (${file.file_path}): ${error.message}`)
     } else {
       updated++
     }
   }
 
-  return {
-    success: errors.length === 0,
-    updated,
-    total: files.length,
-    errors,
+  for (let i = 0; i < files.length; i += CONCURRENCY) {
+    const batch = files.slice(i, i + CONCURRENCY)
+    await Promise.allSettled(batch.map(updateOne))
   }
+
+  return { success: errors.length === 0, updated, total: files.length, errors }
+}
+
+const RPC_NOT_FOUND_CODE = '42883'
+
+export async function updateFolderPath(
+  oldFolderPath: string,
+  newFolderPath: string,
+  vaultId?: string,
+): Promise<{ success: boolean; updated: number; total: number; errors: string[]; error?: string }> {
+  const client = getSupabaseClient()
+
+  oldFolderPath = oldFolderPath.replace(/\/+$/, '')
+  newFolderPath = newFolderPath.replace(/\/+$/, '')
+
+  const { user } = await getCurrentUser()
+  if (!user) {
+    return { success: false, updated: 0, total: 0, errors: ['Not authenticated'] }
+  }
+
+  const { data, error } = await client.rpc('rename_folder_files', {
+    p_old_folder_path: oldFolderPath,
+    p_new_folder_path: newFolderPath,
+    p_user_id: user.id,
+    p_vault_id: vaultId ?? null,
+  })
+
+  if (error) {
+    if (error.code === RPC_NOT_FOUND_CODE || error.message?.includes('function') ) {
+      return updateFolderPathLegacy(oldFolderPath, newFolderPath, vaultId)
+    }
+    return { success: false, updated: 0, total: 0, errors: [error.message], error: error.message }
+  }
+
+  const result = data as { success: boolean; updated: number; error?: string }
+
+  if (!result.success) {
+    return {
+      success: false,
+      updated: 0,
+      total: 0,
+      errors: [result.error ?? 'RPC returned failure'],
+      error: result.error,
+    }
+  }
+
+  return { success: true, updated: result.updated, total: result.updated, errors: [] }
 }
 
 // ============================================

@@ -271,22 +271,6 @@ export const deleteLocalCommand: Command<DeleteLocalParams> = {
     const operationStart = performance.now()
     const operationId = `delete-local-${Date.now()}`
 
-    // Get files to remove for tracker initialization
-    const syncedLocalFilesForTracker = getSyncedFilesFromSelection(ctx.files, files).filter(
-      (f) => f.diffStatus !== 'cloud',
-    )
-    const unsyncedLocalFilesForTracker = getUnsyncedFilesFromSelection(ctx.files, files).filter(
-      (f) => !f.isDirectory,
-    )
-    const filesToRemoveForTracker = [...syncedLocalFilesForTracker, ...unsyncedLocalFilesForTracker]
-
-    // Initialize file operation tracker for DevTools monitoring
-    const tracker = FileOperationTracker.start(
-      'delete',
-      filesToRemoveForTracker.length,
-      filesToRemoveForTracker.map((f) => f.relativePath),
-    )
-
     logDelete('info', 'Starting delete-local operation', {
       operationId,
       selectedCount: files.length,
@@ -294,7 +278,20 @@ export const deleteLocalCommand: Command<DeleteLocalParams> = {
 
     const user = ctx.user
 
-    // Get files to remove - both synced and unsynced local files
+    // Compute paths from selection (cheap — only iterates the selected items, not the full store)
+    const foldersBeingProcessed = files.filter((f) => f.isDirectory).map((f) => f.relativePath)
+    const filesBeingProcessed = files.filter((f) => !f.isDirectory).map((f) => f.relativePath)
+    const allPathsBeingProcessed = [...foldersBeingProcessed, ...filesBeingProcessed]
+    const localFolders = files.filter((f) => f.isDirectory && f.diffStatus !== 'cloud')
+
+    // Register expected file changes to suppress file watcher during operation
+    ctx.addExpectedFileChanges(allPathsBeingProcessed)
+
+    // Yield to let the confirmation modal close, then show spinner BEFORE heavy file scanning
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    ctx.addProcessingFoldersSync(allPathsBeingProcessed, 'delete')
+
+    // Heavy file scanning — runs AFTER spinner is visible so UI doesn't freeze
     const syncedLocalFiles = getSyncedFilesFromSelection(ctx.files, files).filter(
       (f) => f.diffStatus !== 'cloud',
     )
@@ -303,19 +300,18 @@ export const deleteLocalCommand: Command<DeleteLocalParams> = {
     )
     const filesToRemove = [...syncedLocalFiles, ...unsyncedLocalFiles]
 
-    // Get local folders to delete (even if empty)
-    const localFolders = files.filter((f) => f.isDirectory && f.diffStatus !== 'cloud')
+    // Initialize tracker (reuses scan results — no duplicate scanning)
+    const tracker = FileOperationTracker.start(
+      'delete',
+      filesToRemove.length,
+      filesToRemove.map((f) => f.relativePath),
+    )
 
     // Handle empty local folders with no files to remove
     if (filesToRemove.length === 0 && localFolders.length > 0) {
-      // Yield FIRST to let the confirmation modal close before heavy work
-      await new Promise((resolve) => setTimeout(resolve, 0))
+      ctx.removeProcessingFoldersSync(allPathsBeingProcessed)
 
       const folderPaths = localFolders.map((f) => f.path)
-      const folderRelativePaths = localFolders.map((f) => f.relativePath)
-
-      // Register expected file changes to suppress file watcher during operation
-      ctx.addExpectedFileChanges(folderRelativePaths)
 
       // Use batch delete for folders
       const batchResult = (await window.electronAPI?.deleteBatch(folderPaths, true)) as
@@ -386,6 +382,7 @@ export const deleteLocalCommand: Command<DeleteLocalParams> = {
     }
 
     if (filesToRemove.length === 0) {
+      ctx.removeProcessingFoldersSync(allPathsBeingProcessed)
       ctx.addToast('info', 'No local files to remove')
       tracker.endOperation('completed')
       return {
@@ -397,14 +394,7 @@ export const deleteLocalCommand: Command<DeleteLocalParams> = {
       }
     }
 
-    // Track paths being processed - use SYNC version for immediate spinner display
-    const foldersBeingProcessed = files.filter((f) => f.isDirectory).map((f) => f.relativePath)
-    const filesBeingProcessed = files.filter((f) => !f.isDirectory).map((f) => f.relativePath)
-    const allPathsBeingProcessed = [...foldersBeingProcessed, ...filesBeingProcessed]
-
-    // Register expected file changes to suppress file watcher during operation
-    ctx.addExpectedFileChanges(allPathsBeingProcessed)
-
+    // Main path — spinner is already showing from above
     const total = filesToRemove.length
 
     // Progress tracking
@@ -412,11 +402,6 @@ export const deleteLocalCommand: Command<DeleteLocalParams> = {
     const folderName =
       foldersBeingProcessed.length > 0 ? foldersBeingProcessed[0].split('/').pop() : 'files'
 
-    // Yield FIRST to let the confirmation modal close before heavy work
-    await new Promise((resolve) => setTimeout(resolve, 0))
-
-    // Now show progress UI - files remain visible with spinners during deletion
-    ctx.addProcessingFoldersSync(allPathsBeingProcessed, 'delete')
     ctx.addProgressToast(toastId, `Removing ${folderName}...`, total)
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -693,7 +678,24 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
 
     const user = ctx.user!
 
-    // Get all synced files to delete from server (including files inside folders)
+    // Compute selected paths (cheap — only iterates the selected items, not the full store)
+    const selectedPaths = files.map((f) => f.relativePath)
+
+    // Register expected file changes for local items
+    if (deleteLocal) {
+      const localPathsToDelete = files
+        .filter((f) => f.diffStatus !== 'cloud')
+        .map((f) => f.relativePath)
+      ctx.addExpectedFileChanges(localPathsToDelete)
+    }
+
+    // Yield to let the confirmation modal close, then show spinner BEFORE heavy scanning.
+    // Folder-level spinners propagate down to children via getProcessingOperation,
+    // so marking selected paths covers all visible items.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    ctx.addProcessingFoldersSync(selectedPaths, 'delete')
+
+    // Heavy scanning — runs AFTER spinner is visible so UI doesn't freeze
     const allFilesToDelete: LocalFile[] = []
 
     for (const item of files) {
@@ -721,6 +723,8 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
 
     // Handle empty cloud-only folders
     if (uniqueFiles.length === 0 && !hasLocalFolders) {
+      ctx.removeProcessingFoldersSync(selectedPaths)
+
       if (hasCloudOnlyFolders) {
         const emptyFolders = files.filter((f) => f.isDirectory && f.diffStatus === 'cloud')
         const pathsToRemove = emptyFolders.map((f) => f.path)
@@ -778,14 +782,9 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
     // If only local folders with no server files, just delete locally using batch
     if (uniqueFiles.length === 0 && hasLocalFolders) {
       const foldersToDelete = files.filter((f) => f.isDirectory && f.diffStatus !== 'cloud')
-      const folderPaths = foldersToDelete.map((f) => f.relativePath)
       const folderAbsolutePaths = foldersToDelete.map((f) => f.path)
 
-      // Register expected file changes to suppress file watcher during operation
-      ctx.addExpectedFileChanges(folderPaths)
-
-      // Show spinners - folders remain visible until deletion completes
-      ctx.addProcessingFoldersSync(folderPaths, 'delete')
+      // Spinner already showing from above, proceed with deletion
       logDelete('info', 'Starting local folder deletion - folders visible with spinners', {
         count: foldersToDelete.length,
       })
@@ -812,7 +811,7 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
         }
 
         // Clear processing state synchronously
-        ctx.removeProcessingFoldersSync(folderPaths)
+        ctx.removeProcessingFoldersSync(selectedPaths)
         ctx.setLastOperationCompletedAt(Date.now())
 
         logDelete('info', 'Local folder deletion complete', {
@@ -863,7 +862,7 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
 
       // If batch delete failed entirely, just clear processing and report failure
       // (No need to restore - files were never removed from store)
-      ctx.removeProcessingFoldersSync(folderPaths)
+      ctx.removeProcessingFoldersSync(selectedPaths)
       ctx.setLastOperationCompletedAt(Date.now())
       ctx.addToast('error', 'Delete operation failed')
       tracker.endOperation('failed', 'Delete operation failed')
@@ -876,28 +875,17 @@ export const deleteServerCommand: Command<DeleteServerParams> = {
       }
     }
 
-    // Track paths being processed - use SYNC version for immediate spinner display
+    // Main path — spinner already showing, build full path set for cleanup
     const foldersSelected = files.filter((f) => f.isDirectory).map((f) => f.relativePath)
     const pathsBeingProcessed = uniqueFiles.map((f) => f.relativePath)
     const allPathsBeingProcessed = [...new Set([...pathsBeingProcessed, ...foldersSelected])]
 
-    // Register expected file changes to suppress file watcher during operation
-    // Only needed when deleting local copies (deleteLocal = true)
-    if (deleteLocal) {
-      const localPathsToDelete = files
-        .filter((f) => f.diffStatus !== 'cloud')
-        .map((f) => f.relativePath)
-      ctx.addExpectedFileChanges(localPathsToDelete)
-    }
+    // Add individual file paths to processing (folders already covered by initial spinner)
+    ctx.addProcessingFoldersSync(allPathsBeingProcessed, 'delete')
 
     const toastId = `delete-server-${Date.now()}`
     const totalFiles = uniqueFiles.length
 
-    // Yield FIRST to let the confirmation modal close before heavy work
-    await new Promise((resolve) => setTimeout(resolve, 0))
-
-    // Now show progress UI - files remain visible with spinners during deletion
-    ctx.addProcessingFoldersSync(allPathsBeingProcessed, 'delete')
     ctx.addProgressToast(
       toastId,
       `Deleting ${totalFiles} file${totalFiles !== 1 ? 's' : ''}...`,

@@ -6,7 +6,7 @@
 
 import { FastifyPluginAsync } from 'fastify'
 import { schemas } from '../schemas/index.js'
-import { sendError } from '../utils/index.js'
+import { sendError, ErrorCode } from '../utils/index.js'
 import type { Supplier, PartSupplier, PriceBreak } from '../types.js'
 
 const supplierRoutes: FastifyPluginAsync = async (fastify) => {
@@ -96,7 +96,7 @@ const supplierRoutes: FastifyPluginAsync = async (fastify) => {
         .single()
 
       if (error) throw error
-      if (!data) return sendError(reply, 404, 'Not found', 'Supplier not found')
+      if (!data) return sendError(reply, 404, ErrorCode.NOT_FOUND, 'Supplier not found')
 
       return { supplier: data }
     },
@@ -218,7 +218,7 @@ const supplierRoutes: FastifyPluginAsync = async (fastify) => {
       const { id } = request.params as { id: string }
 
       if (request.user!.role === 'viewer') {
-        return sendError(reply, 403, 'Forbidden', 'Viewers cannot update suppliers')
+        return sendError(reply, 403, ErrorCode.FORBIDDEN, 'Viewers cannot update suppliers')
       }
 
       const body = request.body as Partial<Supplier>
@@ -236,7 +236,7 @@ const supplierRoutes: FastifyPluginAsync = async (fastify) => {
         .single()
 
       if (error) throw error
-      if (!data) return sendError(reply, 404, 'Not found', 'Supplier not found')
+      if (!data) return sendError(reply, 404, ErrorCode.NOT_FOUND, 'Supplier not found')
 
       return { success: true, supplier: data }
     },
@@ -261,7 +261,7 @@ const supplierRoutes: FastifyPluginAsync = async (fastify) => {
       const { id } = request.params as { id: string }
 
       if (request.user!.role !== 'admin') {
-        return sendError(reply, 403, 'Forbidden', 'Only admins can delete suppliers')
+        return sendError(reply, 403, ErrorCode.FORBIDDEN, 'Only admins can delete suppliers')
       }
 
       const { error } = await request
@@ -302,7 +302,7 @@ const supplierRoutes: FastifyPluginAsync = async (fastify) => {
         .single()
 
       if (fileError) throw fileError
-      if (!file) return sendError(reply, 404, 'Not found', 'File not found')
+      if (!file) return sendError(reply, 404, ErrorCode.NOT_FOUND, 'File not found')
 
       // Get suppliers for this part
       const { data: partSuppliers, error } = await request
@@ -378,7 +378,7 @@ const supplierRoutes: FastifyPluginAsync = async (fastify) => {
       const { id } = request.params as { id: string }
 
       if (request.user!.role === 'viewer') {
-        return sendError(reply, 403, 'Forbidden', 'Viewers cannot link suppliers')
+        return sendError(reply, 403, ErrorCode.FORBIDDEN, 'Viewers cannot link suppliers')
       }
 
       const body = request.body as Partial<PartSupplier> & { supplier_id: string }
@@ -391,7 +391,7 @@ const supplierRoutes: FastifyPluginAsync = async (fastify) => {
         .eq('org_id', request.user!.org_id)
         .single()
 
-      if (!file) return sendError(reply, 404, 'Not found', 'File not found')
+      if (!file) return sendError(reply, 404, ErrorCode.NOT_FOUND, 'File not found')
 
       // If marking as preferred, unmark others
       if (body.is_preferred) {
@@ -473,7 +473,7 @@ const supplierRoutes: FastifyPluginAsync = async (fastify) => {
       const { id, supplierId } = request.params as { id: string; supplierId: string }
 
       if (request.user!.role === 'viewer') {
-        return sendError(reply, 403, 'Forbidden', 'Viewers cannot update supplier info')
+        return sendError(reply, 403, ErrorCode.FORBIDDEN, 'Viewers cannot update supplier info')
       }
 
       const body = request.body as Partial<PartSupplier>
@@ -507,7 +507,7 @@ const supplierRoutes: FastifyPluginAsync = async (fastify) => {
         .single()
 
       if (error) throw error
-      if (!data) return sendError(reply, 404, 'Not found', 'Part-supplier link not found')
+      if (!data) return sendError(reply, 404, ErrorCode.NOT_FOUND, 'Part-supplier link not found')
 
       return { success: true, part_supplier: data }
     },
@@ -535,7 +535,7 @@ const supplierRoutes: FastifyPluginAsync = async (fastify) => {
       const { id, supplierId } = request.params as { id: string; supplierId: string }
 
       if (request.user!.role === 'viewer') {
-        return sendError(reply, 403, 'Forbidden', 'Viewers cannot remove suppliers')
+        return sendError(reply, 403, ErrorCode.FORBIDDEN, 'Viewers cannot remove suppliers')
       }
 
       const { error } = await request
@@ -589,7 +589,7 @@ const supplierRoutes: FastifyPluginAsync = async (fastify) => {
         .single()
 
       if (partError) throw partError
-      if (!part) return sendError(reply, 404, 'Not found', 'Part not found')
+      if (!part) return sendError(reply, 404, ErrorCode.NOT_FOUND, 'Part not found')
 
       // Get all suppliers with pricing
       const { data: partSuppliers, error } = await request
@@ -697,7 +697,7 @@ const supplierRoutes: FastifyPluginAsync = async (fastify) => {
         .single()
 
       if (supplierError) throw supplierError
-      if (!supplier) return sendError(reply, 404, 'Not found', 'Supplier not found')
+      if (!supplier) return sendError(reply, 404, ErrorCode.NOT_FOUND, 'Supplier not found')
 
       // Get parts from this supplier
       const { data, error } = await request

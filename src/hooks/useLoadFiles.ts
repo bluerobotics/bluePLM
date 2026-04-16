@@ -312,7 +312,7 @@ export function useLoadFiles() {
             const serverFilesList = pdmFiles.map((f: any) => ({
               id: f.id,
               file_path: f.file_path,
-              name: f.name,
+              name: f.file_name,
               extension: f.extension,
               content_hash: f.content_hash || '',
             }))
@@ -2068,6 +2068,8 @@ export function useLoadFiles() {
 
         // Use startTransition to mark this as a non-urgent update
         // This allows React to render the loading spinner before processing the heavy file list
+        // IMPORTANT: setIsLoading(false) is inside the transition so the concurrency guard
+        // stays up until setFiles actually applies — prevents race with realtime batch updates
         const stStart = performance.now()
         logExplorer('startTransition CALLING', { combinedFilesCount: combinedFiles.length })
         startTransition(() => {
@@ -2075,13 +2077,13 @@ export function useLoadFiles() {
             delayMs: Math.round(performance.now() - stStart),
           })
           setFiles(combinedFiles)
+          setIsLoading(false)
+          setStatusMessage(`Refreshed ${refreshedFolderFiles.length} items`)
+          setTimeout(() => setStatusMessage(''), 3000)
         })
-        setStatusMessage(`Refreshed ${refreshedFolderFiles.length} items`)
       } catch (error) {
         window.electronAPI?.log('error', '[RefreshFolder] Error', { error: String(error) })
         setStatusMessage('Error refreshing folder')
-      } finally {
-        logExplorer('refreshCurrentFolder FINALLY - setting isLoading=false')
         setIsLoading(false)
         setTimeout(() => setStatusMessage(''), 3000)
       }

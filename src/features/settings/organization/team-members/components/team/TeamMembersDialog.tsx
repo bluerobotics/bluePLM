@@ -205,7 +205,7 @@ export function TeamMembersDialog({ team, orgUsers, onClose, userId }: TeamMembe
                   >
                     {getEffectiveAvatarUrl(u) ? (
                       <img
-                        src={getEffectiveAvatarUrl(u) || ''}
+                        src={getEffectiveAvatarUrl(u)!}
                         alt=""
                         className="w-8 h-8 rounded-full object-cover"
                         referrerPolicy="no-referrer"
@@ -247,7 +247,7 @@ export function TeamMembersDialog({ team, orgUsers, onClose, userId }: TeamMembe
                 >
                   {getEffectiveAvatarUrl(member.user) ? (
                     <img
-                      src={getEffectiveAvatarUrl(member.user) || ''}
+                      src={getEffectiveAvatarUrl(member.user)!}
                       alt=""
                       className="w-10 h-10 rounded-full object-cover"
                       referrerPolicy="no-referrer"

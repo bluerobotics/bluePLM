@@ -6941,6 +6941,15 @@ export type Database = {
         Args: { p_license_id: string; p_pending_member_id: string }
         Returns: Json
       }
+      rename_folder_files: {
+        Args: {
+          p_old_folder_path: string
+          p_new_folder_path: string
+          p_user_id: string
+          p_vault_id?: string
+        }
+        Returns: Json
+      }
       set_org_column_defaults: {
         Args: {
           p_column_defaults: Json

@@ -16,8 +16,11 @@ All notable changes to BluePLM will be documented in this file.
 - **WooCommerce integration** — removed unshipped WooCommerce connector (tables, API routes, settings UI); may return as an extension
 
 ### Fixed
+- **Refresh button crash** — `refreshCurrentFolder` used `sf.name` (undefined) instead of `sf.file_name` when building cloud-only file entries from `LightweightFile` objects, corrupting ~11K files in the store and crashing React rendering with `TypeError: Cannot read properties of undefined (reading 'startsWith')`; also added defensive null guards to all `.startsWith()` filter callbacks in the file tree
+- **Refresh race condition** — `setIsLoading(false)` ran in `finally` before `startTransition` completed, dropping the concurrency guard too early and allowing realtime location flushes to collide with the in-flight `setFiles`; loading state now stays true until `startTransition` applies, and `flushLocationUpdates` defers while a refresh is in progress
 - **Backup** — Running state survives leaving the Backup tab; stuck `backup_running_since` auto-clears after 2 hours
 - **Metadata export** — Large vaults: file-version fetch batched to avoid PostgREST URL limits
+- **Upload size warning** — "Upload All" button in the Large Files Detected dialog now works; previously it re-triggered the size check and silently blocked the upload
 
 ---
 

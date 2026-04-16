@@ -426,7 +426,7 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
               <div className="flex items-start gap-4">
                 {getEffectiveAvatarUrl(userData) ? (
                   <img
-                    src={getEffectiveAvatarUrl(userData) || ''}
+                    src={getEffectiveAvatarUrl(userData)!}
                     alt={userData.full_name || userData.email}
                     className="w-20 h-20 rounded-full flex-shrink-0 object-cover"
                     referrerPolicy="no-referrer"

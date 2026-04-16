@@ -1888,7 +1888,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-plm-bg-light border border-plm-border rounded-full mb-4">
               {getEffectiveAvatarUrl(user) ? (
                 <img
-                  src={getEffectiveAvatarUrl(user) || ''}
+                  src={getEffectiveAvatarUrl(user)!}
                   alt=""
                   className="w-5 h-5 rounded-full object-cover"
                   referrerPolicy="no-referrer"
@@ -2014,7 +2014,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                 {getEffectiveAvatarUrl(user) ? (
                   <>
                     <img
-                      src={getEffectiveAvatarUrl(user) || ''}
+                      src={getEffectiveAvatarUrl(user)!}
                       alt=""
                       className="w-5 h-5 rounded-full object-cover"
                       referrerPolicy="no-referrer"

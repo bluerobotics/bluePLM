@@ -330,9 +330,17 @@ export async function linkUserToOrganization(
         'Content-Type': 'application/json',
       },
     })
-    const allOrgs = await allOrgsResponse.json()
+    const allOrgsJson = await allOrgsResponse.json()
+    const allOrgs = Array.isArray(allOrgsJson) ? allOrgsJson : []
 
-    authLog('info', 'Fetched all orgs', { count: allOrgs?.length })
+    if (!allOrgsResponse.ok || !Array.isArray(allOrgsJson)) {
+      authLog('warn', 'Failed to fetch organizations', {
+        status: allOrgsResponse.status,
+        body: allOrgsJson,
+      })
+    }
+
+    authLog('info', 'Fetched all orgs', { count: allOrgs.length })
 
     const matchingOrg = allOrgs?.find((o: { email_domains?: string[] }) =>
       o.email_domains?.includes(domain),

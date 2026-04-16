@@ -10,7 +10,7 @@ import { createClient } from '@supabase/supabase-js'
 import { createSupabaseClient } from '../src/infrastructure/supabase.js'
 import { env } from '../src/config/env.js'
 import { schemas } from '../schemas/index.js'
-import { sendError } from '../utils/index.js'
+import { sendError, ErrorCode } from '../utils/index.js'
 
 // Destructure for backwards compatibility
 const { SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_KEY } = env
@@ -80,7 +80,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password })
 
       if (error) {
-        return sendError(reply, 401, 'Login failed', error.message)
+        return sendError(reply, 401, ErrorCode.UNAUTHORIZED, error.message)
       }
 
       const { data: profile } = await supabase
@@ -124,7 +124,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       const { data, error } = await supabase.auth.refreshSession({ refresh_token })
 
       if (error) {
-        return sendError(reply, 401, 'UNAUTHORIZED', error.message)
+        return sendError(reply, 401, ErrorCode.UNAUTHORIZED, error.message)
       }
 
       return {
@@ -178,11 +178,11 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
 
       // Check admin permission
       if (user.role !== 'admin') {
-        return sendError(reply, 403, 'Forbidden', 'Admin role required')
+        return sendError(reply, 403, ErrorCode.FORBIDDEN, 'Admin role required')
       }
 
       if (!SUPABASE_SERVICE_KEY) {
-        return sendError(reply, 500, 'Configuration error', 'Service key not configured')
+        return sendError(reply, 500, ErrorCode.INTERNAL_ERROR, 'Service key not configured')
       }
 
       const { email, full_name, team_ids, vault_ids, workflow_role_ids, notes, resend } =
@@ -219,9 +219,9 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
 
       if (existingUser) {
         if (existingUser.org_id === user.org_id) {
-          return sendError(reply, 409, 'Conflict', 'User is already a member of your organization')
+          return sendError(reply, 409, ErrorCode.CONFLICT, 'User is already a member of your organization')
         } else if (existingUser.org_id) {
-          return sendError(reply, 409, 'Conflict', 'User belongs to a different organization')
+          return sendError(reply, 409, ErrorCode.CONFLICT, 'User belongs to a different organization')
         }
       }
 
@@ -248,7 +248,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
           .single()
 
         if (checkError || !existingPending) {
-          return sendError(reply, 404, 'Not found', 'No pending member found with this email')
+          return sendError(reply, 404, ErrorCode.NOT_FOUND, 'No pending member found with this email')
         }
         pendingMemberId = existingPending.id
       } else {
@@ -281,7 +281,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
             return sendError(
               reply,
               409,
-              'Conflict',
+              ErrorCode.CONFLICT,
               'User with this email already exists or is pending',
             )
           }

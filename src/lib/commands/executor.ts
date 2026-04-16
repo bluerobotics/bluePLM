@@ -279,6 +279,7 @@ export async function executeCommand<K extends CommandId>(
   options?: {
     onRefresh?: (silent?: boolean) => void
     silent?: boolean // Skip success toast
+    skipSizeWarning?: boolean // Bypass large-file check (user already confirmed)
   },
 ): Promise<CommandResult> {
   const command = commandRegistry.get(commandId)
@@ -310,7 +311,7 @@ export async function executeCommand<K extends CommandId>(
   }
 
   // Check for large files on upload commands (sync, checkin) before queuing
-  if (commandId === 'sync' || commandId === 'checkin') {
+  if ((commandId === 'sync' || commandId === 'checkin') && !options?.skipSizeWarning) {
     const store = usePDMStore.getState()
     const { uploadSizeWarningEnabled, uploadSizeWarningThreshold } = store
 

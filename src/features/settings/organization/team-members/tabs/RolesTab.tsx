@@ -161,7 +161,7 @@ export function RolesTab({ searchQuery = '', onShowCreateRoleDialog }: RolesTabP
                       getEffectiveAvatarUrl(u) ? (
                         <img
                           key={u.id}
-                          src={getEffectiveAvatarUrl(u) || ''}
+                          src={getEffectiveAvatarUrl(u)!}
                           alt={u.full_name || u.email}
                           className="w-7 h-7 rounded-full border-2 border-plm-bg-light object-cover"
                           title={u.full_name || u.email}

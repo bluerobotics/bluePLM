@@ -5,7 +5,7 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import prettier from 'eslint-config-prettier'
 
 export default tseslint.config(
-  { ignores: ['dist/**', 'dist-electron/**', 'release/**', 'docs/**', 'native/**', 'cli/**', 'solidworks-service/**'] },
+  { ignores: ['dist/**', 'dist-electron/**', 'release/**', 'docs/**', 'native/**', 'cli/**', 'solidworks-service/**', 'node_modules/**'] },
 
   js.configs.recommended,
   ...tseslint.configs.recommended,

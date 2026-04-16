@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS schema_version (
 
 -- Insert initial version for new installations
 INSERT INTO schema_version (id, version, description, applied_at, applied_by)
-VALUES (1, 60, 'Removed WooCommerce integration tables (woocommerce_saved_configs, woocommerce_product_mappings)', NOW(), 'migration')
+VALUES (1, 61, 'Added rename_folder_files RPC for bulk folder path updates', NOW(), 'migration')
 ON CONFLICT (id) DO UPDATE SET 
   version = EXCLUDED.version,
   description = EXCLUDED.description,
@@ -1679,12 +1679,12 @@ $$ LANGUAGE plpgsql;
 ALTER TABLE organizations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Authenticated users can view organizations" ON organizations;
 DROP POLICY IF EXISTS "Users can view their organization" ON organizations;
-CREATE POLICY "Users can view their organization"
+DROP POLICY IF EXISTS "Authenticated users can view organizations" ON organizations;
+CREATE POLICY "Authenticated users can view organizations"
   ON organizations FOR SELECT
   TO authenticated
-  USING (id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+  USING (true);
 
 DROP POLICY IF EXISTS "Admins can update their organization" ON organizations;
 CREATE POLICY "Admins can update their organization"
@@ -1693,12 +1693,12 @@ CREATE POLICY "Admins can update their organization"
   USING (id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin())
   WITH CHECK (id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
-DROP POLICY IF EXISTS "Authenticated users can view users" ON users;
 DROP POLICY IF EXISTS "Users can view org members" ON users;
-CREATE POLICY "Users can view org members"
+DROP POLICY IF EXISTS "Authenticated users can view users" ON users;
+CREATE POLICY "Authenticated users can view users"
   ON users FOR SELECT
   TO authenticated
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+  USING (true);
 
 DROP POLICY IF EXISTS "Users can update their own profile" ON users;
 CREATE POLICY "Users can update their own profile"

@@ -10,6 +10,7 @@ import {
   testOdooConnection,
   fetchOdooSuppliers,
   sendError,
+  ErrorCode,
 } from '../../utils/index.js'
 
 const odooRoutes: FastifyPluginAsync = async (fastify) => {
@@ -26,7 +27,7 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       if (!request.user) {
-        return sendError(reply, 401, 'Unauthorized', 'Authentication required')
+        return sendError(reply, 401, ErrorCode.UNAUTHORIZED, 'Authentication required')
       }
 
       const { data, error } = await request
@@ -81,7 +82,7 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       if (!request.user || request.user.role !== 'admin') {
-        return sendError(reply, 403, 'Forbidden', 'Only admins can configure integrations')
+        return sendError(reply, 403, ErrorCode.FORBIDDEN, 'Only admins can configure integrations')
       }
 
       const { url, database, username, api_key, auto_sync, skip_test } = request.body as {
@@ -225,7 +226,7 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
       const result = await testOdooConnection(url, database, username, api_key)
 
       if (!result.success) {
-        return sendError(reply, 400, result.error || 'Connection test failed')
+        return sendError(reply, 400, ErrorCode.BAD_REQUEST, result.error || 'Connection test failed')
       }
 
       return { success: true, user_name: result.user_name, version: result.version }
@@ -245,10 +246,10 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       if (!request.user) {
-        return sendError(reply, 401, 'Unauthorized')
+        return sendError(reply, 401, ErrorCode.UNAUTHORIZED)
       }
       if (request.user.role !== 'admin' && request.user.role !== 'engineer') {
-        return sendError(reply, 403, 'Forbidden', 'Only admins and engineers can sync')
+        return sendError(reply, 403, ErrorCode.FORBIDDEN, 'Only admins and engineers can sync')
       }
 
       const { data: integration } = await request
@@ -259,7 +260,7 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
         .single()
 
       if (!integration) {
-        return sendError(reply, 400, 'Not configured', 'Odoo integration not configured')
+        return sendError(reply, 400, ErrorCode.BAD_REQUEST, 'Odoo integration not configured')
       }
 
       const odooSuppliers = await fetchOdooSuppliers(
@@ -279,9 +280,7 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
             last_error: odooSuppliers.error,
           })
           .eq('id', integration.id)
-        return reply
-          .status(400)
-          .send({ error: 'Sync failed', message: odooSuppliers.error, debug: odooSuppliers.debug })
+        return sendError(reply, 400, ErrorCode.BAD_REQUEST, odooSuppliers.error || 'Sync failed')
       }
 
       const suppliers = odooSuppliers.suppliers || []
@@ -369,7 +368,7 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       if (!request.user || request.user.role !== 'admin') {
-        return sendError(reply, 403, 'Forbidden', 'Only admins can disconnect integrations')
+        return sendError(reply, 403, ErrorCode.FORBIDDEN, 'Only admins can disconnect integrations')
       }
 
       await request
@@ -425,7 +424,7 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       if (request.user!.role !== 'admin') {
-        return sendError(reply, 403, 'Forbidden', 'Only admins can access saved configurations')
+        return sendError(reply, 403, ErrorCode.FORBIDDEN, 'Only admins can access saved configurations')
       }
 
       const { id } = request.params as { id: string }
@@ -436,7 +435,7 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
         .eq('org_id', request.user!.org_id)
         .single()
 
-      if (!data) return sendError(reply, 404, 'Not found', 'Configuration not found')
+      if (!data) return sendError(reply, 404, ErrorCode.NOT_FOUND, 'Configuration not found')
 
       return {
         id: data.id,
@@ -476,7 +475,7 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       if (request.user!.role !== 'admin') {
-        return sendError(reply, 403, 'Forbidden', 'Only admins can save configurations')
+        return sendError(reply, 403, ErrorCode.FORBIDDEN, 'Only admins can save configurations')
       }
 
       const { name, url, database, username, api_key, color, skip_test } = request.body as {
@@ -514,7 +513,7 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
 
       if (error) {
         if (error.code === '23505')
-          return sendError(reply, 409, 'Conflict', `Configuration "${name}" already exists`)
+          return sendError(reply, 409, ErrorCode.CONFLICT, `Configuration "${name}" already exists`)
         throw error
       }
 
@@ -534,7 +533,7 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
       preHandler: fastify.authenticate,
     },
     async (request, reply) => {
-      if (request.user!.role !== 'admin') return sendError(reply, 403, 'Forbidden')
+      if (request.user!.role !== 'admin') return sendError(reply, 403, ErrorCode.FORBIDDEN)
 
       const { id } = request.params as { id: string }
       const body = request.body as Record<string, unknown>
@@ -555,7 +554,7 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
         .select()
         .single()
 
-      if (!data) return sendError(reply, 404, 'Not found')
+      if (!data) return sendError(reply, 404, ErrorCode.NOT_FOUND)
       return { success: true, config: data }
     },
   )
@@ -572,7 +571,7 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
       preHandler: fastify.authenticate,
     },
     async (request, reply) => {
-      if (request.user!.role !== 'admin') return sendError(reply, 403, 'Forbidden')
+      if (request.user!.role !== 'admin') return sendError(reply, 403, ErrorCode.FORBIDDEN)
 
       const { id } = request.params as { id: string }
       await request
@@ -597,7 +596,7 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
       preHandler: fastify.authenticate,
     },
     async (request, reply) => {
-      if (request.user!.role !== 'admin') return sendError(reply, 403, 'Forbidden')
+      if (request.user!.role !== 'admin') return sendError(reply, 403, ErrorCode.FORBIDDEN)
 
       const { id } = request.params as { id: string }
       const { data: config } = await request
@@ -607,7 +606,7 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
         .eq('org_id', request.user!.org_id)
         .single()
 
-      if (!config) return sendError(reply, 404, 'Not found')
+      if (!config) return sendError(reply, 404, ErrorCode.NOT_FOUND)
 
       const testResult = await testOdooConnection(
         config.url,

@@ -105,8 +105,8 @@ export function useUploadSizeWarning() {
     const { files, command, options, onRefresh } = pendingLargeUpload
     clearPendingLargeUpload()
 
-    // Execute the original command with all files
-    await executeCommand(command, { files, ...options }, { onRefresh })
+    // Execute the original command with all files (skip size warning — user already confirmed)
+    await executeCommand(command, { files, ...options }, { onRefresh, skipSizeWarning: true })
   }, [pendingLargeUpload, clearPendingLargeUpload])
 
   /**
@@ -118,9 +118,9 @@ export function useUploadSizeWarning() {
     const { smallFiles, command, options, onRefresh } = pendingLargeUpload
     clearPendingLargeUpload()
 
-    // Execute the command with only small files
+    // Execute the command with only small files (skip size warning — already filtered)
     if (smallFiles.length > 0) {
-      await executeCommand(command, { files: smallFiles, ...options }, { onRefresh })
+      await executeCommand(command, { files: smallFiles, ...options }, { onRefresh, skipSizeWarning: true })
     }
   }, [pendingLargeUpload, clearPendingLargeUpload])
 

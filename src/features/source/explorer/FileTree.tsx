@@ -833,7 +833,7 @@ export function FileTree({ onRefresh }: FileTreeProps) {
             (!f.pdmData || f.diffStatus === 'added' || f.diffStatus === 'deleted_remote') &&
             f.diffStatus !== 'cloud' &&
             f.diffStatus !== 'ignored' &&
-            !(hideSolidworksTempFiles && f.name.startsWith('~$')),
+            !(hideSolidworksTempFiles && f.name?.startsWith('~$')),
         ).length
       : 0
     const syncedFilesCount = isActive

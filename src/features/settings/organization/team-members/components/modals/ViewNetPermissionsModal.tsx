@@ -263,7 +263,7 @@ export function ViewNetPermissionsModal({
         <div className="p-4 border-b border-plm-border flex items-center gap-4 flex-shrink-0">
           {getEffectiveAvatarUrl(user) ? (
             <img
-              src={getEffectiveAvatarUrl(user) || ''}
+              src={getEffectiveAvatarUrl(user)!}
               alt={user.full_name || user.email}
               className="w-12 h-12 rounded-full object-cover"
               referrerPolicy="no-referrer"

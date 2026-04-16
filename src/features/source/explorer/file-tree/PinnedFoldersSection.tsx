@@ -122,7 +122,7 @@ export function PinnedFoldersSection({
   // Helper to check folder synced status
   const checkFolderSynced = (folderPath: string): boolean => {
     const filteredFiles = hideSolidworksTempFiles
-      ? files.filter((f) => !f.name.startsWith('~$'))
+      ? files.filter((f) => !f.name?.startsWith('~$'))
       : files
     return isFolderSynced(folderPath, filteredFiles)
   }
@@ -189,13 +189,14 @@ export function PinnedFoldersSection({
                 ? files.filter(
                     (f) =>
                       !f.isDirectory &&
+                      f.relativePath &&
                       (!f.pdmData ||
                         f.diffStatus === 'added' ||
                         f.diffStatus === 'deleted_remote') &&
                       f.diffStatus !== 'cloud' &&
                       f.diffStatus !== 'ignored' &&
                       f.relativePath.startsWith(pinnedFolderPrefix) &&
-                      !(hideSolidworksTempFiles && f.name.startsWith('~$')),
+                      !(hideSolidworksTempFiles && f.name?.startsWith('~$')),
                   ).length
                 : 0
 
@@ -213,6 +214,7 @@ export function PinnedFoldersSection({
                 ? files.filter(
                     (f) =>
                       !f.isDirectory &&
+                      f.relativePath &&
                       f.pdmData?.checked_out_by === user?.id &&
                       f.relativePath.startsWith(pinnedFolderPrefix),
                   ).length
@@ -222,6 +224,7 @@ export function PinnedFoldersSection({
                 ? files.filter(
                     (f) =>
                       !f.isDirectory &&
+                      f.relativePath &&
                       f.pdmData?.checked_out_by &&
                       f.relativePath.startsWith(pinnedFolderPrefix),
                   ).length
@@ -231,6 +234,7 @@ export function PinnedFoldersSection({
                 ? files.filter(
                     (f) =>
                       !f.isDirectory &&
+                      f.relativePath &&
                       f.pdmData &&
                       !f.pdmData.checked_out_by &&
                       f.diffStatus !== 'cloud' &&

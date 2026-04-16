@@ -2711,6 +2711,59 @@ $$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
 GRANT EXECUTE ON FUNCTION get_vault_files_delta(UUID, UUID, TIMESTAMPTZ) TO authenticated;
 
 -- ===========================================
+-- RENAME FOLDER FILES RPC
+-- ===========================================
+
+-- Bulk path update: rewrites file_path for every active file under the old folder prefix.
+-- Replaces N individual HTTP round trips with a single atomic UPDATE.
+-- Triggers (log_file_activity, notify_file_watchers) fire per-row as normal.
+DO $$ BEGIN PERFORM drop_function_overloads('rename_folder_files'); END $$;
+CREATE OR REPLACE FUNCTION rename_folder_files(
+  p_old_folder_path TEXT,
+  p_new_folder_path TEXT,
+  p_user_id UUID,
+  p_vault_id UUID DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_updated INT;
+  v_old_prefix TEXT;
+  v_new_prefix TEXT;
+BEGIN
+  v_old_prefix := RTRIM(p_old_folder_path, '/');
+  v_new_prefix := RTRIM(p_new_folder_path, '/');
+
+  UPDATE files
+  SET
+    file_path = v_new_prefix || SUBSTRING(file_path FROM LENGTH(v_old_prefix) + 1),
+    updated_by = p_user_id,
+    updated_at = NOW()
+  WHERE
+    LOWER(file_path) LIKE LOWER(v_old_prefix) || '/%'
+    AND deleted_at IS NULL
+    AND (p_vault_id IS NULL OR vault_id = p_vault_id);
+
+  GET DIAGNOSTICS v_updated = ROW_COUNT;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'updated', v_updated
+  );
+EXCEPTION WHEN OTHERS THEN
+  RETURN jsonb_build_object(
+    'success', false,
+    'error', SQLERRM,
+    'updated', 0
+  );
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION rename_folder_files(TEXT, TEXT, UUID, UUID) TO authenticated;
+
+-- ===========================================
 -- MIGRATIONS FOR EXISTING DATABASES
 -- ===========================================
 -- These ALTER statements add columns that may be missing from existing installations.

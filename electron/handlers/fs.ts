@@ -141,12 +141,15 @@ function countFilesInDir(dirPath: string): number {
 
 // Helper to recursively copy a directory
 // Returns the number of files (not directories) copied
-function copyDirSync(src: string, dest: string): number {
+function copyDirSync(src: string, dest: string, topLevelDest?: string): number {
+  const effectiveDest = topLevelDest ?? dest
+  const entries = fs.readdirSync(src, { withFileTypes: true })
+
   if (!fs.existsSync(dest)) {
     fs.mkdirSync(dest, { recursive: true })
   }
 
-  const entries = fs.readdirSync(src, { withFileTypes: true })
+  const topDestResolved = path.resolve(effectiveDest).toLowerCase()
   let fileCount = 0
 
   for (const entry of entries) {
@@ -154,7 +157,12 @@ function copyDirSync(src: string, dest: string): number {
     const destPath = path.join(dest, entry.name)
 
     if (entry.isDirectory()) {
-      fileCount += copyDirSync(srcPath, destPath)
+      const srcPathResolved = path.resolve(srcPath).toLowerCase()
+      if (srcPathResolved === topDestResolved ||
+          topDestResolved.startsWith(srcPathResolved + path.sep)) {
+        continue
+      }
+      fileCount += copyDirSync(srcPath, destPath, effectiveDest)
     } else {
       fs.copyFileSync(srcPath, destPath)
       fileCount++
@@ -2560,6 +2568,18 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
     try {
       const stats = fs.statSync(sourcePath)
       const isDirectory = stats.isDirectory()
+
+      if (isDirectory) {
+        const srcResolved = path.resolve(sourcePath).toLowerCase()
+        const destResolved = path.resolve(destPath).toLowerCase()
+        if (
+          destResolved === srcResolved ||
+          destResolved.startsWith(srcResolved + path.sep)
+        ) {
+          log(`Error moving: cannot move directory into itself: ${sourcePath} -> ${destPath}`)
+          return { success: false, error: 'Cannot move a folder into itself or a subfolder' }
+        }
+      }
 
       // Count files before move (for accurate reporting)
       const fileCount = isDirectory ? countFilesInDir(sourcePath) : 1

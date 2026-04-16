@@ -10,6 +10,7 @@ import { SIGNED_URL_EXPIRY } from '../src/config/env.js'
 import { schemas } from '../schemas/index.js'
 import {
   sendError,
+  ErrorCode,
   computeHash,
   getFileTypeFromExtension,
   triggerWebhooks,
@@ -118,7 +119,7 @@ const fileRoutes: FastifyPluginAsync = async (fastify) => {
         .single()
 
       if (error) throw error
-      if (!data) return sendError(reply, 404, 'Not found', 'File not found')
+      if (!data) return sendError(reply, 404, ErrorCode.NOT_FOUND, 'File not found')
 
       return { file: data }
     },
@@ -174,9 +175,9 @@ const fileRoutes: FastifyPluginAsync = async (fastify) => {
       if (!result.success) {
         // Determine appropriate error code based on error message
         if (result.error?.includes('not found')) {
-          return sendError(reply, 404, 'Not found', result.error)
+          return sendError(reply, 404, ErrorCode.NOT_FOUND, result.error)
         }
-        return sendError(reply, 409, 'Checkout failed', result.error || 'Unknown error')
+        return sendError(reply, 409, ErrorCode.CONFLICT, result.error || 'Checkout failed')
       }
 
       // RPC handles activity logging - DO NOT add manual logging here
@@ -300,12 +301,12 @@ const fileRoutes: FastifyPluginAsync = async (fastify) => {
       if (!result.success) {
         // Determine appropriate error code based on error message
         if (result.error?.includes('not found')) {
-          return sendError(reply, 404, 'Not found', result.error)
+          return sendError(reply, 404, ErrorCode.NOT_FOUND, result.error)
         }
         if (result.error?.includes('not checked out')) {
-          return sendError(reply, 403, 'Forbidden', result.error)
+          return sendError(reply, 403, ErrorCode.FORBIDDEN, result.error)
         }
-        return sendError(reply, 409, 'Checkin failed', result.error || 'Unknown error')
+        return sendError(reply, 409, ErrorCode.CONFLICT, result.error || 'Checkin failed')
       }
 
       // Step 3: Trigger webhooks (API layer responsibility)
@@ -371,10 +372,10 @@ const fileRoutes: FastifyPluginAsync = async (fastify) => {
         .single()
 
       if (fetchError) throw fetchError
-      if (!file) return sendError(reply, 404, 'Not found', 'File not found')
+      if (!file) return sendError(reply, 404, ErrorCode.NOT_FOUND, 'File not found')
 
       if (file.checked_out_by !== request.user!.id && request.user!.role !== 'admin') {
-        return sendError(reply, 403, 'Forbidden', 'File is not checked out to you')
+        return sendError(reply, 403, ErrorCode.FORBIDDEN, 'File is not checked out to you')
       }
 
       const { data, error } = await request
@@ -433,7 +434,7 @@ const fileRoutes: FastifyPluginAsync = async (fastify) => {
         .single()
 
       if (vaultError || !vault) {
-        return sendError(reply, 404, 'Not found', 'Vault not found')
+        return sendError(reply, 404, ErrorCode.NOT_FOUND, 'Vault not found')
       }
 
       const binaryContent = Buffer.from(content, 'base64')
@@ -600,7 +601,7 @@ const fileRoutes: FastifyPluginAsync = async (fastify) => {
         .single()
 
       if (fetchError) throw fetchError
-      if (!file) return sendError(reply, 404, 'Not found', 'File not found')
+      if (!file) return sendError(reply, 404, ErrorCode.NOT_FOUND, 'File not found')
 
       let contentHash = file.content_hash
       let fileSize = file.file_size
@@ -614,7 +615,7 @@ const fileRoutes: FastifyPluginAsync = async (fastify) => {
           .single()
 
         if (!versionData) {
-          return sendError(reply, 404, 'Not found', 'Version not found')
+          return sendError(reply, 404, ErrorCode.NOT_FOUND, 'Version not found')
         }
         contentHash = versionData.content_hash
         fileSize = versionData.file_size
@@ -702,10 +703,10 @@ const fileRoutes: FastifyPluginAsync = async (fastify) => {
         .single()
 
       if (fetchError) throw fetchError
-      if (!file) return sendError(reply, 404, 'Not found', 'File not found')
+      if (!file) return sendError(reply, 404, ErrorCode.NOT_FOUND, 'File not found')
 
       if (file.checked_out_by && file.checked_out_by !== request.user!.id) {
-        return sendError(reply, 409, 'Conflict', 'Cannot delete file checked out by another user')
+        return sendError(reply, 409, ErrorCode.CONFLICT, 'Cannot delete file checked out by another user')
       }
 
       const { error } = await request
@@ -850,15 +851,15 @@ const fileRoutes: FastifyPluginAsync = async (fastify) => {
         .single()
 
       if (!currentFile) {
-        return sendError(reply, 404, 'Not found', 'File not found')
+        return sendError(reply, 404, ErrorCode.NOT_FOUND, 'File not found')
       }
 
       if (currentFile.checked_out_by) {
-        return sendError(reply, 409, 'Conflict', 'Cannot release a checked out file')
+        return sendError(reply, 409, ErrorCode.CONFLICT, 'Cannot release a checked out file')
       }
 
       if (currentFile.state === 'released') {
-        return sendError(reply, 400, 'Already released', 'File is already in released state')
+        return sendError(reply, 400, ErrorCode.BAD_REQUEST, 'File is already in released state')
       }
 
       const { data, error } = await request
@@ -922,11 +923,11 @@ const fileRoutes: FastifyPluginAsync = async (fastify) => {
         .single()
 
       if (!currentFile) {
-        return sendError(reply, 404, 'Not found', 'File not found')
+        return sendError(reply, 404, ErrorCode.NOT_FOUND, 'File not found')
       }
 
       if (currentFile.checked_out_by) {
-        return sendError(reply, 409, 'Conflict', 'Cannot obsolete a checked out file')
+        return sendError(reply, 409, ErrorCode.CONFLICT, 'Cannot obsolete a checked out file')
       }
 
       const { data, error } = await request
@@ -1012,7 +1013,7 @@ const fileRoutes: FastifyPluginAsync = async (fastify) => {
         .single()
 
       if (sourceError) throw sourceError
-      if (!sourceFile) return sendError(reply, 404, 'Not found', 'File not found')
+      if (!sourceFile) return sendError(reply, 404, ErrorCode.NOT_FOUND, 'File not found')
 
       // Look for drawing with similar name
       const baseName = sourceFile.file_name.replace(/\.[^/.]+$/, '')
@@ -1095,7 +1096,7 @@ const fileRoutes: FastifyPluginAsync = async (fastify) => {
         .single()
 
       if (error) throw error
-      if (!file) return sendError(reply, 404, 'Not found', 'File not found')
+      if (!file) return sendError(reply, 404, ErrorCode.NOT_FOUND, 'File not found')
 
       if (file.checked_out_by !== request.user!.id) {
         return sendError(

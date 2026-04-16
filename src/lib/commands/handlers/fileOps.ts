@@ -36,6 +36,10 @@ import { usePDMStore } from '@/stores/pdmStore'
 const THUMBNAIL_EXTRACTION_WAIT_MS = 2_000
 const DEFER_MS = 0
 
+// Tracks in-flight background server path updates per folder so rapid
+// sequential renames (A->B->C) are chained rather than overlapping.
+const pendingFolderServerUpdates = new Map<string, Promise<void>>()
+
 /**
  * Parse lock info string and return a user-friendly toast message.
  * Prioritizes external processes (SLDWORKS, swCefSubProc) over internal ones.
@@ -370,36 +374,50 @@ export const renameCommand: Command<RenameParams> = {
 
       ctx.addToast('success', `Renamed to ${finalName}`)
 
-      // For synced files, update server paths (runs after store update)
+      // For synced files, update server paths in the background.
+      // The FS rename and store update are already done -- the UI is correct.
+      // Server updates are slow for large folders (~2min for 164 files) and
+      // must not block the rename UI.
       if (file.pdmData?.id) {
         if (file.isDirectory) {
-          const folderResult = await updateFolderPath(
-            oldRelPath,
-            newRelPath,
-            ctx.activeVaultId || undefined,
-          )
-          if (!folderResult.success || folderResult.updated < folderResult.total) {
-            const failCount = (folderResult.total || 0) - folderResult.updated
-            log.warn('[Rename]', 'Some server file paths failed to update', {
-              updated: folderResult.updated,
-              total: folderResult.total,
-              errors: folderResult.errors,
-            })
-            ctx.addToast(
-              'warning',
-              `${failCount} file(s) may not have updated on the server. Try refreshing.`,
-            )
-          }
-          try {
-            await updateFolderServerPath(file.pdmData.id, newRelPath)
-            log.info('[Rename]', 'Updated folder path on server', { oldRelPath, newRelPath })
-          } catch (error) {
-            log.warn('[Rename]', 'Failed to update folder path on server', {
+          const folderId = file.pdmData.id
+          const vaultId = ctx.activeVaultId || undefined
+          const prev = pendingFolderServerUpdates.get(newRelPath)
+          const serverUpdate = (prev ?? Promise.resolve()).then(async () => {
+            const folderResult = await updateFolderPath(oldRelPath, newRelPath, vaultId)
+            if (!folderResult.success || folderResult.updated < folderResult.total) {
+              const failCount = (folderResult.total || 0) - folderResult.updated
+              log.warn('[Rename]', 'Some server file paths failed to update', {
+                updated: folderResult.updated,
+                total: folderResult.total,
+                errors: folderResult.errors,
+              })
+              ctx.addToast(
+                'warning',
+                `${failCount} file(s) may not have updated on the server. Try refreshing.`,
+              )
+            }
+            try {
+              await updateFolderServerPath(folderId, newRelPath)
+              log.info('[Rename]', 'Updated folder path on server', { oldRelPath, newRelPath })
+            } catch (error) {
+              log.warn('[Rename]', 'Failed to update folder path on server', {
+                error: error instanceof Error ? error.message : String(error),
+              })
+            }
+          })
+          pendingFolderServerUpdates.set(newRelPath, serverUpdate)
+          serverUpdate.finally(() => {
+            if (pendingFolderServerUpdates.get(newRelPath) === serverUpdate) {
+              pendingFolderServerUpdates.delete(newRelPath)
+            }
+          })
+        } else {
+          updateFilePath(file.pdmData.id, newRelPath).catch((error) => {
+            log.warn('[Rename]', 'Background file path update failed', {
               error: error instanceof Error ? error.message : String(error),
             })
-          }
-        } else {
-          await updateFilePath(file.pdmData.id, newRelPath)
+          })
         }
       }
 
@@ -439,6 +457,15 @@ export const moveCommand: Command<MoveParams> = {
 
     if (targetFolder === undefined) {
       return 'No target folder specified'
+    }
+
+    for (const file of files) {
+      if (!file.isDirectory) continue
+      const src = file.relativePath.replace(/\\/g, '/').toLowerCase()
+      const dest = (targetFolder ?? '').replace(/\\/g, '/').toLowerCase()
+      if (dest === src || dest.startsWith(src + '/')) {
+        return `Cannot move "${file.name}" into itself or a subfolder`
+      }
     }
 
     // Block moving files checked out by others
@@ -1094,14 +1121,22 @@ export const copyCommand: Command<CopyParams> = {
       if (file.isDirectory) {
         const nestedFiles = getFilesInFolder(ctx.files, file.relativePath)
         const nestedWithDest: Array<{ source: LocalFile; destRelativePath: string }> = []
+        // When copying into a descendant of self, copyDirSync skips entries on the
+        // ancestor chain of the destination. Mirror that here so we don't register
+        // phantom expected paths / optimistic store rows.
+        const destLower = destRelativePath.replace(/\\/g, '/').toLowerCase()
+        let nestedFileCount = 0
         for (const nested of nestedFiles) {
+          const srcLower = nested.relativePath.replace(/\\/g, '/').toLowerCase()
+          if (srcLower === destLower || destLower.startsWith(srcLower + '/')) {
+            continue
+          }
           const nestedDestPath = nested.relativePath.replace(file.relativePath, destRelativePath)
           expectedPaths.push(nestedDestPath)
           nestedWithDest.push({ source: nested, destRelativePath: nestedDestPath })
+          if (!nested.isDirectory) nestedFileCount++
         }
         nestedFilesCache.set(file.path, nestedWithDest)
-        // Count only actual files (not directories) for progress
-        const nestedFileCount = nestedFiles.filter((f) => !f.isDirectory).length
         totalFilesToCopy += nestedFileCount
         expectedFileCounts.set(file.path, nestedFileCount)
         log.debug('[Copy]', 'Registered expected changes for folder copy', {

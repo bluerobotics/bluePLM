@@ -43,11 +43,10 @@ export async function handleMembers(addOutput: OutputFn): Promise<void> {
       return
     }
 
-    const lines = [`👥 Organization Members (${members.length}):`]
+    const lines = [`Organization Members (${members.length}):`]
     for (const u of members) {
-      const roleIcon = u.role === 'admin' ? '👑' : u.role === 'engineer' ? '🔧' : '👁️'
       const name = u.full_name || u.email
-      lines.push(`  ${roleIcon} ${name}`)
+      lines.push(`  ${name}`)
       lines.push(`     Email: ${u.email}`)
       lines.push(`     Role: ${u.role}`)
       if (u.last_sign_in) {
@@ -205,7 +204,7 @@ export async function handleTeams(addOutput: OutputFn): Promise<void> {
       return
     }
 
-    const lines = [`👥 Teams (${teams.length}):`]
+    const lines = [`Teams (${teams.length}):`]
     for (const team of teams) {
       const isDefault = team.is_default ? ' (default)' : ''
       lines.push(`  • ${team.name}${isDefault}`)
@@ -471,7 +470,7 @@ export async function handleTeamInfo(parsed: ParsedCommand, addOutput: OutputFn)
       return
     }
 
-    const lines = [`👥 Team: ${team.name}`]
+    const lines = [`Team: ${team.name}`]
     if (team.description) lines.push(`   Description: ${team.description}`)
     lines.push(`   Color: ${team.color}`)
     lines.push(`   Icon: ${team.icon}`)
@@ -527,7 +526,7 @@ export async function handleRoles(addOutput: OutputFn): Promise<void> {
       return
     }
 
-    const lines = [`🎭 Workflow Roles (${roles.length}):`]
+    const lines = [`Workflow Roles (${roles.length}):`]
     for (const role of roles) {
       lines.push(`  • ${role.name}`)
       if (role.description) {
@@ -772,7 +771,7 @@ export async function handleTitles(addOutput: OutputFn): Promise<void> {
       return
     }
 
-    const lines = [`💼 Job Titles (${titles.length}):`]
+    const lines = [`Job Titles (${titles.length}):`]
     for (const title of titles) {
       lines.push(`  • ${title.name}`)
       if (title.description) {
@@ -989,7 +988,7 @@ export async function handlePermissions(parsed: ParsedCommand, addOutput: Output
       return
     }
 
-    const lines = [`🔐 Permissions for ${team.name}:`]
+    const lines = [`Permissions for ${team.name}:`]
     for (const p of perms) {
       lines.push(`  ${p.resource}: ${p.actions.join(', ')}`)
     }
@@ -1179,7 +1178,7 @@ export async function handleUserInfo(parsed: ParsedCommand, addOutput: OutputFn)
     // Get permissions
     const { permissions } = await getUserPermissions(userData.id, userData.role)
 
-    const lines = [`👤 User: ${userData.full_name || userData.email}`]
+    const lines = [`User: ${userData.full_name || userData.email}`]
     lines.push(`   Email: ${userData.email}`)
     lines.push(`   Role: ${userData.role}`)
     if (userData.last_sign_in) {
@@ -1231,7 +1230,7 @@ export async function handlePendingInvites(addOutput: OutputFn): Promise<void> {
       return
     }
 
-    const lines = [`📧 Pending Invites (${pending.length}):`]
+    const lines = [`Pending Invites (${pending.length}):`]
     for (const p of pending) {
       const invited = p.invited_at ? new Date(p.invited_at).toLocaleDateString() : 'Unknown'
       lines.push(`  • ${p.email}`)

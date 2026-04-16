@@ -107,12 +107,13 @@ export function OnlineUsersIndicator({ orgLogoUrl }: OnlineUsersIndicatorProps) 
         >
           {/* Company logo */}
           <div className="relative">
-            <img
-              src={orgLogoUrl || ''}
-              alt={organization.name}
-              className="h-5 max-w-[80px] object-contain rounded"
-              style={{ opacity: orgLogoUrl ? 1 : 0 }}
-            />
+            {orgLogoUrl && (
+              <img
+                src={orgLogoUrl}
+                alt={organization.name}
+                className="h-5 max-w-[80px] object-contain rounded"
+              />
+            )}
 
             {/* Online count - visible but not like a notification */}
             {onlineUsers.length > 0 && (
@@ -159,7 +160,7 @@ export function OnlineUsersIndicator({ orgLogoUrl }: OnlineUsersIndicatorProps) 
                       <div className="relative flex-shrink-0">
                         {getEffectiveAvatarUrl(onlineUser) ? (
                           <img
-                            src={getEffectiveAvatarUrl(onlineUser) || ''}
+                            src={getEffectiveAvatarUrl(onlineUser)!}
                             alt={onlineUser.full_name || onlineUser.email}
                             className="w-8 h-8 rounded-full object-cover"
                             referrerPolicy="no-referrer"

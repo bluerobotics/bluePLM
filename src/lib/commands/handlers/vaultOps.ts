@@ -21,7 +21,7 @@ export function handleVault(addOutput: OutputFn): void {
     return
   }
 
-  const lines = ['📦 Connected Vaults:']
+  const lines = ['Connected Vaults:']
   for (const vault of connectedVaults) {
     const isActive = vault.id === activeVaultId
     const marker = isActive ? '▶' : ' '
@@ -72,7 +72,7 @@ export function handleCheckouts(
     return
   }
 
-  const lines = [`🔒 Checked Out Files (${checkedOutFiles.length}):`]
+  const lines = [`Checked Out Files (${checkedOutFiles.length}):`]
   for (const file of checkedOutFiles.slice(0, 20)) {
     const byMe = file.pdmData?.checked_out_by === user?.id
     const who = byMe

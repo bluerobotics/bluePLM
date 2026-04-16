@@ -74,7 +74,7 @@ export function handleFind(parsed: ParsedCommand, files: LocalFile[], addOutput:
     addOutput('info', `No matches for: ${query}`)
   } else {
     const lines = matches.slice(0, 20).map((f) => {
-      const icon = f.isDirectory ? '📁' : '📄'
+      const icon = f.isDirectory ? '[dir]' : '    '
       return `${icon} ${f.relativePath}`
     })
     if (matches.length > 20) {

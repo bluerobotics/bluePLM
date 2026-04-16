@@ -442,12 +442,13 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
               className="flex items-center gap-1.5 px-2 py-1 rounded text-sm text-plm-fg-dim"
               title={organization.name}
             >
-              <img
-                src={orgLogoUrl || ''}
-                alt={organization.name}
-                className="h-5 max-w-[80px] object-contain rounded-sm"
-                style={{ opacity: orgLogoUrl ? 1 : 0 }}
-              />
+              {orgLogoUrl && (
+                <img
+                  src={orgLogoUrl}
+                  alt={organization.name}
+                  className="h-5 max-w-[80px] object-contain rounded-sm"
+                />
+              )}
               {showOrgName && <span className="max-w-[120px] truncate">{organization.name}</span>}
             </div>
           )}
@@ -930,7 +931,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
                 {getEffectiveAvatarUrl(user) ? (
                   <>
                     <img
-                      src={getEffectiveAvatarUrl(user) || ''}
+                      src={getEffectiveAvatarUrl(user)!}
                       alt={user.full_name || user.email}
                       className={
                         showUserNameFinal
@@ -989,7 +990,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
                       {getEffectiveAvatarUrl(user) ? (
                         <>
                           <img
-                            src={getEffectiveAvatarUrl(user) || ''}
+                            src={getEffectiveAvatarUrl(user)!}
                             alt={user.full_name || user.email}
                             className="w-10 h-10 rounded-full object-cover"
                             referrerPolicy="no-referrer"

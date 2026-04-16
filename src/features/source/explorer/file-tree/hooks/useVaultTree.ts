@@ -513,7 +513,7 @@ export function useVaultTree() {
       // Fallback for folders not in metrics (shouldn't happen in normal use)
       // Uses deferredFiles for consistency with folderMetrics computation
       const filteredFiles = hideSolidworksTempFiles
-        ? deferredFiles.filter((f) => !f.name.startsWith('~$'))
+        ? deferredFiles.filter((f) => !f.name?.startsWith('~$'))
         : deferredFiles
       return isFolderSynced(folderPath, filteredFiles)
     },
@@ -619,8 +619,9 @@ export function useVaultTree() {
 
       for (const file of deferredFiles) {
         if (file.isDirectory) continue
+        if (!file.relativePath) continue
         if (folderPath && !file.relativePath.startsWith(prefix)) continue
-        if (hideSolidworksTempFiles && file.name.startsWith('~$')) continue
+        if (hideSolidworksTempFiles && file.name?.startsWith('~$')) continue
 
         if (file.diffStatus === 'added') added++
         else if (file.diffStatus === 'modified') modified++
@@ -653,11 +654,12 @@ export function useVaultTree() {
       return deferredFiles.filter(
         (f) =>
           !f.isDirectory &&
+          f.relativePath &&
           (!f.pdmData || f.diffStatus === 'added' || f.diffStatus === 'deleted_remote') &&
           f.diffStatus !== 'cloud' &&
           f.diffStatus !== 'ignored' &&
           f.relativePath.startsWith(folderPath + '/') &&
-          !(hideSolidworksTempFiles && f.name.startsWith('~$')),
+          !(hideSolidworksTempFiles && f.name?.startsWith('~$')),
       ).length
     },
     [folderMetrics, deferredFiles, hideSolidworksTempFiles],
@@ -684,18 +686,21 @@ export function useVaultTree() {
       const checkedOutByMeCount = deferredFiles.filter(
         (f) =>
           !f.isDirectory &&
+          f.relativePath &&
           f.pdmData?.checked_out_by === user?.id &&
           f.relativePath.startsWith(folderPath + '/'),
       ).length
       const totalCheckouts = deferredFiles.filter(
         (f) =>
           !f.isDirectory &&
+          f.relativePath &&
           f.pdmData?.checked_out_by &&
           f.relativePath.startsWith(folderPath + '/'),
       ).length
       const syncedCount = deferredFiles.filter(
         (f) =>
           !f.isDirectory &&
+          f.relativePath &&
           f.pdmData &&
           !f.pdmData.checked_out_by &&
           f.diffStatus !== 'cloud' &&

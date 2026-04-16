@@ -52,7 +52,7 @@ export function handleCancel(addOutput: OutputFn): void {
   } else {
     const ops = getActiveOperations()
     const count = cancelAllOperations()
-    addOutput('info', `⚠️ Cancelling ${count} operation${count > 1 ? 's' : ''}:`)
+    addOutput('info', `Cancelling ${count} operation${count > 1 ? 's' : ''}:`)
     ops.forEach((op) => addOutput('info', `  • ${op.description}`))
   }
 }
@@ -64,22 +64,22 @@ export function handleSettings(addOutput: OutputFn): void {
   const state = usePDMStore.getState()
 
   const lines = [
-    '⚙️ Settings:',
+    'Settings:',
     '',
-    '📐 Display:',
+    'Display:',
     `   viewMode: ${state.viewMode}`,
     `   iconSize: ${state.iconSize}`,
     `   listRowSize: ${state.listRowSize}`,
     `   lowercaseExtensions: ${state.lowercaseExtensions}`,
     `   cadPreviewMode: ${state.cadPreviewMode}`,
     '',
-    '🎨 Theme & Appearance:',
+    'Theme & Appearance:',
     `   theme: ${state.theme}`,
     `   language: ${state.language}`,
     `   autoApplySeasonalThemes: ${state.autoApplySeasonalThemes}`,
     `   activityBarMode: ${state.activityBarMode}`,
     '',
-    '📐 Layout:',
+    'Layout:',
     `   sidebarWidth: ${state.sidebarWidth}`,
     `   detailsPanelHeight: ${state.detailsPanelHeight}`,
     `   rightPanelWidth: ${state.rightPanelWidth}`,
@@ -88,21 +88,21 @@ export function handleSettings(addOutput: OutputFn): void {
     `   sortColumn: ${state.sortColumn}`,
     `   sortDirection: ${state.sortDirection}`,
     '',
-    '🔧 SolidWorks:',
+    'SolidWorks:',
     `   solidworksIntegrationEnabled: ${state.solidworksIntegrationEnabled}`,
     `   autoStartSolidworksService: ${state.autoStartSolidworksService}`,
     `   hideSolidworksTempFiles: ${state.hideSolidworksTempFiles}`,
     `   ignoreSolidworksTempFiles: ${state.ignoreSolidworksTempFiles}`,
     '',
-    '☁️ Auto-Download:',
+    'Auto-Download:',
     `   autoDownloadCloudFiles: ${state.autoDownloadCloudFiles}`,
     `   autoDownloadUpdates: ${state.autoDownloadUpdates}`,
     `   autoConnect: ${state.autoConnect}`,
     '',
-    '📝 Logging:',
+    'Logging:',
     `   logSharingEnabled: ${state.logSharingEnabled}`,
     '',
-    '🎄 Christmas Theme:',
+    'Christmas Theme:',
     `   christmasSnowOpacity: ${state.christmasSnowOpacity}`,
     `   christmasSnowDensity: ${state.christmasSnowDensity}`,
     `   christmasSnowSize: ${state.christmasSnowSize}`,
@@ -111,13 +111,13 @@ export function handleSettings(addOutput: OutputFn): void {
     `   christmasSleighEnabled: ${state.christmasSleighEnabled}`,
     `   christmasSleighDirection: ${state.christmasSleighDirection}`,
     '',
-    '🎃 Halloween Theme:',
+    'Halloween Theme:',
     `   halloweenSparksEnabled: ${state.halloweenSparksEnabled}`,
     `   halloweenSparksOpacity: ${state.halloweenSparksOpacity}`,
     `   halloweenSparksSpeed: ${state.halloweenSparksSpeed}`,
     `   halloweenGhostsOpacity: ${state.halloweenGhostsOpacity}`,
     '',
-    '🌧️ Weather Theme:',
+    'Weather Theme:',
     `   weatherEffectsEnabled: ${state.weatherEffectsEnabled}`,
     `   weatherRainOpacity: ${state.weatherRainOpacity}`,
     `   weatherRainDensity: ${state.weatherRainDensity}`,
@@ -386,7 +386,7 @@ function formatHelp(command?: string): string {
     // First try the registry
     const meta = getTerminalCommandMeta(command)
     if (meta) {
-      const lines = [`📖 ${meta.aliases[0].toUpperCase()}`, `   ${meta.description}`]
+      const lines = [`${meta.aliases[0].toUpperCase()}`, `   ${meta.description}`]
       if (meta.usage) lines.push(`   Usage: ${meta.usage}`)
       if (meta.examples?.length) {
         lines.push(`   Examples:`)
@@ -403,7 +403,7 @@ function formatHelp(command?: string): string {
     const cmd = commands.find((c) => c.id === command || c.aliases?.includes(command))
     if (cmd) {
       return [
-        `📖 ${cmd.name}`,
+        `${cmd.name}`,
         `   ${cmd.description}`,
         cmd.usage ? `   Usage: ${cmd.usage}` : '',
         cmd.aliases?.length ? `   Aliases: ${cmd.aliases.join(', ')}` : '',
@@ -417,7 +417,7 @@ function formatHelp(command?: string): string {
   // Return static help text for now - registry is used for command-specific help above
   // The static text is comprehensive and well-organized
   return `
-📖 BluePLM Terminal Commands
+BluePLM Terminal Commands
 
 PDM Operations:
   checkout <path>      Check out files (alias: co)
