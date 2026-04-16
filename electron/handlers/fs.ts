@@ -415,11 +415,11 @@ async function startFileWatcher(dirPath: string): Promise<void> {
   })
 
   fileWatcher.on('error', (error: unknown) => {
-    const error = error as NodeJS.ErrnoException
-    if (error.code === 'EPERM' || error.code === 'EACCES') {
+    const fsError = error as NodeJS.ErrnoException
+    if (fsError.code === 'EPERM' || fsError.code === 'EACCES') {
       return
     }
-    log('File watcher error: ' + String(error))
+    log('File watcher error: ' + String(fsError))
   })
 }
 
