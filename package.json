@@ -89,7 +89,8 @@
     },
     "files": [
       "dist/**/*",
-      "dist-electron/**/*"
+      "dist-electron/**/*",
+      "!**/node_modules/@napi-rs/**"
     ],
     "asarUnpack": [
       "resources/bin/**/*"
