@@ -94,19 +94,34 @@ async function hashFileAsync(filePath: string): Promise<{ hash: string; size: nu
 }
 
 /**
+ * Tracks vault roots whose orphaned `.download` temp files have already been swept
+ * in this process lifetime. The sweep is expensive (recursive walk of the entire
+ * vault) and only needs to run once per path — orphans only accumulate across
+ * process restarts, never during a single session.
+ */
+const sweptDownloadRoots = new Set<string>()
+
+/**
  * Remove orphaned .download temp files left behind by interrupted downloads.
  * Called on vault directory initialization to prevent stale temp files from accumulating.
+ *
+ * Async + non-blocking: uses `fs.promises` so the Electron main event loop is not
+ * stalled while walking large vaults. Safe to fire-and-forget from IPC handlers.
  */
-function cleanupOrphanedDownloads(dirPath: string): void {
+async function cleanupOrphanedDownloads(dirPath: string, isRoot = true): Promise<void> {
+  if (isRoot) {
+    if (sweptDownloadRoots.has(dirPath)) return
+    sweptDownloadRoots.add(dirPath)
+  }
   try {
-    const entries = fs.readdirSync(dirPath, { withFileTypes: true })
+    const entries = await fs.promises.readdir(dirPath, { withFileTypes: true })
     for (const entry of entries) {
       const fullPath = path.join(dirPath, entry.name)
       if (entry.isDirectory()) {
-        cleanupOrphanedDownloads(fullPath)
+        await cleanupOrphanedDownloads(fullPath, false)
       } else if (entry.name.endsWith('.download')) {
         try {
-          fs.unlinkSync(fullPath)
+          await fs.promises.unlink(fullPath)
           log(`Cleaned up orphaned download temp file: ${fullPath}`)
         } catch (unlinkErr) {
           logError('Failed to clean up orphaned download temp file', {
@@ -519,14 +534,23 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
   })
 
   ipcMain.handle('working-dir:set', async (_, newPath: string) => {
-    if (fs.existsSync(newPath)) {
-      workingDirectory = newPath
-      hashCache.clear()
-      cleanupOrphanedDownloads(newPath)
-      await startFileWatcher(newPath)
+    if (!fs.existsSync(newPath)) {
+      return { success: false, error: 'Path does not exist' }
+    }
+    // Dedupe at the source of truth: if this path is already active, skip the
+    // expensive cleanup scan and watcher restart. Renderer effects often re-fire
+    // during startup (auth, org, HMR, Strict Mode) and would otherwise queue
+    // redundant work behind the event loop.
+    if (workingDirectory === newPath) {
       return { success: true, path: workingDirectory }
     }
-    return { success: false, error: 'Path does not exist' }
+    workingDirectory = newPath
+    hashCache.clear()
+    // Fire-and-forget: orphan cleanup walks the whole vault and must not block
+    // the IPC response. Internal try/catch handles all failure modes.
+    void cleanupOrphanedDownloads(newPath)
+    await startFileWatcher(newPath)
+    return { success: true, path: workingDirectory }
   })
 
   ipcMain.handle('working-dir:create', async (_, newPath: string) => {
@@ -541,9 +565,15 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
         fs.mkdirSync(expandedPath, { recursive: true })
         log('Created working directory: ' + expandedPath)
       }
+      // Dedupe: avoid re-running cleanup + watcher restart when the renderer
+      // re-asserts the same path (e.g. Strict Mode double-mount, HMR).
+      if (workingDirectory === expandedPath) {
+        return { success: true, path: workingDirectory }
+      }
       workingDirectory = expandedPath
       hashCache.clear()
-      cleanupOrphanedDownloads(expandedPath)
+      // Fire-and-forget: see working-dir:set handler for rationale.
+      void cleanupOrphanedDownloads(expandedPath)
       await startFileWatcher(expandedPath)
       return { success: true, path: workingDirectory }
     } catch (error) {

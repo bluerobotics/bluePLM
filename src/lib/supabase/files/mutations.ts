@@ -838,7 +838,7 @@ export async function updateFolderPath(
     p_old_folder_path: oldFolderPath,
     p_new_folder_path: newFolderPath,
     p_user_id: user.id,
-    p_vault_id: vaultId ?? null,
+    p_vault_id: vaultId,
   })
 
   if (error) {

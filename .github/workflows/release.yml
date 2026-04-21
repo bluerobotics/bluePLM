@@ -54,7 +54,7 @@ jobs:
           name: windows-build
           path: |
             release/*.exe
-            release/latest.yml
+            release/*.yml
           if-no-files-found: error
 
   build-macos:
@@ -85,7 +85,7 @@ jobs:
           path: |
             release/*.dmg
             release/*.zip
-            release/latest-mac.yml
+            release/*.yml
           if-no-files-found: error
 
   build-api:
@@ -152,6 +152,16 @@ jobs:
         id: get_version
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
+      - name: Detect prerelease
+        id: prerelease
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          if [[ "$TAG" == *-* ]]; then
+            echo "IS_PRERELEASE=true" >> $GITHUB_OUTPUT
+          else
+            echo "IS_PRERELEASE=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Extract changelog for version
         id: changelog
         run: |
@@ -167,7 +177,7 @@ jobs:
           name: ${{ steps.get_version.outputs.VERSION }}
           body: ${{ steps.changelog.outputs.CHANGELOG }}
           draft: false
-          prerelease: false
+          prerelease: ${{ steps.prerelease.outputs.IS_PRERELEASE }}
           files: |
             dist/windows/*
             dist/macos/*
