@@ -1,2 +1,8 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Pin line endings so Windows checkouts don't cause phantom diffs on release commits
+*.yml text eol=lf
+*.yaml text eol=lf
+*.cs text eol=lf
+*.sh text eol=lf
