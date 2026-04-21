@@ -862,7 +862,7 @@ namespace BluePLM.SolidWorksService
             if (string.IsNullOrWhiteSpace(value))
                 return false;
 
-            return value.IndexOf("PRP:", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            return value!.IndexOf("PRP:", StringComparison.OrdinalIgnoreCase) >= 0 ||
                    value.IndexOf("$PRP:", StringComparison.OrdinalIgnoreCase) >= 0 ||
                    value.IndexOf("SW-PRP:", StringComparison.OrdinalIgnoreCase) >= 0;
         }
@@ -964,7 +964,7 @@ namespace BluePLM.SolidWorksService
                                 if (!string.IsNullOrEmpty(value) && !string.IsNullOrEmpty(name))
                                 {
                                     Console.Error.WriteLine($"[DM] Property '{name}' = '{value}'");
-                                    props[name] = value;
+                                    props[name] = value!;
                                 }
                                 else
                                 {
@@ -1109,7 +1109,7 @@ namespace BluePLM.SolidWorksService
                                         
                                         if (!string.IsNullOrEmpty(value) && !string.IsNullOrEmpty(name))
                                         {
-                                            props[name] = value;
+                                            props[name] = value!;
                                             Console.Error.WriteLine($"[DM] Config property '{name}' = '{value}'");
                                         }
                                     }

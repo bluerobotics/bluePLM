@@ -389,7 +389,7 @@ namespace BluePLM.SolidWorksService
         {
             // If SolidWorks has this file open, use full SW API to avoid DM API conflict
             // (DM API accessing a file open in SW can cause SW to close the file)
-            if (_swApi != null && !string.IsNullOrEmpty(filePath) && _swApi.IsFileOpenInSolidWorks(filePath))
+            if (_swApi != null && !string.IsNullOrEmpty(filePath) && _swApi.IsFileOpenInSolidWorks(filePath!))
             {
                 Console.Error.WriteLine($"[Service] File is open in SolidWorks, using SW API: {Path.GetFileName(filePath)}");
                 return _swApi.GetBillOfMaterials(filePath, 
@@ -424,7 +424,7 @@ namespace BluePLM.SolidWorksService
             // This prevents loading component files into SW when reading assembly properties
             // (Opening an assembly via OpenDoc6 loads ALL component references, which stay orphaned
             // in SW session even after closing the main assembly)
-            if (_swApi != null && !string.IsNullOrEmpty(filePath) && _swApi.IsFileOpenInSolidWorks(filePath))
+            if (_swApi != null && !string.IsNullOrEmpty(filePath) && _swApi.IsFileOpenInSolidWorks(filePath!))
             {
                 Console.Error.WriteLine($"[Service] File is open in SolidWorks, using SW API: {Path.GetFileName(filePath)}");
                 return _swApi.GetCustomProperties(filePath, command["configuration"]?.ToString());
@@ -475,7 +475,7 @@ namespace BluePLM.SolidWorksService
         {
             // If SolidWorks has this file open, use full SW API to avoid DM API conflict
             // (DM API accessing a file open in SW can cause SW to close the file)
-            if (_swApi != null && !string.IsNullOrEmpty(filePath) && _swApi.IsFileOpenInSolidWorks(filePath))
+            if (_swApi != null && !string.IsNullOrEmpty(filePath) && _swApi.IsFileOpenInSolidWorks(filePath!))
             {
                 Console.Error.WriteLine($"[Service] File is open in SolidWorks, using SW API: {Path.GetFileName(filePath)}");
                 return _swApi.GetConfigurations(filePath);
@@ -507,7 +507,7 @@ namespace BluePLM.SolidWorksService
         {
             // If SolidWorks has this file open, use full SW API to avoid DM API conflict
             // (DM API accessing a file open in SW can cause SW to close the file)
-            if (_swApi != null && !string.IsNullOrEmpty(filePath) && _swApi.IsFileOpenInSolidWorks(filePath))
+            if (_swApi != null && !string.IsNullOrEmpty(filePath) && _swApi.IsFileOpenInSolidWorks(filePath!))
             {
                 Console.Error.WriteLine($"[Service] File is open in SolidWorks, using SW API: {Path.GetFileName(filePath)}");
                 return _swApi.GetExternalReferences(filePath);

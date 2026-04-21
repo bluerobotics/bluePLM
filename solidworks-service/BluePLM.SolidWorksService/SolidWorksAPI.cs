@@ -774,14 +774,14 @@ namespace BluePLM.SolidWorksService
                             
                             if (!string.IsNullOrEmpty(modelName))
                             {
-                                if (!modelConfigs.ContainsKey(modelName))
+                                if (!modelConfigs.ContainsKey(modelName!))
                                 {
-                                    modelConfigs[modelName] = new List<string>();
+                                    modelConfigs[modelName!] = new List<string>();
                                 }
                                 // Add unique configurations per model
-                                if (!string.IsNullOrEmpty(configName) && !modelConfigs[modelName].Contains(configName))
+                                if (!string.IsNullOrEmpty(configName) && !modelConfigs[modelName!].Contains(configName!))
                                 {
-                                    modelConfigs[modelName].Add(configName);
+                                    modelConfigs[modelName!].Add(configName!);
                                 }
                             }
                             
@@ -1310,7 +1310,7 @@ namespace BluePLM.SolidWorksService
                     var fileName = FormatExportFilename(filenamePattern!, baseName, "", props, ".pdf", pdmMetadata, isDrawingExport: true);
                     finalOutputPath = Path.Combine(outputDir, fileName);
                 }
-                else if (!string.IsNullOrEmpty(outputPath) && outputPath.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+                else if (!string.IsNullOrEmpty(outputPath) && outputPath!.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
                 {
                     // outputPath is a full file path
                     finalOutputPath = outputPath;
