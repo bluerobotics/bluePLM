@@ -4,7 +4,7 @@ All notable changes to BluePLM will be documented in this file.
 
 ![1774273238438](image/CHANGELOG/1774273238438.png)
 
-## [3.19.0] - Unreleased
+## [3.19.0] - 2026-05-14
 
 ### Changed
 - **Top search bar defaults to current folder** — placeholder now reads `Search in <FolderName>...` (dim) and results are restricted to files under the current folder. A new "Scope" section at the top of the filter dropdown lets you switch between **Current folder** and **All folders** without leaving the dropdown that already lives on the top bar.
