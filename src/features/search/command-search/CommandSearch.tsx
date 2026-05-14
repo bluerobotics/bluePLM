@@ -27,6 +27,7 @@ export function CommandSearch({ maxWidth = 'max-w-lg' }: CommandSearchProps) {
     recentSearches,
     clearRecentSearches,
     setSearchQuery,
+    currentFolder,
     setCurrentFolder,
     setSelectedFiles,
     expandedFolders,
@@ -39,6 +40,7 @@ export function CommandSearch({ maxWidth = 'max-w-lg' }: CommandSearchProps) {
       recentSearches: s.recentSearches,
       clearRecentSearches: s.clearRecentSearches,
       setSearchQuery: s.setSearchQuery,
+      currentFolder: s.currentFolder,
       setCurrentFolder: s.setCurrentFolder,
       setSelectedFiles: s.setSelectedFiles,
       expandedFolders: s.expandedFolders,
@@ -52,6 +54,8 @@ export function CommandSearch({ maxWidth = 'max-w-lg' }: CommandSearchProps) {
     setLocalQuery,
     activeFilter,
     setActiveFilter,
+    searchScope,
+    setSearchScope,
     isOpen,
     setIsOpen,
     showFilters,
@@ -70,7 +74,12 @@ export function CommandSearch({ maxWidth = 'max-w-lg' }: CommandSearchProps) {
     parsedQuery.searchTerm,
     parsedQuery.filter,
   )
-  const { searchResults } = useLocalFileSearch(parsedQuery.searchTerm, parsedQuery.filter)
+  const { searchResults } = useLocalFileSearch(
+    parsedQuery.searchTerm,
+    parsedQuery.filter,
+    currentFolder,
+    searchScope,
+  )
 
   // Refs
   const inputRef = useRef<HTMLInputElement>(null)
@@ -263,6 +272,20 @@ export function CommandSearch({ maxWidth = 'max-w-lg' }: CommandSearchProps) {
   const currentFilter = getCurrentFilter(parsedQuery.filter)
   const availableFilters = getAvailableFilters(isGdriveConnected)
 
+  const folderName = currentFolder
+    ? currentFolder.split(/[/\\]/).pop() || 'Root'
+    : 'Root'
+  const placeholder =
+    searchScope === 'current-folder' ? `Search in ${folderName}...` : 'Search everything...'
+
+  const handleScopeChange = useCallback(
+    (scope: typeof searchScope) => {
+      setSearchScope(scope)
+      inputRef.current?.focus()
+    },
+    [setSearchScope],
+  )
+
   return (
     <div ref={containerRef} className={`relative w-full ${maxWidth}`}>
       {/* Search Input Row */}
@@ -277,7 +300,7 @@ export function CommandSearch({ maxWidth = 'max-w-lg' }: CommandSearchProps) {
           onChange={handleInputChange}
           onFocus={() => setIsOpen(true)}
           onKeyDown={handleKeyDown}
-          placeholder={currentFilter.description}
+          placeholder={placeholder}
           inputRef={inputRef}
           onClear={handleClear}
         />
@@ -289,6 +312,8 @@ export function CommandSearch({ maxWidth = 'max-w-lg' }: CommandSearchProps) {
           filters={availableFilters}
           currentFilter={parsedQuery.filter}
           onSelect={handleFilterSelect}
+          searchScope={searchScope}
+          onScopeChange={handleScopeChange}
         />
       )}
 
@@ -296,7 +321,6 @@ export function CommandSearch({ maxWidth = 'max-w-lg' }: CommandSearchProps) {
       <SearchResults
         isOpen={isOpen}
         showFilters={showFilters}
-        filters={availableFilters}
         currentFilter={parsedQuery.filter}
         localQuery={localQuery}
         searchResults={searchResults}
@@ -305,8 +329,6 @@ export function CommandSearch({ maxWidth = 'max-w-lg' }: CommandSearchProps) {
         isGdriveConnected={isGdriveConnected}
         recentSearches={recentSearches}
         highlightedIndex={highlightedIndex}
-        onFilterSelect={handleFilterSelect}
-        onShowMoreFilters={() => setShowFilters(true)}
         onSelectLocalResult={handleSelectResult}
         onSelectDriveResult={handleSelectDriveResult}
         onOpenFileLocation={handleOpenFileLocation}

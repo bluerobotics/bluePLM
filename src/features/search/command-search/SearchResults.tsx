@@ -1,6 +1,5 @@
 import { HardDrive, Loader2 } from 'lucide-react'
 import type { SearchResultsProps } from './types'
-import { QuickFilters } from './QuickFilters'
 import { LocalFileResult } from './LocalFileResult'
 import { DriveFileResult } from './DriveFileResult'
 import { RecentSearches } from './RecentSearches'
@@ -13,7 +12,6 @@ import { KeyboardHints } from './KeyboardHints'
 export function SearchResults({
   isOpen,
   showFilters,
-  filters,
   currentFilter,
   localQuery,
   searchResults,
@@ -22,8 +20,6 @@ export function SearchResults({
   isGdriveConnected,
   recentSearches,
   highlightedIndex,
-  onFilterSelect,
-  onShowMoreFilters,
   onSelectLocalResult,
   onSelectDriveResult,
   onOpenFileLocation,
@@ -43,22 +39,11 @@ export function SearchResults({
   const showNoResults = hasQuery && !hasLocalResults && !hasDriveResults && !isDriveSearching
   const showEmptyQuery = !hasQuery && !hasRecentSearches
 
-  // Quick filters - show limited number
-  const quickFilters = filters.slice(0, isGdriveConnected ? 6 : 5)
-
   return (
     <div
       ref={dropdownRef}
       className="absolute top-full left-0 right-0 mt-1 bg-plm-bg border border-plm-border rounded-lg shadow-2xl z-[60] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150"
     >
-      {/* Quick filters row */}
-      <QuickFilters
-        filters={quickFilters}
-        currentFilter={currentFilter}
-        onSelect={onFilterSelect}
-        onShowMore={onShowMoreFilters}
-      />
-
       <div className="max-h-80 overflow-y-auto">
         {/* Local File Results */}
         {hasQuery && hasLocalResults && (

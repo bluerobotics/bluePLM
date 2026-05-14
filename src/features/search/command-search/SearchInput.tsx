@@ -1,4 +1,4 @@
-import { Search, X, Command } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 import type { SearchInputProps } from './types'
 
 /**
@@ -27,24 +27,17 @@ export function SearchInput({
         onFocus={onFocus}
         onKeyDown={onKeyDown}
         placeholder={placeholder}
-        className="w-full h-8 pl-9 pr-16 bg-plm-bg-lighter border border-plm-border rounded-full text-sm text-plm-fg placeholder:text-plm-fg-muted focus:outline-none focus:border-plm-accent focus:ring-1 focus:ring-plm-accent/50 transition-colors"
+        className="w-full h-8 pl-9 pr-9 bg-plm-bg-lighter border border-plm-border rounded-full text-sm text-plm-fg placeholder:text-plm-fg-muted focus:outline-none focus:border-plm-accent focus:ring-1 focus:ring-plm-accent/50 transition-colors"
       />
 
-      {/* Right side: clear button + keyboard shortcut */}
-      <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-        {value && (
-          <button onClick={onClear} className="p-0.5 text-plm-fg-muted hover:text-plm-fg rounded">
-            <X size={14} />
-          </button>
-        )}
-        {!value && (
-          <div className="flex items-center gap-0.5 text-[10px] text-plm-fg-muted">
-            <kbd className="px-1 py-0.5 bg-plm-bg-light border border-plm-border rounded text-[9px] font-mono">
-              <Command size={8} className="inline" />K
-            </kbd>
-          </div>
-        )}
-      </div>
+      {value && (
+        <button
+          onClick={onClear}
+          className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-plm-fg-muted hover:text-plm-fg rounded"
+        >
+          <X size={14} />
+        </button>
+      )}
     </div>
   )
 }

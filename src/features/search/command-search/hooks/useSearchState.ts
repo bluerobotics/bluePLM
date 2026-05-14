@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { logSearch } from '@/lib/userActionLogger'
-import type { SearchFilter, ParsedQuery } from '../types'
+import type { SearchFilter, SearchScope, ParsedQuery } from '../types'
 import { parseQuery } from '../utils'
 
 /**
@@ -13,6 +13,7 @@ export function useSearchState() {
   const [isOpen, setIsOpen] = useState(false)
   const [localQuery, setLocalQuery] = useState(searchQuery || '')
   const [activeFilter, setActiveFilter] = useState<SearchFilter>('all')
+  const [searchScope, setSearchScope] = useState<SearchScope>('current-folder')
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
   const [showFilters, setShowFilters] = useState(false)
 
@@ -64,6 +65,8 @@ export function useSearchState() {
     setLocalQuery,
     activeFilter,
     setActiveFilter,
+    searchScope,
+    setSearchScope,
     isOpen,
     setIsOpen,
     showFilters,

@@ -24,6 +24,9 @@ export type SearchFilter =
   | 'state'
   | 'drive'
 
+// Search scope - where to search
+export type SearchScope = 'current-folder' | 'all-folders'
+
 export interface FilterOption {
   id: SearchFilter
   label: string
@@ -53,13 +56,8 @@ export interface FiltersDropdownProps {
   filters: FilterOption[]
   currentFilter: SearchFilter
   onSelect: (filter: SearchFilter) => void
-}
-
-export interface QuickFiltersProps {
-  filters: FilterOption[]
-  currentFilter: SearchFilter
-  onSelect: (filter: SearchFilter) => void
-  onShowMore: () => void
+  searchScope: SearchScope
+  onScopeChange: (scope: SearchScope) => void
 }
 
 export interface SearchInputProps {
@@ -104,7 +102,6 @@ export interface EmptyStateProps {
 export interface SearchResultsProps {
   isOpen: boolean
   showFilters: boolean
-  filters: FilterOption[]
   currentFilter: SearchFilter
   localQuery: string
   searchResults: LocalFile[]
@@ -113,8 +110,6 @@ export interface SearchResultsProps {
   isGdriveConnected: boolean
   recentSearches?: string[]
   highlightedIndex: number
-  onFilterSelect: (filter: SearchFilter) => void
-  onShowMoreFilters: () => void
   onSelectLocalResult: (file: LocalFile) => void
   onSelectDriveResult: (file: GoogleDriveFileResult) => void
   onOpenFileLocation: (file: LocalFile) => void

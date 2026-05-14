@@ -1,11 +1,16 @@
 import { useMemo } from 'react'
 import { usePDMStore, LocalFile } from '@/stores/pdmStore'
-import type { SearchFilter } from '../types'
+import type { SearchFilter, SearchScope } from '../types'
 
 /**
  * Hook for searching local files
  */
-export function useLocalFileSearch(searchTerm: string, filter: SearchFilter) {
+export function useLocalFileSearch(
+  searchTerm: string,
+  filter: SearchFilter,
+  currentFolder: string,
+  searchScope: SearchScope,
+) {
   const { files } = usePDMStore()
 
   // Filter files based on current query and filter
@@ -16,7 +21,15 @@ export function useLocalFileSearch(searchTerm: string, filter: SearchFilter) {
 
     const term = searchTerm.toLowerCase()
 
-    return files
+    const inFolder = (f: LocalFile) =>
+      currentFolder === '' ||
+      f.relativePath === currentFolder ||
+      f.relativePath.startsWith(currentFolder + '/')
+
+    const scopedFiles =
+      searchScope === 'current-folder' ? files.filter(inFolder) : files
+
+    return scopedFiles
       .filter((file: LocalFile) => {
         switch (filter) {
           case 'files':
@@ -54,7 +67,7 @@ export function useLocalFileSearch(searchTerm: string, filter: SearchFilter) {
         }
       })
       .slice(0, 20) // Limit results
-  }, [searchTerm, filter, files])
+  }, [searchTerm, filter, files, currentFolder, searchScope])
 
   return { searchResults }
 }

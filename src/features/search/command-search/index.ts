@@ -13,7 +13,6 @@ export type {
 // Sub-components (for advanced customization)
 export { FilterButton } from './FilterButton'
 export { FiltersDropdown } from './FiltersDropdown'
-export { QuickFilters } from './QuickFilters'
 export { SearchInput } from './SearchInput'
 export { SearchResults } from './SearchResults'
 export { LocalFileResult } from './LocalFileResult'

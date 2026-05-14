@@ -6,8 +6,13 @@ All notable changes to BluePLM will be documented in this file.
 
 ## [3.19.0] - Unreleased
 
+### Changed
+- **Top search bar defaults to current folder** — placeholder now reads `Search in <FolderName>...` (dim) and results are restricted to files under the current folder. A new "Scope" section at the top of the filter dropdown lets you switch between **Current folder** and **All folders** without leaving the dropdown that already lives on the top bar.
+
 ### Removed
 - **System stats topbar widget** — the CPU/Memory/Disk/Network widget in the title bar polled `system:get-stats` every 2 s, and on Windows the `systeminformation` package spawned a fresh `powershell.exe` per WMI/CIM query (multiple per poll). On slower machines those spawns stacked up faster than they could exit, producing 8–10 `powershell.exe` children at ~10% CPU each and starving the main process (which also caused the SolidWorks watchdog `tasklist`/`cmd.exe` `ETIMEDOUT` errors). Removed the widget, the `system:get-stats` IPC handler, the `getSystemStats` preload bridge, and the `systeminformation` dependency. Dev-tools telemetry now reports FPS only (CPU/memory/network graphs and `QuickStatCard`s removed alongside).
+- **⌘K hint in the search input** — the inline keyboard-shortcut badge has been removed (the Ctrl/⌘+K global shortcut still focuses the search bar).
+- **Duplicate filter row in the search dropdown** — the `QuickFilters` row that mirrored the filter button on the top bar has been removed; filters are now configured in one place (the filter button's dropdown).
 
 ---
 
