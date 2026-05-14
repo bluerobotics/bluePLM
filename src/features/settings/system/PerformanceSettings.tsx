@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Gauge, Cpu, MemoryStick, Wifi, Box, Trash2, ExternalLink } from 'lucide-react'
+import { Gauge, Trash2, ExternalLink } from 'lucide-react'
 import { telemetry, TelemetrySnapshot, TelemetryConfig } from '@/lib/telemetry'
 import { TelemetryDashboard } from '@/features/dev-tools/telemetry'
-import { formatBytes } from '@/lib/utils/format'
 
 export function PerformanceSettings() {
   const [config, setConfig] = useState<TelemetryConfig>(telemetry.getConfig())
@@ -47,47 +46,13 @@ export function PerformanceSettings() {
       </div>
 
       {/* Quick Stats Bar */}
-      <div className="grid grid-cols-5 gap-3">
+      <div className="grid grid-cols-1 gap-3">
         <QuickStatCard
           icon={<Gauge size={16} />}
           label="FPS"
           value={latestSnapshot?.fps ?? 0}
           format={(v) => `${v}`}
           color="text-emerald-400"
-        />
-        <QuickStatCard
-          icon={<Cpu size={16} />}
-          label="CPU"
-          value={latestSnapshot?.cpu ?? 0}
-          format={(v) => `${v}%`}
-          color="text-blue-400"
-        />
-        <QuickStatCard
-          icon={<MemoryStick size={16} />}
-          label="Memory"
-          value={latestSnapshot?.memory.system ?? 0}
-          format={(v) => `${v}%`}
-          color="text-purple-400"
-        />
-        <QuickStatCard
-          icon={<Box size={16} />}
-          label="App Memory"
-          value={latestSnapshot?.memory.app.rss ?? 0}
-          format={formatBytes}
-          color="text-amber-400"
-        />
-        <QuickStatCard
-          icon={<Wifi size={16} />}
-          label="Network"
-          value={(latestSnapshot?.network.rxSpeed ?? 0) + (latestSnapshot?.network.txSpeed ?? 0)}
-          format={(v) =>
-            v < 1024
-              ? `${v} B/s`
-              : v < 1024 * 1024
-                ? `${(v / 1024).toFixed(0)} KB/s`
-                : `${(v / 1024 / 1024).toFixed(1)} MB/s`
-          }
-          color="text-cyan-400"
         />
       </div>
 

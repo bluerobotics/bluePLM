@@ -21,7 +21,6 @@ import {
   SlidersHorizontal,
   Gauge,
   Users,
-  Activity,
   User,
   Layers,
 } from 'lucide-react'
@@ -39,7 +38,6 @@ import {
 } from '@/lib/supabase'
 import { getInitials, getEffectiveAvatarUrl } from '@/lib/utils'
 import { logAuth } from '@/lib/userActionLogger'
-import { SystemStats } from '@/components/shared/SystemStats'
 import { OnlineUsersIndicator } from '@/components/shared/OnlineUsers'
 import { getMachineId } from '@/lib/backup'
 import { log } from '@/lib/logger'
@@ -150,7 +148,6 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
 
   // Responsive breakpoints for progressive collapse (in order of priority)
   // Elements condense before hiding to maximize space efficiency
-  const cpuCondensed = menuBarWidth < 1100 // CPU: full -> single dot
   const zoomCondensed = menuBarWidth < 1000 // Zoom: percentage -> icon only
   const showUserNameByWidth = menuBarWidth > 800
   const showUserNameFinal = showUserNameByWidth && topbarConfig.showUserName // Both width and config must allow it
@@ -536,17 +533,6 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
             </div>
           )}
 
-          {/* System Stats - condenses based on user preference or screen width */}
-          {!minimal && topbarConfig.showSystemStats && (
-            <div className="flex items-center titlebar-no-drag">
-              <SystemStats
-                condensed={cpuCondensed}
-                forceExpanded={topbarConfig.systemStatsExpanded}
-              />
-              {!cpuCondensed && <div className="w-px h-4 bg-plm-border" />}
-            </div>
-          )}
-
           {/* Zoom dropdown - condenses to icon only when narrow */}
           {!minimal && topbarConfig.showZoom && (
             <div className="relative titlebar-no-drag" ref={zoomDropdownRef}>
@@ -729,56 +715,6 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
                       >
                         <div
                           className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform ${topbarConfig.showFps ? 'translate-x-4' : 'translate-x-0.5'}`}
-                        />
-                      </div>
-                    </button>
-
-                    {/* System Stats */}
-                    <button
-                      onClick={() =>
-                        setTopbarConfig({ showSystemStats: !topbarConfig.showSystemStats })
-                      }
-                      className="w-full flex items-center gap-2.5 px-3 py-1.5 text-sm text-plm-fg hover:bg-plm-bg-lighter transition-colors"
-                    >
-                      <span className="text-plm-fg-muted">
-                        <Activity size={14} />
-                      </span>
-                      <span className="flex-1 text-left">System Stats</span>
-                      <div
-                        className={`w-8 h-4 rounded-full transition-colors relative ${topbarConfig.showSystemStats ? 'bg-plm-accent' : 'bg-plm-border'}`}
-                      >
-                        <div
-                          className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform ${topbarConfig.showSystemStats ? 'translate-x-4' : 'translate-x-0.5'}`}
-                        />
-                      </div>
-                    </button>
-                    {/* Sub-option: Expanded Stats */}
-                    <button
-                      onClick={() =>
-                        topbarConfig.showSystemStats &&
-                        setTopbarConfig({ systemStatsExpanded: !topbarConfig.systemStatsExpanded })
-                      }
-                      className={`w-full flex items-center gap-2.5 pl-8 pr-3 py-1 text-xs transition-colors ${
-                        topbarConfig.showSystemStats
-                          ? 'text-plm-fg hover:bg-plm-bg-lighter'
-                          : 'text-plm-fg-muted/40 cursor-not-allowed'
-                      }`}
-                      title="Toggle between minimal (dots) and expanded (full stats) view"
-                    >
-                      <span className="flex-1 text-left">Expanded</span>
-                      <div
-                        className={`w-7 h-3.5 rounded-full transition-colors relative ${
-                          !topbarConfig.showSystemStats
-                            ? 'bg-plm-border/30'
-                            : topbarConfig.systemStatsExpanded
-                              ? 'bg-plm-accent'
-                              : 'bg-plm-border'
-                        }`}
-                      >
-                        <div
-                          className={`absolute top-0.5 w-2.5 h-2.5 rounded-full shadow-sm transition-transform ${
-                            topbarConfig.showSystemStats ? 'bg-white' : 'bg-white/50'
-                          } ${topbarConfig.systemStatsExpanded ? 'translate-x-3.5' : 'translate-x-0.5'}`}
                         />
                       </div>
                     </button>

@@ -3,7 +3,6 @@ import { app, ipcMain, BrowserWindow, clipboard } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import crypto from 'crypto'
-import * as si from 'systeminformation'
 
 // Module state
 let mainWindow: BrowserWindow | null = null
@@ -346,67 +345,6 @@ export function registerSystemHandlers(
     return { success: true }
   })
 
-  // System stats - returns data directly (no wrapper) for component compatibility
-  ipcMain.handle('system:get-stats', async () => {
-    try {
-      const [cpuLoad, mem, diskLayout, netStats] = await Promise.all([
-        si.currentLoad(),
-        si.mem(),
-        si.fsSize(),
-        si.networkStats(),
-      ])
-
-      const cpuUsage = Math.round(cpuLoad.currentLoad)
-      const coreUsages = cpuLoad.cpus.map((c) => Math.round(c.load))
-      const memoryUsed = mem.used
-      const memoryTotal = mem.total
-      const memoryPercent = Math.round((memoryUsed / memoryTotal) * 100)
-
-      let diskUsed = 0
-      let diskTotal = 0
-      let diskPercent = 0
-
-      if (diskLayout.length > 0) {
-        const mainDisk = diskLayout[0]
-        diskUsed = mainDisk.used
-        diskTotal = mainDisk.size
-        diskPercent = Math.round(mainDisk.use)
-      }
-
-      // Network stats - sum all interfaces
-      let rxSpeed = 0
-      let txSpeed = 0
-      for (const iface of netStats) {
-        rxSpeed += iface.rx_sec || 0
-        txSpeed += iface.tx_sec || 0
-      }
-
-      return {
-        cpu: {
-          usage: cpuUsage,
-          cores: coreUsages,
-        },
-        memory: {
-          used: memoryUsed,
-          total: memoryTotal,
-          percent: memoryPercent,
-        },
-        disk: {
-          used: diskUsed,
-          total: diskTotal,
-          percent: diskPercent,
-        },
-        network: {
-          rxSpeed,
-          txSpeed,
-        },
-      }
-    } catch (error) {
-      console.error('[System] Failed to get stats:', error)
-      return null
-    }
-  })
-
   // Window state handlers
   ipcMain.handle('window:is-maximized', () => mainWindow?.isMaximized())
 
@@ -446,7 +384,6 @@ export function unregisterSystemHandlers(): void {
     'app:get-window-size',
     'app:set-window-size',
     'app:reset-window-size',
-    'system:get-stats',
     'window:is-maximized',
   ]
 

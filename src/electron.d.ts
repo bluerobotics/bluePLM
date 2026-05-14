@@ -36,33 +36,6 @@ interface BackupLogEntry {
   }
 }
 
-// System stats result type
-interface SystemStats {
-  cpu: {
-    usage: number
-    cores: number[]
-  }
-  memory: {
-    used: number
-    total: number
-    percent: number
-  }
-  network: {
-    rxSpeed: number
-    txSpeed: number
-  }
-  disk: {
-    used: number
-    total: number
-    percent: number
-  }
-  app?: {
-    heapUsed: number
-    heapTotal: number
-    rss: number // Resident Set Size - total memory allocated by app
-  }
-}
-
 interface PathResult {
   success: boolean
   path?: string
@@ -220,9 +193,6 @@ declare global {
         title: string,
         customData?: Record<string, unknown>,
       ) => Promise<{ success: boolean; error?: string }>
-
-      // System stats
-      getSystemStats: () => Promise<SystemStats | null>
 
       // OAuth
       openOAuthWindow: (

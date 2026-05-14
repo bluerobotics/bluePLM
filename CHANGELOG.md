@@ -4,6 +4,13 @@ All notable changes to BluePLM will be documented in this file.
 
 ![1774273238438](image/CHANGELOG/1774273238438.png)
 
+## [3.19.0] - Unreleased
+
+### Removed
+- **System stats topbar widget** — the CPU/Memory/Disk/Network widget in the title bar polled `system:get-stats` every 2 s, and on Windows the `systeminformation` package spawned a fresh `powershell.exe` per WMI/CIM query (multiple per poll). On slower machines those spawns stacked up faster than they could exit, producing 8–10 `powershell.exe` children at ~10% CPU each and starving the main process (which also caused the SolidWorks watchdog `tasklist`/`cmd.exe` `ETIMEDOUT` errors). Removed the widget, the `system:get-stats` IPC handler, the `getSystemStats` preload bridge, and the `systeminformation` dependency. Dev-tools telemetry now reports FPS only (CPU/memory/network graphs and `QuickStatCard`s removed alongside).
+
+---
+
 ## [3.18.0] - 2026-04-21
 
 ### Security

@@ -51,7 +51,6 @@ export type {
 export { OnlineUsersIndicator } from './OnlineUsers'
 export { ImpersonationBanner } from './ImpersonationBanner'
 export { LanguageSelector } from './LanguageSelector'
-export { SystemStats } from './SystemStats'
 
 // Context Menu - now in feature module
 // Import from '@/features/source/context-menu' instead

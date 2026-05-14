@@ -632,8 +632,6 @@ export interface SettingsSlice {
   cadPreviewMode: 'thumbnail' | 'edrawings'
   topbarConfig: {
     showFps: boolean
-    showSystemStats: boolean
-    systemStatsExpanded: boolean
     showZoom: boolean
     showOrg: boolean
     showSearch: boolean

@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { telemetry, TelemetrySnapshot } from '@/lib/telemetry'
 import { Play, Pause, Trash2, Settings2 } from 'lucide-react'
-import { formatBytes, formatSpeed } from '@/lib/utils/format'
 
 interface TelemetryGraphProps {
-  metric: 'fps' | 'cpu' | 'memory' | 'network' | 'appMemory'
+  metric: 'fps'
   height?: number
   showControls?: boolean
   color?: string
@@ -12,15 +11,6 @@ interface TelemetryGraphProps {
 
 const METRIC_CONFIG = {
   fps: { label: 'FPS', color: '#22c55e', max: 120, format: (v: number) => `${v}` },
-  cpu: { label: 'CPU', color: '#3b82f6', max: 100, format: (v: number) => `${v}%` },
-  memory: { label: 'System Memory', color: '#8b5cf6', max: 100, format: (v: number) => `${v}%` },
-  network: { label: 'Network', color: '#06b6d4', max: 10 * 1024 * 1024, format: formatSpeed },
-  appMemory: {
-    label: 'App Memory',
-    color: '#f59e0b',
-    max: 2 * 1024 * 1024 * 1024,
-    format: formatBytes,
-  },
 }
 
 export function TelemetryGraph({
@@ -38,23 +28,7 @@ export function TelemetryGraph({
   const config = METRIC_CONFIG[metric]
   const graphColor = color || config.color
 
-  // Get value from snapshot based on metric
-  const getValue = (snapshot: TelemetrySnapshot): number => {
-    switch (metric) {
-      case 'fps':
-        return snapshot.fps
-      case 'cpu':
-        return snapshot.cpu
-      case 'memory':
-        return snapshot.memory.system
-      case 'network':
-        return snapshot.network.rxSpeed + snapshot.network.txSpeed
-      case 'appMemory':
-        return snapshot.memory.app.rss
-      default:
-        return 0
-    }
-  }
+  const getValue = (snapshot: TelemetrySnapshot): number => snapshot.fps
 
   // Subscribe to telemetry updates
   useEffect(() => {
@@ -320,10 +294,6 @@ export function TelemetryDashboard() {
       {/* Graphs */}
       <div className="grid grid-cols-1 gap-4">
         <TelemetryGraph metric="fps" height={100} showControls />
-        <TelemetryGraph metric="cpu" height={100} />
-        <TelemetryGraph metric="memory" height={100} />
-        <TelemetryGraph metric="appMemory" height={100} />
-        <TelemetryGraph metric="network" height={100} />
       </div>
     </div>
   )

@@ -67,8 +67,6 @@ export const createSettingsSlice: StateCreator<
   cadPreviewMode: 'thumbnail',
   topbarConfig: {
     showFps: false,
-    showSystemStats: true,
-    systemStatsExpanded: false,
     showZoom: true,
     showOrg: true,
     showSearch: true,

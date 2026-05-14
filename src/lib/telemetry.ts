@@ -1,24 +1,10 @@
 // High-speed telemetry service for performance monitoring
-// Collects CPU, memory, network, FPS data at configurable intervals
-
-const SYSTEM_STATS_POLL_MS = 500
+// Collects FPS data at configurable intervals (CPU/memory/network removed
+// along with the systeminformation dependency to avoid powershell.exe spawns)
 
 export interface TelemetrySnapshot {
   timestamp: number
   fps: number
-  cpu: number
-  memory: {
-    system: number // System memory percent
-    app: {
-      heapUsed: number
-      heapTotal: number
-      rss: number
-    }
-  }
-  network: {
-    rxSpeed: number
-    txSpeed: number
-  }
   modules: Record<string, ModuleMemory>
 }
 
@@ -110,13 +96,6 @@ class TelemetryService {
   private currentFps = 60
   private rafId: number | null = null
 
-  // System stats cache (from slower API)
-  private cachedSystemStats: {
-    cpu: number
-    memory: { system: number; app: { heapUsed: number; heapTotal: number; rss: number } }
-    network: { rxSpeed: number; txSpeed: number }
-  } | null = null
-
   constructor() {
     // Calculate buffer size based on config
     const bufferSize = this.config.sampleRateHz * this.config.retentionSeconds
@@ -169,14 +148,9 @@ class TelemetryService {
     // Start FPS counter
     this.startFpsCounter()
 
-    // Start system stats polling (slower rate - 2Hz for actual system calls)
-    this.startSystemStatsPolling()
-
     // Start high-speed sampling
     const intervalMs = 1000 / this.config.sampleRateHz
     this.intervalId = window.setInterval(() => this.sample(), intervalMs)
-
-    // Telemetry started
   }
 
   // Stop collecting
@@ -238,48 +212,11 @@ class TelemetryService {
     this.rafId = requestAnimationFrame(measureFrame)
   }
 
-  private startSystemStatsPolling(): void {
-    // Poll system stats at 2Hz (slower rate since it involves IPC)
-    const pollStats = async () => {
-      if (!this.config.enabled) return
-
-      try {
-        const stats = await window.electronAPI?.getSystemStats?.()
-        if (stats) {
-          this.cachedSystemStats = {
-            cpu: stats.cpu.usage,
-            memory: {
-              system: stats.memory.percent,
-              app: stats.app || { heapUsed: 0, heapTotal: 0, rss: 0 },
-            },
-            network: {
-              rxSpeed: stats.network.rxSpeed,
-              txSpeed: stats.network.txSpeed,
-            },
-          }
-        }
-      } catch {
-        // System stats unavailable
-      }
-
-      if (this.config.enabled) {
-        setTimeout(pollStats, SYSTEM_STATS_POLL_MS)
-      }
-    }
-    pollStats()
-  }
-
   private sample(): void {
     const snapshot: TelemetrySnapshot = {
       timestamp: Date.now(),
       fps: this.currentFps,
-      cpu: this.cachedSystemStats?.cpu ?? 0,
-      memory: this.cachedSystemStats?.memory ?? {
-        system: 0,
-        app: { heapUsed: 0, heapTotal: 0, rss: 0 },
-      },
-      network: this.cachedSystemStats?.network ?? { rxSpeed: 0, txSpeed: 0 },
-      modules: {}, // Module tracking removed - using lazy loading instead
+      modules: {},
     }
 
     this.buffer.push(snapshot)

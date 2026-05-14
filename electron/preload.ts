@@ -80,9 +80,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   createTabWindow: (view: string, title: string, customData?: Record<string, unknown>) =>
     ipcRenderer.invoke('app:create-tab-window', view, title, customData),
 
-  // System stats
-  getSystemStats: () => ipcRenderer.invoke('system:get-stats'),
-
   // OAuth
   openOAuthWindow: (url: string) => ipcRenderer.invoke('auth:open-oauth-window', url),
   openGoogleDriveAuth: (credentials?: { clientId?: string; clientSecret?: string }) =>
@@ -1008,28 +1005,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
 })
 
 // Type declarations for the renderer process
-// System stats result type
-interface SystemStats {
-  cpu: {
-    usage: number
-    cores: number[]
-  }
-  memory: {
-    used: number
-    total: number
-    percent: number
-  }
-  network: {
-    rxSpeed: number
-    txSpeed: number
-  }
-  disk: {
-    used: number
-    total: number
-    percent: number
-  }
-}
-
 declare global {
   interface Window {
     electronAPI: {
@@ -1045,9 +1020,6 @@ declare global {
       reloadApp: () => Promise<{ success: boolean; error?: string }>
       requestFocus: () => Promise<{ success: boolean; error?: string }>
       openPerformanceWindow: () => Promise<{ success: boolean; error?: string }>
-
-      // System stats
-      getSystemStats: () => Promise<SystemStats | null>
 
       // OAuth
       openOAuthWindow: (
