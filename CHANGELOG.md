@@ -4,6 +4,19 @@ All notable changes to BluePLM will be documented in this file.
 
 ![1774273238438](image/CHANGELOG/1774273238438.png)
 
+## [3.19.1-beta.1] - 2026-05-15
+
+### Fixed
+- **Ghost server-only files after move/delete** — moving a file into a subfolder (e.g. `CELSIUS-2/foo.SLDPRT` → `CELSIUS-2/Archive/foo.SLDPRT`) succeeded on disk but the next Refresh resurrected the original location as a synthetic cloud-only entry; an app restart was needed to clear it. Same family of bug caused `delete-server` files to reappear on Refresh. Root cause: the store kept two parallel views of server state (`state.files` with per-file `pdmData`, and a flat `state.serverFiles` array used by `refreshCurrentFolder` to detect cloud-only paths) and only `state.files` was updated on local mutations or realtime echoes — the stale `serverFiles` list still referenced the old path, so step 6 of the refresh pushed a synthetic `diffStatus: 'cloud'` row. Every mutator that touches `state.files` now mirrors the same shape change onto `state.serverFiles`: `renameFileInStore` (file + directory-prefix cases), `batchUpdateFileLocationsFromServer` (realtime move echoes), `updateFileLocationFromServer` (single-file realtime echoes), `removeCloudFile` (drop by id), `removeFilesFromStore` (drop by relative path with directory-prefix support), and `addCloudFile` (idempotent insert by id).
+- **`localHash` / `localVersion` drift causing files to falsely appear "synced"** — Wilson's intermittent symptom (BluePLM showed v2 while disk actually held v1, only fixable by deleting local and repulling) traced to several places where the trust chain for `localHash` and `localVersion` could drift from disk reality:
+  - `useLoadFiles`: `existingLocalHashes` was seeded by full path but looked up by either full or relative path; IndexedDB hashes from prior sessions never reached the merge. Now seeded and looked up by both.
+  - `useLoadFiles`: when a file appeared synced via path/extension match but had no on-disk hash evidence, the merge stamped `localVersion = pdmData.version` optimistically, so a file that was never opened locally was reported as the cloud version. Removed the optimistic fallback — `localVersion` now only advances when we actually have disk evidence.
+  - `useLoadFiles`: "first-sight" files (a path that already has `pdmData.content_hash` but no `localHash`/`localVersion`) skipped hash computation when `skipHashComputation` was true, so the file's status was determined by missing data. They now force a single hash on first sight even in the skip path.
+  - `pushPartAssemblyMetadata` and `saveMetadataToSWFile`: SolidWorks property writes (which mutate the file on disk) didn't suppress the FileWatcher and didn't refresh `localHash`. Both paths now wrap the write with `addExpectedFileChanges` / scheduled `clearExpectedFileChanges`, then re-hash the file and write the new `localHash` (with `localVersion: undefined` so the next loadFiles can recompute) into the store.
+- **`expectedFileChanges` set growing unboundedly across move/copy/rename/newFolder/merge** — every command that called `addExpectedFileChanges` lacked the matching scheduled clear that `download.ts` and `getLatest.ts` already use. All five sites in `fileOps.ts` now schedule a `clearExpectedFileChanges` 5 s after the operation registers its expected paths.
+
+---
+
 ## [3.19.0] - 2026-05-14
 
 ### Changed
