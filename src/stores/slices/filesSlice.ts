@@ -11,6 +11,7 @@ import type {
   DiffStatus,
   OperationType,
   FileLocationUpdate,
+  ServerFile,
 } from '../types'
 import type { PDMFile } from '../../types/pdm'
 import { buildFullPath } from '@/lib/utils/path'
@@ -446,10 +447,41 @@ export const createFilesSlice: StateCreator<
     for (const p of paths) {
       thumbnailCache.invalidate(p)
     }
-    set((state) => ({
-      files: state.files.filter((f) => !pathSet.has(f.path.toLowerCase())),
-      selectedFiles: state.selectedFiles.filter((p) => !pathSet.has(p.toLowerCase())),
-    }))
+    set((state) => {
+      // Resolve LocalFile entries about to be removed so we can mirror the
+      // removal onto state.serverFiles by relative path (forward-slash keyed).
+      // Without this, a refreshCurrentFolder pass after a delete would see the
+      // stale server entry whose path is no longer on disk and resurrect it as
+      // a 'cloud' ghost.
+      const itemsToRemove = state.files.filter((f) => pathSet.has(f.path.toLowerCase()))
+      const relPathsToRemove = new Set<string>()
+      const relPrefixesToRemove: string[] = []
+      for (const item of itemsToRemove) {
+        const rel = item.relativePath.toLowerCase()
+        relPathsToRemove.add(rel)
+        if (item.isDirectory) {
+          relPrefixesToRemove.push(rel + '/')
+        }
+      }
+
+      const updatedServerFiles =
+        relPathsToRemove.size === 0 && relPrefixesToRemove.length === 0
+          ? state.serverFiles
+          : state.serverFiles.filter((sf) => {
+              const sfPathLower = sf.file_path.toLowerCase()
+              if (relPathsToRemove.has(sfPathLower)) return false
+              for (const prefix of relPrefixesToRemove) {
+                if (sfPathLower.startsWith(prefix)) return false
+              }
+              return true
+            })
+
+      return {
+        files: state.files.filter((f) => !pathSet.has(f.path.toLowerCase())),
+        serverFiles: updatedServerFiles,
+        selectedFiles: state.selectedFiles.filter((p) => !pathSet.has(p.toLowerCase())),
+      }
+    })
     const afterCount = get().files.length
     log.debug('[Store]', 'removeFilesFromStore AFTER', {
       afterCount,
@@ -991,8 +1023,42 @@ export const createFilesSlice: StateCreator<
       return newSet
     }
 
+    // Mirror path changes onto state.serverFiles so refreshCurrentFolder does
+    // not resurrect a ghost cloud-only entry at the old path on next refresh.
+    // serverFiles is keyed by relative path (forward slashes), so match against
+    // oldRelPath (not oldPath / newPath which are full filesystem paths).
+    const oldRelPathLower = oldRelPath.toLowerCase()
+    const oldRelPathWithSlash = oldRelPathLower + '/'
+    const updatedServerFiles =
+      oldRelPath === ''
+        ? state.serverFiles
+        : state.serverFiles.map((sf) => {
+            const sfPathLower = sf.file_path.toLowerCase()
+            if (sfPathLower === oldRelPathLower) {
+              const newName = newRelPathForItem.includes('/')
+                ? newRelPathForItem.split('/').pop()!
+                : newRelPathForItem
+              return {
+                ...sf,
+                file_path: newRelPathForItem,
+                name: newName,
+                extension: newName.includes('.')
+                  ? '.' + (newName.split('.').pop()?.toLowerCase() || '')
+                  : '',
+              }
+            }
+            if (isDirectory && sfPathLower.startsWith(oldRelPathWithSlash)) {
+              return {
+                ...sf,
+                file_path: newRelPathForItem + sf.file_path.slice(oldRelPath.length),
+              }
+            }
+            return sf
+          })
+
     set({
       files: updatedFiles,
+      serverFiles: updatedServerFiles,
       selectedFiles: updatedSelectedFiles,
       persistedPendingMetadata: migratePathKey(state.persistedPendingMetadata),
       persistedCopySource: migratePathKey(state.persistedCopySource as Record<string, any>) as any, // TODO: type this
@@ -1090,6 +1156,17 @@ export const createFilesSlice: StateCreator<
       return
     }
 
+    // Build the corresponding ServerFile entry for state.serverFiles. We keep
+    // the two collections in lock-step so refreshCurrentFolder, which reads
+    // serverFiles, never sees stale data after a realtime echo.
+    const serverFileEntry: ServerFile = {
+      id: pdmFile.id,
+      file_path: pdmFile.file_path,
+      name: pdmFile.file_name,
+      extension: pdmFile.extension || '',
+      content_hash: pdmFile.content_hash || '',
+    }
+
     // Check if file already exists (by server ID or path) - case-insensitive for Windows
     const existingByPath = files.find(
       (f) => f.relativePath.toLowerCase() === pdmFile.file_path.toLowerCase(),
@@ -1136,6 +1213,9 @@ export const createFilesSlice: StateCreator<
             diffStatus: newDiffStatus,
           }
         }),
+        serverFiles: state.serverFiles.some((sf) => sf.id === pdmFile.id)
+          ? state.serverFiles.map((sf) => (sf.id === pdmFile.id ? serverFileEntry : sf))
+          : [...state.serverFiles, serverFileEntry],
       }))
       return
     }
@@ -1184,7 +1264,12 @@ export const createFilesSlice: StateCreator<
       diffStatus: 'cloud',
     })
 
-    set((state) => ({ files: [...state.files, ...newFiles] }))
+    set((state) => ({
+      files: [...state.files, ...newFiles],
+      serverFiles: state.serverFiles.some((sf) => sf.id === pdmFile.id)
+        ? state.serverFiles
+        : [...state.serverFiles, serverFileEntry],
+    }))
   },
 
   updateFilePdmData: (fileId, pdmData) => {
@@ -1336,6 +1421,20 @@ export const createFilesSlice: StateCreator<
         }
       })
 
+      // Mirror onto state.serverFiles so refreshCurrentFolder does not
+      // resurrect a ghost cloud-only entry at the old path.
+      const updatedServerFiles = state.serverFiles.map((sf) => {
+        if (sf.id !== fileId) return sf
+        return {
+          ...sf,
+          file_path: newRelativePath,
+          name: newFileName,
+          extension: newFileName.includes('.')
+            ? '.' + (newFileName.split('.').pop()?.toLowerCase() || '')
+            : '',
+        }
+      })
+
       // Update selectedFiles if needed
       const updatedSelectedFiles =
         oldPath && state.selectedFiles.includes(oldPath)
@@ -1344,6 +1443,7 @@ export const createFilesSlice: StateCreator<
 
       return {
         files: [...updatedFiles, ...newFolders],
+        serverFiles: updatedServerFiles,
         selectedFiles: updatedSelectedFiles,
       }
     })
@@ -1446,11 +1546,28 @@ export const createFilesSlice: StateCreator<
         }
       })
 
+      // Mirror the same path changes onto state.serverFiles. Without this,
+      // refreshCurrentFolder iterates a stale serverFiles list and resurrects
+      // a ghost cloud-only entry at the old path.
+      const updatedServerFiles = state.serverFiles.map((sf) => {
+        const update = updateMap.get(sf.id)
+        if (!update) return sf
+        return {
+          ...sf,
+          file_path: update.newRelativePath,
+          name: update.newFileName,
+          extension: update.newFileName.includes('.')
+            ? '.' + (update.newFileName.split('.').pop()?.toLowerCase() || '')
+            : '',
+        }
+      })
+
       // Update selectedFiles if any were moved
       const updatedSelectedFiles = state.selectedFiles.map((p) => oldPathToNewPath.get(p) || p)
 
       return {
         files: [...updatedFiles, ...newFolders],
+        serverFiles: updatedServerFiles,
         selectedFiles: updatedSelectedFiles,
       }
     })
@@ -1478,6 +1595,9 @@ export const createFilesSlice: StateCreator<
           }
           return f
         }),
+      // Drop the matching serverFiles entry so refreshCurrentFolder does not
+      // resurrect a ghost cloud-only entry from a stale server list.
+      serverFiles: state.serverFiles.filter((sf) => sf.id !== fileId),
     }))
   },
 

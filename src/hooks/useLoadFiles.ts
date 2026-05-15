@@ -376,6 +376,8 @@ export function useLoadFiles() {
             // This prevents re-computing hashes or falling back to timestamp-based diff detection
             // when the file watcher triggers a refresh after operations like checkin
             // Seed from IndexedDB first (survives app restart), then overlay in-memory values
+            // Index under BOTH relativePath and full path so the per-file lookup below can hit
+            // either; mirrors existingLocalVersions which already does this correctly.
             const existingLocalHashes = new Map<string, string>()
             for (const [relPath, data] of savedVersionMap) {
               if (data.localHash) {
@@ -385,6 +387,7 @@ export function useLoadFiles() {
             for (const f of currentFiles) {
               if (f.localHash) {
                 existingLocalHashes.set(f.path, f.localHash)
+                existingLocalHashes.set(f.relativePath, f.localHash)
               }
             }
 
@@ -664,7 +667,11 @@ export function useLoadFiles() {
 
               // Preserve localHash from existing file if not computed fresh
               // This prevents falling back to timestamp-based diff detection after file watcher refreshes
-              const existingLocalHash = existingLocalHashes.get(localFile.path)
+              // Try both full path (in-memory entries) and relativePath (IndexedDB entries) so a
+              // persisted hash from a previous app session is always reachable.
+              const existingLocalHash =
+                existingLocalHashes.get(localFile.path) ||
+                existingLocalHashes.get(localFile.relativePath)
               const effectiveLocalHash = localFile.localHash || existingLocalHash
 
               // PRIMARY: Inode-based rename detection
@@ -887,9 +894,15 @@ export function useLoadFiles() {
               }
 
               // Determine localVersion:
-              // - If file is synced (hashes match or no diff), use server version
+              // - If file is synced (hashes verifiably match), use server version
               // - If preserved from previous state and >= server version, keep it (prevents stale cache overwrite)
               // - Otherwise undefined (will be set when downloaded or checked in)
+              //
+              // CRITICAL: We must NOT stamp pdmData.version onto localVersion when there is no
+              // disk evidence (no localHash AND no existingLocalVersion). Doing so makes the file
+              // appear synced at the server's version forever, even though disk content may not
+              // match. Instead, leave localVersion undefined and let the forced background hash
+              // (see filesNeedingHash logic below) resolve the truth from disk.
               const isSyncedWithServer =
                 pdmData &&
                 !finalDiffStatus &&
@@ -900,11 +913,7 @@ export function useLoadFiles() {
                 ? existingLocalVersion !== undefined && existingLocalVersion >= pdmData.version
                   ? existingLocalVersion
                   : pdmData.version
-                : existingLocalVersion !== undefined
-                  ? existingLocalVersion
-                  : !finalDiffStatus && pdmData
-                    ? pdmData.version
-                    : undefined
+                : existingLocalVersion
 
               return {
                 ...localFile,
@@ -1466,13 +1475,27 @@ export function useLoadFiles() {
             // Hashes are computed on-demand at checkin time when accuracy is critical.
             // This saves ~27 seconds on vaults with 25k+ files.
             // When forceHashComputation=true (Full Refresh), compute ALL synced files for accurate sync status.
+            //
+            // EXCEPTION: even when skipHashComputation=true, we MUST hash "first-sight" files —
+            // ones that have a server content_hash but neither a localHash nor a localVersion.
+            // The merge has no disk evidence for these, so without a real hash we'd either
+            // mis-classify them as synced or have to make up a localVersion (the latter is
+            // exactly the bug that caused users to see "v2/v2" while disk content was older).
+            // The set is bounded to files we've truly never observed, so cost stays small in
+            // steady state.
             const skipHashComputation = !forceHashComputation
 
             const hashTaskStart = performance.now()
             // When forceHashComputation, compute hashes for ALL files with server content_hash (even if local hash exists)
             // Otherwise, only compute for files without local hash
             const filesNeedingHash = skipHashComputation
-              ? []
+              ? localFiles.filter(
+                  (f) =>
+                    !f.isDirectory &&
+                    f.pdmData?.content_hash &&
+                    !f.localHash &&
+                    f.localVersion === undefined,
+                )
               : localFiles.filter(
                   (f) =>
                     !f.isDirectory &&

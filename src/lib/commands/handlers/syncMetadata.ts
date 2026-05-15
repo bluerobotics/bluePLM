@@ -642,116 +642,171 @@ async function pushPartAssemblyMetadata(
     revision,
   })
 
-  const fileLevelResult = await window.electronAPI?.solidworks?.setProperties(fullPath, fileProps)
-  if (!fileLevelResult?.success) {
-    return {
-      success: false,
-      error: fileLevelResult?.error || 'Failed to write file-level properties',
-    }
-  }
+  // Suppress the FileWatcher for this path while we mutate SLDPRT bytes via SW.
+  // Without this, the watcher will fire mid-write and trigger a vault reload that
+  // races against our post-write hash refresh. Cleared after a delay (matches
+  // download.ts pattern) to cover the watcher's debounce window.
+  const watcherKey = file.relativePath
+  store.addExpectedFileChanges([watcherKey])
 
-  // Fetch all configurations and write config-specific properties to each
+  let writeSucceeded = false
   try {
-    const configResult = await window.electronAPI?.solidworks?.getConfigurations(fullPath)
-    const configs = configResult?.data?.configurations
-
-    if (!configs || configs.length === 0) {
-      logSync('debug', 'No configurations found, file-level write is sufficient', { fullPath })
-      return { success: true }
+    const fileLevelResult = await window.electronAPI?.solidworks?.setProperties(fullPath, fileProps)
+    if (!fileLevelResult?.success) {
+      return {
+        success: false,
+        error: fileLevelResult?.error || 'Failed to write file-level properties',
+      }
     }
 
-    logSync('info', 'Writing properties to all configurations', {
-      fullPath,
-      configCount: configs.length,
-      configNames: configs.map((c) => c.name),
-      pendingTabConfigs: Object.keys(configTabs),
-      pendingDescConfigs: Object.keys(configDescs),
-    })
+    // Fetch all configurations and write config-specific properties to each
+    try {
+      const configResult = await window.electronAPI?.solidworks?.getConfigurations(fullPath)
+      const configs = configResult?.data?.configurations
 
-    // Build per-config property maps for batch write
-    const batchProps: Record<string, Record<string, string>> = {}
-
-    for (const config of configs) {
-      const props: Record<string, string> = {}
-
-      // Tab number: BluePLM pending value or empty (never read back from file)
-      const rawTab = configTabs[config.name] ?? ''
-      const configTab = normalizeTabNumber(rawTab, serSettings?.tab_separator || '-')
-
-      // Number = base + tab
-      if (baseNumber) {
-        props['Number'] = configTab
-          ? serSettings?.tab_enabled
-            ? combineBaseAndTab(baseNumber, configTab, serSettings)
-            : `${baseNumber}-${configTab}`
-          : baseNumber
-        props['Base Item Number'] = baseNumber
-        if (configTab) props['Tab Number'] = configTab
+      if (!configs || configs.length === 0) {
+        logSync('debug', 'No configurations found, file-level write is sufficient', { fullPath })
+        writeSucceeded = true
+        return { success: true }
       }
 
-      // Description: BluePLM config-specific or BluePLM file-level (never read back from file)
-      const configDesc = configDescs[config.name] ?? fileDescription
-      if (configDesc) props['Description'] = configDesc
-
-      if (revision) props['Revision'] = revision
-      props['Date'] = dateStr
-      if (drawnBy) props['DrawnBy'] = drawnBy
-
-      batchProps[config.name] = props
-    }
-
-    // Use batch API for single open/save cycle
-    const batchResult = await window.electronAPI?.solidworks?.setPropertiesBatch(
-      fullPath,
-      batchProps,
-    )
-
-    if (!batchResult?.success) {
-      logSync('warn', 'Batch write failed, falling back to individual writes', {
+      logSync('info', 'Writing properties to all configurations', {
         fullPath,
-        error: batchResult?.error,
+        configCount: configs.length,
+        configNames: configs.map((c) => c.name),
+        pendingTabConfigs: Object.keys(configTabs),
+        pendingDescConfigs: Object.keys(configDescs),
       })
 
-      // Fallback: write to each config individually
-      let failCount = 0
-      for (const [configName, props] of Object.entries(batchProps)) {
-        try {
-          const r = await window.electronAPI?.solidworks?.setProperties(fullPath, props, configName)
-          if (!r?.success) {
+      // Build per-config property maps for batch write
+      const batchProps: Record<string, Record<string, string>> = {}
+
+      for (const config of configs) {
+        const props: Record<string, string> = {}
+
+        // Tab number: BluePLM pending value or empty (never read back from file)
+        const rawTab = configTabs[config.name] ?? ''
+        const configTab = normalizeTabNumber(rawTab, serSettings?.tab_separator || '-')
+
+        // Number = base + tab
+        if (baseNumber) {
+          props['Number'] = configTab
+            ? serSettings?.tab_enabled
+              ? combineBaseAndTab(baseNumber, configTab, serSettings)
+              : `${baseNumber}-${configTab}`
+            : baseNumber
+          props['Base Item Number'] = baseNumber
+          if (configTab) props['Tab Number'] = configTab
+        }
+
+        // Description: BluePLM config-specific or BluePLM file-level (never read back from file)
+        const configDesc = configDescs[config.name] ?? fileDescription
+        if (configDesc) props['Description'] = configDesc
+
+        if (revision) props['Revision'] = revision
+        props['Date'] = dateStr
+        if (drawnBy) props['DrawnBy'] = drawnBy
+
+        batchProps[config.name] = props
+      }
+
+      // Use batch API for single open/save cycle
+      const batchResult = await window.electronAPI?.solidworks?.setPropertiesBatch(
+        fullPath,
+        batchProps,
+      )
+
+      if (!batchResult?.success) {
+        logSync('warn', 'Batch write failed, falling back to individual writes', {
+          fullPath,
+          error: batchResult?.error,
+        })
+
+        // Fallback: write to each config individually
+        let failCount = 0
+        for (const [configName, props] of Object.entries(batchProps)) {
+          try {
+            const r = await window.electronAPI?.solidworks?.setProperties(
+              fullPath,
+              props,
+              configName,
+            )
+            if (!r?.success) {
+              failCount++
+              logSync('error', 'Failed to write config properties', {
+                fullPath,
+                configName,
+                error: r?.error,
+              })
+            }
+          } catch (error) {
             failCount++
-            logSync('error', 'Failed to write config properties', {
+            logSync('error', 'Exception writing config properties', {
               fullPath,
               configName,
-              error: r?.error,
+              error: String(error),
             })
           }
-        } catch (error) {
-          failCount++
-          logSync('error', 'Exception writing config properties', {
-            fullPath,
-            configName,
-            error: String(error),
-          })
+        }
+
+        if (failCount === configs.length) {
+          return { success: false, error: 'Failed to write properties to any configuration' }
         }
       }
 
-      if (failCount === configs.length) {
-        return { success: false, error: 'Failed to write properties to any configuration' }
+      logSync('info', 'PUSH complete - wrote to all configurations', {
+        fullPath,
+        configCount: configs.length,
+      })
+      writeSucceeded = true
+    } catch (error) {
+      logSync('warn', 'Failed to fetch/write configurations (file-level write succeeded)', {
+        fullPath,
+        error: String(error),
+      })
+      // File-level write did succeed, so we did mutate disk and need a fresh hash.
+      writeSucceeded = true
+    }
+
+    return { success: true }
+  } finally {
+    // Refresh localHash to match the new disk content. localVersion is intentionally
+    // left untouched: it tracks which downloaded/checked-in version's content the
+    // file started from, not the user's local edits. After this, the load-time merge
+    // can correctly classify the file as 'modified' (localHash != pdmData.content_hash
+    // AND mtime > cloud).
+    if (writeSucceeded) {
+      try {
+        const hashResult = await window.electronAPI?.hashFile(fullPath)
+        if (hashResult?.success && hashResult.hash) {
+          usePDMStore.getState().updateFileInStore(file.path, { localHash: hashResult.hash })
+          logSync('debug', 'localHash refreshed after PUSH', {
+            fullPath,
+            hashPrefix: hashResult.hash.slice(0, 8),
+          })
+        } else {
+          logSync('warn', 'Failed to rehash after PUSH; clearing stale localHash', {
+            fullPath,
+            error: hashResult?.error,
+          })
+          // Clearing is safer than leaving the pre-write hash that no longer matches disk.
+          usePDMStore.getState().updateFileInStore(file.path, { localHash: undefined })
+        }
+      } catch (error) {
+        logSync('warn', 'Exception rehashing after PUSH; clearing stale localHash', {
+          fullPath,
+          error: String(error),
+        })
+        usePDMStore.getState().updateFileInStore(file.path, { localHash: undefined })
       }
     }
 
-    logSync('info', 'PUSH complete - wrote to all configurations', {
-      fullPath,
-      configCount: configs.length,
-    })
-  } catch (error) {
-    logSync('warn', 'Failed to fetch/write configurations (file-level write succeeded)', {
-      fullPath,
-      error: String(error),
-    })
+    // Delay clearing the watcher suppression so the debounced FileWatcher event
+    // fired by our SW write is filtered out, not the next legitimate user edit.
+    setTimeout(() => {
+      usePDMStore.getState().clearExpectedFileChanges([watcherKey])
+    }, 5000)
   }
-
-  return { success: true }
 }
 
 /**

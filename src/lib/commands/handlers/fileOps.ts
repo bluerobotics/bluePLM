@@ -202,6 +202,7 @@ export const renameCommand: Command<RenameParams> = {
   },
 
   async execute({ file, newName }, ctx): Promise<CommandResult> {
+    let pathsToClear: string[] | null = null
     try {
       // Preserve the original file extension if not provided in the new name
       // Only applies to files, not directories
@@ -244,6 +245,7 @@ export const renameCommand: Command<RenameParams> = {
         })
       }
       ctx.addExpectedFileChanges(expectedPaths)
+      pathsToClear = [...expectedPaths]
 
       // Handle cloud-only files: skip local rename (file doesn't exist locally), just update database
       if (file.diffStatus === 'cloud' && !file.isDirectory) {
@@ -436,6 +438,15 @@ export const renameCommand: Command<RenameParams> = {
         succeeded: 0,
         failed: 1,
       }
+    } finally {
+      // Schedule the watcher suppression clear after the same 5s window used by
+      // download.ts and getLatest.ts. Clearing immediately races the debounced
+      // FileWatcher event for the rename; clearing at all (even late) prevents
+      // the expectedFileChanges set from growing unboundedly across operations.
+      if (pathsToClear) {
+        const paths = pathsToClear
+        setTimeout(() => ctx.clearExpectedFileChanges(paths), 5000)
+      }
     }
   },
 }
@@ -490,6 +501,7 @@ export const moveCommand: Command<MoveParams> = {
     let failedItems = 0
     let totalFilesMoved = 0 // Actual files moved (including directory contents)
     const errors: string[] = []
+    let pathsToClear: string[] | null = null
 
     // Pre-count files for accurate progress tracking (like copy command)
     // Also register expected file changes to suppress file watcher during operation
@@ -529,6 +541,7 @@ export const moveCommand: Command<MoveParams> = {
       }
     }
     ctx.addExpectedFileChanges(expectedPaths)
+    pathsToClear = [...expectedPaths]
 
     // Initialize progress tracker with total file count (not item count)
     const progress = new ProgressTracker(
@@ -988,6 +1001,14 @@ export const moveCommand: Command<MoveParams> = {
 
     // No onRefresh needed - UI updates instantly via renameFileInStore
 
+    // Schedule the watcher suppression clear after the same 5s window used by
+    // download.ts and getLatest.ts. Without this the expectedFileChanges set
+    // grows unboundedly across move operations.
+    if (pathsToClear) {
+      const paths = pathsToClear
+      setTimeout(() => ctx.clearExpectedFileChanges(paths), 5000)
+    }
+
     return {
       success: failedItems === 0,
       message:
@@ -1152,6 +1173,7 @@ export const copyCommand: Command<CopyParams> = {
 
     // Register all expected changes before starting copy operations
     ctx.addExpectedFileChanges(expectedPaths)
+    const pathsToClear = [...expectedPaths]
 
     // Initialize progress tracker with total file count (not item count)
     const progress = new ProgressTracker(
@@ -1334,6 +1356,11 @@ export const copyCommand: Command<CopyParams> = {
 
     // No onRefresh needed - UI updates instantly via addFilesToStore
 
+    // Schedule the watcher suppression clear after the same 5s window used by
+    // download.ts and getLatest.ts; otherwise expectedFileChanges grows
+    // unboundedly across copy operations.
+    setTimeout(() => ctx.clearExpectedFileChanges(pathsToClear), 5000)
+
     return {
       success: failedItems === 0,
       message:
@@ -1378,6 +1405,7 @@ export const newFolderCommand: Command<NewFolderParams> = {
   },
 
   async execute({ parentPath, folderName }, ctx): Promise<CommandResult> {
+    let pathsToClear: string[] | null = null
     try {
       const vaultPath = ctx.vaultPath!
       const sep = vaultPath.includes('\\') ? '\\' : '/'
@@ -1419,6 +1447,7 @@ export const newFolderCommand: Command<NewFolderParams> = {
 
       // Register expected file changes to suppress file watcher during operation
       ctx.addExpectedFileChanges([relativePath])
+      pathsToClear = [relativePath]
 
       const result = await window.electronAPI?.createFolder(fullPath)
       if (!result?.success) {
@@ -1494,6 +1523,13 @@ export const newFolderCommand: Command<NewFolderParams> = {
         succeeded: 0,
         failed: 1,
       }
+    } finally {
+      // Clear watcher suppression after the same 5s window used elsewhere so
+      // expectedFileChanges does not grow unboundedly.
+      if (pathsToClear) {
+        const paths = pathsToClear
+        setTimeout(() => ctx.clearExpectedFileChanges(paths), 5000)
+      }
     }
   },
 }
@@ -1534,6 +1570,7 @@ export const mergeFolderCommand: Command<MergeFolderParams> = {
     ctx,
   ): Promise<CommandResult> {
     const toastId = `merge-${Date.now()}`
+    let pathsToClear: string[] | null = null
 
     try {
       const vaultPath = ctx.vaultPath!
@@ -1609,6 +1646,7 @@ export const mergeFolderCommand: Command<MergeFolderParams> = {
         ),
       ]
       ctx.addExpectedFileChanges(expectedPaths)
+      pathsToClear = [...expectedPaths]
 
       // Move non-conflicting files
       for (const { source, destPath } of nonConflicts) {
@@ -1772,6 +1810,13 @@ export const mergeFolderCommand: Command<MergeFolderParams> = {
         total: 1,
         succeeded: 0,
         failed: 1,
+      }
+    } finally {
+      // Clear watcher suppression after the same 5s window used elsewhere so
+      // expectedFileChanges does not grow unboundedly.
+      if (pathsToClear) {
+        const paths = pathsToClear
+        setTimeout(() => ctx.clearExpectedFileChanges(paths), 5000)
       }
     }
   },

@@ -381,6 +381,8 @@ export function DetailsPanel() {
       const ext = targetFile.extension?.toLowerCase() || ''
       if (!['.sldprt', '.sldasm', '.slddrw'].includes(ext)) return
 
+      const watcherKey = targetFile.relativePath
+      let watcherSuppressed = false
       try {
         const props: Record<string, string> = {}
 
@@ -410,6 +412,12 @@ export function DetailsPanel() {
         // Check if file is open in SolidWorks
         const isOpenResult = await window.electronAPI?.solidworks?.isDocumentOpen?.(targetFile.path)
         const isOpenInSW = isOpenResult?.success && isOpenResult.data?.isOpen
+
+        // Suppress the FileWatcher for this path while SW mutates SLDPRT bytes. Otherwise
+        // the watcher's debounced reload races against our post-write hash refresh and can
+        // re-stamp stale localHash/localVersion before we update the store.
+        usePDMStore.getState().addExpectedFileChanges([watcherKey])
+        watcherSuppressed = true
 
         let result: { success: boolean; error?: string } | undefined
 
@@ -512,13 +520,52 @@ export function DetailsPanel() {
           }
           // NOTE: We do NOT clear pendingMetadata here - it must persist until check-in
           // so the server gets updated with the new values.
-          // Invalidate localHash since file content changed
-          usePDMStore.getState().updateFileInStore(targetFile.path, { localHash: undefined })
+
+          // Refresh localHash to match new disk content. Also clear localVersion: the
+          // pre-write value tracks "version of disk content when downloaded/checked-in",
+          // and that content no longer matches disk. Leaving it stale would let the
+          // version-only branch in useLoadFiles classify this file as synced even though
+          // bytes on disk diverge from pdmData.content_hash. Setting it to undefined
+          // forces the merge to use hash-based detection, which is the only honest signal
+          // after a local mutation.
+          let freshHash: string | undefined
+          try {
+            const hashResult = await window.electronAPI?.hashFile(targetFile.path)
+            if (hashResult?.success && hashResult.hash) {
+              freshHash = hashResult.hash
+            } else {
+              log.warn(
+                '[DetailsPanel]',
+                'Failed to rehash after metadata write; clearing stale localHash',
+                {
+                  path: targetFile.path,
+                  error: hashResult?.error,
+                },
+              )
+            }
+          } catch (error) {
+            log.warn('[DetailsPanel]', 'Exception rehashing after metadata write', {
+              path: targetFile.path,
+              error: String(error),
+            })
+          }
+          usePDMStore.getState().updateFileInStore(targetFile.path, {
+            localHash: freshHash,
+            localVersion: undefined,
+          })
         } else {
           addToast('error', 'Failed to save metadata to file')
         }
       } catch (error) {
         addToast('error', `Failed to save: ${error instanceof Error ? error.message : String(error)}`)
+      } finally {
+        // Delay clearing watcher suppression so the debounced FileWatcher event
+        // triggered by our SW write is filtered out, not the next legitimate edit.
+        if (watcherSuppressed) {
+          setTimeout(() => {
+            usePDMStore.getState().clearExpectedFileChanges([watcherKey])
+          }, 5000)
+        }
       }
     },
     [addToast],
