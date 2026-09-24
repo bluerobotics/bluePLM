@@ -486,28 +486,48 @@ export type Database = {
         Row: {
           color: string
           created_at: string | null
+          created_by: string | null
           id: string
           name: string | null
+          org_id: string | null
           sort_order: number | null
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           color: string
           created_at?: string | null
+          created_by?: string | null
           id?: string
           name?: string | null
+          org_id?: string | null
           sort_order?: number | null
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           color?: string
           created_at?: string | null
+          created_by?: string | null
           id?: string
           name?: string | null
+          org_id?: string | null
           sort_order?: number | null
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "color_swatches_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "color_swatches_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "color_swatches_user_id_fkey"
             columns: ["user_id"]

@@ -61,3 +61,22 @@ describe('schema_release_description() parity', () => {
     }
   })
 })
+
+describe('organization color swatch schema', () => {
+  it('defines an idempotent organization scope and preserves personal ownership', () => {
+    const core = readFileSync(CORE_SQL, 'utf8')
+
+    expect(core).toContain('LANGUAGE sql IMMUTABLE AS $$ SELECT 102 $$')
+    expect(core).toContain('org_id UUID REFERENCES organizations(id) ON DELETE CASCADE')
+    expect(core).toContain('created_by UUID REFERENCES users(id) ON DELETE SET NULL')
+    expect(core).toContain('ALTER TABLE color_swatches ALTER COLUMN user_id DROP NOT NULL')
+    expect(core).toContain('color_swatches_scope_check')
+    expect(core).toContain("conrelid = 'public.color_swatches'::regclass")
+    expect(core).toContain('CREATE OR REPLACE FUNCTION set_color_swatch_creator()')
+    expect(core).toContain('NEW.created_by := auth.uid()')
+    expect(core).toContain('NEW.created_by := OLD.created_by')
+    expect(core).toContain('users.role = \'admin\'')
+    expect(core).toContain('color_swatches_scope_columns_missing')
+    expect(core).toContain('color_swatches_scope_controls_missing')
+  })
+})
