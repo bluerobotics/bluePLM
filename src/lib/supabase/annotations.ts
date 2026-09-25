@@ -1,6 +1,15 @@
 import { getSupabaseClient } from './client'
+import {
+  createCommunityAnnotation,
+  deleteCommunityAnnotation,
+  getCommunityAnnotations,
+  resolveCommunityAnnotation,
+  unresolveCommunityAnnotation,
+  updateCommunityAnnotation,
+} from '@/lib/community'
 import { log } from '@/lib/logger'
 import type { AnnotationType, AnnotationPosition, FileAnnotation } from '@/types/database'
+import { routeBackend } from '@/lib/backendAdapter'
 
 // ============================================
 // Annotations - CRUD Operations
@@ -107,48 +116,70 @@ export async function getFileAnnotations(
   fileId: string,
   version?: number,
 ): Promise<{ annotations: FileAnnotation[]; error: string | null }> {
-  const client = getSupabaseClient()
+  return routeBackend({
+    mdb: async () => {
+      try {
+        const rows = await getCommunityAnnotations(fileId, version)
+        return {
+          annotations: buildThreadTree(
+            rows.map((row) => toFileAnnotation(row as unknown as FileCommentRow)),
+          ),
+          error: null,
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to fetch annotations.'
+        log.error('[Annotations]', 'Failed to fetch Community annotations', {
+          error: message,
+          fileId,
+        })
+        return { annotations: [], error: message }
+      }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
 
-  // Type assertion needed: new columns not yet in auto-generated types (see note at top)
-  let query = (client.from('file_comments') as any) // TODO: type this
-    .select(
-      `
-      id,
-      file_id,
-      user_id,
-      comment,
-      page_number,
-      position,
-      annotation_type,
-      parent_id,
-      resolved,
-      resolved_by,
-      resolved_at,
-      file_version,
-      edited_at,
-      created_at,
-      user:users!user_id(email, full_name, avatar_url)
-    `,
-    )
-    .eq('file_id', fileId)
-    .order('created_at', { ascending: true })
+      // Type assertion needed: new columns not yet in auto-generated types (see note at top)
+      let query = (client.from('file_comments') as any) // TODO: type this
+        .select(
+          `
+          id,
+          file_id,
+          user_id,
+          comment,
+          page_number,
+          position,
+          annotation_type,
+          parent_id,
+          resolved,
+          resolved_by,
+          resolved_at,
+          file_version,
+          edited_at,
+          created_at,
+          user:users!user_id(email, full_name, avatar_url)
+        `,
+        )
+        .eq('file_id', fileId)
+        .order('created_at', { ascending: true })
 
-  if (version !== undefined) {
-    query = query.eq('file_version', version)
-  }
+      if (version !== undefined) {
+        query = query.eq('file_version', version)
+      }
 
-  const { data, error } = await query
+      const { data, error } = await query
 
-  if (error) {
-    log.error('[Annotations]', 'Failed to fetch annotations', { error: error.message, fileId })
-    return { annotations: [], error: error.message }
-  }
+      if (error) {
+        log.error('[Annotations]', 'Failed to fetch annotations', { error: error.message, fileId })
+        return { annotations: [], error: error.message }
+      }
 
-  const rows = (data ?? []) as unknown as FileCommentRow[]
-  const flat = rows.map(toFileAnnotation)
-  const threaded = buildThreadTree(flat)
+      const rows = (data ?? []) as unknown as FileCommentRow[]
+      const flat = rows.map(toFileAnnotation)
+      const threaded = buildThreadTree(flat)
 
-  return { annotations: threaded, error: null }
+      return { annotations: threaded, error: null }
+    },
+  })
 }
 
 /**
@@ -163,21 +194,41 @@ export async function getFileAnnotations(
 export async function getAnnotationCount(
   fileId: string,
 ): Promise<{ count: number; error: string | null }> {
-  const client = getSupabaseClient()
+  return routeBackend({
+    mdb: async () => {
+      try {
+        const annotations = await getCommunityAnnotations(fileId)
+        return {
+          count: annotations.filter(
+            (annotation) => !annotation.resolved && annotation.parent_id === null,
+          ).length,
+          error: null,
+        }
+      } catch (error) {
+        return {
+          count: 0,
+          error: error instanceof Error ? error.message : 'Failed to count annotations.',
+        }
+      }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
 
-  // Type assertion needed: resolved/parent_id not yet in auto-generated types (see note at top)
-  const { count, error } = await (client.from('file_comments') as any) // TODO: type this
-    .select('id', { count: 'exact', head: true })
-    .eq('file_id', fileId)
-    .eq('resolved', false)
-    .is('parent_id', null)
+      // Type assertion needed: resolved/parent_id not yet in auto-generated types (see note at top)
+      const { count, error } = await (client.from('file_comments') as any) // TODO: type this
+        .select('id', { count: 'exact', head: true })
+        .eq('file_id', fileId)
+        .eq('resolved', false)
+        .is('parent_id', null)
 
-  if (error) {
-    log.error('[Annotations]', 'Failed to count annotations', { error: error.message, fileId })
-    return { count: 0, error: error.message }
-  }
+      if (error) {
+        log.error('[Annotations]', 'Failed to count annotations', { error: error.message, fileId })
+        return { count: 0, error: error.message }
+      }
 
-  return { count: count ?? 0, error: null }
+      return { count: count ?? 0, error: null }
+    },
+  })
 }
 
 // ============================================
@@ -208,53 +259,78 @@ export interface CreateAnnotationParams {
 export async function createAnnotation(
   params: CreateAnnotationParams,
 ): Promise<{ annotation: FileAnnotation | null; error: string | null }> {
-  const client = getSupabaseClient()
+  return routeBackend({
+    mdb: async () => {
+      try {
+        const annotation = await createCommunityAnnotation(params.fileId, {
+          comment: params.comment,
+          pageNumber: params.pageNumber ?? null,
+          position: params.position ?? null,
+          annotationType: params.annotationType,
+          parentId: params.parentId ?? null,
+          fileVersion: params.fileVersion ?? null,
+        })
+        return {
+          annotation: toFileAnnotation(annotation as unknown as FileCommentRow),
+          error: null,
+        }
+      } catch (error) {
+        return {
+          annotation: null,
+          error: error instanceof Error ? error.message : 'Failed to create annotation.',
+        }
+      }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
 
-  // Type assertion needed: new columns not yet in auto-generated types (see note at top)
-  const insertPayload: Record<string, unknown> = {
-    file_id: params.fileId,
-    user_id: params.userId,
-    comment: params.comment,
-    page_number: params.pageNumber ?? null,
-    position: params.position ?? null,
-    annotation_type: params.annotationType,
-    parent_id: params.parentId ?? null,
-    file_version: params.fileVersion ?? null,
-  }
+      // Type assertion needed: new columns not yet in auto-generated types (see note at top)
+      const insertPayload: Record<string, unknown> = {
+        file_id: params.fileId,
+        user_id: params.userId,
+        comment: params.comment,
+        page_number: params.pageNumber ?? null,
+        position: params.position ?? null,
+        annotation_type: params.annotationType,
+        parent_id: params.parentId ?? null,
+        file_version: params.fileVersion ?? null,
+      }
 
-  const { data, error } = await (client.from('file_comments') as any) // TODO: type this
-    .insert(insertPayload)
-    .select(
-      `
-      id,
-      file_id,
-      user_id,
-      comment,
-      page_number,
-      position,
-      annotation_type,
-      parent_id,
-      resolved,
-      resolved_by,
-      resolved_at,
-      file_version,
-      edited_at,
-      created_at,
-      user:users!user_id(email, full_name, avatar_url)
-    `,
-    )
-    .single()
+      const { data, error } = await (client.from('file_comments') as any) // TODO: type this
+        .insert(insertPayload)
+        .select(
+          `
+          id,
+          file_id,
+          user_id,
+          comment,
+          page_number,
+          position,
+          annotation_type,
+          parent_id,
+          resolved,
+          resolved_by,
+          resolved_at,
+          file_version,
+          edited_at,
+          created_at,
+          user:users!user_id(email, full_name, avatar_url)
+        `,
+        )
+        .single()
 
-  if (error) {
-    log.error('[Annotations]', 'Failed to create annotation', {
-      error: error.message,
-      fileId: params.fileId,
-    })
-    return { annotation: null, error: error.message }
-  }
+      if (error) {
+        log.error('[Annotations]', 'Failed to create annotation', {
+          error: error.message,
+          fileId: params.fileId,
+        })
+        return { annotation: null, error: error.message }
+      }
 
-  const row = data as unknown as FileCommentRow
-  return { annotation: toFileAnnotation(row), error: null }
+      const row = data as unknown as FileCommentRow
+      return { annotation: toFileAnnotation(row), error: null }
+    },
+  })
 }
 
 /**
@@ -269,48 +345,67 @@ export async function updateAnnotation(
   annotationId: string,
   comment: string,
 ): Promise<{ annotation: FileAnnotation | null; error: string | null }> {
-  const client = getSupabaseClient()
+  return routeBackend({
+    mdb: async () => {
+      try {
+        return {
+          annotation: toFileAnnotation(
+            (await updateCommunityAnnotation(annotationId, comment)) as unknown as FileCommentRow,
+          ),
+          error: null,
+        }
+      } catch (error) {
+        return {
+          annotation: null,
+          error: error instanceof Error ? error.message : 'Failed to update annotation.',
+        }
+      }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
 
-  // Type assertion needed: edited_at not yet in auto-generated types (see note at top)
-  const updatePayload: Record<string, unknown> = {
-    comment,
-    edited_at: new Date().toISOString(),
-  }
+      // Type assertion needed: edited_at not yet in auto-generated types (see note at top)
+      const updatePayload: Record<string, unknown> = {
+        comment,
+        edited_at: new Date().toISOString(),
+      }
 
-  const { data, error } = await (client.from('file_comments') as any) // TODO: type this
-    .update(updatePayload)
-    .eq('id', annotationId)
-    .select(
-      `
-      id,
-      file_id,
-      user_id,
-      comment,
-      page_number,
-      position,
-      annotation_type,
-      parent_id,
-      resolved,
-      resolved_by,
-      resolved_at,
-      file_version,
-      edited_at,
-      created_at,
-      user:users!user_id(email, full_name, avatar_url)
-    `,
-    )
-    .single()
+      const { data, error } = await (client.from('file_comments') as any) // TODO: type this
+        .update(updatePayload)
+        .eq('id', annotationId)
+        .select(
+          `
+          id,
+          file_id,
+          user_id,
+          comment,
+          page_number,
+          position,
+          annotation_type,
+          parent_id,
+          resolved,
+          resolved_by,
+          resolved_at,
+          file_version,
+          edited_at,
+          created_at,
+          user:users!user_id(email, full_name, avatar_url)
+        `,
+        )
+        .single()
 
-  if (error) {
-    log.error('[Annotations]', 'Failed to update annotation', {
-      error: error.message,
-      annotationId,
-    })
-    return { annotation: null, error: error.message }
-  }
+      if (error) {
+        log.error('[Annotations]', 'Failed to update annotation', {
+          error: error.message,
+          annotationId,
+        })
+        return { annotation: null, error: error.message }
+      }
 
-  const row = data as unknown as FileCommentRow
-  return { annotation: toFileAnnotation(row), error: null }
+      const row = data as unknown as FileCommentRow
+      return { annotation: toFileAnnotation(row), error: null }
+    },
+  })
 }
 
 /**
@@ -323,19 +418,34 @@ export async function updateAnnotation(
 export async function deleteAnnotation(
   annotationId: string,
 ): Promise<{ success: boolean; error: string | null }> {
-  const client = getSupabaseClient()
+  return routeBackend({
+    mdb: async () => {
+      try {
+        await deleteCommunityAnnotation(annotationId)
+        return { success: true, error: null }
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Failed to delete annotation.',
+        }
+      }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
 
-  const { error } = await client.from('file_comments').delete().eq('id', annotationId)
+      const { error } = await client.from('file_comments').delete().eq('id', annotationId)
 
-  if (error) {
-    log.error('[Annotations]', 'Failed to delete annotation', {
-      error: error.message,
-      annotationId,
-    })
-    return { success: false, error: error.message }
-  }
+      if (error) {
+        log.error('[Annotations]', 'Failed to delete annotation', {
+          error: error.message,
+          annotationId,
+        })
+        return { success: false, error: error.message }
+      }
 
-  return { success: true, error: null }
+      return { success: true, error: null }
+    },
+  })
 }
 
 // ============================================
@@ -354,49 +464,68 @@ export async function resolveAnnotation(
   annotationId: string,
   userId: string,
 ): Promise<{ annotation: FileAnnotation | null; error: string | null }> {
-  const client = getSupabaseClient()
+  return routeBackend({
+    mdb: async () => {
+      try {
+        return {
+          annotation: toFileAnnotation(
+            (await resolveCommunityAnnotation(annotationId)) as unknown as FileCommentRow,
+          ),
+          error: null,
+        }
+      } catch (error) {
+        return {
+          annotation: null,
+          error: error instanceof Error ? error.message : 'Failed to resolve annotation.',
+        }
+      }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
 
-  // Type assertion needed: resolve columns not yet in auto-generated types (see note at top)
-  const resolvePayload: Record<string, unknown> = {
-    resolved: true,
-    resolved_by: userId,
-    resolved_at: new Date().toISOString(),
-  }
+      // Type assertion needed: resolve columns not yet in auto-generated types (see note at top)
+      const resolvePayload: Record<string, unknown> = {
+        resolved: true,
+        resolved_by: userId,
+        resolved_at: new Date().toISOString(),
+      }
 
-  const { data, error } = await (client.from('file_comments') as any) // TODO: type this
-    .update(resolvePayload)
-    .eq('id', annotationId)
-    .select(
-      `
-      id,
-      file_id,
-      user_id,
-      comment,
-      page_number,
-      position,
-      annotation_type,
-      parent_id,
-      resolved,
-      resolved_by,
-      resolved_at,
-      file_version,
-      edited_at,
-      created_at,
-      user:users!user_id(email, full_name, avatar_url)
-    `,
-    )
-    .single()
+      const { data, error } = await (client.from('file_comments') as any) // TODO: type this
+        .update(resolvePayload)
+        .eq('id', annotationId)
+        .select(
+          `
+          id,
+          file_id,
+          user_id,
+          comment,
+          page_number,
+          position,
+          annotation_type,
+          parent_id,
+          resolved,
+          resolved_by,
+          resolved_at,
+          file_version,
+          edited_at,
+          created_at,
+          user:users!user_id(email, full_name, avatar_url)
+        `,
+        )
+        .single()
 
-  if (error) {
-    log.error('[Annotations]', 'Failed to resolve annotation', {
-      error: error.message,
-      annotationId,
-    })
-    return { annotation: null, error: error.message }
-  }
+      if (error) {
+        log.error('[Annotations]', 'Failed to resolve annotation', {
+          error: error.message,
+          annotationId,
+        })
+        return { annotation: null, error: error.message }
+      }
 
-  const row = data as unknown as FileCommentRow
-  return { annotation: toFileAnnotation(row), error: null }
+      const row = data as unknown as FileCommentRow
+      return { annotation: toFileAnnotation(row), error: null }
+    },
+  })
 }
 
 /**
@@ -409,47 +538,66 @@ export async function resolveAnnotation(
 export async function unresolveAnnotation(
   annotationId: string,
 ): Promise<{ annotation: FileAnnotation | null; error: string | null }> {
-  const client = getSupabaseClient()
+  return routeBackend({
+    mdb: async () => {
+      try {
+        return {
+          annotation: toFileAnnotation(
+            (await unresolveCommunityAnnotation(annotationId)) as unknown as FileCommentRow,
+          ),
+          error: null,
+        }
+      } catch (error) {
+        return {
+          annotation: null,
+          error: error instanceof Error ? error.message : 'Failed to unresolve annotation.',
+        }
+      }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
 
-  // Type assertion needed: resolve columns not yet in auto-generated types (see note at top)
-  const unresolvePayload: Record<string, unknown> = {
-    resolved: false,
-    resolved_by: null,
-    resolved_at: null,
-  }
+      // Type assertion needed: resolve columns not yet in auto-generated types (see note at top)
+      const unresolvePayload: Record<string, unknown> = {
+        resolved: false,
+        resolved_by: null,
+        resolved_at: null,
+      }
 
-  const { data, error } = await (client.from('file_comments') as any) // TODO: type this
-    .update(unresolvePayload)
-    .eq('id', annotationId)
-    .select(
-      `
-      id,
-      file_id,
-      user_id,
-      comment,
-      page_number,
-      position,
-      annotation_type,
-      parent_id,
-      resolved,
-      resolved_by,
-      resolved_at,
-      file_version,
-      edited_at,
-      created_at,
-      user:users!user_id(email, full_name, avatar_url)
-    `,
-    )
-    .single()
+      const { data, error } = await (client.from('file_comments') as any) // TODO: type this
+        .update(unresolvePayload)
+        .eq('id', annotationId)
+        .select(
+          `
+          id,
+          file_id,
+          user_id,
+          comment,
+          page_number,
+          position,
+          annotation_type,
+          parent_id,
+          resolved,
+          resolved_by,
+          resolved_at,
+          file_version,
+          edited_at,
+          created_at,
+          user:users!user_id(email, full_name, avatar_url)
+        `,
+        )
+        .single()
 
-  if (error) {
-    log.error('[Annotations]', 'Failed to unresolve annotation', {
-      error: error.message,
-      annotationId,
-    })
-    return { annotation: null, error: error.message }
-  }
+      if (error) {
+        log.error('[Annotations]', 'Failed to unresolve annotation', {
+          error: error.message,
+          annotationId,
+        })
+        return { annotation: null, error: error.message }
+      }
 
-  const row = data as unknown as FileCommentRow
-  return { annotation: toFileAnnotation(row), error: null }
+      const row = data as unknown as FileCommentRow
+      return { annotation: toFileAnnotation(row), error: null }
+    },
+  })
 }

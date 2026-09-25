@@ -493,26 +493,11 @@ namespace BluePLM.SolidWorksService
                     return false;
                 }
                 
-                // Log key info (masked for security) - key is non-null after IsNullOrEmpty check
-                var keyPrefix = key!.Length > 30 ? key.Substring(0, 30) + "..." : key;
-                var keyLength = key.Length;
-                var hasCommas = key.Contains(",");
-                var hasColon = key.Contains(":");
+                // Record only the length. Prefixes and parsed components still
+                // disclose secret material and must never reach application logs.
+                var keyLength = key!.Length;
                 LogDebug($"Step 2: SUCCESS - License key found");
                 LogDebug($"  Key length: {keyLength} chars");
-                LogDebug($"  Key prefix: {keyPrefix}");
-                LogDebug($"  Has colon separator: {hasColon}");
-                LogDebug($"  Has comma separators: {hasCommas}");
-                if (hasCommas)
-                {
-                    var parts = key.Split(',');
-                    LogDebug($"  Number of license components: {parts.Length}");
-                    foreach (var part in parts)
-                    {
-                        var partType = part.Contains(":") ? part.Split(':')[1].Split('-')[0] : part.Split('-')[0];
-                        LogDebug($"    - {partType} (len={part.Length})");
-                    }
-                }
 
                 // Create SwDMClassFactory using COM ProgID (the proper way to instantiate COM objects)
                 LogDebug("Step 3: Creating SwDMClassFactory via COM ProgID...");
@@ -654,17 +639,9 @@ namespace BluePLM.SolidWorksService
                 return false;
             }
 
-            // Log key info (masked for security)
-            var keyPrefix = key.Length > 30 ? key.Substring(0, 30) + "..." : key;
+            // Record only non-secret diagnostics. Even a prefix of a Document
+            // Manager license key must never be written to application logs.
             LogDebug($"License key length: {key.Length} chars");
-            LogDebug($"License key prefix: {keyPrefix}");
-            LogDebug($"Has colon: {key.Contains(":")}");
-            LogDebug($"Has commas: {key.Contains(",")}");
-            if (key.Contains(","))
-            {
-                var parts = key.Split(',');
-                LogDebug($"Number of license components: {parts.Length}");
-            }
 
             LogDebug("Resetting state...");
             _disposed = false;

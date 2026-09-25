@@ -11,6 +11,7 @@
  */
 import { useCallback, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { isBackendConfigured } from '@/lib/community'
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import type { PendingMember, PendingMemberFormData } from '../types'
@@ -35,6 +36,12 @@ export function useInvites(orgId: string | null) {
 
     setPendingMembersLoading(true)
     try {
+      // Community creates password accounts directly. It does not use the
+      // Supabase pending-invitation table, so leave this optional list empty.
+      if (isBackendConfigured('community')) {
+        setPendingMembers([])
+        return
+      }
       const { data, error } = await supabase
         .from('pending_org_members')
         .select('*')
@@ -146,7 +153,8 @@ export function useInvites(orgId: string | null) {
         return true
       } catch (error) {
         log.error('[Invites]', 'Failed to resend invite', { error: error })
-        const errorMessage = error instanceof Error ? error.message : 'Failed to resend invite email'
+        const errorMessage =
+          error instanceof Error ? error.message : 'Failed to resend invite email'
         addToast('error', errorMessage)
         return false
       }

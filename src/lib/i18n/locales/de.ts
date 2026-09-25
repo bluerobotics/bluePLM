@@ -1,7 +1,82 @@
 import type { TranslationDict } from '../types'
+import { mdbLifecycleTranslations } from './mdbLifecycle'
 
 // German translations
 export const de: TranslationDict = {
+  mdbSetup: {
+    title: 'BluePLM MDB',
+    chooseConnection: 'Wähle eine bestehende Installation oder richte einen neuen Server ein.',
+    existing: 'Mit bestehendem MDB-Server verbinden',
+    existingHelp:
+      'Gib nur die öffentliche HTTPS-Adresse ein. FTP-, Datenbank- und Secret-Daten werden nicht benötigt.',
+    install: 'Neuen MDB-Server einrichten',
+    installHelp:
+      'Geführte FTPS-Bereitstellung mit privaten Secrets, Schema, Firma, Eigentümer, Netzwerk-Tresor und optionalem Authenticator.',
+    backendUrl: 'Backend-URL',
+    publicUrl: 'Öffentliche HTTPS-URL',
+    connect: 'Mit MariaDB (MDB) verbinden',
+    deployed: 'MDB-Server bereitgestellt',
+    deployedHelp:
+      'Serverpaket und private Konfiguration wurden hochgeladen; das Schema wurde migriert.',
+    openSetup: 'Servereinrichtung öffnen',
+    completed: 'Servereinrichtung abgeschlossen — BluePLM verbinden',
+    newServer: 'Neuen BluePLM-MDB-Server einrichten',
+    hosting: 'Hosting vorbereiten',
+    addressAndFtp: 'Öffentliche Adresse und FTP/FTPS',
+    database: 'MariaDB-Verbindung für den PHP-Server',
+    secrets: 'Secrets der Ersteinrichtung',
+    networkVault: 'Archiv-/NAS-Tresorpfad',
+    browse: 'Ordner auswählen…',
+    storeSecrets: 'Generierte Secrets jetzt speichern',
+    generatedHelp:
+      'Sie werden nur einmal angezeigt und nicht im Client gespeichert. Nur das Bootstrap-Token wird auf der nächsten Seite eingegeben.',
+    sessionComment: 'Session-Secret — signiert Sitzungen; nicht im Einrichtungsformular eingeben',
+    bootstrapComment: 'Bootstrap-Token — auf der nächsten Seite bei „Bootstrap token“ einfügen',
+    maintenanceComment: 'Maintenance-Token — sicher für administrative Wartung aufbewahren',
+    vaultHelp:
+      'Archiv- oder NAS-Wurzel jetzt auswählen oder einen UNC-Pfad manuell eingeben. Der Pfad wird nur im Serverformular vorausgefüllt und kann dort geändert werden.',
+    browseFolders: 'Ordner durchsuchen…',
+    finishGuided: 'Geführte Servereinrichtung abschließen',
+    guidedStep1: 'Einrichtungsseite öffnen und Bootstrap-Token eingeben.',
+    guidedStep2: 'Firma, ersten Eigentümer, NAS-Vault und optionalen Authenticator-Schutz anlegen.',
+    guidedStep3: 'Nach erfolgreicher Einrichtung hierher zurückkehren.',
+    openServerSetup: 'Servereinrichtung öffnen',
+    checkServer: 'MDB-Server wird geprüft…',
+    connectAfterSetup: 'Einrichtung abgeschlossen — BluePLM verbinden',
+    hostingPreparation: '1. Hosting vorbereiten',
+    hostingHelp:
+      'FTP-Benutzer und MariaDB-Datenbank beim Hoster anlegen. Im Hosting-Panel den Dokumentenstamm der Domain auf …/public im FTP-Zielordner setzen. Per FTP lässt sich diese Einstellung nicht ändern.',
+    documentRootConfirmed:
+      'Der Dokumentenstamm der Domain zeigt auf den hochgeladenen public/-Ordner.',
+    addressFtp: '2. Öffentliche Adresse und FTP/FTPS',
+    publicHttps: 'Öffentliche HTTPS-URL',
+    ftpServer: 'FTP/FTPS-Server-URL (Port erforderlich)',
+    ftpTarget: 'FTP-Zielordner (optional)',
+    ftpTargetPlaceholder: 'leer lassen für den FTP-Benutzer-Root',
+    ftpUser: 'FTP-Benutzer',
+    ftpPassword: 'FTP-Passwort',
+    databaseConnection: '3. MariaDB-Verbindung für den PHP-Server',
+    databaseHost: 'Datenbank-Host',
+    port: 'Port',
+    databaseName: 'Datenbankname',
+    databaseUser: 'Datenbankbenutzer',
+    databasePassword: 'Datenbankpasswort',
+    firstSecrets: '4. Secrets bei der Ersteinrichtung',
+    generateSecrets: 'Drei unabhängige sichere Secrets für mich erzeugen',
+    secretsHelp:
+      'Die Werte werden nur in die private Server-.env geschrieben. Generierte Werte werden nach dem Deployment einmalig angezeigt; eingegebene Werte werden weder angezeigt noch gespeichert.',
+    sessionSecret: 'Session-Secret',
+    bootstrapToken: 'Bootstrap-Token',
+    maintenanceToken: 'Maintenance-Token',
+    deploying: 'MDB-Server wird bereitgestellt…',
+    deploy: 'Bereitstellen und geführte Einrichtung starten',
+    testingFtp: 'FTPS-Verbindung wird getestet…',
+    testFtp: 'FTPS-Verbindung testen',
+    ftpTestPassed: 'FTPS-Verbindung erfolgreich',
+    ftpTestFailed: 'FTPS-Verbindungstest fehlgeschlagen',
+    ftpTestUnavailable: 'FTPS-Test ist in diesem Build nicht verfügbar',
+    ...mdbLifecycleTranslations.de,
+  },
   checkoutDisplay: {
     you: 'Du',
     loadingOwner: 'Checkout-Besitzer wird geladen',
@@ -13,7 +88,8 @@ export const de: TranslationDict = {
     otherComputer: 'anderer PC',
   },
   fileReadonly: {
-    blocked: 'Diese Datei ist auf dem Datenträger schreibgeschützt, daher wurde nichts geschrieben.',
+    blocked:
+      'Diese Datei ist auf dem Datenträger schreibgeschützt, daher wurde nichts geschrieben.',
     unknown:
       'Es ließ sich nicht feststellen, ob diese Datei schreibgeschützt ist, daher wurde nichts geschrieben.',
     stillCheckedOut: 'Ausgecheckt, aber auf dem Datenträger weiterhin schreibgeschützt: {{names}}',
@@ -567,7 +643,8 @@ export const de: TranslationDict = {
   adoptServerPaths: {
     notSignedIn: 'Bitte zuerst anmelden',
     noVault: 'Kein Tresor verbunden',
-    nothingToAdopt: 'Keine Datei wartet darauf, auf den vom Server erfassten Pfad zurückbenannt zu werden',
+    nothingToAdopt:
+      'Keine Datei wartet darauf, auf den vom Server erfassten Pfad zurückbenannt zu werden',
 
     reportHeading:
       '{{count}} Dateien befinden sich an einem lokalen Pfad, der nicht mehr dem entspricht, was der Server für sie erfasst.',
@@ -576,7 +653,8 @@ export const de: TranslationDict = {
       '{{count}} sind von anderen Personen ausgecheckt und werden unverändert gelassen, sofern nicht erzwungen:',
     reportHolder: '{{count}} gehalten von {{user}}',
     unknownHolder: 'einem anderen Benutzer',
-    reportConflict: '{{count}} übersprungen — am Zielort liegt bereits eine andere Datei auf der Festplatte:',
+    reportConflict:
+      '{{count}} übersprungen — am Zielort liegt bereits eine andere Datei auf der Festplatte:',
     reportUnverified:
       '{{count}} übersprungen — der Inhalt der Datei stimmt nicht mehr mit dem überein, was der Server für sie aufgezeichnet hat; das Verschieben kann nicht überprüft werden:',
     reportItem: '{{from}} → {{to}}',
@@ -741,22 +819,21 @@ export const de: TranslationDict = {
     outdated: {
       label_one: '{{count}} Datei mit einer neueren Version auf dem Server',
       label_other: '{{count}} Dateien mit einer neueren Version auf dem Server',
-      description: 'Lädt die aktuelle Serverversion herunter und ersetzt die veraltete lokale Kopie.',
+      description:
+        'Lädt die aktuelle Serverversion herunter und ersetzt die veraltete lokale Kopie.',
     },
 
     localOnly: {
       label_one: '{{count}} Datei, die nur auf Ihrem Computer existiert',
       label_other: '{{count}} Dateien, die nur auf Ihrem Computer existieren',
-      description:
-        'Nie in den Tresor eingecheckt. Der Abgleich lässt diese Dateien unverändert.',
+      description: 'Nie in den Tresor eingecheckt. Der Abgleich lässt diese Dateien unverändert.',
       actionButton: 'Jetzt einchecken…',
       actionToast:
         'Wählen Sie diese Dateien im Datei-Browser aus und checken Sie sie ein, wenn Sie bereit sind.',
     },
     modified: {
       label_one: '{{count}} Datei mit lokalen Änderungen, die noch nicht auf dem Server sind',
-      label_other:
-        '{{count}} Dateien mit lokalen Änderungen, die noch nicht auf dem Server sind',
+      label_other: '{{count}} Dateien mit lokalen Änderungen, die noch nicht auf dem Server sind',
       description:
         'Ihre Änderungen bleiben erhalten. Der Abgleich verwirft lokale Änderungen niemals — checken Sie sie ein, um das Update zu teilen.',
       actionButton: 'Ihre Änderungen einchecken…',
@@ -765,8 +842,7 @@ export const de: TranslationDict = {
     },
     ghost: {
       label_one: '{{count}} Datei, die von Ihnen ausgecheckt, aber auf der Festplatte fehlt',
-      label_other:
-        '{{count}} Dateien, die von Ihnen ausgecheckt, aber auf der Festplatte fehlen',
+      label_other: '{{count}} Dateien, die von Ihnen ausgecheckt, aber auf der Festplatte fehlen',
       description:
         'Etwas hat die Datei entfernt, nachdem Sie sie ausgecheckt hatten. Entscheiden Sie, ob Sie einen Ersatz einchecken oder das Auschecken aufheben.',
     },
@@ -780,7 +856,8 @@ export const de: TranslationDict = {
     ignored: {
       label_one: '{{count}} Datei, die einem Ignorier-Muster entspricht',
       label_other: '{{count}} Dateien, die einem Ignorier-Muster entsprechen',
-      whyNote: 'Wird vom Abgleich nie berührt, ebenso wie von allem anderen, das den Tresor synchronisiert.',
+      whyNote:
+        'Wird vom Abgleich nie berührt, ebenso wie von allem anderen, das den Tresor synchronisiert.',
     },
     blockedCheckout: {
       label_one: '{{count}} Datei durch eine Auscheckung blockiert',

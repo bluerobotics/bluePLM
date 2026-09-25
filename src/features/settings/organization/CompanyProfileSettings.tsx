@@ -18,6 +18,13 @@ import {
   AlertTriangle,
 } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
+import {
+  getCommunityOrganizationAddresses,
+  getCommunityOrganizationProfile,
+  isBackendConfigured,
+  updateCommunityOrganizationProfile,
+} from '@/lib/community'
+import { t } from '@/lib/i18n'
 import { supabase } from '@/lib/supabase'
 
 interface CompanyProfile {
@@ -102,6 +109,17 @@ export function CompanyProfileSettings() {
     const loadProfile = async () => {
       setLoading(true)
       try {
+        if (isBackendConfigured('community')) {
+          const data = await getCommunityOrganizationProfile()
+          setProfile({
+            logo_url: null,
+            logo_storage_path: data?.logo_storage_path ?? null,
+            phone: data?.phone ?? null,
+            website: data?.website ?? null,
+            contact_email: data?.contact_email ?? null,
+          })
+          return
+        }
         const { data, error } = await supabase
           .from('organizations')
           .select('logo_url, logo_storage_path, phone, website, contact_email')
@@ -154,6 +172,16 @@ export function CompanyProfileSettings() {
     const loadAddresses = async () => {
       setLoadingAddresses(true)
       try {
+        if (isBackendConfigured('community')) {
+          const addresses = await getCommunityOrganizationAddresses()
+          setBillingAddresses(
+            addresses.filter((address) => address.address_type === 'billing') as OrgAddress[],
+          )
+          setShippingAddresses(
+            addresses.filter((address) => address.address_type === 'shipping') as OrgAddress[],
+          )
+          return
+        }
         const { data, error } = await supabase
           .from('organization_addresses')
           .select('*')
@@ -246,7 +274,8 @@ export function CompanyProfileSettings() {
       // Update organization with signed URL and storage path using RPC function
       // (Direct updates aren't allowed due to RLS policy)
       log.debug('[CompanyProfile]', 'Saving to DB via RPC', { logoStoragePath: filePath })
-      const { error: updateError } = await (supabase.rpc as any)('update_org_branding', { // TODO: type this
+      const { error: updateError } = await (supabase.rpc as any)('update_org_branding', {
+        // TODO: type this
         p_org_id: organization.id,
         p_logo_url: signedData.signedUrl,
         p_logo_storage_path: filePath,
@@ -286,7 +315,8 @@ export function CompanyProfileSettings() {
 
       // Update organization using RPC function (direct updates not allowed due to RLS)
       // Pass empty strings to clear the values (COALESCE in function will handle nulls)
-      const { error } = await (supabase.rpc as any)('update_org_branding', { // TODO: type this
+      const { error } = await (supabase.rpc as any)('update_org_branding', {
+        // TODO: type this
         p_org_id: organization.id,
         p_logo_url: '',
         p_logo_storage_path: '',
@@ -314,8 +344,18 @@ export function CompanyProfileSettings() {
     setSaving(true)
     savingRef.current = true
     try {
+      if (isBackendConfigured('community')) {
+        await updateCommunityOrganizationProfile({
+          phone: profile.phone || null,
+          website: profile.website || null,
+          contactEmail: profile.contact_email || null,
+        })
+        addToast('success', t('mdbSetup.companyProfileSaved'))
+        return
+      }
       // Use RPC function (direct updates not allowed due to RLS)
-      const { error } = await (supabase.rpc as any)('update_org_branding', { // TODO: type this
+      const { error } = await (supabase.rpc as any)('update_org_branding', {
+        // TODO: type this
         p_org_id: organization.id,
         p_phone: profile.phone || null,
         p_website: profile.website || null,

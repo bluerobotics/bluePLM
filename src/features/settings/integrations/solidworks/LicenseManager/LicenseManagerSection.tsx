@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Key, Plus, Loader2, AlertCircle, Info } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
+import { activeBackendSupports } from '@/lib/backendAdapter'
 import { useLicenseManager } from './useLicenseManager'
 import { LicenseTable } from './LicenseTable'
 import { AddLicenseModal } from './AddLicenseModal'
@@ -9,6 +10,12 @@ import { AssignLicenseModal } from './AssignLicenseModal'
 import type { LicenseWithAssignment } from './types'
 
 export function LicenseManagerSection() {
+  if (!activeBackendSupports('solidworks-license-management')) return null
+
+  return <SupabaseLicenseManagerSection />
+}
+
+function SupabaseLicenseManagerSection() {
   const { getEffectiveRole, user } = usePDMStore()
   const isAdmin = getEffectiveRole() === 'admin'
 

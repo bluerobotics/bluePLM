@@ -5,6 +5,14 @@ import * as LucideIcons from 'lucide-react'
 import { Users, UserPlus, Search, Plus, X, Loader2 } from 'lucide-react'
 import { log } from '@/lib/logger'
 import { supabase } from '@/lib/supabase'
+import {
+  addCommunityTeamMember,
+  getCommunityTeamMembers,
+  isBackendConfigured,
+  removeCommunityTeamMember,
+} from '@/lib/community'
+import { mapMdbRole } from '@/lib/backendAdapter'
+import { t } from '@/lib/i18n'
 import { usePDMStore } from '@/stores/pdmStore'
 import { getInitials, getEffectiveAvatarUrl } from '@/lib/utils'
 import { insertTeamMember } from '../../hooks/supabaseHelpers'
@@ -43,6 +51,28 @@ export function TeamMembersDialog({ team, orgUsers, onClose, userId }: TeamMembe
   const loadMembers = async () => {
     setIsLoading(true)
     try {
+      if (isBackendConfigured('community')) {
+        const communityMembers = await getCommunityTeamMembers(team.id)
+        setMembers(
+          communityMembers.map((member) => ({
+            id: `${team.id}:${member.userId}`,
+            team_id: team.id,
+            user_id: member.userId,
+            is_team_admin: false,
+            added_at: member.addedAt,
+            added_by: null,
+            user: {
+              id: member.userId,
+              email: member.email,
+              full_name: member.displayName,
+              avatar_url: null,
+              custom_avatar_url: null,
+              role: mapMdbRole(member.role) ?? 'viewer',
+            },
+          })),
+        )
+        return
+      }
       const { data, error } = await supabase
         .from('team_members')
         .select(
@@ -97,6 +127,15 @@ export function TeamMembersDialog({ team, orgUsers, onClose, userId }: TeamMembe
 
     setIsAdding(true)
     try {
+      if (isBackendConfigured('community')) {
+        await addCommunityTeamMember(team.id, userToAdd.id)
+        addToast(
+          'success',
+          t('mdbSetup.teamMemberAdded', { name: userToAdd.full_name || userToAdd.email }),
+        )
+        loadMembers()
+        return
+      }
       const { error } = await insertTeamMember({
         team_id: team.id,
         user_id: userToAdd.id,
@@ -105,7 +144,10 @@ export function TeamMembersDialog({ team, orgUsers, onClose, userId }: TeamMembe
 
       if (error) throw error
 
-      addToast('success', `Added ${userToAdd.full_name || userToAdd.email} to team`)
+      addToast(
+        'success',
+        t('mdbSetup.teamMemberAdded', { name: userToAdd.full_name || userToAdd.email }),
+      )
       loadMembers()
     } catch (error) {
       addToast('error', 'Failed to add member')
@@ -116,10 +158,26 @@ export function TeamMembersDialog({ team, orgUsers, onClose, userId }: TeamMembe
 
   const removeMember = async (member: TeamMember) => {
     try {
+      if (isBackendConfigured('community')) {
+        await removeCommunityTeamMember(team.id, member.user_id)
+        addToast(
+          'success',
+          t('mdbSetup.teamMemberRemoved', {
+            name: member.user?.full_name || member.user?.email || '',
+          }),
+        )
+        loadMembers()
+        return
+      }
       const { error } = await supabase.from('team_members').delete().eq('id', member.id)
       if (error) throw error
 
-      addToast('success', `Removed ${member.user?.full_name || member.user?.email} from team`)
+      addToast(
+        'success',
+        t('mdbSetup.teamMemberRemoved', {
+          name: member.user?.full_name || member.user?.email || '',
+        }),
+      )
       loadMembers()
     } catch (error) {
       addToast('error', 'Failed to remove member')

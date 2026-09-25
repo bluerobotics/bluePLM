@@ -1,7 +1,74 @@
 import type { TranslationDict } from '../types'
+import { mdbLifecycleTranslations } from './mdbLifecycle'
 
 // Spanish translations
 export const es: TranslationDict = {
+  mdbSetup: {
+    title: 'BluePLM MDB',
+    chooseConnection: 'Conecta una instalación existente o configura una nueva.',
+    existing: 'Conectar a un servidor MDB existente',
+    existingHelp: 'Introduce solo la dirección HTTPS pública.',
+    install: 'Configurar un nuevo servidor MDB',
+    installHelp: 'Despliegue FTPS guiado con secretos privados y vault de red.',
+    backendUrl: 'URL del backend',
+    publicUrl: 'URL HTTPS pública',
+    connect: 'Conectar con MariaDB (MDB)',
+    deployed: 'Servidor MDB desplegado',
+    deployedHelp: 'El paquete del servidor y la configuración privada se han subido.',
+    openSetup: 'Abrir configuración del servidor',
+    completed: 'He completado la configuración — conectar BluePLM',
+    newServer: 'Configurar un nuevo servidor BluePLM MDB',
+    hosting: 'Preparación del hosting',
+    addressAndFtp: 'Dirección pública y FTP/FTPS',
+    database: 'Conexión MariaDB para el servidor PHP',
+    secrets: 'Secretos de la instalación inicial',
+    networkVault: 'Ruta del vault de archivo/NAS',
+    browse: 'Examinar carpetas…',
+    storeSecrets: 'Guardar los secretos generados',
+    generatedHelp: 'Se muestran una sola vez y no se conservan en el cliente.',
+    sessionComment: 'secreto de sesión',
+    bootstrapComment: 'token de arranque',
+    maintenanceComment: 'token de mantenimiento',
+    vaultHelp: 'Selecciona la raíz del archivo o NAS.',
+    browseFolders: 'Examinar carpetas…',
+    finishGuided: 'Finalizar la configuración guiada',
+    guidedStep1: 'Abre la página de configuración e introduce el token.',
+    guidedStep2: 'Crea la empresa, propietario, vault NAS y protección opcional.',
+    guidedStep3: 'Vuelve aquí después del éxito.',
+    openServerSetup: 'Abrir configuración',
+    checkServer: 'Comprobando servidor MDB…',
+    connectAfterSetup: 'Configuración completada — conectar BluePLM',
+    hostingPreparation: '1. Preparación del hosting',
+    hostingHelp: 'Crea el usuario FTP y la base MariaDB.',
+    documentRootConfirmed: 'He confirmado que la raíz apunta a public/.',
+    addressFtp: '2. Dirección pública y FTP/FTPS',
+    publicHttps: 'URL HTTPS pública',
+    ftpServer: 'URL del servidor FTP/FTPS',
+    ftpTarget: 'Carpeta FTP',
+    ftpTargetPlaceholder: 'dejar vacío para la raíz del usuario FTP',
+    ftpUser: 'Usuario FTP',
+    ftpPassword: 'Contraseña FTP',
+    databaseConnection: '3. Conexión MariaDB',
+    databaseHost: 'Host de base de datos',
+    port: 'Puerto',
+    databaseName: 'Nombre de base de datos',
+    databaseUser: 'Usuario de base de datos',
+    databasePassword: 'Contraseña de base de datos',
+    firstSecrets: '4. Secretos iniciales',
+    generateSecrets: 'Generar secretos seguros',
+    secretsHelp: 'Los valores se escriben solo en el .env privado.',
+    sessionSecret: 'Secreto de sesión',
+    bootstrapToken: 'Token de arranque',
+    maintenanceToken: 'Token de mantenimiento',
+    deploying: 'Desplegando servidor MDB…',
+    deploy: 'Desplegar e iniciar configuración guiada',
+    testingFtp: 'Probando conexión FTPS…',
+    testFtp: 'Probar conexión FTPS',
+    ftpTestPassed: 'Conexión FTPS correcta',
+    ftpTestFailed: 'Falló la prueba de conexión FTPS',
+    ftpTestUnavailable: 'La prueba FTPS no está disponible en esta compilación',
+    ...mdbLifecycleTranslations.es,
+  },
   checkoutDisplay: {
     you: 'Tú',
     loadingOwner: 'Cargando propietario del checkout',
@@ -127,6 +194,9 @@ export const es: TranslationDict = {
   },
 
   setup: {
+    backendChooser: 'Elige el proveedor backend para este cliente BluePLM.',
+    mdbDescription:
+      'API PHP y MariaDB. BluePLM mantiene disponibles las funciones independientes del backend.',
     welcome: 'Bienvenido a BluePLM',
     connectToBackend: 'Conecta al backend de Supabase de tu organización para comenzar',
     imAdmin: 'Soy administrador de la organización',
@@ -464,7 +534,8 @@ export const es: TranslationDict = {
   },
 
   explorer: {
-    pendingMovesBadgeTitle_one: '{{count}} movimiento de archivo pendiente — haga clic para revisar',
+    pendingMovesBadgeTitle_one:
+      '{{count}} movimiento de archivo pendiente — haga clic para revisar',
     pendingMovesBadgeTitle_other:
       '{{count}} movimientos de archivos pendientes — haga clic para revisar',
     disconnectWarningMoved_one:
@@ -675,7 +746,8 @@ export const es: TranslationDict = {
 
     dialog: {
       title: 'Realinear con el servidor',
-      subtitle: 'Compara sus archivos con el servidor y muestra las diferencias antes de cambiar nada.',
+      subtitle:
+        'Compara sus archivos con el servidor y muestra las diferencias antes de cambiar nada.',
       waitingForConfirmation: 'Esperando su confirmación para el siguiente cambio.',
     },
 
@@ -699,8 +771,7 @@ export const es: TranslationDict = {
     group: {
       repairable: 'Se puede corregir ahora',
       needsDecision: 'Requiere su decisión',
-      needsDecisionNote:
-        'El realineado no tocará ninguno de estos — requieren su decisión.',
+      needsDecisionNote: 'El realineado no tocará ninguno de estos — requieren su decisión.',
       needsDecisionEmpty: 'Nada aquí requiere una decisión.',
       informational: 'Solo información',
     },
@@ -735,15 +806,18 @@ export const es: TranslationDict = {
     outdated: {
       label_one: '{{count}} archivo con una versión más reciente en el servidor',
       label_other: '{{count}} archivos con una versión más reciente en el servidor',
-      description: 'Descarga la versión actual del servidor para reemplazar la copia local desactualizada.',
+      description:
+        'Descarga la versión actual del servidor para reemplazar la copia local desactualizada.',
     },
 
     localOnly: {
       label_one: '{{count}} archivo que solo existe en su computadora',
       label_other: '{{count}} archivos que solo existen en su computadora',
-      description: 'Nunca se registraron en la bóveda. El realineado los deja exactamente como están.',
+      description:
+        'Nunca se registraron en la bóveda. El realineado los deja exactamente como están.',
       actionButton: 'Ir a registrarlos…',
-      actionToast: 'Seleccione estos archivos en el explorador de archivos y regístrelos cuando esté listo.',
+      actionToast:
+        'Seleccione estos archivos en el explorador de archivos y regístrelos cuando esté listo.',
     },
     modified: {
       label_one: '{{count}} archivo con cambios locales aún no en el servidor',
@@ -770,7 +844,8 @@ export const es: TranslationDict = {
     ignored: {
       label_one: '{{count}} archivo que coincide con un patrón de exclusión',
       label_other: '{{count}} archivos que coinciden con un patrón de exclusión',
-      whyNote: 'El realineado nunca los toca, igual que cualquier otra sincronización de la bóveda.',
+      whyNote:
+        'El realineado nunca los toca, igual que cualquier otra sincronización de la bóveda.',
     },
     blockedCheckout: {
       label_one: '{{count}} archivo bloqueado por un registro de salida',

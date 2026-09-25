@@ -1,0 +1,4 @@
+[submodule "blueplm-mdb-php"]
+	path = blueplm-mdb-php
+	url = https://github.com/Worxs3D/blueplm-mdb-backend.git
+	branch = main

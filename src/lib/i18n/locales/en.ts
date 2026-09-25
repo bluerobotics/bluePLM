@@ -1,7 +1,83 @@
 import type { TranslationDict } from '../types'
+import { mdbLifecycleTranslations } from './mdbLifecycle'
 
 // English translations (default/fallback)
 export const en: TranslationDict = {
+  mdbSetup: {
+    title: 'BluePLM MDB',
+    chooseConnection: 'Choose whether to connect to an existing installation or set up a new one.',
+    existing: 'Connect to an existing MDB server',
+    existingHelp:
+      'Enter only the public HTTPS address. FTP, database credentials, and secrets are not needed.',
+    install: 'Set up a new MDB server',
+    installHelp:
+      'Guided FTPS deployment, private server secrets, schema migration, company, owner, network vault, and optional authenticator setup.',
+    backendUrl: 'Backend URL',
+    publicUrl: 'Public HTTPS URL',
+    connect: 'Connect to MariaDB (MDB)',
+    deployed: 'MDB server deployed',
+    deployedHelp:
+      'The server package and private configuration were uploaded and the schema migration completed.',
+    openSetup: 'Open server setup',
+    completed: 'I completed server setup — connect BluePLM',
+    newServer: 'Set up a new BluePLM MDB server',
+    hosting: 'Hosting preparation',
+    addressAndFtp: 'Public address and FTP/FTPS',
+    database: 'MariaDB connection for the PHP server',
+    secrets: 'First-install secrets',
+    networkVault: 'Archive/NAS vault path',
+    browse: 'Browse folders…',
+    storeSecrets: 'Store these generated secrets now',
+    generatedHelp:
+      'They are shown once and are not retained by the client. Only the bootstrap token is entered on the next page.',
+    sessionComment: 'session secret — signs login sessions; do not enter in the setup form',
+    bootstrapComment: 'bootstrap token — paste into “Bootstrap token” on the next page',
+    maintenanceComment: 'maintenance token — retain securely for administrative maintenance',
+    vaultHelp:
+      'Choose the archive or NAS root now, or enter a UNC path manually. It will only prefill the server setup form and can still be edited there.',
+    browseFolders: 'Browse folders…',
+    finishGuided: 'Finish the guided server setup',
+    guidedStep1: 'Open the setup page and enter the bootstrap token.',
+    guidedStep2:
+      'Create the company, first owner, NAS vault, and optional authenticator protection.',
+    guidedStep3: 'Return here after the setup page reports success.',
+    openServerSetup: 'Open server setup',
+    checkServer: 'Checking MDB server…',
+    connectAfterSetup: 'I completed server setup — connect BluePLM',
+    hostingPreparation: '1. Hosting preparation',
+    hostingHelp:
+      'Create the FTP user and MariaDB database at your host. In the hosting control panel, point the chosen domain’s document root to …/public inside the FTP target folder. FTP cannot change this setting.',
+    documentRootConfirmed:
+      'I confirmed the domain document root points to the uploaded public/ directory.',
+    addressFtp: '2. Public address and FTP/FTPS',
+    publicHttps: 'Public HTTPS URL',
+    ftpServer: 'FTP/FTPS server URL (port required)',
+    ftpTarget: 'FTP target folder (optional)',
+    ftpTargetPlaceholder: 'leave empty for the FTP user root',
+    ftpUser: 'FTP user',
+    ftpPassword: 'FTP password',
+    databaseConnection: '3. MariaDB connection for the PHP server',
+    databaseHost: 'Database host',
+    port: 'Port',
+    databaseName: 'Database name',
+    databaseUser: 'Database user',
+    databasePassword: 'Database password',
+    firstSecrets: '4. First-install secrets',
+    generateSecrets: 'Generate three independent secure secrets for me',
+    secretsHelp:
+      'The values are written only to the private server .env. Generated values are displayed once after deployment; user-entered values are never displayed or saved.',
+    sessionSecret: 'Session secret',
+    bootstrapToken: 'Bootstrap token',
+    maintenanceToken: 'Maintenance token',
+    deploying: 'Deploying MDB server…',
+    deploy: 'Deploy and start guided setup',
+    testingFtp: 'Testing FTPS connection…',
+    testFtp: 'Test FTPS connection',
+    ftpTestPassed: 'FTPS connection successful',
+    ftpTestFailed: 'FTPS connection test failed',
+    ftpTestUnavailable: 'FTPS testing is unavailable in this build',
+    ...mdbLifecycleTranslations.en,
+  },
   app: {
     recoveredFromCrash: 'BluePLM stopped responding and reloaded. Your vault is being re-read.',
   },
@@ -171,6 +247,8 @@ export const en: TranslationDict = {
   // Setup Screen
   setup: {
     welcome: 'Welcome to BluePLM',
+    backendChooser: 'Choose the backend provider for this BluePLM client.',
+    mdbDescription: 'PHP API and MariaDB. BluePLM keeps every backend-neutral feature available.',
     connectToBackend: "Connect to your organization's Supabase backend to get started",
     imAdmin: 'Set Up an Organization',
     imAdminDesc: 'Connect BluePLM to your Supabase backend and get a code to share with your team.',
@@ -520,8 +598,7 @@ export const en: TranslationDict = {
   explorer: {
     pendingMovesBadgeTitle_one: '{{count}} pending file move — click to review',
     pendingMovesBadgeTitle_other: '{{count}} pending file moves — click to review',
-    disconnectWarningMoved_one:
-      '{{count}} file moved, and the vault still records its old path',
+    disconnectWarningMoved_one: '{{count}} file moved, and the vault still records its old path',
     disconnectWarningMoved_other:
       '{{count}} files moved, and the vault still records their old paths',
     disconnectWarningMovedHint: 'Update the vault to match, or put the files back',
@@ -1598,7 +1675,8 @@ export const en: TranslationDict = {
     reportHeading:
       '{{count}} files sit at a local path that no longer matches what the server records for them.',
     reportEligible: '{{count}} can be renamed back to their server path now.',
-    reportBlocked: '{{count}} are checked out by other people and will be left alone unless forced:',
+    reportBlocked:
+      '{{count}} are checked out by other people and will be left alone unless forced:',
     reportHolder: '{{count}} held by {{user}}',
     unknownHolder: 'another user',
     reportConflict: '{{count}} skipped — another file already sits at the destination on disk:',
@@ -1645,7 +1723,8 @@ export const en: TranslationDict = {
   // "Processing…" (which reads as "the app is doing work") is not the only signal a user gets
   // while a write is actually blocked on their own click. See the reconcile-hang incident report.
   terminal: {
-    confirmationPending: 'Waiting for confirmation — press Enter to confirm, Esc or Ctrl+C to cancel.',
+    confirmationPending:
+      'Waiting for confirmation — press Enter to confirm, Esc or Ctrl+C to cancel.',
     confirmationCancelled: 'Confirmation cancelled.',
   },
 
@@ -1750,7 +1829,7 @@ export const en: TranslationDict = {
     group: {
       repairable: 'Can be fixed now',
       needsDecision: 'Needs your decision',
-      needsDecisionNote: "Re-align will not touch any of these — they need your decision.",
+      needsDecisionNote: 'Re-align will not touch any of these — they need your decision.',
       needsDecisionEmpty: 'Nothing here needs a decision.',
       informational: 'For information',
     },

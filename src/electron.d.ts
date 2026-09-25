@@ -344,9 +344,92 @@ declare global {
       setWorkingDir: (path: string) => Promise<PathResult>
       createWorkingDir: (path: string) => Promise<PathResult>
       clearWorkingDir: () => Promise<{ success: boolean }>
+      saveNetworkVaultCredential: (request: {
+        networkRoot: string
+        username: string
+        password: string
+      }) => Promise<{ success: boolean; target?: string; error?: string }>
+      inspectMdbDatabase: (request: {
+        publicUrl: string
+        ftpUrl: string
+        ftpSecurity: 'explicit' | 'implicit'
+        ftpRemotePath: string
+        ftpUsername: string
+        ftpPassword: string
+        databaseHost: string
+        databasePort: number
+        databaseName: string
+        databaseUser: string
+        databasePassword: string
+        sessionSecret?: string
+        bootstrapToken?: string
+        maintenanceToken?: string
+        documentRootConfirmed: boolean
+      }) => Promise<{
+        success: boolean
+        database?: {
+          state: 'empty' | 'managed' | 'legacy' | 'foreign'
+          tableCount: number
+          bootstrapped: boolean
+          appliedMigrations: number
+          pendingMigrations: number
+        }
+        error?: string
+      }>
+      provisionMdb: (request: {
+        publicUrl: string
+        ftpUrl: string
+        ftpSecurity: 'explicit' | 'implicit'
+        ftpRemotePath: string
+        ftpUsername: string
+        ftpPassword: string
+        databaseHost: string
+        databasePort: number
+        databaseName: string
+        databaseUser: string
+        databasePassword: string
+        sessionSecret?: string
+        bootstrapToken?: string
+        maintenanceToken?: string
+        documentRootConfirmed: boolean
+        databaseAction: 'install' | 'migrate' | 'reset'
+        resetConfirmation?: string
+        bootstrap?: {
+          organizationName: string
+          organizationSlug: string
+          email: string
+          displayName: string
+          password: string
+          vaultName?: string
+          networkRoot?: string
+        }
+      }) => Promise<{
+        success: boolean
+        serverUrl?: string
+        accessToken?: string
+        migrated?: boolean
+        generatedSecrets?: {
+          sessionSecret: string
+          bootstrapToken: string
+          maintenanceToken: string
+        }
+        error?: string
+      }>
+      testMdbFtp: (request: {
+        ftpUrl: string
+        ftpSecurity: 'explicit' | 'implicit'
+        ftpRemotePath: string
+        ftpUsername: string
+        ftpPassword: string
+      }) => Promise<{ success: boolean; error?: string }>
 
       // File system operations
       readFile: (path: string) => Promise<FileReadResult>
+      uploadSignedUrl: (
+        path: string,
+        uploadUrl: string,
+        contentType?: string,
+      ) => Promise<{ success: boolean; statusCode?: number; error?: string }>
       checkFileLock: (
         path: string,
         options?: { forRead?: boolean },
@@ -521,6 +604,7 @@ declare global {
       // Dialogs
       selectFiles: () => Promise<FileSelectResult>
       selectFolder: () => Promise<FolderSelectResult>
+      selectDirectory: (title?: string) => Promise<FolderSelectResult>
       showSaveDialog: (
         defaultName: string,
         filters?: Array<{ name: string; extensions: string[] }>,
@@ -631,7 +715,7 @@ declare global {
         setAutoStartConfig: (config: {
           autoStartEnabled: boolean
           integrationEnabled: boolean
-          dmLicenseKey?: string
+          dmLicenseKey?: string | null
           verboseLogging?: boolean
           /** Versioned ProgID to target; null clears the choice back to the machine default. */
           swProgId?: string | null
@@ -1503,6 +1587,9 @@ declare global {
       // Deep Link handling
       onDeepLinkInstall: (
         callback: (data: { extensionId: string; version?: string; timestamp: number }) => void,
+      ) => () => void
+      onDeepLinkShare: (
+        callback: (data: { token: string; timestamp: number }) => void,
       ) => () => void
       acknowledgeDeepLink: (
         extensionId: string,

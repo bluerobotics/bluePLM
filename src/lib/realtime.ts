@@ -10,6 +10,7 @@
  */
 
 import { supabase } from './supabase'
+import { isBackendActive } from './backend'
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import type { PDMFile } from '../types/pdm'
 import type { Organization } from '../types/pdm'
@@ -81,6 +82,8 @@ let vaultsChannel: RealtimeChannel | null = null
 let memberChangesChannel: RealtimeChannel | null = null
 let foldersChannel: RealtimeChannel | null = null
 
+const noopUnsubscribe = (): void => undefined
+
 // Callback type for permission/access changes
 type PermissionChangeCallback = (
   changeType:
@@ -112,6 +115,8 @@ type MemberChangeCallback = (
  * - revision changes
  */
 export function subscribeToFiles(orgId: string, onFileChange: FileChangeCallback): () => void {
+  if (isBackendActive('community')) return noopUnsubscribe
+
   // Unsubscribe from previous channel if exists
   if (filesChannel) {
     filesChannel.unsubscribe()
@@ -163,6 +168,8 @@ export function subscribeToFolders(
   orgId: string,
   onFolderChange: FolderChangeCallback,
 ): () => void {
+  if (isBackendActive('community')) return noopUnsubscribe
+
   // Unsubscribe from previous channel if exists
   if (foldersChannel) {
     foldersChannel.unsubscribe()
@@ -205,6 +212,8 @@ export function subscribeToFolders(
  * - Files change state
  */
 export function subscribeToActivity(orgId: string, onActivity: ActivityCallback): () => void {
+  if (isBackendActive('community')) return noopUnsubscribe
+
   if (activityChannel) {
     activityChannel.unsubscribe()
   }
@@ -257,6 +266,8 @@ export function subscribeToOrganization(
   orgId: string,
   onOrgChange: OrganizationChangeCallback,
 ): () => void {
+  if (isBackendActive('community')) return noopUnsubscribe
+
   // Unsubscribe from previous channel if exists
   if (organizationChannel) {
     organizationChannel.unsubscribe()
@@ -302,6 +313,8 @@ export function subscribeToColorSwatches(
   orgId: string,
   onSwatchChange: ColorSwatchChangeCallback,
 ): () => void {
+  if (isBackendActive('community')) return noopUnsubscribe
+
   // Unsubscribe from previous channel if exists
   if (colorSwatchesChannel) {
     colorSwatchesChannel.unsubscribe()
@@ -374,6 +387,8 @@ export function subscribeToColorSwatches(
  * This ensures all admins see vault changes immediately.
  */
 export function subscribeToVaults(orgId: string, onVaultChange: VaultChangeCallback): () => void {
+  if (isBackendActive('community')) return noopUnsubscribe
+
   // Unsubscribe from previous channel if exists
   if (vaultsChannel) {
     vaultsChannel.unsubscribe()
@@ -431,6 +446,8 @@ export function subscribeToMemberChanges(
   orgId: string,
   onMemberChange: MemberChangeCallback,
 ): () => void {
+  if (isBackendActive('community')) return noopUnsubscribe
+
   // Unsubscribe from previous channel if exists
   if (memberChangesChannel) {
     memberChangesChannel.unsubscribe()
@@ -524,6 +541,8 @@ export function subscribeToPermissions(
   orgId: string,
   onPermissionChange: PermissionChangeCallback,
 ): () => void {
+  if (isBackendActive('community')) return noopUnsubscribe
+
   // Unsubscribe from previous channel if exists
   if (permissionsChannel) {
     permissionsChannel.unsubscribe()

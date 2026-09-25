@@ -21,9 +21,10 @@ export interface DeepLinkHandlerDependencies {
 }
 
 export interface ParsedDeepLink {
-  action: 'install' | 'unknown'
+  action: 'install' | 'share' | 'unknown'
   extensionId?: string
   version?: string
+  shareToken?: string
   raw: string
 }
 
@@ -106,6 +107,9 @@ export function parseDeepLink(url: string): ParsedDeepLink {
         deps?.log(`Deep link extension ID may be invalid: ${extensionId}`)
         result.extensionId = extensionId
       }
+    } else if (action === 'share') {
+      const token = pathParts[0] || pathParts[1]
+      if (token && /^[a-f0-9]{32}$/i.test(token)) { result.action = 'share'; result.shareToken = token }
 
       // Version from query params
       const version = parsed.searchParams.get('version')
@@ -158,11 +162,17 @@ export async function handleDeepLink(url: string): Promise<DeepLinkResult> {
 
     return handleInstallDeepLink(parsed.extensionId, parsed.version)
   }
+  if (parsed.action === 'share' && parsed.shareToken) return handleShareDeepLink(parsed.shareToken)
 
   return {
     success: false,
     error: `Unhandled action: ${parsed.action}`,
   }
+}
+
+async function handleShareDeepLink(token: string): Promise<DeepLinkResult> {
+  if (!mainWindow || mainWindow.isDestroyed()) { pendingDeepLink = `blueplm://share/${token}`; return { success: false, action: 'share', error: 'Application window not ready' } }
+  focusMainWindow(); mainWindow.webContents.send('deep-link:open-share', { token, timestamp: Date.now() }); return { success: true, action: 'share' }
 }
 
 /**

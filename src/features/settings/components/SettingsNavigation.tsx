@@ -1,8 +1,10 @@
+import { useEffect } from 'react'
 import { usePDMStore } from '@/stores/pdmStore'
 import type { IntegrationStatusValue, IntegrationId, BackupStatusValue } from '@/stores/types'
 import type { SettingsTab } from '@/types/settings'
 import { t } from '@/lib/i18n'
 import { logSettings } from '@/lib/userActionLogger'
+import { isBackendActive } from '@/lib/backend'
 
 interface SettingsNavigationProps {
   activeTab: SettingsTab
@@ -85,6 +87,25 @@ const integrationIds = [
   'api',
 ] as const
 
+// Only expose settings with an implemented MariaDB (MDB) adapter. This is an
+// allow-list rather than a growing list of Supabase pages to hide: a future
+// settings tab cannot silently appear in a MariaDB installation before it has
+// an adapter of its own.
+const mdbVisibleTabs = new Set<SettingsTab>([
+  'preferences',
+  'keybindings',
+  'modules',
+  'vaults',
+  'team-members',
+  'company-profile',
+  'solidworks',
+  'google-drive',
+  'performance',
+  'logs',
+  'dev-tools',
+  'about',
+])
+
 function StatusDot({ status }: { status: IntegrationStatusValue }) {
   const colors: Record<IntegrationStatusValue, string> = {
     online: 'bg-plm-success',
@@ -145,11 +166,22 @@ export function SettingsNavigation({ activeTab, onTabChange }: SettingsNavigatio
   const integrations = usePDMStore((s) => s.integrations)
   const backupStatus = usePDMStore((s) => s.backupStatus)
   const isAdmin = usePDMStore((s) => s.getEffectiveRole() === 'admin')
+  const isMdbBackend = isBackendActive('community')
 
   const sections = settingsSections().map((section) => ({
     ...section,
-    items: section.items.filter((item) => !item.adminOnly || isAdmin),
+    items: section.items.filter(
+      (item) =>
+        (!item.adminOnly || isAdmin) && (!isMdbBackend || mdbVisibleTabs.has(item.id)),
+    ),
   }))
+
+  // A client may switch from Supabase to MariaDB (MDB) while Settings is open or
+  // carry a persisted former tab. Never leave the Supabase panel active merely
+  // because it is no longer present in the navigation.
+  useEffect(() => {
+    if (isMdbBackend && !mdbVisibleTabs.has(activeTab)) onTabChange('vaults')
+  }, [activeTab, isMdbBackend, onTabChange])
 
   const isIntegration = (id: SettingsTab): boolean => {
     return (integrationIds as readonly string[]).includes(id)

@@ -737,7 +737,7 @@ export async function handleUnassignRole(
       .from('user_workflow_roles')
       .delete()
       .eq('user_id', targetUser.id)
-      .eq('role_id', role.id)
+      .eq('workflow_role_id', role.id)
 
     if (error) throw error
 

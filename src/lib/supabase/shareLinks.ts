@@ -2,6 +2,8 @@ import { t } from '@/lib/i18n'
 import { log } from '@/lib/logger'
 
 import { getSupabaseClient } from './client'
+import { createCommunityShareLink } from '@/lib/community'
+import { routeBackend } from '@/lib/backendAdapter'
 
 export interface ShareLinkOptions {
   expiresInDays?: number
@@ -73,79 +75,100 @@ export async function createShareLink(
   link: { id: string; token: string; expiresAt: string | null; downloadUrl: string } | null
   error?: string
 }> {
-  const client = getSupabaseClient()
-
-  const { data: fileData, error: fileError } = await client
-    .from('files')
-    .select('content_hash, file_name, org_id')
-    .eq('id', fileId)
-    .single()
-
-  if (fileError || !fileData) {
-    return {
-      link: null,
-      error: fileError?.message || t('shareLink.fileNotFound'),
-    }
-  }
-
-  if (!fileData.content_hash) {
-    return {
-      link: null,
-      error: t('shareLink.noContent'),
-    }
-  }
-
-  const expiresInDays = Math.min(options?.expiresInDays ?? DEFAULT_EXPIRY_DAYS, MAX_EXPIRY_DAYS)
-  const expiresAt = expiryFrom(expiresInDays)
-  const token = generateToken(TOKEN_LENGTH)
-
-  // `fileData.org_id`, not the `orgId` argument. Schema 95's INSERT policy requires the row's
-  // `org_id` to match the file's, and the two are equal today only because the select above was
-  // RLS-scoped to the caller. Taking it from the row makes the agreement structural, and a caller
-  // that passes the wrong organization gets a mismatch it can see rather than a silent refusal.
-  const { error: auditError } = await client.from('file_share_links').insert({
-    org_id: fileData.org_id,
-    file_id: fileId,
-    token,
-    created_by: createdBy,
-    expires_at: expiresAt,
-  })
-
-  if (auditError) {
-    log.warn('[ShareLinks]', 'The share was not recorded, so no link was issued', {
-      fileId,
-      requestedOrgId: orgId,
-      code: auditError.code,
-      reason: auditError.message,
-    })
-    return {
-      link: null,
-      error: t('shareLink.notPermitted'),
-    }
-  }
-
-  const storagePath = `${fileData.org_id}/${fileData.content_hash.substring(0, HASH_SHARD_LENGTH)}/${fileData.content_hash}`
-
-  const { data: signedUrlData, error: signedUrlError } = await client.storage
-    .from('vault')
-    .createSignedUrl(storagePath, expiresInDays * SECONDS_PER_DAY, {
-      download: fileData.file_name,
-    })
-
-  if (signedUrlError || !signedUrlData?.signedUrl) {
-    return {
-      link: null,
-      error:
-        signedUrlError?.message || t('shareLink.signingFailed'),
-    }
-  }
-
-  return {
-    link: {
-      id: token,
-      token,
-      expiresAt,
-      downloadUrl: signedUrlData.signedUrl,
+  return routeBackend({
+    mdb: async () => {
+      try {
+        const link = await createCommunityShareLink(
+          fileId,
+          Math.min(options?.expiresInDays ?? DEFAULT_EXPIRY_DAYS, MAX_EXPIRY_DAYS),
+        )
+        return {
+          link: {
+            id: link.id,
+            token: link.token,
+            expiresAt: link.expiresAt,
+            downloadUrl: link.downloadUrl,
+          },
+        }
+      } catch (error) {
+        return { link: null, error: error instanceof Error ? error.message : String(error) }
+      }
     },
-  }
+    supabase: async () => {
+      const client = getSupabaseClient()
+
+      const { data: fileData, error: fileError } = await client
+        .from('files')
+        .select('content_hash, file_name, org_id')
+        .eq('id', fileId)
+        .single()
+
+      if (fileError || !fileData) {
+        return {
+          link: null,
+          error: fileError?.message || t('shareLink.fileNotFound'),
+        }
+      }
+
+      if (!fileData.content_hash) {
+        return {
+          link: null,
+          error: t('shareLink.noContent'),
+        }
+      }
+
+      const expiresInDays = Math.min(options?.expiresInDays ?? DEFAULT_EXPIRY_DAYS, MAX_EXPIRY_DAYS)
+      const expiresAt = expiryFrom(expiresInDays)
+      const token = generateToken(TOKEN_LENGTH)
+
+      // `fileData.org_id`, not the `orgId` argument. Schema 95's INSERT policy requires the row's
+      // `org_id` to match the file's, and the two are equal today only because the select above was
+      // RLS-scoped to the caller. Taking it from the row makes the agreement structural, and a caller
+      // that passes the wrong organization gets a mismatch it can see rather than a silent refusal.
+      const { error: auditError } = await client.from('file_share_links').insert({
+        org_id: fileData.org_id,
+        file_id: fileId,
+        token,
+        created_by: createdBy,
+        expires_at: expiresAt,
+      })
+
+      if (auditError) {
+        log.warn('[ShareLinks]', 'The share was not recorded, so no link was issued', {
+          fileId,
+          requestedOrgId: orgId,
+          code: auditError.code,
+          reason: auditError.message,
+        })
+        return {
+          link: null,
+          error: t('shareLink.notPermitted'),
+        }
+      }
+
+      const storagePath = `${fileData.org_id}/${fileData.content_hash.substring(0, HASH_SHARD_LENGTH)}/${fileData.content_hash}`
+
+      const { data: signedUrlData, error: signedUrlError } = await client.storage
+        .from('vault')
+        .createSignedUrl(storagePath, expiresInDays * SECONDS_PER_DAY, {
+          download: fileData.file_name,
+        })
+
+      if (signedUrlError || !signedUrlData?.signedUrl) {
+        return {
+          link: null,
+          error: signedUrlError?.message || t('shareLink.signingFailed'),
+        }
+      }
+
+      return {
+        link: {
+          id: token,
+          token,
+          expiresAt,
+          downloadUrl: signedUrlData.signedUrl,
+        },
+      }
+    },
+  })
 }

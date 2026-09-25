@@ -11,6 +11,11 @@
  * pointer settles rather than one per animation frame.
  */
 import { supabase } from '@/lib/supabase'
+import {
+  isBackendConfigured,
+  updateCommunityWorkflowState,
+  updateCommunityWorkflowTransition,
+} from '@/lib/community'
 import type { Json } from '@/types/database'
 import type { WorkflowState, WorkflowTransition } from '@/types/workflow'
 
@@ -225,6 +230,17 @@ function scheduleWrite(
   const merged = { ...existing?.patch, ...patch }
   const timer = setTimeout(() => {
     pendingWrites.delete(key)
+    if (isBackendConfigured('community')) {
+      void (async () => {
+        try {
+          if (table === 'workflow_states') await updateCommunityWorkflowState(id, merged)
+          else await updateCommunityWorkflowTransition(id, merged)
+        } catch (error) {
+          onError(error instanceof Error ? error : new Error('Failed to save workflow layout.'))
+        }
+      })()
+      return
+    }
     void supabase
       .from(table)
       .update(merged as never)

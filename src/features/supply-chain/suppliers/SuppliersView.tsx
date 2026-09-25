@@ -17,6 +17,8 @@ import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import type { Supplier } from '@/stores/types'
 import { supabase } from '@/lib/supabase'
+import { getCommunitySuppliers, isBackendConfigured } from '@/lib/community'
+import { t } from '@/lib/i18n'
 
 function getApiUrl(organization: { settings?: { api_url?: string } } | null): string | null {
   return organization?.settings?.api_url || null
@@ -48,6 +50,10 @@ export function SuppliersView() {
     setSuppliersLoading(true)
 
     try {
+      if (isBackendConfigured('community')) {
+        setSuppliers((await getCommunitySuppliers()) as Supplier[])
+        return
+      }
       const query = supabase
         .from('suppliers')
         .select('*')
@@ -77,6 +83,10 @@ export function SuppliersView() {
     setSyncing(true)
 
     try {
+      if (isBackendConfigured('community')) {
+        addToast('warning', t('mdbSetup.erpSyncUnavailable'))
+        return
+      }
       const {
         data: { session },
       } = await supabase.auth.getSession()

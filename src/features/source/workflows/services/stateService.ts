@@ -9,6 +9,13 @@
  * once keeps it out of every call site.
  */
 import { supabase } from '@/lib/supabase'
+import {
+  createCommunityWorkflowState,
+  deleteCommunityWorkflowState,
+  getCommunityWorkflowStates,
+  isBackendConfigured,
+  updateCommunityWorkflowState,
+} from '@/lib/community'
 import type { Database } from '@/types/database'
 import type { WorkflowState } from '@/types/workflow'
 
@@ -27,6 +34,10 @@ export const stateService = {
    * Get all states for a workflow
    */
   async getByWorkflow(workflowId: string): Promise<StateServiceResult<WorkflowState[]>> {
+    if (isBackendConfigured('community')) {
+      try { return { data: await getCommunityWorkflowStates(workflowId) as unknown as WorkflowState[], error: null } }
+      catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to load workflow states.') } }
+    }
     const { data, error } = await workflowStates()
       .select('*')
       .eq('workflow_id', workflowId)
@@ -56,6 +67,10 @@ export const stateService = {
   async create(
     state: Partial<WorkflowStateRow> & { workflow_id: string; name: string },
   ): Promise<StateServiceResult<WorkflowState>> {
+    if (isBackendConfigured('community')) {
+      try { return { data: await createCommunityWorkflowState(state as Record<string, unknown>) as unknown as WorkflowState, error: null } }
+      catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to create workflow state.') } }
+    }
     const { data, error } = await workflowStates()
       .insert(state as never)
       .select()
@@ -74,6 +89,10 @@ export const stateService = {
     stateId: string,
     updates: Partial<WorkflowStateRow>,
   ): Promise<StateServiceResult<WorkflowState>> {
+    if (isBackendConfigured('community')) {
+      try { return { data: await updateCommunityWorkflowState(stateId, updates as Record<string, unknown>) as unknown as WorkflowState, error: null } }
+      catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to update workflow state.') } }
+    }
     const { data, error } = await workflowStates()
       .update(updates as never)
       .eq('id', stateId)
@@ -94,6 +113,10 @@ export const stateService = {
     positionX: number,
     positionY: number,
   ): Promise<StateServiceResult<void>> {
+    if (isBackendConfigured('community')) {
+      try { await updateCommunityWorkflowState(stateId, { position_x: positionX, position_y: positionY }); return { data: undefined, error: null } }
+      catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to update workflow state.') } }
+    }
     const { error } = await workflowStates()
       .update({ position_x: positionX, position_y: positionY } as never)
       .eq('id', stateId)
@@ -108,6 +131,10 @@ export const stateService = {
    * Delete a state
    */
   async delete(stateId: string): Promise<StateServiceResult<void>> {
+    if (isBackendConfigured('community')) {
+      try { await deleteCommunityWorkflowState(stateId); return { data: undefined, error: null } }
+      catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to delete workflow state.') } }
+    }
     const { error } = await workflowStates().delete().eq('id', stateId)
 
     return {
@@ -122,6 +149,12 @@ export const stateService = {
   async batchUpdatePositions(
     updates: Array<{ id: string; position_x: number; position_y: number }>,
   ): Promise<StateServiceResult<void>> {
+    if (isBackendConfigured('community')) {
+      try {
+        await Promise.all(updates.map(({ id, position_x, position_y }) => updateCommunityWorkflowState(id, { position_x, position_y })))
+        return { data: undefined, error: null }
+      } catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to update workflow states.') } }
+    }
     // Use individual updates since Supabase doesn't support batch updates well
     const results = await Promise.all(
       updates.map(({ id, position_x, position_y }) =>

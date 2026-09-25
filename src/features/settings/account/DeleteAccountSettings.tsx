@@ -3,6 +3,8 @@ import { AlertTriangle, Loader2, Trash2, UserX } from 'lucide-react'
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { getSupabaseClient, signOut } from '@/lib/supabase'
+import { deleteCommunityAccount, isBackendConfigured } from '@/lib/community'
+import { t } from '@/lib/i18n'
 
 export function DeleteAccountSettings() {
   const { user, setUser, setOrganization, addToast } = usePDMStore()
@@ -23,6 +25,14 @@ export function DeleteAccountSettings() {
 
     setIsDeleting(true)
     try {
+      if (isBackendConfigured('community')) {
+        await deleteCommunityAccount()
+        await signOut()
+        setUser(null)
+        setOrganization(null)
+        addToast('success', t('mdbSetup.accountDeleted'))
+        return
+      }
       const client = getSupabaseClient()
 
       // Call the RPC function to delete the user account
@@ -40,7 +50,7 @@ export function DeleteAccountSettings() {
       setUser(null)
       setOrganization(null)
 
-      addToast('success', 'Your account has been deleted successfully.')
+      addToast('success', t('mdbSetup.accountDeleted'))
     } catch (error) {
       log.error('[Account]', 'Error deleting account', { error: error })
       addToast('error', 'An unexpected error occurred while deleting your account.')

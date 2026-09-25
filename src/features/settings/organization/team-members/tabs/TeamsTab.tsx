@@ -27,6 +27,7 @@ import {
   ClipboardCheck,
 } from 'lucide-react'
 import { PermissionsEditor } from '@/features/settings/organization/PermissionsEditor'
+import { isBackendConfigured } from '@/lib/community'
 import { usePDMStore } from '@/stores/pdmStore'
 import { useTeams, useMembers, useVaultAccess, useTeamDialogs } from '../hooks'
 import { useFilteredData } from '../hooks/useFilteredData'
@@ -47,6 +48,7 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
   const { user, organization, setOrganization, getEffectiveRole, workflowRoles } = usePDMStore()
   const orgId = organization?.id ?? null
   const isAdmin = getEffectiveRole() === 'admin'
+  const isCommunityBackend = isBackendConfigured('community')
 
   // Data hooks
   const { teams, loadTeams, createTeam, updateTeam, deleteTeam, setDefaultTeam } = useTeams(orgId)
@@ -338,28 +340,32 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
                     {/* Team Actions */}
                     {isAdmin && (
                       <div className="p-3 bg-plm-bg/30 border-b border-white/10 flex flex-wrap gap-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setSelectedTeam(team)
-                            setShowTeamMembersDialog(true)
-                          }}
-                          className="btn btn-ghost btn-sm flex items-center gap-1.5"
-                        >
-                          <UserPlus size={14} />
-                          Manage Members
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setSelectedTeam(team)
-                            setShowPermissionsEditor(true)
-                          }}
-                          className="btn btn-ghost btn-sm flex items-center gap-1.5"
-                        >
-                          <Shield size={14} />
-                          Permissions
-                        </button>
+                        {!isCommunityBackend && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setSelectedTeam(team)
+                              setShowTeamMembersDialog(true)
+                            }}
+                            className="btn btn-ghost btn-sm flex items-center gap-1.5"
+                          >
+                            <UserPlus size={14} />
+                            Manage Members
+                          </button>
+                        )}
+                        {!isCommunityBackend && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setSelectedTeam(team)
+                              setShowPermissionsEditor(true)
+                            }}
+                            className="btn btn-ghost btn-sm flex items-center gap-1.5"
+                          >
+                            <Shield size={14} />
+                            Permissions
+                          </button>
+                        )}
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
@@ -370,16 +376,18 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
                           <Database size={14} />
                           Vault Access
                         </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            openTeamReviewersDialog(team)
-                          }}
-                          className="btn btn-ghost btn-sm flex items-center gap-1.5"
-                        >
-                          <ClipboardCheck size={14} />
-                          Reviewers
-                        </button>
+                        {!isCommunityBackend && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              openTeamReviewersDialog(team)
+                            }}
+                            className="btn btn-ghost btn-sm flex items-center gap-1.5"
+                          >
+                            <ClipboardCheck size={14} />
+                            Reviewers
+                          </button>
+                        )}
                         <button
                           onClick={(e) => {
                             e.stopPropagation()

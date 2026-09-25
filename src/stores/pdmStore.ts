@@ -87,7 +87,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function getLocalStorage(): Storage | null {
   try {
-    return typeof localStorage === 'undefined' ? null : localStorage
+    if (typeof localStorage === 'undefined') return null
+    // Node/Vitest can expose a partial localStorage shim. Persist must remain
+    // optional in that environment instead of failing every store mutation.
+    if (
+      typeof localStorage.getItem !== 'function' ||
+      typeof localStorage.setItem !== 'function' ||
+      typeof localStorage.removeItem !== 'function'
+    )
+      return null
+    return localStorage
   } catch {
     return null
   }
@@ -177,10 +186,7 @@ function withMutationTiming(initializer: PDMStoreInitializer): PDMStoreInitializ
       let result: unknown
 
       if (replace === true) {
-        result = set(
-          partial as PDMStoreState | ((state: PDMStoreState) => PDMStoreState),
-          true,
-        )
+        result = set(partial as PDMStoreState | ((state: PDMStoreState) => PDMStoreState), true)
       } else {
         result = set(
           partial as
@@ -479,7 +485,7 @@ export const usePDMStore = create<PDMStoreState>()(
           // Convert expandedPendingSections back to Set
           expandedPendingSections: new Set((persisted.expandedPendingSections as string[]) || []),
           // Ensure cadPreviewMode has a default
-          cadPreviewMode: (persisted.cadPreviewMode as 'thumbnail' | 'edrawings') || 'thumbnail',
+          cadPreviewMode: persisted.cadPreviewMode === 'edrawings' ? 'edrawings' : 'thumbnail',
           // Merge topbarConfig over defaults so newly added toggles (e.g. showSolidworks)
           // aren't left undefined for users with a pre-existing persisted config.
           topbarConfig: {
@@ -586,8 +592,7 @@ export const usePDMStore = create<PDMStoreState>()(
           // Widths/visibility come from the persisted config; new built-in columns
           // added since the user last saved are appended at the end.
           columns: (() => {
-            const persistedColumns =
-              (persisted.columns as typeof currentState.columns) || []
+            const persistedColumns = (persisted.columns as typeof currentState.columns) || []
             const persistedIds = new Set(persistedColumns.map((c) => c.id))
             const ordered = persistedColumns
               .map((persistedCol) => {

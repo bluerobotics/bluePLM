@@ -1,5 +1,7 @@
 import { getSupabaseClient } from '../client'
 import { CONCURRENT_OPERATIONS, processWithConcurrency } from '../../concurrency'
+import { moveCommunityFile } from '@/lib/community'
+import { routeBackend } from '@/lib/backendAdapter'
 
 // ============================================
 // File Move Operations
@@ -25,32 +27,47 @@ export async function moveFileOnServer(
   newFilePath: string,
   newFileName?: string,
 ): Promise<{ success: boolean; file?: unknown; error?: string }> {
-  const client = getSupabaseClient()
+  return routeBackend({
+    mdb: async () => {
+      try {
+        await moveCommunityFile(fileId, newFilePath, newFileName)
+        return {
+          success: true,
+          file: { id: fileId, file_path: newFilePath, file_name: newFileName },
+        }
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) }
+      }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
 
-  // Use atomic RPC to prevent race conditions and ensure proper validation
-  const { data, error } = await client.rpc('move_file', {
-    p_file_id: fileId,
-    p_user_id: userId,
-    p_new_file_path: newFilePath,
-    p_new_file_name: newFileName,
+      // Use atomic RPC to prevent race conditions and ensure proper validation
+      const { data, error } = await client.rpc('move_file', {
+        p_file_id: fileId,
+        p_user_id: userId,
+        p_new_file_path: newFilePath,
+        p_new_file_name: newFileName,
+      })
+
+      if (error) {
+        return { success: false, error: error.message }
+      }
+
+      // RPC returns JSONB with { success, error?, file? }
+      const result = (data ?? { success: false }) as {
+        success: boolean
+        error?: string
+        file?: unknown
+      }
+
+      if (!result.success) {
+        return { success: false, error: result.error }
+      }
+
+      return { success: true, file: result.file }
+    },
   })
-
-  if (error) {
-    return { success: false, error: error.message }
-  }
-
-  // RPC returns JSONB with { success, error?, file? }
-  const result = (data ?? { success: false }) as {
-    success: boolean
-    error?: string
-    file?: unknown
-  }
-
-  if (!result.success) {
-    return { success: false, error: result.error }
-  }
-
-  return { success: true, file: result.file }
 }
 
 /** One file for `moveFilesOnServer` to relocate. */

@@ -6,7 +6,14 @@ import { PERMISSION_ACTIONS, PERMISSION_ACTION_LABELS, ALL_RESOURCES } from '@/t
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
+import {
+  getCommunityUserPermissions,
+  getCommunityVaults,
+  isBackendConfigured,
+  setCommunityUserPermissions,
+} from '@/lib/community'
 import type { OrgUser, Vault } from '../../types'
+import { t } from '@/lib/i18n'
 import type { PermissionAction } from '@/types/permissions'
 
 // Types for Supabase query results
@@ -54,6 +61,20 @@ export function UserPermissionsDialog({
         return
       }
       try {
+        if (isBackendConfigured('community')) {
+          setVaults(
+            (await getCommunityVaults()).map((vault) => ({
+              id: vault.id,
+              name: vault.name,
+              slug: vault.id,
+              description: vault.networkRoot,
+              storage_bucket: 'network-vault',
+              is_default: false,
+              created_at: vault.createdAt,
+            })),
+          )
+          return
+        }
         const { data, error } = await supabase
           .from('vaults')
           .select('id, name, slug')
@@ -79,6 +100,12 @@ export function UserPermissionsDialog({
   const loadPermissions = async () => {
     setIsLoading(true)
     try {
+      if (isBackendConfigured('community')) {
+        const permsMap = await getCommunityUserPermissions(user.id, selectedVaultId)
+        setPermissions(permsMap)
+        setOriginalPermissions(permsMap)
+        return
+      }
       // Build query - filter by vault_id
       let query = supabase.from('user_permissions').select('*').eq('user_id', user.id)
 
@@ -114,6 +141,19 @@ export function UserPermissionsDialog({
 
     setIsSaving(true)
     try {
+      if (isBackendConfigured('community')) {
+        await setCommunityUserPermissions(user.id, selectedVaultId, permissions)
+        const vaultName = selectedVaultId
+          ? vaults.find((vault) => vault.id === selectedVaultId)?.name ||
+            t('mdbSetup.selectedVault')
+          : t('mdbSetup.allVaultsLabel')
+        addToast(
+          'success',
+          t('mdbSetup.permissionsSaved', { name: user.full_name || user.email, vault: vaultName }),
+        )
+        onClose()
+        return
+      }
       // Delete existing permissions for this vault scope
       let deleteQuery = supabase.from('user_permissions').delete().eq('user_id', user.id)
 
@@ -144,13 +184,16 @@ export function UserPermissionsDialog({
       }
 
       const vaultName = selectedVaultId
-        ? vaults.find((v) => v.id === selectedVaultId)?.name || 'selected vault'
-        : 'all vaults'
-      addToast('success', `Permissions saved for ${user.full_name || user.email} on ${vaultName}`)
+        ? vaults.find((v) => v.id === selectedVaultId)?.name || t('mdbSetup.selectedVault')
+        : t('mdbSetup.allVaultsLabel')
+      addToast(
+        'success',
+        t('mdbSetup.permissionsSaved', { name: user.full_name || user.email, vault: vaultName }),
+      )
       onClose()
     } catch (error) {
       log.error('[UserPermissions]', 'Failed to save permissions', { error: error })
-      addToast('error', 'Failed to save permissions')
+      addToast('error', t('mdbSetup.permissionsSaveFailed'))
     } finally {
       setIsSaving(false)
     }

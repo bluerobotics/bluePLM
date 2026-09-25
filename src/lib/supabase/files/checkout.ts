@@ -3,6 +3,13 @@ import { buildConfigurationMapPayload } from '@/lib/metadata/configurationMaps'
 
 import { getSupabaseClient } from '../client'
 import { getCurrentUserEmail } from '../auth'
+import type { Database } from '@/types/supabase'
+import {
+  cancelCommunityCheckout,
+  checkinCommunityFile,
+  checkoutCommunityFile,
+} from '@/lib/community'
+import { routeBackend } from '@/lib/backendAdapter'
 
 /** Postgres unique-constraint violation (SQLSTATE 23505). */
 const UNIQUE_VIOLATION = '23505'
@@ -103,42 +110,56 @@ export async function checkoutFile(
     // Pre-computed values to avoid redundant IPC calls in batch operations
     machineId?: string
     machineName?: string
+    clientWorkingPath?: string
+    vaultId?: string
   },
 ): Promise<{ success: boolean; file?: CheckoutSnapshotFields; error?: string | null }> {
-  const client = getSupabaseClient()
+  return routeBackend({
+    mdb: async () => {
+      try {
+        await checkoutCommunityFile(fileId, options?.clientWorkingPath || '', options?.vaultId)
+        return { success: true, file: undefined, error: null }
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) }
+      }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
 
-  // Use pre-computed values if provided, otherwise fetch (for single-file calls)
-  let machineId = options?.machineId
-  let machineName = options?.machineName
-  if (!machineId || !machineName) {
-    const { getMachineId, getMachineName } = await import('../../backup')
-    machineId = machineId || (await getMachineId())
-    machineName = machineName || (await getMachineName())
-  }
+      // Use pre-computed values if provided, otherwise fetch (for single-file calls)
+      let machineId = options?.machineId
+      let machineName = options?.machineName
+      if (!machineId || !machineName) {
+        const { getMachineId, getMachineName } = await import('../../backup')
+        machineId = machineId || (await getMachineId())
+        machineName = machineName || (await getMachineName())
+      }
 
-  // Use atomic RPC to prevent race conditions
-  const { data, error } = await client.rpc('checkout_file', {
-    p_file_id: fileId,
-    p_user_id: userId,
-    p_machine_id: machineId,
-    p_machine_name: machineName,
-    p_lock_message: options?.message,
+      // Use atomic RPC to prevent race conditions
+      const { data, error } = await client.rpc('checkout_file', {
+        p_file_id: fileId,
+        p_user_id: userId,
+        p_machine_id: machineId,
+        p_machine_name: machineName,
+        p_lock_message: options?.message,
+      })
+
+      if (error) {
+        return { success: false, error: error.message }
+      }
+
+      // RPC returns JSONB with { success, error?, file? }
+      const result = data as { success: boolean; error?: string; file?: unknown }
+
+      if (!result.success) {
+        return { success: false, error: result.error }
+      }
+
+      // DO NOT add manual activity logging - RPC handles it!
+
+      return { success: true, file: readCheckoutSnapshot(result.file), error: null }
+    },
   })
-
-  if (error) {
-    return { success: false, error: error.message }
-  }
-
-  // RPC returns JSONB with { success, error?, file? }
-  const result = data as { success: boolean; error?: string; file?: unknown }
-
-  if (!result.success) {
-    return { success: false, error: result.error }
-  }
-
-  // DO NOT add manual activity logging - RPC handles it!
-
-  return { success: true, file: readCheckoutSnapshot(result.file), error: null }
 }
 
 export async function checkinFile(
@@ -175,6 +196,8 @@ export async function checkinFile(
     // Performance optimizations for batch operations:
     machineId?: string // Pre-fetched machine ID to avoid N IPC calls for N files
     skipMachineMismatchCheck?: boolean // Skip the SELECT query for batch operations
+    /** Immutable network-vault revision staged by the Electron Community workflow. */
+    communityStorageRelativePath?: string
   },
 ): Promise<{
   success: boolean
@@ -185,96 +208,139 @@ export async function checkinFile(
   inspectionChanged?: boolean
   machineMismatchWarning?: string | null
 }> {
-  const client = getSupabaseClient()
-
-  // Machine mismatch check is optional for batch operations (significant perf savings)
-  // When processing 80 files, this eliminates 80 SELECT queries + 80 getMachineId IPC calls
-  let machineMismatchWarning: string | null = null
-  if (!options?.skipMachineMismatchCheck) {
-    const { data: fileCheck, error: fetchError } = await client
-      .from('files')
-      .select('checked_out_by_machine_id, checked_out_by_machine_name')
-      .eq('id', fileId)
-      .single()
-
-    if (fetchError) {
-      return { success: false, error: fetchError.message }
-    }
-
-    // Check for machine mismatch warning
-    if (fileCheck.checked_out_by_machine_id) {
-      // Use pre-fetched machineId if provided (batch optimization), otherwise fetch
-      let currentMachineId = options?.machineId
-      if (!currentMachineId) {
-        const { getMachineId } = await import('../../backup')
-        currentMachineId = await getMachineId()
+  return routeBackend({
+    mdb: async () => {
+      try {
+        if (!options?.communityStorageRelativePath) {
+          await cancelCommunityCheckout(fileId)
+          return {
+            success: true,
+            file: { id: fileId, checked_out_by: null, checked_out_at: null },
+            contentChanged: false,
+            metadataChanged: false,
+            inspectionChanged: false,
+            machineMismatchWarning: null,
+          }
+        }
+        const result = await checkinCommunityFile(fileId, {
+          storageRelativePath: options.communityStorageRelativePath,
+          contentHash: options.newContentHash,
+          sizeBytes: options.newFileSize,
+          comment: options.comment,
+        })
+        return {
+          success: true,
+          file: {
+            id: fileId,
+            version: result.revision,
+            revision: String(result.revision),
+            content_hash: options.newContentHash ?? null,
+            file_size: options.newFileSize ?? null,
+            checked_out_by: null,
+            checked_out_at: null,
+          },
+          contentChanged: true,
+          metadataChanged: false,
+          inspectionChanged: false,
+          machineMismatchWarning: null,
+        }
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) }
       }
-      if (fileCheck.checked_out_by_machine_id !== currentMachineId) {
-        machineMismatchWarning = `Warning: This file was checked out on ${fileCheck.checked_out_by_machine_name || 'another computer'}. You are checking it in from a different computer.`
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
+
+      // Machine mismatch check is optional for batch operations (significant perf savings)
+      // When processing 80 files, this eliminates 80 SELECT queries + 80 getMachineId IPC calls
+      let machineMismatchWarning: string | null = null
+      if (!options?.skipMachineMismatchCheck) {
+        const { data: fileCheck, error: fetchError } = await client
+          .from('files')
+          .select('checked_out_by_machine_id, checked_out_by_machine_name')
+          .eq('id', fileId)
+          .single()
+
+        if (fetchError) {
+          return { success: false, error: fetchError.message }
+        }
+
+        // Check for machine mismatch warning
+        if (fileCheck.checked_out_by_machine_id) {
+          // Use pre-fetched machineId if provided (batch optimization), otherwise fetch
+          let currentMachineId = options?.machineId
+          if (!currentMachineId) {
+            const { getMachineId } = await import('../../backup')
+            currentMachineId = await getMachineId()
+          }
+          if (fileCheck.checked_out_by_machine_id !== currentMachineId) {
+            machineMismatchWarning = `Warning: This file was checked out on ${fileCheck.checked_out_by_machine_name || 'another computer'}. You are checking it in from a different computer.`
+          }
+        }
       }
-    }
-  }
 
-  // NOTE: Path/name updates are now handled in the RPC (eliminates separate UPDATE query)
-  // This was a performance optimization - 1 atomic operation instead of 2 separate queries
+      // NOTE: Path/name updates are now handled in the RPC (eliminates separate UPDATE query)
+      // This was a performance optimization - 1 atomic operation instead of 2 separate queries
 
-  // Build the custom_properties patch for the per-configuration maps, committed values included
-  // rather than the edited configurations alone. See buildConfigurationMapPayload.
-  const customPropsUpdate = buildConfigurationMapPayload(
-    options?.committedCustomProperties,
-    options?.pendingMetadata,
-  )
+      // Build the custom_properties patch for the per-configuration maps, committed values included
+      // rather than the edited configurations alone. See buildConfigurationMapPayload.
+      const customPropsUpdate = buildConfigurationMapPayload(
+        options?.committedCustomProperties,
+        options?.pendingMetadata,
+      )
 
-  // Use atomic RPC for checkin - handles versioning, path updates, and activity logging
-  // Path/name updates are now handled in the RPC (performance: eliminates separate UPDATE)
-  const { data, error } = await client.rpc('checkin_file', {
-    p_file_id: fileId,
-    p_user_id: userId,
-    p_new_content_hash: options?.newContentHash,
-    p_new_file_size: options?.newFileSize,
-    p_comment: options?.comment,
-    // Use a clear-aware mapping so an intentional clear (null) is sent as '' and
-    // decisively written, instead of being collapsed to undefined (= "no change").
-    p_part_number: toClearableRpcValue(options?.pendingMetadata?.part_number),
-    p_description: toClearableRpcValue(options?.pendingMetadata?.description),
-    p_revision: options?.pendingMetadata?.revision,
-    p_local_active_version: options?.localActiveVersion,
-    p_custom_properties: customPropsUpdate,
-    p_new_file_path: options?.newFilePath,
-    p_new_file_name: options?.newFileName,
-    p_inspection_hash: options?.inspectionHash,
+      // Use atomic RPC for checkin - handles versioning, path updates, and activity logging
+      // Path/name updates are now handled in the RPC (performance: eliminates separate UPDATE)
+      const { data, error } = await client.rpc('checkin_file', {
+        p_file_id: fileId,
+        p_user_id: userId,
+        p_new_content_hash: options?.newContentHash,
+        p_new_file_size: options?.newFileSize,
+        p_comment: options?.comment,
+        // Use a clear-aware mapping so an intentional clear (null) is sent as '' and
+        // decisively written, instead of being collapsed to undefined (= "no change").
+        p_part_number: toClearableRpcValue(options?.pendingMetadata?.part_number),
+        p_description: toClearableRpcValue(options?.pendingMetadata?.description),
+        p_revision: options?.pendingMetadata?.revision,
+        p_local_active_version: options?.localActiveVersion,
+        p_custom_properties: customPropsUpdate,
+        p_new_file_path: options?.newFilePath,
+        p_new_file_name: options?.newFileName,
+        p_inspection_hash: options?.inspectionHash,
+      })
+
+      if (error) {
+        return { success: false, error: error.message }
+      }
+
+      const result = data as {
+        success: boolean
+        error?: string
+        file?: unknown
+        new_version?: number
+        content_changed?: boolean
+        metadata_changed?: boolean
+        inspection_changed?: boolean
+        version_incremented?: boolean
+      }
+
+      if (!result.success) {
+        return { success: false, error: result.error }
+      }
+
+      // DO NOT add manual activity logging - RPC handles it!
+
+      return {
+        success: true,
+        file: result.file,
+        error: null,
+        contentChanged: result.content_changed,
+        metadataChanged: result.metadata_changed,
+        inspectionChanged: result.inspection_changed,
+        machineMismatchWarning,
+      }
+    },
   })
-
-  if (error) {
-    return { success: false, error: error.message }
-  }
-
-  const result = data as {
-    success: boolean
-    error?: string
-    file?: unknown
-    new_version?: number
-    content_changed?: boolean
-    metadata_changed?: boolean
-    inspection_changed?: boolean
-    version_incremented?: boolean
-  }
-
-  if (!result.success) {
-    return { success: false, error: result.error }
-  }
-
-  // DO NOT add manual activity logging - RPC handles it!
-
-  return {
-    success: true,
-    file: result.file,
-    error: null,
-    contentChanged: result.content_changed,
-    metadataChanged: result.metadata_changed,
-    inspectionChanged: result.inspection_changed,
-    machineMismatchWarning,
-  }
 }
 
 /**
@@ -325,7 +391,7 @@ export async function syncSolidWorksFileMetadata(
   }
 
   // Build update data
-  const updateData: Record<string, any> = {
+  const updateData: Database['public']['Tables']['files']['Update'] = {
     updated_at: new Date().toISOString(),
     updated_by: userId,
   }
@@ -340,7 +406,11 @@ export async function syncSolidWorksFileMetadata(
     updateData.revision = metadata.revision
   }
   if (metadata.custom_properties !== undefined) {
-    updateData.custom_properties = metadata.custom_properties
+    // Metadata originates from the SolidWorks property bridge. Its public type
+    // permits unknown values, while the database column accepts JSON only.
+    // The bridge serializes this payload before it crosses the IPC boundary.
+    updateData.custom_properties =
+      metadata.custom_properties as Database['public']['Tables']['files']['Update']['custom_properties']
   }
 
   // Check if file is checked out by current user
@@ -430,97 +500,116 @@ export async function syncSolidWorksFileMetadata(
 }
 
 export async function undoCheckout(fileId: string, userId: string) {
-  const client = getSupabaseClient()
+  return routeBackend({
+    mdb: async () => {
+      try {
+        await cancelCommunityCheckout(fileId)
+        return { success: true, error: null }
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) }
+      }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
 
-  // Verify the user has the file checked out (or is admin)
-  // Use maybeSingle() so a missing/deleted row doesn't throw "Cannot coerce the
-  // result to a single JSON object". The file may have been deleted server-side
-  // (e.g. a ghost left in the cache), in which case the checkout is already gone.
-  const { data: file, error: fetchError } = await client
-    .from('files')
-    .select('*, org_id')
-    .eq('id', fileId)
-    .maybeSingle()
+      // Verify the user has the file checked out (or is admin)
+      // Use maybeSingle() so a missing/deleted row doesn't throw "Cannot coerce the
+      // result to a single JSON object". The file may have been deleted server-side
+      // (e.g. a ghost left in the cache), in which case the checkout is already gone.
+      const { data: file, error: fetchError } = await client
+        .from('files')
+        .select('*, org_id')
+        .eq('id', fileId)
+        .maybeSingle()
 
-  if (fetchError) {
-    return { success: false, error: fetchError.message }
-  }
+      if (fetchError) {
+        return { success: false, error: fetchError.message }
+      }
 
-  // No row found - the file is already gone, so the user's goal (releasing the
-  // checkout / clearing the ghost) is already achieved. Treat as success.
-  if (!file) {
-    return { success: true, file: null, error: null }
-  }
+      // No row found - the file is already gone, so the user's goal (releasing the
+      // checkout / clearing the ghost) is already achieved. Treat as success.
+      if (!file) {
+        return { success: true, file: null, error: null }
+      }
 
-  if (file.checked_out_by !== userId) {
-    // If file is not checked out by anyone, the user's goal is already achieved
-    // This handles stale local state gracefully (e.g., checkout released from another machine)
-    if (file.checked_out_by === null) {
-      return { success: true, file, error: null }
-    }
-    // File is checked out by someone else - that's a real conflict
-    // Note: Admins should use adminForceDiscardCheckout() instead
-    return { success: false, error: 'File is checked out by another user' }
-  }
+      if (file.checked_out_by !== userId) {
+        // If file is not checked out by anyone, the user's goal is already achieved
+        // This handles stale local state gracefully (e.g., checkout released from another machine)
+        if (file.checked_out_by === null) {
+          return { success: true, file, error: null }
+        }
+        // File is checked out by someone else - that's a real conflict
+        // Note: Admins should use adminForceDiscardCheckout() instead
+        return { success: false, error: 'File is checked out by another user' }
+      }
 
-  // Release the checkout without saving changes. Both snapshot columns null means an
-  // older lock taken before checked_out_file_path/_name existed - fall back to clearing
-  // the lock alone rather than writing file_path/file_name to null.
-  const hasPathSnapshot = file.checked_out_file_path !== null || file.checked_out_file_name !== null
+      // Release the checkout without saving changes. Both snapshot columns null means an
+      // older lock taken before checked_out_file_path/_name existed - fall back to clearing
+      // the lock alone rather than writing file_path/file_name to null.
+      const hasPathSnapshot =
+        file.checked_out_file_path !== null || file.checked_out_file_name !== null
 
-  // The lock columns alone. Kept separate from the path revert below so the
-  // unique-violation fallback can reuse it verbatim.
-  const lockRelease: ReleaseCheckoutUpdate = {
-    checked_out_by: null,
-    checked_out_at: null,
-    lock_message: null,
-    checked_out_by_machine_id: null,
-    checked_out_by_machine_name: null,
-    checked_out_file_path: null,
-    checked_out_file_name: null,
-    // Must bump updated_at so delta sync picks up the change (cache uses updated_at as watermark)
-    updated_at: new Date().toISOString(),
-  }
+      // The lock columns alone. Kept separate from the path revert below so the
+      // unique-violation fallback can reuse it verbatim.
+      const lockRelease: ReleaseCheckoutUpdate = {
+        checked_out_by: null,
+        checked_out_at: null,
+        lock_message: null,
+        checked_out_by_machine_id: null,
+        checked_out_by_machine_name: null,
+        checked_out_file_path: null,
+        checked_out_file_name: null,
+        // Must bump updated_at so delta sync picks up the change (cache uses updated_at as watermark)
+        updated_at: new Date().toISOString(),
+      }
 
-  const releaseUpdate: ReleaseCheckoutUpdate = { ...lockRelease }
+      const releaseUpdate: ReleaseCheckoutUpdate = { ...lockRelease }
 
-  if (hasPathSnapshot) {
-    // The rename or move was already pushed to file_path/file_name live by renameCommand
-    // or moveCommand, so restoring here is what makes the server row agree with the local
-    // file discard is about to rename back to.
-    if (file.checked_out_file_path !== null) releaseUpdate.file_path = file.checked_out_file_path
-    if (file.checked_out_file_name !== null) releaseUpdate.file_name = file.checked_out_file_name
-  }
+      if (hasPathSnapshot) {
+        // The rename or move was already pushed to file_path/file_name live by renameCommand
+        // or moveCommand, so restoring here is what makes the server row agree with the local
+        // file discard is about to rename back to.
+        if (file.checked_out_file_path !== null)
+          releaseUpdate.file_path = file.checked_out_file_path
+        if (file.checked_out_file_name !== null)
+          releaseUpdate.file_name = file.checked_out_file_name
+      }
 
-  const releaseCheckout = (update: ReleaseCheckoutUpdate) =>
-    client.from('files').update(update).eq('id', fileId).select().single()
+      const releaseCheckout = (update: ReleaseCheckoutUpdate) =>
+        client.from('files').update(update).eq('id', fileId).select().single()
 
-  let { data, error } = await releaseCheckout(releaseUpdate)
+      let { data, error } = await releaseCheckout(releaseUpdate)
 
-  // The path revert can collide with files' unique (vault_id, LOWER(file_path))
-  // index when another row took the checkout-time path while this file was
-  // renamed away from it. Releasing the lock matters more than the revert: by the
-  // time undoCheckout runs, discard has already renamed and re-downloaded the
-  // local file, and failing here leaves a lock that retrying can never clear.
-  if (error?.code === UNIQUE_VIOLATION && releaseUpdate.file_path !== undefined) {
-    log.warn('[Checkout]', 'Restoring the checkout-time path collided, releasing the lock only', {
-      fileId,
-      checkedOutFilePath: file.checked_out_file_path,
-      error: error.message,
-    })
-    const fallback = await releaseCheckout(lockRelease)
-    data = fallback.data
-    error = fallback.error
-  }
+      // The path revert can collide with files' unique (vault_id, LOWER(file_path))
+      // index when another row took the checkout-time path while this file was
+      // renamed away from it. Releasing the lock matters more than the revert: by the
+      // time undoCheckout runs, discard has already renamed and re-downloaded the
+      // local file, and failing here leaves a lock that retrying can never clear.
+      if (error?.code === UNIQUE_VIOLATION && releaseUpdate.file_path !== undefined) {
+        log.warn(
+          '[Checkout]',
+          'Restoring the checkout-time path collided, releasing the lock only',
+          {
+            fileId,
+            checkedOutFilePath: file.checked_out_file_path,
+            error: error.message,
+          },
+        )
+        const fallback = await releaseCheckout(lockRelease)
+        data = fallback.data
+        error = fallback.error
+      }
 
-  if (error) {
-    return { success: false, error: error.message }
-  }
-  if (!data) {
-    return { success: false, error: 'Update failed - no rows affected (check permissions)' }
-  }
+      if (error) {
+        return { success: false, error: error.message }
+      }
+      if (!data) {
+        return { success: false, error: 'Update failed - no rows affected (check permissions)' }
+      }
 
-  return { success: true, file: data, error: null }
+      return { success: true, file: data, error: null }
+    },
+  })
 }
 
 // ============================================

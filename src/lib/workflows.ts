@@ -2,6 +2,31 @@
 // Handles all Supabase interactions for workflow management
 
 import { supabase } from './supabase'
+import {
+  assignCommunityFileWorkflow,
+  createCommunityWorkflow,
+  createCommunityWorkflowGate,
+  createCommunityWorkflowState,
+  createCommunityWorkflowTransition,
+  decideCommunityWorkflowReview,
+  deleteCommunityWorkflow,
+  deleteCommunityWorkflowGate,
+  deleteCommunityWorkflowState,
+  deleteCommunityWorkflowTransition,
+  executeCommunityWorkflowTransition,
+  getCommunityAvailableTransitions,
+  getCommunityFileWorkflow,
+  getCommunityMyWorkflowReviews,
+  getCommunityWorkflowGates,
+  getCommunityWorkflowStates,
+  getCommunityWorkflowTransitions,
+  getCommunityWorkflows,
+  isBackendConfigured,
+  updateCommunityWorkflow,
+  updateCommunityWorkflowGate,
+  updateCommunityWorkflowState,
+  updateCommunityWorkflowTransition,
+} from './community'
 import type {
   WorkflowTemplate,
   WorkflowState,
@@ -19,6 +44,10 @@ import type {
 // ============================================
 
 export async function getWorkflowTemplates(orgId: string) {
+  if (isBackendConfigured('community')) {
+    try { return { data: await getCommunityWorkflows() as unknown as WorkflowTemplate[], error: null } }
+    catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to load workflows.') } }
+  }
   const { data, error } = await supabase
     .from('workflow_templates')
     .select('*')
@@ -31,6 +60,12 @@ export async function getWorkflowTemplates(orgId: string) {
 }
 
 export async function getDefaultWorkflow(orgId: string) {
+  if (isBackendConfigured('community')) {
+    try {
+      const workflow = (await getCommunityWorkflows()).find((candidate) => candidate.is_default)
+      return { data: workflow as unknown as WorkflowTemplate | undefined ?? null, error: null }
+    } catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to load default workflow.') } }
+  }
   const { data, error } = await supabase
     .from('workflow_templates')
     .select('*')
@@ -48,6 +83,10 @@ export async function createWorkflowTemplate(
   name: string,
   description?: string,
 ) {
+  if (isBackendConfigured('community')) {
+    try { return { data: await createCommunityWorkflow({ name, description: description ?? null }) as unknown as WorkflowTemplate, error: null } }
+    catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to create workflow.') } }
+  }
   // First create using the default template function
   const { data: workflowId, error: createError } = await supabase.rpc('create_default_workflow', {
     p_org_id: orgId,
@@ -74,6 +113,10 @@ export async function updateWorkflowTemplate(
   workflowId: string,
   updates: Partial<WorkflowTemplate>,
 ) {
+  if (isBackendConfigured('community')) {
+    try { return { data: await updateCommunityWorkflow(workflowId, updates as Record<string, unknown>) as unknown as WorkflowTemplate, error: null } }
+    catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to update workflow.') } }
+  }
   // Cast canvas_config to Json for Supabase compatibility
   const updateData = {
     ...updates,
@@ -89,6 +132,10 @@ export async function updateWorkflowTemplate(
 }
 
 export async function deleteWorkflowTemplate(workflowId: string) {
+  if (isBackendConfigured('community')) {
+    try { await deleteCommunityWorkflow(workflowId); return { data: null, error: null } }
+    catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to delete workflow.') } }
+  }
   // Soft delete - just mark as inactive
   return supabase.from('workflow_templates').update({ is_active: false }).eq('id', workflowId)
 }
@@ -98,6 +145,10 @@ export async function deleteWorkflowTemplate(workflowId: string) {
 // ============================================
 
 export async function getWorkflowStates(workflowId: string) {
+  if (isBackendConfigured('community')) {
+    try { return { data: await getCommunityWorkflowStates(workflowId) as unknown as WorkflowState[], error: null } }
+    catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to load workflow states.') } }
+  }
   return supabase
     .from('workflow_states')
     .select('*')
@@ -108,14 +159,26 @@ export async function getWorkflowStates(workflowId: string) {
 export async function createWorkflowState(
   state: Omit<Partial<WorkflowState>, 'id'> & { name: string; workflow_id: string },
 ) {
+  if (isBackendConfigured('community')) {
+    try { return { data: await createCommunityWorkflowState(state as Record<string, unknown>) as unknown as WorkflowState, error: null } }
+    catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to create workflow state.') } }
+  }
   return supabase.from('workflow_states').insert(state).select().single()
 }
 
 export async function updateWorkflowState(stateId: string, updates: Partial<WorkflowState>) {
+  if (isBackendConfigured('community')) {
+    try { return { data: await updateCommunityWorkflowState(stateId, updates as Record<string, unknown>) as unknown as WorkflowState, error: null } }
+    catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to update workflow state.') } }
+  }
   return supabase.from('workflow_states').update(updates).eq('id', stateId).select().single()
 }
 
 export async function deleteWorkflowState(stateId: string) {
+  if (isBackendConfigured('community')) {
+    try { await deleteCommunityWorkflowState(stateId); return { data: null, error: null } }
+    catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to delete workflow state.') } }
+  }
   return supabase.from('workflow_states').delete().eq('id', stateId)
 }
 
@@ -124,6 +187,10 @@ export async function deleteWorkflowState(stateId: string) {
 // ============================================
 
 export async function getWorkflowTransitions(workflowId: string) {
+  if (isBackendConfigured('community')) {
+    try { return { data: await getCommunityWorkflowTransitions(workflowId) as unknown as WorkflowTransition[], error: null } }
+    catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to load workflow transitions.') } }
+  }
   return supabase.from('workflow_transitions').select('*').eq('workflow_id', workflowId)
 }
 
@@ -134,6 +201,10 @@ export async function createWorkflowTransition(
     to_state_id: string
   },
 ) {
+  if (isBackendConfigured('community')) {
+    try { return { data: await createCommunityWorkflowTransition(transition as Record<string, unknown>) as unknown as WorkflowTransition, error: null } }
+    catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to create workflow transition.') } }
+  }
   // Cast auto_conditions to Json for Supabase compatibility
   const insertData = {
     ...transition,
@@ -146,6 +217,10 @@ export async function updateWorkflowTransition(
   transitionId: string,
   updates: Partial<WorkflowTransition>,
 ) {
+  if (isBackendConfigured('community')) {
+    try { return { data: await updateCommunityWorkflowTransition(transitionId, updates as Record<string, unknown>) as unknown as WorkflowTransition, error: null } }
+    catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to update workflow transition.') } }
+  }
   // Cast auto_conditions to Json for Supabase compatibility
   const updateData = {
     ...updates,
@@ -160,6 +235,10 @@ export async function updateWorkflowTransition(
 }
 
 export async function deleteWorkflowTransition(transitionId: string) {
+  if (isBackendConfigured('community')) {
+    try { await deleteCommunityWorkflowTransition(transitionId); return { data: null, error: null } }
+    catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to delete workflow transition.') } }
+  }
   return supabase.from('workflow_transitions').delete().eq('id', transitionId)
 }
 
@@ -168,6 +247,10 @@ export async function deleteWorkflowTransition(transitionId: string) {
 // ============================================
 
 export async function getGatesForTransitions(transitionIds: string[]) {
+  if (isBackendConfigured('community')) {
+    try { return { data: await getCommunityWorkflowGates(transitionIds) as unknown as WorkflowGate[], error: null } }
+    catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to load workflow gates.') } }
+  }
   return supabase
     .from('workflow_gates')
     .select('*')
@@ -178,6 +261,10 @@ export async function getGatesForTransitions(transitionIds: string[]) {
 export async function createWorkflowGate(
   gate: Omit<Partial<WorkflowGate>, 'id'> & { transition_id: string; name: string },
 ) {
+  if (isBackendConfigured('community')) {
+    try { return { data: await createCommunityWorkflowGate(gate as Record<string, unknown>) as unknown as WorkflowGate, error: null } }
+    catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to create workflow gate.') } }
+  }
   // Cast types to handle the difference between local and Supabase types
   const insertData = {
     ...gate,
@@ -189,6 +276,10 @@ export async function createWorkflowGate(
 }
 
 export async function updateWorkflowGate(gateId: string, updates: Partial<WorkflowGate>) {
+  if (isBackendConfigured('community')) {
+    try { return { data: await updateCommunityWorkflowGate(gateId, updates as Record<string, unknown>) as unknown as WorkflowGate, error: null } }
+    catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to update workflow gate.') } }
+  }
   // Cast types to handle the difference between local and Supabase types
   const updateData = {
     ...updates,
@@ -200,6 +291,10 @@ export async function updateWorkflowGate(gateId: string, updates: Partial<Workfl
 }
 
 export async function deleteWorkflowGate(gateId: string) {
+  if (isBackendConfigured('community')) {
+    try { await deleteCommunityWorkflowGate(gateId); return { data: null, error: null } }
+    catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to delete workflow gate.') } }
+  }
   return supabase.from('workflow_gates').delete().eq('id', gateId)
 }
 
@@ -236,7 +331,8 @@ export async function addGateReviewer(
     reviewer_type: 'user' | 'role' | 'group' | 'workflow_role'
   },
 ) {
-  return supabase.from('workflow_gate_reviewers').insert(reviewer).select().single()
+  const { user: _user, workflow_role: _workflowRole, ...insertData } = reviewer
+  return supabase.from('workflow_gate_reviewers').insert(insertData).select().single()
 }
 
 export async function removeGateReviewer(reviewerId: string) {
@@ -248,6 +344,10 @@ export async function removeGateReviewer(reviewerId: string) {
 // ============================================
 
 export async function getFileWorkflowAssignment(fileId: string) {
+  if (isBackendConfigured('community')) {
+    try { return { data: await getCommunityFileWorkflow(fileId), error: null } }
+    catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to load file workflow.') } }
+  }
   return supabase
     .from('file_workflow_assignments')
     .select(
@@ -267,6 +367,10 @@ export async function assignWorkflowToFile(
   initialStateId: string,
   assignedBy: string,
 ) {
+  if (isBackendConfigured('community')) {
+    try { await assignCommunityFileWorkflow(fileId, workflowId, initialStateId); return { data: { file_id: fileId, workflow_id: workflowId, current_state_id: initialStateId }, error: null } }
+    catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to assign workflow.') } }
+  }
   return supabase
     .from('file_workflow_assignments')
     .upsert({
@@ -280,6 +384,15 @@ export async function assignWorkflowToFile(
 }
 
 export async function updateFileWorkflowState(fileId: string, newStateId: string) {
+  if (isBackendConfigured('community')) {
+    try {
+      const assignment = await getCommunityFileWorkflow(fileId)
+      const workflowId = typeof assignment?.workflow_id === 'string' ? assignment.workflow_id : null
+      if (!workflowId) return { data: null, error: new Error('File has no workflow assignment.') }
+      await assignCommunityFileWorkflow(fileId, workflowId, newStateId)
+      return { data: { file_id: fileId, current_state_id: newStateId }, error: null }
+    } catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to update workflow state.') } }
+  }
   return supabase
     .from('file_workflow_assignments')
     .update({ current_state_id: newStateId })
@@ -296,6 +409,10 @@ export async function getAvailableTransitions(
   fileId: string,
   userId: string,
 ): Promise<{ data: AvailableTransition[] | null; error: Error | null }> {
+  if (isBackendConfigured('community')) {
+    try { return { data: await getCommunityAvailableTransitions(fileId) as unknown as AvailableTransition[], error: null } }
+    catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to load workflow transitions.') } }
+  }
   const { data, error } = await supabase.rpc('get_available_transitions', {
     p_file_id: fileId,
     p_user_id: userId,
@@ -329,6 +446,10 @@ export async function getMyPendingReviews(): Promise<{
   data: MyPendingReview[] | null
   error: Error | null
 }> {
+  if (isBackendConfigured('community')) {
+    try { return { data: await getCommunityMyWorkflowReviews() as unknown as MyPendingReview[], error: null } }
+    catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to load pending reviews.') } }
+  }
   const { data, error } = await supabase.rpc('get_my_pending_reviews')
   return { data, error: error ? new Error(error.message) : null }
 }
@@ -342,7 +463,8 @@ export async function createPendingReview(
     requested_by: string
   },
 ) {
-  return supabase.from('pending_reviews').insert(review).select().single()
+  const { file: _file, gate: _gate, requester: _requester, assignee: _assignee, ...insertData } = review
+  return supabase.from('pending_reviews').insert(insertData).select().single()
 }
 
 /**
@@ -356,6 +478,10 @@ export async function submitReviewDecision(
   comment?: string,
   checklistResponses?: Record<string, boolean>,
 ): Promise<{ data: TransitionResult | null; error: Error | null }> {
+  if (isBackendConfigured('community')) {
+    try { return { data: await decideCommunityWorkflowReview(reviewId, decision, comment, checklistResponses), error: null } }
+    catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to submit review decision.') } }
+  }
   const { data, error } = await supabase.rpc('complete_gate_review', {
     p_pending_review_id: reviewId,
     p_decision: decision,
@@ -434,6 +560,10 @@ export async function executeTransition(
   transitionId: string,
   options?: { comment?: string },
 ): Promise<{ data: TransitionResult | null; error: Error | null }> {
+  if (isBackendConfigured('community')) {
+    try { return { data: await executeCommunityWorkflowTransition(fileId, transitionId, options?.comment), error: null } }
+    catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to execute workflow transition.') } }
+  }
   const { data, error } = await supabase.rpc('execute_workflow_transition', {
     p_file_id: fileId,
     p_transition_id: transitionId,

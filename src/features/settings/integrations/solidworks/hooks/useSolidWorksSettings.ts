@@ -3,6 +3,7 @@ import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
 import { useSolidWorksStatus } from '@/hooks/useSolidWorksStatus'
+import { persistDocumentManagerLicense } from '../data/documentManagerLicense'
 
 // Supabase v2 type inference incomplete for SolidWorks settings
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -269,10 +270,9 @@ export function useSolidWorksSettings() {
 
   const handleSaveLicenseKey = useCallback(async () => {
     const logInfo = (msg: string) => window.electronAPI?.log?.('info', `[SWSettings] ${msg}`)
-    const logError = (msg: string) => window.electronAPI?.log?.('error', `[SWSettings] ${msg}`)
 
     logInfo('handleSaveLicenseKey called')
-    logInfo(`organization: ${organization?.id}`)
+    logInfo(`organization available: ${!!organization}`)
     logInfo(`dmLicenseKeyInput length: ${dmLicenseKeyInput?.length}`)
     logInfo(`status.running: ${status.running}`)
 
@@ -285,56 +285,13 @@ export function useSolidWorksSettings() {
       const newKey = dmLicenseKeyInput || null
       logInfo(`newKey: ${newKey ? `${newKey.length} chars` : 'null'}`)
 
-      // Fetch current settings from database first to avoid overwriting other fields
-      logInfo('Fetching current org settings...')
-      const { data: currentOrg, error: fetchError } = await db
-        .from('organizations')
-        .select('settings')
-        .eq('id', organization.id)
-        .single()
-
-      if (fetchError) {
-        logError(`Failed to fetch current settings: ${JSON.stringify(fetchError)}`)
-      }
-      logInfo(`Current settings keys: ${Object.keys(currentOrg?.settings || {}).join(', ')}`)
-
-      const currentSettings = currentOrg?.settings || organization.settings || {}
-      const newSettings = { ...currentSettings, solidworks_dm_license_key: newKey }
-      logInfo(`New settings keys: ${Object.keys(newSettings).join(', ')}`)
-      logInfo(
-        `solidworks_dm_license_key in new settings: ${newSettings.solidworks_dm_license_key ? 'present' : 'null'}`,
-      )
-
-      logInfo('Updating organization settings in DB...')
-      const { data: updateResult, error } = await db
-        .from('organizations')
-        .update({ settings: newSettings })
-        .eq('id', organization.id)
-        .select('settings')
-        .single()
-
-      if (error) {
-        logError(`DB update error: ${JSON.stringify(error)}`)
-        throw error
-      }
-
-      // Verify the update actually worked (RLS can silently block updates)
-      if (!updateResult) {
-        logError('Update returned no data - likely blocked by RLS. Are you an admin?')
-        throw new Error(
-          'Update failed - you may not have permission to modify organization settings',
-        )
-      }
-
-      // Verify the key was actually saved
-      if (newKey && updateResult.settings?.solidworks_dm_license_key !== newKey) {
-        logError(
-          `Key mismatch after save! Expected: ${newKey?.length} chars, got: ${updateResult.settings?.solidworks_dm_license_key?.length || 0} chars`,
-        )
-        throw new Error('License key was not saved correctly')
-      }
-
-      logInfo('DB update successful - verified key in response')
+      logInfo('Persisting license through active backend...')
+      const newSettings = await persistDocumentManagerLicense({
+        organizationId: organization.id,
+        currentSettings: organization.settings,
+        licenseKey: newKey,
+      })
+      logInfo('Backend update successful')
 
       setOrganization({
         ...organization,
@@ -348,7 +305,6 @@ export function useSolidWorksSettings() {
       )
       if (newKey && status.running) {
         logInfo('Sending license key to running service...')
-        logInfo(`Key prefix: ${newKey.substring(0, 30)}...`)
         const result = await window.electronAPI?.solidworks?.startService(newKey)
         logInfo(`setDmLicense result: ${JSON.stringify(result)}`)
         if (result?.success) {
@@ -377,37 +333,44 @@ export function useSolidWorksSettings() {
     if (!organization) return
     setIsSavingLicenseKey(true)
     try {
-      // Fetch current settings from database first to avoid overwriting other fields
-      const { data: currentOrg } = await db
-        .from('organizations')
-        .select('settings')
-        .eq('id', organization.id)
-        .single()
-
-      const currentSettings = currentOrg?.settings || organization.settings || {}
-      const newSettings = { ...currentSettings, solidworks_dm_license_key: null }
-
-      const { data: updateResult, error } = await db
-        .from('organizations')
-        .update({ settings: newSettings })
-        .eq('id', organization.id)
-        .select('settings')
-        .single()
-
-      if (error) throw error
-
-      // Verify the update actually worked (RLS can silently block updates)
-      if (!updateResult) {
-        throw new Error(
-          'Update failed - you may not have permission to modify organization settings',
-        )
-      }
+      const newSettings = await persistDocumentManagerLicense({
+        organizationId: organization.id,
+        currentSettings: organization.settings,
+        licenseKey: null,
+      })
 
       setOrganization({
         ...organization,
         settings: newSettings,
       })
       setDmLicenseKeyInput('')
+
+      const solidworksApi = window.electronAPI?.solidworks
+      const configResult = await solidworksApi?.setAutoStartConfig({
+        autoStartEnabled: autoStartSolidworksService,
+        integrationEnabled: solidworksIntegrationEnabled,
+        dmLicenseKey: null,
+        verboseLogging: solidworksServiceVerboseLogging,
+        swProgId: solidworksProgId,
+      })
+      if (configResult && !configResult.success) {
+        throw new Error('Failed to clear the cached Document Manager license key')
+      }
+
+      if (status.running && solidworksApi) {
+        const stopResult = await solidworksApi.stopService()
+        if (!stopResult.success) throw new Error('Failed to stop the SolidWorks service')
+
+        const startResult = await solidworksApi.startService(
+          undefined,
+          false,
+          solidworksServiceVerboseLogging,
+        )
+        if (!startResult.success) {
+          throw new Error(startResult.error || 'Failed to restart the SolidWorks service')
+        }
+      }
+
       addToast('success', 'Document Manager license key cleared')
     } catch (error) {
       log.error('[SWSettings]', 'Clear license key failed', { error: error })
@@ -415,7 +378,16 @@ export function useSolidWorksSettings() {
     } finally {
       setIsSavingLicenseKey(false)
     }
-  }, [organization, setOrganization, addToast])
+  }, [
+    organization,
+    setOrganization,
+    addToast,
+    autoStartSolidworksService,
+    solidworksIntegrationEnabled,
+    solidworksServiceVerboseLogging,
+    solidworksProgId,
+    status.running,
+  ])
 
   // ============================================
   // Template Folder Handlers

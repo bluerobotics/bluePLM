@@ -52,7 +52,9 @@ const DB_NAME = 'blueplm-vault-cache'
 // v2 -> v3: Rows gained custom_properties; cached rows without it would leave files
 //           looking permanently modified until their next delta update
 // v3 -> v4: Profiles gained owner IDs; old unkeyed profiles are not safe to migrate
-const DB_VERSION = 4
+// v4 -> v5: Community rows must retain storage_relative_path so immutable
+//           network-vault revisions remain downloadable after a cache hit.
+const DB_VERSION = 5
 const STORE_NAME = 'vault-files'
 
 // Cache expiry - if cache is older than this, do a full refresh

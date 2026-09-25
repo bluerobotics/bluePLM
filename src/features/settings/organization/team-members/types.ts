@@ -113,6 +113,7 @@ export interface UserRowProps {
   onRemoveFromTeam?: () => void
   onVaultAccess: () => void
   onPermissions?: () => void
+  onManageCredentials?: () => void
   onViewNetPermissions?: () => void
   onSimulatePermissions?: () => void
   isSimulating?: boolean

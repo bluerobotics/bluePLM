@@ -6,6 +6,7 @@ import { logExplorer } from '@/lib/userActionLogger'
 // getEffectiveExportSettings is now used in useConfigHandlers hook
 // Note: FileIcon is now used inside file-pane/ListRowIcon.tsx
 import { supabase, updateFileMetadata, isWatchingFile } from '@/lib/supabase'
+import { isBackendConfigured } from '@/lib/community'
 import type { FileMetadataColumn } from '@/types/database'
 // Shared inline action button components now used in CellRenderer
 // Use command system for PDM operations
@@ -1150,6 +1151,10 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
   // Load custom metadata columns from organization settings
   useEffect(() => {
     const loadCustomColumns = async () => {
+      if (isBackendConfigured('community')) {
+        setCustomMetadataColumns([])
+        return
+      }
       if (!organization?.id) {
         setCustomMetadataColumns([])
         return

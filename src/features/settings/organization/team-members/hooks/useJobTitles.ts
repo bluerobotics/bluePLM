@@ -10,6 +10,7 @@
  */
 import { useCallback, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { isBackendConfigured } from '@/lib/community'
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import type { JobTitle, OrgUser } from '../types'
@@ -46,6 +47,12 @@ export function useJobTitles(orgId: string | null) {
 
     setJobTitlesLoading(true)
     try {
+      // Job titles are not represented by the Community API yet. Do not let
+      // this optional Supabase feature leak into a MariaDB installation.
+      if (isBackendConfigured('community')) {
+        setJobTitles([])
+        return
+      }
       const { data, error } = await supabase
         .from('job_titles')
         .select('id, name, color, icon')

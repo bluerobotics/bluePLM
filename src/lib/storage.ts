@@ -686,8 +686,8 @@ export async function getStorageUsage(orgId: string): Promise<{
     // For accurate count, query the database instead
     const { data: dbData, error: dbError } = await supabase
       .from('file_versions')
-      .select('file_size')
-      .eq('org_id', orgId)
+      .select('file_size, files!file_versions_file_id_fkey!inner(org_id)')
+      .eq('files.org_id', orgId)
 
     if (dbError) {
       return { totalBytes: 0, fileCount: 0, error: dbError.message }

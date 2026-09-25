@@ -10,6 +10,9 @@
 import { useEffect } from 'react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { log } from '@/lib/logger'
+import { isBackendConfigured, resolveCommunityShareLink } from '@/lib/community'
+import { buildFullPath } from '@/lib/utils/path'
+import { t } from '@/lib/i18n'
 
 /**
  * Hook to listen for deep link install events and navigate appropriately.
@@ -25,6 +28,8 @@ export function useDeepLinkInstall(): void {
   const setPendingDeepLinkInstall = usePDMStore((s) => s.setPendingDeepLinkInstall)
   const fetchStoreExtensions = usePDMStore((s) => s.fetchStoreExtensions)
   const addToast = usePDMStore((s) => s.addToast)
+  const activeVaultId = usePDMStore((s) => s.activeVaultId)
+  const vaultPath = usePDMStore((s) => s.vaultPath)
 
   useEffect(() => {
     const api = window.electronAPI
@@ -63,4 +68,33 @@ export function useDeepLinkInstall(): void {
       unsubscribe()
     }
   }, [setActiveView, setSettingsTab, setPendingDeepLinkInstall, fetchStoreExtensions, addToast])
+
+  useEffect(() => {
+    const api = window.electronAPI
+    if (!api?.onDeepLinkShare) return
+    return api.onDeepLinkShare(async ({ token }) => {
+      if (!isBackendConfigured('community')) {
+        addToast('warning', t('mdbSetup.shareRequiresMdb'))
+        return
+      }
+      try {
+        const { file } = await resolveCommunityShareLink(token)
+        if (file.vaultId !== activeVaultId || !vaultPath) {
+          addToast('info', t('mdbSetup.sharedFileConnectVault', { name: file.fileName }))
+          return
+        }
+        const opened = await api.openFile(buildFullPath(vaultPath, file.canonicalPath))
+        if (!opened.success)
+          addToast(
+            'error',
+            opened.error || t('mdbSetup.sharedFileOpenFailed', { name: file.fileName }),
+          )
+      } catch (error) {
+        addToast(
+          'error',
+          error instanceof Error ? error.message : t('mdbSetup.sharedFileResolveFailed'),
+        )
+      }
+    })
+  }, [activeVaultId, vaultPath, addToast])
 }

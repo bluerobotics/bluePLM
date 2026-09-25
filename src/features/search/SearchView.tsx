@@ -6,6 +6,7 @@ import { useHiddenFolders } from '@/hooks/useHiddenFolders'
 import { isPathHidden } from '@/lib/hiddenFolders'
 import { resolveDescription, resolvePartNumber } from '@/lib/metadata/overlay'
 import { getSupabaseClient } from '@/lib/supabase'
+import { isBackendConfigured, searchCommunityEcos } from '@/lib/community'
 import { logSearch } from '@/lib/userActionLogger'
 
 interface ECOSearchResult {
@@ -61,6 +62,7 @@ export function SearchView() {
       setSearchMode('eco')
 
       try {
+        if (isBackendConfigured('community')) { setEcoResults(await searchCommunityEcos(ecoSearchTerm)); return }
         const client = getSupabaseClient()
 
         // First find ECOs matching the search

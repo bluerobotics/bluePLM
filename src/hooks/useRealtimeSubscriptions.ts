@@ -13,6 +13,7 @@ import {
 } from '@/lib/realtime'
 import { buildFullPath } from '@/lib/commands/types'
 import { log } from '@/lib/logger'
+import { isBackendConfigured } from '@/lib/community'
 import {
   hashCheckoutIdentifier,
   isCheckoutProfileForOwner,
@@ -101,9 +102,7 @@ export function classifyDeletionUpdate(params: {
     return { type: 'not-a-deletion' }
   }
 
-  return params.hasLocalCopy
-    ? { type: 'became-orphaned-locally' }
-    : { type: 'removed-cloud-only' }
+  return params.hasLocalCopy ? { type: 'became-orphaned-locally' } : { type: 'removed-cloud-only' }
 }
 
 export type FolderDeletionOutcome = { type: 'not-a-deletion' } | { type: 'deleted' }
@@ -166,7 +165,11 @@ export function useRealtimeSubscriptions(
   }, [requestSilentRefresh])
 
   useEffect(() => {
-    if (!organization || isOfflineMode) return
+    // Community uses the PHP API and does not expose Supabase Realtime. The
+    // generic subscription layer also contains a no-op safety net, but this
+    // guard prevents the whole Supabase-only notification pipeline from being
+    // initialized on a Community client.
+    if (!organization || isOfflineMode || isBackendConfigured('community')) return
 
     const { addCloudFile, updateFilePdmData, removeCloudFile, addToast } = usePDMStore.getState()
 
@@ -542,14 +545,12 @@ export function useRealtimeSubscriptions(
                         const currentFile = currentState.files.find(
                           (file) => file.pdmData?.id === newFile.id,
                         )
-                        const ownerStillMatches =
-                          currentFile?.pdmData?.checked_out_by === ownerId
+                        const ownerStillMatches = currentFile?.pdmData?.checked_out_by === ownerId
                         const eventStillLatest =
                           latestCheckoutEventByFile.get(newFile.id) === eventSequence
                         const currentActiveVaultId =
                           currentState.activeVaultId ?? currentState.connectedVaults[0]?.id ?? null
-                        const vaultStillMatches =
-                          currentActiveVaultId === eventVaultId
+                        const vaultStillMatches = currentActiveVaultId === eventVaultId
 
                         if (
                           !subscriptionActive ||

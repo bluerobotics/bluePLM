@@ -1,7 +1,15 @@
 import { getSupabaseClient } from '../client'
+import { getCommunityFileReferences } from '@/lib/community'
 import { log } from '@/lib/logger'
 import { folderPrefixLikePattern } from '@/lib/utils/likePattern'
 import { hashCheckoutIdentifier, type CheckoutUserProfile } from '@/types/pdm'
+import {
+  getCommunityFileRevisions,
+  getCommunityFiles,
+  getCommunityVaults,
+  type CommunityFile,
+} from '@/lib/community'
+import { routeBackend } from '@/lib/backendAdapter'
 
 // ============================================
 // Files - Read Operations
@@ -20,6 +28,55 @@ export interface CheckedOutUsersResult {
 
 const checkedOutUsersInFlight = new Map<string, Promise<CheckedOutUsersResult>>()
 
+function communityFileToPdm(file: CommunityFile, vaultId: string) {
+  const extension = file.fileName.includes('.')
+    ? `.${file.fileName.split('.').pop()}`.toLowerCase()
+    : null
+  return {
+    id: file.id,
+    org_id: '',
+    vault_id: vaultId,
+    file_path: file.canonicalPath,
+    file_name: file.fileName,
+    extension,
+    file_type: null,
+    part_number: null,
+    description: null,
+    revision: String(file.currentRevision),
+    version: file.currentRevision,
+    content_hash: file.contentHash,
+    storage_relative_path: file.storageRelativePath,
+    _communityStorageRelativePath: file.storageRelativePath,
+    file_size: file.sizeBytes,
+    state: file.state,
+    workflow_state_id: file.workflowStateId ?? null,
+    checked_out_by: file.checkedOutByUserId,
+    checked_out_at: file.checkoutExpiresAt,
+    checked_out_file_path: file.checkedOutByUserId ? file.canonicalPath : null,
+    checked_out_file_name: file.checkedOutByUserId ? file.fileName : null,
+    checked_out_user: file.checkedOutByUserId
+      ? { id: file.checkedOutByUserId, email: '', full_name: file.checkedOutBy, avatar_url: null }
+      : null,
+    custom_properties: null,
+    created_at: file.createdAt,
+    updated_at: file.updatedAt,
+  }
+}
+
+async function communityFilesForVaults(vaultId?: string) {
+  const vaults = vaultId
+    ? (await getCommunityVaults()).filter((vault) => vault.id === vaultId)
+    : await getCommunityVaults()
+  const files = (
+    await Promise.all(
+      vaults.map(async (vault) =>
+        (await getCommunityFiles(vault.id)).map((file) => communityFileToPdm(file, vault.id)),
+      ),
+    )
+  ).flat()
+  return files
+}
+
 /**
  * Get files with full metadata including user info (slower, use for single file or small sets)
  */
@@ -35,53 +92,81 @@ export async function getFiles(
     workflow_state_ids?: string[]
   },
 ) {
-  const client = getSupabaseClient()
-  let query = client
-    .from('files')
-    .select(
-      `
-      *,
-      checked_out_user:users!checked_out_by(id, email, full_name, avatar_url),
-      created_by_user:users!created_by(email, full_name)
-    `,
-    )
-    .eq('org_id', orgId)
-    .order('file_path', { ascending: true })
+  return routeBackend({
+    mdb: async () => {
+      try {
+        let files = await communityFilesForVaults(options?.vaultId)
+        if (options?.folder) {
+          const prefix = `${options.folder.replace(/[\\/]$/, '')}/`.toLowerCase()
+          files = files.filter((file) => file.file_path.toLowerCase().startsWith(prefix))
+        }
+        if (options?.state?.length)
+          files = files.filter((file) => options.state!.includes(file.state))
+        if (options?.search) {
+          const search = options.search.toLowerCase()
+          files = files.filter(
+            (file) =>
+              file.file_path.toLowerCase().includes(search) ||
+              file.file_name.toLowerCase().includes(search),
+          )
+        }
+        if (options?.checkedOutByMe)
+          files = files.filter((file) => file.checked_out_by === options.checkedOutByMe)
+        return { files, error: null }
+      } catch (error) {
+        return { files: null, error: error as Error }
+      }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
+      let query = client
+        .from('files')
+        .select(
+          `
+          *,
+          checked_out_user:users!checked_out_by(id, email, full_name, avatar_url),
+          created_by_user:users!created_by(email, full_name)
+        `,
+        )
+        .eq('org_id', orgId)
+        .order('file_path', { ascending: true })
 
-  // Filter out soft-deleted files by default
-  if (!options?.includeDeleted) {
-    query = query.is('deleted_at', null)
-  }
+      // Filter out soft-deleted files by default
+      if (!options?.includeDeleted) {
+        query = query.is('deleted_at', null)
+      }
 
-  // Filter by vault if specified
-  if (options?.vaultId) {
-    query = query.eq('vault_id', options.vaultId)
-  }
+      // Filter by vault if specified
+      if (options?.vaultId) {
+        query = query.eq('vault_id', options.vaultId)
+      }
 
-  if (options?.folder) {
-    // The separator is part of the pattern: a bare `Parts%` prefix also answers
-    // with everything under `PartsOld`, and `_` in a folder name is a wildcard.
-    query = query.ilike('file_path', folderPrefixLikePattern(options.folder))
-  }
+      if (options?.folder) {
+        // The separator is part of the pattern: a bare `Parts%` prefix also answers
+        // with everything under `PartsOld`, and `_` in a folder name is a wildcard.
+        query = query.ilike('file_path', folderPrefixLikePattern(options.folder))
+      }
 
-  if (options?.workflow_state_ids && options.workflow_state_ids.length > 0) {
-    query = query.in('workflow_state_id', options.workflow_state_ids)
-  }
+      if (options?.workflow_state_ids && options.workflow_state_ids.length > 0) {
+        query = query.in('workflow_state_id', options.workflow_state_ids)
+      }
 
-  if (options?.search) {
-    query = query.or(
-      `file_name.ilike.%${options.search}%,` +
-        `part_number.ilike.%${options.search}%,` +
-        `description.ilike.%${options.search}%`,
-    )
-  }
+      if (options?.search) {
+        query = query.or(
+          `file_name.ilike.%${options.search}%,` +
+            `part_number.ilike.%${options.search}%,` +
+            `description.ilike.%${options.search}%`,
+        )
+      }
 
-  if (options?.checkedOutByMe) {
-    query = query.eq('checked_out_by', options.checkedOutByMe)
-  }
+      if (options?.checkedOutByMe) {
+        query = query.eq('checked_out_by', options.checkedOutByMe)
+      }
 
-  const { data, error } = await query
-  return { files: data, error }
+      const { data, error } = await query
+      return { files: data, error }
+    },
+  })
 }
 
 // Type for lightweight file data
@@ -96,6 +181,10 @@ export interface LightweightFile {
   revision: string | null
   version: number
   content_hash: string | null
+  /** Immutable Community network-vault object path, when Community is active. */
+  storage_relative_path?: string | null
+  /** Explicit alias retained for Community download and rollback commands. */
+  _communityStorageRelativePath?: string
   file_size: number | null
   state: string | null
   checked_out_by: string | null
@@ -130,36 +219,73 @@ export async function getFilesLightweight(
   orgId: string,
   vaultId?: string,
 ): Promise<{ files: LightweightFile[] | null; error: any }> {
-  const logFn =
-    typeof window !== 'undefined' && (window as any).electronAPI?.log // TODO: type this
-      ? (level: string, msg: string, data?: any) =>
-          (window as any).electronAPI.log(level, msg, data) // TODO: type this
-      : () => {}
+  return routeBackend({
+    mdb: async () => {
+      try {
+        const files = await communityFilesForVaults(vaultId)
+        return {
+          files: files.map((file) => ({
+            id: file.id,
+            file_path: file.file_path,
+            file_name: file.file_name,
+            extension: file.extension,
+            file_type: file.file_type,
+            part_number: file.part_number,
+            description: file.description,
+            revision: file.revision,
+            version: file.version,
+            content_hash: file.content_hash,
+            storage_relative_path: file.storage_relative_path,
+            _communityStorageRelativePath: file._communityStorageRelativePath,
+            file_size: file.file_size,
+            state: file.state,
+            checked_out_by: file.checked_out_by,
+            checked_out_at: file.checked_out_at,
+            updated_at: file.updated_at,
+            custom_properties: file.custom_properties,
+            checked_out_file_path: file.checked_out_file_path,
+            checked_out_file_name: file.checked_out_file_name,
+          })),
+          error: null,
+        }
+      } catch (error) {
+        return { files: null, error }
+      }
+    },
+    supabase: async () => {
+      const logFn =
+        typeof window !== 'undefined' && (window as any).electronAPI?.log // TODO: type this
+          ? (level: string, msg: string, data?: any) =>
+              (window as any).electronAPI.log(level, msg, data) // TODO: type this
+          : () => {}
 
-  logFn('debug', '[getFilesLightweight] Querying via RPC', { orgId, vaultId })
+      logFn('debug', '[getFilesLightweight] Querying via RPC', { orgId, vaultId })
 
-  const client = getSupabaseClient()
+      const client = getSupabaseClient()
 
-  // Use RPC function for single-query fetch (no pagination overhead)
-  // Type assertion needed because RPC function types are generated from DB schema
-  const { data, error } = await (client.rpc as any)('get_vault_files_fast', { // TODO: type this
-    p_org_id: orgId,
-    p_vault_id: vaultId || null,
+      // Use RPC function for single-query fetch (no pagination overhead)
+      // Type assertion needed because RPC function types are generated from DB schema
+      const { data, error } = await (client.rpc as any)('get_vault_files_fast', {
+        // TODO: type this
+        p_org_id: orgId,
+        p_vault_id: vaultId || null,
+      })
+
+      if (error) {
+        logFn('error', '[getFilesLightweight] RPC error', { error: error.message })
+        return { files: null, error }
+      }
+
+      const files = data as LightweightFile[] | null
+
+      logFn('debug', '[getFilesLightweight] Result', {
+        fileCount: files?.length || 0,
+        hasError: false,
+      })
+
+      return { files, error: null }
+    },
   })
-
-  if (error) {
-    logFn('error', '[getFilesLightweight] RPC error', { error: error.message })
-    return { files: null, error }
-  }
-
-  const files = data as LightweightFile[] | null
-
-  logFn('debug', '[getFilesLightweight] Result', {
-    fileCount: files?.length || 0,
-    hasError: false,
-  })
-
-  return { files, error: null }
 }
 
 /**
@@ -178,35 +304,79 @@ export async function getFilesDelta(
   vaultId: string,
   since: string,
 ): Promise<{ files: DeltaFile[] | null; error: any }> {
-  const logFn =
-    typeof window !== 'undefined' && (window as any).electronAPI?.log // TODO: type this
-      ? (level: string, msg: string, data?: any) =>
-          (window as any).electronAPI.log(level, msg, data) // TODO: type this
-      : () => {}
+  return routeBackend({
+    mdb: async () => {
+      try {
+        const watermark = new Date(since).getTime()
+        const files = await communityFilesForVaults(vaultId)
+        return {
+          files: files
+            .filter(
+              (file) => Number.isNaN(watermark) || new Date(file.updated_at).getTime() > watermark,
+            )
+            .map((file) => ({
+              id: file.id,
+              file_path: file.file_path,
+              file_name: file.file_name,
+              extension: file.extension,
+              file_type: file.file_type,
+              part_number: file.part_number,
+              description: file.description,
+              revision: file.revision,
+              version: file.version,
+              content_hash: file.content_hash,
+              storage_relative_path: file.storage_relative_path,
+              _communityStorageRelativePath: file._communityStorageRelativePath,
+              file_size: file.file_size,
+              state: file.state,
+              checked_out_by: file.checked_out_by,
+              checked_out_at: file.checked_out_at,
+              updated_at: file.updated_at,
+              custom_properties: file.custom_properties,
+              checked_out_file_path: file.checked_out_file_path,
+              checked_out_file_name: file.checked_out_file_name,
+              deleted_at: null,
+              is_deleted: false,
+            })),
+          error: null,
+        }
+      } catch (error) {
+        return { files: null, error }
+      }
+    },
+    supabase: async () => {
+      const logFn =
+        typeof window !== 'undefined' && (window as any).electronAPI?.log // TODO: type this
+          ? (level: string, msg: string, data?: any) =>
+              (window as any).electronAPI.log(level, msg, data) // TODO: type this
+          : () => {}
 
-  logFn('debug', '[getFilesDelta] Querying changes since', { orgId, vaultId, since })
+      logFn('debug', '[getFilesDelta] Querying changes since', { orgId, vaultId, since })
 
-  const client = getSupabaseClient()
+      const client = getSupabaseClient()
 
-  // Use RPC function for delta queries
-  const { data, error } = await (client.rpc as any)('get_vault_files_delta', { // TODO: type this
-    p_org_id: orgId,
-    p_vault_id: vaultId,
-    p_since: since,
+      // Use RPC function for delta queries
+      const { data, error } = await (client.rpc as any)('get_vault_files_delta', {
+        // TODO: type this
+        p_org_id: orgId,
+        p_vault_id: vaultId,
+        p_since: since,
+      })
+
+      if (error) {
+        logFn('error', '[getFilesDelta] RPC error', { error: error.message })
+        return { files: null, error }
+      }
+
+      const files = data as DeltaFile[] | null
+
+      logFn('debug', '[getFilesDelta] Result', {
+        changedCount: files?.length || 0,
+      })
+
+      return { files, error: null }
+    },
   })
-
-  if (error) {
-    logFn('error', '[getFilesDelta] RPC error', { error: error.message })
-    return { files: null, error }
-  }
-
-  const files = data as DeltaFile[] | null
-
-  logFn('debug', '[getFilesDelta] Result', {
-    changedCount: files?.length || 0,
-  })
-
-  return { files, error: null }
 }
 
 /**
@@ -226,35 +396,53 @@ export async function getVaultFilesCount(
   orgId: string,
   vaultId: string,
 ): Promise<{ count: number | null; error: unknown }> {
-  const logFn =
-    typeof window !== 'undefined' && (window as any).electronAPI?.log // TODO: type this
-      ? (level: string, msg: string, data?: any) => // TODO: type this
-          (window as any).electronAPI.log(level, msg, data) // TODO: type this
-      : () => {}
+  return routeBackend({
+    mdb: async () => {
+      try {
+        return { count: (await communityFilesForVaults(vaultId)).length, error: null }
+      } catch (error) {
+        return { count: null, error }
+      }
+    },
+    supabase: async () => {
+      const logFn =
+        typeof window !== 'undefined' && (window as any).electronAPI?.log // TODO: type this
+          ? (
+              level: string,
+              msg: string,
+              data?: any, // TODO: type this
+            ) => (window as any).electronAPI.log(level, msg, data) // TODO: type this
+          : () => {}
 
-  logFn('debug', '[getVaultFilesCount] Querying vault file count', { orgId, vaultId })
+      logFn('debug', '[getVaultFilesCount] Querying vault file count', { orgId, vaultId })
 
-  const client = getSupabaseClient()
+      const client = getSupabaseClient()
 
-  // Use RPC function so the count shares get_vault_files_fast's predicate exactly
-  const { data, error }: { data: unknown; error: { message: string } | null } = await (
-    client.rpc as any // TODO: type this
-  )('get_vault_files_count', {
-    p_org_id: orgId,
-    p_vault_id: vaultId,
+      // Use RPC function so the count shares get_vault_files_fast's predicate exactly
+      const { data, error }: { data: unknown; error: { message: string } | null } = await (
+        client.rpc as any
+      )(
+        // TODO: type this
+        'get_vault_files_count',
+        {
+          p_org_id: orgId,
+          p_vault_id: vaultId,
+        },
+      )
+
+      if (error) {
+        logFn('error', '[getVaultFilesCount] RPC error', { error: error.message })
+        return { count: null, error }
+      }
+
+      const count = typeof data === 'string' ? Number(data) : (data as number | null)
+      const validCount = typeof count === 'number' && Number.isFinite(count) ? count : null
+
+      logFn('debug', '[getVaultFilesCount] Result', { count: validCount })
+
+      return { count: validCount, error: null }
+    },
   })
-
-  if (error) {
-    logFn('error', '[getVaultFilesCount] RPC error', { error: error.message })
-    return { count: null, error }
-  }
-
-  const count = typeof data === 'string' ? Number(data) : (data as number | null)
-  const validCount = typeof count === 'number' && Number.isFinite(count) ? count : null
-
-  logFn('debug', '[getVaultFilesCount] Result', { count: validCount })
-
-  return { count: validCount, error: null }
 }
 
 /**
@@ -405,21 +593,33 @@ export async function getUserBasicInfo(
 }
 
 export async function getFile(fileId: string) {
-  const client = getSupabaseClient()
-  const { data, error } = await client
-    .from('files')
-    .select(
-      `
-      *,
-      checked_out_user:users!checked_out_by(id, email, full_name, avatar_url),
-      created_by_user:users!created_by(email, full_name),
-      updated_by_user:users!updated_by(email, full_name)
-    `,
-    )
-    .eq('id', fileId)
-    .single()
+  return routeBackend({
+    mdb: async () => {
+      try {
+        const files = await communityFilesForVaults()
+        return { file: files.find((file) => file.id === fileId) ?? null, error: null }
+      } catch (error) {
+        return { file: null, error: error as Error }
+      }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
+      const { data, error } = await client
+        .from('files')
+        .select(
+          `
+          *,
+          checked_out_user:users!checked_out_by(id, email, full_name, avatar_url),
+          created_by_user:users!created_by(email, full_name),
+          updated_by_user:users!updated_by(email, full_name)
+        `,
+        )
+        .eq('id', fileId)
+        .single()
 
-  return { file: data, error }
+      return { file: data, error }
+    },
+  })
 }
 
 /**
@@ -441,14 +641,33 @@ export async function getFile(fileId: string) {
  * and types are regenerated.
  */
 export async function getFileByPath(vaultId: string, filePath: string) {
-  const client = getSupabaseClient()
-  const { data, error } = await (client.rpc as any)('get_active_file_by_path', {
-    // TODO: type this
-    p_vault_id: vaultId,
-    p_file_path: filePath,
-  })
+  return routeBackend({
+    mdb: async () => {
+      try {
+        const files = await communityFilesForVaults(vaultId)
+        return {
+          file:
+            files.find(
+              (file) =>
+                file.file_path.localeCompare(filePath, undefined, { sensitivity: 'accent' }) === 0,
+            ) ?? null,
+          error: null,
+        }
+      } catch (error) {
+        return { file: null, error: error as Error }
+      }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
+      const { data, error } = await (client.rpc as any)('get_active_file_by_path', {
+        // TODO: type this
+        p_vault_id: vaultId,
+        p_file_path: filePath,
+      })
 
-  return { file: (data?.[0] as Record<string, unknown> | undefined) ?? null, error }
+      return { file: (data?.[0] as Record<string, unknown> | undefined) ?? null, error }
+    },
+  })
 }
 
 // ============================================
@@ -456,19 +675,44 @@ export async function getFileByPath(vaultId: string, filePath: string) {
 // ============================================
 
 export async function getFileVersions(fileId: string) {
-  const client = getSupabaseClient()
-  const { data, error } = await client
-    .from('file_versions')
-    .select(
-      `
-      *,
-      created_by_user:users!created_by(email, full_name)
-    `,
-    )
-    .eq('file_id', fileId)
-    .order('version', { ascending: false })
+  return routeBackend({
+    mdb: async () => {
+      try {
+        const versions = (await getCommunityFileRevisions(fileId)).map((revision) => ({
+          id: revision.id,
+          file_id: fileId,
+          version: revision.revisionNumber,
+          revision: String(revision.revisionNumber),
+          content_hash: revision.contentHash,
+          _communityStorageRelativePath: revision.storageRelativePath,
+          file_size: revision.sizeBytes,
+          comment: revision.comment,
+          workflow_state_id: null,
+          created_at: revision.createdAt,
+          created_by: revision.checkedInBy,
+          created_by_user: { email: '', full_name: revision.checkedInBy },
+        }))
+        return { versions, error: null }
+      } catch (error) {
+        return { versions: null, error: error as Error }
+      }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
+      const { data, error } = await client
+        .from('file_versions')
+        .select(
+          `
+          *,
+          created_by_user:users!created_by(email, full_name)
+        `,
+        )
+        .eq('file_id', fileId)
+        .order('version', { ascending: false })
 
-  return { versions: data, error }
+      return { versions: data, error }
+    },
+  })
 }
 
 // ============================================
@@ -476,37 +720,65 @@ export async function getFileVersions(fileId: string) {
 // ============================================
 
 export async function getWhereUsed(fileId: string) {
-  const client = getSupabaseClient()
-  const { data, error } = await client
-    .from('file_references')
-    .select(
-      `
-      *,
-      parent:files!parent_file_id(
-        id, file_name, file_path, part_number, revision, state
-      )
-    `,
-    )
-    .eq('child_file_id', fileId)
+  return routeBackend({
+    mdb: async () => {
+      try {
+        return {
+          references: (await getCommunityFileReferences(fileId, 'where-used')) as any,
+          error: null,
+        }
+      } catch (error) {
+        return { references: null, error: error as Error }
+      }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
+      const { data, error } = await client
+        .from('file_references')
+        .select(
+          `
+          *,
+          parent:files!parent_file_id(
+            id, file_name, file_path, part_number, revision, state
+          )
+        `,
+        )
+        .eq('child_file_id', fileId)
 
-  return { references: data, error }
+      return { references: data, error }
+    },
+  })
 }
 
 export async function getContains(fileId: string) {
-  const client = getSupabaseClient()
-  const { data, error } = await client
-    .from('file_references')
-    .select(
-      `
-      *,
-      child:files!child_file_id(
-        id, file_name, file_path, part_number, revision, state, description
-      )
-    `,
-    )
-    .eq('parent_file_id', fileId)
+  return routeBackend({
+    mdb: async () => {
+      try {
+        return {
+          references: (await getCommunityFileReferences(fileId, 'contains')) as any,
+          error: null,
+        }
+      } catch (error) {
+        return { references: null, error: error as Error }
+      }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
+      const { data, error } = await client
+        .from('file_references')
+        .select(
+          `
+          *,
+          child:files!child_file_id(
+            id, file_name, file_path, part_number, revision, state, description
+          )
+        `,
+        )
+        .eq('parent_file_id', fileId)
 
-  return { references: data, error }
+      return { references: data, error }
+    },
+  })
 }
 
 /**

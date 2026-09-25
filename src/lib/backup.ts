@@ -1,5 +1,6 @@
 // Backup service - simplified to use restic directly for everything
 import { getSupabaseClient } from './supabase'
+import { isBackendActive } from './backend'
 import { log } from '@/lib/logger'
 
 // ============================================
@@ -115,6 +116,9 @@ export async function getPlatform(): Promise<string> {
 // ============================================
 
 export async function getBackupConfig(orgId: string): Promise<BackupConfig | null> {
+  // Community vault history is managed by its own backend and network-vault
+  // layout. The Supabase/restic control plane must never be probed there.
+  if (!isBackendActive('supabase')) return null
   const supabase = getSupabaseClient()
 
   const { data, error } = await supabase

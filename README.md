@@ -32,6 +32,13 @@ See the [User Setup Guide](https://docs.blueplm.io/user-setup) for details.
 
 See the [Admin Setup Guide](https://docs.blueplm.io/admin-setup) for step-by-step instructions.
 
+### BluePLM MDB fork
+
+This fork adds a guided PHP/MariaDB backend option alongside the upstream
+Supabase option. The MDB integration supports a Windows network vault for
+archive files. Google Drive is intentionally deferred from this upstream
+integration until it has been validated separately.
+
 ## Building from Source
 
 ```bash

@@ -1,7 +1,9 @@
 import { getSupabaseClient } from './client'
+import { getCommunityTeams, getCommunityUserTeams, removeCommunityUser } from '@/lib/community'
 import type { PermissionAction } from '../../types/permissions'
 import type { ModuleConfig as ModuleConfigType } from '../../types/modules'
 import { mergeModuleOrder } from '../../types/modules'
+import { routeBackend } from '@/lib/backendAdapter'
 
 // ============================================
 // User Role Management
@@ -51,36 +53,48 @@ export async function removeUserFromOrg(
   targetUserId: string,
   _adminOrgId: string,
 ): Promise<{ success: boolean; error?: string }> {
-  const client = getSupabaseClient()
+  return routeBackend({
+    mdb: async () => {
+      try {
+        await removeCommunityUser(targetUserId)
+        return { success: true }
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) }
+      }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
 
-  // Get target user's email for the RPC call
-  const { data: targetUser, error: fetchError } = await client
-    .from('users')
-    .select('email')
-    .eq('id', targetUserId)
-    .single()
+      // Get target user's email for the RPC call
+      const { data: targetUser, error: fetchError } = await client
+        .from('users')
+        .select('email')
+        .eq('id', targetUserId)
+        .single()
 
-  if (fetchError || !targetUser) {
-    return { success: false, error: 'User not found' }
-  }
+      if (fetchError || !targetUser) {
+        return { success: false, error: 'User not found' }
+      }
 
-  // Call admin_remove_user RPC which fully removes the user from org AND auth.users
-  // This allows them to be cleanly re-invited later
-  const { data, error } = await client.rpc('admin_remove_user', {
-    p_user_email: targetUser.email,
+      // Call admin_remove_user RPC which fully removes the user from org AND auth.users
+      // This allows them to be cleanly re-invited later
+      const { data, error } = await client.rpc('admin_remove_user', {
+        p_user_email: targetUser.email,
+      })
+
+      if (error) {
+        return { success: false, error: error.message }
+      }
+
+      const result = data as { success: boolean; error?: string; message?: string }
+
+      if (!result.success) {
+        return { success: false, error: result.error || 'Failed to remove user' }
+      }
+
+      return { success: true }
+    },
   })
-
-  if (error) {
-    return { success: false, error: error.message }
-  }
-
-  const result = data as { success: boolean; error?: string; message?: string }
-
-  if (!result.success) {
-    return { success: false, error: result.error || 'Failed to remove user' }
-  }
-
-  return { success: true }
 }
 
 /**
@@ -138,35 +152,44 @@ export async function addUserToOrg(
 /**
  * Get all teams a user belongs to
  */
-export async function getUserTeams(
-  userId: string,
-): Promise<{
+export async function getUserTeams(userId: string): Promise<{
   teams: Array<{ id: string; name: string; color: string; icon: string }> | null
   error?: string
 }> {
-  const client = getSupabaseClient()
+  return routeBackend({
+    mdb: async () => {
+      try {
+        return { teams: await getCommunityUserTeams(userId) }
+      } catch (error) {
+        return { teams: null, error: error instanceof Error ? error.message : String(error) }
+      }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
 
-  const { data, error } = await client
-    .from('team_members')
-    .select(
-      `
-      team:teams(id, name, color, icon)
-    `,
-    )
-    .eq('user_id', userId)
+      const { data, error } = await client
+        .from('team_members')
+        .select(
+          `
+          team:teams(id, name, color, icon)
+        `,
+        )
+        .eq('user_id', userId)
 
-  if (error) {
-    return { teams: null, error: error.message }
-  }
+      if (error) {
+        return { teams: null, error: error.message }
+      }
 
-  const teams = (data || []).map((m) => m.team).filter(Boolean) as Array<{
-    id: string
-    name: string
-    color: string
-    icon: string
-  }>
+      const teams = (data || []).map((m) => m.team).filter(Boolean) as Array<{
+        id: string
+        name: string
+        color: string
+        icon: string
+      }>
 
-  return { teams }
+      return { teams }
+    },
+  })
 }
 
 /**
@@ -176,19 +199,26 @@ export async function getUserTeams(
 export async function getUserWorkflowRoles(
   userId: string,
 ): Promise<{ roleIds: string[]; error?: string }> {
-  const client = getSupabaseClient()
+  return routeBackend({
+    mdb: async () => {
+      return { roleIds: [] }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
 
-  const { data, error } = await client
-    .from('user_workflow_roles')
-    .select('workflow_role_id')
-    .eq('user_id', userId)
+      const { data, error } = await client
+        .from('user_workflow_roles')
+        .select('workflow_role_id')
+        .eq('user_id', userId)
 
-  if (error) {
-    return { roleIds: [], error: error.message }
-  }
+      if (error) {
+        return { roleIds: [], error: error.message }
+      }
 
-  const roleIds = (data || []).map((r) => r.workflow_role_id)
-  return { roleIds }
+      const roleIds = (data || []).map((r) => r.workflow_role_id)
+      return { roleIds }
+    },
+  })
 }
 
 /**
@@ -204,50 +234,57 @@ export async function getUserPermissions(
     return { permissions: { __admin__: ['view', 'create', 'edit', 'delete', 'admin'] } }
   }
 
-  const client = getSupabaseClient()
+  return routeBackend({
+    mdb: async () => {
+      return { permissions: {} }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
 
-  // Get all team memberships and their permissions
-  const { data, error } = await client
-    .from('team_members')
-    .select(
-      `
-      team_id,
-      team:teams!inner(
-        id,
-        team_permissions(resource, actions)
-      )
-    `,
-    )
-    .eq('user_id', userId)
+      // Get all team memberships and their permissions
+      const { data, error } = await client
+        .from('team_members')
+        .select(
+          `
+          team_id,
+          team:teams!inner(
+            id,
+            team_permissions(resource, actions)
+          )
+        `,
+        )
+        .eq('user_id', userId)
 
-  if (error) {
-    return { permissions: null, error: error.message }
-  }
-
-  // Merge permissions from all teams
-  const mergedPermissions: Record<string, Set<PermissionAction>> = {}
-
-  for (const membership of data || []) {
-    const team = membership.team as any // TODO: type this
-    const perms = team?.team_permissions || []
-
-    for (const perm of perms) {
-      if (!mergedPermissions[perm.resource]) {
-        mergedPermissions[perm.resource] = new Set()
+      if (error) {
+        return { permissions: null, error: error.message }
       }
-      for (const action of perm.actions || []) {
-        mergedPermissions[perm.resource].add(action as PermissionAction)
+
+      // Merge permissions from all teams
+      const mergedPermissions: Record<string, Set<PermissionAction>> = {}
+
+      for (const membership of data || []) {
+        const team = membership.team as any // TODO: type this
+        const perms = team?.team_permissions || []
+
+        for (const perm of perms) {
+          if (!mergedPermissions[perm.resource]) {
+            mergedPermissions[perm.resource] = new Set()
+          }
+          for (const action of perm.actions || []) {
+            mergedPermissions[perm.resource].add(action as PermissionAction)
+          }
+        }
       }
-    }
-  }
 
-  // Convert sets to arrays
-  const permissions: Record<string, PermissionAction[]> = {}
-  for (const [resource, actionSet] of Object.entries(mergedPermissions)) {
-    permissions[resource] = Array.from(actionSet)
-  }
+      // Convert sets to arrays
+      const permissions: Record<string, PermissionAction[]> = {}
+      for (const [resource, actionSet] of Object.entries(mergedPermissions)) {
+        permissions[resource] = Array.from(actionSet)
+      }
 
-  return { permissions }
+      return { permissions }
+    },
+  })
 }
 
 /**
@@ -298,7 +335,8 @@ export async function loadImpersonatedUserContext(targetUserId: string): Promise
   let moduleConfig: ModuleConfigType | undefined
 
   try {
-    const { data: moduleData, error: moduleError } = await (client.rpc as any)( // TODO: type this
+    const { data: moduleData, error: moduleError } = await (client.rpc as any)(
+      // TODO: type this
       'get_user_module_defaults',
       {
         p_user_id: targetUserId,
@@ -463,7 +501,8 @@ export async function getTeamReviewers(
     return { reviewers: [], error: (error as any).message } // TODO: type this
   }
 
-  const reviewers: TeamReviewerRow[] = ((data as any[]) || []).map((r: any) => ({ // TODO: type this
+  const reviewers: TeamReviewerRow[] = ((data as any[]) || []).map((r: any) => ({
+    // TODO: type this
     id: r.id as string,
     team_id: r.team_id as string,
     reviewer_type: r.reviewer_type as 'user' | 'workflow_role',
@@ -526,30 +565,53 @@ export async function removeTeamReviewer(
  * Get all teams in an organization
  */
 export async function getOrgTeams(orgId: string): Promise<{ teams: any[] | null; error?: string }> {
-  const client = getSupabaseClient()
+  return routeBackend({
+    mdb: async () => {
+      try {
+        const teams = await getCommunityTeams()
+        return {
+          teams: teams.map((team) => ({
+            id: team.id,
+            name: team.name,
+            color: team.color,
+            icon: team.icon,
+            created_at: team.createdAt,
+            member_count: team.memberCount,
+            permissions_count: 0,
+            vault_count: team.vaultCount,
+          })),
+        }
+      } catch (error) {
+        return { teams: null, error: error instanceof Error ? error.message : String(error) }
+      }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
 
-  const { data, error } = await client
-    .from('teams')
-    .select(
-      `
-      *,
-      team_members(count),
-      team_permissions(count)
-    `,
-    )
-    .eq('org_id', orgId)
-    .order('name')
+      const { data, error } = await client
+        .from('teams')
+        .select(
+          `
+          *,
+          team_members(count),
+          team_permissions(count)
+        `,
+        )
+        .eq('org_id', orgId)
+        .order('name')
 
-  if (error) {
-    return { teams: null, error: error.message }
-  }
+      if (error) {
+        return { teams: null, error: error.message }
+      }
 
-  // Transform to include counts
-  const teams = (data || []).map((team) => ({
-    ...team,
-    member_count: team.team_members?.[0]?.count || 0,
-    permissions_count: team.team_permissions?.[0]?.count || 0,
-  }))
+      // Transform to include counts
+      const teams = (data || []).map((team) => ({
+        ...team,
+        member_count: team.team_members?.[0]?.count || 0,
+        permissions_count: team.team_permissions?.[0]?.count || 0,
+      }))
 
-  return { teams }
+      return { teams }
+    },
+  })
 }

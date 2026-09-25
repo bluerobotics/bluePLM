@@ -239,7 +239,7 @@ export function ItemBrowserView() {
     if (!organization?.id || !iconModalItem) return
     setSavingIcon(true)
     try {
-      const image = await setItemIcon(organization.id, iconModalItem, iconName, iconColor)
+      const image = await setItemIcon(organization.id, iconModalItem, iconName, iconColor, activeVaultId ?? undefined)
       setImagesByPart((prev) => new Map(prev).set(iconModalItem, image))
       setIconModalItem(null)
     } catch {
@@ -256,7 +256,7 @@ export function ItemBrowserView() {
     uploadTargetRef.current = null
     if (!file || !target || !organization?.id) return
     try {
-      const image = await uploadItemImage(organization.id, target, file)
+      const image = await uploadItemImage(organization.id, target, file, activeVaultId ?? undefined)
       setImagesByPart((prev) => new Map(prev).set(target, image))
       addToast('success', 'Image uploaded')
     } catch (error) {

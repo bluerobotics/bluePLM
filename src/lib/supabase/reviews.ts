@@ -366,9 +366,10 @@ export async function getOrgTeamsWithMembers(
 
   // Fetch team_reviewers separately so the main query doesn't break if the
   // table doesn't exist yet or RLS blocks access.
-  let reviewersByTeam = new Map<string, TeamReviewerConfig[]>()
+  const reviewersByTeam = new Map<string, TeamReviewerConfig[]>()
   try {
-    const { data: reviewerData } = await (client.from as any)('team_reviewers').select( // TODO: type this
+    const { data: reviewerData } = await (client.from as any)('team_reviewers').select(
+      // TODO: type this
       'id, team_id, reviewer_type, user_id, workflow_role_id',
     )
 

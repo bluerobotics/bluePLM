@@ -25,11 +25,9 @@ vi.mock('@/lib/logger', () => ({
   log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }))
 
-const readFile = vi.fn(() =>
-  Promise.resolve({ success: true, data: 'ZGF0YQ==', hash: 'hash-1' }),
-)
+const hashFile = vi.fn(() => Promise.resolve({ success: true, hash: 'hash-1', size: 100 }))
 const setReadonly = vi.fn(() => Promise.resolve({ success: true }))
-vi.stubGlobal('window', { electronAPI: { readFile, setReadonly } })
+vi.stubGlobal('window', { electronAPI: { hashFile, setReadonly } })
 
 const syncFile = vi.fn((..._args: unknown[]) =>
   Promise.resolve({
@@ -175,7 +173,7 @@ function makeContext(files: LocalFile[], overrides: Partial<CommandContext> = {}
 describe('syncCommand.execute - likely-moved warning', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    readFile.mockResolvedValue({ success: true, data: 'ZGF0YQ==', hash: 'hash-1' })
+    hashFile.mockResolvedValue({ success: true, hash: 'hash-1', size: 100 })
     syncFile.mockResolvedValue({ error: null, file: { id: 'row-new', version: 1 } })
     storeState = { ignoreSolidworksTempFiles: false }
   })
@@ -213,9 +211,10 @@ describe('syncCommand.execute - likely-moved warning', () => {
       expect.anything(),
       expect.anything(),
       expect.anything(),
-      expect.anything(),
+      undefined,
       expect.anything(),
       undefined,
+      'C:/vault/New/widget.sldprt',
     )
     expect(result.succeeded).toBe(1)
     expect(result.total).toBe(1)

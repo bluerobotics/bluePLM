@@ -27,6 +27,9 @@ import { usePDMStore, type LocalFile } from '@/stores/pdmStore'
 import { getFileVersions, rollbackToVersion, updateVersionNote } from '@/lib/supabase'
 import { getDownloadUrl } from '@/lib/storage'
 import { log } from '@/lib/logger'
+import { getCommunityVault, isBackendConfigured } from '@/lib/community'
+import { buildFullPath } from '@/lib/utils/path'
+import { t } from '@/lib/i18n'
 
 interface VersionEntry {
   id: string
@@ -173,23 +176,66 @@ export function VersionHistoryDropdown({ file }: VersionHistoryDropdownProps) {
         // Use relativePath to match file watcher format (relative paths with forward slashes)
         addExpectedFileChanges([file.relativePath])
 
-        const { url: downloadUrl, error: urlError } = await getDownloadUrl(
-          organization.id,
-          result.targetVersionRecord.content_hash,
-        )
-
-        if (urlError || !downloadUrl) {
-          addToast(
-            'warning',
-            `${actionLabel} to v${targetVersion} - but could not get download URL: ${urlError}`,
-          )
-        } else if (window.electronAPI) {
-          const writeResult = await window.electronAPI.downloadUrl(downloadUrl, file.path)
-          if (!writeResult.success) {
+        if (isBackendConfigured('community')) {
+          const vaultId = file.pdmData.vault_id
+          const storageRelativePath =
+            result.targetVersionRecord.storageRelativePath ??
+            result.targetVersionRecord._communityStorageRelativePath
+          if (!vaultId || typeof storageRelativePath !== 'string') {
             addToast(
               'warning',
-              `${actionLabel} to v${targetVersion} - but could not write file: ${writeResult.error}`,
+              t('mdbSetup.revisionMetadataIncomplete', {
+                action: actionLabel,
+                version: targetVersion,
+              }),
             )
+          } else {
+            const vault = await getCommunityVault(vaultId)
+            if (vault.storageProvider === 'network') {
+              if (!vault.networkRoot) {
+                addToast(
+                  'warning',
+                  t('mdbSetup.networkVaultRootMissing', {
+                    action: actionLabel,
+                    version: targetVersion,
+                  }),
+                )
+              } else if (window.electronAPI) {
+                const copyResult = await window.electronAPI.copyFile(
+                  buildFullPath(vault.networkRoot, storageRelativePath),
+                  file.path,
+                )
+                if (!copyResult.success)
+                  addToast(
+                    'warning',
+                    t('mdbSetup.revisionRestoreFailed', {
+                      action: actionLabel,
+                      version: targetVersion,
+                      error: copyResult.error || '',
+                    }),
+                  )
+              }
+            }
+          }
+        } else {
+          const { url: downloadUrl, error: urlError } = await getDownloadUrl(
+            organization.id,
+            result.targetVersionRecord.content_hash,
+          )
+
+          if (urlError || !downloadUrl) {
+            addToast(
+              'warning',
+              `${actionLabel} to v${targetVersion} - but could not get download URL: ${urlError}`,
+            )
+          } else if (window.electronAPI) {
+            const writeResult = await window.electronAPI.downloadUrl(downloadUrl, file.path)
+            if (!writeResult.success) {
+              addToast(
+                'warning',
+                `${actionLabel} to v${targetVersion} - but could not write file: ${writeResult.error}`,
+              )
+            }
           }
         }
 

@@ -1,6 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '../../types/database'
 import { loadConfig, type SupabaseConfig } from '../supabaseConfig'
+import { getActiveBackendKind, isBackendActive } from '../backend'
 import { log } from '@/lib/logger'
 
 // ============================================
@@ -36,6 +37,10 @@ let sessionListenerCleanup: (() => void) | null = null
 
 // Initialize from stored config or env variables (for dev)
 function initializeClient() {
+  if (getActiveBackendKind() === 'community') {
+    return
+  }
+
   // First, try to load from stored config
   const storedConfig = loadConfig()
   if (storedConfig) {
@@ -85,6 +90,9 @@ function getClientOptions() {
 
 // Reconfigure the Supabase client with new credentials
 export function reconfigureSupabase(config: SupabaseConfig): void {
+  if (!isBackendActive('supabase')) {
+    throw new Error('Supabase is not the active BluePLM backend.')
+  }
   currentConfig = config
   supabaseClient = createClient<Database>(config.url, config.anonKey, getClientOptions())
   setupSessionListener()
@@ -92,6 +100,9 @@ export function reconfigureSupabase(config: SupabaseConfig): void {
 
 // Get the current Supabase client (creates placeholder if not configured)
 export function getSupabaseClient(): SupabaseClient<Database> {
+  if (getActiveBackendKind() === 'community') {
+    throw new Error('Supabase is inactive while the BluePLM Community backend is selected.')
+  }
   if (!supabaseClient) {
     initializeClient()
   }
@@ -100,6 +111,7 @@ export function getSupabaseClient(): SupabaseClient<Database> {
 
 // Check if Supabase is properly configured
 export function isSupabaseConfigured(): boolean {
+  if (!isBackendActive('supabase')) return false
   if (!currentConfig && !supabaseClient) {
     initializeClient()
   }

@@ -1,7 +1,74 @@
 import type { TranslationDict } from '../types'
+import { mdbLifecycleTranslations } from './mdbLifecycle'
 
 // Simplified Chinese translations (简体中文)
 export const zhCN: TranslationDict = {
+  mdbSetup: {
+    title: 'BluePLM MDB',
+    chooseConnection: '连接现有安装或设置新安装。',
+    existing: '连接现有 MDB 服务器',
+    existingHelp: '只需输入公开 HTTPS 地址。',
+    install: '设置新的 MDB 服务器',
+    installHelp: '通过 FTPS 引导部署并配置网络存储。',
+    backendUrl: '后端 URL',
+    publicUrl: '公开 HTTPS URL',
+    connect: '连接 MariaDB (MDB)',
+    deployed: 'MDB 服务器已部署',
+    deployedHelp: '服务器包和私有配置已上传。',
+    openSetup: '打开服务器设置',
+    completed: '设置完成 — 连接 BluePLM',
+    newServer: '设置新的 BluePLM MDB 服务器',
+    hosting: '主机准备',
+    addressAndFtp: '公开地址和 FTP/FTPS',
+    database: 'PHP 服务器的 MariaDB 连接',
+    secrets: '首次安装密钥',
+    networkVault: '归档/NAS 存储路径',
+    browse: '浏览文件夹…',
+    storeSecrets: '保存生成的密钥',
+    generatedHelp: '仅显示一次，不会保存在客户端。',
+    sessionComment: '会话密钥',
+    bootstrapComment: '引导令牌',
+    maintenanceComment: '维护令牌',
+    vaultHelp: '选择归档或 NAS 根目录。',
+    browseFolders: '浏览文件夹…',
+    finishGuided: '完成引导设置',
+    guidedStep1: '打开设置页面并输入令牌。',
+    guidedStep2: '创建公司、所有者、NAS 存储和可选保护。',
+    guidedStep3: '成功后返回此处。',
+    openServerSetup: '打开设置',
+    checkServer: '正在检查 MDB 服务器…',
+    connectAfterSetup: '设置完成 — 连接 BluePLM',
+    hostingPreparation: '1. 主机准备',
+    hostingHelp: '创建 FTP 用户和 MariaDB 数据库。',
+    documentRootConfirmed: '已确认根目录指向 public/。',
+    addressFtp: '2. 公开地址和 FTP/FTPS',
+    publicHttps: '公开 HTTPS URL',
+    ftpServer: 'FTP/FTPS 服务器 URL',
+    ftpTarget: 'FTP 目标文件夹',
+    ftpTargetPlaceholder: '留空表示 FTP 用户根目录',
+    ftpUser: 'FTP 用户',
+    ftpPassword: 'FTP 密码',
+    databaseConnection: '3. MariaDB 连接',
+    databaseHost: '数据库主机',
+    port: '端口',
+    databaseName: '数据库名称',
+    databaseUser: '数据库用户',
+    databasePassword: '数据库密码',
+    firstSecrets: '4. 初始密钥',
+    generateSecrets: '生成安全密钥',
+    secretsHelp: '值只写入私有 .env。',
+    sessionSecret: '会话密钥',
+    bootstrapToken: '引导令牌',
+    maintenanceToken: '维护令牌',
+    deploying: '正在部署 MDB 服务器…',
+    deploy: '部署并启动引导设置',
+    testingFtp: '正在测试 FTPS 连接…',
+    testFtp: '测试 FTPS 连接',
+    ftpTestPassed: 'FTPS 连接成功',
+    ftpTestFailed: 'FTPS 连接测试失败',
+    ftpTestUnavailable: '此版本不支持 FTPS 测试',
+    ...mdbLifecycleTranslations['zh-CN'],
+  },
   checkoutDisplay: {
     you: '你',
     loadingOwner: '正在加载签出者',
@@ -126,6 +193,8 @@ export const zhCN: TranslationDict = {
   },
 
   setup: {
+    backendChooser: '为此 BluePLM 客户端选择后端提供商。',
+    mdbDescription: 'PHP API 和 MariaDB。BluePLM 保留所有与后端无关的功能。',
     welcome: '欢迎使用 BluePLM',
     connectToBackend: '连接到您组织的 Supabase 后端以开始使用',
     imAdmin: '我是组织管理员',
@@ -351,8 +420,10 @@ export const zhCN: TranslationDict = {
     },
     directoriesTrackedByServer: {
       // Chinese has no plural inflection - see the note above.
-      generic_one: '{{count}} folder is empty here but still listed on the server, so it was left in place',
-      generic_other: '{{count}} folders are empty here but still listed on the server, so they were left in place',
+      generic_one:
+        '{{count}} folder is empty here but still listed on the server, so it was left in place',
+      generic_other:
+        '{{count}} folders are empty here but still listed on the server, so they were left in place',
     },
     failed: {
       generic_one: '无法自动丢弃 {{count}} 个孤立文件',
@@ -556,7 +627,8 @@ export const zhCN: TranslationDict = {
     reportItem: '{{from}} → {{to}}',
     reportAndMore: '… 还有 {{count}} 个',
 
-    dryRunSummary: '仅预检：{{total}} 个文件中有 {{eligible}} 个可以重命名回服务器路径。未写入任何内容。',
+    dryRunSummary:
+      '仅预检：{{total}} 个文件中有 {{eligible}} 个可以重命名回服务器路径。未写入任何内容。',
     dryRunNote: '仅生成报告。未加 --apply 不会写入任何内容。',
 
     refused:
@@ -578,7 +650,8 @@ export const zhCN: TranslationDict = {
     createFolderFailed: '无法创建目标文件夹 — {{error}}',
 
     summaryComplete: '已将 {{count}} 个文件重命名回服务器路径。',
-    summaryPartial: '已重命名 {{total}} 个文件中的 {{succeeded}} 个 — {{leftovers}}。请再次运行以完成。',
+    summaryPartial:
+      '已重命名 {{total}} 个文件中的 {{succeeded}} 个 — {{leftovers}}。请再次运行以完成。',
     summaryFailed: '{{count}} 个失败',
     summaryNotAttempted: '{{count}} 个未尝试',
     summaryBlocked: '{{count}} 个被他人签出',
@@ -586,7 +659,8 @@ export const zhCN: TranslationDict = {
   },
 
   terminal: {
-    confirmationPending: 'Waiting for confirmation — press Enter to confirm, Esc or Ctrl+C to cancel.',
+    confirmationPending:
+      'Waiting for confirmation — press Enter to confirm, Esc or Ctrl+C to cancel.',
     confirmationCancelled: 'Confirmation cancelled.',
   },
 
@@ -672,7 +746,7 @@ export const zhCN: TranslationDict = {
     group: {
       repairable: 'Can be fixed now',
       needsDecision: 'Needs your decision',
-      needsDecisionNote: "Re-align will not touch any of these — they need your decision.",
+      needsDecisionNote: 'Re-align will not touch any of these — they need your decision.',
       needsDecisionEmpty: 'Nothing here needs a decision.',
       informational: 'For information',
     },

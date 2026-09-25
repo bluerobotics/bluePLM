@@ -30,6 +30,10 @@ import {
   useUserDialogs,
 } from '../../hooks'
 import { UserRow } from './UserRow'
+import { UserVaultAccessDialog } from './UserVaultAccessDialog'
+import { EditCommunityUserCredentialsDialog } from './EditCommunityUserCredentialsDialog'
+import { UserProfileModal } from '@/features/settings/account'
+import { isBackendConfigured } from '@/lib/community'
 import type { OrgUser } from '../../types'
 
 export interface ConnectedUserRowProps {
@@ -63,23 +67,33 @@ export function ConnectedUserRow({ user, teamContext, compact }: ConnectedUserRo
 
   // Data hooks (these are cached, so calling them in each row is efficient)
   const { teams } = useTeams(orgId)
-  const { toggleTeam, removeFromTeam } = useMembers(orgId)
+  const { toggleTeam, removeFromTeam, loadMembers } = useMembers(orgId)
   const {
     workflowRoles,
     userRoleAssignments: userWorkflowRoleAssignments,
     toggleUserRole,
   } = useWorkflowRoles(orgId)
   const { jobTitles, assignJobTitle } = useJobTitles(orgId)
-  const { getUserVaultAccessCount, getUserAccessibleVaults } = useVaultAccess(orgId)
+  const {
+    vaults,
+    getUserVaultAccessCount,
+    getUserAccessibleVaults,
+    saveUserVaultAccess,
+  } = useVaultAccess(orgId)
 
   // Dialog state hooks
   const {
+    viewingUserId,
     setViewingUserId,
     setRemovingUser,
     setEditingPermissionsUser,
     setViewingPermissionsUser,
+    editingVaultAccessUser,
     setEditingVaultAccessUser,
+    pendingVaultAccess,
     setPendingVaultAccess,
+    isSavingVaultAccess,
+    setIsSavingVaultAccess,
     setEditingWorkflowRolesUser,
     setEditingTeamsUser,
     setRemovingFromTeam,
@@ -87,6 +101,7 @@ export function ConnectedUserRow({ user, teamContext, compact }: ConnectedUserRo
 
   // Local state for job title editing
   const [, setEditingJobTitleUser] = useState<OrgUser | null>(null)
+  const [editingCredentialsUser, setEditingCredentialsUser] = useState<OrgUser | null>(null)
 
   // Derive props
   const isCurrentUser = user.id === currentUser?.id
@@ -138,44 +153,100 @@ export function ConnectedUserRow({ user, teamContext, compact }: ConnectedUserRo
     [getUserAccessibleVaults, setEditingVaultAccessUser, setPendingVaultAccess],
   )
 
+  const saveVaultAccess = useCallback(async () => {
+    if (!editingVaultAccessUser) return
+    setIsSavingVaultAccess(true)
+    try {
+      const saved = await saveUserVaultAccess(
+        editingVaultAccessUser.id,
+        pendingVaultAccess,
+        editingVaultAccessUser.full_name || editingVaultAccessUser.email,
+      )
+      if (saved) setEditingVaultAccessUser(null)
+    } finally {
+      setIsSavingVaultAccess(false)
+    }
+  }, [
+    editingVaultAccessUser,
+    pendingVaultAccess,
+    saveUserVaultAccess,
+    setEditingVaultAccessUser,
+    setIsSavingVaultAccess,
+  ])
+
   return (
-    <UserRow
-      user={user}
-      isAdmin={isAdmin}
-      isRealAdmin={isRealAdmin}
-      isCurrentUser={isCurrentUser}
-      compact={compact}
-      // Profile & View actions
-      onViewProfile={() => setViewingUserId(user.id)}
-      onViewNetPermissions={() => setViewingPermissionsUser(user)}
-      // Simulate permissions (impersonation)
-      onSimulatePermissions={() => startUserImpersonation(user.id)}
-      isSimulating={impersonatedUser?.id === user.id}
-      // Removal actions
-      onRemove={() => setRemovingUser(user)}
-      onRemoveFromTeam={
-        teamContext
-          ? () => handleRemoveFromTeam(user, teamContext.teamId, teamContext.teamName)
-          : undefined
-      }
-      // Vault access
-      onVaultAccess={() => openVaultAccessEditor(user)}
-      vaultAccessCount={getUserVaultAccessCount(user.id)}
-      // Permissions
-      onPermissions={isAdmin ? () => setEditingPermissionsUser(user) : undefined}
-      // Job titles
-      onEditJobTitle={isAdmin ? setEditingJobTitleUser : undefined}
-      jobTitles={jobTitles}
-      onToggleJobTitle={isAdmin ? handleChangeJobTitle : undefined}
-      // Workflow roles
-      workflowRoles={workflowRoles}
-      userWorkflowRoleIds={userWorkflowRoleAssignments[user.id]}
-      onEditWorkflowRoles={setEditingWorkflowRolesUser}
-      onToggleWorkflowRole={isAdmin ? handleToggleWorkflowRole : undefined}
-      // Teams
-      teams={teams}
-      onEditTeams={setEditingTeamsUser}
-      onToggleTeam={isAdmin ? handleToggleTeam : undefined}
-    />
+    <>
+      <UserRow
+        user={user}
+        isAdmin={isAdmin}
+        isRealAdmin={isRealAdmin}
+        isCurrentUser={isCurrentUser}
+        compact={compact}
+        // Profile & View actions
+        onViewProfile={() => setViewingUserId(user.id)}
+        onViewNetPermissions={
+          !isBackendConfigured('community') ? () => setViewingPermissionsUser(user) : undefined
+        }
+        // Simulate permissions (impersonation)
+        onSimulatePermissions={() => startUserImpersonation(user.id)}
+        isSimulating={impersonatedUser?.id === user.id}
+        // Removal actions
+        onRemove={() => setRemovingUser(user)}
+        onRemoveFromTeam={
+          teamContext
+            ? () => handleRemoveFromTeam(user, teamContext.teamId, teamContext.teamName)
+            : undefined
+        }
+        // Vault access
+        onVaultAccess={() => openVaultAccessEditor(user)}
+        vaultAccessCount={getUserVaultAccessCount(user.id)}
+        // Permissions
+        onPermissions={
+          isAdmin && !isBackendConfigured('community') ? () => setEditingPermissionsUser(user) : undefined
+        }
+        // Community credentials are managed directly by the Community PHP API.
+        // Do not expose this action in a Supabase installation (or for oneself,
+        // because a password/email update intentionally revokes its sessions).
+        onManageCredentials={
+          isAdmin && !isCurrentUser && isBackendConfigured('community')
+            ? () => setEditingCredentialsUser(user)
+            : undefined
+        }
+        // Job titles
+        onEditJobTitle={isAdmin ? setEditingJobTitleUser : undefined}
+        jobTitles={jobTitles}
+        onToggleJobTitle={isAdmin ? handleChangeJobTitle : undefined}
+        // Workflow roles
+        workflowRoles={workflowRoles}
+        userWorkflowRoleIds={userWorkflowRoleAssignments[user.id]}
+        onEditWorkflowRoles={setEditingWorkflowRolesUser}
+        onToggleWorkflowRole={isAdmin ? handleToggleWorkflowRole : undefined}
+        // Teams
+        teams={teams}
+        onEditTeams={setEditingTeamsUser}
+        onToggleTeam={isAdmin ? handleToggleTeam : undefined}
+      />
+      {viewingUserId && (
+        <UserProfileModal userId={viewingUserId} onClose={() => setViewingUserId(null)} />
+      )}
+      {editingVaultAccessUser && (
+        <UserVaultAccessDialog
+          user={editingVaultAccessUser}
+          orgVaults={vaults}
+          pendingVaultAccess={pendingVaultAccess}
+          setPendingVaultAccess={setPendingVaultAccess}
+          onSave={saveVaultAccess}
+          onClose={() => setEditingVaultAccessUser(null)}
+          isSaving={isSavingVaultAccess}
+        />
+      )}
+      {editingCredentialsUser && (
+        <EditCommunityUserCredentialsDialog
+          user={editingCredentialsUser}
+          onClose={() => setEditingCredentialsUser(null)}
+          onUpdated={loadMembers}
+        />
+      )}
+    </>
   )
 }

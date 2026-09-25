@@ -300,6 +300,67 @@ contextBridge.exposeInMainWorld('electronAPI', {
   createWorkingDir: (path: string) => ipcRenderer.invoke('working-dir:create', path),
   clearWorkingDir: () => ipcRenderer.invoke('working-dir:clear'),
 
+  // Network vault credentials are stored by Windows Credential Manager in the
+  // current user's profile. The main process never returns the password.
+  saveNetworkVaultCredential: (request: {
+    networkRoot: string
+    username: string
+    password: string
+  }) => ipcRenderer.invoke('network-vault:save-credential', request),
+
+  inspectMdbDatabase: (request: {
+    publicUrl: string
+    ftpUrl: string
+    ftpSecurity: 'explicit' | 'implicit'
+    ftpRemotePath: string
+    ftpUsername: string
+    ftpPassword: string
+    databaseHost: string
+    databasePort: number
+    databaseName: string
+    databaseUser: string
+    databasePassword: string
+    sessionSecret?: string
+    bootstrapToken?: string
+    maintenanceToken?: string
+    documentRootConfirmed: boolean
+  }) => ipcRenderer.invoke('mdb-installer:inspect-database', request),
+  provisionMdb: (request: {
+    publicUrl: string
+    ftpUrl: string
+    ftpSecurity: 'explicit' | 'implicit'
+    ftpRemotePath: string
+    ftpUsername: string
+    ftpPassword: string
+    databaseHost: string
+    databasePort: number
+    databaseName: string
+    databaseUser: string
+    databasePassword: string
+    sessionSecret?: string
+    bootstrapToken?: string
+    maintenanceToken?: string
+    documentRootConfirmed: boolean
+    databaseAction: 'install' | 'migrate' | 'reset'
+    resetConfirmation?: string
+    bootstrap?: {
+      organizationName: string
+      organizationSlug: string
+      email: string
+      displayName: string
+      password: string
+      vaultName?: string
+      networkRoot?: string
+    }
+  }) => ipcRenderer.invoke('mdb-installer:provision', request),
+  testMdbFtp: (request: {
+    ftpUrl: string
+    ftpSecurity: 'explicit' | 'implicit'
+    ftpRemotePath: string
+    ftpUsername: string
+    ftpPassword: string
+  }) => ipcRenderer.invoke('mdb-installer:test-ftp', request),
+
   // File system operations
   readFile: (path: string) => ipcRenderer.invoke('fs:read-file', path),
   checkFileLock: (path: string, options?: { forRead?: boolean }) =>
@@ -312,6 +373,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getFileHash: (path: string) => ipcRenderer.invoke('fs:get-hash', path),
   // Streaming hash - more efficient for large files, use this for checkin operations
   hashFile: (path: string) => ipcRenderer.invoke('fs:hash-file', path),
+  uploadSignedUrl: (path: string, uploadUrl: string, contentType?: string) =>
+    ipcRenderer.invoke('fs:upload-signed-url', path, uploadUrl, contentType),
   statFile: (path: string) => ipcRenderer.invoke('fs:stat-file', path),
   listWorkingFiles: () => ipcRenderer.invoke('fs:list-working-files'),
   // Re-stats only the given paths and patches them into the last full scan.
@@ -319,8 +382,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   listWorkingFilesDelta: (changedPaths: string[]) =>
     ipcRenderer.invoke('fs:list-working-files-delta', changedPaths),
   // Forces the next delta call to re-walk the vault instead of patching the cached scan.
-  invalidateScanCache: (reason: string) =>
-    ipcRenderer.invoke('fs:invalidate-scan-cache', reason),
+  invalidateScanCache: (reason: string) => ipcRenderer.invoke('fs:invalidate-scan-cache', reason),
   listDirFiles: (dirPath: string) => ipcRenderer.invoke('fs:list-dir-files', dirPath),
   // Fast folder listing - no hash computation (for folder-scoped refresh)
   listFolderFast: (folderRelativePath: string) =>
@@ -389,6 +451,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Dialogs
   selectFiles: () => ipcRenderer.invoke('dialog:select-files'),
   selectFolder: () => ipcRenderer.invoke('dialog:select-folder'),
+  selectDirectory: (title?: string) => ipcRenderer.invoke('dialog:select-directory', title),
   showSaveDialog: (defaultName: string, filters?: Array<{ name: string; extensions: string[] }>) =>
     ipcRenderer.invoke('dialog:save-file', defaultName, filters),
   saveTextFileWithDialog: (
@@ -470,7 +533,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setAutoStartConfig: (config: {
       autoStartEnabled: boolean
       integrationEnabled: boolean
-      dmLicenseKey?: string
+      dmLicenseKey?: string | null
       verboseLogging?: boolean
       swProgId?: string | null
     }) => ipcRenderer.invoke('solidworks:set-autostart-config', config),
@@ -901,6 +964,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('deep-link:install-extension', handler)
     return () => ipcRenderer.removeListener('deep-link:install-extension', handler)
   },
+  onDeepLinkShare: (callback: (data: { token: string; timestamp: number }) => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      data: { token: string; timestamp: number },
+    ) => callback(data)
+    ipcRenderer.on('deep-link:open-share', handler)
+    return () => ipcRenderer.removeListener('deep-link:open-share', handler)
+  },
   acknowledgeDeepLink: (extensionId: string, success: boolean, error?: string) =>
     ipcRenderer.invoke('deep-link:acknowledge', extensionId, success, error),
 
@@ -1214,9 +1285,18 @@ declare global {
       setWorkingDir: (path: string) => Promise<PathResult>
       createWorkingDir: (path: string) => Promise<PathResult>
       clearWorkingDir: () => Promise<OperationResult>
-
+      saveNetworkVaultCredential: (request: {
+        networkRoot: string
+        username: string
+        password: string
+      }) => Promise<{ success: boolean; target?: string; error?: string }>
       // File system operations
       readFile: (path: string) => Promise<FileReadResult>
+      uploadSignedUrl: (
+        path: string,
+        uploadUrl: string,
+        contentType?: string,
+      ) => Promise<{ success: boolean; statusCode?: number; error?: string }>
       writeFile: (path: string, base64Data: string) => Promise<FileWriteResult>
       downloadUrl: (
         url: string,
@@ -1313,6 +1393,7 @@ declare global {
       // Dialogs
       selectFiles: () => Promise<FileSelectResult>
       selectFolder: () => Promise<FolderSelectResult>
+      selectDirectory: (title?: string) => Promise<FolderSelectResult>
       showSaveDialog: (defaultName: string) => Promise<SaveDialogResult>
       saveTextFileWithDialog: (
         defaultName: string,

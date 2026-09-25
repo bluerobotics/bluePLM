@@ -11,6 +11,15 @@
  * increments the parent file version (and snapshots the rows) when it changes.
  */
 import { getSupabaseClient } from '../client'
+import {
+  createCommunityInspectionMethod,
+  deleteCommunityInspectionMethod,
+  getCommunityInspectionMethods,
+  getCommunityInspectionRows,
+  getCommunityInspectionRowsForRevision,
+  saveCommunityInspectionRows,
+  updateCommunityInspectionMethod,
+} from '@/lib/community'
 
 import type {
   InspectionCharacteristic,
@@ -18,6 +27,7 @@ import type {
   InspectionCharacteristicVersion,
   InspectionMethod,
 } from '../../../types/database'
+import { routeBackend } from '@/lib/backendAdapter'
 
 /** Editable fields of an inspection characteristic (no audit/identity columns). */
 export interface InspectionRowValues {
@@ -63,60 +73,86 @@ function isTableMissingError(error: { code?: string; message?: string } | null):
 /**
  * Fetch the live inspection rows for a file, ordered by sort_order.
  */
-export async function getInspectionRows(
-  fileId: string,
-): Promise<{
+export async function getInspectionRows(fileId: string): Promise<{
   success: boolean
   rows?: InspectionCharacteristic[]
   error?: string
   notInstalled?: boolean
 }> {
-  const client = getSupabaseClient()
+  return routeBackend({
+    mdb: async () => {
+      try {
+        return {
+          success: true,
+          rows: (await getCommunityInspectionRows(fileId)) as InspectionCharacteristic[],
+        }
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) }
+      }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
 
-  const { data, error } = await client
-    .from('inspection_characteristics')
-    .select('*')
-    .eq('file_id', fileId)
-    .order('sort_order', { ascending: true })
+      const { data, error } = await client
+        .from('inspection_characteristics')
+        .select('*')
+        .eq('file_id', fileId)
+        .order('sort_order', { ascending: true })
 
-  if (error) {
-    if (isTableMissingError(error)) {
-      return { success: false, notInstalled: true, error: error.message }
-    }
-    return { success: false, error: error.message }
-  }
+      if (error) {
+        if (isTableMissingError(error)) {
+          return { success: false, notInstalled: true, error: error.message }
+        }
+        return { success: false, error: error.message }
+      }
 
-  return { success: true, rows: data ?? [] }
+      return { success: true, rows: data ?? [] }
+    },
+  })
 }
 
 /**
  * Fetch the immutable snapshot rows for a specific file version, ordered by sort_order.
  * Used when viewing the inspection table as it was at a historical version (read-only).
  */
-export async function getInspectionRowsForVersion(
-  fileVersionId: string,
-): Promise<{
+export async function getInspectionRowsForVersion(fileVersionId: string): Promise<{
   success: boolean
   rows?: InspectionCharacteristicVersion[]
   error?: string
   notInstalled?: boolean
 }> {
-  const client = getSupabaseClient()
+  return routeBackend({
+    mdb: async () => {
+      try {
+        return {
+          success: true,
+          rows: (await getCommunityInspectionRowsForRevision(
+            fileVersionId,
+          )) as InspectionCharacteristicVersion[],
+        }
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) }
+      }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
 
-  const { data, error } = await client
-    .from('inspection_characteristic_versions')
-    .select('*')
-    .eq('file_version_id', fileVersionId)
-    .order('sort_order', { ascending: true })
+      const { data, error } = await client
+        .from('inspection_characteristic_versions')
+        .select('*')
+        .eq('file_version_id', fileVersionId)
+        .order('sort_order', { ascending: true })
 
-  if (error) {
-    if (isTableMissingError(error)) {
-      return { success: false, notInstalled: true, error: error.message }
-    }
-    return { success: false, error: error.message }
-  }
+      if (error) {
+        if (isTableMissingError(error)) {
+          return { success: false, notInstalled: true, error: error.message }
+        }
+        return { success: false, error: error.message }
+      }
 
-  return { success: true, rows: data ?? [] }
+      return { success: true, rows: data ?? [] }
+    },
+  })
 }
 
 /**
@@ -132,57 +168,72 @@ export async function saveInspectionRows(
   userId: string,
   rows: InspectionRowInput[],
 ): Promise<{ success: boolean; error?: string }> {
-  const client = getSupabaseClient()
+  return routeBackend({
+    mdb: async () => {
+      try {
+        await saveCommunityInspectionRows(fileId, rows)
+        return { success: true }
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) }
+      }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
 
-  // Verify checkout ownership (defense-in-depth; UI also gates this)
-  const { data: file, error: fileError } = await client
-    .from('files')
-    .select('checked_out_by')
-    .eq('id', fileId)
-    .single()
+      // Verify checkout ownership (defense-in-depth; UI also gates this)
+      const { data: file, error: fileError } = await client
+        .from('files')
+        .select('checked_out_by')
+        .eq('id', fileId)
+        .single()
 
-  if (fileError) {
-    return { success: false, error: fileError.message }
-  }
-  if (file.checked_out_by !== userId) {
-    return { success: false, error: 'You must check out the drawing before editing its inspection table' }
-  }
+      if (fileError) {
+        return { success: false, error: fileError.message }
+      }
+      if (file.checked_out_by !== userId) {
+        return {
+          success: false,
+          error: 'You must check out the drawing before editing its inspection table',
+        }
+      }
 
-  // Delete rows that the user removed
-  const keepIds = rows.map((r) => r.id)
-  let deleteQuery = client.from('inspection_characteristics').delete().eq('file_id', fileId)
-  if (keepIds.length > 0) {
-    deleteQuery = deleteQuery.not('id', 'in', `(${keepIds.join(',')})`)
-  }
-  const { error: deleteError } = await deleteQuery
-  if (deleteError) {
-    return { success: false, error: deleteError.message }
-  }
+      // Delete rows that the user removed
+      const keepIds = rows.map((r) => r.id)
+      let deleteQuery = client.from('inspection_characteristics').delete().eq('file_id', fileId)
+      if (keepIds.length > 0) {
+        deleteQuery = deleteQuery.not('id', 'in', `(${keepIds.join(',')})`)
+      }
+      const { error: deleteError } = await deleteQuery
+      if (deleteError) {
+        return { success: false, error: deleteError.message }
+      }
 
-  if (rows.length === 0) {
-    return { success: true }
-  }
+      if (rows.length === 0) {
+        return { success: true }
+      }
 
-  // Upsert provided rows
-  const now = new Date().toISOString()
-  const payload: InspectionCharacteristicInsert[] = rows.map(({ id, ...values }) => ({
-    id,
-    file_id: fileId,
-    org_id: orgId,
-    updated_at: now,
-    updated_by: userId,
-    ...values,
-  }))
+      // Upsert provided rows
+      const now = new Date().toISOString()
+      const payload: InspectionCharacteristicInsert[] = rows.map(({ id, ...values }) => ({
+        id,
+        file_id: fileId,
+        org_id: orgId,
+        updated_at: now,
+        updated_by: userId,
+        ...values,
+      }))
 
-  const { error: upsertError } = await client
-    .from('inspection_characteristics')
-    .upsert(payload, { onConflict: 'id' })
+      const { error: upsertError } = await client
+        .from('inspection_characteristics')
+        .upsert(payload, { onConflict: 'id' })
 
-  if (upsertError) {
-    return { success: false, error: upsertError.message }
-  }
+      if (upsertError) {
+        return { success: false, error: upsertError.message }
+      }
 
-  return { success: true }
+      return { success: true }
+    },
+  })
 }
 
 /** An org-defined inspection method (id needed for edit/remove). */
@@ -198,24 +249,35 @@ export interface InspectionMethodOption {
 export async function getInspectionMethods(
   orgId: string,
 ): Promise<{ success: boolean; methods?: InspectionMethodOption[]; error?: string }> {
-  const client = getSupabaseClient()
+  return routeBackend({
+    mdb: async () => {
+      try {
+        return { success: true, methods: await getCommunityInspectionMethods() }
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) }
+      }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
 
-  const { data, error } = await client
-    .from('inspection_methods')
-    .select('id, name')
-    .eq('org_id', orgId)
-    .order('name', { ascending: true })
+      const { data, error } = await client
+        .from('inspection_methods')
+        .select('id, name')
+        .eq('org_id', orgId)
+        .order('name', { ascending: true })
 
-  if (error) {
-    if (isTableMissingError(error)) return { success: true, methods: [] }
-    return { success: false, error: error.message }
-  }
+      if (error) {
+        if (isTableMissingError(error)) return { success: true, methods: [] }
+        return { success: false, error: error.message }
+      }
 
-  const methods = (data ?? [])
-    .map((row) => row as Pick<InspectionMethod, 'id' | 'name'>)
-    .filter((row): row is InspectionMethodOption => !!row.name)
-    .map((row) => ({ id: row.id, name: row.name }))
-  return { success: true, methods }
+      const methods = (data ?? [])
+        .map((row) => row as Pick<InspectionMethod, 'id' | 'name'>)
+        .filter((row): row is InspectionMethodOption => !!row.name)
+        .map((row) => ({ id: row.id, name: row.name }))
+      return { success: true, methods }
+    },
+  })
 }
 
 /**
@@ -231,20 +293,31 @@ export async function addInspectionMethod(
   const trimmed = name.trim()
   if (!trimmed) return { success: false, error: 'Method name is required' }
 
-  const client = getSupabaseClient()
+  return routeBackend({
+    mdb: async () => {
+      try {
+        return { success: true, method: await createCommunityInspectionMethod(trimmed) }
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) }
+      }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
 
-  const { data, error } = await client
-    .from('inspection_methods')
-    .upsert({ org_id: orgId, name: trimmed, created_by: userId }, { onConflict: 'org_id,name' })
-    .select('id, name')
-    .single()
+      const { data, error } = await client
+        .from('inspection_methods')
+        .upsert({ org_id: orgId, name: trimmed, created_by: userId }, { onConflict: 'org_id,name' })
+        .select('id, name')
+        .single()
 
-  if (error) {
-    return { success: false, error: error.message }
-  }
+      if (error) {
+        return { success: false, error: error.message }
+      }
 
-  const row = data as Pick<InspectionMethod, 'id' | 'name'>
-  return { success: true, method: { id: row.id, name: row.name } }
+      const row = data as Pick<InspectionMethod, 'id' | 'name'>
+      return { success: true, method: { id: row.id, name: row.name } }
+    },
+  })
 }
 
 /** Rename an org inspection method. */
@@ -256,19 +329,31 @@ export async function updateInspectionMethod(
   const trimmed = name.trim()
   if (!trimmed) return { success: false, error: 'Method name is required' }
 
-  const client = getSupabaseClient()
+  return routeBackend({
+    mdb: async () => {
+      try {
+        await updateCommunityInspectionMethod(id, trimmed)
+        return { success: true }
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) }
+      }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
 
-  const { error } = await client
-    .from('inspection_methods')
-    .update({ name: trimmed })
-    .eq('id', id)
-    .eq('org_id', orgId)
+      const { error } = await client
+        .from('inspection_methods')
+        .update({ name: trimmed })
+        .eq('id', id)
+        .eq('org_id', orgId)
 
-  if (error) {
-    return { success: false, error: error.message }
-  }
+      if (error) {
+        return { success: false, error: error.message }
+      }
 
-  return { success: true }
+      return { success: true }
+    },
+  })
 }
 
 /** Remove an org inspection method (existing rows that reference it keep their text value). */
@@ -276,17 +361,29 @@ export async function deleteInspectionMethod(
   orgId: string,
   id: string,
 ): Promise<{ success: boolean; error?: string }> {
-  const client = getSupabaseClient()
+  return routeBackend({
+    mdb: async () => {
+      try {
+        await deleteCommunityInspectionMethod(id)
+        return { success: true }
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) }
+      }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
 
-  const { error } = await client
-    .from('inspection_methods')
-    .delete()
-    .eq('id', id)
-    .eq('org_id', orgId)
+      const { error } = await client
+        .from('inspection_methods')
+        .delete()
+        .eq('id', id)
+        .eq('org_id', orgId)
 
-  if (error) {
-    return { success: false, error: error.message }
-  }
+      if (error) {
+        return { success: false, error: error.message }
+      }
 
-  return { success: true }
+      return { success: true }
+    },
+  })
 }

@@ -8,6 +8,7 @@ import {
   Check,
   X,
   Link,
+  KeyRound,
   Unlink,
   Plus,
   Loader2,
@@ -30,6 +31,9 @@ import { executeCommand } from '@/lib/commands'
 import { VaultSetupDialog, type VaultSyncStats } from '@/components/shared/Dialogs'
 import { calculateVaultSyncStats } from '@/lib/vaultHealthCheck'
 import { RealignSection } from './realign'
+import { createCommunityVault, isBackendConfigured } from '@/lib/community'
+import { clearVaultCache } from '@/lib/cache/vaultFileCache'
+import { useTranslation } from '@/lib/i18n'
 
 // Build vault path based on platform
 function buildVaultPath(platform: string, vaultSlug: string): string {
@@ -50,9 +54,12 @@ interface Vault {
   storage_bucket?: string // Only used when creating vaults, not needed for display
   is_default: boolean
   created_at: string
+  storageProvider?: 'network'
+  networkRoot?: string | null
 }
 
 export function VaultsSettings() {
+  const { t } = useTranslation()
   const {
     user,
     organization,
@@ -91,6 +98,14 @@ export function VaultsSettings() {
   const [isCreatingVault, setIsCreatingVault] = useState(false)
   const [newVaultName, setNewVaultName] = useState('')
   const [newVaultDescription, setNewVaultDescription] = useState('')
+  const [newVaultStorageProvider, setNewVaultStorageProvider] = useState<'network'>('network')
+  const [newVaultStorageRoot, setNewVaultStorageRoot] = useState('')
+  const [newVaultNetworkUsername, setNewVaultNetworkUsername] = useState('')
+  const [newVaultNetworkPassword, setNewVaultNetworkPassword] = useState('')
+  const [credentialVault, setCredentialVault] = useState<Vault | null>(null)
+  const [credentialUsername, setCredentialUsername] = useState('')
+  const [credentialPassword, setCredentialPassword] = useState('')
+  const [isSavingCredential, setIsSavingCredential] = useState(false)
   const [isSavingVault, setIsSavingVault] = useState(false)
   const [renamingVaultId, setRenamingVaultId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
@@ -206,6 +221,63 @@ export function VaultsSettings() {
     const storageBucket = `vault-${organization.slug}-${slug}`
 
     try {
+      if (isBackendConfigured('community')) {
+        const networkRoot = newVaultStorageRoot.trim()
+        if (
+          newVaultStorageProvider === 'network' &&
+          (newVaultNetworkUsername.trim() || newVaultNetworkPassword)
+        ) {
+          if (!newVaultNetworkUsername.trim() || !newVaultNetworkPassword) {
+            addToast('error', t('mdbSetup.networkCredentialsBothOrEmpty'))
+            return
+          }
+          const api = window.electronAPI
+          if (!api) {
+            addToast('error', t('mdbSetup.networkCredentialsDesktopOnly'))
+            return
+          }
+          const credentialResult = await api.saveNetworkVaultCredential({
+            networkRoot,
+            username: newVaultNetworkUsername,
+            password: newVaultNetworkPassword,
+          })
+          // Never retain a network password in renderer state after an attempt.
+          setNewVaultNetworkPassword('')
+          if (!credentialResult.success) {
+            log.error('[VaultsSettings]', 'Failed to save network credential', {
+              error: credentialResult.error,
+            })
+            addToast('error', t('mdbSetup.networkCredentialSaveFailed'))
+            return
+          }
+        }
+        const vault = await createCommunityVault({
+          name,
+          storageProvider: 'network',
+          networkRoot,
+        })
+        const mappedVault: Vault = {
+          id: vault.id,
+          name: vault.name,
+          slug: vault.id,
+          description: vault.networkRoot,
+          is_default: false,
+          created_at: vault.createdAt ?? new Date().toISOString(),
+          storageProvider: vault.storageProvider,
+          networkRoot: vault.networkRoot,
+        }
+        addToast('success', t('mdbSetup.vaultCreated', { name }))
+        setOrgVaults([...orgVaults, mappedVault])
+        setIsCreatingVault(false)
+        setNewVaultName('')
+        setNewVaultDescription('')
+        setNewVaultStorageRoot('')
+        setNewVaultNetworkUsername('')
+        setNewVaultNetworkPassword('')
+        setNewVaultStorageProvider('network')
+        triggerVaultsRefresh()
+        return
+      }
       const { data: vault, error } = await supabase
         .from('vaults')
         .insert({
@@ -226,7 +298,7 @@ export function VaultsSettings() {
         return
       }
 
-      addToast('success', `Vault "${name}" created`)
+      addToast('success', t('mdbSetup.vaultCreated', { name }))
       // Map Supabase nullables to app types with defaults
       const mappedVault: Vault = {
         ...vault,
@@ -239,6 +311,10 @@ export function VaultsSettings() {
       setIsCreatingVault(false)
       setNewVaultName('')
       setNewVaultDescription('')
+      setNewVaultStorageRoot('')
+      setNewVaultNetworkUsername('')
+      setNewVaultNetworkPassword('')
+      setNewVaultStorageProvider('network')
       triggerVaultsRefresh()
     } catch (error) {
       log.error('[VaultsSettings]', 'Failed to create vault', { error: error })
@@ -249,6 +325,43 @@ export function VaultsSettings() {
       setTimeout(() => {
         savingRef.current = false
       }, 1000)
+    }
+  }
+
+  const handleSaveVaultCredential = async () => {
+    if (!credentialVault?.networkRoot) return
+    if (!credentialUsername.trim() || !credentialPassword) {
+      addToast('error', t('mdbSetup.networkCredentialsRequired'))
+      return
+    }
+    const api = window.electronAPI
+    if (!api) {
+      addToast('error', t('mdbSetup.networkCredentialsDesktopOnly'))
+      return
+    }
+
+    setIsSavingCredential(true)
+    try {
+      const result = await api.saveNetworkVaultCredential({
+        networkRoot: credentialVault.networkRoot,
+        username: credentialUsername,
+        password: credentialPassword,
+      })
+      // A password only lives in this component while it is submitted to the
+      // main process. The persisted copy is managed by Windows, not BluePLM.
+      setCredentialPassword('')
+      if (!result.success) {
+        log.error('[VaultsSettings]', 'Failed to save network credential', {
+          error: result.error,
+        })
+        addToast('error', t('mdbSetup.networkCredentialSaveFailed'))
+        return
+      }
+      addToast('success', t('mdbSetup.networkCredentialSaved', { name: credentialVault.name }))
+      setCredentialVault(null)
+      setCredentialUsername('')
+    } finally {
+      setIsSavingCredential(false)
     }
   }
 
@@ -530,7 +643,9 @@ export function VaultsSettings() {
               setSetupVaultSyncStats(stats)
             })
             .catch((error) => {
-              log.warn('[VaultsSettings]', 'Failed to calculate sync stats', { error: String(error) })
+              log.warn('[VaultsSettings]', 'Failed to calculate sync stats', {
+                error: String(error),
+              })
               setSetupVaultSyncStats(null) // Fall back to basic stats
             })
         }
@@ -672,9 +787,20 @@ export function VaultsSettings() {
 
       // Clear local state if this is the active vault
       if (wipingVault.id === activeVaultId) {
+        // clearWorkingDir() stops the watcher before deletion. Re-attach it to
+        // the still-existing vault root so a viewer can immediately download
+        // the authoritative server inventory again after a local-only wipe.
+        const workingDirResult = await api.setWorkingDir(wipingVault.localPath)
+        if (!workingDirResult.success) {
+          throw new Error(workingDirResult.error || 'Failed to restore the vault working folder')
+        }
+
+        // A local wipe must invalidate the client cache and the completed-load
+        // marker. App's load policy will then fetch the authoritative server
+        // inventory again and render its rows as cloud-only downloads.
+        await clearVaultCache(wipingVault.id)
         setFiles([])
-        setServerFiles([])
-        setFilesLoaded(true) // Set to true since empty state is valid
+        setFilesLoaded(false)
       }
     } catch (error) {
       log.error('[VaultsSettings]', 'Failed to wipe local files', { error: error })
@@ -738,33 +864,149 @@ export function VaultsSettings() {
               autoFocus
             />
           </div>
-          <div className="space-y-2">
-            <label className="text-sm text-plm-fg-muted">Description (optional)</label>
-            <input
-              type="text"
-              value={newVaultDescription}
-              onChange={(e) => setNewVaultDescription(e.target.value)}
-              placeholder="e.g., Main production files"
-              className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
-            />
-          </div>
+          {!isBackendConfigured('community') && (
+            <div className="space-y-2">
+              <label className="text-sm text-plm-fg-muted">
+                {t('mdbSetup.vaultDescriptionOptional')}
+              </label>
+              <input
+                type="text"
+                value={newVaultDescription}
+                onChange={(e) => setNewVaultDescription(e.target.value)}
+                placeholder={t('mdbSetup.vaultDescriptionPlaceholder')}
+                className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
+              />
+            </div>
+          )}
+          {isBackendConfigured('community') && (
+            <>
+              <div className="space-y-2">
+                <label className="text-sm text-plm-fg-muted">{t('mdbSetup.storageProvider')}</label>
+                <select
+                  value={newVaultStorageProvider}
+                  onChange={() => setNewVaultStorageProvider('network')}
+                  className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
+                >
+                  <option value="network">{t('mdbSetup.networkVault')}</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm text-plm-fg-muted">{t('mdbSetup.networkRootPath')}</label>
+                <input
+                  type="text"
+                  value={newVaultStorageRoot}
+                  onChange={(event) => setNewVaultStorageRoot(event.target.value)}
+                  placeholder={t('mdbSetup.networkRootPlaceholder')}
+                  className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
+                />
+                <p className="text-xs text-plm-fg-muted">{t('mdbSetup.networkRootHelp')}</p>
+              </div>
+              {platform === 'win32' && (
+                <div className="space-y-2 rounded-lg border border-plm-border p-3">
+                  <div>
+                    <label className="text-sm text-plm-fg-muted">
+                      {t('mdbSetup.networkLoginOptional')}
+                    </label>
+                    <p className="text-xs text-plm-fg-muted mt-1">
+                      {t('mdbSetup.networkLoginHelp')}
+                    </p>
+                  </div>
+                  <input
+                    type="text"
+                    value={newVaultNetworkUsername}
+                    onChange={(event) => setNewVaultNetworkUsername(event.target.value)}
+                    placeholder={t('mdbSetup.networkUsernamePlaceholder')}
+                    autoComplete="username"
+                    className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
+                  />
+                  <input
+                    type="password"
+                    value={newVaultNetworkPassword}
+                    onChange={(event) => setNewVaultNetworkPassword(event.target.value)}
+                    placeholder={t('mdbSetup.networkPassword')}
+                    autoComplete="new-password"
+                    className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
+                  />
+                </div>
+              )}
+            </>
+          )}
           <div className="flex gap-2 justify-end">
             <button
               onClick={() => {
                 setIsCreatingVault(false)
                 setNewVaultName('')
                 setNewVaultDescription('')
+                setNewVaultStorageRoot('')
+                setNewVaultNetworkUsername('')
+                setNewVaultNetworkPassword('')
               }}
               className="btn btn-ghost btn-sm"
             >
-              Cancel
+              {t('mdbSetup.cancel')}
             </button>
             <button
               onClick={handleCreateVault}
-              disabled={!newVaultName.trim() || isSavingVault}
+              disabled={
+                !newVaultName.trim() ||
+                (isBackendConfigured('community') && !newVaultStorageRoot.trim()) ||
+                isSavingVault
+              }
               className="btn btn-primary btn-sm"
             >
-              {isSavingVault ? 'Creating...' : 'Create Vault'}
+              {isSavingVault ? t('mdbSetup.creating') : t('mdbSetup.createVault')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {credentialVault && (
+        <div className="mt-3 p-4 bg-plm-bg rounded-lg border border-plm-accent space-y-3">
+          <div>
+            <h3 className="text-base text-plm-fg font-medium">
+              {t('mdbSetup.networkLoginFor', { name: credentialVault.name })}
+            </h3>
+            <p className="text-sm text-plm-fg-muted mt-1 break-all">
+              {credentialVault.networkRoot}
+            </p>
+            <p className="text-xs text-plm-fg-muted mt-2">
+              {t('mdbSetup.networkLoginSavedLocallyHelp')}
+            </p>
+          </div>
+          <input
+            type="text"
+            value={credentialUsername}
+            onChange={(event) => setCredentialUsername(event.target.value)}
+            placeholder={t('mdbSetup.networkUsernamePlaceholder')}
+            autoComplete="username"
+            className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
+          />
+          <input
+            type="password"
+            value={credentialPassword}
+            onChange={(event) => setCredentialPassword(event.target.value)}
+            placeholder={t('mdbSetup.networkPassword')}
+            autoComplete="new-password"
+            className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
+          />
+          <div className="flex gap-2 justify-end">
+            <button
+              onClick={() => {
+                setCredentialVault(null)
+                setCredentialUsername('')
+                setCredentialPassword('')
+              }}
+              disabled={isSavingCredential}
+              className="btn btn-ghost btn-sm"
+            >
+              {t('mdbSetup.cancel')}
+            </button>
+            <button
+              onClick={handleSaveVaultCredential}
+              disabled={isSavingCredential || !credentialUsername.trim() || !credentialPassword}
+              className="btn btn-primary btn-sm"
+            >
+              {isSavingCredential ? t('mdbSetup.saving') : t('mdbSetup.saveLocally')}
             </button>
           </div>
         </div>
@@ -859,6 +1101,23 @@ export function VaultsSettings() {
                       <FolderOpen size={14} className="text-plm-fg-muted" />
                     </button>
                   )}
+
+                  {isBackendConfigured('community') &&
+                    platform === 'win32' &&
+                    vault.storageProvider === 'network' &&
+                    vault.networkRoot && (
+                      <button
+                        onClick={() => {
+                          setCredentialVault(vault)
+                          setCredentialUsername('')
+                          setCredentialPassword('')
+                        }}
+                        className="p-1.5 hover:bg-plm-highlight rounded transition-colors"
+                        title={t('mdbSetup.saveNetworkLogin')}
+                      >
+                        <KeyRound size={14} className="text-plm-fg-muted" />
+                      </button>
+                    )}
 
                   {/* Connect/Disconnect button */}
                   {isVaultConnected(vault.id) ? (

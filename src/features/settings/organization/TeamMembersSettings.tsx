@@ -33,6 +33,7 @@ import { copyToClipboard } from '@/lib/clipboard'
 import { getCurrentConfig, supabase } from '@/lib/supabase'
 import { generateOrgCode } from '@/lib/supabaseConfig'
 import { subscribeToMemberChanges } from '@/lib/realtime'
+import { isBackendConfigured } from '@/lib/community'
 import { usePDMStore } from '@/stores/pdmStore'
 
 // Import components and hooks from team-members
@@ -71,6 +72,7 @@ export function TeamMembersSettings() {
   const { user, organization, getEffectiveRole, apiServerUrl, addToast } = usePDMStore()
   const orgId = organization?.id ?? null
   const isAdmin = getEffectiveRole() === 'admin'
+  const isCommunityBackend = isBackendConfigured('community')
 
   // Track if we're currently saving to avoid overwriting with stale realtime data
   const savingRef = useRef(false)
@@ -205,7 +207,7 @@ export function TeamMembersSettings() {
     if (!domain || !organization?.id) return
 
     // Validate domain format
-    if (!/^[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,}$/i.test(domain)) {
+    if (!/^[a-z0-9]+([-.]{1}[a-z0-9]+)*\.[a-z]{2,}$/i.test(domain)) {
       addToast('error', 'Invalid domain format')
       return
     }
@@ -321,7 +323,10 @@ export function TeamMembersSettings() {
   // ===== EMAIL DOMAIN EFFECTS =====
   // Load email domain settings
   useEffect(() => {
-    if (!organization?.id) return
+    if (!organization?.id || isCommunityBackend) {
+      setLoadingEmailSettings(false)
+      return
+    }
 
     const loadEmailSettings = async () => {
       setLoadingEmailSettings(true)
@@ -346,7 +351,7 @@ export function TeamMembersSettings() {
     }
 
     loadEmailSettings()
-  }, [organization?.id])
+  }, [organization?.id, isCommunityBackend])
 
   // Sync with realtime organization changes (when another admin updates settings)
   useEffect(() => {
@@ -381,6 +386,7 @@ export function TeamMembersSettings() {
   // ===== REALTIME SUBSCRIPTION =====
   // Subscribe to member attribute changes (teams, roles, titles) for instant sync
   useEffect(() => {
+    if (isCommunityBackend) return
     if (!orgId) return
 
     const unsubscribe = subscribeToMemberChanges(orgId, (changeType, _eventType, _userId) => {
@@ -403,7 +409,7 @@ export function TeamMembersSettings() {
     })
 
     return unsubscribe
-  }, [orgId, loadMembers, loadTeams, loadWorkflowRoles, loadJobTitles])
+  }, [orgId, isCommunityBackend, loadMembers, loadTeams, loadWorkflowRoles, loadJobTitles])
 
   // ===== RENDER =====
   if (!organization) {
@@ -463,7 +469,7 @@ export function TeamMembersSettings() {
               Add Team
             </button>
           )}
-          {isAdmin && activeTab === 'roles' && (
+          {isAdmin && !isCommunityBackend && activeTab === 'roles' && (
             <button
               onClick={() => setShowCreateWorkflowRoleDialog(true)}
               className="btn btn-primary btn-sm flex items-center gap-1"
@@ -473,7 +479,7 @@ export function TeamMembersSettings() {
               Add Role
             </button>
           )}
-          {isAdmin && activeTab === 'titles' && (
+          {isAdmin && !isCommunityBackend && activeTab === 'titles' && (
             <button
               onClick={() => openCreateJobTitle()}
               className="btn btn-primary btn-sm flex items-center gap-1"
@@ -487,7 +493,7 @@ export function TeamMembersSettings() {
       </div>
 
       {/* Organization Access Settings (Admin only) */}
-      {isAdmin && (
+      {isAdmin && !isCommunityBackend && (
         <div className="bg-plm-bg rounded-lg border border-plm-border divide-y divide-plm-border">
           {/* Organization Code - Inline with copy */}
           <div className="flex items-center justify-between p-3">
@@ -676,46 +682,50 @@ export function TeamMembersSettings() {
             </span>
           )}
         </button>
-        <button
-          onClick={() => setActiveTab('roles')}
-          className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${
-            activeTab === 'roles'
-              ? 'bg-plm-bg text-plm-fg shadow-sm'
-              : 'text-plm-fg-muted hover:text-plm-fg'
-          }`}
-        >
-          <Shield size={16} />
-          Roles
-          {workflowRoles.length > 0 && (
-            <span
-              className={`text-xs px-1.5 py-0.5 rounded-full ${
-                activeTab === 'roles' ? 'bg-plm-accent/20 text-plm-accent' : 'bg-plm-fg-muted/20'
-              }`}
-            >
-              {workflowRoles.length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab('titles')}
-          className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${
-            activeTab === 'titles'
-              ? 'bg-plm-bg text-plm-fg shadow-sm'
-              : 'text-plm-fg-muted hover:text-plm-fg'
-          }`}
-        >
-          <Briefcase size={16} />
-          Titles
-          {jobTitles.length > 0 && (
-            <span
-              className={`text-xs px-1.5 py-0.5 rounded-full ${
-                activeTab === 'titles' ? 'bg-plm-accent/20 text-plm-accent' : 'bg-plm-fg-muted/20'
-              }`}
-            >
-              {jobTitles.length}
-            </span>
-          )}
-        </button>
+        {!isCommunityBackend && (
+          <button
+            onClick={() => setActiveTab('roles')}
+            className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${
+              activeTab === 'roles'
+                ? 'bg-plm-bg text-plm-fg shadow-sm'
+                : 'text-plm-fg-muted hover:text-plm-fg'
+            }`}
+          >
+            <Shield size={16} />
+            Roles
+            {workflowRoles.length > 0 && (
+              <span
+                className={`text-xs px-1.5 py-0.5 rounded-full ${
+                  activeTab === 'roles' ? 'bg-plm-accent/20 text-plm-accent' : 'bg-plm-fg-muted/20'
+                }`}
+              >
+                {workflowRoles.length}
+              </span>
+            )}
+          </button>
+        )}
+        {!isCommunityBackend && (
+          <button
+            onClick={() => setActiveTab('titles')}
+            className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${
+              activeTab === 'titles'
+                ? 'bg-plm-bg text-plm-fg shadow-sm'
+                : 'text-plm-fg-muted hover:text-plm-fg'
+            }`}
+          >
+            <Briefcase size={16} />
+            Titles
+            {jobTitles.length > 0 && (
+              <span
+                className={`text-xs px-1.5 py-0.5 rounded-full ${
+                  activeTab === 'titles' ? 'bg-plm-accent/20 text-plm-accent' : 'bg-plm-fg-muted/20'
+                }`}
+              >
+                {jobTitles.length}
+              </span>
+            )}
+          </button>
+        )}
       </div>
 
       {/* Search */}
@@ -759,13 +769,13 @@ export function TeamMembersSettings() {
               }}
             />
           )}
-          {activeTab === 'roles' && (
+          {!isCommunityBackend && activeTab === 'roles' && (
             <RolesTab
               searchQuery={searchQuery}
               onShowCreateRoleDialog={() => setShowCreateWorkflowRoleDialog(true)}
             />
           )}
-          {activeTab === 'titles' && (
+          {!isCommunityBackend && activeTab === 'titles' && (
             <TitlesTab
               searchQuery={searchQuery}
               onShowCreateTitleDialog={() => openCreateJobTitle()}

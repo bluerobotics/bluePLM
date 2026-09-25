@@ -7,6 +7,8 @@ import { getSupabaseClient } from '../client'
 import { getCurrentUserEmail } from '../auth'
 import { getNextRevision } from '../../../types/pdm'
 import type { PDMFile } from '../../../types/pdm'
+import { getCommunityRollbackTarget } from '@/lib/community'
+import { routeBackend } from '@/lib/backendAdapter'
 
 /**
  * Rollback file to a previous version (LOCAL ONLY)
@@ -20,66 +22,77 @@ export async function rollbackToVersion(
   targetVersion: number,
   comment?: string,
 ): Promise<{ success: boolean; targetVersionRecord?: any; maxVersion?: number; error?: string }> {
-  const client = getSupabaseClient()
+  return routeBackend({
+    mdb: async () => {
+      try {
+        return await getCommunityRollbackTarget(fileId, targetVersion, comment)
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) }
+      }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
 
-  // Get current file
-  const { data: file, error: fetchError } = await client
-    .from('files')
-    .select('*')
-    .eq('id', fileId)
-    .single()
+      // Get current file
+      const { data: file, error: fetchError } = await client
+        .from('files')
+        .select('*')
+        .eq('id', fileId)
+        .single()
 
-  if (fetchError) {
-    return { success: false, error: fetchError.message }
-  }
+      if (fetchError) {
+        return { success: false, error: fetchError.message }
+      }
 
-  // File must be checked out by user
-  if (file.checked_out_by !== userId) {
-    return { success: false, error: 'You must check out the file before switching versions' }
-  }
+      // File must be checked out by user
+      if (file.checked_out_by !== userId) {
+        return { success: false, error: 'You must check out the file before switching versions' }
+      }
 
-  // Get target version
-  const { data: targetVersionRecord, error: versionError } = await client
-    .from('file_versions')
-    .select('*')
-    .eq('file_id', fileId)
-    .eq('version', targetVersion)
-    .single()
+      // Get target version
+      const { data: targetVersionRecord, error: versionError } = await client
+        .from('file_versions')
+        .select('*')
+        .eq('file_id', fileId)
+        .eq('version', targetVersion)
+        .single()
 
-  if (versionError) {
-    return { success: false, error: `Version ${targetVersion} not found` }
-  }
+      if (versionError) {
+        return { success: false, error: `Version ${targetVersion} not found` }
+      }
 
-  // Get max version for reference
-  const { data: maxVersionData } = await client
-    .from('file_versions')
-    .select('version')
-    .eq('file_id', fileId)
-    .order('version', { ascending: false })
-    .limit(1)
-    .single()
+      // Get max version for reference
+      const { data: maxVersionData } = await client
+        .from('file_versions')
+        .select('version')
+        .eq('file_id', fileId)
+        .order('version', { ascending: false })
+        .limit(1)
+        .single()
 
-  const maxVersion = maxVersionData?.version || file.version
+      const maxVersion = maxVersionData?.version || file.version
 
-  // Log activity (fire-and-forget)
-  const isRollback = targetVersion < file.version
-  getCurrentUserEmail().then((userEmail) => {
-    client.from('activity').insert({
-      org_id: file.org_id,
-      file_id: fileId,
-      user_id: userId,
-      user_email: userEmail,
-      action: 'revision_change',
-      details: {
-        version_action: isRollback ? 'rollback' : 'roll_forward',
-        from_version: file.version,
-        to_version: targetVersion,
-        comment: comment || null,
-      },
-    })
+      // Log activity (fire-and-forget)
+      const isRollback = targetVersion < file.version
+      getCurrentUserEmail().then((userEmail) => {
+        client.from('activity').insert({
+          org_id: file.org_id,
+          file_id: fileId,
+          user_id: userId,
+          user_email: userEmail,
+          action: 'revision_change',
+          details: {
+            version_action: isRollback ? 'rollback' : 'roll_forward',
+            from_version: file.version,
+            to_version: targetVersion,
+            comment: comment || null,
+          },
+        })
+      })
+
+      return { success: true, targetVersionRecord, maxVersion }
+    },
   })
-
-  return { success: true, targetVersionRecord, maxVersion }
 }
 
 /**

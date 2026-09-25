@@ -8,6 +8,13 @@
 import { escapeLikePattern, folderPrefixLikePattern } from '@/lib/utils/likePattern'
 
 import { getSupabaseClient } from '../client'
+import {
+  deleteCommunityFolder,
+  getCommunityFolders,
+  syncCommunityFolder,
+  updateCommunityFolder,
+} from '@/lib/community'
+import { routeBackend } from '@/lib/backendAdapter'
 
 // ============================================
 // Types
@@ -102,30 +109,50 @@ export async function syncFolder(
   userId: string,
   folderPath: string,
 ): Promise<{ folder: FolderRecord | null; error: any }> {
-  const client = getSupabaseClient()
-  const logFn = getLogFn()
+  return routeBackend({
+    mdb: async () => {
+      try {
+        const normalizedPath = folderPath.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '')
+        const parts = normalizedPath.split('/')
+        let folder: FolderRecord | null = null
+        for (let index = 1; index <= parts.length; index += 1) {
+          folder = (await syncCommunityFolder(
+            vaultId,
+            parts.slice(0, index).join('/'),
+          )) as FolderRecord
+        }
+        return { folder, error: null }
+      } catch (error) {
+        return { folder: null, error }
+      }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
+      const logFn = getLogFn()
 
-  // Normalize path: use forward slashes, no leading/trailing slashes
-  const normalizedPath = folderPath.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '')
+      // Normalize path: use forward slashes, no leading/trailing slashes
+      const normalizedPath = folderPath.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '')
 
-  logFn('debug', '[syncFolder] Starting sync', { orgId, vaultId, folderPath: normalizedPath })
+      logFn('debug', '[syncFolder] Starting sync', { orgId, vaultId, folderPath: normalizedPath })
 
-  try {
-    // First, sync all parent folders to ensure hierarchy exists
-    const pathParts = normalizedPath.split('/')
-    for (let i = 1; i < pathParts.length; i++) {
-      const parentPath = pathParts.slice(0, i).join('/')
-      await syncSingleFolder(client, orgId, vaultId, userId, parentPath, logFn)
-    }
+      try {
+        // First, sync all parent folders to ensure hierarchy exists
+        const pathParts = normalizedPath.split('/')
+        for (let i = 1; i < pathParts.length; i++) {
+          const parentPath = pathParts.slice(0, i).join('/')
+          await syncSingleFolder(client, orgId, vaultId, userId, parentPath, logFn)
+        }
 
-    // Now sync the target folder
-    const result = await syncSingleFolder(client, orgId, vaultId, userId, normalizedPath, logFn)
-    return result
-  } catch (error) {
-    const errMsg = error instanceof Error ? error.message : String(error)
-    logFn('error', '[syncFolder] Exception', { folderPath: normalizedPath, error: errMsg })
-    return { folder: null, error }
-  }
+        // Now sync the target folder
+        const result = await syncSingleFolder(client, orgId, vaultId, userId, normalizedPath, logFn)
+        return result
+      } catch (error) {
+        const errMsg = error instanceof Error ? error.message : String(error)
+        logFn('error', '[syncFolder] Exception', { folderPath: normalizedPath, error: errMsg })
+        return { folder: null, error }
+      }
+    },
+  })
 }
 
 /**
@@ -217,31 +244,42 @@ async function syncSingleFolder(
 export async function getVaultFolders(
   vaultId: string,
 ): Promise<{ folders: FolderRecord[]; error?: string }> {
-  const client = getSupabaseClient()
-  const logFn = getLogFn()
+  return routeBackend({
+    mdb: async () => {
+      try {
+        return { folders: (await getCommunityFolders(vaultId)) as FolderRecord[] }
+      } catch (error) {
+        return { folders: [], error: error instanceof Error ? error.message : String(error) }
+      }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
+      const logFn = getLogFn()
 
-  logFn('debug', '[getVaultFolders] Fetching folders', { vaultId })
+      logFn('debug', '[getVaultFolders] Fetching folders', { vaultId })
 
-  try {
-    const { data, error } = await client
-      .from('folders')
-      .select('*')
-      .eq('vault_id', vaultId)
-      .is('deleted_at', null)
-      .order('folder_path', { ascending: true })
+      try {
+        const { data, error } = await client
+          .from('folders')
+          .select('*')
+          .eq('vault_id', vaultId)
+          .is('deleted_at', null)
+          .order('folder_path', { ascending: true })
 
-    if (error) {
-      logFn('error', '[getVaultFolders] Query error', { vaultId, error: error.message })
-      return { folders: [], error: error.message }
-    }
+        if (error) {
+          logFn('error', '[getVaultFolders] Query error', { vaultId, error: error.message })
+          return { folders: [], error: error.message }
+        }
 
-    logFn('debug', '[getVaultFolders] Found folders', { vaultId, count: data?.length || 0 })
-    return { folders: (data || []) as FolderRecord[] }
-  } catch (error) {
-    const errMsg = error instanceof Error ? error.message : String(error)
-    logFn('error', '[getVaultFolders] Exception', { vaultId, error: errMsg })
-    return { folders: [], error: errMsg }
-  }
+        logFn('debug', '[getVaultFolders] Found folders', { vaultId, count: data?.length || 0 })
+        return { folders: (data || []) as FolderRecord[] }
+      } catch (error) {
+        const errMsg = error instanceof Error ? error.message : String(error)
+        logFn('error', '[getVaultFolders] Exception', { vaultId, error: errMsg })
+        return { folders: [], error: errMsg }
+      }
+    },
+  })
 }
 
 // ============================================
@@ -259,89 +297,101 @@ export async function updateFolderServerPath(
   folderId: string,
   newPath: string,
 ): Promise<{ success: boolean; error?: string }> {
-  const client = getSupabaseClient()
-  const logFn = getLogFn()
-
-  // Normalize path
-  const normalizedPath = newPath.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '')
-
-  logFn('debug', '[updateFolderServerPath] Updating folder path', {
-    folderId,
-    newPath: normalizedPath,
-  })
-
-  try {
-    // Get the current folder to find its old path
-    const { data: currentFolder, error: fetchError } = await client
-      .from('folders')
-      .select('folder_path, vault_id')
-      .eq('id', folderId)
-      .single()
-
-    if (fetchError || !currentFolder) {
-      logFn('error', '[updateFolderServerPath] Folder not found', {
-        folderId,
-        error: fetchError?.message,
-      })
-      return { success: false, error: fetchError?.message || 'Folder not found' }
-    }
-
-    const oldPath = currentFolder.folder_path
-
-    // Update the folder itself
-    const { error: updateError } = await client
-      .from('folders')
-      .update({ folder_path: normalizedPath })
-      .eq('id', folderId)
-
-    if (updateError) {
-      logFn('error', '[updateFolderServerPath] Update error', {
-        folderId,
-        error: updateError.message,
-      })
-      return { success: false, error: updateError.message }
-    }
-
-    // Update all child folders' paths (folders that start with oldPath/)
-    const { data: childFolders, error: childFetchError } = await client
-      .from('folders')
-      .select('id, folder_path')
-      .eq('vault_id', currentFolder.vault_id)
-      .ilike('folder_path', folderPrefixLikePattern(oldPath))
-      .is('deleted_at', null)
-
-    if (childFetchError) {
-      logFn('warn', '[updateFolderServerPath] Failed to fetch child folders', {
-        error: childFetchError.message,
-      })
-    } else if (childFolders && childFolders.length > 0) {
-      // Update each child folder's path. Splicing off the old prefix by length
-      // rather than calling String.replace(oldPath, ...): replace() with a
-      // string argument rewrites the first occurrence anywhere in the path, so
-      // renaming `Parts` rewrote the trailing segment of `Parts/Old/Parts`, and
-      // it is case-sensitive besides. The ILIKE above matched a literal prefix,
-      // so the first oldPath.length characters of each child are that prefix
-      // whatever case they are stored in.
-      for (const child of childFolders) {
-        const newChildPath = normalizedPath + child.folder_path.slice(oldPath.length)
-        await client.from('folders').update({ folder_path: newChildPath }).eq('id', child.id)
+  return routeBackend({
+    mdb: async () => {
+      try {
+        await updateCommunityFolder(folderId, newPath)
+        return { success: true }
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) }
       }
-      logFn('debug', '[updateFolderServerPath] Updated child folders', {
-        count: childFolders.length,
-      })
-    }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
+      const logFn = getLogFn()
 
-    logFn('info', '[updateFolderServerPath] Folder path updated', {
-      folderId,
-      oldPath,
-      newPath: normalizedPath,
-    })
-    return { success: true }
-  } catch (error) {
-    const errMsg = error instanceof Error ? error.message : String(error)
-    logFn('error', '[updateFolderServerPath] Exception', { folderId, error: errMsg })
-    return { success: false, error: errMsg }
-  }
+      // Normalize path
+      const normalizedPath = newPath.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '')
+
+      logFn('debug', '[updateFolderServerPath] Updating folder path', {
+        folderId,
+        newPath: normalizedPath,
+      })
+
+      try {
+        // Get the current folder to find its old path
+        const { data: currentFolder, error: fetchError } = await client
+          .from('folders')
+          .select('folder_path, vault_id')
+          .eq('id', folderId)
+          .single()
+
+        if (fetchError || !currentFolder) {
+          logFn('error', '[updateFolderServerPath] Folder not found', {
+            folderId,
+            error: fetchError?.message,
+          })
+          return { success: false, error: fetchError?.message || 'Folder not found' }
+        }
+
+        const oldPath = currentFolder.folder_path
+
+        // Update the folder itself
+        const { error: updateError } = await client
+          .from('folders')
+          .update({ folder_path: normalizedPath })
+          .eq('id', folderId)
+
+        if (updateError) {
+          logFn('error', '[updateFolderServerPath] Update error', {
+            folderId,
+            error: updateError.message,
+          })
+          return { success: false, error: updateError.message }
+        }
+
+        // Update all child folders' paths (folders that start with oldPath/)
+        const { data: childFolders, error: childFetchError } = await client
+          .from('folders')
+          .select('id, folder_path')
+          .eq('vault_id', currentFolder.vault_id)
+          .ilike('folder_path', folderPrefixLikePattern(oldPath))
+          .is('deleted_at', null)
+
+        if (childFetchError) {
+          logFn('warn', '[updateFolderServerPath] Failed to fetch child folders', {
+            error: childFetchError.message,
+          })
+        } else if (childFolders && childFolders.length > 0) {
+          // Update each child folder's path. Splicing off the old prefix by length
+          // rather than calling String.replace(oldPath, ...): replace() with a
+          // string argument rewrites the first occurrence anywhere in the path, so
+          // renaming `Parts` rewrote the trailing segment of `Parts/Old/Parts`, and
+          // it is case-sensitive besides. The ILIKE above matched a literal prefix,
+          // so the first oldPath.length characters of each child are that prefix
+          // whatever case they are stored in.
+          for (const child of childFolders) {
+            const newChildPath = normalizedPath + child.folder_path.slice(oldPath.length)
+            await client.from('folders').update({ folder_path: newChildPath }).eq('id', child.id)
+          }
+          logFn('debug', '[updateFolderServerPath] Updated child folders', {
+            count: childFolders.length,
+          })
+        }
+
+        logFn('info', '[updateFolderServerPath] Folder path updated', {
+          folderId,
+          oldPath,
+          newPath: normalizedPath,
+        })
+        return { success: true }
+      } catch (error) {
+        const errMsg = error instanceof Error ? error.message : String(error)
+        logFn('error', '[updateFolderServerPath] Exception', { folderId, error: errMsg })
+        return { success: false, error: errMsg }
+      }
+    },
+  })
 }
 
 // ============================================
@@ -359,73 +409,85 @@ export async function deleteFolderOnServer(
   folderId: string,
   userId: string,
 ): Promise<{ success: boolean; error?: string }> {
-  const client = getSupabaseClient()
-  const logFn = getLogFn()
+  return routeBackend({
+    mdb: async () => {
+      try {
+        await deleteCommunityFolder(folderId)
+        return { success: true }
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) }
+      }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
+      const logFn = getLogFn()
 
-  logFn('debug', '[deleteFolderOnServer] Soft deleting folder', { folderId, userId })
+      logFn('debug', '[deleteFolderOnServer] Soft deleting folder', { folderId, userId })
 
-  try {
-    // Get the folder to find its path for child deletion
-    const { data: folder, error: fetchError } = await client
-      .from('folders')
-      .select('folder_path, vault_id')
-      .eq('id', folderId)
-      .single()
+      try {
+        // Get the folder to find its path for child deletion
+        const { data: folder, error: fetchError } = await client
+          .from('folders')
+          .select('folder_path, vault_id')
+          .eq('id', folderId)
+          .single()
 
-    if (fetchError || !folder) {
-      logFn('error', '[deleteFolderOnServer] Folder not found', {
-        folderId,
-        error: fetchError?.message,
-      })
-      return { success: false, error: fetchError?.message || 'Folder not found' }
-    }
+        if (fetchError || !folder) {
+          logFn('error', '[deleteFolderOnServer] Folder not found', {
+            folderId,
+            error: fetchError?.message,
+          })
+          return { success: false, error: fetchError?.message || 'Folder not found' }
+        }
 
-    const now = new Date().toISOString()
+        const now = new Date().toISOString()
 
-    // Soft delete the folder
-    const { error: deleteError } = await client
-      .from('folders')
-      .update({
-        deleted_at: now,
-        deleted_by: userId,
-      })
-      .eq('id', folderId)
+        // Soft delete the folder
+        const { error: deleteError } = await client
+          .from('folders')
+          .update({
+            deleted_at: now,
+            deleted_by: userId,
+          })
+          .eq('id', folderId)
 
-    if (deleteError) {
-      logFn('error', '[deleteFolderOnServer] Delete error', {
-        folderId,
-        error: deleteError.message,
-      })
-      return { success: false, error: deleteError.message }
-    }
+        if (deleteError) {
+          logFn('error', '[deleteFolderOnServer] Delete error', {
+            folderId,
+            error: deleteError.message,
+          })
+          return { success: false, error: deleteError.message }
+        }
 
-    // Soft delete all child folders
-    const { error: childDeleteError } = await client
-      .from('folders')
-      .update({
-        deleted_at: now,
-        deleted_by: userId,
-      })
-      .eq('vault_id', folder.vault_id)
-      .ilike('folder_path', folderPrefixLikePattern(folder.folder_path))
-      .is('deleted_at', null)
+        // Soft delete all child folders
+        const { error: childDeleteError } = await client
+          .from('folders')
+          .update({
+            deleted_at: now,
+            deleted_by: userId,
+          })
+          .eq('vault_id', folder.vault_id)
+          .ilike('folder_path', folderPrefixLikePattern(folder.folder_path))
+          .is('deleted_at', null)
 
-    if (childDeleteError) {
-      logFn('warn', '[deleteFolderOnServer] Failed to delete child folders', {
-        error: childDeleteError.message,
-      })
-    }
+        if (childDeleteError) {
+          logFn('warn', '[deleteFolderOnServer] Failed to delete child folders', {
+            error: childDeleteError.message,
+          })
+        }
 
-    logFn('info', '[deleteFolderOnServer] Folder soft deleted', {
-      folderId,
-      folderPath: folder.folder_path,
-    })
-    return { success: true }
-  } catch (error) {
-    const errMsg = error instanceof Error ? error.message : String(error)
-    logFn('error', '[deleteFolderOnServer] Exception', { folderId, error: errMsg })
-    return { success: false, error: errMsg }
-  }
+        logFn('info', '[deleteFolderOnServer] Folder soft deleted', {
+          folderId,
+          folderPath: folder.folder_path,
+        })
+        return { success: true }
+      } catch (error) {
+        const errMsg = error instanceof Error ? error.message : String(error)
+        logFn('error', '[deleteFolderOnServer] Exception', { folderId, error: errMsg })
+        return { success: false, error: errMsg }
+      }
+    },
+  })
 }
 
 /**
@@ -441,74 +503,91 @@ export async function deleteFolderByPath(
   folderPath: string,
   userId: string,
 ): Promise<{ success: boolean; error?: string }> {
-  const client = getSupabaseClient()
-  const logFn = getLogFn()
+  return routeBackend({
+    mdb: async () => {
+      try {
+        const normalizedPath = folderPath.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '')
+        const folder = (await getCommunityFolders(vaultId)).find(
+          (candidate) => candidate.folder_path.toLowerCase() === normalizedPath.toLowerCase(),
+        )
+        if (!folder) return { success: true }
+        await deleteCommunityFolder(folder.id)
+        return { success: true }
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) }
+      }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
+      const logFn = getLogFn()
 
-  // Normalize path
-  const normalizedPath = folderPath.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '')
+      // Normalize path
+      const normalizedPath = folderPath.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '')
 
-  logFn('debug', '[deleteFolderByPath] Soft deleting folder by path', {
-    vaultId,
-    folderPath: normalizedPath,
+      logFn('debug', '[deleteFolderByPath] Soft deleting folder by path', {
+        vaultId,
+        folderPath: normalizedPath,
+      })
+
+      try {
+        const now = new Date().toISOString()
+
+        // Soft delete the exact folder
+        const { error: deleteError, count: exactCount } = await client
+          .from('folders')
+          .update(
+            {
+              deleted_at: now,
+              deleted_by: userId,
+            },
+            { count: 'exact' },
+          )
+          .eq('vault_id', vaultId)
+          .ilike('folder_path', escapeLikePattern(normalizedPath))
+          .is('deleted_at', null)
+
+        if (deleteError) {
+          logFn('error', '[deleteFolderByPath] Delete error (exact match)', {
+            folderPath: normalizedPath,
+            error: deleteError.message,
+          })
+          return { success: false, error: deleteError.message }
+        }
+
+        // Soft delete all child folders (paths that start with normalizedPath/)
+        const { error: childError, count: childCount } = await client
+          .from('folders')
+          .update(
+            {
+              deleted_at: now,
+              deleted_by: userId,
+            },
+            { count: 'exact' },
+          )
+          .eq('vault_id', vaultId)
+          .ilike('folder_path', folderPrefixLikePattern(normalizedPath))
+          .is('deleted_at', null)
+
+        if (childError) {
+          logFn('warn', '[deleteFolderByPath] Failed to delete child folders', {
+            folderPath: normalizedPath,
+            error: childError.message,
+          })
+        }
+
+        const totalCount = (exactCount || 0) + (childCount || 0)
+        logFn('info', '[deleteFolderByPath] Folders soft deleted', {
+          folderPath: normalizedPath,
+          exactCount,
+          childCount,
+          totalCount,
+        })
+        return { success: true }
+      } catch (error) {
+        const errMsg = error instanceof Error ? error.message : String(error)
+        logFn('error', '[deleteFolderByPath] Exception', { folderPath, error: errMsg })
+        return { success: false, error: errMsg }
+      }
+    },
   })
-
-  try {
-    const now = new Date().toISOString()
-
-    // Soft delete the exact folder
-    const { error: deleteError, count: exactCount } = await client
-      .from('folders')
-      .update(
-        {
-          deleted_at: now,
-          deleted_by: userId,
-        },
-        { count: 'exact' },
-      )
-      .eq('vault_id', vaultId)
-      .ilike('folder_path', escapeLikePattern(normalizedPath))
-      .is('deleted_at', null)
-
-    if (deleteError) {
-      logFn('error', '[deleteFolderByPath] Delete error (exact match)', {
-        folderPath: normalizedPath,
-        error: deleteError.message,
-      })
-      return { success: false, error: deleteError.message }
-    }
-
-    // Soft delete all child folders (paths that start with normalizedPath/)
-    const { error: childError, count: childCount } = await client
-      .from('folders')
-      .update(
-        {
-          deleted_at: now,
-          deleted_by: userId,
-        },
-        { count: 'exact' },
-      )
-      .eq('vault_id', vaultId)
-      .ilike('folder_path', folderPrefixLikePattern(normalizedPath))
-      .is('deleted_at', null)
-
-    if (childError) {
-      logFn('warn', '[deleteFolderByPath] Failed to delete child folders', {
-        folderPath: normalizedPath,
-        error: childError.message,
-      })
-    }
-
-    const totalCount = (exactCount || 0) + (childCount || 0)
-    logFn('info', '[deleteFolderByPath] Folders soft deleted', {
-      folderPath: normalizedPath,
-      exactCount,
-      childCount,
-      totalCount,
-    })
-    return { success: true }
-  } catch (error) {
-    const errMsg = error instanceof Error ? error.message : String(error)
-    logFn('error', '[deleteFolderByPath] Exception', { folderPath, error: errMsg })
-    return { success: false, error: errMsg }
-  }
 }

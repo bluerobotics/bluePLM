@@ -1,3 +1,5 @@
+import { activateBackend, isBackendActive } from './backend'
+
 // Supabase Configuration Management
 // Allows organizations to bring their own Supabase backend
 
@@ -67,6 +69,7 @@ export function saveConfig(config: SupabaseConfig): void {
   try {
     const json = JSON.stringify(config)
     localStorage.setItem(STORAGE_KEY, json)
+    activateBackend('supabase')
   } catch {
     // Storage may be unavailable
   }
@@ -103,7 +106,7 @@ export function clearConfig(): void {
 
 // Check if configuration exists
 export function hasConfig(): boolean {
-  return loadConfig() !== null
+  return isBackendActive('supabase') && loadConfig() !== null
 }
 
 // Validate a Supabase configuration by attempting to connect

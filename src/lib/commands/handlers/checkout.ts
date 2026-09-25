@@ -446,6 +446,8 @@ export const checkoutCommand: Command<CheckoutParams> = {
         const result = await checkoutFile(file.pdmData!.id, user.id, user.email, {
           machineId,
           machineName,
+          clientWorkingPath: file.path,
+          vaultId: file.pdmData!.vault_id ?? undefined,
         })
         recordSubstepTiming('checkoutAPI', performance.now() - checkoutAPIStart)
 

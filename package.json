@@ -44,6 +44,7 @@
     "@supabase/supabase-js": "^2.39.0",
     "@tanstack/react-virtual": "^3.13.18",
     "@types/jszip": "^3.4.0",
+    "basic-ftp": "^6.2.1",
     "cfb": "^1.2.2",
     "chokidar": "^5.0.0",
     "date-fns": "^3.0.6",
@@ -123,6 +124,15 @@
       ],
       "icon": "assets/icon.ico",
       "extraResources": [
+        {
+          "from": "blueplm-mdb-php",
+          "to": "blueplm-mdb-server",
+          "filter": [
+            "src/**/*",
+            "public/**/*",
+            "migrations/**/*"
+          ]
+        },
         {
           "from": "resources/bin/win32",
           "to": "bin",

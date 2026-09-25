@@ -11,6 +11,7 @@
  */
 import { useCallback, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { isBackendConfigured } from '@/lib/community'
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import type { WorkflowRoleBasic, WorkflowRoleFormData } from '../types'
@@ -47,6 +48,14 @@ export function useWorkflowRoles(orgId: string | null) {
 
     setWorkflowRolesLoading(true)
     try {
+      // Workflow role management has no Community adapter yet. Keep the
+      // Supabase-only feature absent rather than issuing a Supabase request
+      // from a MariaDB client.
+      if (isBackendConfigured('community')) {
+        setWorkflowRoles([])
+        setUserRoleAssignments({})
+        return
+      }
       // Load workflow roles
       const { data: rolesData, error: rolesError } = await supabase
         .from('workflow_roles')

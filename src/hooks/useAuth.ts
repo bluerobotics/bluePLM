@@ -16,8 +16,20 @@ import {
 } from '@/lib/supabase'
 import { logUserAction } from '@/lib/userActionLogger'
 import { clearConfig } from '@/lib/supabaseConfig'
+import { clearBackendProfile } from '@/lib/backend'
+import { mapMdbRole } from '@/lib/backendAdapter'
 import { log } from '@/lib/logger'
 import { recordMetric } from '@/lib/performanceMetrics'
+import {
+  communityAccessToken,
+  clearCommunityConfig,
+  getCommunityOrganization,
+  getCommunityPrincipal,
+  isBackendConfigured,
+  onCommunityAuthChange,
+  signOutCommunity,
+} from '@/lib/community'
+import type { Organization } from '@/types/pdm'
 
 const STATUS_MESSAGE_CLEAR_MS = 3_000
 const CONNECT_TIMEOUT_MS = 90_000
@@ -141,7 +153,9 @@ export function useAuth() {
   )
 
   // Track if Supabase is configured (can change at runtime)
-  const [supabaseReady, setSupabaseReady] = useState(() => isSupabaseConfigured())
+  const [supabaseReady, setSupabaseReady] = useState(
+    () => isSupabaseConfigured() || isBackendConfigured('community'),
+  )
   const [sessionGeneration, setSessionGeneration] = useState(0)
   const sessionBoundaryRef = useRef<AuthSessionBoundary>({
     authenticatedUserId: null,
@@ -184,10 +198,16 @@ export function useAuth() {
   // Handle user wanting to change organization (go back to setup)
   const handleChangeOrg = useCallback(async () => {
     advanceSession('SIGNED_OUT', null)
-    // Sign out first if user is signed in
-    await signOut()
-    // Clear the stored Supabase config
-    clearConfig()
+    // Sign out and clear only the selected backend. An inactive adapter must
+    // not be initialized merely because the user returns to backend setup.
+    if (isBackendConfigured('community')) {
+      signOutCommunity()
+      clearCommunityConfig()
+    } else {
+      await signOut()
+      clearConfig()
+    }
+    clearBackendProfile()
     // Reset state to show setup screen
     setSupabaseReady(false)
   }, [advanceSession])
@@ -198,6 +218,84 @@ export function useAuth() {
   useEffect(() => {
     if (!supabaseReady) {
       return
+    }
+
+    // Community mode intentionally does not emulate Supabase's auth event
+    // protocol. Hydrating it here keeps the Electron shell on the same store
+    // contract while the data domains are migrated independently.
+    if (isBackendConfigured('community')) {
+      let active = true
+      let hydrationEpoch = 0
+      const hydrateCommunitySession = async () => {
+        const epoch = ++hydrationEpoch
+        setAuthInitialized(false)
+        try {
+          const [principal, organization] = await Promise.all([
+            getCommunityPrincipal(),
+            getCommunityOrganization(),
+          ])
+          if (!active || epoch !== hydrationEpoch) return
+          const mappedRole = mapMdbRole(principal.role)
+          if (!mappedRole || !principal.createdAt)
+            throw new Error('Community principal has an invalid role or creation date')
+          const { boundary } = advanceSession('SIGNED_IN', principal.userId)
+          setCurrentAccessToken(communityAccessToken())
+          setUser({
+            id: principal.userId,
+            email: principal.email,
+            full_name: principal.displayName,
+            avatar_url: null,
+            custom_avatar_url: null,
+            job_title: null,
+            org_id: principal.organizationId,
+            role: mappedRole,
+            membership_role: principal.role,
+            created_at: principal.createdAt,
+            last_sign_in: null,
+          })
+          setOrganization({
+            id: organization.id,
+            name: organization.name,
+            slug: organization.slug,
+            email_domains: [],
+            revision_scheme: 'numeric',
+            settings: {
+              require_checkout: true,
+              auto_increment_part_numbers: false,
+              part_number_prefix: '',
+              part_number_digits: 4,
+              allowed_extensions: [],
+              require_description: false,
+              require_approval_for_release: false,
+              max_file_size_mb: 1024,
+              solidworks_dm_license_key: organization.documentManagerLicenseKey || undefined,
+            },
+            created_at: organization.createdAt,
+          } as Organization)
+          setAnalyticsUser(principal.userId, principal.organizationId)
+          setLoadFilesSessionContext(boundary)
+          setAuthInitialized(true)
+        } catch {
+          if (!active || epoch !== hydrationEpoch) return
+          clearAnalyticsUser()
+          setCurrentAccessToken(null)
+          advanceSession('SIGNED_OUT', null)
+          setUser(null)
+          setOrganization(null)
+          setVaultConnected(false)
+          setIsConnecting(false)
+          setAuthInitialized(true)
+        }
+      }
+
+      void hydrateCommunitySession()
+      const unsubscribe = onCommunityAuthChange(() => {
+        void hydrateCommunitySession()
+      })
+      return () => {
+        active = false
+        unsubscribe()
+      }
     }
 
     // Listen for auth state changes (also handles session restoration on startup)

@@ -1,5 +1,13 @@
 import { getSupabaseClient } from './client'
 import { log } from '@/lib/logger'
+import {
+  createCommunityRecoveryCode,
+  deleteCommunityRecoveryCode,
+  listCommunityRecoveryCodes,
+  revokeCommunityRecoveryCode,
+  useCommunityRecoveryCode as submitCommunityRecoveryCode,
+} from '@/lib/community'
+import { routeBackend } from '@/lib/backendAdapter'
 
 // ===========================================
 // ADMIN RECOVERY CODES
@@ -79,40 +87,52 @@ export async function generateAdminRecoveryCode(
   description?: string,
   expiresInDays: number = 90,
 ): Promise<{ success: boolean; code?: string; codeId?: string; error?: string }> {
-  const client = getSupabaseClient()
+  return routeBackend({
+    mdb: async () => {
+      try {
+        const result = await createCommunityRecoveryCode(description, expiresInDays)
+        return { success: true, ...result }
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) }
+      }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
 
-  // Generate the code
-  const plainCode = generateSecureRecoveryCode()
-  const codeHash = await hashRecoveryCode(plainCode)
+      // Generate the code
+      const plainCode = generateSecureRecoveryCode()
+      const codeHash = await hashRecoveryCode(plainCode)
 
-  // Calculate expiration
-  const expiresAt = new Date()
-  expiresAt.setDate(expiresAt.getDate() + expiresInDays)
+      // Calculate expiration
+      const expiresAt = new Date()
+      expiresAt.setDate(expiresAt.getDate() + expiresInDays)
 
-  // Insert into database (RLS will enforce admin-only)
-  const { data, error } = await client
-    .from('admin_recovery_codes')
-    .insert({
-      org_id: orgId,
-      code_hash: codeHash,
-      description: description || null,
-      created_by: createdBy,
-      expires_at: expiresAt.toISOString(),
-    })
-    .select('id')
-    .single()
+      // Insert into database (RLS will enforce admin-only)
+      const { data, error } = await client
+        .from('admin_recovery_codes')
+        .insert({
+          org_id: orgId,
+          code_hash: codeHash,
+          description: description || null,
+          created_by: createdBy,
+          expires_at: expiresAt.toISOString(),
+        })
+        .select('id')
+        .single()
 
-  if (error) {
-    log.error('[RecoveryCode]', 'Failed to create', { error: error.message })
-    return { success: false, error: error.message }
-  }
+      if (error) {
+        log.error('[RecoveryCode]', 'Failed to create', { error: error.message })
+        return { success: false, error: error.message }
+      }
 
-  // Return the plain code - this is the ONLY time it will be visible
-  return {
-    success: true,
-    code: plainCode,
-    codeId: data.id,
-  }
+      // Return the plain code - this is the ONLY time it will be visible
+      return {
+        success: true,
+        code: plainCode,
+        codeId: data.id,
+      }
+    },
+  })
 }
 
 /**
@@ -122,36 +142,47 @@ export async function generateAdminRecoveryCode(
 export async function listAdminRecoveryCodes(
   orgId: string,
 ): Promise<{ codes: AdminRecoveryCode[]; error?: string }> {
-  const client = getSupabaseClient()
+  return routeBackend({
+    mdb: async () => {
+      try {
+        return { codes: (await listCommunityRecoveryCodes()) as unknown as AdminRecoveryCode[] }
+      } catch (error) {
+        return { codes: [], error: error instanceof Error ? error.message : String(error) }
+      }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
 
-  const { data, error } = await client
-    .from('admin_recovery_codes')
-    .select(
-      `
-      id,
-      org_id,
-      description,
-      created_by,
-      created_at,
-      expires_at,
-      is_used,
-      used_by,
-      used_at,
-      is_revoked,
-      revoked_by,
-      revoked_at,
-      revoke_reason
-    `,
-    )
-    .eq('org_id', orgId)
-    .order('created_at', { ascending: false })
+      const { data, error } = await client
+        .from('admin_recovery_codes')
+        .select(
+          `
+          id,
+          org_id,
+          description,
+          created_by,
+          created_at,
+          expires_at,
+          is_used,
+          used_by,
+          used_at,
+          is_revoked,
+          revoked_by,
+          revoked_at,
+          revoke_reason
+        `,
+        )
+        .eq('org_id', orgId)
+        .order('created_at', { ascending: false })
 
-  if (error) {
-    log.error('[RecoveryCode]', 'Failed to list', { error: error.message })
-    return { codes: [], error: error.message }
-  }
+      if (error) {
+        log.error('[RecoveryCode]', 'Failed to list', { error: error.message })
+        return { codes: [], error: error.message }
+      }
 
-  return { codes: data || [] }
+      return { codes: data || [] }
+    },
+  })
 }
 
 /**
@@ -163,25 +194,37 @@ export async function revokeAdminRecoveryCode(
   revokedBy: string,
   reason?: string,
 ): Promise<{ success: boolean; error?: string }> {
-  const client = getSupabaseClient()
+  return routeBackend({
+    mdb: async () => {
+      try {
+        await revokeCommunityRecoveryCode(codeId, reason)
+        return { success: true }
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) }
+      }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
 
-  const { error } = await client
-    .from('admin_recovery_codes')
-    .update({
-      is_revoked: true,
-      revoked_by: revokedBy,
-      revoked_at: new Date().toISOString(),
-      revoke_reason: reason || null,
-    })
-    .eq('id', codeId)
-    .eq('is_used', false) // Can't revoke already-used codes
+      const { error } = await client
+        .from('admin_recovery_codes')
+        .update({
+          is_revoked: true,
+          revoked_by: revokedBy,
+          revoked_at: new Date().toISOString(),
+          revoke_reason: reason || null,
+        })
+        .eq('id', codeId)
+        .eq('is_used', false) // Can't revoke already-used codes
 
-  if (error) {
-    log.error('[RecoveryCode]', 'Failed to revoke', { error: error.message })
-    return { success: false, error: error.message }
-  }
+      if (error) {
+        log.error('[RecoveryCode]', 'Failed to revoke', { error: error.message })
+        return { success: false, error: error.message }
+      }
 
-  return { success: true }
+      return { success: true }
+    },
+  })
 }
 
 /**
@@ -191,16 +234,28 @@ export async function revokeAdminRecoveryCode(
 export async function deleteAdminRecoveryCode(
   codeId: string,
 ): Promise<{ success: boolean; error?: string }> {
-  const client = getSupabaseClient()
+  return routeBackend({
+    mdb: async () => {
+      try {
+        await deleteCommunityRecoveryCode(codeId)
+        return { success: true }
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) }
+      }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
 
-  const { error } = await client.from('admin_recovery_codes').delete().eq('id', codeId)
+      const { error } = await client.from('admin_recovery_codes').delete().eq('id', codeId)
 
-  if (error) {
-    log.error('[RecoveryCode]', 'Failed to delete', { error: error.message })
-    return { success: false, error: error.message }
-  }
+      if (error) {
+        log.error('[RecoveryCode]', 'Failed to delete', { error: error.message })
+        return { success: false, error: error.message }
+      }
 
-  return { success: true }
+      return { success: true }
+    },
+  })
 }
 
 /**
@@ -211,28 +266,39 @@ export async function deleteAdminRecoveryCode(
 export async function useAdminRecoveryCode(
   code: string,
 ): Promise<{ success: boolean; message?: string; error?: string }> {
-  const client = getSupabaseClient()
+  return routeBackend({
+    mdb: async () => {
+      try {
+        return await submitCommunityRecoveryCode(code)
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) }
+      }
+    },
+    supabase: async () => {
+      const client = getSupabaseClient()
 
-  // Hash the code to match against stored hash
-  const codeHash = await hashRecoveryCode(code)
+      // Hash the code to match against stored hash
+      const codeHash = await hashRecoveryCode(code)
 
-  // Call the database function that handles everything
-  const { data, error } = await client.rpc('use_admin_recovery_code', {
-    p_code: codeHash,
+      // Call the database function that handles everything
+      const { data, error } = await client.rpc('use_admin_recovery_code', {
+        p_code: codeHash,
+      })
+
+      if (error) {
+        log.error('[RecoveryCode]', 'RPC error', { error: error.message })
+        return { success: false, error: error.message }
+      }
+
+      const result = data as { success: boolean; message?: string; error?: string }
+
+      if (result.success) {
+        log.info('[RecoveryCode]', 'Successfully elevated user to admin')
+      } else {
+        log.warn('[RecoveryCode]', 'Code validation failed', { error: result.error })
+      }
+
+      return result
+    },
   })
-
-  if (error) {
-    log.error('[RecoveryCode]', 'RPC error', { error: error.message })
-    return { success: false, error: error.message }
-  }
-
-  const result = data as { success: boolean; message?: string; error?: string }
-
-  if (result.success) {
-    log.info('[RecoveryCode]', 'Successfully elevated user to admin')
-  } else {
-    log.warn('[RecoveryCode]', 'Code validation failed', { error: result.error })
-  }
-
-  return result
 }
