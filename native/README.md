@@ -1,6 +1,6 @@
 # eDrawings Preview Native Addon
 
-Native addon for embedding eDrawings preview in Electron.
+Optional Windows addon for embedding an eDrawings preview in Electron.
 
 ## Prerequisites
 
@@ -49,14 +49,18 @@ const status = edrawings.checkEDrawingsInstalled();
 // Open file in external eDrawings
 edrawings.openInEDrawings('C:\\path\\to\\file.sldprt');
 
-// Create embedded preview (advanced)
-const preview = edrawings.createPreview();
+// Create embedded preview (Windows-only, experimental)
+const preview = new edrawings.EDrawingsPreview();
 preview.attachToWindow(hwnd);
-preview.loadFile('C:\\path\\to\\file.sldprt');
+preview.loadFile('C:\\path\\to\\file.sldprt', 'C:\\Program Files\\Common Files\\eDrawings2026\\eDrawings.exe');
 preview.setBounds(x, y, width, height);
 ```
 
 ## Note
 
-The embedded preview feature requires the eDrawings ActiveX control to be properly installed and registered. The simpler "Open in eDrawings" approach works reliably and is recommended for most use cases.
+The module launches an eDrawings process owned by BluePLM and re-parents only
+that window into BluePLM. This avoids relying on the legacy ActiveX control,
+which is absent from some current eDrawings installations. It is deliberately
+optional: when the module, Windows, or eDrawings are unavailable, BluePLM uses
+the normal thumbnail or external-viewer workflow.
 

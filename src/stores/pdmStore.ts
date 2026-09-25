@@ -479,7 +479,7 @@ export const usePDMStore = create<PDMStoreState>()(
           // Convert expandedPendingSections back to Set
           expandedPendingSections: new Set((persisted.expandedPendingSections as string[]) || []),
           // Ensure cadPreviewMode has a default
-          cadPreviewMode: (persisted.cadPreviewMode as 'thumbnail' | 'edrawings') || 'thumbnail',
+          cadPreviewMode: (persisted.cadPreviewMode as 'thumbnail' | 'edrawings' | 'edrawings-embedded') || 'thumbnail',
           // Merge topbarConfig over defaults so newly added toggles (e.g. showSolidworks)
           // aren't left undefined for users with a pre-existing persisted config.
           topbarConfig: {

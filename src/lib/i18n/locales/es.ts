@@ -2,6 +2,24 @@ import type { TranslationDict } from '../types'
 
 // Spanish translations
 export const es: TranslationDict = {
+  solidworksSettings: {
+    previewMode: 'Modo de vista previa',
+    embeddedThumbnail: 'Miniatura integrada',
+    embeddedThumbnailDescription:
+      'Extraer y mostrar la imagen de vista previa del archivo SolidWorks',
+    externalEDrawings: 'eDrawings (externo)',
+    externalEDrawingsDescription: 'Abrir archivos en la aplicación eDrawings externa',
+    embeddedEDrawings: 'Vista previa 3D de eDrawings (Windows, opcional)',
+    embeddedEDrawingsAvailable:
+      'Visor 3D interactivo dentro de BluePLM. Función experimental de Windows.',
+    embeddedEDrawingsUnavailable:
+      'Requiere Windows, eDrawings instalado y el módulo de vista previa opcional.',
+    previewStarting: 'Iniciando la vista previa integrada de eDrawings…',
+    previewStartFailed: 'No se pudo iniciar la vista previa integrada de eDrawings.',
+    previewUnavailable:
+      'La vista previa opcional de eDrawings para Windows no está disponible en este equipo.',
+    openInEDrawings: 'Abrir en eDrawings',
+  },
   checkoutDisplay: {
     you: 'Tú',
     loadingOwner: 'Cargando propietario del checkout',

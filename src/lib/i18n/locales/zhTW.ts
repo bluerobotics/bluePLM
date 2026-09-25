@@ -2,6 +2,21 @@ import type { TranslationDict } from '../types'
 
 // Traditional Chinese translations (繁體中文)
 export const zhTW: TranslationDict = {
+  solidworksSettings: {
+    previewMode: '預覽模式',
+    embeddedThumbnail: '內嵌縮圖',
+    embeddedThumbnailDescription: '從 SolidWorks 檔案中擷取並顯示預覽影像',
+    externalEDrawings: 'eDrawings（外部）',
+    externalEDrawingsDescription: '在外部 eDrawings 應用程式中開啟檔案',
+    embeddedEDrawings: 'eDrawings 3D 預覽（Windows，可選）',
+    embeddedEDrawingsAvailable: 'BluePLM 內的互動式 3D 檢視器。Windows 實驗性功能。',
+    embeddedEDrawingsUnavailable:
+      '需要 Windows、已安裝的 eDrawings 和可選的預覽模組。',
+    previewStarting: '正在啟動內嵌 eDrawings 預覽…',
+    previewStartFailed: '無法啟動內嵌 eDrawings 預覽。',
+    previewUnavailable: '此電腦無法使用選用的 Windows eDrawings 預覽。',
+    openInEDrawings: '在 eDrawings 中開啟',
+  },
   checkoutDisplay: {
     you: '你',
     loadingOwner: '正在載入簽出者',
