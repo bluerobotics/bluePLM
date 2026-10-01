@@ -1,6 +1,8 @@
 /**
  * Open file/folder actions for context menu
  */
+import { FolderSearch } from 'lucide-react'
+
 import type { LocalFile } from '@/stores/pdmStore'
 import { usePDMStore } from '@/stores/pdmStore'
 import { buildFullPath } from '@/lib/utils/path'
@@ -9,6 +11,9 @@ import { getCountLabel } from '@/lib/utils'
 
 interface OpenActionsProps extends ActionComponentProps {
   navigateToFolder: (path: string) => void
+  /** When searching, offer a jump from a result row to its parent folder. */
+  isSearching?: boolean
+  onGoToFolder?: (file: LocalFile) => void
 }
 
 export function OpenActions({
@@ -17,6 +22,8 @@ export function OpenActions({
   firstFile,
   onClose,
   navigateToFolder,
+  isSearching,
+  onGoToFolder,
 }: OpenActionsProps) {
   const vaultPath = usePDMStore((s) => s.vaultPath)
 
@@ -39,18 +46,37 @@ export function OpenActions({
   const folderCount = contextFiles.filter((f) => f.isDirectory).length
   const countLabel = getCountLabel(fileCount, folderCount)
 
-  // Single file - not cloud only
-  if (!multiSelect && !isFolder && !allCloudOnly) {
-    return (
+  // While searching, a single result row can jump to its parent folder, leaving the
+  // vault-wide result set and selecting the file where it actually lives.
+  const goToFolderItem =
+    isSearching && !multiSelect && onGoToFolder ? (
       <div
         className="context-menu-item"
         onClick={() => {
-          openFile(firstFile)
+          onGoToFolder(firstFile)
           onClose()
         }}
       >
-        Open
+        <FolderSearch size={14} />
+        Go to Folder
       </div>
+    ) : null
+
+  // Single file - not cloud only
+  if (!multiSelect && !isFolder && !allCloudOnly) {
+    return (
+      <>
+        <div
+          className="context-menu-item"
+          onClick={() => {
+            openFile(firstFile)
+            onClose()
+          }}
+        >
+          Open
+        </div>
+        {goToFolderItem}
+      </>
     )
   }
 
@@ -86,5 +112,6 @@ export function OpenActions({
     )
   }
 
-  return null
+  // Cloud-only single file (no Open above): still allow jumping to its folder while searching.
+  return goToFolderItem
 }

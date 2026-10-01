@@ -145,6 +145,7 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
   const activeVaultId = usePDMStore((s) => s.activeVaultId)
   const searchQuery = usePDMStore((s) => s.searchQuery)
   const searchType = usePDMStore((s) => s.searchType)
+  const setSearchQuery = usePDMStore((s) => s.setSearchQuery)
   const lowercaseExtensions = usePDMStore((s) => s.lowercaseExtensions)
   const detailsPanelVisible = usePDMStore((s) => s.detailsPanelVisible)
   const viewMode = usePDMStore((s) => s.viewMode)
@@ -1480,6 +1481,29 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
     }
   }
 
+  // Leave search and land in a result's parent folder, with the file selected and scrolled into
+  // view. A 'moved_away' stub has nothing on disk at its own path, so target where the content
+  // actually lives. Mirrors the command palette's "open file location" behavior.
+  const handleGoToFolder = useCallback(
+    (file: LocalFile) => {
+      const relativePath =
+        file.diffStatus === 'moved_away' && file.movedToRelativePath
+          ? file.movedToRelativePath
+          : file.relativePath
+      const parts = relativePath.replace(/\\/g, '/').split('/')
+      parts.pop() // drop the file name
+      const parentPath = parts.join('/')
+
+      setSearchQuery('')
+      navigateToFolder(parentPath)
+
+      const fullPath = vaultPath ? buildFullPath(vaultPath, relativePath) : file.path
+      setSelectedFiles([fullPath])
+      setPendingScrollToFile(fullPath)
+    },
+    [setSearchQuery, navigateToFolder, vaultPath, setSelectedFiles, setPendingScrollToFile],
+  )
+
   // TODO(decompose): Extract to browser/hooks/useRefRowHandlers.ts — handleConfigBomRowClick,
   // handleDrawingRefRowClick, onConfigSectionsToggle, onConfigGroupToggle,
   // handleDrawingRefFileToggle, handleConfigDrawingRowClick, handleRefRowContextMenu,
@@ -1943,6 +1967,8 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
               contextMenu={contextMenu}
               contextMenuAdjustedPos={contextMenuAdjustedPos}
               onClose={() => setContextMenu(null)}
+              isSearching={isSearching}
+              onGoToFolder={handleGoToFolder}
               contextMenuRef={contextMenuRef}
               getContextMenuFiles={getContextMenuFiles}
               platform={platform}

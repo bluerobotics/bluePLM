@@ -54,6 +54,10 @@ export interface FileContextMenuProps {
   navigateToFolder: (path: string) => void
   startRenaming: (file: LocalFile) => void
 
+  // Search context: when a result row's menu is opened during a search, offer a jump to its folder
+  isSearching?: boolean
+  onGoToFolder?: (file: LocalFile) => void
+
   // Clipboard operations
   handleCopy: () => void
   handleCut: () => void
@@ -128,6 +132,8 @@ export function FileContextMenu({
   onRefresh,
   navigateToFolder,
   startRenaming,
+  isSearching,
+  onGoToFolder,
   handleCopy,
   handleCut,
   handlePaste,
@@ -270,6 +276,8 @@ export function FileContextMenu({
           firstFile={firstFile}
           onClose={onClose}
           navigateToFolder={navigateToFolder}
+          isSearching={isSearching}
+          onGoToFolder={onGoToFolder}
         />
 
         {/* Assembly actions (insert into open SolidWorks assembly) */}
