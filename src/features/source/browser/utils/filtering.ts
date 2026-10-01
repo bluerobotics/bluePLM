@@ -35,15 +35,31 @@ export function fuzzyMatch(text: string | undefined | null, query: string): bool
 }
 
 /**
+ * A query "looks like an item number" when it contains a run of six or more
+ * consecutive digits (e.g. `100234` or `BR-100234`). Those queries should rank
+ * an item/part-number match above a filename match, since the user is clearly
+ * searching by number rather than by name.
+ */
+const ITEM_NUMBER_PATTERN = /\d{6,}/
+
+export function looksLikeItemNumber(query: string): boolean {
+  return ITEM_NUMBER_PATTERN.test(query)
+}
+
+/**
  * Calculate search relevance score for a file
  * Higher score = better match
  * Prioritizes: filename > description > part number > path > other metadata > extension
+ *
+ * Exception: when the query looks like an item number (a six-plus digit run),
+ * item/part-number matches outrank filename matches.
  */
 export function getSearchScore(file: LocalFile, query: string): number {
   const q = query.toLowerCase().trim()
   if (!q) return 0
 
   let score = 0
+  const itemNumberQuery = looksLikeItemNumber(q)
 
   // Priority 1: Filename matches (highest scores)
   const nameLower = file.name.toLowerCase()
@@ -63,8 +79,20 @@ export function getSearchScore(file: LocalFile, query: string): number {
   }
 
   // Priority 3: Part number matches
-  if (resolvePartNumber(file).value?.toLowerCase().includes(q)) {
-    score = Math.max(score, 400)
+  const partNumberLower = resolvePartNumber(file).value?.toLowerCase()
+  if (partNumberLower) {
+    if (itemNumberQuery) {
+      // Item-number query: rank part-number matches above any filename match
+      if (partNumberLower === q) {
+        score = Math.max(score, 1100) // Exact item number
+      } else if (partNumberLower.startsWith(q)) {
+        score = Math.max(score, 1050) // Item number starts with query
+      } else if (partNumberLower.includes(q)) {
+        score = Math.max(score, 1020) // Item number contains query
+      }
+    } else if (partNumberLower.includes(q)) {
+      score = Math.max(score, 400)
+    }
   }
 
   // Priority 4: Path matches
