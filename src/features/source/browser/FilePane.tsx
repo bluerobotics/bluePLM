@@ -964,7 +964,7 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
   })
 
   // Use the sorting hook for memoized sorted/filtered files
-  const { sortedFiles, isSearching } = useSorting({
+  const { sortedFiles, isSearching, toggleSortColumn } = useSorting({
     files,
     currentPath,
     sortColumn: sortColumn as import('./types').SortColumn,
@@ -1877,7 +1877,7 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
                   draggingColumn={draggingColumn}
                   dragOverColumn={dragOverColumn}
                   getColumnLabel={getColumnLabel}
-                  onSort={toggleSort}
+                  onSort={toggleSortColumn}
                   onResize={handleColumnResize}
                   onContextMenu={handleColumnHeaderContextMenu}
                   onDragStart={handleColumnDragStart}

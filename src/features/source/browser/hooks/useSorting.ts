@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from 'react'
+import { useMemo, useCallback, useRef } from 'react'
 import type { HiddenFolderPaths } from '@/lib/hiddenFolders'
 import type { LocalFile } from '@/stores/pdmStore'
 import type { SortColumn, SortDirection } from '../types'
@@ -46,6 +46,18 @@ export function useSorting({
 }: UseSortingOptions): UseSortingReturn {
   const isSearching = !!(searchQuery && searchQuery.trim().length > 0)
 
+  // While searching, results are relevance-ordered by default. Once the user clicks a column
+  // header we switch to that column's sort (like the folder view) and stay there for the rest
+  // of the search. The flag resets synchronously whenever the query changes so a fresh search
+  // goes back to relevance. Both transitions coincide with a real dependency change below
+  // (searchQuery, or sortColumn/sortDirection via toggleSort), so the memo always recomputes.
+  const userSortedDuringSearchRef = useRef(false)
+  const prevSearchQueryRef = useRef(searchQuery)
+  if (prevSearchQueryRef.current !== searchQuery) {
+    prevSearchQueryRef.current = searchQuery
+    userSortedDuringSearchRef.current = false
+  }
+
   // Memoize sorted files to avoid expensive recomputation on every render
   const sortedFiles = useMemo(() => {
     const t0 = performance.now()
@@ -64,9 +76,12 @@ export function useSorting({
     let resultFiles: LocalFile[]
 
     if (isSearching) {
-      // Search mode: filter by search query and sort by relevance
+      // Search mode: filter by search query, then order by relevance unless the user has
+      // picked a column to sort by, in which case sort the matches like the folder view.
       const searchResults = filterBySearch(validFiles, searchQuery!, searchType)
-      resultFiles = sortByRelevance(searchResults, (file) => getSearchScore(file, searchQuery!))
+      resultFiles = userSortedDuringSearchRef.current
+        ? sortFiles(searchResults, sortColumn, sortDirection, true)
+        : sortByRelevance(searchResults, (file) => getSearchScore(file, searchQuery!))
     } else {
       // Normal mode: filter to current folder and sort by column
       const folderFiles = getFilesInFolder(validFiles, currentPath)
@@ -97,12 +112,14 @@ export function useSorting({
     hiddenFolderPaths,
   ])
 
-  // Toggle sort column (passed through from store)
+  // Toggle sort column (passed through from store). When the user sorts during a search, flag it
+  // so the search results follow the chosen column instead of relevance order.
   const toggleSortColumn = useCallback(
     (columnId: string) => {
+      if (isSearching) userSortedDuringSearchRef.current = true
       toggleSort(columnId)
     },
-    [toggleSort],
+    [toggleSort, isSearching],
   )
 
   return {
