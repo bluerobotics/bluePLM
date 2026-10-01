@@ -87,6 +87,7 @@ import {
   useShareModal,
   useECOModal,
   useNavigationHistory,
+  useMouseNavButtons,
   useColumnHandlers,
   useContextMenuHandlers,
   useFileEditHandlers,
@@ -343,6 +344,9 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
     activeTabId,
     updateTabFolder,
   })
+
+  // Mouse side buttons (X1/X2) drive the same folder history as the toolbar arrows.
+  useMouseNavButtons({ navigateBack, navigateForward, canGoBack, canGoForward })
 
   // Context menu handlers (file and empty area)
   const { handleContextMenu, handleEmptyContextMenu } = useContextMenuHandlers({
