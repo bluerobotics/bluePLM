@@ -47,6 +47,11 @@ export const EXPECTED_SCHEMA_VERSION = 101
 // Set this to allow some backwards compatibility
 export const MINIMUM_COMPATIBLE_VERSION = 1
 
+/** MDB uses its own migration ledger; Supabase schema checks stay opt-in. */
+export function shouldCheckSupabaseSchema(isMdbBackend: boolean): boolean {
+  return !isMdbBackend
+}
+
 // Human-readable descriptions for each version
 export const VERSION_DESCRIPTIONS: Record<number, string> = {
   1: 'Initial schema version tracking',

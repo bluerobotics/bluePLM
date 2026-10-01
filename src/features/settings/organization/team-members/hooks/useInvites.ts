@@ -11,6 +11,7 @@
  */
 import { useCallback, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { routeBackend } from '@/lib/backendAdapter'
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import type { PendingMember, PendingMemberFormData } from '../types'
@@ -35,17 +36,15 @@ export function useInvites(orgId: string | null) {
 
     setPendingMembersLoading(true)
     try {
-      const { data, error } = await supabase
-        .from('pending_org_members')
-        .select('*')
-        .eq('org_id', orgId)
-        .is('claimed_at', null)
-        .order('invited_at', { ascending: false })
-
-      if (error) throw error
-
-      // Cast to our PendingMember type
-      const members = castQueryResult<PendingMember[]>(data || [])
+      const members = await routeBackend({
+        mdb: async () => [] as PendingMember[],
+        supabase: async () => {
+          const { data, error } = await supabase.from('pending_org_members').select('*')
+            .eq('org_id', orgId).is('claimed_at', null).order('invited_at', { ascending: false })
+          if (error) throw error
+          return castQueryResult<PendingMember[]>(data || [])
+        },
+      })
       log.info('[Invites]', 'Loaded pending members', { count: members.length })
       setPendingMembers(members)
     } catch (error) {
@@ -146,7 +145,8 @@ export function useInvites(orgId: string | null) {
         return true
       } catch (error) {
         log.error('[Invites]', 'Failed to resend invite', { error: error })
-        const errorMessage = error instanceof Error ? error.message : 'Failed to resend invite email'
+        const errorMessage =
+          error instanceof Error ? error.message : 'Failed to resend invite email'
         addToast('error', errorMessage)
         return false
       }

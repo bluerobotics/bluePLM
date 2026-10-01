@@ -5,6 +5,17 @@
  * TypeScript inference issues with the database types.
  */
 import { supabase } from '@/lib/supabase'
+import {
+  createMdbWorkflowGate,
+  createMdbWorkflowTransition,
+  deleteMdbWorkflowGate,
+  deleteMdbWorkflowTransition,
+  getMdbWorkflowGates,
+  getMdbWorkflowTransitions,
+  updateMdbWorkflowGate,
+  updateMdbWorkflowTransition,
+} from '@/lib/mdb'
+import { routeBackend } from '@/lib/backendAdapter'
 import type { Database } from '@/types/database'
 import type { WorkflowTransition, WorkflowGate } from '@/types/workflow'
 
@@ -31,12 +42,16 @@ export const transitionService = {
   async getByWorkflow(
     workflowId: string,
   ): Promise<TransitionServiceResult<WorkflowTransition[]>> {
-    const { data, error } = await workflowTransitions().select('*').eq('workflow_id', workflowId)
-
-    return {
-      data: data as WorkflowTransition[] | null,
-      error: error ? new Error(error.message) : null,
-    }
+    return routeBackend({
+      mdb: async () => {
+        try { return { data: await getMdbWorkflowTransitions(workflowId) as unknown as WorkflowTransition[], error: null } }
+        catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to load workflow transitions.') } }
+      },
+      supabase: async () => {
+        const { data, error } = await workflowTransitions().select('*').eq('workflow_id', workflowId)
+        return { data: data as WorkflowTransition[] | null, error: error ? new Error(error.message) : null }
+      },
+    })
   },
 
   /**
@@ -61,15 +76,16 @@ export const transitionService = {
       to_state_id: string
     },
   ): Promise<TransitionServiceResult<WorkflowTransition>> {
-    const { data, error } = await workflowTransitions()
-      .insert(transition as never)
-      .select()
-      .single()
-
-    return {
-      data: data as WorkflowTransition | null,
-      error: error ? new Error(error.message) : null,
-    }
+    return routeBackend({
+      mdb: async () => {
+        try { return { data: await createMdbWorkflowTransition(transition as Record<string, unknown>) as unknown as WorkflowTransition, error: null } }
+        catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to create workflow transition.') } }
+      },
+      supabase: async () => {
+        const { data, error } = await workflowTransitions().insert(transition as never).select().single()
+        return { data: data as WorkflowTransition | null, error: error ? new Error(error.message) : null }
+      },
+    })
   },
 
   /**
@@ -81,28 +97,32 @@ export const transitionService = {
     transitionId: string,
     updates: Record<string, unknown>,
   ): Promise<TransitionServiceResult<WorkflowTransition>> {
-    const { data, error } = await workflowTransitions()
-      .update(updates as never)
-      .eq('id', transitionId)
-      .select()
-      .single()
-
-    return {
-      data: data as WorkflowTransition | null,
-      error: error ? new Error(error.message) : null,
-    }
+    return routeBackend({
+      mdb: async () => {
+        try { return { data: await updateMdbWorkflowTransition(transitionId, updates) as unknown as WorkflowTransition, error: null } }
+        catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to update workflow transition.') } }
+      },
+      supabase: async () => {
+        const { data, error } = await workflowTransitions().update(updates as never).eq('id', transitionId).select().single()
+        return { data: data as WorkflowTransition | null, error: error ? new Error(error.message) : null }
+      },
+    })
   },
 
   /**
    * Delete a transition
    */
   async delete(transitionId: string): Promise<TransitionServiceResult<void>> {
-    const { error } = await workflowTransitions().delete().eq('id', transitionId)
-
-    return {
-      data: error ? null : undefined,
-      error: error ? new Error(error.message) : null,
-    }
+    return routeBackend({
+      mdb: async () => {
+        try { await deleteMdbWorkflowTransition(transitionId); return { data: undefined, error: null } }
+        catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to delete workflow transition.') } }
+      },
+      supabase: async () => {
+        const { error } = await workflowTransitions().delete().eq('id', transitionId)
+        return { data: error ? null : undefined, error: error ? new Error(error.message) : null }
+      },
+    })
   },
 
   /**
@@ -123,14 +143,16 @@ export const transitionService = {
         ? { from_state_id: stateId, ...anchorPatch('start', anchor) }
         : { to_state_id: stateId, ...anchorPatch('end', anchor) }
 
-    const { error } = await workflowTransitions()
-      .update(updates as never)
-      .eq('id', transitionId)
-
-    return {
-      data: error ? null : undefined,
-      error: error ? new Error(error.message) : null,
-    }
+    return routeBackend({
+      mdb: async () => {
+        try { await updateMdbWorkflowTransition(transitionId, updates); return { data: undefined, error: null } }
+        catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to reconnect workflow transition.') } }
+      },
+      supabase: async () => {
+        const { error } = await workflowTransitions().update(updates as never).eq('id', transitionId)
+        return { data: error ? null : undefined, error: error ? new Error(error.message) : null }
+      },
+    })
   },
 
   // ============================================
@@ -146,16 +168,16 @@ export const transitionService = {
     if (transitionIds.length === 0) {
       return { data: [], error: null }
     }
-
-    const { data, error } = await workflowGates()
-      .select('*')
-      .in('transition_id', transitionIds)
-      .order('sort_order')
-
-    return {
-      data: data as WorkflowGate[] | null,
-      error: error ? new Error(error.message) : null,
-    }
+    return routeBackend({
+      mdb: async () => {
+        try { return { data: await getMdbWorkflowGates(transitionIds) as unknown as WorkflowGate[], error: null } }
+        catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to load workflow gates.') } }
+      },
+      supabase: async () => {
+        const { data, error } = await workflowGates().select('*').in('transition_id', transitionIds).order('sort_order')
+        return { data: data as WorkflowGate[] | null, error: error ? new Error(error.message) : null }
+      },
+    })
   },
 
   /**
@@ -187,15 +209,16 @@ export const transitionService = {
   async createGate(
     gate: Partial<WorkflowGateRow> & { transition_id: string; name: string },
   ): Promise<TransitionServiceResult<WorkflowGate>> {
-    const { data, error } = await workflowGates()
-      .insert(gate as never)
-      .select()
-      .single()
-
-    return {
-      data: data as WorkflowGate | null,
-      error: error ? new Error(error.message) : null,
-    }
+    return routeBackend({
+      mdb: async () => {
+        try { return { data: await createMdbWorkflowGate(gate as Record<string, unknown>) as unknown as WorkflowGate, error: null } }
+        catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to create workflow gate.') } }
+      },
+      supabase: async () => {
+        const { data, error } = await workflowGates().insert(gate as never).select().single()
+        return { data: data as WorkflowGate | null, error: error ? new Error(error.message) : null }
+      },
+    })
   },
 
   /**
@@ -205,28 +228,32 @@ export const transitionService = {
     gateId: string,
     updates: Partial<WorkflowGateRow>,
   ): Promise<TransitionServiceResult<WorkflowGate>> {
-    const { data, error } = await workflowGates()
-      .update(updates as never)
-      .eq('id', gateId)
-      .select()
-      .single()
-
-    return {
-      data: data as WorkflowGate | null,
-      error: error ? new Error(error.message) : null,
-    }
+    return routeBackend({
+      mdb: async () => {
+        try { return { data: await updateMdbWorkflowGate(gateId, updates as Record<string, unknown>) as unknown as WorkflowGate, error: null } }
+        catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to update workflow gate.') } }
+      },
+      supabase: async () => {
+        const { data, error } = await workflowGates().update(updates as never).eq('id', gateId).select().single()
+        return { data: data as WorkflowGate | null, error: error ? new Error(error.message) : null }
+      },
+    })
   },
 
   /**
    * Delete a gate
    */
   async deleteGate(gateId: string): Promise<TransitionServiceResult<void>> {
-    const { error } = await workflowGates().delete().eq('id', gateId)
-
-    return {
-      data: error ? null : undefined,
-      error: error ? new Error(error.message) : null,
-    }
+    return routeBackend({
+      mdb: async () => {
+        try { await deleteMdbWorkflowGate(gateId); return { data: undefined, error: null } }
+        catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to delete workflow gate.') } }
+      },
+      supabase: async () => {
+        const { error } = await workflowGates().delete().eq('id', gateId)
+        return { data: error ? null : undefined, error: error ? new Error(error.message) : null }
+      },
+    })
   },
 
   /**

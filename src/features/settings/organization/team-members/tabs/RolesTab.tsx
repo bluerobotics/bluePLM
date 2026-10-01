@@ -12,6 +12,7 @@ import { Shield, Plus, Pencil, Trash2 } from 'lucide-react'
 import { getInitials, getEffectiveAvatarUrl } from '@/lib/utils'
 import { useState } from 'react'
 import { usePDMStore } from '@/stores/pdmStore'
+import { activeBackendSupports } from '@/lib/backendAdapter'
 import { useMembers, useWorkflowRoles, useWorkflowRoleDialogs } from '../hooks'
 import { WorkflowRoleFormDialog, DeleteWorkflowRoleDialog } from '../components/dialogs'
 
@@ -27,6 +28,7 @@ export function RolesTab({ searchQuery = '', onShowCreateRoleDialog }: RolesTabP
   const { organization, getEffectiveRole, addToast } = usePDMStore()
   const orgId = organization?.id ?? null
   const isAdmin = getEffectiveRole() === 'admin'
+  const canEditWorkflowRoles = activeBackendSupports('editable-workflow-roles')
 
   // Data hooks
   const {
@@ -108,7 +110,7 @@ export function RolesTab({ searchQuery = '', onShowCreateRoleDialog }: RolesTabP
           <p className="text-sm text-plm-fg-muted mb-4">
             {searchQuery ? 'No matching workflow roles' : 'No workflow roles yet'}
           </p>
-          {isAdmin && !searchQuery && onShowCreateRoleDialog && (
+          {isAdmin && canEditWorkflowRoles && !searchQuery && onShowCreateRoleDialog && (
             <button onClick={onShowCreateRoleDialog} className="btn btn-primary btn-sm">
               <Plus size={14} className="mr-1" />
               Create First Role
@@ -186,7 +188,7 @@ export function RolesTab({ searchQuery = '', onShowCreateRoleDialog }: RolesTabP
                 )}
 
                 {/* Actions */}
-                {isAdmin && (
+                {isAdmin && canEditWorkflowRoles && (
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={() => openEditRoleDialog(role)}

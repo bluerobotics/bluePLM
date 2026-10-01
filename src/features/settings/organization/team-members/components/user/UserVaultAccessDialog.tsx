@@ -13,6 +13,7 @@ export interface UserVaultAccessDialogProps {
   user: OrgUser
   orgVaults: Vault[]
   pendingVaultAccess: string[]
+  inheritedVaultAccess: string[]
   setPendingVaultAccess: (fn: (prev: string[]) => string[]) => void
   onSave: () => Promise<void>
   onClose: () => void
@@ -23,6 +24,7 @@ export function UserVaultAccessDialog({
   user,
   orgVaults,
   pendingVaultAccess,
+  inheritedVaultAccess,
   setPendingVaultAccess,
   onSave,
   onClose,
@@ -34,6 +36,7 @@ export function UserVaultAccessDialog({
       entityType="user"
       orgVaults={orgVaults}
       pendingVaultAccess={pendingVaultAccess}
+      inheritedVaultAccess={inheritedVaultAccess}
       setPendingVaultAccess={setPendingVaultAccess}
       onSave={onSave}
       onClose={onClose}

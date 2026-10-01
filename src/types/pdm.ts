@@ -536,10 +536,7 @@ export function reconcileCheckoutProfile<T extends CheckoutIdentityCarrier>(
 }
 
 /** Merges a server or realtime patch while preserving only owner-matching enrichment. */
-export function mergePdmFileData(
-  current: PDMFile,
-  update: Partial<PDMFile>,
-): PDMFile {
+export function mergePdmFileData(current: PDMFile, update: Partial<PDMFile>): PDMFile {
   const profile = 'checked_out_user' in update ? update.checked_out_user : current.checked_out_user
   return reconcileCheckoutProfile({ ...current, ...update }, profile)
 }
@@ -612,6 +609,8 @@ export interface Organization {
 
 // Auth provider settings for controlling which sign-in methods are allowed
 export interface AuthProviderSettings {
+  /** Open registration creates a pending request without role or permissions. */
+  selfRegistration: boolean
   users: {
     google: boolean
     email: boolean
@@ -626,6 +625,7 @@ export interface AuthProviderSettings {
 
 // Default auth provider settings (all enabled)
 export const DEFAULT_AUTH_PROVIDERS: AuthProviderSettings = {
+  selfRegistration: false,
   users: { google: true, email: true, phone: true },
   suppliers: { google: true, email: true, phone: true },
 }
@@ -766,6 +766,8 @@ export interface User {
   job_title: string | null
   org_id: string | null
   role: 'admin' | 'engineer' | 'viewer'
+  /** Exact membership role supplied by the active backend. */
+  membership_role?: 'owner' | 'admin' | 'member' | 'viewer' | 'guest'
   created_at: string
   last_sign_in: string | null
 }

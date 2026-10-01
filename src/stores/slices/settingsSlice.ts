@@ -10,6 +10,14 @@ import type {
 } from '../types'
 import type { KeybindingAction, Keybinding, KeybindingsConfig } from '../../types/settings'
 import { supabase } from '../../lib/supabase'
+import { routeBackend } from '../../lib/backendAdapter'
+import {
+  forceMdbOrganizationColumnDefaults,
+  getMdbOrganizationColumnDefaults,
+  getMdbUserColumnDefaults,
+  setMdbOrganizationColumnDefaults,
+  setMdbUserColumnDefaults,
+} from '../../lib/mdb'
 
 const defaultColumns: ColumnConfig[] = [
   { id: 'name', label: 'Name', width: 280, visible: true, sortable: true },
@@ -519,12 +527,17 @@ export const createSettingsSlice: StateCreator<
         visible: c.visible,
       }))
 
-      const { error } = await (supabase.rpc as any)('set_org_column_defaults', { // TODO: type this
-        p_org_id: organization.id,
-        p_column_defaults: columnDefaults,
+      await routeBackend({
+        mdb: () => setMdbOrganizationColumnDefaults(columnDefaults),
+        supabase: async () => {
+          const { error } = await (supabase.rpc as any)('set_org_column_defaults', {
+            // TODO: type this
+            p_org_id: organization.id,
+            p_column_defaults: columnDefaults,
+          })
+          if (error) throw error
+        },
       })
-
-      if (error) throw error
       return { success: true }
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
@@ -538,11 +551,17 @@ export const createSettingsSlice: StateCreator<
     }
 
     try {
-      const { data, error } = await (supabase.rpc as any)('get_org_column_defaults', { // TODO: type this
-        p_org_id: organization.id,
+      const data = await routeBackend({
+        mdb: getMdbOrganizationColumnDefaults,
+        supabase: async () => {
+          const { data, error } = await (supabase.rpc as any)('get_org_column_defaults', {
+            // TODO: type this
+            p_org_id: organization.id,
+          })
+          if (error) throw error
+          return data
+        },
       })
-
-      if (error) throw error
 
       if (!data || !Array.isArray(data) || data.length === 0) {
         return { success: false, error: 'No org defaults configured' }
@@ -593,12 +612,17 @@ export const createSettingsSlice: StateCreator<
         visible: c.visible,
       }))
 
-      const { error } = await (supabase.rpc as any)('force_org_column_defaults', { // TODO: type this
-        p_org_id: organization.id,
-        p_column_defaults: columnDefaults,
+      await routeBackend({
+        mdb: () => forceMdbOrganizationColumnDefaults(columnDefaults),
+        supabase: async () => {
+          const { error } = await (supabase.rpc as any)('force_org_column_defaults', {
+            // TODO: type this
+            p_org_id: organization.id,
+            p_column_defaults: columnDefaults,
+          })
+          if (error) throw error
+        },
       })
-
-      if (error) throw error
       set({ columnConfigLastSyncedAt: Date.now() })
       return { success: true }
     } catch (error) {
@@ -619,11 +643,16 @@ export const createSettingsSlice: StateCreator<
         visible: c.visible,
       }))
 
-      const { error } = await (supabase.rpc as any)('set_user_column_defaults', { // TODO: type this
-        p_column_defaults: columnDefaults,
+      await routeBackend({
+        mdb: () => setMdbUserColumnDefaults(columnDefaults),
+        supabase: async () => {
+          const { error } = await (supabase.rpc as any)('set_user_column_defaults', {
+            // TODO: type this
+            p_column_defaults: columnDefaults,
+          })
+          if (error) throw error
+        },
       })
-
-      if (error) throw error
       return { success: true }
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
@@ -637,9 +666,14 @@ export const createSettingsSlice: StateCreator<
     }
 
     try {
-      const { data, error } = await (supabase.rpc as any)('get_user_column_defaults', {}) // TODO: type this
-
-      if (error) throw error
+      const data = await routeBackend({
+        mdb: getMdbUserColumnDefaults,
+        supabase: async () => {
+          const { data, error } = await (supabase.rpc as any)('get_user_column_defaults', {}) // TODO: type this
+          if (error) throw error
+          return data
+        },
+      })
 
       if (!data || !Array.isArray(data) || data.length === 0) {
         return { success: false, error: 'No personal defaults saved' }

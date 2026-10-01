@@ -145,6 +145,26 @@ export function registerDialogHandlers(
     return { success: false, canceled: true }
   })
 
+  // Select a directory path without scanning it. This is used for archive/NAS roots,
+  // where recursively enumerating a large network share would block the installer.
+  ipcMain.handle('dialog:select-directory', async (_event, requestedTitle?: unknown) => {
+    const title =
+      typeof requestedTitle === 'string' && requestedTitle.trim() && !/[\r\n]/.test(requestedTitle)
+        ? requestedTitle.trim().slice(0, 160)
+        : 'BluePLM'
+    const result = await dialog.showOpenDialog(mainWindow!, {
+      title,
+      properties: ['openDirectory'],
+    })
+
+    restoreMainWindowFocus()
+
+    if (!result.canceled && result.filePaths.length > 0) {
+      return { success: true, folderPath: result.filePaths[0] }
+    }
+    return { success: false, canceled: true }
+  })
+
   // Save file dialog
   ipcMain.handle(
     'dialog:save-file',
@@ -198,6 +218,7 @@ export function unregisterDialogHandlers(): void {
   const handlers = [
     'dialog:select-files',
     'dialog:select-folder',
+    'dialog:select-directory',
     'dialog:save-file',
     'dialog:save-text-file',
   ]

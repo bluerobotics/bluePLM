@@ -10,6 +10,7 @@
  */
 import { useCallback, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { routeBackend } from '@/lib/backendAdapter'
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import type { JobTitle, OrgUser } from '../types'
@@ -46,14 +47,16 @@ export function useJobTitles(orgId: string | null) {
 
     setJobTitlesLoading(true)
     try {
-      const { data, error } = await supabase
-        .from('job_titles')
-        .select('id, name, color, icon')
-        .eq('org_id', orgId)
-        .order('name')
-
-      if (error) throw error
-      setJobTitles(castQueryResult<JobTitle[]>(data || []))
+      const loadedTitles = await routeBackend({
+        mdb: async () => [] as JobTitle[],
+        supabase: async () => {
+          const { data, error } = await supabase
+            .from('job_titles').select('id, name, color, icon').eq('org_id', orgId).order('name')
+          if (error) throw error
+          return castQueryResult<JobTitle[]>(data || [])
+        },
+      })
+      setJobTitles(loadedTitles)
     } catch (error) {
       log.error('[JobTitles]', 'Failed to load job titles', { error: error })
       setJobTitlesLoading(false)

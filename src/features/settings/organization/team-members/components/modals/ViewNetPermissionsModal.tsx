@@ -20,6 +20,8 @@ import {
 import { PERMISSION_ACTIONS, PERMISSION_ACTION_LABELS, ALL_RESOURCES } from '@/types/permissions'
 import { log } from '@/lib/logger'
 import { supabase } from '@/lib/supabase'
+import { getMdbEffectiveUserPermissions } from '@/lib/mdb'
+import { isMdbBackendActive } from '@/lib/backendAdapter'
 import { getEffectiveAvatarUrl } from '@/lib/utils'
 import { PERMISSION_RESOURCE_GROUPS } from '../../constants'
 import type { ViewNetPermissionsModalProps } from '../../types'
@@ -76,6 +78,16 @@ export function ViewNetPermissionsModal({
   // Load user's vault access via their teams
   useEffect(() => {
     const loadVaultAccess = async () => {
+      if (isMdbBackendActive()) {
+        try {
+          const { vaultIds } = await getMdbEffectiveUserPermissions(user.id)
+          setUserVaultIds(vaultIds)
+        } catch (error) {
+          log.error('[ViewNetPermissions]', 'Failed to load vault access', { error })
+          setUserVaultIds([])
+        }
+        return
+      }
       const userTeamIds = (user.teams || []).map((t) => t.id)
       if (userTeamIds.length === 0) {
         setUserVaultIds([])
@@ -100,6 +112,30 @@ export function ViewNetPermissionsModal({
     const loadPermissions = async () => {
       setIsLoading(true)
       try {
+        if (isMdbBackendActive()) {
+          const { permissions: loaded } = await getMdbEffectiveUserPermissions(user.id)
+          const finalPerms: Record<string, PermissionAction[]> = {}
+          const vaultPerms: Record<string, Record<string, PermissionAction[]>> = {}
+          for (const permission of loaded) {
+            const actions = permission.actions as PermissionAction[]
+            if (sourceFilesResources.includes(permission.resource)) {
+              const vaultKey = permission.vaultId ?? 'all'
+              vaultPerms[vaultKey] ??= {}
+              vaultPerms[vaultKey][permission.resource] = Array.from(new Set([
+                ...(vaultPerms[vaultKey][permission.resource] || []),
+                ...actions,
+              ]))
+            } else if (permission.vaultId === null) {
+              finalPerms[permission.resource] = Array.from(new Set([
+                ...(finalPerms[permission.resource] || []),
+                ...actions,
+              ]))
+            }
+          }
+          setPermissions(finalPerms)
+          setSourceFilesPermsByVault(vaultPerms)
+          return
+        }
         const userTeamIds = (user.teams || []).map((t) => t.id)
 
         if (userTeamIds.length === 0) {
@@ -571,13 +607,16 @@ export function ViewNetPermissionsModal({
                             if (selectedSourceFilesVaultId) {
                               currentActions =
                                 sourceFilesPermsByVault[selectedSourceFilesVaultId]?.[resourceId] ||
+                                sourceFilesPermsByVault.all?.[resourceId] ||
                                 []
                             } else {
                               // "All" - merge permissions from all accessible vaults
                               const mergedActions = new Set<PermissionAction>()
                               for (const vault of accessibleVaults) {
                                 const vaultPerms =
-                                  sourceFilesPermsByVault[vault.id]?.[resourceId] || []
+                                  sourceFilesPermsByVault[vault.id]?.[resourceId] ||
+                                  sourceFilesPermsByVault.all?.[resourceId] ||
+                                  []
                                 vaultPerms.forEach((a) => mergedActions.add(a))
                               }
                               currentActions = Array.from(mergedActions)

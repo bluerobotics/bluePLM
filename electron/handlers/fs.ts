@@ -20,6 +20,7 @@ import {
   type WatcherScanCache,
 } from './fsWatcher'
 import { registerEmptyDirHandlers } from './emptyDirs'
+import { streamFileToUploadUrl } from './streamUpload'
 import type { LocalFileInfo } from '../types'
 
 const execAsync = promisify(exec)
@@ -890,6 +891,29 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
       return { success: false, error: String(error) }
     }
   })
+
+  // Streams directly from disk to a Supabase signed upload URL. This must remain
+  // main-process-only: base64 payloads hit V8's string-size ceiling near 384 MiB.
+  ipcMain.handle(
+    'fs:upload-signed-url',
+    async (event, filePath: string, uploadUrl: string, contentType?: string) => {
+      if (!isPathWithinWorkingDir(filePath)) {
+        logWarn(`[Upload] Blocked upload outside working directory: ${filePath}`)
+        return { success: false, error: 'Path is outside the vault working directory' }
+      }
+
+      const result = await streamFileToUploadUrl({
+        filePath,
+        uploadUrl,
+        contentType,
+        onProgress: (progress) => {
+          if (!event.sender.isDestroyed()) event.sender.send('upload-progress', progress)
+        },
+      })
+      if (!result.success) logError('[Upload] Streamed upload failed', { filePath, error: result.error })
+      return result
+    },
+  )
 
   ipcMain.handle('fs:write-file', async (_, filePath: string, base64Data: string) => {
     logDebug('Writing file', { filePath, dataLength: base64Data?.length })
@@ -3310,6 +3334,7 @@ export function unregisterFsHandlers(): void {
     'fs:file-exists',
     'fs:get-hash',
     'fs:hash-file',
+    'fs:upload-signed-url',
     'fs:list-dir-files',
     'fs:list-working-files',
     'fs:compute-file-hashes',

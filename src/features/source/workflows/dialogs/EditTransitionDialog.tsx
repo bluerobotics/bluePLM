@@ -3,10 +3,10 @@ import { useState, useEffect } from 'react'
 import { BadgeCheck, CheckCircle } from 'lucide-react'
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
-import { supabase } from '@/lib/supabase'
 import type { TransitionLineStyle } from '@/types/workflow'
 
 import type { EditTransitionDialogProps, WorkflowRoleBasic } from '../types'
+import { getWorkflowRoleOptions } from '../services/workflowRoleService'
 
 export function EditTransitionDialog({ transition, onClose, onSave }: EditTransitionDialogProps) {
   const { organization } = usePDMStore()
@@ -39,17 +39,7 @@ export function EditTransitionDialog({ transition, onClose, onSave }: EditTransi
     const loadRoles = async () => {
       if (!organization) return
       try {
-        const { data, error } = await supabase
-          .from('workflow_roles')
-          .select('id, name, color, icon')
-          .eq('org_id', organization.id)
-          .eq('is_active', true)
-          .order('sort_order')
-          .order('name')
-
-        if (!error && data) {
-          setWorkflowRoles(data as WorkflowRoleBasic[])
-        }
+        setWorkflowRoles(await getWorkflowRoleOptions(organization.id))
       } catch (error) {
         log.error('[Workflow]', 'Failed to load workflow roles', { error: error })
       } finally {

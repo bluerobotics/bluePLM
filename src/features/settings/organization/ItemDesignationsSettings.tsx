@@ -4,11 +4,7 @@ import { Loader2, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { t } from '@/lib/i18n'
 import { log } from '@/lib/logger'
-import {
-  deleteItemDesignation,
-  getItemDesignations,
-  upsertItemDesignation,
-} from '@/lib/supabase'
+import { deleteItemDesignation, getItemDesignations, upsertItemDesignation } from '@/lib/supabase'
 import type { ItemDesignation } from '@/types/item'
 
 export function ItemDesignationsSettings() {
@@ -56,7 +52,10 @@ export function ItemDesignationsSettings() {
       resetForm()
     } catch (error) {
       log.error('[ItemDesignationsSettings]', 'Failed to save designation', { error })
-      addToast('error', error instanceof Error ? error.message : 'Failed to save designation')
+      addToast(
+        'error',
+        error instanceof Error ? error.message : t('itemDesignationSettings.saveFailed'),
+      )
     } finally {
       setSaving(false)
     }
@@ -64,14 +63,17 @@ export function ItemDesignationsSettings() {
 
   const handleDelete = async (id: string) => {
     if (!organization?.id) return
-    if (!window.confirm(t('itemBrowser.deleteDesignationConfirm'))) return
+    if (!window.confirm(t('itemDesignationSettings.deleteConfirm'))) return
     try {
       await deleteItemDesignation(organization.id, id)
       await load()
       if (editingId === id) resetForm()
     } catch (error) {
       log.error('[ItemDesignationsSettings]', 'Failed to delete designation', { error })
-      addToast('error', error instanceof Error ? error.message : 'Failed to delete designation')
+      addToast(
+        'error',
+        error instanceof Error ? error.message : t('itemDesignationSettings.deleteFailed'),
+      )
     }
   }
 
@@ -79,13 +81,13 @@ export function ItemDesignationsSettings() {
     <div className="space-y-6">
       <div>
         <h3 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium">
-          {t('itemBrowser.designationsTitle')}
+          {t('itemDesignationSettings.title')}
         </h3>
-        <p className="text-sm text-plm-fg-dim mt-1">{t('itemBrowser.designationsDescription')}</p>
+        <p className="text-sm text-plm-fg-dim mt-1">{t('itemDesignationSettings.description')}</p>
       </div>
 
       {!canManage && (
-        <p className="text-sm text-plm-warning">{t('itemBrowser.noPermission')}</p>
+        <p className="text-sm text-plm-warning">{t('itemDesignationSettings.noPermission')}</p>
       )}
 
       {loading ? (
@@ -95,7 +97,7 @@ export function ItemDesignationsSettings() {
       ) : (
         <div className="space-y-0.5">
           {designations.length === 0 ? (
-            <p className="text-sm text-plm-fg-dim px-3 py-2">{t('itemBrowser.noDesignations')}</p>
+            <p className="text-sm text-plm-fg-dim px-3 py-2">{t('itemDesignationSettings.none')}</p>
           ) : (
             designations.map((designation) => (
               <div
@@ -141,7 +143,7 @@ export function ItemDesignationsSettings() {
             onKeyDown={(e) => {
               if (e.key === 'Enter') handleSave()
             }}
-            placeholder={t('itemBrowser.designationName')}
+            placeholder={t('itemDesignationSettings.name')}
             className="flex-1 max-w-xs bg-plm-bg border border-plm-border rounded px-3 py-1.5 text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:border-plm-accent focus:outline-none"
           />
           <button
@@ -151,7 +153,7 @@ export function ItemDesignationsSettings() {
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-plm-accent text-white hover:bg-plm-accent/90 disabled:opacity-50 transition-colors"
           >
             {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-            {editingId ? t('common.save') : t('itemBrowser.addDesignation')}
+            {editingId ? t('common.save') : t('itemDesignationSettings.add')}
           </button>
           {editingId && (
             <button

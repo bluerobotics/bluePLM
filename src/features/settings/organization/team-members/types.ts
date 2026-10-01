@@ -113,6 +113,7 @@ export interface UserRowProps {
   onRemoveFromTeam?: () => void
   onVaultAccess: () => void
   onPermissions?: () => void
+  onManageCredentials?: () => void
   onViewNetPermissions?: () => void
   onSimulatePermissions?: () => void
   isSimulating?: boolean
@@ -312,8 +313,10 @@ export interface UseVaultAccessReturn {
   loadAll: () => Promise<void>
   saveUserVaultAccess: (userId: string, vaultIds: string[], userName: string) => Promise<boolean>
   saveTeamVaultAccess: (teamId: string, vaultIds: string[], teamName: string) => Promise<boolean>
-  getUserAccessibleVaults: (userId: string) => string[]
-  getUserVaultAccessCount: (userId: string) => number
+  getUserDirectVaults: (userId: string) => string[]
+  getUserInheritedVaults: (teamIds: string[]) => string[]
+  getUserAccessibleVaults: (userId: string, teamIds?: string[], role?: string) => string[]
+  getUserVaultAccessCount: (userId: string, teamIds?: string[], role?: string) => number
 }
 
 // ============================================

@@ -22,6 +22,12 @@ import {
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
+import {
+  getMdbTeamPermissions,
+  getMdbVaults,
+  setMdbTeamPermissions,
+} from '@/lib/mdb'
+import { isMdbBackendActive } from '@/lib/backendAdapter'
 import type { Team, PermissionPreset, PermissionAction } from '@/types/permissions'
 import {
   PERMISSION_ACTIONS,
@@ -160,22 +166,30 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
   useEffect(() => {
     const loadVaults = async () => {
       try {
-        const { data: orgData } = await supabase
-          .from('teams')
-          .select('org_id')
-          .eq('id', team.id)
-          .single()
+        if (isMdbBackendActive()) {
+          setVaults((await getMdbVaults()).map((vault) => ({
+            id: vault.id,
+            name: vault.name,
+            slug: vault.id,
+          })))
+        } else {
+          const { data: orgData } = await supabase
+            .from('teams')
+            .select('org_id')
+            .eq('id', team.id)
+            .single()
 
-        if (!orgData) return
+          if (!orgData) return
 
-        const { data, error } = await supabase
-          .from('vaults')
-          .select('id, name, slug')
-          .eq('org_id', orgData.org_id)
-          .order('name')
+          const { data, error } = await supabase
+            .from('vaults')
+            .select('id, name, slug')
+            .eq('org_id', orgData.org_id)
+            .order('name')
 
-        if (error) throw error
-        setVaults(data || [])
+          if (error) throw error
+          setVaults(data || [])
+        }
       } catch (error) {
         log.error('[PermissionsEditor]', 'Failed to load vaults', { error: error })
       } finally {
@@ -202,6 +216,26 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
   const loadPermissions = async () => {
     setIsLoading(true)
     try {
+      if (isMdbBackendActive()) {
+        const loaded = await getMdbTeamPermissions(team.id)
+        const globalPermsMap: Record<string, PermissionAction[]> = {}
+        const vaultPermsMap: Record<string, Record<string, PermissionAction[]>> = { all: {} }
+        for (const permission of loaded) {
+          const actions = permission.actions as PermissionAction[]
+          if (sourceFilesResources.includes(permission.resource)) {
+            const vaultKey = permission.vaultId ?? 'all'
+            vaultPermsMap[vaultKey] ??= {}
+            vaultPermsMap[vaultKey][permission.resource] = actions
+          } else if (permission.vaultId === null) {
+            globalPermsMap[permission.resource] = actions
+          }
+        }
+        setPermissions(globalPermsMap)
+        setOriginalPermissions(globalPermsMap)
+        setSourceFilesPermsByVault(vaultPermsMap)
+        setOriginalSourceFilesPermsByVault(JSON.parse(JSON.stringify(vaultPermsMap)))
+        return
+      }
       // Load global permissions (vault_id IS NULL) for non-source-files resources
       const { data: globalData, error: globalError } = await supabase
         .from('team_permissions')
@@ -270,6 +304,10 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
   }
 
   const loadPresets = async () => {
+    if (isMdbBackendActive()) {
+      setPresets([])
+      return
+    }
     try {
       const { data: orgData } = await supabase
         .from('teams')
@@ -313,6 +351,28 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
 
     setIsSaving(true)
     try {
+      if (isMdbBackendActive()) {
+        const allNewPerms = [
+          ...Object.entries(permissions).map(([resource, actions]) => ({
+            resource,
+            vaultId: null,
+            actions,
+          })),
+          ...Object.entries(sourceFilesPermsByVault).flatMap(([vaultKey, vaultPerms]) =>
+            Object.entries(vaultPerms).map(([resource, actions]) => ({
+              resource,
+              vaultId: vaultKey === 'all' ? null : vaultKey,
+              actions,
+            })),
+          ),
+        ].filter((permission) => permission.actions.length > 0)
+        await setMdbTeamPermissions(team.id, allNewPerms)
+        setOriginalPermissions({ ...permissions })
+        setOriginalSourceFilesPermsByVault(JSON.parse(JSON.stringify(sourceFilesPermsByVault)))
+        setHasChanges(false)
+        addToast('success', 'Permissions saved')
+        return
+      }
       // Delete all existing permissions for this team
       await supabase.from('team_permissions').delete().eq('team_id', team.id)
 

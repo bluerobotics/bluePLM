@@ -6,6 +6,8 @@ import { useHiddenFolders } from '@/hooks/useHiddenFolders'
 import { isPathHidden } from '@/lib/hiddenFolders'
 import { resolveDescription, resolvePartNumber } from '@/lib/metadata/overlay'
 import { getSupabaseClient } from '@/lib/supabase'
+import { searchMdbEcos } from '@/lib/mdb'
+import { isMdbBackendActive } from '@/lib/backendAdapter'
 import { logSearch } from '@/lib/userActionLogger'
 
 interface ECOSearchResult {
@@ -61,6 +63,7 @@ export function SearchView() {
       setSearchMode('eco')
 
       try {
+        if (isMdbBackendActive()) { setEcoResults(await searchMdbEcos(ecoSearchTerm)); return }
         const client = getSupabaseClient()
 
         // First find ECOs matching the search

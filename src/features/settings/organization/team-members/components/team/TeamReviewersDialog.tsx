@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { Users, X, Loader2, Plus, UserCircle, ShieldCheck } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
+import { getMdbTeamMembers } from '@/lib/mdb'
+import { routeBackend } from '@/lib/backendAdapter'
 import { getTeamReviewers, addTeamReviewer, removeTeamReviewer } from '@/lib/supabase/teams'
 import type { TeamReviewerRow } from '@/lib/supabase/teams'
 import type { TeamWithDetails, OrgUser, WorkflowRoleBasic } from '../../types'
@@ -54,10 +56,16 @@ export function TeamReviewersDialog({
 
   useEffect(() => {
     async function loadTeamMembers() {
-      const { data } = await supabase.from('team_members').select('user_id').eq('team_id', team.id)
-      setTeamMemberIds((data || []).map((m: { user_id: string }) => m.user_id))
+      const ids = await routeBackend({
+        mdb: async () => (await getMdbTeamMembers(team.id)).map((member) => member.userId),
+        supabase: async () => {
+          const { data } = await supabase.from('team_members').select('user_id').eq('team_id', team.id)
+          return (data || []).map((member: { user_id: string }) => member.user_id)
+        },
+      })
+      setTeamMemberIds(ids)
     }
-    loadTeamMembers()
+    void loadTeamMembers()
   }, [team.id])
 
   const teamUsers = orgUsers.filter((u) => teamMemberIds.includes(u.id))

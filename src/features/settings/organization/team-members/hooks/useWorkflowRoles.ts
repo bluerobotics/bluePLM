@@ -11,6 +11,15 @@
  */
 import { useCallback, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { routeBackend } from '@/lib/backendAdapter'
+import {
+  createMdbWorkflowRole,
+  deleteMdbWorkflowRole,
+  getMdbWorkflowRoleAssignments,
+  getMdbWorkflowRoles,
+  setMdbUserWorkflowRoles,
+  updateMdbWorkflowRole,
+} from '@/lib/mdb'
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import type { WorkflowRoleBasic, WorkflowRoleFormData } from '../types'
@@ -32,7 +41,6 @@ export function useWorkflowRoles(orgId: string | null) {
   const userRoleAssignments = usePDMStore((s) => s.userRoleAssignments)
   const isLoading = usePDMStore((s) => s.workflowRolesLoading)
   const workflowRolesLoaded = usePDMStore((s) => s.workflowRolesLoaded)
-
   // Workflow roles actions from store
   const setWorkflowRoles = usePDMStore((s) => s.setWorkflowRoles)
   const setWorkflowRolesLoading = usePDMStore((s) => s.setWorkflowRolesLoading)
@@ -47,42 +55,41 @@ export function useWorkflowRoles(orgId: string | null) {
 
     setWorkflowRolesLoading(true)
     try {
-      // Load workflow roles
-      const { data: rolesData, error: rolesError } = await supabase
-        .from('workflow_roles')
-        .select('id, name, color, icon, description')
-        .eq('org_id', orgId)
-        .eq('is_active', true)
-        .order('sort_order')
-
-      if (rolesError) throw rolesError
-      setWorkflowRoles(castQueryResult<WorkflowRoleBasic[]>(rolesData || []))
-
-      // Load user role assignments
-      const { data: assignmentsData, error: assignmentsError } = await supabase
-        .from('user_workflow_roles')
-        .select(
-          `
+      const loaded = await routeBackend({
+        mdb: async () => {
+          const [roles, assignments] = await Promise.all([
+            getMdbWorkflowRoles(),
+            getMdbWorkflowRoleAssignments(),
+          ])
+          return { roles: roles as WorkflowRoleBasic[], assignments }
+        },
+        supabase: async () => {
+          const { data: rolesData, error: rolesError } = await supabase
+            .from('workflow_roles')
+            .select('id, name, color, icon, description')
+            .eq('org_id', orgId)
+            .eq('is_active', true)
+            .order('sort_order')
+          if (rolesError) throw rolesError
+          const { data: assignmentsData, error: assignmentsError } = await supabase
+            .from('user_workflow_roles')
+            .select(`
           user_id,
           workflow_role_id,
           workflow_roles!inner (org_id)
-        `,
-        )
-        .eq('workflow_roles.org_id', orgId)
-
-      if (assignmentsError) throw assignmentsError
-
-      const typedAssignments = castQueryResult<UserWorkflowRoleJoin[]>(assignmentsData || [])
-
-      // Build userId -> roleIds map
-      const assignmentsMap: Record<string, string[]> = {}
-      for (const a of typedAssignments) {
-        if (!assignmentsMap[a.user_id]) {
-          assignmentsMap[a.user_id] = []
-        }
-        assignmentsMap[a.user_id].push(a.workflow_role_id)
-      }
-      setUserRoleAssignments(assignmentsMap)
+        `)
+            .eq('workflow_roles.org_id', orgId)
+          if (assignmentsError) throw assignmentsError
+          const assignments: Record<string, string[]> = {}
+          for (const assignment of castQueryResult<UserWorkflowRoleJoin[]>(assignmentsData || [])) {
+            if (!assignments[assignment.user_id]) assignments[assignment.user_id] = []
+            assignments[assignment.user_id].push(assignment.workflow_role_id)
+          }
+          return { roles: castQueryResult<WorkflowRoleBasic[]>(rolesData || []), assignments }
+        },
+      })
+      setWorkflowRoles(loaded.roles)
+      setUserRoleAssignments(loaded.assignments)
     } catch (error) {
       log.error('[WorkflowRoles]', 'Failed to load workflow roles', { error: error })
       setWorkflowRolesLoading(false)
@@ -94,15 +101,23 @@ export function useWorkflowRoles(orgId: string | null) {
       if (!formData.name.trim() || !orgId) return false
 
       try {
-        const { error } = await insertWorkflowRole({
-          name: formData.name.trim(),
-          color: formData.color,
-          icon: formData.icon,
-          description: formData.description || null,
-          org_id: orgId,
+        await routeBackend({
+          mdb: async () => {
+            await createMdbWorkflowRole({
+              name: formData.name.trim(),
+              color: formData.color,
+              icon: formData.icon,
+              description: formData.description || null,
+            })
+          },
+          supabase: async () => {
+            const { error } = await insertWorkflowRole({
+              name: formData.name.trim(), color: formData.color, icon: formData.icon,
+              description: formData.description || null, org_id: orgId,
+            })
+            if (error) throw error
+          },
         })
-
-        if (error) throw error
 
         addToast('success', `Created workflow role "${formData.name}"`)
         // Reload to get the new role with its ID
@@ -126,14 +141,23 @@ export function useWorkflowRoles(orgId: string | null) {
       if (!formData.name.trim()) return false
 
       try {
-        const { error } = await updateWorkflowRoleDb(roleId, {
-          name: formData.name.trim(),
-          color: formData.color,
-          icon: formData.icon,
-          description: formData.description || null,
+        await routeBackend({
+          mdb: async () => {
+            await updateMdbWorkflowRole(roleId, {
+              name: formData.name.trim(),
+              color: formData.color,
+              icon: formData.icon,
+              description: formData.description || null,
+            })
+          },
+          supabase: async () => {
+            const { error } = await updateWorkflowRoleDb(roleId, {
+              name: formData.name.trim(), color: formData.color, icon: formData.icon,
+              description: formData.description || null,
+            })
+            if (error) throw error
+          },
         })
-
-        if (error) throw error
 
         // Update in store
         updateWorkflowRoleInStore(roleId, {
@@ -164,9 +188,13 @@ export function useWorkflowRoles(orgId: string | null) {
       if (!role) return false
 
       try {
-        const { error } = await supabase.from('workflow_roles').delete().eq('id', roleId)
-
-        if (error) throw error
+        await routeBackend({
+          mdb: () => deleteMdbWorkflowRole(roleId),
+          supabase: async () => {
+            const { error } = await supabase.from('workflow_roles').delete().eq('id', roleId)
+            if (error) throw error
+          },
+        })
 
         // Remove from store (this also cleans up user assignments)
         removeWorkflowRoleFromStore(roleId)
@@ -174,7 +202,10 @@ export function useWorkflowRoles(orgId: string | null) {
         addToast('success', `Deleted workflow role "${role.name}"`)
         return true
       } catch {
-        addToast('error', 'Failed to delete workflow role')
+        addToast(
+          'error',
+          'Failed to delete workflow role',
+        )
         return false
       }
     },
@@ -189,34 +220,37 @@ export function useWorkflowRoles(orgId: string | null) {
       assignedBy?: string,
     ): Promise<boolean> => {
       try {
-        if (isAdding) {
-          const { error } = await insertUserWorkflowRole({
-            user_id: userId,
-            workflow_role_id: roleId,
-            assigned_by: assignedBy ?? null,
-          })
-          if (error) throw error
-
-          // Update store
-          assignUserRoleInStore(userId, roleId)
-        } else {
-          const { error } = await supabase
-            .from('user_workflow_roles')
-            .delete()
-            .eq('user_id', userId)
-            .eq('workflow_role_id', roleId)
-          if (error) throw error
-
-          // Update store
-          unassignUserRoleInStore(userId, roleId)
-        }
+        const currentRoleIds = userRoleAssignments[userId] ?? []
+        const nextRoleIds = isAdding
+          ? [...new Set([...currentRoleIds, roleId])]
+          : currentRoleIds.filter((id) => id !== roleId)
+        await routeBackend({
+          mdb: () => setMdbUserWorkflowRoles(userId, nextRoleIds),
+          supabase: async () => {
+            if (isAdding) {
+              const { error } = await insertUserWorkflowRole({
+                user_id: userId, workflow_role_id: roleId, assigned_by: assignedBy ?? null,
+              })
+              if (error) throw error
+            } else {
+              const { error } = await supabase.from('user_workflow_roles').delete()
+                .eq('user_id', userId).eq('workflow_role_id', roleId)
+              if (error) throw error
+            }
+          },
+        })
+        if (isAdding) assignUserRoleInStore(userId, roleId)
+        else unassignUserRoleInStore(userId, roleId)
         return true
       } catch {
-        addToast('error', isAdding ? 'Failed to add role' : 'Failed to remove role')
+        addToast(
+          'error',
+          isAdding ? 'Failed to add role' : 'Failed to remove role',
+        )
         return false
       }
     },
-    [addToast, assignUserRoleInStore, unassignUserRoleInStore],
+    [addToast, assignUserRoleInStore, unassignUserRoleInStore, userRoleAssignments],
   )
 
   /**
@@ -231,21 +265,20 @@ export function useWorkflowRoles(orgId: string | null) {
       userName?: string,
     ): Promise<boolean> => {
       try {
-        // Remove existing assignments
-        await supabase.from('user_workflow_roles').delete().eq('user_id', userId)
-
-        // Add new assignments
-        if (roleIds.length > 0) {
-          const { error } = await insertUserWorkflowRoles(
-            roleIds.map((roleId) => ({
-              user_id: userId,
-              workflow_role_id: roleId,
-              assigned_by: assignedBy,
-            })),
-          )
-
-          if (error) throw error
-        }
+        await routeBackend({
+          mdb: () => setMdbUserWorkflowRoles(userId, roleIds),
+          supabase: async () => {
+            await supabase.from('user_workflow_roles').delete().eq('user_id', userId)
+            if (roleIds.length > 0) {
+              const { error } = await insertUserWorkflowRoles(
+                roleIds.map((roleId) => ({
+                  user_id: userId, workflow_role_id: roleId, assigned_by: assignedBy,
+                })),
+              )
+              if (error) throw error
+            }
+          },
+        })
 
         // Update store - set the new role assignments for this user
         setUserRoleAssignments({
@@ -257,7 +290,10 @@ export function useWorkflowRoles(orgId: string | null) {
         return true
       } catch (error) {
         log.error('[WorkflowRoles]', 'Failed to save workflow roles', { error: error })
-        addToast('error', 'Failed to update workflow roles')
+        addToast(
+          'error',
+          'Failed to update workflow roles',
+        )
         return false
       }
     },

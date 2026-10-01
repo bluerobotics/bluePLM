@@ -2,6 +2,8 @@ import { lazy, Suspense } from 'react'
 import { Loader2 } from 'lucide-react'
 import type { SettingsTab } from '@/types/settings'
 import { ExtensionStoreView } from '@/features/extensions'
+import { getActiveBackendSettingsTabAvailability } from '@/lib/backendAdapter'
+import { BackendAvailabilityNotice } from './BackendAvailabilityNotice'
 
 // Lazy loaded settings panels - only loaded when the tab is selected
 // This saves memory by not loading all settings components upfront
@@ -115,7 +117,12 @@ function SettingsLoading() {
 }
 
 export function SettingsContent({ activeTab }: SettingsContentProps) {
+  const availability = getActiveBackendSettingsTabAvailability(activeTab)
+
   const renderContent = () => {
+    if (availability !== 'supported') {
+      return <BackendAvailabilityNotice availability={availability} />
+    }
     switch (activeTab) {
       case 'profile':
         return <ProfileSettings />
@@ -184,7 +191,7 @@ export function SettingsContent({ activeTab }: SettingsContentProps) {
   }
 
   // Logs view needs full width for the log viewer
-  if (activeTab === 'logs') {
+  if (activeTab === 'logs' && availability === 'supported') {
     return (
       <div className="flex-1 overflow-hidden bg-plm-bg p-4">
         <Suspense fallback={<SettingsLoading />}>{renderContent()}</Suspense>

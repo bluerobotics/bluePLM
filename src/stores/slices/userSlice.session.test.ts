@@ -1,15 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { StateCreator } from 'zustand'
 
-import { createUserSlice } from './userSlice'
+import { createUserSlice, deniedModulesAfterLoadFailure } from './userSlice'
 import type { PDMStoreState, UserSlice } from '../types'
 
-type UserSliceCreator = StateCreator<
-  PDMStoreState,
-  [['zustand/persist', unknown]],
-  [],
-  UserSlice
->
+type UserSliceCreator = StateCreator<PDMStoreState, [['zustand/persist', unknown]], [], UserSlice>
 type StoreSet = Parameters<UserSliceCreator>[0]
 type StoreGet = Parameters<UserSliceCreator>[1]
 
@@ -139,5 +134,19 @@ describe('user session reset', () => {
     expect(store.filesLoaded).toBe(false)
     expect(store.user).toBeNull()
     expect(store.organization).toBeNull()
+  })
+})
+
+describe('module access failure fallback', () => {
+  it('fails closed for non-admin users while retaining the required settings module', () => {
+    const denied = deniedModulesAfterLoadFailure('viewer')
+
+    expect(denied).toContain('explorer')
+    expect(denied).toContain('google-drive')
+    expect(denied).not.toContain('settings')
+  })
+
+  it('does not restrict administrators when the access list cannot be loaded', () => {
+    expect(deniedModulesAfterLoadFailure('admin')).toEqual([])
   })
 })

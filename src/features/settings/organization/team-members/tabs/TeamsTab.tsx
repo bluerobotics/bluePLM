@@ -27,7 +27,9 @@ import {
   ClipboardCheck,
 } from 'lucide-react'
 import { PermissionsEditor } from '@/features/settings/organization/PermissionsEditor'
+import { activeBackendSupports } from '@/lib/backendAdapter'
 import { usePDMStore } from '@/stores/pdmStore'
+import { BackendAvailabilityDialog } from '../../../components/BackendAvailabilityNotice'
 import { useTeams, useMembers, useVaultAccess, useTeamDialogs } from '../hooks'
 import { useFilteredData } from '../hooks/useFilteredData'
 import { ConnectedUserRow } from '../components/user'
@@ -47,6 +49,8 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
   const { user, organization, setOrganization, getEffectiveRole, workflowRoles } = usePDMStore()
   const orgId = organization?.id ?? null
   const isAdmin = getEffectiveRole() === 'admin'
+  const supportsTeamPermissions = activeBackendSupports('team-permissions')
+  const supportsTeamReviewers = activeBackendSupports('team-reviewers')
 
   // Data hooks
   const { teams, loadTeams, createTeam, updateTeam, deleteTeam, setDefaultTeam } = useTeams(orgId)
@@ -96,6 +100,7 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
 
   // Local UI state
   const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set())
+  const [showUnavailableFeature, setShowUnavailableFeature] = useState(false)
   const [isSavingDefaultTeam, setIsSavingDefaultTeam] = useState(false)
 
   // Handlers
@@ -339,27 +344,31 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
                     {isAdmin && (
                       <div className="p-3 bg-plm-bg/30 border-b border-white/10 flex flex-wrap gap-2">
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setSelectedTeam(team)
-                            setShowTeamMembersDialog(true)
-                          }}
-                          className="btn btn-ghost btn-sm flex items-center gap-1.5"
-                        >
-                          <UserPlus size={14} />
-                          Manage Members
-                        </button>
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setSelectedTeam(team)
+                              setShowTeamMembersDialog(true)
+                            }}
+                            className="btn btn-ghost btn-sm flex items-center gap-1.5"
+                          >
+                            <UserPlus size={14} />
+                            Manage Members
+                          </button>
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setSelectedTeam(team)
-                            setShowPermissionsEditor(true)
-                          }}
-                          className="btn btn-ghost btn-sm flex items-center gap-1.5"
-                        >
-                          <Shield size={14} />
-                          Permissions
-                        </button>
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (supportsTeamPermissions) {
+                                setSelectedTeam(team)
+                                setShowPermissionsEditor(true)
+                              } else {
+                                setShowUnavailableFeature(true)
+                              }
+                            }}
+                            className="btn btn-ghost btn-sm flex items-center gap-1.5"
+                          >
+                            <Shield size={14} />
+                            Permissions
+                          </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
@@ -371,15 +380,16 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
                           Vault Access
                         </button>
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            openTeamReviewersDialog(team)
-                          }}
-                          className="btn btn-ghost btn-sm flex items-center gap-1.5"
-                        >
-                          <ClipboardCheck size={14} />
-                          Reviewers
-                        </button>
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (supportsTeamReviewers) openTeamReviewersDialog(team)
+                              else setShowUnavailableFeature(true)
+                            }}
+                            className="btn btn-ghost btn-sm flex items-center gap-1.5"
+                          >
+                            <ClipboardCheck size={14} />
+                            Reviewers
+                          </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
@@ -453,6 +463,12 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
             )
           })}
         </div>
+      )}
+      {showUnavailableFeature && (
+        <BackendAvailabilityDialog
+          availability="incompatible"
+          onClose={() => setShowUnavailableFeature(false)}
+        />
       )}
 
       {/* Dialogs */}

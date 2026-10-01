@@ -25,6 +25,7 @@ export {
   checkIfSupplierAccount,
   getSupplierContact,
   signOut,
+  deleteCurrentAccount,
   getCurrentUser,
   getCurrentSession,
   getCurrentUserEmail,
@@ -54,12 +55,7 @@ export {
   getOrgWorkflowStages,
 } from './itemDefinition'
 
-export {
-  getItemImages,
-  uploadItemImage,
-  setItemIcon,
-  resetItemImage,
-} from './itemImages'
+export { getItemImages, uploadItemImage, setItemIcon, resetItemImage } from './itemImages'
 
 export {
   getItemDesignations,

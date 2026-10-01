@@ -26,7 +26,18 @@
  */
 import { useCallback, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import {
+  createMdbTeam,
+  deleteMdbTeam,
+  getMdbTeamVaultAccess,
+  getMdbTeams,
+  setMdbDefaultNewUserTeam,
+  setMdbTeamVaultAccess,
+  updateMdbTeam,
+} from '@/lib/mdb'
+import { routeBackend } from '@/lib/backendAdapter'
 import { log } from '@/lib/logger'
+import { t } from '@/lib/i18n'
 import { usePDMStore } from '@/stores/pdmStore'
 import type { TeamWithDetails, TeamFormData } from '../types'
 import {
@@ -56,30 +67,32 @@ export function useTeams(orgId: string | null) {
 
     setTeamsLoading(true)
     try {
-      const { data: teamsData, error } = await supabase
-        .from('teams')
-        .select(
-          `
+      const loadedTeams = await routeBackend({
+        mdb: async () => {
+          const mdbTeams = await getMdbTeams()
+          return Promise.all(mdbTeams.map(async (team): Promise<TeamWithDetails> => ({
+            id: team.id, org_id: orgId, name: team.name, description: null,
+            color: team.color, icon: team.icon, parent_team_id: null,
+            created_at: team.createdAt, created_by: null, updated_at: null, updated_by: null,
+            is_default: false, is_system: false, member_count: team.memberCount,
+            permissions_count: 0, vault_access: await getMdbTeamVaultAccess(team.id),
+          })))
+        },
+        supabase: async () => {
+          const { data: teamsData, error } = await supabase.from('teams').select(`
           *,
           team_members(count),
           team_permissions(count)
-        `,
-        )
-        .eq('org_id', orgId)
-        .order('name')
-
-      if (error) throw error
-
-      // Cast to our expected response type
-      const typedData = castQueryResult<TeamWithCounts[]>(teamsData || [])
-
-      const teamsWithCounts: TeamWithDetails[] = typedData.map((team) => ({
-        ...team,
-        member_count: team.team_members?.[0]?.count || 0,
-        permissions_count: team.team_permissions?.[0]?.count || 0,
-      }))
-
-      setTeams(teamsWithCounts)
+        `).eq('org_id', orgId).order('name')
+          if (error) throw error
+          return castQueryResult<TeamWithCounts[]>(teamsData || []).map((team) => ({
+            ...team,
+            member_count: team.team_members?.[0]?.count || 0,
+            permissions_count: team.team_permissions?.[0]?.count || 0,
+          }))
+        },
+      })
+      setTeams(loadedTeams)
     } catch (error) {
       log.error('[Teams]', 'Failed to load teams', { error: error })
       addToast('error', 'Failed to load teams')
@@ -93,65 +106,49 @@ export function useTeams(orgId: string | null) {
       if (!orgId || !user || !formData.name.trim()) return false
 
       try {
-        const { data, error } = await insertTeam({
-          org_id: orgId,
-          name: formData.name.trim(),
-          description: formData.description.trim() || null,
-          color: formData.color,
-          icon: formData.icon,
-          is_default: formData.is_default,
-          created_by: user.id,
+        await routeBackend({
+          mdb: async () => {
+            const created = await createMdbTeam({
+              name: formData.name.trim(), color: formData.color, icon: formData.icon,
+            })
+            if (copyFromTeamId) {
+              await setMdbTeamVaultAccess(created.id, await getMdbTeamVaultAccess(copyFromTeamId))
+            }
+          },
+          supabase: async () => {
+            const { data, error } = await insertTeam({
+              org_id: orgId, name: formData.name.trim(),
+              description: formData.description.trim() || null, color: formData.color,
+              icon: formData.icon, is_default: formData.is_default, created_by: user.id,
+            })
+            if (error) throw error
+            if (!copyFromTeamId || !data) return
+            const { data: sourcePerms } = await supabase.from('team_permissions')
+              .select('resource, actions').eq('team_id', copyFromTeamId)
+            const typedSourcePerms = castQueryResult<{ resource: string; actions: string[] }[]>(sourcePerms || [])
+            if (typedSourcePerms.length > 0) {
+              await insertTeamPermissions(typedSourcePerms.map((permission) => ({
+                team_id: data.id, resource: permission.resource,
+                actions: permission.actions as ('view' | 'create' | 'edit' | 'delete' | 'admin')[],
+                granted_by: user.id,
+              })))
+            }
+            const { data: sourceVaultAccess } = await supabase.from('team_vault_access')
+              .select('vault_id').eq('team_id', copyFromTeamId)
+            const typedSourceVaultAccess = castQueryResult<{ vault_id: string }[]>(sourceVaultAccess || [])
+            if (typedSourceVaultAccess.length > 0) {
+              await insertTeamVaultAccess(typedSourceVaultAccess.map((access) => ({
+                team_id: data.id, vault_id: access.vault_id, granted_by: user.id,
+              })))
+            }
+          },
         })
-
-        if (error) throw error
-
-        // If copying from an existing team, copy its permissions and vault access
-        if (copyFromTeamId && data) {
-          const { data: sourcePerms } = await supabase
-            .from('team_permissions')
-            .select('resource, actions')
-            .eq('team_id', copyFromTeamId)
-
-          const typedSourcePerms = castQueryResult<{ resource: string; actions: string[] }[]>(
-            sourcePerms || [],
-          )
-
-          if (typedSourcePerms.length > 0) {
-            await insertTeamPermissions(
-              typedSourcePerms.map((p) => ({
-                team_id: data.id,
-                resource: p.resource,
-                actions: p.actions as ('view' | 'create' | 'edit' | 'delete' | 'admin')[],
-                granted_by: user.id,
-              })),
-            )
-          }
-
-          // Copy vault access
-          const { data: sourceVaultAccess } = await supabase
-            .from('team_vault_access')
-            .select('vault_id')
-            .eq('team_id', copyFromTeamId)
-
-          const typedSourceVaultAccess = castQueryResult<{ vault_id: string }[]>(
-            sourceVaultAccess || [],
-          )
-
-          if (typedSourceVaultAccess.length > 0) {
-            await insertTeamVaultAccess(
-              typedSourceVaultAccess.map((va) => ({
-                team_id: data.id,
-                vault_id: va.vault_id,
-                granted_by: user.id,
-              })),
-            )
-          }
-
-          const sourceTeam = teams.find((t) => t.id === copyFromTeamId)
-          addToast('success', `Team "${formData.name}" created (copied from ${sourceTeam?.name})`)
-        } else {
-          addToast('success', `Team "${formData.name}" created`)
-        }
+        addToast(
+          'success',
+          copyFromTeamId
+            ? t('mdbSetup.teamCreatedWithVaultAccess', { name: formData.name })
+            : t('mdbSetup.teamCreated', { name: formData.name }),
+        )
 
         await loadTeams()
         return true
@@ -165,7 +162,7 @@ export function useTeams(orgId: string | null) {
         return false
       }
     },
-    [orgId, user, teams, addToast, loadTeams],
+    [orgId, user, addToast, loadTeams],
   )
 
   const updateTeam = useCallback(
@@ -173,19 +170,20 @@ export function useTeams(orgId: string | null) {
       if (!user || !formData.name.trim()) return false
 
       try {
-        const { error } = await updateTeamDb(teamId, {
-          name: formData.name.trim(),
-          description: formData.description.trim() || null,
-          color: formData.color,
-          icon: formData.icon,
-          is_default: formData.is_default,
-          updated_at: new Date().toISOString(),
-          updated_by: user.id,
+        await routeBackend({
+          mdb: () => updateMdbTeam(teamId, {
+            name: formData.name.trim(), color: formData.color, icon: formData.icon,
+          }),
+          supabase: async () => {
+            const { error } = await updateTeamDb(teamId, {
+              name: formData.name.trim(), description: formData.description.trim() || null,
+              color: formData.color, icon: formData.icon, is_default: formData.is_default,
+              updated_at: new Date().toISOString(), updated_by: user.id,
+            })
+            if (error) throw error
+          },
         })
-
-        if (error) throw error
-
-        addToast('success', `Team "${formData.name}" updated`)
+        addToast('success', t('mdbSetup.teamUpdated', { name: formData.name }))
         await loadTeams()
         return true
       } catch (error) {
@@ -207,14 +205,17 @@ export function useTeams(orgId: string | null) {
       if (!team) return false
 
       try {
-        const { error } = await supabase.from('teams').delete().eq('id', teamId)
-
-        if (error) throw error
-
-        addToast('success', `Team "${team.name}" deleted`)
+        await routeBackend({
+          mdb: () => deleteMdbTeam(teamId),
+          supabase: async () => {
+            const { error } = await supabase.from('teams').delete().eq('id', teamId)
+            if (error) throw error
+          },
+        })
+        addToast('success', t('mdbSetup.teamDeleted', { name: team.name }))
         await loadTeams()
         return true
-      } catch (error) {
+      } catch {
         addToast('error', 'Failed to delete team')
         return false
       }
@@ -239,20 +240,21 @@ export function useTeams(orgId: string | null) {
       organization: T,
     ): Promise<boolean> => {
       try {
-        const { error } = await updateOrganization(organizationId, {
-          default_new_user_team_id: teamId,
+        await routeBackend({
+          mdb: () => setMdbDefaultNewUserTeam(teamId),
+          supabase: async () => {
+            const { error } = await updateOrganization(organizationId, {
+              default_new_user_team_id: teamId,
+            })
+            if (error) throw error
+          },
         })
-
-        if (error) throw error
-
-        // Update local organization state
         setOrganization({
           ...organization,
           default_new_user_team_id: teamId,
         })
-
-        const teamName = teamId ? teams.find((t) => t.id === teamId)?.name : 'None'
-        addToast('success', `Default team set to "${teamName}"`)
+        const teamName = teamId ? teams.find((team) => team.id === teamId)?.name : t('mdbSetup.noTeam')
+        addToast('success', t('mdbSetup.defaultTeamSet', { name: teamName || t('mdbSetup.noTeam') }))
         return true
       } catch (error) {
         log.error('[Teams]', 'Failed to set default team', { error: error })

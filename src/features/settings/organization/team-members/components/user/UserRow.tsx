@@ -21,6 +21,7 @@ import {
 import { getInitials, getEffectiveAvatarUrl, getAvatarColor } from '@/lib/utils'
 import { formatLastOnline, getTitleIcon, getTeamIcon, getRoleIcon } from '../../utils'
 import type { UserRowProps } from '../../types'
+import { useTranslation } from '@/lib/i18n'
 
 export function UserRow({
   user,
@@ -32,6 +33,7 @@ export function UserRow({
   onRemoveFromTeam,
   onVaultAccess,
   onPermissions,
+  onManageCredentials,
   onViewNetPermissions,
   onSimulatePermissions,
   isSimulating,
@@ -48,6 +50,7 @@ export function UserRow({
   onToggleTeam,
   onToggleWorkflowRole,
 }: UserRowProps) {
+  const { t } = useTranslation()
   const [actionDropdownOpen, setActionDropdownOpen] = useState(false)
   const [titleDropdownOpen, setTitleDropdownOpen] = useState(false)
   const [teamsDropdownOpen, setTeamsDropdownOpen] = useState(false)
@@ -61,6 +64,14 @@ export function UserRow({
 
   // Admins can manage settings for everyone including themselves
   const canManage = isAdmin
+  const membershipRoleKey = {
+    owner: 'mdbSetup.membershipRoleOwner',
+    admin: 'mdbSetup.membershipRoleAdmin',
+    member: 'mdbSetup.membershipRoleMember',
+    engineer: 'mdbSetup.membershipRoleEngineer',
+    viewer: 'mdbSetup.membershipRoleViewer',
+    guest: 'mdbSetup.membershipRoleGuest',
+  }[user.role]
 
   return (
     <div
@@ -92,10 +103,18 @@ export function UserRow({
             className={`${compact ? 'text-sm' : 'text-base'} text-plm-fg truncate flex items-center gap-2`}
           >
             {user.full_name || user.email}
-            {isCurrentUser && <span className="text-xs text-plm-fg-dim">(you)</span>}
+            {isCurrentUser && (
+              <span className="text-xs text-plm-fg-dim">({t('mdbSetup.currentUser')})</span>
+            )}
           </div>
           <div className={`${compact ? 'text-xs' : 'text-sm'} text-plm-fg-muted truncate`}>
             {user.email}
+          </div>
+          <div className="mt-1 flex items-center gap-1.5">
+            <span className="inline-flex items-center gap-1 rounded bg-plm-accent/10 px-1.5 py-0.5 text-[11px] text-plm-accent">
+              <Shield size={10} />
+              {membershipRoleKey ? t(membershipRoleKey) : user.role}
+            </span>
           </div>
           {/* Last online - on its own line */}
           {!compact && formatLastOnline(user.last_online) && (
@@ -108,7 +127,9 @@ export function UserRow({
           {user.role !== 'admin' && vaultAccessCount > 0 && (
             <div className="flex items-center gap-1 px-1.5 py-0.5 bg-plm-fg-muted/10 rounded text-plm-fg-dim text-[11px] mt-0.5 w-fit">
               <Lock size={10} />
-              {vaultAccessCount} vault{vaultAccessCount !== 1 ? 's' : ''}
+              {t(vaultAccessCount === 1 ? 'mdbSetup.vaultCountOne' : 'mdbSetup.vaultCountMany', {
+                count: vaultAccessCount,
+              })}
             </div>
           )}
         </div>
@@ -139,7 +160,7 @@ export function UserRow({
               const TitleIcon = getTitleIcon(user.job_title?.icon)
               return <TitleIcon size={12} />
             })()}
-            {user.job_title?.name || 'No title'}
+            {user.job_title?.name || t('mdbSetup.noJobTitle')}
             <ChevronDown size={12} />
           </button>
 
@@ -173,7 +194,7 @@ export function UserRow({
                 {!canManage || !onToggleJobTitle ? (
                   <div className="p-3">
                     <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-2">
-                      Job Title
+                      {t('mdbSetup.jobTitle')}
                     </div>
                     {user.job_title ? (
                       <div className="flex items-center gap-2">
@@ -759,7 +780,7 @@ export function UserRow({
           <button
             onClick={() => setActionDropdownOpen(!actionDropdownOpen)}
             className="p-1.5 text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight rounded transition-colors"
-            title="More actions"
+            title={t('mdbSetup.moreActions')}
           >
             <MoreVertical size={16} />
           </button>
@@ -804,7 +825,7 @@ export function UserRow({
                   className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-plm-fg hover:bg-plm-highlight transition-colors"
                 >
                   <User size={14} />
-                  View Profile
+                  {t('mdbSetup.viewProfile')}
                 </button>
 
                 {/* View Net Permissions */}
@@ -817,7 +838,7 @@ export function UserRow({
                     className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-plm-fg hover:bg-plm-highlight transition-colors"
                   >
                     <FileKey size={14} />
-                    View Net Permissions
+                    {t('mdbSetup.viewNetPermissions')}
                   </button>
                 )}
 
@@ -836,7 +857,9 @@ export function UserRow({
                     }`}
                   >
                     <UserCog size={14} />
-                    {isSimulating ? 'Currently Simulating' : 'Simulate Permissions'}
+                    {isSimulating
+                      ? t('mdbSetup.currentlySimulating')
+                      : t('mdbSetup.simulatePermissions')}
                   </button>
                 )}
 
@@ -853,7 +876,20 @@ export function UserRow({
                     className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-plm-fg hover:bg-plm-highlight transition-colors"
                   >
                     <Shield size={14} />
-                    Individual Permissions
+                    {t('mdbSetup.individualPermissions')}
+                  </button>
+                )}
+
+                {onManageCredentials && canManage && (
+                  <button
+                    onClick={() => {
+                      onManageCredentials()
+                      setActionDropdownOpen(false)
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-plm-fg hover:bg-plm-highlight transition-colors"
+                  >
+                    <Lock size={14} />
+                    {t('mdbSetup.editAccount')}
                   </button>
                 )}
 
@@ -867,7 +903,7 @@ export function UserRow({
                     className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-plm-fg hover:bg-plm-highlight transition-colors"
                   >
                     <Database size={14} />
-                    Manage Vault Access
+                    {t('mdbSetup.manageVaultAccess')}
                   </button>
                 )}
 
@@ -883,7 +919,7 @@ export function UserRow({
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-plm-warning hover:bg-plm-warning/10 transition-colors"
                     >
                       <X size={14} />
-                      Remove from Team
+                      {t('mdbSetup.removeFromTeam')}
                     </button>
                   </>
                 )}
@@ -900,7 +936,7 @@ export function UserRow({
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-plm-error hover:bg-plm-error/10 transition-colors"
                     >
                       <UserMinus size={14} />
-                      Remove from Organization
+                      {t('mdbSetup.removeFromOrganization')}
                     </button>
                   </>
                 )}

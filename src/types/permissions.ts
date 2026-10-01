@@ -439,6 +439,7 @@ export interface TeamMember {
     email: string
     full_name: string | null
     avatar_url: string | null
+    custom_avatar_url?: string | null
     role: 'admin' | 'engineer' | 'viewer'
   }
 }

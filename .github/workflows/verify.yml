@@ -25,6 +25,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          submodules: recursive
 
       # Node 22 because both `engines` fields that govern this tree require it: the root
       # package.json declares `>=22.12.0` and @electron/rebuild declares the same, and Electron 39
@@ -70,3 +72,11 @@ jobs:
 
       - name: Test
         run: npm test
+
+      - name: Test MDB PHP backend
+        working-directory: blueplm-mdb-php
+        run: |
+          trap 'docker compose -f docker-compose.test.yml down -v' EXIT
+          docker compose -f docker-compose.test.yml up --build -d
+          node test/integration.mjs
+          docker compose -f docker-compose.test.yml exec -T api php test/database-lifecycle.php

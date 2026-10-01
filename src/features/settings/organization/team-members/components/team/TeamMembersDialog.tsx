@@ -5,6 +5,13 @@ import * as LucideIcons from 'lucide-react'
 import { Users, UserPlus, Search, Plus, X, Loader2 } from 'lucide-react'
 import { log } from '@/lib/logger'
 import { supabase } from '@/lib/supabase'
+import {
+  addMdbTeamMember,
+  getMdbTeamMembers,
+  removeMdbTeamMember,
+} from '@/lib/mdb'
+import { mapMdbRole, routeBackend } from '@/lib/backendAdapter'
+import { t } from '@/lib/i18n'
 import { usePDMStore } from '@/stores/pdmStore'
 import { getInitials, getEffectiveAvatarUrl } from '@/lib/utils'
 import { insertTeamMember } from '../../hooks/supabaseHelpers'
@@ -43,40 +50,44 @@ export function TeamMembersDialog({ team, orgUsers, onClose, userId }: TeamMembe
   const loadMembers = async () => {
     setIsLoading(true)
     try {
-      const { data, error } = await supabase
-        .from('team_members')
-        .select(
-          `
+      const loadedMembers = await routeBackend({
+        mdb: async () => {
+          const mdbMembers = await getMdbTeamMembers(team.id)
+          return mdbMembers.map((member): TeamMember => ({
+            id: `${team.id}:${member.userId}`,
+            team_id: team.id,
+            user_id: member.userId,
+            is_team_admin: false,
+            added_at: member.addedAt,
+            added_by: null,
+            user: {
+              id: member.userId,
+              email: member.email,
+              full_name: member.displayName,
+              avatar_url: null,
+              custom_avatar_url: null,
+              role: mapMdbRole(member.role) ?? 'viewer',
+            },
+          }))
+        },
+        supabase: async () => {
+          const { data, error } = await supabase.from('team_members').select(`
           id, team_id, user_id, is_team_admin, added_at, added_by,
           users!user_id (id, email, full_name, avatar_url, custom_avatar_url, role)
-        `,
-        )
-        .eq('team_id', team.id)
-        .order('added_at', { ascending: false })
-
-      if (error) throw error
-
-      const typedData = (data || []) as unknown as TeamMemberQueryResult[]
-      const mappedData: TeamMember[] = typedData.map((m) => ({
-        id: m.id,
-        team_id: m.team_id,
-        user_id: m.user_id,
-        is_team_admin: m.is_team_admin,
-        added_at: m.added_at,
-        added_by: m.added_by,
-        user: m.users
-          ? {
-              id: m.users.id,
-              email: m.users.email,
-              full_name: m.users.full_name,
-              avatar_url: m.users.avatar_url,
-              custom_avatar_url: m.users.custom_avatar_url,
-              role: m.users.role as 'admin' | 'engineer' | 'viewer',
-            }
-          : undefined,
-      }))
-
-      setMembers(mappedData)
+        `).eq('team_id', team.id).order('added_at', { ascending: false })
+          if (error) throw error
+          return ((data || []) as unknown as TeamMemberQueryResult[]).map((member): TeamMember => ({
+            id: member.id, team_id: member.team_id, user_id: member.user_id,
+            is_team_admin: member.is_team_admin, added_at: member.added_at, added_by: member.added_by,
+            user: member.users ? {
+              id: member.users.id, email: member.users.email, full_name: member.users.full_name,
+              avatar_url: member.users.avatar_url, custom_avatar_url: member.users.custom_avatar_url,
+              role: member.users.role as 'admin' | 'engineer' | 'viewer',
+            } : undefined,
+          }))
+        },
+      })
+      setMembers(loadedMembers)
     } catch (error) {
       log.error('[TeamMembers]', 'Failed to load team members', { error: error })
     } finally {
@@ -97,17 +108,22 @@ export function TeamMembersDialog({ team, orgUsers, onClose, userId }: TeamMembe
 
     setIsAdding(true)
     try {
-      const { error } = await insertTeamMember({
-        team_id: team.id,
-        user_id: userToAdd.id,
-        added_by: userId,
+      await routeBackend({
+        mdb: () => addMdbTeamMember(team.id, userToAdd.id),
+        supabase: async () => {
+          const { error } = await insertTeamMember({
+            team_id: team.id, user_id: userToAdd.id, added_by: userId,
+          })
+          if (error) throw error
+        },
       })
 
-      if (error) throw error
-
-      addToast('success', `Added ${userToAdd.full_name || userToAdd.email} to team`)
+      addToast(
+        'success',
+        t('mdbSetup.teamMemberAdded', { name: userToAdd.full_name || userToAdd.email }),
+      )
       loadMembers()
-    } catch (error) {
+    } catch {
       addToast('error', 'Failed to add member')
     } finally {
       setIsAdding(false)
@@ -116,12 +132,22 @@ export function TeamMembersDialog({ team, orgUsers, onClose, userId }: TeamMembe
 
   const removeMember = async (member: TeamMember) => {
     try {
-      const { error } = await supabase.from('team_members').delete().eq('id', member.id)
-      if (error) throw error
+      await routeBackend({
+        mdb: () => removeMdbTeamMember(team.id, member.user_id),
+        supabase: async () => {
+          const { error } = await supabase.from('team_members').delete().eq('id', member.id)
+          if (error) throw error
+        },
+      })
 
-      addToast('success', `Removed ${member.user?.full_name || member.user?.email} from team`)
+      addToast(
+        'success',
+        t('mdbSetup.teamMemberRemoved', {
+          name: member.user?.full_name || member.user?.email || '',
+        }),
+      )
       loadMembers()
-    } catch (error) {
+    } catch {
       addToast('error', 'Failed to remove member')
     }
   }

@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
-import { Loader2, Save, Shield, Users, Truck, Mail, Phone } from 'lucide-react'
+import { Loader2, Save, Shield, Users, Truck, Mail, Phone, UserPlus } from 'lucide-react'
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
-import { supabase } from '@/lib/supabase'
 import { DEFAULT_AUTH_PROVIDERS, type AuthProviderSettings } from '@/types/pdm'
+import { getOrganizationSetting, setOrganizationSetting } from '@/lib/organizationSettings'
+import { useTranslation } from '@/lib/i18n'
 
 // Google icon component
 function GoogleIcon({ size = 16 }: { size?: number }) {
@@ -76,6 +77,7 @@ export function AuthProvidersSettings() {
   const isAdmin = getEffectiveRole() === 'admin'
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const { t } = useTranslation()
 
   // Track if we're currently saving to avoid overwriting with stale realtime data
   const savingRef = useRef(false)
@@ -89,17 +91,13 @@ export function AuthProvidersSettings() {
     const loadSettings = async () => {
       setLoading(true)
       try {
-        const { data, error } = await supabase
-          .from('organizations')
-          .select('auth_providers')
-          .eq('id', organization.id)
-          .single()
-
-        if (error) throw error
-
         // Merge with defaults to ensure all fields exist
-        const authProviders = data?.auth_providers as AuthProviderSettings | null
+        const authProviders = await getOrganizationSetting<AuthProviderSettings>(
+          'auth-providers',
+          organization.id,
+        )
         setSettings({
+          selfRegistration: authProviders?.selfRegistration ?? false,
           users: {
             google: authProviders?.users?.google ?? true,
             email: authProviders?.users?.email ?? true,
@@ -113,7 +111,7 @@ export function AuthProvidersSettings() {
         })
       } catch (error) {
         log.error('[AuthProviders]', 'Failed to load auth provider settings', { error: error })
-        addToast('error', 'Failed to load authentication settings')
+        addToast('error', t('settingsPages.authProviders.loadFailed'))
       } finally {
         setLoading(false)
       }
@@ -130,6 +128,7 @@ export function AuthProvidersSettings() {
     if (org?.auth_providers) {
       const authProviders = org.auth_providers as AuthProviderSettings
       setSettings({
+        selfRegistration: authProviders?.selfRegistration ?? false,
         users: {
           google: authProviders?.users?.google ?? true,
           email: authProviders?.users?.email ?? true,
@@ -150,27 +149,22 @@ export function AuthProvidersSettings() {
 
     // Validate: at least one provider must be enabled for each category
     if (!settings.users.google && !settings.users.email && !settings.users.phone) {
-      addToast('error', 'At least one sign-in method must be enabled for users')
+      addToast('error', t('settingsPages.authProviders.userMethodRequired'))
       return
     }
     if (!settings.suppliers.google && !settings.suppliers.email && !settings.suppliers.phone) {
-      addToast('error', 'At least one sign-in method must be enabled for suppliers')
+      addToast('error', t('settingsPages.authProviders.supplierMethodRequired'))
       return
     }
 
     setSaving(true)
     savingRef.current = true
     try {
-      const { error } = await supabase
-        .from('organizations')
-        .update({ auth_providers: JSON.parse(JSON.stringify(settings)) })
-        .eq('id', organization.id)
-
-      if (error) throw error
-      addToast('success', 'Authentication settings saved')
+      await setOrganizationSetting('auth-providers', organization.id, settings)
+      addToast('success', t('settingsPages.authProviders.saved'))
     } catch (error) {
       log.error('[AuthProviders]', 'Failed to save auth provider settings', { error: error })
-      addToast('error', 'Failed to save authentication settings')
+      addToast('error', t('settingsPages.authProviders.saveFailed'))
     } finally {
       setSaving(false)
       setTimeout(() => {
@@ -195,13 +189,15 @@ export function AuthProvidersSettings() {
   }
 
   if (!organization) {
-    return <div className="text-center py-12 text-plm-fg-muted">No organization connected</div>
+    return (
+      <div className="text-center py-12 text-plm-fg-muted">{t('settingsPages.noOrganization')}</div>
+    )
   }
 
   if (!isAdmin) {
     return (
       <div className="text-center py-12 text-plm-fg-muted">
-        Only administrators can manage authentication settings
+        {t('settingsPages.authProviders.adminOnly')}
       </div>
     )
   }
@@ -222,9 +218,11 @@ export function AuthProvidersSettings() {
           <Shield size={24} className="text-plm-accent" />
         </div>
         <div>
-          <h2 className="text-lg font-semibold text-plm-fg">Sign-In Methods</h2>
+          <h2 className="text-lg font-semibold text-plm-fg">
+            {t('settingsPages.authProviders.title')}
+          </h2>
           <p className="text-sm text-plm-fg-muted">
-            Control which authentication methods are available for your organization
+            {t('settingsPages.authProviders.description')}
           </p>
         </div>
       </div>
@@ -233,27 +231,39 @@ export function AuthProvidersSettings() {
       <div className="p-4 bg-plm-bg rounded-lg border border-plm-border">
         <div className="flex items-center gap-2 mb-4">
           <Users size={20} className="text-plm-accent" />
-          <h3 className="text-base font-medium text-plm-fg">Team Members</h3>
+          <h3 className="text-base font-medium text-plm-fg">
+            {t('settingsPages.authProviders.teamMembers')}
+          </h3>
         </div>
         <p className="text-sm text-plm-fg-muted mb-4">
-          Choose which sign-in methods your team members can use to access BluePLM.
+          {t('settingsPages.authProviders.teamDescription')}
+        </p>
+
+        <ProviderToggle
+          label={t('settingsPages.authProviders.selfRegistration')}
+          icon={<UserPlus size={18} />}
+          enabled={settings.selfRegistration}
+          onChange={(enabled) => setSettings((previous) => ({ ...previous, selfRegistration: enabled }))}
+        />
+        <p className="text-xs text-plm-fg-dim mt-2 mb-4">
+          {t('settingsPages.authProviders.selfRegistrationDescription')}
         </p>
 
         <div className="space-y-3">
           <ProviderToggle
-            label="Google Account"
+            label={t('settingsPages.authProviders.google')}
             icon={<GoogleIcon size={18} />}
             enabled={settings.users.google}
             onChange={(enabled) => updateProvider('users', 'google', enabled)}
           />
           <ProviderToggle
-            label="Email & Password"
+            label={t('settingsPages.authProviders.emailPassword')}
             icon={<Mail size={18} />}
             enabled={settings.users.email}
             onChange={(enabled) => updateProvider('users', 'email', enabled)}
           />
           <ProviderToggle
-            label="Phone Number (SMS)"
+            label={t('settingsPages.authProviders.phoneSms')}
             icon={<Phone size={18} />}
             enabled={settings.users.phone}
             onChange={(enabled) => updateProvider('users', 'phone', enabled)}
@@ -265,27 +275,29 @@ export function AuthProvidersSettings() {
       <div className="p-4 bg-plm-bg rounded-lg border border-plm-border">
         <div className="flex items-center gap-2 mb-4">
           <Truck size={20} className="text-plm-accent" />
-          <h3 className="text-base font-medium text-plm-fg">Suppliers</h3>
+          <h3 className="text-base font-medium text-plm-fg">
+            {t('settingsPages.authProviders.suppliers')}
+          </h3>
         </div>
         <p className="text-sm text-plm-fg-muted mb-4">
-          Choose which sign-in methods your suppliers and external partners can use.
+          {t('settingsPages.authProviders.supplierDescription')}
         </p>
 
         <div className="space-y-3">
           <ProviderToggle
-            label="Google Account"
+            label={t('settingsPages.authProviders.google')}
             icon={<GoogleIcon size={18} />}
             enabled={settings.suppliers.google}
             onChange={(enabled) => updateProvider('suppliers', 'google', enabled)}
           />
           <ProviderToggle
-            label="Email & Password"
+            label={t('settingsPages.authProviders.emailPassword')}
             icon={<Mail size={18} />}
             enabled={settings.suppliers.email}
             onChange={(enabled) => updateProvider('suppliers', 'email', enabled)}
           />
           <ProviderToggle
-            label="Phone Number (SMS)"
+            label={t('settingsPages.authProviders.phoneSms')}
             icon={<Phone size={18} />}
             enabled={settings.suppliers.phone}
             onChange={(enabled) => updateProvider('suppliers', 'phone', enabled)}
@@ -298,11 +310,10 @@ export function AuthProvidersSettings() {
         <div className="flex gap-3">
           <Shield size={20} className="text-plm-info flex-shrink-0 mt-0.5" />
           <div className="text-sm text-plm-fg-muted">
-            <p className="font-medium text-plm-fg mb-1">Security Note</p>
-            <p>
-              Disabling a sign-in method will prevent new sign-ins using that method. Existing users
-              who have already signed in will not be affected until their session expires.
+            <p className="font-medium text-plm-fg mb-1">
+              {t('settingsPages.authProviders.securityNote')}
             </p>
+            <p>{t('settingsPages.authProviders.securityDescription')}</p>
           </div>
         </div>
       </div>
@@ -315,7 +326,7 @@ export function AuthProvidersSettings() {
           className="btn btn-primary flex items-center gap-2"
         >
           {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-          Save Settings
+          {t('settingsPages.saveSettings')}
         </button>
       </div>
     </div>

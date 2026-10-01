@@ -9,6 +9,13 @@
  * once keeps it out of every call site.
  */
 import { supabase } from '@/lib/supabase'
+import {
+  createMdbWorkflowState,
+  deleteMdbWorkflowState,
+  getMdbWorkflowStates,
+  updateMdbWorkflowState,
+} from '@/lib/mdb'
+import { routeBackend } from '@/lib/backendAdapter'
 import type { Database } from '@/types/database'
 import type { WorkflowState } from '@/types/workflow'
 
@@ -27,15 +34,16 @@ export const stateService = {
    * Get all states for a workflow
    */
   async getByWorkflow(workflowId: string): Promise<StateServiceResult<WorkflowState[]>> {
-    const { data, error } = await workflowStates()
-      .select('*')
-      .eq('workflow_id', workflowId)
-      .order('sort_order')
-
-    return {
-      data: data as WorkflowState[] | null,
-      error: error ? new Error(error.message) : null,
-    }
+    return routeBackend({
+      mdb: async () => {
+        try { return { data: await getMdbWorkflowStates(workflowId) as unknown as WorkflowState[], error: null } }
+        catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to load workflow states.') } }
+      },
+      supabase: async () => {
+        const { data, error } = await workflowStates().select('*').eq('workflow_id', workflowId).order('sort_order')
+        return { data: data as WorkflowState[] | null, error: error ? new Error(error.message) : null }
+      },
+    })
   },
 
   /**
@@ -56,15 +64,16 @@ export const stateService = {
   async create(
     state: Partial<WorkflowStateRow> & { workflow_id: string; name: string },
   ): Promise<StateServiceResult<WorkflowState>> {
-    const { data, error } = await workflowStates()
-      .insert(state as never)
-      .select()
-      .single()
-
-    return {
-      data: data as WorkflowState | null,
-      error: error ? new Error(error.message) : null,
-    }
+    return routeBackend({
+      mdb: async () => {
+        try { return { data: await createMdbWorkflowState(state as Record<string, unknown>) as unknown as WorkflowState, error: null } }
+        catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to create workflow state.') } }
+      },
+      supabase: async () => {
+        const { data, error } = await workflowStates().insert(state as never).select().single()
+        return { data: data as WorkflowState | null, error: error ? new Error(error.message) : null }
+      },
+    })
   },
 
   /**
@@ -74,16 +83,16 @@ export const stateService = {
     stateId: string,
     updates: Partial<WorkflowStateRow>,
   ): Promise<StateServiceResult<WorkflowState>> {
-    const { data, error } = await workflowStates()
-      .update(updates as never)
-      .eq('id', stateId)
-      .select()
-      .single()
-
-    return {
-      data: data as WorkflowState | null,
-      error: error ? new Error(error.message) : null,
-    }
+    return routeBackend({
+      mdb: async () => {
+        try { return { data: await updateMdbWorkflowState(stateId, updates as Record<string, unknown>) as unknown as WorkflowState, error: null } }
+        catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to update workflow state.') } }
+      },
+      supabase: async () => {
+        const { data, error } = await workflowStates().update(updates as never).eq('id', stateId).select().single()
+        return { data: data as WorkflowState | null, error: error ? new Error(error.message) : null }
+      },
+    })
   },
 
   /**
@@ -94,26 +103,32 @@ export const stateService = {
     positionX: number,
     positionY: number,
   ): Promise<StateServiceResult<void>> {
-    const { error } = await workflowStates()
-      .update({ position_x: positionX, position_y: positionY } as never)
-      .eq('id', stateId)
-
-    return {
-      data: error ? null : undefined,
-      error: error ? new Error(error.message) : null,
-    }
+    return routeBackend({
+      mdb: async () => {
+        try { await updateMdbWorkflowState(stateId, { position_x: positionX, position_y: positionY }); return { data: undefined, error: null } }
+        catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to update workflow state.') } }
+      },
+      supabase: async () => {
+        const { error } = await workflowStates().update({ position_x: positionX, position_y: positionY } as never).eq('id', stateId)
+        return { data: error ? null : undefined, error: error ? new Error(error.message) : null }
+      },
+    })
   },
 
   /**
    * Delete a state
    */
   async delete(stateId: string): Promise<StateServiceResult<void>> {
-    const { error } = await workflowStates().delete().eq('id', stateId)
-
-    return {
-      data: error ? null : undefined,
-      error: error ? new Error(error.message) : null,
-    }
+    return routeBackend({
+      mdb: async () => {
+        try { await deleteMdbWorkflowState(stateId); return { data: undefined, error: null } }
+        catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to delete workflow state.') } }
+      },
+      supabase: async () => {
+        const { error } = await workflowStates().delete().eq('id', stateId)
+        return { data: error ? null : undefined, error: error ? new Error(error.message) : null }
+      },
+    })
   },
 
   /**
@@ -122,20 +137,20 @@ export const stateService = {
   async batchUpdatePositions(
     updates: Array<{ id: string; position_x: number; position_y: number }>,
   ): Promise<StateServiceResult<void>> {
-    // Use individual updates since Supabase doesn't support batch updates well
-    const results = await Promise.all(
-      updates.map(({ id, position_x, position_y }) =>
-        workflowStates()
-          .update({ position_x, position_y } as never)
-          .eq('id', id),
-      ),
-    )
-
-    const firstError = results.find((r) => r.error)?.error
-    return {
-      data: firstError ? null : undefined,
-      error: firstError ? new Error(firstError.message) : null,
-    }
+    return routeBackend({
+      mdb: async () => {
+        try {
+          await Promise.all(updates.map(({ id, position_x, position_y }) => updateMdbWorkflowState(id, { position_x, position_y })))
+          return { data: undefined, error: null }
+        } catch (error) { return { data: null, error: error instanceof Error ? error : new Error('Failed to update workflow states.') } }
+      },
+      supabase: async () => {
+        const results = await Promise.all(updates.map(({ id, position_x, position_y }) =>
+          workflowStates().update({ position_x, position_y } as never).eq('id', id)))
+        const firstError = results.find((result) => result.error)?.error
+        return { data: firstError ? null : undefined, error: firstError ? new Error(firstError.message) : null }
+      },
+    })
   },
 
   /**

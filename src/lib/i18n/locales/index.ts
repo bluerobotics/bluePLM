@@ -1,8 +1,9 @@
-// Re-export all locale translations
-export { en } from './en'
-export { fr } from './fr'
-export { de } from './de'
-export { es } from './es'
-export { pt } from './pt'
-export { zhCN } from './zhCN'
-export { zhTW } from './zhTW'
+import { de } from './de'
+import { en } from './en'
+import { es } from './es'
+import { fr } from './fr'
+import { pt } from './pt'
+import { zhCN } from './zhCN'
+import { zhTW } from './zhTW'
+
+export { de, en, es, fr, pt, zhCN, zhTW }

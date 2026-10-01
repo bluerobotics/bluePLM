@@ -2,6 +2,10 @@
 
 import type { PendingMember, OrgUser, TeamWithDetails, WorkflowRoleBasic } from './types'
 
+export function resolveMdbUserVaultAccess(selectedVaultIds: string[]): string[] {
+  return [...new Set(selectedVaultIds)]
+}
+
 /**
  * Format relative time for last online status
  */

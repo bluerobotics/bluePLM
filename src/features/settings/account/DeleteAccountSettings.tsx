@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { AlertTriangle, Loader2, Trash2, UserX } from 'lucide-react'
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
-import { getSupabaseClient, signOut } from '@/lib/supabase'
+import { deleteCurrentAccount, signOut } from '@/lib/supabase'
+import { t } from '@/lib/i18n'
 
 export function DeleteAccountSettings() {
   const { user, setUser, setOrganization, addToast } = usePDMStore()
@@ -11,7 +12,11 @@ export function DeleteAccountSettings() {
   const [showConfirmation, setShowConfirmation] = useState(false)
 
   if (!user) {
-    return <div className="text-center py-12 text-plm-fg-muted text-base">Not signed in</div>
+    return (
+      <div className="text-center py-12 text-plm-fg-muted text-base">
+        {t('deleteAccount.notSignedIn')}
+      </div>
+    )
   }
 
   // The text user must type to confirm deletion
@@ -23,14 +28,11 @@ export function DeleteAccountSettings() {
 
     setIsDeleting(true)
     try {
-      const client = getSupabaseClient()
-
-      // Call the RPC function to delete the user account
-      const { error } = await client.rpc('delete_user_account')
+      const { error } = await deleteCurrentAccount()
 
       if (error) {
         log.error('[Account]', 'Failed to delete account', { error })
-        addToast('error', `Failed to delete account: ${error.message}`)
+        addToast('error', t('deleteAccount.failed', { error: error.message }))
         setIsDeleting(false)
         return
       }
@@ -40,10 +42,10 @@ export function DeleteAccountSettings() {
       setUser(null)
       setOrganization(null)
 
-      addToast('success', 'Your account has been deleted successfully.')
+      addToast('success', t('deleteAccount.deleted'))
     } catch (error) {
       log.error('[Account]', 'Error deleting account', { error: error })
-      addToast('error', 'An unexpected error occurred while deleting your account.')
+      addToast('error', t('deleteAccount.unexpectedError'))
       setIsDeleting(false)
     }
   }
@@ -57,43 +59,39 @@ export function DeleteAccountSettings() {
             <UserX size={24} />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-plm-fg">Delete Account</h2>
-            <p className="text-sm text-plm-fg-muted">Permanently remove your account and data</p>
+            <h2 className="text-lg font-semibold text-plm-fg">{t('deleteAccount.title')}</h2>
+            <p className="text-sm text-plm-fg-muted">{t('deleteAccount.subtitle')}</p>
           </div>
         </div>
       </section>
 
       {/* What happens section */}
       <section className="p-4 bg-plm-bg rounded-lg border border-plm-border">
-        <h3 className="text-base font-medium text-plm-fg mb-3">
-          What happens when you delete your account:
-        </h3>
+        <h3 className="text-base font-medium text-plm-fg mb-3">{t('deleteAccount.whatHappens')}</h3>
         <ul className="space-y-2 text-sm text-plm-fg-muted">
           <li className="flex items-start gap-2">
             <span className="text-plm-error mt-0.5">•</span>
-            <span>Your user profile will be permanently deleted</span>
+            <span>{t('deleteAccount.profileDeleted')}</span>
           </li>
           <li className="flex items-start gap-2">
             <span className="text-plm-error mt-0.5">•</span>
-            <span>You will be removed from your organization</span>
+            <span>{t('deleteAccount.removedFromOrganization')}</span>
           </li>
           <li className="flex items-start gap-2">
             <span className="text-plm-error mt-0.5">•</span>
-            <span>All your team memberships will be removed</span>
+            <span>{t('deleteAccount.teamMembershipsRemoved')}</span>
           </li>
           <li className="flex items-start gap-2">
             <span className="text-plm-error mt-0.5">•</span>
-            <span>All your active sessions will be terminated</span>
+            <span>{t('deleteAccount.sessionsTerminated')}</span>
           </li>
           <li className="flex items-start gap-2">
             <span className="text-plm-error mt-0.5">•</span>
-            <span>Any files you have checked out will be released</span>
+            <span>{t('deleteAccount.checkoutsReleased')}</span>
           </li>
           <li className="flex items-start gap-2">
             <span className="text-plm-warning mt-0.5">•</span>
-            <span className="text-plm-warning">
-              Activity history and file versions you created will be preserved for audit purposes
-            </span>
+            <span className="text-plm-warning">{t('deleteAccount.auditHistoryPreserved')}</span>
           </li>
         </ul>
       </section>
@@ -103,10 +101,11 @@ export function DeleteAccountSettings() {
         <div className="flex items-start gap-3">
           <AlertTriangle className="text-plm-error flex-shrink-0 mt-0.5" size={20} />
           <div>
-            <p className="text-base font-medium text-plm-error">This action is irreversible</p>
+            <p className="text-base font-medium text-plm-error">
+              {t('deleteAccount.irreversible')}
+            </p>
             <p className="text-sm text-plm-error/80 mt-1">
-              Once you delete your account, there is no way to recover it. You will need to create a
-              new account and be re-invited to any organizations.
+              {t('deleteAccount.irreversibleDescription')}
             </p>
           </div>
         </div>
@@ -119,23 +118,26 @@ export function DeleteAccountSettings() {
             onClick={() => setShowConfirmation(true)}
             className="flex items-center gap-2 px-4 py-2.5 bg-plm-error/20 text-plm-error border border-plm-error/30 rounded-lg hover:bg-plm-error/30 transition-colors font-medium"
           >
-            <Trash2 size={18} />I want to delete my account
+            <Trash2 size={18} />
+            {t('deleteAccount.requestDelete')}
           </button>
         ) : (
           <div className="space-y-4">
             <div>
               <label className="block text-sm text-plm-fg-muted mb-2">
-                To confirm, type{' '}
+                {t('deleteAccount.confirmPrefix')}{' '}
                 <span className="font-mono font-semibold text-plm-fg bg-plm-bg-secondary px-1.5 py-0.5 rounded">
                   {requiredConfirmation}
                 </span>{' '}
-                below:
+                {t('deleteAccount.confirmSuffix')}
               </label>
               <input
                 type="text"
                 value={confirmationText}
                 onChange={(e) => setConfirmationText(e.target.value)}
-                placeholder={`Type "${requiredConfirmation}" to confirm`}
+                placeholder={t('deleteAccount.confirmPlaceholder', {
+                  value: requiredConfirmation,
+                })}
                 className="w-full bg-plm-bg-secondary border border-plm-border rounded-lg px-3 py-2.5 text-base focus:border-plm-error focus:outline-none"
                 disabled={isDeleting}
                 autoFocus
@@ -155,12 +157,12 @@ export function DeleteAccountSettings() {
                 {isDeleting ? (
                   <>
                     <Loader2 size={18} className="animate-spin" />
-                    Deleting account...
+                    {t('deleteAccount.deleting')}
                   </>
                 ) : (
                   <>
                     <Trash2 size={18} />
-                    Delete my account permanently
+                    {t('deleteAccount.deletePermanently')}
                   </>
                 )}
               </button>
@@ -173,7 +175,7 @@ export function DeleteAccountSettings() {
                 disabled={isDeleting}
                 className="px-4 py-2.5 text-plm-fg-muted hover:text-plm-fg transition-colors"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
             </div>
           </div>

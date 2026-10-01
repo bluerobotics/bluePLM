@@ -101,7 +101,17 @@ function formatMessage(category: string, message: string): string {
  */
 function formatData(data?: LogData): LogData | undefined {
   if (!data || Object.keys(data).length === 0) return undefined
-  return data
+  return Object.fromEntries(
+    Object.entries(data).map(([key, value]) => {
+      if (!(value instanceof Error)) return [key, value]
+      return [key, {
+        name: value.name,
+        message: value.message,
+        stack: value.stack,
+        ...Object.fromEntries(Object.entries(value)),
+      }]
+    }),
+  )
 }
 
 // ============================================

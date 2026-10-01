@@ -22,6 +22,7 @@ export default tseslint.config(
       'release/**',
       'docs/**',
       'native/**',
+      'blueplm-mdb-php/**',
       'cli/**',
       'scripts/**/*.js',
       'solidworks-service/**',

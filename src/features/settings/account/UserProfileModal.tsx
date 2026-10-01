@@ -23,7 +23,12 @@ import {
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { getSupabaseClient } from '@/lib/supabase'
+import {
+  getMdbUserProfile,
+} from '@/lib/mdb'
+import { routeBackend } from '@/lib/backendAdapter'
 import { getInitials, getEffectiveAvatarUrl } from '@/lib/utils'
+import { selectUserProfileDataSource } from './UserProfileModal.data'
 
 // Supabase v2 type inference incomplete for user profile queries
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -45,6 +50,7 @@ interface UserData {
   teams: { id: string; name: string; color: string; icon: string }[]
   workflow_roles: { id: string; name: string; color: string }[]
   job_title: { id: string; name: string; color: string; icon: string } | null
+  role: string
 }
 
 interface DayData {
@@ -190,15 +196,38 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
 
     const loadUserData = async () => {
       setIsLoading(true)
-      const client = getDb()
+      const dataSource = routeBackend({
+        mdb: () => selectUserProfileDataSource(true, getDb),
+        supabase: () => selectUserProfileDataSource(false, getDb),
+      })
       const oneYearAgo = new Date()
       oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
 
       try {
+        if (dataSource.kind === 'mdb') {
+          const mdbUser = await getMdbUserProfile(userId)
+          if (mdbUser) {
+            setUserData({
+              id: mdbUser.id,
+              email: mdbUser.email,
+              full_name: mdbUser.displayName,
+              avatar_url: null,
+              custom_avatar_url: null,
+              last_sign_in: null,
+              last_online: null,
+              teams: mdbUser.teams,
+              workflow_roles: mdbUser.workflowRoles,
+              job_title: null,
+              role: mdbUser.role,
+            })
+          }
+          return
+        }
+        const client = dataSource.client
         // Load user info
         const { data: user, error: userError } = await client
           .from('users')
-          .select('id, email, full_name, avatar_url, custom_avatar_url, last_sign_in, last_online')
+          .select('id, email, full_name, avatar_url, custom_avatar_url, last_sign_in, last_online, role')
           .eq('id', userId)
           .single()
 

@@ -33,7 +33,9 @@ import { copyToClipboard } from '@/lib/clipboard'
 import { getCurrentConfig, supabase } from '@/lib/supabase'
 import { generateOrgCode } from '@/lib/supabaseConfig'
 import { subscribeToMemberChanges } from '@/lib/realtime'
+import { activeBackendSupports } from '@/lib/backendAdapter'
 import { usePDMStore } from '@/stores/pdmStore'
+import { BackendAvailabilityNotice } from '../components/BackendAvailabilityNotice'
 
 // Import components and hooks from team-members
 import {
@@ -56,6 +58,7 @@ import {
   useOrgCode,
   // Dialog components
   CreateUserDialog,
+  RemoveUserDialog,
   TeamFormDialog,
   WorkflowRoleFormDialog,
   JobTitleFormDialog,
@@ -71,13 +74,16 @@ export function TeamMembersSettings() {
   const { user, organization, getEffectiveRole, apiServerUrl, addToast } = usePDMStore()
   const orgId = organization?.id ?? null
   const isAdmin = getEffectiveRole() === 'admin'
+  const supportsInviteSettings = activeBackendSupports('organization-invite-settings')
+  const canEditWorkflowRoles = activeBackendSupports('editable-workflow-roles')
+  const supportsJobTitles = activeBackendSupports('job-titles')
 
   // Track if we're currently saving to avoid overwriting with stale realtime data
   const savingRef = useRef(false)
 
   // ===== DATA HOOKS =====
   const { teams, isLoading: teamsLoading, loadTeams, createTeam } = useTeams(orgId)
-  const { members: orgUsers, isLoading: membersLoading, loadMembers } = useMembers(orgId)
+  const { members: orgUsers, isLoading: membersLoading, loadMembers, removeMember } = useMembers(orgId)
   const { loadPendingMembers } = useInvites(orgId)
   const {
     workflowRoles,
@@ -119,7 +125,14 @@ export function TeamMembersSettings() {
     resetTeamForm,
   } = useTeamDialogs()
 
-  const { showCreateUserDialog, setShowCreateUserDialog } = useUserDialogs()
+  const {
+    showCreateUserDialog,
+    setShowCreateUserDialog,
+    removingUser,
+    setRemovingUser,
+    isRemoving,
+    setIsRemoving,
+  } = useUserDialogs()
 
   const {
     showCreateWorkflowRoleDialog,
@@ -193,6 +206,18 @@ export function TeamMembersSettings() {
     }
   }
 
+  const handleRemoveUser = useCallback(async () => {
+    if (!removingUser) return
+
+    setIsRemoving(true)
+    try {
+      const removed = await removeMember(removingUser.id)
+      if (removed) setRemovingUser(null)
+    } finally {
+      setIsRemoving(false)
+    }
+  }, [removeMember, removingUser, setIsRemoving, setRemovingUser])
+
   // Generate org code for invite dialog
   const getOrgCodeForDialog = () => {
     const config = getCurrentConfig()
@@ -205,7 +230,7 @@ export function TeamMembersSettings() {
     if (!domain || !organization?.id) return
 
     // Validate domain format
-    if (!/^[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,}$/i.test(domain)) {
+    if (!/^[a-z0-9]+([-.]{1}[a-z0-9]+)*\.[a-z]{2,}$/i.test(domain)) {
       addToast('error', 'Invalid domain format')
       return
     }
@@ -321,7 +346,10 @@ export function TeamMembersSettings() {
   // ===== EMAIL DOMAIN EFFECTS =====
   // Load email domain settings
   useEffect(() => {
-    if (!organization?.id) return
+    if (!organization?.id || !supportsInviteSettings) {
+      setLoadingEmailSettings(false)
+      return
+    }
 
     const loadEmailSettings = async () => {
       setLoadingEmailSettings(true)
@@ -346,7 +374,7 @@ export function TeamMembersSettings() {
     }
 
     loadEmailSettings()
-  }, [organization?.id])
+  }, [organization?.id, supportsInviteSettings])
 
   // Sync with realtime organization changes (when another admin updates settings)
   useEffect(() => {
@@ -381,6 +409,7 @@ export function TeamMembersSettings() {
   // ===== REALTIME SUBSCRIPTION =====
   // Subscribe to member attribute changes (teams, roles, titles) for instant sync
   useEffect(() => {
+    if (!supportsInviteSettings) return
     if (!orgId) return
 
     const unsubscribe = subscribeToMemberChanges(orgId, (changeType, _eventType, _userId) => {
@@ -403,7 +432,7 @@ export function TeamMembersSettings() {
     })
 
     return unsubscribe
-  }, [orgId, loadMembers, loadTeams, loadWorkflowRoles, loadJobTitles])
+  }, [orgId, supportsInviteSettings, loadMembers, loadTeams, loadWorkflowRoles, loadJobTitles])
 
   // ===== RENDER =====
   if (!organization) {
@@ -463,7 +492,7 @@ export function TeamMembersSettings() {
               Add Team
             </button>
           )}
-          {isAdmin && activeTab === 'roles' && (
+          {isAdmin && canEditWorkflowRoles && activeTab === 'roles' && (
             <button
               onClick={() => setShowCreateWorkflowRoleDialog(true)}
               className="btn btn-primary btn-sm flex items-center gap-1"
@@ -473,7 +502,7 @@ export function TeamMembersSettings() {
               Add Role
             </button>
           )}
-          {isAdmin && activeTab === 'titles' && (
+          {isAdmin && supportsJobTitles && activeTab === 'titles' && (
             <button
               onClick={() => openCreateJobTitle()}
               className="btn btn-primary btn-sm flex items-center gap-1"
@@ -487,7 +516,7 @@ export function TeamMembersSettings() {
       </div>
 
       {/* Organization Access Settings (Admin only) */}
-      {isAdmin && (
+      {isAdmin && supportsInviteSettings && (
         <div className="bg-plm-bg rounded-lg border border-plm-border divide-y divide-plm-border">
           {/* Organization Code - Inline with copy */}
           <div className="flex items-center justify-between p-3">
@@ -677,44 +706,44 @@ export function TeamMembersSettings() {
           )}
         </button>
         <button
-          onClick={() => setActiveTab('roles')}
-          className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${
-            activeTab === 'roles'
-              ? 'bg-plm-bg text-plm-fg shadow-sm'
-              : 'text-plm-fg-muted hover:text-plm-fg'
-          }`}
-        >
-          <Shield size={16} />
-          Roles
-          {workflowRoles.length > 0 && (
-            <span
-              className={`text-xs px-1.5 py-0.5 rounded-full ${
-                activeTab === 'roles' ? 'bg-plm-accent/20 text-plm-accent' : 'bg-plm-fg-muted/20'
-              }`}
-            >
-              {workflowRoles.length}
-            </span>
-          )}
+            onClick={() => setActiveTab('roles')}
+            className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${
+              activeTab === 'roles'
+                ? 'bg-plm-bg text-plm-fg shadow-sm'
+                : 'text-plm-fg-muted hover:text-plm-fg'
+            }`}
+          >
+            <Shield size={16} />
+            Roles
+            {workflowRoles.length > 0 && (
+              <span
+                className={`text-xs px-1.5 py-0.5 rounded-full ${
+                  activeTab === 'roles' ? 'bg-plm-accent/20 text-plm-accent' : 'bg-plm-fg-muted/20'
+                }`}
+              >
+                {workflowRoles.length}
+              </span>
+            )}
         </button>
         <button
-          onClick={() => setActiveTab('titles')}
-          className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${
-            activeTab === 'titles'
-              ? 'bg-plm-bg text-plm-fg shadow-sm'
-              : 'text-plm-fg-muted hover:text-plm-fg'
-          }`}
-        >
-          <Briefcase size={16} />
-          Titles
-          {jobTitles.length > 0 && (
-            <span
-              className={`text-xs px-1.5 py-0.5 rounded-full ${
-                activeTab === 'titles' ? 'bg-plm-accent/20 text-plm-accent' : 'bg-plm-fg-muted/20'
-              }`}
-            >
-              {jobTitles.length}
-            </span>
-          )}
+            onClick={() => setActiveTab('titles')}
+            className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${
+              activeTab === 'titles'
+                ? 'bg-plm-bg text-plm-fg shadow-sm'
+                : 'text-plm-fg-muted hover:text-plm-fg'
+            }`}
+          >
+            <Briefcase size={16} />
+            Titles
+            {jobTitles.length > 0 && (
+              <span
+                className={`text-xs px-1.5 py-0.5 rounded-full ${
+                  activeTab === 'titles' ? 'bg-plm-accent/20 text-plm-accent' : 'bg-plm-fg-muted/20'
+                }`}
+              >
+                {jobTitles.length}
+              </span>
+            )}
         </button>
       </div>
 
@@ -765,11 +794,14 @@ export function TeamMembersSettings() {
               onShowCreateRoleDialog={() => setShowCreateWorkflowRoleDialog(true)}
             />
           )}
-          {activeTab === 'titles' && (
+          {supportsJobTitles && activeTab === 'titles' && (
             <TitlesTab
               searchQuery={searchQuery}
               onShowCreateTitleDialog={() => openCreateJobTitle()}
             />
+          )}
+          {!supportsJobTitles && activeTab === 'titles' && (
+            <BackendAvailabilityNotice availability="incompatible" />
           )}
         </div>
       )}
@@ -794,6 +826,16 @@ export function TeamMembersSettings() {
           workflowRoles={workflowRoles}
           apiUrl={apiServerUrl}
           orgCode={getOrgCodeForDialog()}
+        />
+      )}
+
+      {removingUser && (
+        <RemoveUserDialog
+          user={removingUser}
+          onClose={() => setRemovingUser(null)}
+          onConfirm={() => void handleRemoveUser()}
+          isRemoving={isRemoving}
+          isSelf={removingUser.id === user?.id}
         />
       )}
 

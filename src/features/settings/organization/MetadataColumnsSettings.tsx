@@ -14,20 +14,15 @@ import {
   Send,
 } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
-import { supabase } from '@/lib/supabase'
+import { useTranslation } from '@/lib/i18n'
+import { activeBackendSupports } from '@/lib/backendAdapter'
 import type { FileMetadataColumn, MetadataColumnType } from '@/types/database'
-
-// Supabase v2 type inference incomplete for metadata column operations
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const db = supabase as any // TODO: type this
-
-const TYPE_LABELS: Record<MetadataColumnType, string> = {
-  text: 'Text',
-  number: 'Number',
-  date: 'Date',
-  boolean: 'Yes/No',
-  select: 'Dropdown',
-}
+import {
+  createMetadataColumn,
+  deleteMetadataColumn,
+  getMetadataColumns,
+  updateMetadataColumn,
+} from '@/lib/metadataColumns'
 
 interface EditingColumn {
   id?: string
@@ -55,6 +50,7 @@ const DEFAULT_COLUMN: EditingColumn = {
 }
 
 export function MetadataColumnsSettings() {
+  const { t } = useTranslation()
   const {
     user,
     organization,
@@ -89,6 +85,13 @@ export function MetadataColumnsSettings() {
 
   // Select options editing
   const [newOption, setNewOption] = useState('')
+  const typeLabels: Record<MetadataColumnType, string> = {
+    text: t('settingsPages.metadata.typeText'),
+    number: t('settingsPages.metadata.typeNumber'),
+    date: t('settingsPages.metadata.typeDate'),
+    boolean: t('settingsPages.metadata.typeBoolean'),
+    select: t('settingsPages.metadata.typeSelect'),
+  }
 
   const handleSaveUserDefaults = async () => {
     setIsSavingUserDefaults(true)
@@ -96,9 +99,9 @@ export function MetadataColumnsSettings() {
     setIsSavingUserDefaults(false)
 
     if (result.success) {
-      addToast('success', 'Saved as your personal defaults')
+      addToast('success', t('settingsPages.metadata.personalDefaultsSaved'))
     } else {
-      addToast('error', result.error || 'Failed to save defaults')
+      addToast('error', result.error || t('settingsPages.metadata.defaultsSaveFailed'))
     }
   }
 
@@ -108,9 +111,9 @@ export function MetadataColumnsSettings() {
     setIsLoadingUserDefaults(false)
 
     if (result.success) {
-      addToast('success', 'Loaded your personal defaults')
+      addToast('success', t('settingsPages.metadata.personalDefaultsLoaded'))
     } else {
-      addToast('error', result.error || 'Failed to load defaults')
+      addToast('error', result.error || t('settingsPages.metadata.defaultsLoadFailed'))
     }
   }
 
@@ -120,9 +123,9 @@ export function MetadataColumnsSettings() {
     setIsSavingDefaults(false)
 
     if (result.success) {
-      addToast('success', 'Saved as organization defaults')
+      addToast('success', t('settingsPages.metadata.organizationDefaultsSaved'))
     } else {
-      addToast('error', result.error || 'Failed to save defaults')
+      addToast('error', result.error || t('settingsPages.metadata.defaultsSaveFailed'))
     }
   }
 
@@ -132,15 +135,15 @@ export function MetadataColumnsSettings() {
     setIsLoadingDefaults(false)
 
     if (result.success) {
-      addToast('success', 'Loaded organization defaults')
+      addToast('success', t('settingsPages.metadata.organizationDefaultsLoaded'))
     } else {
-      addToast('error', result.error || 'Failed to load defaults')
+      addToast('error', result.error || t('settingsPages.metadata.defaultsLoadFailed'))
     }
   }
 
   const handleResetToDefaults = () => {
     resetColumnsToDefaults()
-    addToast('info', 'Reset to application defaults')
+    addToast('info', t('settingsPages.metadata.applicationDefaultsRestored'))
   }
 
   // Handle force-push to all users
@@ -151,9 +154,9 @@ export function MetadataColumnsSettings() {
     setIsPushing(false)
 
     if (result.success) {
-      addToast('success', 'Column layout pushed to all users')
+      addToast('success', t('settingsPages.metadata.layoutPushed'))
     } else {
-      addToast('error', result.error || 'Failed to push column layout')
+      addToast('error', result.error || t('settingsPages.metadata.layoutPushFailed'))
     }
   }
 
@@ -169,20 +172,10 @@ export function MetadataColumnsSettings() {
 
     setIsLoading(true)
     try {
-      const { data, error } = await supabase
-        .from('file_metadata_columns')
-        .select('*')
-        .eq('org_id', organization.id)
-        .order('sort_order')
-
-      if (error) {
-        log.error('[MetadataColumns]', 'Failed to load metadata columns', { error })
-        addToast('error', 'Failed to load metadata columns')
-      } else {
-        setColumns(data || [])
-      }
+      setColumns(await getMetadataColumns(organization.id))
     } catch (error) {
       log.error('[MetadataColumns]', 'Failed to load metadata columns', { error: error })
+      addToast('error', t('settingsPages.metadata.loadFailed'))
     } finally {
       setIsLoading(false)
     }
@@ -193,21 +186,18 @@ export function MetadataColumnsSettings() {
 
     // Validate
     if (!editingColumn.name.trim()) {
-      addToast('error', 'Column name is required')
+      addToast('error', t('settingsPages.metadata.nameRequired'))
       return
     }
     if (!editingColumn.label.trim()) {
-      addToast('error', 'Column label is required')
+      addToast('error', t('settingsPages.metadata.labelRequired'))
       return
     }
 
     // Validate name format (only lowercase letters, numbers, underscores)
     const nameRegex = /^[a-z][a-z0-9_]*$/
     if (!nameRegex.test(editingColumn.name)) {
-      addToast(
-        'error',
-        'Name must start with a letter and contain only lowercase letters, numbers, and underscores',
-      )
+      addToast('error', t('settingsPages.metadata.invalidName'))
       return
     }
 
@@ -216,31 +206,25 @@ export function MetadataColumnsSettings() {
     try {
       if (editingColumn.id) {
         // Update existing column
-        const { error } = await db
-          .from('file_metadata_columns')
-          .update({
-            name: editingColumn.name.toLowerCase(),
-            label: editingColumn.label,
-            data_type: editingColumn.data_type,
-            select_options: editingColumn.select_options,
-            width: editingColumn.width,
-            visible: editingColumn.visible,
-            sortable: editingColumn.sortable,
-            required: editingColumn.required,
-            default_value: editingColumn.default_value || null,
-            updated_at: new Date().toISOString(),
-            updated_by: user.id,
-          })
-          .eq('id', editingColumn.id)
-
-        if (error) throw error
-        addToast('success', 'Column updated')
+        await updateMetadataColumn(editingColumn.id, {
+          name: editingColumn.name.toLowerCase(),
+          label: editingColumn.label,
+          data_type: editingColumn.data_type,
+          select_options: editingColumn.select_options,
+          width: editingColumn.width,
+          visible: editingColumn.visible,
+          sortable: editingColumn.sortable,
+          required: editingColumn.required,
+          default_value: editingColumn.default_value || null,
+          updated_at: new Date().toISOString(),
+          updated_by: user.id,
+        })
+        addToast('success', t('settingsPages.metadata.columnUpdated'))
       } else {
         // Create new column
         const maxSortOrder = columns.length > 0 ? Math.max(...columns.map((c) => c.sort_order)) : -1
 
-        const { error } = await db.from('file_metadata_columns').insert({
-          org_id: organization.id,
+        await createMetadataColumn({
           name: editingColumn.name.toLowerCase(),
           label: editingColumn.label,
           data_type: editingColumn.data_type,
@@ -253,9 +237,7 @@ export function MetadataColumnsSettings() {
           sort_order: maxSortOrder + 1,
           created_by: user.id,
         })
-
-        if (error) throw error
-        addToast('success', 'Column created')
+        addToast('success', t('settingsPages.metadata.columnCreated'))
       }
 
       await loadColumns()
@@ -265,9 +247,9 @@ export function MetadataColumnsSettings() {
       log.error('[MetadataColumns]', 'Failed to save column', { error: error })
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       if (errorMessage.includes('duplicate key')) {
-        addToast('error', 'A column with this name already exists')
+        addToast('error', t('settingsPages.metadata.duplicateName'))
       } else {
-        addToast('error', 'Failed to save column')
+        addToast('error', t('settingsPages.metadata.columnSaveFailed'))
       }
     } finally {
       setIsSaving(false)
@@ -279,19 +261,17 @@ export function MetadataColumnsSettings() {
 
     setIsDeleting(true)
     try {
-      const { error } = await supabase
-        .from('file_metadata_columns')
-        .delete()
-        .eq('id', deletingColumn.id)
+      await deleteMetadataColumn(deletingColumn.id)
 
-      if (error) throw error
-
-      addToast('success', `Column "${deletingColumn.label}" deleted`)
+      addToast(
+        'success',
+        t('settingsPages.metadata.columnDeleted', { label: deletingColumn.label }),
+      )
       await loadColumns()
       setDeletingColumn(null)
     } catch (error) {
       log.error('[MetadataColumns]', 'Failed to delete column', { error: error })
-      addToast('error', 'Failed to delete column')
+      addToast('error', t('settingsPages.metadata.columnDeleteFailed'))
     } finally {
       setIsDeleting(false)
     }
@@ -299,17 +279,15 @@ export function MetadataColumnsSettings() {
 
   const handleToggleVisibility = async (column: FileMetadataColumn) => {
     try {
-      const { error } = await db
-        .from('file_metadata_columns')
-        .update({ visible: !column.visible, updated_at: new Date().toISOString() })
-        .eq('id', column.id)
-
-      if (error) throw error
+      await updateMetadataColumn(column.id, {
+        visible: !column.visible,
+        updated_at: new Date().toISOString(),
+      })
 
       setColumns(columns.map((c) => (c.id === column.id ? { ...c, visible: !c.visible } : c)))
     } catch (error) {
       log.error('[MetadataColumns]', 'Failed to toggle visibility', { error: error })
-      addToast('error', 'Failed to update column')
+      addToast('error', t('settingsPages.metadata.columnUpdateFailed'))
     }
   }
 
@@ -324,20 +302,14 @@ export function MetadataColumnsSettings() {
     try {
       // Swap sort orders
       await Promise.all([
-        db
-          .from('file_metadata_columns')
-          .update({ sort_order: otherColumn.sort_order })
-          .eq('id', column.id),
-        db
-          .from('file_metadata_columns')
-          .update({ sort_order: column.sort_order })
-          .eq('id', otherColumn.id),
+        updateMetadataColumn(column.id, { sort_order: otherColumn.sort_order }),
+        updateMetadataColumn(otherColumn.id, { sort_order: column.sort_order }),
       ])
 
       await loadColumns()
     } catch (error) {
       log.error('[MetadataColumns]', 'Failed to reorder columns', { error: error })
-      addToast('error', 'Failed to reorder columns')
+      addToast('error', t('settingsPages.metadata.reorderFailed'))
     }
   }
 
@@ -345,7 +317,7 @@ export function MetadataColumnsSettings() {
     if (!newOption.trim() || !editingColumn) return
 
     if (editingColumn.select_options.includes(newOption.trim())) {
-      addToast('error', 'This option already exists')
+      addToast('error', t('settingsPages.metadata.optionExists'))
       return
     }
 
@@ -365,6 +337,7 @@ export function MetadataColumnsSettings() {
   }
 
   const isAdmin = getEffectiveRole() === 'admin'
+  const supportsColumnDefaults = activeBackendSupports('metadata-column-defaults')
 
   return (
     <div className="space-y-6">
@@ -372,21 +345,21 @@ export function MetadataColumnsSettings() {
       <div className="space-y-3">
         <div>
           <h3 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium">
-            Built-in Columns
+            {t('settingsPages.metadata.builtInColumns')}
           </h3>
           <p className="text-sm text-plm-fg-dim mt-1">
-            Standard columns.{' '}
+            {t('settingsPages.metadata.standardColumns')}{' '}
             {isAdmin
-              ? 'Set default width and visibility for your organization.'
-              : 'Toggle visibility to show/hide.'}
+              ? t('settingsPages.metadata.adminBuiltInHelp')
+              : t('settingsPages.metadata.memberBuiltInHelp')}
           </p>
         </div>
 
         {/* Table header */}
         <div className="grid grid-cols-[1fr_80px_60px] gap-2 px-3 py-1.5 text-xs text-plm-fg-muted uppercase tracking-wide border-b border-plm-border">
-          <span>Column</span>
-          <span className="text-center">Width</span>
-          <span className="text-center">Visible</span>
+          <span>{t('settingsPages.metadata.column')}</span>
+          <span className="text-center">{t('settingsPages.metadata.width')}</span>
+          <span className="text-center">{t('settingsPages.metadata.visible')}</span>
         </div>
 
         {/* Column rows */}
@@ -419,7 +392,11 @@ export function MetadataColumnsSettings() {
                 <button
                   onClick={() => toggleColumnVisibility(column.id)}
                   className="p-1 hover:bg-plm-highlight rounded transition-colors"
-                  title={column.visible ? 'Hide column' : 'Show column'}
+                  title={
+                    column.visible
+                      ? t('settingsPages.metadata.hideColumn')
+                      : t('settingsPages.metadata.showColumn')
+                  }
                 >
                   {column.visible ? (
                     <Eye size={14} className="text-plm-accent" />
@@ -441,12 +418,12 @@ export function MetadataColumnsSettings() {
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium">
-              Custom Columns
+              {t('settingsPages.metadata.customColumns')}
             </h3>
             <p className="text-sm text-plm-fg-dim mt-1">
               {isAdmin
-                ? 'Define custom properties that appear in the file browser.'
-                : 'Custom properties defined by your organization admin.'}
+                ? t('settingsPages.metadata.adminCustomHelp')
+                : t('settingsPages.metadata.memberCustomHelp')}
             </p>
           </div>
           {isAdmin && !isCreating && !editingColumn && organization && (
@@ -458,7 +435,7 @@ export function MetadataColumnsSettings() {
               className="btn btn-primary btn-sm flex items-center gap-1"
             >
               <Plus size={14} />
-              Add Column
+              {t('settingsPages.metadata.addColumn')}
             </button>
           )}
         </div>
@@ -466,12 +443,18 @@ export function MetadataColumnsSettings() {
         {/* Create/Edit Form (admin only) */}
         {isAdmin && editingColumn && (
           <div className="p-4 bg-plm-bg rounded-lg border border-plm-accent space-y-4">
-            <h3 className="font-medium text-plm-fg">{isCreating ? 'New Column' : 'Edit Column'}</h3>
+            <h3 className="font-medium text-plm-fg">
+              {isCreating
+                ? t('settingsPages.metadata.newColumn')
+                : t('settingsPages.metadata.editColumn')}
+            </h3>
 
             <div className="grid grid-cols-2 gap-4">
               {/* Name */}
               <div className="space-y-1">
-                <label className="text-sm text-plm-fg-muted">Internal Name</label>
+                <label className="text-sm text-plm-fg-muted">
+                  {t('settingsPages.metadata.internalName')}
+                </label>
                 <input
                   type="text"
                   value={editingColumn.name}
@@ -481,18 +464,20 @@ export function MetadataColumnsSettings() {
                       name: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''),
                     })
                   }
-                  placeholder="e.g., material, weight"
+                  placeholder={t('settingsPages.metadata.internalNamePlaceholder')}
                   className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none font-mono"
                   disabled={!isCreating}
                 />
                 <p className="text-xs text-plm-fg-dim">
-                  Used in data storage. Lowercase letters, numbers, underscores only.
+                  {t('settingsPages.metadata.internalNameHelp')}
                 </p>
               </div>
 
               {/* Label */}
               <div className="space-y-1">
-                <label className="text-sm text-plm-fg-muted">Display Label</label>
+                <label className="text-sm text-plm-fg-muted">
+                  {t('settingsPages.metadata.displayLabel')}
+                </label>
                 <input
                   type="text"
                   value={editingColumn.label}
@@ -502,7 +487,7 @@ export function MetadataColumnsSettings() {
                       label: e.target.value,
                     })
                   }
-                  placeholder="e.g., Material, Weight (kg)"
+                  placeholder={t('settingsPages.metadata.displayLabelPlaceholder')}
                   className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
                 />
               </div>
@@ -511,7 +496,9 @@ export function MetadataColumnsSettings() {
             <div className="grid grid-cols-3 gap-4">
               {/* Data Type */}
               <div className="space-y-1">
-                <label className="text-sm text-plm-fg-muted">Data Type</label>
+                <label className="text-sm text-plm-fg-muted">
+                  {t('settingsPages.metadata.dataType')}
+                </label>
                 <select
                   value={editingColumn.data_type}
                   onChange={(e) =>
@@ -524,7 +511,7 @@ export function MetadataColumnsSettings() {
                   }
                   className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
                 >
-                  {Object.entries(TYPE_LABELS).map(([value, label]) => (
+                  {Object.entries(typeLabels).map(([value, label]) => (
                     <option key={value} value={value}>
                       {label}
                     </option>
@@ -534,7 +521,9 @@ export function MetadataColumnsSettings() {
 
               {/* Width */}
               <div className="space-y-1">
-                <label className="text-sm text-plm-fg-muted">Column Width (px)</label>
+                <label className="text-sm text-plm-fg-muted">
+                  {t('settingsPages.metadata.columnWidth')}
+                </label>
                 <input
                   type="number"
                   value={editingColumn.width}
@@ -552,7 +541,9 @@ export function MetadataColumnsSettings() {
 
               {/* Default Value */}
               <div className="space-y-1">
-                <label className="text-sm text-plm-fg-muted">Default Value</label>
+                <label className="text-sm text-plm-fg-muted">
+                  {t('settingsPages.metadata.defaultValue')}
+                </label>
                 <input
                   type="text"
                   value={editingColumn.default_value}
@@ -562,7 +553,7 @@ export function MetadataColumnsSettings() {
                       default_value: e.target.value,
                     })
                   }
-                  placeholder="Optional"
+                  placeholder={t('settingsPages.metadata.optional')}
                   className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
                 />
               </div>
@@ -571,7 +562,9 @@ export function MetadataColumnsSettings() {
             {/* Select Options (only for select type) */}
             {editingColumn.data_type === 'select' && (
               <div className="space-y-2">
-                <label className="text-sm text-plm-fg-muted">Dropdown Options</label>
+                <label className="text-sm text-plm-fg-muted">
+                  {t('settingsPages.metadata.dropdownOptions')}
+                </label>
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -583,7 +576,7 @@ export function MetadataColumnsSettings() {
                         addSelectOption()
                       }
                     }}
-                    placeholder="Add an option..."
+                    placeholder={t('settingsPages.metadata.addOptionPlaceholder')}
                     className="flex-1 bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
                   />
                   <button
@@ -629,7 +622,9 @@ export function MetadataColumnsSettings() {
                   }
                   className="w-4 h-4 rounded border-plm-border text-plm-accent focus:ring-plm-accent"
                 />
-                <span className="text-base text-plm-fg">Visible by default</span>
+                <span className="text-base text-plm-fg">
+                  {t('settingsPages.metadata.visibleByDefault')}
+                </span>
               </label>
 
               <label className="flex items-center gap-2 cursor-pointer">
@@ -644,7 +639,9 @@ export function MetadataColumnsSettings() {
                   }
                   className="w-4 h-4 rounded border-plm-border text-plm-accent focus:ring-plm-accent"
                 />
-                <span className="text-base text-plm-fg">Sortable</span>
+                <span className="text-base text-plm-fg">
+                  {t('settingsPages.metadata.sortable')}
+                </span>
               </label>
 
               <label className="flex items-center gap-2 cursor-pointer">
@@ -659,7 +656,9 @@ export function MetadataColumnsSettings() {
                   }
                   className="w-4 h-4 rounded border-plm-border text-plm-accent focus:ring-plm-accent"
                 />
-                <span className="text-base text-plm-fg">Required</span>
+                <span className="text-base text-plm-fg">
+                  {t('settingsPages.metadata.required')}
+                </span>
               </label>
             </div>
 
@@ -672,7 +671,7 @@ export function MetadataColumnsSettings() {
                 }}
                 className="btn btn-ghost btn-sm"
               >
-                Cancel
+                {t('settingsPages.metadata.cancel')}
               </button>
               <button
                 onClick={handleSaveColumn}
@@ -682,12 +681,12 @@ export function MetadataColumnsSettings() {
                 {isSaving ? (
                   <>
                     <Loader2 size={14} className="animate-spin" />
-                    Saving...
+                    {t('settingsPages.metadata.saving')}
                   </>
                 ) : isCreating ? (
-                  'Create Column'
+                  t('settingsPages.metadata.createColumn')
                 ) : (
-                  'Save Changes'
+                  t('settingsPages.metadata.saveChanges')
                 )}
               </button>
             </div>
@@ -697,7 +696,7 @@ export function MetadataColumnsSettings() {
         {/* Custom Columns List */}
         {!organization ? (
           <div className="text-center py-6 text-plm-fg-muted text-sm border border-dashed border-plm-border rounded-lg">
-            Connect to an organization to view custom columns
+            {t('settingsPages.metadata.connectOrganization')}
           </div>
         ) : isLoading ? (
           <div className="flex items-center justify-center py-6">
@@ -705,10 +704,10 @@ export function MetadataColumnsSettings() {
           </div>
         ) : columns.length === 0 && !isCreating ? (
           <div className="text-center py-6 text-plm-fg-muted text-sm border border-dashed border-plm-border rounded-lg">
-            <p>No custom columns defined</p>
+            <p>{t('settingsPages.metadata.noCustomColumns')}</p>
             {isAdmin && (
               <p className="text-xs mt-1 text-plm-fg-dim">
-                Click "Add Column" to create custom properties like Material, Weight, etc.
+                {t('settingsPages.metadata.noCustomColumnsHelp')}
               </p>
             )}
           </div>
@@ -716,11 +715,13 @@ export function MetadataColumnsSettings() {
           <>
             {/* Table header */}
             <div className="grid grid-cols-[1fr_80px_80px_60px_auto] gap-2 px-3 py-1.5 text-xs text-plm-fg-muted uppercase tracking-wide border-b border-plm-border">
-              <span>Column</span>
-              <span className="text-center">Type</span>
-              <span className="text-center">Width</span>
-              <span className="text-center">Visible</span>
-              {isAdmin && <span className="text-center w-20">Actions</span>}
+              <span>{t('settingsPages.metadata.column')}</span>
+              <span className="text-center">{t('settingsPages.metadata.type')}</span>
+              <span className="text-center">{t('settingsPages.metadata.width')}</span>
+              <span className="text-center">{t('settingsPages.metadata.visible')}</span>
+              {isAdmin && (
+                <span className="text-center w-20">{t('settingsPages.metadata.actions')}</span>
+              )}
             </div>
 
             {/* Column rows */}
@@ -753,14 +754,14 @@ export function MetadataColumnsSettings() {
                     <span className="text-sm text-plm-fg">{column.label}</span>
                     {column.required && (
                       <span className="text-[10px] px-1 py-0.5 bg-plm-warning/20 text-plm-warning rounded">
-                        req
+                        {t('settingsPages.metadata.requiredShort')}
                       </span>
                     )}
                   </div>
 
                   {/* Type */}
                   <span className="text-xs text-plm-fg-muted text-center">
-                    {TYPE_LABELS[column.data_type]}
+                    {typeLabels[column.data_type]}
                   </span>
 
                   {/* Width */}
@@ -771,7 +772,11 @@ export function MetadataColumnsSettings() {
                     <button
                       onClick={() => handleToggleVisibility(column)}
                       className="p-1 hover:bg-plm-highlight rounded transition-colors"
-                      title={column.visible ? 'Hide column' : 'Show column'}
+                      title={
+                        column.visible
+                          ? t('settingsPages.metadata.hideColumn')
+                          : t('settingsPages.metadata.showColumn')
+                      }
                     >
                       {column.visible ? (
                         <Eye size={14} className="text-plm-accent" />
@@ -801,14 +806,14 @@ export function MetadataColumnsSettings() {
                           setIsCreating(false)
                         }}
                         className="p-1 hover:bg-plm-highlight rounded transition-colors"
-                        title="Edit column"
+                        title={t('settingsPages.metadata.editColumn')}
                       >
                         <Pencil size={12} className="text-plm-fg-muted" />
                       </button>
                       <button
                         onClick={() => setDeletingColumn(column)}
                         className="p-1 hover:bg-plm-error/20 rounded transition-colors"
-                        title="Delete column"
+                        title={t('settingsPages.metadata.deleteColumn')}
                       >
                         <Trash2 size={12} className="text-plm-error" />
                       </button>
@@ -822,80 +827,89 @@ export function MetadataColumnsSettings() {
       </div>
 
       {/* Actions & Info */}
-      <div className="p-4 bg-plm-bg rounded border border-plm-border space-y-3">
-        {/* Personal defaults - available to all users */}
-        {user && (
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={handleSaveUserDefaults}
-              disabled={isSavingUserDefaults}
-              className="btn btn-primary btn-sm"
-            >
-              {isSavingUserDefaults ? 'Saving...' : 'Save as My Defaults'}
-            </button>
-            <button
-              onClick={handleLoadUserDefaults}
-              disabled={isLoadingUserDefaults}
-              className="btn btn-ghost btn-sm"
-            >
-              {isLoadingUserDefaults ? 'Loading...' : 'Load My Defaults'}
-            </button>
-            <button
-              onClick={handleResetToDefaults}
-              className="btn btn-ghost btn-sm text-plm-fg-muted"
-            >
-              Reset to App Defaults
-            </button>
-          </div>
-        )}
-
-        {/* Org defaults - admin only for save/push, all users can load */}
-        {organization && (
-          <div className="flex flex-wrap gap-2">
-            {isAdmin && (
+      {supportsColumnDefaults && (
+        <div className="p-4 bg-plm-bg rounded border border-plm-border space-y-3">
+          {/* Personal defaults - available to all users */}
+          {user && (
+            <div className="flex flex-wrap gap-2">
               <button
-                onClick={handleSaveOrgDefaults}
-                disabled={isSavingDefaults}
-                className="btn btn-sm bg-plm-accent/20 text-plm-accent hover:bg-plm-accent/30 border border-plm-accent/30"
+                onClick={handleSaveUserDefaults}
+                disabled={isSavingUserDefaults}
+                className="btn btn-primary btn-sm"
               >
-                {isSavingDefaults ? 'Saving...' : 'Save as Org Defaults'}
+                {isSavingUserDefaults
+                  ? t('settingsPages.metadata.saving')
+                  : t('settingsPages.metadata.saveMyDefaults')}
               </button>
-            )}
-            {isAdmin && (
               <button
-                onClick={() => setShowPushConfirm(true)}
-                disabled={isPushing}
-                className="btn btn-sm bg-plm-warning/20 text-plm-warning hover:bg-plm-warning/30 border border-plm-warning/30 flex items-center gap-1.5"
+                onClick={handleLoadUserDefaults}
+                disabled={isLoadingUserDefaults}
+                className="btn btn-ghost btn-sm"
               >
-                {isPushing ? (
-                  <>
-                    <Loader2 size={14} className="animate-spin" />
-                    Pushing...
-                  </>
-                ) : (
-                  <>
-                    <Send size={14} />
-                    Push to All Users
-                  </>
-                )}
+                {isLoadingUserDefaults
+                  ? t('settingsPages.metadata.loading')
+                  : t('settingsPages.metadata.loadMyDefaults')}
               </button>
-            )}
-            <button
-              onClick={handleLoadOrgDefaults}
-              disabled={isLoadingDefaults}
-              className="btn btn-ghost btn-sm"
-            >
-              {isLoadingDefaults ? 'Loading...' : 'Load Org Defaults'}
-            </button>
-          </div>
-        )}
+              <button
+                onClick={handleResetToDefaults}
+                className="btn btn-ghost btn-sm text-plm-fg-muted"
+              >
+                {t('settingsPages.metadata.resetAppDefaults')}
+              </button>
+            </div>
+          )}
 
-        <p className="text-xs text-plm-fg-dim">
-          "Save as My Defaults" saves your column layout to the cloud so it syncs across devices.
-          {isAdmin &&
-            ' "Save as Org Defaults" sets the starting configuration for new team members. "Push to All Users" overrides every user\'s current column layout.'}
-        </p>
-      </div>
+          {/* Org defaults - admin only for save/push, all users can load */}
+          {organization && (
+            <div className="flex flex-wrap gap-2">
+              {isAdmin && (
+                <button
+                  onClick={handleSaveOrgDefaults}
+                  disabled={isSavingDefaults}
+                  className="btn btn-sm bg-plm-accent/20 text-plm-accent hover:bg-plm-accent/30 border border-plm-accent/30"
+                >
+                  {isSavingDefaults
+                    ? t('settingsPages.metadata.saving')
+                    : t('settingsPages.metadata.saveOrgDefaults')}
+                </button>
+              )}
+              {isAdmin && (
+                <button
+                  onClick={() => setShowPushConfirm(true)}
+                  disabled={isPushing}
+                  className="btn btn-sm bg-plm-warning/20 text-plm-warning hover:bg-plm-warning/30 border border-plm-warning/30 flex items-center gap-1.5"
+                >
+                  {isPushing ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      {t('settingsPages.metadata.pushing')}
+                    </>
+                  ) : (
+                    <>
+                      <Send size={14} />
+                      {t('settingsPages.metadata.pushAllUsers')}
+                    </>
+                  )}
+                </button>
+              )}
+              <button
+                onClick={handleLoadOrgDefaults}
+                disabled={isLoadingDefaults}
+                className="btn btn-ghost btn-sm"
+              >
+                {isLoadingDefaults
+                  ? t('settingsPages.metadata.loading')
+                  : t('settingsPages.metadata.loadOrgDefaults')}
+              </button>
+            </div>
+          )}
+
+          <p className="text-xs text-plm-fg-dim">
+            {t('settingsPages.metadata.personalDefaultsHelp')}
+            {isAdmin && ` ${t('settingsPages.metadata.organizationDefaultsHelp')}`}
+          </p>
+        </div>
+      )}
 
       {/* Delete Confirmation Dialog */}
       {deletingColumn && (
@@ -911,25 +925,26 @@ export function MetadataColumnsSettings() {
               <div className="p-2 bg-plm-error/20 rounded-full">
                 <AlertTriangle size={20} className="text-plm-error" />
               </div>
-              <h3 className="text-lg font-medium text-plm-fg">Delete Column</h3>
+              <h3 className="text-lg font-medium text-plm-fg">
+                {t('settingsPages.metadata.deleteColumn')}
+              </h3>
             </div>
             <p className="text-base text-plm-fg-muted mb-4">
-              Are you sure you want to delete the column <strong>"{deletingColumn.label}"</strong>?
+              {t('settingsPages.metadata.deleteConfirm', { label: deletingColumn.label })}
             </p>
-            <p className="text-sm text-plm-fg-dim mb-4">
-              This will remove the column from the file browser. Existing file metadata using this
-              column will remain in storage but won't be displayed.
-            </p>
+            <p className="text-sm text-plm-fg-dim mb-4">{t('settingsPages.metadata.deleteHelp')}</p>
             <div className="flex gap-2 justify-end">
               <button onClick={() => setDeletingColumn(null)} className="btn btn-ghost">
-                Cancel
+                {t('settingsPages.metadata.cancel')}
               </button>
               <button
                 onClick={handleDeleteColumn}
                 disabled={isDeleting}
                 className="btn bg-plm-error text-white hover:bg-plm-error/90 disabled:opacity-50"
               >
-                {isDeleting ? 'Deleting...' : 'Delete Column'}
+                {isDeleting
+                  ? t('settingsPages.metadata.deleting')
+                  : t('settingsPages.metadata.deleteColumn')}
               </button>
             </div>
           </div>
@@ -950,25 +965,23 @@ export function MetadataColumnsSettings() {
               <div className="p-2 bg-plm-warning/20 rounded-full">
                 <Send size={20} className="text-plm-warning" />
               </div>
-              <h3 className="text-lg font-medium text-plm-fg">Push to All Users</h3>
+              <h3 className="text-lg font-medium text-plm-fg">
+                {t('settingsPages.metadata.pushAllUsers')}
+              </h3>
             </div>
             <p className="text-base text-plm-fg-muted mb-4">
-              This will override <strong>every user's</strong> column layout with your current
-              configuration.
+              {t('settingsPages.metadata.pushConfirm')}
             </p>
-            <p className="text-sm text-plm-fg-dim mb-4">
-              All connected users will receive the update immediately. Users who are offline will
-              receive it when they next open the app.
-            </p>
+            <p className="text-sm text-plm-fg-dim mb-4">{t('settingsPages.metadata.pushHelp')}</p>
             <div className="flex gap-2 justify-end">
               <button onClick={() => setShowPushConfirm(false)} className="btn btn-ghost">
-                Cancel
+                {t('settingsPages.metadata.cancel')}
               </button>
               <button
                 onClick={handlePushToAllUsers}
                 className="btn bg-plm-warning text-white hover:bg-plm-warning/90"
               >
-                Push to All Users
+                {t('settingsPages.metadata.pushAllUsers')}
               </button>
             </div>
           </div>

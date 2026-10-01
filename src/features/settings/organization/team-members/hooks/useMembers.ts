@@ -26,7 +26,16 @@
  */
 import { useCallback, useEffect } from 'react'
 import { supabase, removeUserFromOrg } from '@/lib/supabase'
+import {
+  addMdbTeamMember,
+  getMdbUserTeams,
+  getMdbUsers,
+  removeMdbUser,
+  removeMdbTeamMember,
+} from '@/lib/mdb'
+import { routeBackend } from '@/lib/backendAdapter'
 import { log } from '@/lib/logger'
+import { t } from '@/lib/i18n'
 import { usePDMStore } from '@/stores/pdmStore'
 import type { OrgUser } from '../types'
 import {
@@ -55,78 +64,67 @@ export function useMembers(orgId: string | null) {
 
     setMembersLoading(true)
     try {
-      const { data: usersData, error } = await supabase
-        .from('users')
-        .select(
-          'id, email, full_name, avatar_url, custom_avatar_url, job_title, role, last_sign_in, last_online',
-        )
-        .eq('org_id', orgId)
-        .order('full_name')
-
-      if (error) throw error
-
-      const typedUsers = castQueryResult<UserBasic[]>(usersData || [])
-
-      // Load pending org members (unclaimed) to filter them out from the user list
-      const { data: pendingData } = await supabase
-        .from('pending_org_members')
-        .select('email')
-        .eq('org_id', orgId)
-        .is('claimed_at', null)
-
-      const pendingEmails = new Set(
-        castQueryResult<{ email: string }[]>(pendingData || []).map((p) => p.email.toLowerCase()),
-      )
-
-      // Filter out users who are still pending
-      const activeUsers = typedUsers.filter((u) => !pendingEmails.has(u.email.toLowerCase()))
-
-      // Load team memberships for active users only
-      const { data: membershipsData } = await supabase
-        .from('team_members')
-        .select(
-          `
+      const loadedMembers = await routeBackend({
+        mdb: async () => {
+          const mdbUsers = await getMdbUsers()
+          return Promise.all(
+            mdbUsers.map(async (mdbUser): Promise<OrgUser> => ({
+              id: mdbUser.id,
+              email: mdbUser.email,
+              full_name: mdbUser.displayName,
+              avatar_url: null,
+              custom_avatar_url: null,
+              job_title: null,
+              role: mdbUser.role,
+              last_sign_in: null,
+              last_online: null,
+              teams: await getMdbUserTeams(mdbUser.id),
+            })),
+          )
+        },
+        supabase: async () => {
+          const { data: usersData, error } = await supabase
+            .from('users')
+            .select('id, email, full_name, avatar_url, custom_avatar_url, job_title, role, last_sign_in, last_online')
+            .eq('org_id', orgId)
+            .order('full_name')
+          if (error) throw error
+          const typedUsers = castQueryResult<UserBasic[]>(usersData || [])
+          const { data: pendingData } = await supabase
+            .from('pending_org_members').select('email').eq('org_id', orgId).is('claimed_at', null)
+          const pendingEmails = new Set(
+            castQueryResult<{ email: string }[]>(pendingData || []).map((pending) => pending.email.toLowerCase()),
+          )
+          const activeUsers = typedUsers.filter((activeUser) => !pendingEmails.has(activeUser.email.toLowerCase()))
+          const { data: membershipsData } = await supabase
+            .from('team_members')
+            .select(`
           user_id,
           team:teams(id, name, color, icon)
-        `,
-        )
-        .in(
-          'user_id',
-          activeUsers.map((u) => u.id),
-        )
-
-      const typedMemberships = castQueryResult<TeamMembershipJoin[]>(membershipsData || [])
-
-      // Load job title assignments for active users only
-      const { data: titleAssignmentsData } = await supabase
-        .from('user_job_titles')
-        .select(
-          `
+        `)
+            .in('user_id', activeUsers.map((activeUser) => activeUser.id))
+          const typedMemberships = castQueryResult<TeamMembershipJoin[]>(membershipsData || [])
+          const { data: titleAssignmentsData } = await supabase
+            .from('user_job_titles')
+            .select(`
           user_id,
           title:job_titles(id, name, color, icon)
-        `,
-        )
-        .in(
-          'user_id',
-          activeUsers.map((u) => u.id),
-        )
-
-      const typedTitleAssignments = castQueryResult<UserJobTitleJoin[]>(titleAssignmentsData || [])
-
-      // Map teams and job_title to users
-      const usersWithTeamsAndTitles: OrgUser[] = activeUsers.map((userRecord) => {
-        const userMemberships = typedMemberships.filter((m) => m.user_id === userRecord.id)
-        const userTitleAssignment = typedTitleAssignments.find((t) => t.user_id === userRecord.id)
-        return {
-          ...userRecord,
-          teams: userMemberships
-            .map((m) => m.team)
-            .filter((t): t is NonNullable<typeof t> => t !== null),
-          job_title: userTitleAssignment?.title ?? null,
-        }
+        `)
+            .in('user_id', activeUsers.map((activeUser) => activeUser.id))
+          const typedTitleAssignments = castQueryResult<UserJobTitleJoin[]>(titleAssignmentsData || [])
+          return activeUsers.map((userRecord): OrgUser => {
+            const userMemberships = typedMemberships.filter((membership) => membership.user_id === userRecord.id)
+            const userTitleAssignment = typedTitleAssignments.find((assignment) => assignment.user_id === userRecord.id)
+            return {
+              ...userRecord,
+              teams: userMemberships.map((membership) => membership.team)
+                .filter((team): team is NonNullable<typeof team> => team !== null),
+              job_title: userTitleAssignment?.title ?? null,
+            }
+          })
+        },
       })
-
-      setMembers(usersWithTeamsAndTitles)
+      setMembers(loadedMembers)
     } catch (error) {
       log.error('[Members]', 'Failed to load org users', { error: error })
     } finally {
@@ -142,17 +140,21 @@ export function useMembers(orgId: string | null) {
       if (!member) return false
 
       try {
-        const result = await removeUserFromOrg(memberId, orgId)
-        if (result.success) {
-          addToast('success', `Removed ${member.full_name || member.email} from organization`)
-          removeMemberFromStore(memberId)
-          return true
-        } else {
-          addToast('error', result.error || 'Failed to remove user')
-          return false
-        }
-      } catch {
-        addToast('error', 'Failed to remove user')
+        await routeBackend({
+          mdb: () => removeMdbUser(memberId),
+          supabase: async () => {
+            const result = await removeUserFromOrg(memberId, orgId)
+            if (!result.success) throw new Error(result.error || 'Failed to remove user')
+          },
+        })
+        addToast(
+          'success',
+          t('mdbSetup.memberRemovedFromOrganization', { name: member.full_name || member.email }),
+        )
+        removeMemberFromStore(memberId)
+        return true
+      } catch (error) {
+        addToast('error', error instanceof Error ? error.message : 'Failed to remove user')
         return false
       }
     },
@@ -165,15 +167,21 @@ export function useMembers(orgId: string | null) {
       if (!member) return false
 
       try {
-        const { error } = await supabase
-          .from('team_members')
-          .delete()
-          .eq('user_id', memberId)
-          .eq('team_id', teamId)
-
-        if (error) throw error
-
-        addToast('success', `Removed ${member.full_name || member.email} from ${teamName}`)
+        await routeBackend({
+          mdb: () => removeMdbTeamMember(teamId, memberId),
+          supabase: async () => {
+            const { error } = await supabase.from('team_members').delete()
+              .eq('user_id', memberId).eq('team_id', teamId)
+            if (error) throw error
+          },
+        })
+        addToast(
+          'success',
+          t('mdbSetup.memberRemovedFromTeam', {
+            name: member.full_name || member.email,
+            team: teamName,
+          }),
+        )
         await loadMembers()
         return true
       } catch {
@@ -187,21 +195,25 @@ export function useMembers(orgId: string | null) {
   const toggleTeam = useCallback(
     async (memberId: string, teamId: string, isAdding: boolean): Promise<boolean> => {
       try {
-        if (isAdding) {
-          const { error } = await insertTeamMember({
-            team_id: teamId,
-            user_id: memberId,
-            added_by: user?.id ?? null,
-          })
-          if (error) throw error
-        } else {
-          const { error } = await supabase
-            .from('team_members')
-            .delete()
-            .eq('user_id', memberId)
-            .eq('team_id', teamId)
-          if (error) throw error
-        }
+        await routeBackend({
+          mdb: () => isAdding
+            ? addMdbTeamMember(teamId, memberId)
+            : removeMdbTeamMember(teamId, memberId),
+          supabase: async () => {
+            if (isAdding) {
+              const { error } = await insertTeamMember({
+                team_id: teamId,
+                user_id: memberId,
+                added_by: user?.id ?? null,
+              })
+              if (error) throw error
+            } else {
+              const { error } = await supabase.from('team_members').delete()
+                .eq('user_id', memberId).eq('team_id', teamId)
+              if (error) throw error
+            }
+          },
+        })
         await loadMembers()
         return true
       } catch {
@@ -232,21 +244,25 @@ export function useMembers(orgId: string | null) {
         // Teams to remove (in currentTeamIds but not in teamIds)
         const toRemove = currentTeamIds.filter((id) => !teamIds.includes(id))
 
-        // Remove from teams
-        for (const teamId of toRemove) {
-          await supabase.from('team_members').delete().eq('user_id', memberId).eq('team_id', teamId)
-        }
+        await routeBackend({
+          mdb: async () => {
+            for (const teamId of toRemove) await removeMdbTeamMember(teamId, memberId)
+            for (const teamId of toAdd) await addMdbTeamMember(teamId, memberId)
+          },
+          supabase: async () => {
+            for (const teamId of toRemove) {
+              await supabase.from('team_members').delete().eq('user_id', memberId).eq('team_id', teamId)
+            }
+            for (const teamId of toAdd) {
+              await insertTeamMember({ team_id: teamId, user_id: memberId, added_by: user.id })
+            }
+          },
+        })
 
-        // Add to teams
-        for (const teamId of toAdd) {
-          await insertTeamMember({
-            team_id: teamId,
-            user_id: memberId,
-            added_by: user.id,
-          })
-        }
-
-        addToast('success', `Updated teams${userName ? ` for ${userName}` : ''}`)
+        addToast(
+          'success',
+          userName ? t('mdbSetup.teamsUpdatedFor', { name: userName }) : t('mdbSetup.teamsUpdated'),
+        )
         await loadMembers()
         return true
       } catch (error) {

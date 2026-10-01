@@ -15,6 +15,8 @@ import {
 } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { getSupabaseClient, useAdminRecoveryCode, supabase } from '@/lib/supabase'
+import { isMdbBackendActive } from '@/lib/backendAdapter'
+import { useTranslation } from '@/lib/i18n'
 import { getInitials, getEffectiveAvatarUrl } from '@/lib/utils'
 import { ContributionHistory } from '../system/ContributionHistory'
 
@@ -42,6 +44,7 @@ interface RFQRecord {
 
 export function ProfileSettings() {
   const { user, organization, setUser, addToast } = usePDMStore()
+  const { t } = useTranslation()
 
   const [isLoadingECOs, setIsLoadingECOs] = useState(true)
   const [isLoadingRFQs, setIsLoadingRFQs] = useState(true)
@@ -64,6 +67,10 @@ export function ProfileSettings() {
 
   // Handle avatar upload
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isMdbBackendActive()) {
+      addToast('info', t('accountSettings.mdbProfilePictureUnavailable'))
+      return
+    }
     const file = e.target.files?.[0]
     if (!file || !user || !organization?.id) return
 
@@ -132,6 +139,10 @@ export function ProfileSettings() {
 
   // Remove custom avatar
   const handleRemoveAvatar = async () => {
+    if (isMdbBackendActive()) {
+      addToast('info', t('accountSettings.mdbProfilePictureUnavailable'))
+      return
+    }
     if (!user || !organization?.id) return
 
     setUploadingAvatar(true)
@@ -168,6 +179,11 @@ export function ProfileSettings() {
   // Load user's ECOs
   useEffect(() => {
     if (!user || !organization) return
+    if (isMdbBackendActive()) {
+      setUserECOs([])
+      setIsLoadingECOs(false)
+      return
+    }
 
     const loadECOs = async () => {
       setIsLoadingECOs(true)
@@ -240,6 +256,11 @@ export function ProfileSettings() {
   // Load user's RFQs
   useEffect(() => {
     if (!user || !organization) return
+    if (isMdbBackendActive()) {
+      setUserRFQs([])
+      setIsLoadingRFQs(false)
+      return
+    }
 
     const loadRFQs = async () => {
       setIsLoadingRFQs(true)

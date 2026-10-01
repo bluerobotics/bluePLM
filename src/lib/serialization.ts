@@ -4,6 +4,14 @@
 import { supabase } from './supabase'
 import { log } from './logger'
 import { isPathHidden, readHiddenFolderPaths } from './hiddenFolders'
+import { routeBackend } from './backendAdapter'
+import {
+  allocateMdbSerialNumber,
+  mdbSerialNumberExists,
+  getMdbSerialInventory,
+  previewMdbSerialNumber,
+} from './mdb'
+import { getOrganizationSetting, setOrganizationSetting } from './organizationSettings'
 
 export interface SerializationSettings {
   enabled: boolean
@@ -70,18 +78,19 @@ const DEFAULT_SETTINGS: SerializationSettings = {
  */
 export async function getNextSerialNumber(orgId: string): Promise<string | null> {
   try {
-    // Supabase v2 RPC type inference incomplete for custom functions
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase.rpc as any)('get_next_serial_number', { // TODO: type this
-      p_org_id: orgId,
+    return await routeBackend({
+      mdb: allocateMdbSerialNumber,
+      supabase: async () => {
+        // Supabase v2 RPC type inference incomplete for custom functions
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error } = await (supabase.rpc as any)('get_next_serial_number', {
+          // TODO: type this
+          p_org_id: orgId,
+        })
+        if (error) throw error
+        return data as string | null
+      },
     })
-
-    if (error) {
-      log.error('[Serialization]', 'Failed to get next serial number', { error })
-      throw error
-    }
-
-    return data
   } catch (error) {
     log.error('[Serialization]', 'Error getting next serial number', { error: error })
     return null
@@ -97,18 +106,19 @@ export async function getNextSerialNumber(orgId: string): Promise<string | null>
  */
 export async function previewNextSerialNumber(orgId: string): Promise<string | null> {
   try {
-    // Supabase v2 RPC type inference incomplete for custom functions
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase.rpc as any)('preview_next_serial_number', { // TODO: type this
-      p_org_id: orgId,
+    return await routeBackend({
+      mdb: previewMdbSerialNumber,
+      supabase: async () => {
+        // Supabase v2 RPC type inference incomplete for custom functions
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error } = await (supabase.rpc as any)('preview_next_serial_number', {
+          // TODO: type this
+          p_org_id: orgId,
+        })
+        if (error) throw error
+        return data as string | null
+      },
     })
-
-    if (error) {
-      log.error('[Serialization]', 'Failed to preview serial number', { error })
-      throw error
-    }
-
-    return data
   } catch (error) {
     log.error('[Serialization]', 'Error previewing serial number', { error: error })
     return null
@@ -123,23 +133,12 @@ export async function previewNextSerialNumber(orgId: string): Promise<string | n
  */
 export async function getSerializationSettings(orgId: string): Promise<SerializationSettings> {
   try {
-    const { data, error } = await supabase
-      .from('organizations')
-      .select('serialization_settings')
-      .eq('id', orgId)
-      .single()
-
-    if (error) {
-      log.error('[Serialization]', 'Failed to get settings', { error })
-      return DEFAULT_SETTINGS
-    }
-
-    // Supabase v2 JSONB column type inference incomplete
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const settings = (data as any)?.serialization_settings // TODO: type this
+    const settings = await getOrganizationSetting<SerializationSettings>('serialization', orgId)
     return {
       ...DEFAULT_SETTINGS,
-      ...(settings || {}),
+      ...settings,
+      keepout_zones: settings.keepout_zones || [],
+      auto_apply_extensions: settings.auto_apply_extensions || [],
     }
   } catch (error) {
     log.error('[Serialization]', 'Error getting settings', { error: error })
@@ -157,6 +156,7 @@ export async function getSerializationSettings(orgId: string): Promise<Serializa
 export async function updateSerializationSettings(
   orgId: string,
   settings: Partial<SerializationSettings>,
+  replaceCounter = false,
 ): Promise<boolean> {
   try {
     // First get current settings
@@ -168,17 +168,12 @@ export async function updateSerializationSettings(
       ...settings,
     }
 
-    // Supabase v2 type inference incomplete for JSONB column updates
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase.from('organizations') as any) // TODO: type this
-      .update({ serialization_settings: updated })
-      .eq('id', orgId)
-
-    if (error) {
-      log.error('[Serialization]', 'Failed to update settings', { error })
-      return false
-    }
-
+    await setOrganizationSetting(
+      'serialization',
+      orgId,
+      updated as unknown as Record<string, unknown>,
+      { replaceCounter },
+    )
     return true
   } catch (error) {
     log.error('[Serialization]', 'Error updating settings', { error: error })
@@ -311,19 +306,20 @@ export function matchesSerialFormat(
  */
 export async function serialNumberExists(orgId: string, serialNumber: string): Promise<boolean> {
   try {
-    const { data, error } = await supabase
-      .from('files')
-      .select('id')
-      .eq('org_id', orgId)
-      .eq('part_number', serialNumber)
-      .limit(1)
+    return await routeBackend({
+      mdb: () => mdbSerialNumberExists(serialNumber),
+      supabase: async () => {
+        const { data, error } = await supabase
+          .from('files')
+          .select('id')
+          .eq('org_id', orgId)
+          .eq('part_number', serialNumber)
+          .limit(1)
 
-    if (error) {
-      log.error('[Serialization]', 'Failed to check serial number existence', { error })
-      return false // Assume doesn't exist on error
-    }
-
-    return (data?.length ?? 0) > 0
+        if (error) throw error
+        return (data?.length ?? 0) > 0
+      },
+    })
   } catch (error) {
     log.error('[Serialization]', 'Error checking serial number', { error: error })
     return false
@@ -642,24 +638,29 @@ export async function detectHighestSerialNumber(
   orgId: string,
 ): Promise<HighestSerialScanResult | null> {
   try {
-    const [settings, hiddenPaths] = await Promise.all([
-      getSerializationSettings(orgId),
-      getAdminOnlyFolders(orgId),
-    ])
-
-    // Fetch all part numbers from the organization
-    const { data, error } = await supabase
-      .from('files')
-      .select('part_number, file_path')
-      .eq('org_id', orgId)
-      .not('part_number', 'is', null)
-
-    if (error) {
-      log.error('[Serialization]', 'Failed to scan files', { error })
-      return null
-    }
-
-    const rows = (data || []) as { part_number: string | null; file_path: string | null }[]
+    const settings = await getSerializationSettings(orgId)
+    const { rows, hiddenPaths } = await routeBackend({
+      mdb: async () => ({
+        rows: (await getMdbSerialInventory()).map((file) => ({
+          part_number: file.partNumber,
+          file_path: file.filePath,
+        })),
+        hiddenPaths: [] as string[],
+      }),
+      supabase: async () => {
+        const hiddenPaths = await getAdminOnlyFolders(orgId)
+        const { data, error } = await supabase
+          .from('files')
+          .select('part_number, file_path')
+          .eq('org_id', orgId)
+          .not('part_number', 'is', null)
+        if (error) throw error
+        return {
+          rows: (data || []) as { part_number: string | null; file_path: string | null }[],
+          hiddenPaths,
+        }
+      },
+    })
     const partNumbers: string[] = []
     let skippedHidden = 0
 

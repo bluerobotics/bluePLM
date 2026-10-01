@@ -11,6 +11,11 @@
  * pointer settles rather than one per animation frame.
  */
 import { supabase } from '@/lib/supabase'
+import {
+  updateMdbWorkflowState,
+  updateMdbWorkflowTransition,
+} from '@/lib/mdb'
+import { routeBackend } from '@/lib/backendAdapter'
 import type { Json } from '@/types/database'
 import type { WorkflowState, WorkflowTransition } from '@/types/workflow'
 
@@ -225,13 +230,27 @@ function scheduleWrite(
   const merged = { ...existing?.patch, ...patch }
   const timer = setTimeout(() => {
     pendingWrites.delete(key)
-    void supabase
-      .from(table)
-      .update(merged as never)
-      .eq('id', id)
-      .then(({ error }) => {
-        if (error) onError(new Error(error.message))
-      })
+    routeBackend({
+      mdb: () => {
+        void (async () => {
+          try {
+            if (table === 'workflow_states') await updateMdbWorkflowState(id, merged)
+            else await updateMdbWorkflowTransition(id, merged)
+          } catch (error) {
+            onError(error instanceof Error ? error : new Error('Failed to save workflow layout.'))
+          }
+        })()
+      },
+      supabase: () => {
+        void supabase
+          .from(table)
+          .update(merged as never)
+          .eq('id', id)
+          .then(({ error }) => {
+            if (error) onError(new Error(error.message))
+          })
+      },
+    })
   }, LAYOUT_WRITE_DEBOUNCE_MS)
 
   pendingWrites.set(key, { timer, patch: merged })

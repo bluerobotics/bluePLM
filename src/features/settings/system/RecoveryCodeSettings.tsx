@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   Shield,
   Key,
@@ -22,6 +22,7 @@ import {
   type AdminRecoveryCode,
 } from '@/lib/supabase'
 import { copyToClipboard } from '@/lib/clipboard'
+import { t } from '@/lib/i18n'
 
 export function RecoveryCodeSettings() {
   const { user, organization, addToast, getEffectiveRole } = usePDMStore()
@@ -46,28 +47,26 @@ export function RecoveryCodeSettings() {
   const [revokeReason, setRevokeReason] = useState('')
   const [isRevoking, setIsRevoking] = useState(false)
 
-  // Load codes on mount
-  useEffect(() => {
-    if (organization && isAdmin) {
-      loadCodes()
-    }
-  }, [organization, isAdmin])
-
-  const loadCodes = async () => {
+  const loadCodes = useCallback(async () => {
     if (!organization) return
 
     setLoading(true)
     try {
       const { codes: fetchedCodes, error } = await listAdminRecoveryCodes(organization.id)
       if (error) {
-        addToast('error', `Failed to load recovery codes: ${error}`)
+        addToast('error', t('recoveryCodes.loadFailed', { error }))
       } else {
         setCodes(fetchedCodes)
       }
     } finally {
       setLoading(false)
     }
-  }
+  }, [addToast, organization])
+
+  // Load codes on mount
+  useEffect(() => {
+    if (organization && isAdmin) void loadCodes()
+  }, [organization, isAdmin, loadCodes])
 
   const handleGenerate = async () => {
     if (!organization || !user) return
@@ -86,9 +85,9 @@ export function RecoveryCodeSettings() {
         setShowGenerateDialog(false)
         setDescription('')
         setExpiresInDays(90)
-        loadCodes()
+        void loadCodes()
       } else {
-        addToast('error', error || 'Failed to generate recovery code')
+        addToast('error', error || t('recoveryCodes.generateFailed'))
       }
     } finally {
       setGenerating(false)
@@ -103,13 +102,13 @@ export function RecoveryCodeSettings() {
       setCodeCopied(true)
       setTimeout(() => setCodeCopied(false), 2000)
     } else {
-      addToast('error', 'Failed to copy code')
+      addToast('error', t('recoveryCodes.copyFailed'))
     }
   }
 
   const handleCloseCodeModal = () => {
     if (!acknowledgedWrite) {
-      addToast('warning', 'Please confirm you have written down the code')
+      addToast('warning', t('recoveryCodes.confirmWrittenDown'))
       return
     }
     setGeneratedCode(null)
@@ -129,12 +128,12 @@ export function RecoveryCodeSettings() {
       )
 
       if (success) {
-        addToast('success', 'Recovery code revoked')
+        addToast('success', t('recoveryCodes.revoked'))
         setRevokingCode(null)
         setRevokeReason('')
-        loadCodes()
+        void loadCodes()
       } else {
-        addToast('error', error || 'Failed to revoke code')
+        addToast('error', error || t('recoveryCodes.revokeFailed'))
       }
     } finally {
       setIsRevoking(false)
@@ -145,23 +144,25 @@ export function RecoveryCodeSettings() {
     const { success, error } = await deleteAdminRecoveryCode(codeId)
 
     if (success) {
-      addToast('success', 'Recovery code deleted')
-      loadCodes()
+      addToast('success', t('recoveryCodes.deleted'))
+      void loadCodes()
     } else {
-      addToast('error', error || 'Failed to delete code')
+      addToast('error', error || t('recoveryCodes.deleteFailed'))
     }
   }
 
   const getCodeStatus = (code: AdminRecoveryCode) => {
-    if (code.is_used) return { label: 'Used', color: 'text-plm-success', icon: UserCheck }
-    if (code.is_revoked) return { label: 'Revoked', color: 'text-plm-error', icon: Ban }
+    if (code.is_used)
+      return { label: t('recoveryCodes.statusUsed'), color: 'text-plm-success', icon: UserCheck }
+    if (code.is_revoked)
+      return { label: t('recoveryCodes.statusRevoked'), color: 'text-plm-error', icon: Ban }
     if (new Date(code.expires_at) < new Date())
-      return { label: 'Expired', color: 'text-plm-fg-muted', icon: Clock }
-    return { label: 'Active', color: 'text-plm-accent', icon: Key }
+      return { label: t('recoveryCodes.statusExpired'), color: 'text-plm-fg-muted', icon: Clock }
+    return { label: t('recoveryCodes.statusActive'), color: 'text-plm-accent', icon: Key }
   }
 
   const formatDate = (date: string | null) => {
-    if (!date) return 'Unknown'
+    if (!date) return t('recoveryCodes.unknownDate')
     return new Date(date).toLocaleDateString(undefined, {
       year: 'numeric',
       month: 'short',
@@ -176,9 +177,7 @@ export function RecoveryCodeSettings() {
     return (
       <div className="text-center py-12">
         <Shield size={40} className="mx-auto mb-4 text-plm-fg-muted opacity-50" />
-        <p className="text-base text-plm-fg-muted">
-          Only administrators can manage recovery codes.
-        </p>
+        <p className="text-base text-plm-fg-muted">{t('recoveryCodes.adminOnly')}</p>
       </div>
     )
   }
@@ -192,10 +191,8 @@ export function RecoveryCodeSettings() {
             <Key size={20} className="text-plm-accent" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-plm-fg">Admin Recovery Codes</h2>
-            <p className="text-sm text-plm-fg-muted">
-              Emergency access codes for admin account recovery
-            </p>
+            <h2 className="text-lg font-semibold text-plm-fg">{t('recoveryCodes.title')}</h2>
+            <p className="text-sm text-plm-fg-muted">{t('recoveryCodes.subtitle')}</p>
           </div>
         </div>
 
@@ -204,7 +201,7 @@ export function RecoveryCodeSettings() {
           className="px-4 py-2 bg-plm-accent text-white rounded-lg hover:bg-plm-accent-hover transition-colors flex items-center gap-2"
         >
           <Plus size={16} />
-          Generate Code
+          {t('recoveryCodes.generateCode')}
         </button>
       </div>
 
@@ -212,13 +209,8 @@ export function RecoveryCodeSettings() {
       <div className="p-4 bg-plm-warning/10 border border-plm-warning/30 rounded-lg flex items-start gap-3">
         <AlertTriangle size={20} className="text-plm-warning flex-shrink-0 mt-0.5" />
         <div className="text-sm">
-          <p className="font-medium text-plm-warning">Important Security Information</p>
-          <p className="text-plm-fg-muted mt-1">
-            Recovery codes allow any user in your organization to become an admin. Codes are only
-            shown <strong>once</strong> when generated and must be written down or stored securely
-            offline. Keep them in a physical location (e.g., a safe) that authorized personnel can
-            access in emergencies.
-          </p>
+          <p className="font-medium text-plm-warning">{t('recoveryCodes.securityTitle')}</p>
+          <p className="text-plm-fg-muted mt-1">{t('recoveryCodes.securityDescription')}</p>
         </div>
       </div>
 
@@ -233,10 +225,9 @@ export function RecoveryCodeSettings() {
       {!loading && codes.length === 0 && (
         <div className="text-center py-12 border border-plm-border rounded-lg bg-plm-bg-secondary">
           <Key size={40} className="mx-auto mb-4 text-plm-fg-muted opacity-50" />
-          <p className="text-plm-fg-muted mb-2">No recovery codes generated yet</p>
+          <p className="text-plm-fg-muted mb-2">{t('recoveryCodes.emptyTitle')}</p>
           <p className="text-sm text-plm-fg-muted/70 max-w-md mx-auto">
-            We recommend generating at least one recovery code and storing it in a secure physical
-            location in case all admin accounts become inaccessible.
+            {t('recoveryCodes.emptyDescription')}
           </p>
         </div>
       )}
@@ -289,14 +280,16 @@ export function RecoveryCodeSettings() {
                       </div>
 
                       <div className="mt-2 text-xs text-plm-fg-muted space-y-1">
-                        <p>Created: {formatDate(code.created_at)}</p>
-                        <p>Expires: {formatDate(code.expires_at)}</p>
+                        <p>{t('recoveryCodes.createdAt', { date: formatDate(code.created_at) })}</p>
+                        <p>{t('recoveryCodes.expiresAt', { date: formatDate(code.expires_at) })}</p>
                         {code.is_used && code.used_at && (
-                          <p className="text-plm-success">Used: {formatDate(code.used_at)}</p>
+                          <p className="text-plm-success">
+                            {t('recoveryCodes.usedAt', { date: formatDate(code.used_at) })}
+                          </p>
                         )}
                         {code.is_revoked && code.revoked_at && (
                           <p className="text-plm-error">
-                            Revoked: {formatDate(code.revoked_at)}
+                            {t('recoveryCodes.revokedAt', { date: formatDate(code.revoked_at) })}
                             {code.revoke_reason && ` - ${code.revoke_reason}`}
                           </p>
                         )}
@@ -313,7 +306,7 @@ export function RecoveryCodeSettings() {
                           onClick={() => setRevokingCode(code)}
                           className="px-3 py-1.5 text-sm text-plm-error hover:bg-plm-error/10 rounded transition-colors"
                         >
-                          Revoke
+                          {t('recoveryCodes.revoke')}
                         </button>
                       )}
 
@@ -324,7 +317,7 @@ export function RecoveryCodeSettings() {
                       <button
                         onClick={() => handleDelete(code.id)}
                         className="p-1.5 text-plm-fg-muted hover:text-plm-error hover:bg-plm-error/10 rounded transition-colors"
-                        title="Delete"
+                        title={t('common.delete')}
                       >
                         <Trash2 size={16} />
                       </button>
@@ -347,8 +340,12 @@ export function RecoveryCodeSettings() {
                   <Key size={20} className="text-plm-accent" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-plm-fg">Generate Recovery Code</h3>
-                  <p className="text-sm text-plm-fg-muted">Create an emergency admin access code</p>
+                  <h3 className="text-lg font-semibold text-plm-fg">
+                    {t('recoveryCodes.generateDialogTitle')}
+                  </h3>
+                  <p className="text-sm text-plm-fg-muted">
+                    {t('recoveryCodes.generateDialogSubtitle')}
+                  </p>
                 </div>
               </div>
             </div>
@@ -357,42 +354,41 @@ export function RecoveryCodeSettings() {
               {/* Warning */}
               <div className="p-3 bg-plm-warning/10 border border-plm-warning/30 rounded flex items-start gap-2">
                 <AlertTriangle size={16} className="text-plm-warning flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-plm-warning">
-                  The code will only be shown <strong>once</strong>. Have a pen and paper ready, or
-                  be prepared to store it securely offline.
-                </p>
+                <p className="text-xs text-plm-warning">{t('recoveryCodes.oneTimeWarning')}</p>
               </div>
 
               {/* Description */}
               <div>
                 <label className="block text-sm font-medium text-plm-fg mb-1">
-                  Description (optional)
+                  {t('recoveryCodes.descriptionOptional')}
                 </label>
                 <input
                   type="text"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="e.g., Emergency backup for CEO"
+                  placeholder={t('recoveryCodes.descriptionPlaceholder')}
                   className="w-full px-3 py-2 bg-plm-bg-secondary border border-plm-border rounded text-plm-fg placeholder:text-plm-fg-muted focus:outline-none focus:ring-2 focus:ring-plm-accent"
                 />
                 <p className="text-xs text-plm-fg-muted mt-1">
-                  A note to help identify this code later
+                  {t('recoveryCodes.descriptionHelp')}
                 </p>
               </div>
 
               {/* Expiration */}
               <div>
-                <label className="block text-sm font-medium text-plm-fg mb-1">Expires in</label>
+                <label className="block text-sm font-medium text-plm-fg mb-1">
+                  {t('recoveryCodes.expiresIn')}
+                </label>
                 <select
                   value={expiresInDays}
                   onChange={(e) => setExpiresInDays(Number(e.target.value))}
                   className="w-full px-3 py-2 bg-plm-bg-secondary border border-plm-border rounded text-plm-fg focus:outline-none focus:ring-2 focus:ring-plm-accent"
                 >
-                  <option value={30}>30 days</option>
-                  <option value={90}>90 days</option>
-                  <option value={180}>6 months</option>
-                  <option value={365}>1 year</option>
-                  <option value={730}>2 years</option>
+                  <option value={30}>{t('recoveryCodes.days', { count: 30 })}</option>
+                  <option value={90}>{t('recoveryCodes.days', { count: 90 })}</option>
+                  <option value={180}>{t('recoveryCodes.months', { count: 6 })}</option>
+                  <option value={365}>{t('recoveryCodes.years', { count: 1 })}</option>
+                  <option value={730}>{t('recoveryCodes.years', { count: 2 })}</option>
                 </select>
               </div>
             </div>
@@ -402,7 +398,7 @@ export function RecoveryCodeSettings() {
                 onClick={() => setShowGenerateDialog(false)}
                 className="px-4 py-2 text-plm-fg-muted hover:text-plm-fg transition-colors"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 onClick={handleGenerate}
@@ -412,12 +408,12 @@ export function RecoveryCodeSettings() {
                 {generating ? (
                   <>
                     <RefreshCw size={16} className="animate-spin" />
-                    Generating...
+                    {t('recoveryCodes.generating')}
                   </>
                 ) : (
                   <>
                     <Key size={16} />
-                    Generate Code
+                    {t('recoveryCodes.generateCode')}
                   </>
                 )}
               </button>
@@ -436,10 +432,10 @@ export function RecoveryCodeSettings() {
                   <AlertTriangle size={24} className="text-plm-warning" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-plm-fg">Write This Code Down!</h3>
-                  <p className="text-sm text-plm-warning">
-                    This is the only time you will see this code
-                  </p>
+                  <h3 className="text-lg font-semibold text-plm-fg">
+                    {t('recoveryCodes.writeDownTitle')}
+                  </h3>
+                  <p className="text-sm text-plm-warning">{t('recoveryCodes.onlyTimeShown')}</p>
                 </div>
               </div>
             </div>
@@ -447,7 +443,7 @@ export function RecoveryCodeSettings() {
             <div className="p-6 space-y-6">
               {/* The Code */}
               <div className="text-center">
-                <p className="text-sm text-plm-fg-muted mb-3">Your Admin Recovery Code:</p>
+                <p className="text-sm text-plm-fg-muted mb-3">{t('recoveryCodes.yourCode')}</p>
                 <div className="relative">
                   <div className="bg-plm-bg-secondary border-2 border-dashed border-plm-accent rounded-lg p-6">
                     <code className="text-3xl font-mono font-bold tracking-wider text-plm-accent">
@@ -457,7 +453,7 @@ export function RecoveryCodeSettings() {
                   <button
                     onClick={handleCopyCode}
                     className="absolute top-2 right-2 p-2 text-plm-fg-muted hover:text-plm-fg hover:bg-plm-bg-tertiary rounded transition-colors"
-                    title="Copy to clipboard"
+                    title={t('recoveryCodes.copyToClipboard')}
                   >
                     {codeCopied ? (
                       <Check size={20} className="text-plm-success" />
@@ -472,33 +468,22 @@ export function RecoveryCodeSettings() {
               <div className="space-y-3">
                 <h4 className="font-medium text-plm-fg flex items-center gap-2">
                   <FileText size={16} />
-                  What to do now:
+                  {t('recoveryCodes.nextStepsTitle')}
                 </h4>
                 <ol className="text-sm text-plm-fg-muted space-y-2 list-decimal list-inside">
-                  <li>
-                    <strong>Write it down</strong> on paper or print this screen
-                  </li>
-                  <li>
-                    <strong>Store it securely</strong> in a safe, lockbox, or secure location
-                  </li>
-                  <li>
-                    <strong>Tell someone you trust</strong> where to find it in an emergency
-                  </li>
-                  <li>
-                    <strong>Do not</strong> store it digitally (email, cloud storage, password
-                    manager)
-                  </li>
+                  <li>{t('recoveryCodes.nextStepWrite')}</li>
+                  <li>{t('recoveryCodes.nextStepStore')}</li>
+                  <li>{t('recoveryCodes.nextStepTell')}</li>
+                  <li>{t('recoveryCodes.nextStepAvoidDigital')}</li>
                 </ol>
               </div>
 
               {/* How to use */}
               <div className="p-3 bg-plm-bg-secondary rounded-lg">
-                <h4 className="font-medium text-plm-fg text-sm mb-2">To use this code:</h4>
-                <p className="text-xs text-plm-fg-muted">
-                  Any user in your organization can enter this code in{' '}
-                  <strong>Settings → Account → Emergency Admin Recovery</strong>
-                  to immediately become an admin. The code can only be used once.
-                </p>
+                <h4 className="font-medium text-plm-fg text-sm mb-2">
+                  {t('recoveryCodes.useTitle')}
+                </h4>
+                <p className="text-xs text-plm-fg-muted">{t('recoveryCodes.useDescription')}</p>
               </div>
 
               {/* Acknowledgment */}
@@ -509,10 +494,7 @@ export function RecoveryCodeSettings() {
                   onChange={(e) => setAcknowledgedWrite(e.target.checked)}
                   className="mt-1 w-4 h-4 rounded border-plm-border text-plm-accent focus:ring-plm-accent"
                 />
-                <span className="text-sm text-plm-fg">
-                  I have written down this code and stored it in a secure location. I understand it
-                  will not be shown again.
-                </span>
+                <span className="text-sm text-plm-fg">{t('recoveryCodes.acknowledgement')}</span>
               </label>
             </div>
 
@@ -522,9 +504,7 @@ export function RecoveryCodeSettings() {
                 disabled={!acknowledgedWrite}
                 className="w-full px-4 py-2 bg-plm-accent text-white rounded hover:bg-plm-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {acknowledgedWrite
-                  ? 'Done - Close This Window'
-                  : 'Please confirm you saved the code'}
+                {acknowledgedWrite ? t('recoveryCodes.doneClose') : t('recoveryCodes.confirmSaved')}
               </button>
             </div>
           </div>
@@ -541,8 +521,12 @@ export function RecoveryCodeSettings() {
                   <Ban size={20} className="text-plm-error" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-plm-fg">Revoke Recovery Code</h3>
-                  <p className="text-sm text-plm-fg-muted">This code will no longer work</p>
+                  <h3 className="text-lg font-semibold text-plm-fg">
+                    {t('recoveryCodes.revokeDialogTitle')}
+                  </h3>
+                  <p className="text-sm text-plm-fg-muted">
+                    {t('recoveryCodes.revokeDialogSubtitle')}
+                  </p>
                 </div>
               </div>
             </div>
@@ -550,19 +534,21 @@ export function RecoveryCodeSettings() {
             <div className="p-6 space-y-4">
               <p className="text-sm text-plm-fg-muted">
                 {revokingCode.description
-                  ? `Are you sure you want to revoke the code "${revokingCode.description}"?`
-                  : 'Are you sure you want to revoke this recovery code?'}
+                  ? t('recoveryCodes.revokeConfirmNamed', {
+                      description: revokingCode.description,
+                    })
+                  : t('recoveryCodes.revokeConfirm')}
               </p>
 
               <div>
                 <label className="block text-sm font-medium text-plm-fg mb-1">
-                  Reason (optional)
+                  {t('recoveryCodes.reasonOptional')}
                 </label>
                 <input
                   type="text"
                   value={revokeReason}
                   onChange={(e) => setRevokeReason(e.target.value)}
-                  placeholder="e.g., Employee left, code compromised"
+                  placeholder={t('recoveryCodes.reasonPlaceholder')}
                   className="w-full px-3 py-2 bg-plm-bg-secondary border border-plm-border rounded text-plm-fg placeholder:text-plm-fg-muted focus:outline-none focus:ring-2 focus:ring-plm-accent"
                 />
               </div>
@@ -576,7 +562,7 @@ export function RecoveryCodeSettings() {
                 }}
                 className="px-4 py-2 text-plm-fg-muted hover:text-plm-fg transition-colors"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 onClick={handleRevoke}
@@ -586,12 +572,12 @@ export function RecoveryCodeSettings() {
                 {isRevoking ? (
                   <>
                     <RefreshCw size={16} className="animate-spin" />
-                    Revoking...
+                    {t('recoveryCodes.revoking')}
                   </>
                 ) : (
                   <>
                     <Ban size={16} />
-                    Revoke Code
+                    {t('recoveryCodes.revokeCode')}
                   </>
                 )}
               </button>

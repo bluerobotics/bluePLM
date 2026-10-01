@@ -1,12 +1,21 @@
 import { useState } from 'react'
 import type React from 'react'
+import { useTranslation } from '@/lib/i18n'
 import * as LucideIcons from 'lucide-react'
 import { UserPlus, Users, Shield, Database, Mail, Loader2, UserCheck } from 'lucide-react'
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
+import {
+  addMdbTeamMember,
+  createMdbUser,
+  setMdbUserVaultAccess,
+} from '@/lib/mdb'
+import { activeBackendSupports } from '@/lib/backendAdapter'
 import { copyToClipboard } from '@/lib/clipboard'
 import type { TeamWithDetails, WorkflowRoleBasic } from '../../types'
+import { resolveMdbUserVaultAccess } from '../../utils'
+import type { MdbMembershipRole } from '@/lib/mdb'
 
 // Types for Supabase query results
 interface UserOrgCheckResult {
@@ -41,10 +50,14 @@ export function CreateUserDialog({
   apiUrl,
   orgCode,
 }: CreateUserDialogProps) {
+  const { t } = useTranslation()
   const { addToast } = usePDMStore()
+  const isMdbBackend = activeBackendSupports('direct-account-provisioning')
   const [showEmailPreview, setShowEmailPreview] = useState(false)
   const [email, setEmail] = useState('')
   const [fullName, setFullName] = useState('')
+  const [initialPassword, setInitialPassword] = useState('')
+  const [accountRole, setAccountRole] = useState<Exclude<MdbMembershipRole, 'owner'>>('member')
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([])
   const [selectedVaultIds, setSelectedVaultIds] = useState<string[]>([])
   const [selectedWorkflowRoleIds, setSelectedWorkflowRoleIds] = useState<string[]>([])
@@ -59,6 +72,31 @@ export function CreateUserDialog({
 
     setIsSaving(true)
     try {
+      if (isMdbBackend) {
+        if (fullName.trim().length < 2) {
+          addToast('error', t('mdbSetup.fullNameRequired'))
+          return
+        }
+        if (initialPassword.length < 12) {
+          addToast('error', t('mdbSetup.passwordTooShort'))
+          return
+        }
+        const created = await createMdbUser({
+          email: email.toLowerCase().trim(),
+          displayName: fullName.trim(),
+          password: initialPassword,
+          role: accountRole,
+        })
+        await Promise.all(selectedTeamIds.map((teamId) => addMdbTeamMember(teamId, created.id)))
+        // MDB vault access is opt-in for every non-admin role. Never turn an
+        // empty selection into an implicit grant to every current vault.
+        await setMdbUserVaultAccess(created.id, resolveMdbUserVaultAccess(selectedVaultIds))
+        addToast('success', t('mdbSetup.createdAccount', { name: created.displayName }))
+        onCreated()
+        onClose()
+        return
+      }
+
       // If we have API URL and want to send invite, use API endpoint
       if (sendInviteEmail && apiUrl) {
         // Get current session token
@@ -172,7 +210,7 @@ export function CreateUserDialog({
         error: error instanceof Error ? error.message : String(error),
         code: (error as { code?: string })?.code,
       })
-      addToast('error', 'Failed to create user account')
+      addToast('error', t('mdbSetup.failedCreate'))
     } finally {
       setIsSaving(false)
     }
@@ -210,10 +248,9 @@ export function CreateUserDialog({
             <UserPlus size={20} />
           </div>
           <div>
-            <h3 className="text-lg font-medium text-plm-fg">Add User</h3>
+            <h3 className="text-lg font-medium text-plm-fg">{t('mdbSetup.addUser')}</h3>
             <p className="text-sm text-plm-fg-muted mt-1">
-              Pre-create an account. When they sign in with this email, they'll automatically join
-              with these settings.
+              {t('mdbSetup.addUserHelp')}
             </p>
           </div>
         </div>
@@ -221,7 +258,7 @@ export function CreateUserDialog({
         <div className="space-y-4">
           {/* Email */}
           <div>
-            <label className="block text-sm text-plm-fg-muted mb-1.5">Email Address *</label>
+            <label className="block text-sm text-plm-fg-muted mb-1.5">{t('mdbSetup.emailAddressRequired')}</label>
             <input
               type="email"
               value={email}
@@ -231,13 +268,13 @@ export function CreateUserDialog({
               autoFocus
             />
             {email && !isValidEmail && (
-              <p className="text-xs text-plm-error mt-1">Please enter a valid email address</p>
+              <p className="text-xs text-plm-error mt-1">{t('mdbSetup.validEmail')}</p>
             )}
           </div>
 
           {/* Full Name */}
           <div>
-            <label className="block text-sm text-plm-fg-muted mb-1.5">Full Name</label>
+            <label className="block text-sm text-plm-fg-muted mb-1.5">{t('mdbSetup.fullName')}</label>
             <input
               type="text"
               value={fullName}
@@ -247,10 +284,43 @@ export function CreateUserDialog({
             />
           </div>
 
+          {isMdbBackend && (
+            <>
+              <div>
+              <label className="block text-sm text-plm-fg-muted mb-1.5">{t('mdbSetup.initialPasswordRequired')}</label>
+              <input
+                type="password"
+                value={initialPassword}
+                onChange={(e) => setInitialPassword(e.target.value)}
+                placeholder={t('mdbSetup.passwordPlaceholder')}
+                autoComplete="new-password"
+                className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-dim focus:outline-none focus:border-plm-accent"
+              />
+              <p className="text-xs text-plm-fg-dim mt-1">{t('mdbSetup.passwordShareHelp')}</p>
+              </div>
+              <div>
+                <label className="block text-sm text-plm-fg-muted mb-1.5">{t('mdbSetup.accountRole')}</label>
+                <select
+                  value={accountRole}
+                  onChange={(event) => setAccountRole(event.target.value as Exclude<MdbMembershipRole, 'owner'>)}
+                  className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg focus:outline-none focus:border-plm-accent"
+                >
+                  <option value="admin">{t('mdbSetup.membershipRoleAdmin')}</option>
+                  <option value="member">{t('mdbSetup.membershipRoleMember')}</option>
+                  <option value="viewer">{t('mdbSetup.membershipRoleViewer')}</option>
+                  <option value="guest">{t('mdbSetup.membershipRoleGuest')}</option>
+                </select>
+                <p className="text-xs text-plm-fg-dim mt-1">
+                  {t(`mdbSetup.roleHelp${accountRole.charAt(0).toUpperCase()}${accountRole.slice(1)}`)}
+                </p>
+              </div>
+            </>
+          )}
+
           {/* Teams */}
           {teams.length > 0 && (
             <div>
-              <label className="block text-sm text-plm-fg-muted mb-1.5">Assign to Teams</label>
+              <label className="block text-sm text-plm-fg-muted mb-1.5">{t('mdbSetup.assignTeams')}</label>
               <div className="space-y-1 max-h-40 overflow-y-auto bg-plm-bg border border-plm-border rounded-lg p-2">
                 {teams.map((team) => {
                   const TeamIcon =
@@ -284,7 +354,7 @@ export function CreateUserDialog({
                 })}
               </div>
               <p className="text-xs text-plm-fg-dim mt-1">
-                User will be added to selected teams when they first sign in
+                {t('mdbSetup.teamSignInHelp')}
               </p>
             </div>
           )}
@@ -292,7 +362,7 @@ export function CreateUserDialog({
           {/* Vault Access */}
           {vaults.length > 0 && (
             <div>
-              <label className="block text-sm text-plm-fg-muted mb-1.5">Vault Access</label>
+              <label className="block text-sm text-plm-fg-muted mb-1.5">{t('mdbSetup.vaultAccess')}</label>
               <div
                 className={`p-3 rounded-lg border mb-2 ${
                   selectedVaultIds.length === 0
@@ -311,8 +381,8 @@ export function CreateUserDialog({
                     className={`text-sm ${selectedVaultIds.length === 0 ? 'text-plm-success' : 'text-plm-warning'}`}
                   >
                     {selectedVaultIds.length === 0
-                      ? 'All vaults (no restrictions)'
-                      : `Restricted to ${selectedVaultIds.length} of ${vaults.length} vaults`}
+                      ? t('mdbSetup.noVaultsSelected')
+                      : t('mdbSetup.restrictedVaults', { selected: selectedVaultIds.length, total: vaults.length })}
                   </span>
                 </div>
               </div>
@@ -342,7 +412,9 @@ export function CreateUserDialog({
                 })}
               </div>
               <p className="text-xs text-plm-fg-dim mt-1">
-                Leave all unchecked for full access. Check specific vaults to restrict access.
+                {accountRole === 'guest'
+                  ? t('mdbSetup.guestVaultAccessHelp')
+                  : t('mdbSetup.vaultAccessHelp')}
               </p>
             </div>
           )}
@@ -350,7 +422,7 @@ export function CreateUserDialog({
           {/* Workflow Roles */}
           {workflowRoles.length > 0 && (
             <div>
-              <label className="block text-sm text-plm-fg-muted mb-1.5">Workflow Roles</label>
+              <label className="block text-sm text-plm-fg-muted mb-1.5">{t('mdbSetup.workflowRoles')}</label>
               <div className="space-y-1 max-h-40 overflow-y-auto bg-plm-bg border border-plm-border rounded-lg p-2">
                 {workflowRoles.map((role) => {
                   const RoleIcon =
@@ -389,13 +461,13 @@ export function CreateUserDialog({
                 })}
               </div>
               <p className="text-xs text-plm-fg-dim mt-1">
-                Workflow roles for approval processes (e.g., R&D Approver, QA Reviewer)
+                {t('mdbSetup.workflowRolesHelp')}
               </p>
             </div>
           )}
 
           {/* Send Invite Email */}
-          <div className="pt-2 border-t border-plm-border">
+          {!isMdbBackend && <div className="pt-2 border-t border-plm-border">
             <div className="flex items-center justify-between">
               <label className="flex items-center gap-3 cursor-pointer">
                 <input
@@ -471,15 +543,15 @@ export function CreateUserDialog({
                 </div>
               </div>
             )}
-          </div>
+          </div>}
 
           {/* Notes */}
           <div>
-            <label className="block text-sm text-plm-fg-muted mb-1.5">Notes (optional)</label>
+            <label className="block text-sm text-plm-fg-muted mb-1.5">{t('mdbSetup.notesOptional')}</label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Internal notes about this user..."
+              placeholder={t('mdbSetup.notesPlaceholder')}
               rows={2}
               className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-dim focus:outline-none focus:border-plm-accent resize-none"
             />
@@ -488,15 +560,15 @@ export function CreateUserDialog({
 
         <div className="flex gap-2 justify-end mt-6">
           <button onClick={onClose} className="btn btn-ghost">
-            Cancel
+            {t('mdbSetup.cancel')}
           </button>
           <button
             onClick={handleCreate}
-            disabled={isSaving || !email || !isValidEmail}
+            disabled={isSaving || !email || !isValidEmail || (isMdbBackend && (fullName.trim().length < 2 || initialPassword.length < 12))}
             className="btn btn-primary flex items-center gap-2"
           >
             {isSaving ? <Loader2 size={16} className="animate-spin" /> : <UserCheck size={16} />}
-            {isSaving ? 'Creating...' : 'Create User'}
+            {isSaving ? t('mdbSetup.creating') : t('mdbSetup.createUser')}
           </button>
         </div>
       </div>

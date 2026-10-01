@@ -43,11 +43,7 @@ import {
   releaseAllSwProcesses,
   releaseSwProcess,
 } from './swProcess/ownership'
-import {
-  querySwProcesses,
-  querySwProcessStartTime,
-  requestSwProcessClose,
-} from './swProcess/query'
+import { querySwProcesses, querySwProcessStartTime, requestSwProcessClose } from './swProcess/query'
 import type { LiveSwProcess, SwProcessQuerySource } from './swProcess/types'
 
 // ============================================
@@ -2935,7 +2931,7 @@ export function registerSolidWorksHandlers(
       config: {
         autoStartEnabled: boolean
         integrationEnabled: boolean
-        dmLicenseKey?: string
+        dmLicenseKey?: string | null
         verboseLogging?: boolean
         swProgId?: string | null
       },
@@ -2944,7 +2940,7 @@ export function registerSolidWorksHandlers(
         autoStartEnabled: config.autoStartEnabled,
         integrationEnabled: config.integrationEnabled,
       }
-      if (config.dmLicenseKey !== undefined) patch.dmLicenseKey = config.dmLicenseKey
+      if (config.dmLicenseKey !== undefined) patch.dmLicenseKey = config.dmLicenseKey ?? undefined
       if (config.verboseLogging !== undefined) patch.verboseLogging = config.verboseLogging
       // null explicitly clears the choice back to the machine default
       if (config.swProgId !== undefined) patch.swProgId = config.swProgId ?? undefined

@@ -8,6 +8,7 @@
  */
 
 import { Database, Folder } from 'lucide-react'
+import { useTranslation } from '@/lib/i18n'
 import type { Vault } from '../../types'
 
 export interface VaultAccessDialogProps {
@@ -19,6 +20,8 @@ export interface VaultAccessDialogProps {
   orgVaults: Vault[]
   /** Currently selected vault IDs */
   pendingVaultAccess: string[]
+  /** Effective access inherited through teams; never persisted as direct access. */
+  inheritedVaultAccess?: string[]
   /** Callback to update selected vault IDs */
   setPendingVaultAccess: (fn: (prev: string[]) => string[]) => void
   /** Save handler */
@@ -34,19 +37,24 @@ export function VaultAccessDialog({
   entityType,
   orgVaults,
   pendingVaultAccess,
+  inheritedVaultAccess = [],
   setPendingVaultAccess,
   onSave,
   onClose,
   isSaving,
 }: VaultAccessDialogProps) {
+  const { t } = useTranslation()
   const isTeam = entityType === 'team'
-  const title = isTeam ? `Vault Access - ${entityName}` : 'Individual Vault Access'
+  const title = isTeam
+    ? t('mdbSetup.teamVaultAccess', { name: entityName })
+    : t('mdbSetup.individualVaultAccess')
   const description = isTeam
-    ? 'Select which vaults this team can access.'
-    : `Select which vaults ${entityName} can access.`
+    ? t('mdbSetup.teamVaultAccessDescription')
+    : t('mdbSetup.userVaultAccessDescription', { name: entityName })
   const defaultAccessText = isTeam
-    ? 'No vaults selected — this team has no vault access. Select vaults to grant access.'
-    : 'No vaults selected — this user has no vault access. Select vaults to grant access.'
+    ? t('mdbSetup.noVaultAccessTeamHelp')
+    : t('mdbSetup.noVaultAccessUserHelp')
+  const effectiveVaultAccess = [...new Set([...pendingVaultAccess, ...inheritedVaultAccess])]
 
   return (
     <div
@@ -62,18 +70,13 @@ export function VaultAccessDialog({
           {title}
         </h3>
         <p className={`${isTeam ? 'text-sm' : 'text-base'} text-plm-fg-muted mb-4`}>
-          {!isTeam && (
-            <>
-              Select which vaults <strong>{entityName}</strong> can access.
-            </>
-          )}
-          {isTeam && description}
+          {description}
         </p>
 
         {/* Vault access indicator */}
         <div
           className={`p-3 rounded-lg border mb-3 ${
-            pendingVaultAccess.length === 0
+            effectiveVaultAccess.length === 0
               ? 'bg-plm-warning/10 border-plm-warning/30'
               : 'bg-plm-bg border-plm-border'
           }`}
@@ -81,17 +84,20 @@ export function VaultAccessDialog({
           <div className="flex items-center gap-2">
             <Database
               size={16}
-              className={pendingVaultAccess.length === 0 ? 'text-plm-warning' : 'text-plm-fg-muted'}
+              className={effectiveVaultAccess.length === 0 ? 'text-plm-warning' : 'text-plm-fg-muted'}
             />
             <span
-              className={`text-sm ${pendingVaultAccess.length === 0 ? 'text-plm-warning' : 'text-plm-fg-muted'}`}
+              className={`text-sm ${effectiveVaultAccess.length === 0 ? 'text-plm-warning' : 'text-plm-fg-muted'}`}
             >
-              {pendingVaultAccess.length === 0
-                ? 'No vault access'
-                : `${pendingVaultAccess.length} of ${orgVaults.length} vaults selected`}
+              {effectiveVaultAccess.length === 0
+                ? t('mdbSetup.noVaultAccess')
+                : t('mdbSetup.selectedVaults', {
+                    selected: effectiveVaultAccess.length,
+                    total: orgVaults.length,
+                  })}
             </span>
           </div>
-          {pendingVaultAccess.length === 0 && (
+          {effectiveVaultAccess.length === 0 && (
             <p className="text-xs text-plm-fg-muted mt-1 ml-6">{defaultAccessText}</p>
           )}
         </div>
@@ -119,20 +125,28 @@ export function VaultAccessDialog({
                 className={vault.is_default ? 'text-plm-accent' : 'text-plm-fg-muted'}
               />
               <span className="text-base text-plm-fg">{vault.name}</span>
-              {vault.is_default && <span className="text-xs text-plm-accent">(default)</span>}
+              {!isTeam && inheritedVaultAccess.includes(vault.id) && (
+                <span className="text-xs text-plm-accent">
+                  {t('mdbSetup.inheritedTeamVaultAccess')}
+                </span>
+              )}
+              {vault.is_default && (
+                <span className="text-xs text-plm-accent">({t('mdbSetup.defaultVault')})</span>
+              )}
             </label>
           ))}
         </div>
         <p className="text-xs text-plm-fg-dim mb-4">
-          Select specific vaults to restrict access, or leave all unchecked for full access to all
-          vaults.
+          {inheritedVaultAccess.length > 0
+            ? t('mdbSetup.directVaultSelectionHelp')
+            : t('mdbSetup.vaultSelectionHelp')}
         </p>
         <div className="flex gap-2 justify-end">
           <button onClick={onClose} className="btn btn-ghost">
-            Cancel
+            {t('mdbSetup.cancel')}
           </button>
           <button onClick={onSave} disabled={isSaving} className="btn btn-primary">
-            {isSaving ? 'Saving...' : 'Save Access'}
+            {isSaving ? t('mdbSetup.saving') : t('mdbSetup.saveAccess')}
           </button>
         </div>
       </div>

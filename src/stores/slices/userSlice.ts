@@ -3,7 +3,13 @@ import { resetLoadFilesCoordination } from '@/hooks/loadFilesCoordination'
 
 import type { PDMStoreState, UserSlice, ImpersonatedUser } from '../types'
 import type { User, Organization } from '../../types/pdm'
-import type { ModuleId, ModuleGroupId, ModuleConfig } from '../../types/modules'
+import { MODULES, type ModuleId, type ModuleGroupId, type ModuleConfig } from '../../types/modules'
+import { activeBackendSupportsModule } from '@/lib/backendAdapter'
+
+export function deniedModulesAfterLoadFailure(role: User['role'] | undefined): ModuleId[] {
+  if (role === 'admin') return []
+  return MODULES.filter((module) => !module.required).map((module) => module.id)
+}
 
 const RESET_SYNC_PROGRESS = {
   isActive: false,
@@ -391,18 +397,15 @@ export const createUserSlice: StateCreator<
     const organizationId = get().organization?.id
 
     try {
-      const { supabase } = await import('../../lib/supabase')
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase.rpc as any)('get_denied_modules') // TODO: type this
-      if (error) throw error
+      const { getDeniedModules } = await import('../../lib/moduleAccess')
+      const deniedModules = await getDeniedModules()
       if (get().user?.id !== userId || get().organization?.id !== organizationId) return
-      set({ deniedModules: (data || []) as ModuleId[] })
+      set({ deniedModules: deniedModules as ModuleId[] })
     } catch (error) {
-      // Fail open: a database that predates the module_access table has no
-      // restrictions to enforce, and hiding every module would be worse than
-      // showing a restricted one.
+      // A missing access decision is not permission. Keep required recovery
+      // surfaces available, but fail closed for every optional module.
       if (get().user?.id !== userId || get().organization?.id !== organizationId) return
-      set({ deniedModules: [] })
+      set({ deniedModules: deniedModulesAfterLoadFailure(get().user?.role) })
     }
   },
 
@@ -436,6 +439,8 @@ export const createUserSlice: StateCreator<
 
   canAccessModule: (moduleId: ModuleId) => {
     const { user, impersonatedUser, deniedModules } = get()
+
+    if (!activeBackendSupportsModule(moduleId)) return false
 
     // Impersonation loads the target user's teams but not their module access,
     // so fall back to the impersonated role rather than the real admin's.

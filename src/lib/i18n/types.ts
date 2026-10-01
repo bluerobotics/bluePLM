@@ -16,8 +16,8 @@ export type Language =
   | 'ko'
   | 'sindarin'
 
-// Translation value can be a string or nested object (up to 3 levels)
-export type TranslationValue = string | Record<string, string | Record<string, string>>
+// Translation values may be nested to mirror feature and page namespaces.
+export type TranslationValue = string | { [key: string]: TranslationValue }
 
 // Translation dictionary structure
 export type TranslationDict = Record<string, TranslationValue>
