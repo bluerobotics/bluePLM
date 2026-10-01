@@ -147,6 +147,8 @@ export interface Tab {
   title: string // Tab display title (folder name or custom)
   folderPath: string // Current folder path in file browser
   panelState: TabPanelState // Which panels are visible
+  searchQuery?: string // Explorer search text, scoped to this tab (empty/undefined = none)
+  searchType?: 'files' | 'folders' | 'all' // Search scope, scoped to this tab
   groupId?: string // Optional tab group ID
   isPinned?: boolean // Pinned tabs can't be closed easily
 }
