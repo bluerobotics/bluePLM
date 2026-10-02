@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react'
 import { log } from '@/lib/logger'
 import { usePDMStore, LocalFile } from '@/stores/pdmStore'
 import { buildThumbnailUrl } from '@/lib/thumbnailUrl'
@@ -13,6 +13,12 @@ import {
   ZoomOut,
   RotateCcw,
 } from 'lucide-react'
+
+// Zoom bounds for the preview, in percent. 100% = fit-to-view.
+const MIN_PREVIEW_ZOOM = 25
+const MAX_PREVIEW_ZOOM = 800
+const WHEEL_ZOOM_STEP = 15
+const BUTTON_ZOOM_STEP = 25
 
 // File type icon
 function SWFileIcon({ fileType, size = 16 }: { fileType: string; size?: number }) {
@@ -62,6 +68,16 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
   const [previewZoom, setPreviewZoom] = useState(100)
   const [activeConfigName, setActiveConfigName] = useState<string | undefined>(undefined)
 
+  // Scrollable preview: the image is rendered at real pixel dimensions (not CSS-scaled) inside an
+  // overflow-auto, safe-centered container, so zooming stays as sharp as the source allows and the
+  // user can scroll/pan to any part of a zoomed drawing.
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const zoomRef = useRef(previewZoom)
+  zoomRef.current = previewZoom
+  const pendingScrollRef = useRef<{ left: number; top: number } | null>(null)
+  const [containerSize, setContainerSize] = useState({ w: 0, h: 0 })
+  const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null)
+
   const { status } = useSolidWorksService()
   const addToast = usePDMStore((s) => s.addToast)
 
@@ -104,12 +120,80 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
 
   const { src: preview, onError: onPreviewError } = useRetryableImage(previewUrl)
 
-  // Handle mouse wheel zoom on preview
-  const handlePreviewWheel = (e: React.WheelEvent) => {
-    e.preventDefault()
-    const delta = e.deltaY > 0 ? -10 : 10
-    setPreviewZoom((prev) => Math.max(50, Math.min(300, prev + delta)))
-  }
+  // Re-measure the source image whenever the URL changes (file/config/refresh).
+  useEffect(() => {
+    setNaturalSize(null)
+  }, [previewUrl])
+
+  // Track the available area so 100% means "fit to view".
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const update = () => setContainerSize({ w: el.clientWidth, h: el.clientHeight })
+    update()
+    const observer = new ResizeObserver(update)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  // Scale that fits the whole image in view (the baseline for 100%). Subtract the container's
+  // p-4 padding (16px/side) so a fitted image doesn't spill into it and spawn tiny scrollbars.
+  const fitScale = useMemo(() => {
+    const availW = containerSize.w - 32
+    const availH = containerSize.h - 32
+    if (!naturalSize || availW < 10 || availH < 10) return 1
+    return Math.min(availW / naturalSize.w, availH / naturalSize.h)
+  }, [naturalSize, containerSize])
+
+  // Real pixel size to render the image at for the current zoom.
+  const displaySize = useMemo(() => {
+    if (!naturalSize) return null
+    const s = fitScale * (previewZoom / 100)
+    return { w: Math.round(naturalSize.w * s), h: Math.round(naturalSize.h * s) }
+  }, [naturalSize, fitScale, previewZoom])
+
+  // Ctrl/Cmd + wheel zooms centered on the cursor; plain wheel scrolls/pans (browser default).
+  // Attached natively (not via React onWheel) so preventDefault reliably blocks Electron's app zoom.
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+
+    const handleWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return
+      e.preventDefault()
+
+      const rect = el.getBoundingClientRect()
+      const cursorX = e.clientX - rect.left
+      const cursorY = e.clientY - rect.top
+      const contentX = el.scrollLeft + cursorX
+      const contentY = el.scrollTop + cursorY
+
+      const oldZoom = zoomRef.current
+      const delta = e.deltaY > 0 ? -WHEEL_ZOOM_STEP : WHEEL_ZOOM_STEP
+      const newZoom = Math.max(MIN_PREVIEW_ZOOM, Math.min(MAX_PREVIEW_ZOOM, oldZoom + delta))
+      if (newZoom === oldZoom) return
+
+      const ratio = newZoom / oldZoom
+      pendingScrollRef.current = {
+        left: contentX * ratio - cursorX,
+        top: contentY * ratio - cursorY,
+      }
+      setPreviewZoom(newZoom)
+    }
+
+    el.addEventListener('wheel', handleWheel, { passive: false })
+    return () => el.removeEventListener('wheel', handleWheel)
+  }, [])
+
+  // Keep the cursor's content point fixed across a zoom change.
+  useLayoutEffect(() => {
+    const target = pendingScrollRef.current
+    const el = scrollRef.current
+    if (!target || !el) return
+    pendingScrollRef.current = null
+    el.scrollLeft = Math.max(0, target.left)
+    el.scrollTop = Math.max(0, target.top)
+  }, [previewZoom])
 
   // Discard the cached image and re-extract. Only needed when the stored
   // preview is wrong despite the file being unchanged; an actual edit changes
@@ -131,23 +215,41 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
   return (
     <div className="sw-preview-panel h-full flex flex-col">
       {/* Preview area - takes full height */}
-      <div
-        className="flex-1 relative rounded-lg overflow-hidden bg-gradient-to-br from-slate-900/50 via-slate-800/50 to-slate-900/50"
-        onWheel={handlePreviewWheel}
-      >
-        {/* Preview content */}
-        <div className="absolute inset-0 flex items-center justify-center p-4">
+      <div className="flex-1 relative rounded-lg overflow-hidden bg-gradient-to-br from-slate-900/50 via-slate-800/50 to-slate-900/50">
+        {/* Scrollable, safe-centered preview content. Ctrl+wheel zooms, plain wheel/scrollbars pan. */}
+        <div
+          ref={scrollRef}
+          className="absolute inset-0 overflow-auto p-4"
+          style={{ display: 'grid', placeItems: 'safe center' }}
+        >
           {preview ? (
             <img
               src={preview}
               alt={file.name}
-              className="max-w-full max-h-full object-contain transition-transform duration-150"
               decoding="async"
               onError={onPreviewError}
-              style={{
-                transform: `scale(${previewZoom / 100})`,
-                filter: 'drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4))',
-              }}
+              onLoad={(e) =>
+                setNaturalSize({
+                  w: e.currentTarget.naturalWidth,
+                  h: e.currentTarget.naturalHeight,
+                })
+              }
+              style={
+                displaySize
+                  ? {
+                      width: displaySize.w,
+                      height: displaySize.h,
+                      maxWidth: 'none',
+                      maxHeight: 'none',
+                      filter: 'drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4))',
+                    }
+                  : {
+                      maxWidth: '100%',
+                      maxHeight: '100%',
+                      objectFit: 'contain',
+                      filter: 'drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4))',
+                    }
+              }
               draggable={false}
             />
           ) : (
@@ -161,14 +263,18 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
         {/* Zoom controls - bottom */}
         <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1.5">
           <button
-            onClick={() => setPreviewZoom((prev) => Math.max(50, prev - 25))}
+            onClick={() =>
+              setPreviewZoom((prev) => Math.max(MIN_PREVIEW_ZOOM, prev - BUTTON_ZOOM_STEP))
+            }
             className="p-1 hover:text-cyan-400 text-plm-fg-muted transition-colors"
           >
             <ZoomOut size={16} />
           </button>
           <span className="text-xs text-plm-fg-muted w-10 text-center">{previewZoom}%</span>
           <button
-            onClick={() => setPreviewZoom((prev) => Math.min(300, prev + 25))}
+            onClick={() =>
+              setPreviewZoom((prev) => Math.min(MAX_PREVIEW_ZOOM, prev + BUTTON_ZOOM_STEP))
+            }
             className="p-1 hover:text-cyan-400 text-plm-fg-muted transition-colors"
           >
             <ZoomIn size={16} />

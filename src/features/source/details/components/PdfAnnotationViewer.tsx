@@ -764,7 +764,10 @@ export function PdfAnnotationViewer({
 
     el.addEventListener('wheel', handleWheel, { passive: false })
     return () => el.removeEventListener('wheel', handleWheel)
-  }, [])
+    // Re-run once the viewer container actually mounts: on first render the component is still
+    // in its loading state and returns a different tree with no containerRef, so without these
+    // deps the listener would never attach to the real container (Ctrl+wheel zoom would be dead).
+  }, [loading, error, pages.length])
 
   // ── Fit-to-width / Fit-to-page handlers ────────────────────────────────
   const handleFitWidth = useCallback(() => {
@@ -888,7 +891,13 @@ export function PdfAnnotationViewer({
           className="absolute inset-0 overflow-auto"
           style={{ background: 'var(--plm-bg-light)' }}
         >
-          <div className="flex flex-col items-center py-2">
+          <div
+            className="flex flex-col py-2"
+            // 'safe center' keeps pages centered when they fit, but left-aligns (and stays
+            // scrollable) when a page is wider than the viewport. Plain 'items-center' makes the
+            // left overflow unreachable once zoomed past the viewport width.
+            style={{ alignItems: 'safe center' }}
+          >
             {pages.map((page) => (
               <PdfPage
                 key={page.pageNumber}

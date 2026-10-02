@@ -549,76 +549,87 @@ export function FolderActionButtons({
   }
 
   return (
+    // `min-w-0` lets this whole group shrink below its content width when the row is tight, so the
+    // folder name keeps its space. Inside, the secondary badges collapse (and clip) first while the
+    // priority badges — check-in, check-out, first check-in — are never shrunk.
     <span
-      className="flex items-center gap-1 ml-auto mr-0.5 text-[10px]"
+      className="flex items-center gap-1 ml-auto mr-0.5 text-[10px] min-w-0"
       onClick={(e) => e.stopPropagation()}
     >
-      {/* 1. Update (outdated) - only when online */}
-      {!isOfflineMode && diffCounts && diffCounts.outdated > 0 && (
-        <InlineSyncButton
-          onClick={handleInlineGetLatest}
-          count={diffCounts.outdated}
-          isProcessing={operationType === 'sync'}
-        />
-      )}
-      {/* 1b. Pending file moves - shown regardless of online/offline, since resolving one is a
-          local-disk or server-record decision either way, not a sync operation. */}
-      {totalMovedCount > 0 &&
-        (() => {
-          const suffix = totalMovedCount === 1 ? '_one' : '_other'
-          return (
-            <FolderMovedBadge
-              onClick={handleMovedBadgeClick}
-              totalCount={totalMovedCount}
-              title={t(`explorer.pendingMovesBadgeTitle${suffix}`, { count: totalMovedCount })}
-            />
-          )
-        })()}
-      {/* 2. Cloud files to download - only when online */}
-      {/* Use computed diffCounts.cloud from children, not stale folder diffStatus */}
-      {!isOfflineMode && diffCounts && diffCounts.cloud > 0 && (
-        <FolderDownloadButton
-          onClick={(e) => handleInlineDownload(e)}
-          cloudCount={diffCounts.cloud}
-          isProcessing={operationType === 'download'}
-        />
-      )}
-      {/* 3. Avatar checkout (users with check-in button) - only when online */}
-      {!isOfflineMode &&
-        checkoutUsers.length > 0 &&
-        (() => {
-          // Use folder's pdmData.id if available, otherwise fallback to first file ID from checkout users
-          // This enables notification functionality even when folders don't have their own PDM record
-          const folderId =
-            file.pdmData?.id || checkoutUsers.find((u) => u.fileIds?.length)?.fileIds?.[0]
-          return (
-            <FolderCheckinButton
-              onClick={handleInlineCheckin}
-              users={checkoutUsers}
-              myCheckedOutCount={checkedOutByMeCount}
-              totalCheckouts={totalCheckouts}
-              isProcessing={operationType === 'checkin'}
-              folderId={folderId}
-              folderName={file.name}
-            />
-          )
-        })()}
-      {/* 4. Green cloud - synced files ready to checkout - only when online */}
-      {!isOfflineMode && syncedCount > 0 && (
-        <InlineCheckoutButton
-          onClick={handleInlineCheckout}
-          count={syncedCount}
-          isProcessing={operationType === 'checkout'}
-        />
-      )}
-      {/* 5. Local files - clickable upload button when online only */}
-      {!isOfflineMode && localOnlyCount > 0 && (
-        <FolderUploadButton
-          onClick={handleInlineFirstCheckin}
-          localCount={localOnlyCount}
-          isProcessing={operationType === 'upload' || operationType === 'sync'}
-        />
-      )}
+      {/* Secondary badges: update, pending moves, cloud download. Lower priority, so they collapse
+          and clip behind the name before the priority badges give up any space. */}
+      <span className="flex items-center gap-1 min-w-0 overflow-hidden">
+        {/* 1. Update (outdated) - only when online */}
+        {!isOfflineMode && diffCounts && diffCounts.outdated > 0 && (
+          <InlineSyncButton
+            onClick={handleInlineGetLatest}
+            count={diffCounts.outdated}
+            isProcessing={operationType === 'sync'}
+          />
+        )}
+        {/* 1b. Pending file moves - shown regardless of online/offline, since resolving one is a
+            local-disk or server-record decision either way, not a sync operation. */}
+        {totalMovedCount > 0 &&
+          (() => {
+            const suffix = totalMovedCount === 1 ? '_one' : '_other'
+            return (
+              <FolderMovedBadge
+                onClick={handleMovedBadgeClick}
+                totalCount={totalMovedCount}
+                title={t(`explorer.pendingMovesBadgeTitle${suffix}`, { count: totalMovedCount })}
+              />
+            )
+          })()}
+        {/* 2. Cloud files to download - only when online */}
+        {/* Use computed diffCounts.cloud from children, not stale folder diffStatus */}
+        {!isOfflineMode && diffCounts && diffCounts.cloud > 0 && (
+          <FolderDownloadButton
+            onClick={(e) => handleInlineDownload(e)}
+            cloudCount={diffCounts.cloud}
+            isProcessing={operationType === 'download'}
+          />
+        )}
+      </span>
+      {/* Priority badges: check-in, check-out, first check-in. Never shrink, so they stay readable
+          even on a narrow row — the secondary group and the name yield space first. */}
+      <span className="flex items-center gap-1 flex-shrink-0">
+        {/* 3. Avatar checkout (users with check-in button) - only when online */}
+        {!isOfflineMode &&
+          checkoutUsers.length > 0 &&
+          (() => {
+            // Use folder's pdmData.id if available, otherwise fallback to first file ID from checkout users
+            // This enables notification functionality even when folders don't have their own PDM record
+            const folderId =
+              file.pdmData?.id || checkoutUsers.find((u) => u.fileIds?.length)?.fileIds?.[0]
+            return (
+              <FolderCheckinButton
+                onClick={handleInlineCheckin}
+                users={checkoutUsers}
+                myCheckedOutCount={checkedOutByMeCount}
+                totalCheckouts={totalCheckouts}
+                isProcessing={operationType === 'checkin'}
+                folderId={folderId}
+                folderName={file.name}
+              />
+            )
+          })()}
+        {/* 4. Green cloud - synced files ready to checkout - only when online */}
+        {!isOfflineMode && syncedCount > 0 && (
+          <InlineCheckoutButton
+            onClick={handleInlineCheckout}
+            count={syncedCount}
+            isProcessing={operationType === 'checkout'}
+          />
+        )}
+        {/* 5. Local files - clickable upload button when online only */}
+        {!isOfflineMode && localOnlyCount > 0 && (
+          <FolderUploadButton
+            onClick={handleInlineFirstCheckin}
+            localCount={localOnlyCount}
+            isProcessing={operationType === 'upload' || operationType === 'sync'}
+          />
+        )}
+      </span>
     </span>
   )
 }

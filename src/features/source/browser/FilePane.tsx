@@ -146,6 +146,7 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
   const activeVaultId = usePDMStore((s) => s.activeVaultId)
   const searchQuery = usePDMStore((s) => s.searchQuery)
   const searchType = usePDMStore((s) => s.searchType)
+  const searchScope = usePDMStore((s) => s.searchScope)
   const setSearchQuery = usePDMStore((s) => s.setSearchQuery)
   const lowercaseExtensions = usePDMStore((s) => s.lowercaseExtensions)
   const detailsPanelVisible = usePDMStore((s) => s.detailsPanelVisible)
@@ -976,6 +977,7 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
     sortDirection: sortDirection as import('./types').SortDirection,
     searchQuery,
     searchType,
+    searchScope,
     hideSolidworksTempFiles,
     hiddenFolderPaths: enforcedHiddenPaths,
     toggleSort,
@@ -1438,6 +1440,7 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
     setSelectedFiles,
     lastClickedIndex,
     setLastClickedIndex,
+    setPendingScrollToFile,
     currentPath,
     vaultPath,
     clipboard,
@@ -1946,6 +1949,13 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
                   renderCellContent={renderCellContent}
                 />
               </table>
+            )}
+
+            {/* Background right-click strip - guarantees empty space to open the folder-level
+                context menu (New Folder, Paste, Add Files...) even when files fill the pane.
+                Right-clicks here fall through to handleEmptyContextMenu on the scroll container. */}
+            {vaultPath && connectedVaults.length > 0 && sortedFiles.length > 0 && (
+              <div className="min-h-24 w-full" aria-hidden="true" />
             )}
 
             {/* Empty state - no vault connected */}

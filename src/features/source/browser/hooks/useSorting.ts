@@ -18,6 +18,8 @@ export interface UseSortingOptions {
   sortDirection: SortDirection
   searchQuery?: string
   searchType?: 'all' | 'files' | 'folders'
+  /** 'current-folder' limits search matches to the current folder (recursive); 'all-folders' searches the whole vault */
+  searchScope?: 'current-folder' | 'all-folders'
   hideSolidworksTempFiles?: boolean
   /** Admin-only folder paths to strip from the list (empty for admins) */
   hiddenFolderPaths?: HiddenFolderPaths
@@ -40,6 +42,7 @@ export function useSorting({
   sortDirection,
   searchQuery,
   searchType = 'all',
+  searchScope = 'current-folder',
   hideSolidworksTempFiles = false,
   hiddenFolderPaths,
   toggleSort,
@@ -78,7 +81,17 @@ export function useSorting({
     if (isSearching) {
       // Search mode: filter by search query, then order by relevance unless the user has
       // picked a column to sort by, in which case sort the matches like the folder view.
-      const searchResults = filterBySearch(validFiles, searchQuery!, searchType)
+      // When scope is 'current-folder', restrict the pool to the current folder (recursive)
+      // before matching, so a scoped search does not leak across the whole vault.
+      const searchPool =
+        searchScope === 'current-folder' && currentPath
+          ? validFiles.filter((file) => {
+              const rel = file.relativePath.replace(/\\/g, '/')
+              const base = currentPath.replace(/\\/g, '/')
+              return rel === base || rel.startsWith(base + '/')
+            })
+          : validFiles
+      const searchResults = filterBySearch(searchPool, searchQuery!, searchType)
       resultFiles = userSortedDuringSearchRef.current
         ? sortFiles(searchResults, sortColumn, sortDirection, true)
         : sortByRelevance(searchResults, (file) => getSearchScore(file, searchQuery!))
@@ -106,6 +119,7 @@ export function useSorting({
     isSearching,
     searchQuery,
     searchType,
+    searchScope,
     sortColumn,
     sortDirection,
     hideSolidworksTempFiles,

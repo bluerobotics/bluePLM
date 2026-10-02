@@ -161,6 +161,7 @@ export function NameCell({
           }}
           onBlur={handleRename}
           onClick={(e) => e.stopPropagation()}
+          onDoubleClick={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
           onDragStart={(e) => e.preventDefault()}
           draggable={false}
@@ -197,6 +198,7 @@ export function NameCell({
           }}
           onBlur={() => setHighlightingFile(null)}
           onClick={(e) => e.stopPropagation()}
+          onDoubleClick={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
           onDragStart={(e) => e.preventDefault()}
           draggable={false}

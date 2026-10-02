@@ -222,6 +222,7 @@ function EditableField({
       <div
         className="flex items-center gap-1"
         onClick={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => e.stopPropagation()}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <span className="text-plm-fg-muted/60 flex-shrink-0" style={{ fontSize }}>

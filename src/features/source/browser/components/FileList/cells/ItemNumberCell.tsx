@@ -240,6 +240,7 @@ export function ItemNumberCell({ file }: CellRendererBaseProps): React.ReactNode
               handleSaveCellEdit()
             }}
             onClick={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
             disabled={isGenerating}
             size={Math.max(editValue.length || 6, 6)}

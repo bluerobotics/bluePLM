@@ -266,6 +266,7 @@ export const createFilesSlice: StateCreator<
   // Initial state - Search
   searchQuery: '',
   searchType: 'all',
+  searchScope: 'current-folder',
   searchResults: [],
   isSearching: false,
   recentSearches: [],
@@ -1987,6 +1988,7 @@ export const createFilesSlice: StateCreator<
   // Actions - Search
   setSearchQuery: (searchQuery) => set({ searchQuery }),
   setSearchType: (searchType) => set({ searchType }),
+  setSearchScope: (searchScope) => set({ searchScope }),
   setSearchResults: (searchResults) => set({ searchResults }),
   setIsSearching: (isSearching) => set({ isSearching }),
   addRecentSearch: (query) => {

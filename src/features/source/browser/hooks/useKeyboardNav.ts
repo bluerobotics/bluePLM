@@ -24,11 +24,14 @@
  *   ...
  * })
  */
-import { useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useRef } from 'react'
 import type { LocalFile } from '@/stores/pdmStore'
 import type { KeybindingAction } from '@/types/settings'
 import { executeCommand } from '@/lib/commands'
 import type { SelectableRow } from '../components/FileList/rowTypes'
+
+/** How long a typed character stays in the type-ahead buffer before the next key starts fresh */
+const TYPEAHEAD_RESET_MS = 600
 
 export interface UseKeyboardNavOptions {
   files: LocalFile[]
@@ -40,6 +43,8 @@ export interface UseKeyboardNavOptions {
   setSelectedFiles: (paths: string[]) => void
   lastClickedIndex: number | null
   setLastClickedIndex: (index: number | null) => void
+  /** Scrolls a row into view after type-ahead jumps to a distant match */
+  setPendingScrollToFile: (path: string | null) => void
   currentPath: string
   vaultPath: string | null
   clipboard: { files: LocalFile[]; operation: 'copy' | 'cut' } | null
@@ -68,6 +73,7 @@ export function useKeyboardNav({
   setSelectedFiles,
   lastClickedIndex,
   setLastClickedIndex,
+  setPendingScrollToFile,
   currentPath,
   clipboard: _clipboard,
   setClipboard,
@@ -83,6 +89,12 @@ export function useKeyboardNav({
   startRenaming,
   onRefresh,
 }: UseKeyboardNavOptions): void {
+  // Type-ahead ("jump to item by typing") buffer, Windows Explorer style. Typing letters in
+  // quick succession builds a prefix ("re" -> first item starting with "re"); repeating the same
+  // letter cycles through items that start with it.
+  const typeAheadBufferRef = useRef('')
+  const typeAheadTimeRef = useRef(0)
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       // Don't handle shortcuts when typing in input fields
@@ -308,6 +320,56 @@ export function useKeyboardNav({
         onRefresh?.()
         return
       }
+
+      // Type-ahead: a single printable character (no modifiers) jumps to the matching item.
+      // Runs last so explicit shortcuts always win.
+      if (
+        e.key.length === 1 &&
+        e.key !== ' ' &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey &&
+        selectableRows.length > 0
+      ) {
+        const char = e.key.toLowerCase()
+        const now = Date.now()
+        const withinWindow = now - typeAheadTimeRef.current < TYPEAHEAD_RESET_MS
+        typeAheadTimeRef.current = now
+
+        const buffer = withinWindow ? typeAheadBufferRef.current + char : char
+        typeAheadBufferRef.current = buffer
+
+        // Repeating one letter ("c", "cc", ...) cycles through items starting with it; a real
+        // multi-character prefix ("ca") jumps to the first match from the top.
+        const isSingleLetterCycle = buffer.split('').every((c) => c === buffer[0])
+        const prefix = isSingleLetterCycle ? buffer[0] : buffer
+
+        const currentIndex =
+          selectedFiles.length > 0
+            ? selectableRows.findIndex(
+                (row) => row.path === selectedFiles[selectedFiles.length - 1],
+              )
+            : -1
+        const startIndex = isSingleLetterCycle ? currentIndex + 1 : 0
+
+        let matchIndex = -1
+        for (let i = 0; i < selectableRows.length; i++) {
+          const idx = (startIndex + i) % selectableRows.length
+          if (selectableRows[idx].file.name.toLowerCase().startsWith(prefix)) {
+            matchIndex = idx
+            break
+          }
+        }
+
+        if (matchIndex >= 0) {
+          e.preventDefault()
+          e.stopPropagation()
+          setSelectedFiles([selectableRows[matchIndex].path])
+          setLastClickedIndex(matchIndex)
+          setPendingScrollToFile(selectableRows[matchIndex].path)
+        }
+        return
+      }
     },
     [
       files,
@@ -317,6 +379,7 @@ export function useKeyboardNav({
       setSelectedFiles,
       lastClickedIndex,
       setLastClickedIndex,
+      setPendingScrollToFile,
       currentPath,
       setClipboard,
       matchesKeybinding,

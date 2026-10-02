@@ -182,8 +182,11 @@ export const FolderTreeItem = memo(function FolderTreeItem({
         {/* Folder icon */}
         <span className="tree-item-icon">{getFolderIcon()}</span>
 
-        {/* Folder name - italic/muted for unsynced folders (derived from computed isSynced) */}
-        <span className={`truncate text-sm flex-1 ${!isSynced ? 'italic text-plm-fg-muted' : ''}`}>
+        {/* Folder name - italic/muted for unsynced folders (derived from computed isSynced).
+            `min-w-[5rem]` keeps the name readable: the action badges collapse before it does. */}
+        <span
+          className={`truncate text-sm flex-1 min-w-[5rem] ${!isSynced ? 'italic text-plm-fg-muted' : ''}`}
+        >
           {file.name}
         </span>
 

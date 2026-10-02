@@ -286,6 +286,7 @@ export const usePDMStore = create<PDMStoreState>()(
         iconSize: state.iconSize,
         listRowSize: state.listRowSize,
         treeRowSize: state.treeRowSize,
+        searchScope: state.searchScope,
         columns: state.columns,
         columnConfigLastSyncedAt: state.columnConfigLastSyncedAt,
         cardViewFields: state.cardViewFields,

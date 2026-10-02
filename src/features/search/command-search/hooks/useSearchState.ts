@@ -1,20 +1,27 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { logSearch } from '@/lib/userActionLogger'
-import type { SearchFilter, SearchScope, ParsedQuery } from '../types'
+import type { SearchFilter, ParsedQuery } from '../types'
 import { parseQuery } from '../utils'
 
 /**
  * Hook for managing the main search state
  */
 export function useSearchState() {
-  const { searchQuery, setSearchQuery, setSearchType, addRecentSearch } = usePDMStore()
+  const { searchQuery, setSearchQuery, setSearchType, addRecentSearch, searchScope, setSearchScope } =
+    usePDMStore()
 
   const [isOpen, setIsOpen] = useState(false)
   const [localQuery, setLocalQuery] = useState(searchQuery || '')
   const [activeFilter, setActiveFilter] = useState<SearchFilter>('all')
-  const [searchScope, setSearchScope] = useState<SearchScope>('current-folder')
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
+
+  // Search is scoped per tab, so the store's searchQuery changes out from under us when the user
+  // switches tabs. Mirror those external changes into the input; typing keeps them in sync already
+  // (handleInputChange writes both), so this is a no-op there and only reacts to tab switches.
+  useEffect(() => {
+    setLocalQuery(searchQuery || '')
+  }, [searchQuery])
   const [showFilters, setShowFilters] = useState(false)
 
   // Parse query for filter prefix

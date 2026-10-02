@@ -472,7 +472,7 @@ export const VirtualizedTreeRow = memo(function VirtualizedTreeRow({
         />
       ) : (
         <span
-          className={`truncate text-sm flex-1 ${
+          className={`truncate text-sm flex-1 min-w-[5rem] ${
             // For folders: use checkFolderSynced() callback (same as icon) for consistent updates
             // For files: use the file's own diffStatus
             (file.isDirectory ? !folderIsSynced : file.diffStatus === 'cloud')

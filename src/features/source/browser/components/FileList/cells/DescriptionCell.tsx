@@ -65,6 +65,7 @@ export function DescriptionCell({ file }: CellRendererBaseProps): React.ReactNod
         }}
         onBlur={handleSaveCellEdit}
         onClick={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => e.stopPropagation()}
         onMouseDown={(e) => e.stopPropagation()}
         className="w-full bg-plm-bg border border-plm-accent rounded px-1 py-0 text-sm text-plm-fg focus:outline-none focus:ring-1 focus:ring-plm-accent"
       />

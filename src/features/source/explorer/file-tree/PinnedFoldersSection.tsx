@@ -379,7 +379,7 @@ export function PinnedFoldersSection({
                     </span>
                   )}
                   <span className="tree-item-icon">{getPinnedFileIcon()}</span>
-                  <span className="truncate text-sm flex-1" title={pinned.path}>
+                  <span className="truncate text-sm flex-1 min-w-[5rem]" title={pinned.path}>
                     {pinned.isDirectory ? rawFileName : fileName}
                   </span>
 

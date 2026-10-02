@@ -1323,11 +1323,24 @@ input::placeholder {
   border-radius: 4px;
   transition: background-color 0.1s ease;
   user-select: none;
-  /* CSS containment reduces reflow/repaint scope for better performance */
+  /* CSS containment reduces reflow/repaint scope for better performance. `inline-size` also makes
+     each row a container query context (its width tracks the tree width), which drives the
+     width-based hiding of the low-priority "notify users" cluster below. */
   contain: layout style;
+  container-type: inline-size;
   /* GPU acceleration hints for virtualized rows */
   will-change: transform, opacity;
   backface-visibility: hidden;
+}
+
+/* The folder/vault "notify other users" cluster (other users' checkout avatars + bell) is rarely
+   used and takes a lot of width. Hide it when the row is too narrow to show it without crowding the
+   name; it reappears as soon as the tree is widened past this threshold. Wrapper class is set in
+   InlineActionButtons.tsx; the container is `.tree-item` (rows) / `.vault-tree-row` (vault header). */
+@container (max-width: 360px) {
+  .folder-notify-cluster {
+    display: none;
+  }
 }
 
 /* GPU acceleration for virtualized list positioning */

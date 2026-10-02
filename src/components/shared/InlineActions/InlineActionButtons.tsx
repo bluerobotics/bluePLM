@@ -919,18 +919,22 @@ const CheckinButtonCore: React.FC<CheckinButtonProps> = ({
 
     return (
       <div className="relative flex items-center gap-1">
-        {/* Other users - notification button (red/bell style) */}
+        {/* Other users - notification button (red/bell style). Wrapped in `folder-notify-cluster`
+            so a container query (see index.css) hides it when the row is too narrow and brings it
+            back when the tree is widened — it is rarely used and otherwise crowds the row. */}
         {otherUsers.length > 0 && (
-          <NotificationInlineButton
-            users={displayedOtherUsers}
-            hasOverflow={hasOthersOverflow}
-            overflowCount={otherUsers.length - maxAvatars}
-            totalCount={othersCheckoutCount}
-            showCount={showOthersCount}
-            folderId={folderId}
-            folderName={folderName}
-            allUsers={otherUsers}
-          />
+          <span className="folder-notify-cluster flex items-center">
+            <NotificationInlineButton
+              users={displayedOtherUsers}
+              hasOverflow={hasOthersOverflow}
+              overflowCount={otherUsers.length - maxAvatars}
+              totalCount={othersCheckoutCount}
+              showCount={showOthersCount}
+              folderId={folderId}
+              folderName={folderName}
+              allUsers={otherUsers}
+            />
+          </span>
         )}
         {/* My check-in button (green/lock style) */}
         {canCheckin && myUser && (

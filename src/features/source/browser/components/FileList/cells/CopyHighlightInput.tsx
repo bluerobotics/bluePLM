@@ -34,6 +34,7 @@ export function CopyHighlightInput({ value, onExit }: CopyHighlightInputProps): 
       }}
       onBlur={onExit}
       onClick={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
       onDragStart={(e) => e.preventDefault()}
       draggable={false}

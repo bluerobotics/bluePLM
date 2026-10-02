@@ -35,7 +35,7 @@ namespace BluePLM.SolidWorksService
         /// Service version - bump this when making changes that affect functionality.
         /// The app checks this version and warns if there's a mismatch.
         /// </summary>
-        private const string SERVICE_VERSION = "1.21.2";
+        private const string SERVICE_VERSION = "1.22.0";
 
         /// <summary>
         /// Error code returned for an action this build does not implement. The app matches on this
@@ -976,9 +976,21 @@ namespace BluePLM.SolidWorksService
             // Windows Shell thumbnail fallback
             // Note: Shell thumbnail extraction may hold file handles temporarily, which can
             // occasionally interfere with folder moves. However, this is better than no previews.
+            //
+            // Request a large thumbnail (not the old 256px) so drawings - which for modern file
+            // formats disable Document Manager and land here - come back sharp. The shell honours
+            // SIIGBF_BIGGERSIZEOK up to the Windows "jumbo" thumbnail cache ceiling (~1024px); the
+            // renderer's preview tier caps at the same size, so nothing upscales past the source.
             Console.Error.WriteLine("[Service] DM API preview failed, trying Shell fallback...");
-            return WindowsShellThumbnail.GetThumbnail(filePath!, 256);
+            return WindowsShellThumbnail.GetThumbnail(filePath!, PREVIEW_SHELL_THUMBNAIL_SIZE);
         }
+
+        /// <summary>
+        /// Size requested from the Windows shell when a drawing (or any file whose Document Manager
+        /// preview is unavailable) falls back to a shell thumbnail. 1024px matches the renderer's
+        /// preview tier cap and the Windows jumbo thumbnail cache ceiling.
+        /// </summary>
+        private const int PREVIEW_SHELL_THUMBNAIL_SIZE = 1024;
 
         /// <summary>
         /// The service is running without a SolidWorks installation to fall back to, so a Document
