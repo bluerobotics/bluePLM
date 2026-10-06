@@ -325,17 +325,17 @@ export function useKeyboardNav({
       // Runs last so explicit shortcuts always win.
       //
       // Scope it to the file pane. The listener is on window, so without this a letter typed
-      // while focus is on a <select>, an editable area, an open dialog, the tree or the details
-      // panel would move the file selection (and cancel the key's normal action, breaking
-      // letter navigation inside a <select>). Only run when focus is inside the file pane or on
-      // the page body, and never on a select, an editable element, or anything in a dialog.
+      // while focus is on a <select>, an editable area, the tree, the details panel or behind a
+      // modal would move the file selection (and cancel the key's normal action, breaking letter
+      // navigation inside a <select>). The pane container is focusable (tabIndex=-1), so clicking
+      // anywhere in it lands focus inside; we require focus to be inside the pane rather than
+      // allowing document.body, because our modals are plain overlay <div>s (no [role="dialog"])
+      // and clicking a non-focusable element in one leaves focus on the body.
       const typeAheadTarget = e.target as HTMLElement | null
       const isTypeAheadContext =
-        !!typeAheadTarget &&
+        !!typeAheadTarget?.closest?.('[data-file-pane]') &&
         !(typeAheadTarget instanceof HTMLSelectElement) &&
-        !typeAheadTarget.isContentEditable &&
-        !typeAheadTarget.closest?.('[role="dialog"]') &&
-        (typeAheadTarget === document.body || !!typeAheadTarget.closest?.('[data-file-pane]'))
+        !typeAheadTarget.isContentEditable
 
       if (
         isTypeAheadContext &&

@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useRef } from 'react'
+import { useMemo, useCallback, useState } from 'react'
 import type { HiddenFolderPaths } from '@/lib/hiddenFolders'
 import type { LocalFile } from '@/stores/pdmStore'
 import type { SearchScope } from '@/types/pdm'
@@ -56,13 +56,13 @@ export function useSorting({
 
   // While searching, results are relevance-ordered by default. Once the user clicks a column
   // header we switch to that column's sort (like the folder view) and stay there for the rest of
-  // the search. Rather than a boolean reset during render (a render-phase side effect the memo
-  // read without depending on), we record the query the user last sorted under and compare it to
-  // the current query inside the memo: a new search no longer matches, so it falls back to
-  // relevance. Both transitions already change a memo dependency (searchQuery, or
-  // sortColumn/sortDirection via the sort setters), so the memo recomputes either way.
-  const sortedUnderQueryRef = useRef<string | undefined>(undefined)
-  const userSortedThisSearch = sortedUnderQueryRef.current === searchQuery
+  // the search. We hold the query the user last sorted under in state - not a ref - so recording
+  // it triggers a render: a first click on a column that already is the store's sort column and
+  // direction (Name/ascending, the common case) changes nothing in the store, and without this
+  // render nothing would switch the results out of relevance order. A new search no longer
+  // matches the stored query, so it falls back to relevance - with no render-phase side effect.
+  const [sortedUnderQuery, setSortedUnderQuery] = useState<string | undefined>(undefined)
+  const userSortedThisSearch = sortedUnderQuery === searchQuery
 
   // Memoize sorted files to avoid expensive recomputation on every render
   const sortedFiles = useMemo(() => {
@@ -134,21 +134,22 @@ export function useSorting({
   // the query it happened under so the results follow the chosen column instead of relevance.
   const toggleSortColumn = useCallback(
     (columnId: string) => {
-      if (isSearching && sortedUnderQueryRef.current !== searchQuery) {
+      if (isSearching && sortedUnderQuery !== searchQuery) {
         // First sort of this search: the results are still in relevance order, so the store's
-        // sortColumn/sortDirection still describe the previous folder sort. Toggling here would
-        // flip a column the user is sorting for the first time straight to descending. Apply the
-        // column's default (ascending) direction explicitly instead - the same direction
-        // toggleSort gives a freshly chosen column.
-        sortedUnderQueryRef.current = searchQuery
+        // sortColumn/sortDirection still describe the previous folder sort. Recording the query
+        // in state re-renders and switches out of relevance even when setSortColumn/Direction are
+        // no-ops (the column is already the store's ascending sort). Apply the column's default
+        // (ascending) direction - the same direction toggleSort gives a freshly chosen column,
+        // not a flip to descending.
+        setSortedUnderQuery(searchQuery)
         setSortColumn(columnId)
         setSortDirection('asc')
         return
       }
-      if (isSearching) sortedUnderQueryRef.current = searchQuery
+      if (isSearching) setSortedUnderQuery(searchQuery)
       toggleSort(columnId)
     },
-    [toggleSort, isSearching, searchQuery, setSortColumn, setSortDirection],
+    [toggleSort, isSearching, searchQuery, sortedUnderQuery, setSortColumn, setSortDirection],
   )
 
   return {

@@ -375,7 +375,8 @@ namespace BluePLM.SolidWorksService
                     "getConfigurations" => GetConfigurationsFast(filePath),
                     "getReferences" => GetReferencesFast(filePath, ReadReferenceOrigin(command)),
                     "getPreview" => GetPreviewFast(filePath, command["configuration"]?.ToString(),
-                        command["size"]?.Value<int>() ?? DEFAULT_SHELL_THUMBNAIL_SIZE),
+                        Math.Clamp(command["size"]?.Value<int>() ?? DEFAULT_SHELL_THUMBNAIL_SIZE,
+                            MIN_SHELL_THUMBNAIL_SIZE, MAX_SHELL_THUMBNAIL_SIZE)),
                     "getShellThumbnail" => WindowsShellThumbnail.GetThumbnail(filePath!, 
                         command["size"]?.Value<int>() ?? 256),
                     
@@ -994,6 +995,14 @@ namespace BluePLM.SolidWorksService
         /// preview passes 1024 explicitly for a sharp drawing render.
         /// </summary>
         private const int DEFAULT_SHELL_THUMBNAIL_SIZE = 256;
+
+        /// <summary>
+        /// Bounds the caller-supplied preview size. The floor keeps a degenerate request from
+        /// asking the shell for a 0px image; the ceiling is the Windows "jumbo" thumbnail cache
+        /// ceiling, past which the shell will not return anything sharper anyway.
+        /// </summary>
+        private const int MIN_SHELL_THUMBNAIL_SIZE = 16;
+        private const int MAX_SHELL_THUMBNAIL_SIZE = 1024;
 
         /// <summary>
         /// The service is running without a SolidWorks installation to fall back to, so a Document

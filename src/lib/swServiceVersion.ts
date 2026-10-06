@@ -99,9 +99,11 @@
  *                   opened the file read-only too and refused the save after a full open per scope
  * - Version 1.21.1: Log Document Manager open failures with DescribeOpenError. Code 4 is
  *                   file-read-only; the previous table called it a non-native file
- * - Version 1.22.0: Request a 1024px shell thumbnail (was 256px) for the preview fallback, so
- *                   drawings - which disable Document Manager on modern file formats and land on
- *                   the shell path - render sharp instead of blurry in the details panel
+ * - Version 1.22.0: getPreview takes the shell-thumbnail size from the caller (clamped 16-1024,
+ *                   defaulting to 256), so the details-panel preview can ask for a sharp 1024px
+ *                   render of a drawing - which disables Document Manager on modern formats and
+ *                   lands on the shell path - while grid thumbnails stay at 256px instead of being
+ *                   fetched at 16x the pixels
  * - Version 1.21.0: Add getPropertiesDocumentManager, which resolves straight to
  *                   DocumentManagerAPI.GetCustomProperties with no IsFileOpenInSolidWorks probe,
  *                   so a bulk reader cannot route thousands of COM round-trips through the
@@ -180,7 +182,7 @@ export const SW_SERVICE_VERSION_DESCRIPTIONS: Record<string, string> = {
   '1.21.2':
     'Writing metadata into a read-only file now fails straight away. The service used to try again through SOLIDWORKS, which opened the file read-only as well and refused to save it - once for the file and once per configuration, over a minute on a four-configuration assembly - before reporting the same failure',
   '1.22.0':
-    'Drawing previews are sharper: when a file has no Document Manager preview (common for modern formats) the service now asks Windows for a 1024px thumbnail instead of a 256px one, so the drawing in the details panel is no longer blurry',
+    'Drawing previews are sharper: when a file has no Document Manager preview (common for modern formats) the caller now chooses the Windows thumbnail size, so the details panel asks for a 1024px render while file-browser grid icons stay at 256px instead of being fetched at many times the pixels they need',
 }
 
 /**

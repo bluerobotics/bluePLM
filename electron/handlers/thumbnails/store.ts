@@ -29,8 +29,11 @@ import {
  * Bumped when normalization changes in a way that makes previously cached
  * images undesirable. It is part of every key, so a bump orphans the old
  * entries and lets eviction reclaim them.
+ *
+ * v2: preview-tier shell-thumbnail fallbacks are now requested at 1024px (was
+ * 256px), so previews cached before that change are blurry and must be re-extracted.
  */
-const CACHE_FORMAT_VERSION = 1
+const CACHE_FORMAT_VERSION = 2
 
 const CACHE_DIR_NAME = 'thumbnail-cache'
 

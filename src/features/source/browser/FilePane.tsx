@@ -1795,7 +1795,11 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
       <FilePaneHandlersProvider handlers={handlersContextValue}>
         <div
           data-file-pane
-          className="flex-1 flex flex-col overflow-hidden relative min-w-0"
+          // Focusable (but not in the tab order) like FileTree, so clicking anywhere in the pane
+          // lands focus here. Type-ahead requires focus inside this container, which keeps letters
+          // from reaching the pane while a modal overlay or the details panel has focus.
+          tabIndex={-1}
+          className="flex-1 flex flex-col overflow-hidden relative min-w-0 outline-none"
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
