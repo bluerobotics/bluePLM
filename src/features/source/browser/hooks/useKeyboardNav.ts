@@ -323,7 +323,22 @@ export function useKeyboardNav({
 
       // Type-ahead: a single printable character (no modifiers) jumps to the matching item.
       // Runs last so explicit shortcuts always win.
+      //
+      // Scope it to the file pane. The listener is on window, so without this a letter typed
+      // while focus is on a <select>, an editable area, an open dialog, the tree or the details
+      // panel would move the file selection (and cancel the key's normal action, breaking
+      // letter navigation inside a <select>). Only run when focus is inside the file pane or on
+      // the page body, and never on a select, an editable element, or anything in a dialog.
+      const typeAheadTarget = e.target as HTMLElement | null
+      const isTypeAheadContext =
+        !!typeAheadTarget &&
+        !(typeAheadTarget instanceof HTMLSelectElement) &&
+        !typeAheadTarget.isContentEditable &&
+        !typeAheadTarget.closest?.('[role="dialog"]') &&
+        (typeAheadTarget === document.body || !!typeAheadTarget.closest?.('[data-file-pane]'))
+
       if (
+        isTypeAheadContext &&
         e.key.length === 1 &&
         e.key !== ' ' &&
         !e.ctrlKey &&

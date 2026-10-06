@@ -142,6 +142,9 @@ export type { UseMouseNavButtonsOptions } from './useMouseNavButtons'
 export { useColumnHandlers } from './useColumnHandlers'
 export type { ColumnHandlersDeps, UseColumnHandlersReturn } from './useColumnHandlers'
 
+// Go to folder (leave search, reveal a result in its parent folder)
+export { useGoToFolder } from './useGoToFolder'
+
 // Context menu handlers (file and empty area)
 export { useContextMenuHandlers } from './useContextMenuHandlers'
 export type {

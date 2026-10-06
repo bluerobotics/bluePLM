@@ -126,7 +126,8 @@ export function FileGridView({
     const index = files.findIndex((file) => file.path === pendingScrollToFile)
     if (index >= 0) {
       const rowIndex = Math.floor(index / columnCount)
-      requestAnimationFrame(() => virtualizer.scrollToIndex(rowIndex, { align: 'center' }))
+      // 'auto' only scrolls when the row is off-screen, so a match already in view stays put.
+      requestAnimationFrame(() => virtualizer.scrollToIndex(rowIndex, { align: 'auto' }))
     }
     setPendingScrollToFile(null)
   }, [pendingScrollToFile, files, columnCount, virtualizer, setPendingScrollToFile])

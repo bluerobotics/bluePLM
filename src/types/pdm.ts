@@ -10,6 +10,13 @@ export interface CheckoutUserProfile {
 // Render-only derivation state. It must never be persisted as checkout identity.
 export type CheckoutDisplayState = 'none' | 'mine' | 'resolved' | 'hydrating' | 'unavailable'
 
+/**
+ * Explorer search scope: 'current-folder' limits matches to the current folder (recursive);
+ * 'all-folders' searches the whole vault. Canonical home for the union so the store, the sorting
+ * hook and the command-search feature all share one definition.
+ */
+export type SearchScope = 'current-folder' | 'all-folders'
+
 /** Session values supplied by auth-aware callers to scope asynchronous vault loads. */
 export interface LoadFilesSessionContext {
   authenticatedUserId: string | null

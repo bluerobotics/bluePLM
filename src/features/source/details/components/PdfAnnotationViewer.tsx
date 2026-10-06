@@ -892,11 +892,11 @@ export function PdfAnnotationViewer({
           style={{ background: 'var(--plm-bg-light)' }}
         >
           <div
-            className="flex flex-col py-2"
             // 'safe center' keeps pages centered when they fit, but left-aligns (and stays
             // scrollable) when a page is wider than the viewport. Plain 'items-center' makes the
-            // left overflow unreachable once zoomed past the viewport width.
-            style={{ alignItems: 'safe center' }}
+            // left overflow unreachable once zoomed past the viewport width. Tailwind 3.4 has no
+            // built-in 'safe' utility, so this uses an arbitrary property.
+            className="flex flex-col py-2 [align-items:safe_center]"
           >
             {pages.map((page) => (
               <PdfPage

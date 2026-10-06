@@ -271,7 +271,15 @@ export const usePDMStore = create<PDMStoreState>()(
         // ═══════════════════════════════════════════════════════════════
         // Tabs & Navigation
         // ═══════════════════════════════════════════════════════════════
-        tabs: state.tabs,
+        // Strip each tab's working search before persisting. The global search is not persisted,
+        // so keeping a tab's searchQuery/searchType would resurrect an old search on that tab
+        // after a restart - results with no visible query behind them.
+        tabs: state.tabs.map((tab) => {
+          const persisted = { ...tab }
+          delete persisted.searchQuery
+          delete persisted.searchType
+          return persisted
+        }),
         activeTabId: state.activeTabId,
         tabGroups: state.tabGroups,
         tabsEnabled: state.tabsEnabled,

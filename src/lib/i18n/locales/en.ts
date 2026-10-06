@@ -1241,6 +1241,7 @@ export const en: TranslationDict = {
 
   // Context menu translations
   contextMenu: {
+    goToFolder: 'Go to Folder',
     assembly: {
       title: 'Assembly',
       resolving: 'Resolving references...',

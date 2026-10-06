@@ -374,7 +374,8 @@ namespace BluePLM.SolidWorksService
                     "getPropertiesDocumentManager" => GetPropertiesDocumentManagerOnly(filePath, command),
                     "getConfigurations" => GetConfigurationsFast(filePath),
                     "getReferences" => GetReferencesFast(filePath, ReadReferenceOrigin(command)),
-                    "getPreview" => GetPreviewFast(filePath, command["configuration"]?.ToString()),
+                    "getPreview" => GetPreviewFast(filePath, command["configuration"]?.ToString(),
+                        command["size"]?.Value<int>() ?? DEFAULT_SHELL_THUMBNAIL_SIZE),
                     "getShellThumbnail" => WindowsShellThumbnail.GetThumbnail(filePath!, 
                         command["size"]?.Value<int>() ?? 256),
                     
@@ -941,7 +942,7 @@ namespace BluePLM.SolidWorksService
         // Track if Document Manager previews work (they don't for newer SW file formats)
         static bool _dmPreviewWorks = true;
         
-        static CommandResult GetPreviewFast(string? filePath, string? configuration)
+        static CommandResult GetPreviewFast(string? filePath, string? configuration, int shellThumbnailSize)
         {
             // Strategy:
             // 1. Try Document Manager API (fastest, no SW launch)
@@ -977,20 +978,22 @@ namespace BluePLM.SolidWorksService
             // Note: Shell thumbnail extraction may hold file handles temporarily, which can
             // occasionally interfere with folder moves. However, this is better than no previews.
             //
-            // Request a large thumbnail (not the old 256px) so drawings - which for modern file
-            // formats disable Document Manager and land here - come back sharp. The shell honours
+            // Request the caller's size (not the old fixed 256px) so the details-panel preview can
+            // ask for a large, sharp thumbnail for drawings - which for modern file formats disable
+            // Document Manager and land here - while grid thumbnails keep asking for 256px and are
+            // not pushed 16x the pixels through the service for every file. The shell honours
             // SIIGBF_BIGGERSIZEOK up to the Windows "jumbo" thumbnail cache ceiling (~1024px); the
             // renderer's preview tier caps at the same size, so nothing upscales past the source.
             Console.Error.WriteLine("[Service] DM API preview failed, trying Shell fallback...");
-            return WindowsShellThumbnail.GetThumbnail(filePath!, PREVIEW_SHELL_THUMBNAIL_SIZE);
+            return WindowsShellThumbnail.GetThumbnail(filePath!, shellThumbnailSize);
         }
 
         /// <summary>
-        /// Size requested from the Windows shell when a drawing (or any file whose Document Manager
-        /// preview is unavailable) falls back to a shell thumbnail. 1024px matches the renderer's
-        /// preview tier cap and the Windows jumbo thumbnail cache ceiling.
+        /// Size requested from the Windows shell when a preview falls back to a shell thumbnail and
+        /// the caller did not specify one. 256px keeps grid thumbnails cheap; the details-panel
+        /// preview passes 1024 explicitly for a sharp drawing render.
         /// </summary>
-        private const int PREVIEW_SHELL_THUMBNAIL_SIZE = 1024;
+        private const int DEFAULT_SHELL_THUMBNAIL_SIZE = 256;
 
         /// <summary>
         /// The service is running without a SolidWorks installation to fall back to, so a Document

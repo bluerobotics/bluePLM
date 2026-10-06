@@ -311,8 +311,10 @@ export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProp
       )
       if (idx >= 0) {
         // Use requestAnimationFrame to ensure the virtualizer has measured the new rows
+        // 'auto' only scrolls when the row is off-screen, so a type-ahead match already in
+        // view stays put (matching "only distant jumps scroll" in the PR).
         requestAnimationFrame(() => {
-          virtualizer.scrollToIndex(idx, { align: 'center' })
+          virtualizer.scrollToIndex(idx, { align: 'auto' })
         })
       }
       setPendingScrollToFile(null)

@@ -89,6 +89,7 @@ import {
   useNavigationHistory,
   useMouseNavButtons,
   useColumnHandlers,
+  useGoToFolder,
   useContextMenuHandlers,
   useFileEditHandlers,
   useConfigHandlers,
@@ -174,14 +175,17 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
     )
 
   // Column actions
-  const { setColumnWidth, reorderColumns, toggleColumnVisibility, toggleSort } = usePDMStore(
-    useShallow((s) => ({
-      setColumnWidth: s.setColumnWidth,
-      reorderColumns: s.reorderColumns,
-      toggleColumnVisibility: s.toggleColumnVisibility,
-      toggleSort: s.toggleSort,
-    })),
-  )
+  const { setColumnWidth, reorderColumns, toggleColumnVisibility, toggleSort, setSortColumn, setSortDirection } =
+    usePDMStore(
+      useShallow((s) => ({
+        setColumnWidth: s.setColumnWidth,
+        reorderColumns: s.reorderColumns,
+        toggleColumnVisibility: s.toggleColumnVisibility,
+        toggleSort: s.toggleSort,
+        setSortColumn: s.setSortColumn,
+        setSortDirection: s.setSortDirection,
+      })),
+    )
 
   // Folder navigation actions
   const { setCurrentFolder, toggleFolder, updateTabFolder } = usePDMStore(
@@ -981,6 +985,8 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
     hideSolidworksTempFiles,
     hiddenFolderPaths: enforcedHiddenPaths,
     toggleSort,
+    setSortColumn,
+    setSortDirection,
   })
 
   // The list view reports its visual row order, including resolved config drawings.
@@ -1488,28 +1494,13 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
     }
   }
 
-  // Leave search and land in a result's parent folder, with the file selected and scrolled into
-  // view. A 'moved_away' stub has nothing on disk at its own path, so target where the content
-  // actually lives. Mirrors the command palette's "open file location" behavior.
-  const handleGoToFolder = useCallback(
-    (file: LocalFile) => {
-      const relativePath =
-        file.diffStatus === 'moved_away' && file.movedToRelativePath
-          ? file.movedToRelativePath
-          : file.relativePath
-      const parts = relativePath.replace(/\\/g, '/').split('/')
-      parts.pop() // drop the file name
-      const parentPath = parts.join('/')
-
-      setSearchQuery('')
-      navigateToFolder(parentPath)
-
-      const fullPath = vaultPath ? buildFullPath(vaultPath, relativePath) : file.path
-      setSelectedFiles([fullPath])
-      setPendingScrollToFile(fullPath)
-    },
-    [setSearchQuery, navigateToFolder, vaultPath, setSelectedFiles, setPendingScrollToFile],
-  )
+  const handleGoToFolder = useGoToFolder({
+    vaultPath,
+    navigateToFolder,
+    setSearchQuery,
+    setSelectedFiles,
+    setPendingScrollToFile,
+  })
 
   // TODO(decompose): Extract to browser/hooks/useRefRowHandlers.ts — handleConfigBomRowClick,
   // handleDrawingRefRowClick, onConfigSectionsToggle, onConfigGroupToggle,
@@ -1803,6 +1794,7 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
     >
       <FilePaneHandlersProvider handlers={handlersContextValue}>
         <div
+          data-file-pane
           className="flex-1 flex flex-col overflow-hidden relative min-w-0"
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}

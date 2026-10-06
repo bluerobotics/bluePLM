@@ -1,5 +1,5 @@
 // Store types - extracted from pdmStore.ts for use across slices
-import type { CheckoutUserProfile, PDMFile, Organization, User } from '../types/pdm'
+import type { CheckoutUserProfile, PDMFile, Organization, User, SearchScope } from '../types/pdm'
 import type { ModuleId, ModuleConfig } from '../types/modules'
 import type {
   KeybindingsConfig,
@@ -1005,7 +1005,7 @@ export interface FilesSlice {
   searchQuery: string
   searchType: 'files' | 'folders' | 'all'
   /** Whether a search looks only inside the current folder (recursive) or across the whole vault */
-  searchScope: 'current-folder' | 'all-folders'
+  searchScope: SearchScope
   searchResults: LocalFile[]
   isSearching: boolean
   recentSearches: string[]
@@ -1139,7 +1139,7 @@ export interface FilesSlice {
   // Actions - Search
   setSearchQuery: (query: string) => void
   setSearchType: (type: 'files' | 'folders' | 'all') => void
-  setSearchScope: (scope: 'current-folder' | 'all-folders') => void
+  setSearchScope: (scope: SearchScope) => void
   setSearchResults: (results: LocalFile[]) => void
   setIsSearching: (searching: boolean) => void
   addRecentSearch: (query: string) => void

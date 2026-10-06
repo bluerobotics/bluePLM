@@ -219,8 +219,7 @@ export function SWDatacardPanel({ file }: { file: LocalFile }) {
         {/* Scrollable, safe-centered preview content. Ctrl+wheel zooms, plain wheel/scrollbars pan. */}
         <div
           ref={scrollRef}
-          className="absolute inset-0 overflow-auto p-4"
-          style={{ display: 'grid', placeItems: 'safe center' }}
+          className="absolute inset-0 overflow-auto p-4 [display:grid] [place-items:safe_center]"
         >
           {preview ? (
             <img

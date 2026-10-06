@@ -1,5 +1,6 @@
 import type { ReactNode, RefObject } from 'react'
 import type { LocalFile } from '@/stores/pdmStore'
+import type { SearchScope } from '@/types/pdm'
 
 // Google Drive file result type
 export interface GoogleDriveFileResult {
@@ -24,8 +25,9 @@ export type SearchFilter =
   | 'state'
   | 'drive'
 
-// Search scope - where to search
-export type SearchScope = 'current-folder' | 'all-folders'
+// Search scope - where to search. Canonical definition lives in src/types/pdm; re-exported here
+// so existing imports from this feature's types keep working.
+export type { SearchScope }
 
 export interface FilterOption {
   id: SearchFilter

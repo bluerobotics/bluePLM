@@ -1,6 +1,7 @@
 import { useMemo, useCallback, useRef } from 'react'
 import type { HiddenFolderPaths } from '@/lib/hiddenFolders'
 import type { LocalFile } from '@/stores/pdmStore'
+import type { SearchScope } from '@/types/pdm'
 import type { SortColumn, SortDirection } from '../types'
 import { sortFiles, sortByRelevance } from '../utils/sorting'
 import {
@@ -19,11 +20,13 @@ export interface UseSortingOptions {
   searchQuery?: string
   searchType?: 'all' | 'files' | 'folders'
   /** 'current-folder' limits search matches to the current folder (recursive); 'all-folders' searches the whole vault */
-  searchScope?: 'current-folder' | 'all-folders'
+  searchScope?: SearchScope
   hideSolidworksTempFiles?: boolean
   /** Admin-only folder paths to strip from the list (empty for admins) */
   hiddenFolderPaths?: HiddenFolderPaths
   toggleSort: (columnId: string) => void
+  setSortColumn: (column: string) => void
+  setSortDirection: (direction: SortDirection) => void
 }
 
 export interface UseSortingReturn {
@@ -46,20 +49,20 @@ export function useSorting({
   hideSolidworksTempFiles = false,
   hiddenFolderPaths,
   toggleSort,
+  setSortColumn,
+  setSortDirection,
 }: UseSortingOptions): UseSortingReturn {
   const isSearching = !!(searchQuery && searchQuery.trim().length > 0)
 
   // While searching, results are relevance-ordered by default. Once the user clicks a column
-  // header we switch to that column's sort (like the folder view) and stay there for the rest
-  // of the search. The flag resets synchronously whenever the query changes so a fresh search
-  // goes back to relevance. Both transitions coincide with a real dependency change below
-  // (searchQuery, or sortColumn/sortDirection via toggleSort), so the memo always recomputes.
-  const userSortedDuringSearchRef = useRef(false)
-  const prevSearchQueryRef = useRef(searchQuery)
-  if (prevSearchQueryRef.current !== searchQuery) {
-    prevSearchQueryRef.current = searchQuery
-    userSortedDuringSearchRef.current = false
-  }
+  // header we switch to that column's sort (like the folder view) and stay there for the rest of
+  // the search. Rather than a boolean reset during render (a render-phase side effect the memo
+  // read without depending on), we record the query the user last sorted under and compare it to
+  // the current query inside the memo: a new search no longer matches, so it falls back to
+  // relevance. Both transitions already change a memo dependency (searchQuery, or
+  // sortColumn/sortDirection via the sort setters), so the memo recomputes either way.
+  const sortedUnderQueryRef = useRef<string | undefined>(undefined)
+  const userSortedThisSearch = sortedUnderQueryRef.current === searchQuery
 
   // Memoize sorted files to avoid expensive recomputation on every render
   const sortedFiles = useMemo(() => {
@@ -92,7 +95,7 @@ export function useSorting({
             })
           : validFiles
       const searchResults = filterBySearch(searchPool, searchQuery!, searchType)
-      resultFiles = userSortedDuringSearchRef.current
+      resultFiles = userSortedThisSearch
         ? sortFiles(searchResults, sortColumn, sortDirection, true)
         : sortByRelevance(searchResults, (file) => getSearchScore(file, searchQuery!))
     } else {
@@ -122,18 +125,30 @@ export function useSorting({
     searchScope,
     sortColumn,
     sortDirection,
+    userSortedThisSearch,
     hideSolidworksTempFiles,
     hiddenFolderPaths,
   ])
 
-  // Toggle sort column (passed through from store). When the user sorts during a search, flag it
-  // so the search results follow the chosen column instead of relevance order.
+  // Toggle sort column (passed through from store). When the user sorts during a search, record
+  // the query it happened under so the results follow the chosen column instead of relevance.
   const toggleSortColumn = useCallback(
     (columnId: string) => {
-      if (isSearching) userSortedDuringSearchRef.current = true
+      if (isSearching && sortedUnderQueryRef.current !== searchQuery) {
+        // First sort of this search: the results are still in relevance order, so the store's
+        // sortColumn/sortDirection still describe the previous folder sort. Toggling here would
+        // flip a column the user is sorting for the first time straight to descending. Apply the
+        // column's default (ascending) direction explicitly instead - the same direction
+        // toggleSort gives a freshly chosen column.
+        sortedUnderQueryRef.current = searchQuery
+        setSortColumn(columnId)
+        setSortDirection('asc')
+        return
+      }
+      if (isSearching) sortedUnderQueryRef.current = searchQuery
       toggleSort(columnId)
     },
-    [toggleSort, isSearching],
+    [toggleSort, isSearching, searchQuery, setSortColumn, setSortDirection],
   )
 
   return {

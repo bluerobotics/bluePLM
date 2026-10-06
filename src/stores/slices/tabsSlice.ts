@@ -106,16 +106,34 @@ export const createTabsSlice: StateCreator<
   },
 
   closeOtherTabs: (tabId) => {
-    const { tabs } = get()
+    const { tabs, activeTabId, searchQuery, searchType } = get()
     const tab = tabs.find((t) => t.id === tabId)
     if (!tab) return
 
     // Keep the current tab and pinned tabs
     const newTabs = tabs.filter((t) => t.id === tabId || t.isPinned)
-    set({
-      tabs: newTabs,
-      activeTabId: tabId,
-    })
+
+    // When this makes a different tab active, restore its folder, panel and search the way
+    // setActiveTab does - first saving the leaving tab's working search back onto it. Without
+    // this the view kept the previous tab's folder and search even though another tab was now
+    // active.
+    if (tabId !== activeTabId) {
+      set({
+        tabs: newTabs.map((t) => (t.id === activeTabId ? { ...t, searchQuery, searchType } : t)),
+        activeTabId: tabId,
+        currentFolder: tab.folderPath,
+        searchQuery: tab.searchQuery ?? '',
+        searchType: tab.searchType ?? 'all',
+        sidebarVisible: tab.panelState.sidebarVisible,
+        detailsPanelVisible: tab.panelState.detailsPanelVisible,
+        rightPanelVisible: tab.panelState.rightPanelVisible,
+      })
+    } else {
+      set({
+        tabs: newTabs,
+        activeTabId: tabId,
+      })
+    }
   },
 
   setActiveTab: (tabId) => {

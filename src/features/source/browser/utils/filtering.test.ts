@@ -3,8 +3,6 @@
  * item-number query - a run of six or more digits, like `100234` or `BR-100234` - where a match
  * on the item/part number should outrank a filename-only match, since the user is clearly
  * searching by number, not by name.
- *
- * See `.cursor/plans/search-item-number-priority.plan.md`.
  */
 
 import { describe, expect, it } from 'vitest'

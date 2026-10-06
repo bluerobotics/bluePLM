@@ -8,8 +8,14 @@ import { parseQuery } from '../utils'
  * Hook for managing the main search state
  */
 export function useSearchState() {
-  const { searchQuery, setSearchQuery, setSearchType, addRecentSearch, searchScope, setSearchScope } =
-    usePDMStore()
+  // One selector per field so the search box re-renders only when a field it uses changes, rather
+  // than on every store change (the selectorless usePDMStore() subscribes to the whole store).
+  const searchQuery = usePDMStore((s) => s.searchQuery)
+  const setSearchQuery = usePDMStore((s) => s.setSearchQuery)
+  const setSearchType = usePDMStore((s) => s.setSearchType)
+  const addRecentSearch = usePDMStore((s) => s.addRecentSearch)
+  const searchScope = usePDMStore((s) => s.searchScope)
+  const setSearchScope = usePDMStore((s) => s.setSearchScope)
 
   const [isOpen, setIsOpen] = useState(false)
   const [localQuery, setLocalQuery] = useState(searchQuery || '')

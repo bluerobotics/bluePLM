@@ -6,6 +6,7 @@ import { FolderSearch } from 'lucide-react'
 import type { LocalFile } from '@/stores/pdmStore'
 import { usePDMStore } from '@/stores/pdmStore'
 import { buildFullPath } from '@/lib/utils/path'
+import { useTranslation } from '@/lib/i18n'
 import type { ActionComponentProps } from './types'
 import { getCountLabel } from '@/lib/utils'
 
@@ -26,6 +27,7 @@ export function OpenActions({
   onGoToFolder,
 }: OpenActionsProps) {
   const vaultPath = usePDMStore((s) => s.vaultPath)
+  const { t } = useTranslation()
 
   // A 'moved_away' stub has nothing on disk at its own path - open its real, current
   // location instead of failing on a path that no longer exists.
@@ -58,7 +60,7 @@ export function OpenActions({
         }}
       >
         <FolderSearch size={14} />
-        Go to Folder
+        {t('contextMenu.goToFolder')}
       </div>
     ) : null
 

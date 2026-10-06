@@ -24,6 +24,7 @@ import {
   type SwServiceResult,
 } from './solidworksErrors'
 import type { ExtractedImage, ThumbnailTier } from './thumbnails/types'
+import { TIER_MAX_EDGE_PX } from './thumbnails/types'
 import { classifySwProcess, planSwClose, type SwProcessVerdict } from './swProcess/classify'
 import {
   proveSwLaunch,
@@ -2009,6 +2010,7 @@ function isCancellation(result: SwServiceResult): boolean {
 export async function extractThumbnailBytes(
   filePath: string,
   configuration?: string,
+  shellThumbnailSize?: number,
 ): Promise<ExtractedImage | null> {
   const fileName = path.basename(filePath)
   const ext = path.extname(filePath).toLowerCase()
@@ -2025,7 +2027,10 @@ export async function extractThumbnailBytes(
     if (swServiceProcess?.stdin) {
       try {
         const dmResult = await sendSWCommand(
-          { action: 'getPreview', filePath, configuration },
+          // Pass the tier's size so a grid thumbnail falling back to the Windows shell asks for
+          // 256px, not the 1024px the details-panel preview needs - otherwise every grid icon is
+          // fetched at 16x the pixels and piped through the service only to be shrunk afterwards.
+          { action: 'getPreview', filePath, configuration, size: shellThumbnailSize },
           { timeoutMs: THUMBNAIL_COMMAND_TIMEOUT_MS },
         )
 
@@ -2248,7 +2253,7 @@ export async function extractCadImage(
     if (olePreview) return olePreview
   }
 
-  return extractThumbnailBytes(filePath, configuration)
+  return extractThumbnailBytes(filePath, configuration, TIER_MAX_EDGE_PX[tier])
 }
 
 // Export functions for use by fs handlers
