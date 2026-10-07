@@ -5,6 +5,8 @@ import { getCheckoutSignature } from '@/lib/checkout/checkoutDisplay'
 import { usePDMStore, type LocalFile } from '@/stores/pdmStore'
 import type { OperationType } from '@/stores/types'
 
+import { scrollToTopIfHidden } from '../../utils/scrollToTopIfHidden'
+
 import { FileIconCard } from './FileCard'
 
 /** Matches the `p-4` padding on the grid container. */
@@ -126,8 +128,8 @@ export function FileGridView({
     const index = files.findIndex((file) => file.path === pendingScrollToFile)
     if (index >= 0) {
       const rowIndex = Math.floor(index / columnCount)
-      // 'auto' only scrolls when the row is off-screen, so a match already in view stays put.
-      requestAnimationFrame(() => virtualizer.scrollToIndex(rowIndex, { align: 'auto' }))
+      // A match already fully in view stays put; a hidden one jumps to the top.
+      requestAnimationFrame(() => scrollToTopIfHidden(virtualizer, rowIndex))
     }
     setPendingScrollToFile(null)
   }, [pendingScrollToFile, files, columnCount, virtualizer, setPendingScrollToFile])

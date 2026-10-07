@@ -18,6 +18,7 @@ import type { ConfigBomItem, DrawingRefItem } from '@/stores/types'
 
 import type { ConfigWithDepth } from '../../types'
 import { useFilePaneContext, useFilePaneHandlers } from '../../context'
+import { alignRowToTopIfHidden } from '../../utils/scrollToTopIfHidden'
 import { buildVirtualRows } from './buildVirtualRows'
 import { ConfigBomRow } from './ConfigBomRow'
 import { ConfigDrawingRow } from './ConfigDrawingRow'
@@ -311,14 +312,31 @@ export const FileListBody = forwardRef<HTMLTableSectionElement, FileListBodyProp
       )
       if (idx >= 0) {
         // Use requestAnimationFrame to ensure the virtualizer has measured the new rows
-        // 'auto' only scrolls when the row is off-screen, so a type-ahead match already in
-        // view stays put (matching "only distant jumps scroll" in the PR).
+        // A match already fully in view stays put; a hidden one jumps to the top, under the
+        // sticky column header (which sits in flow above the virtualized rows).
         requestAnimationFrame(() => {
-          virtualizer.scrollToIndex(idx, { align: 'auto' })
+          const scrollElement = tableRef.current
+          if (!scrollElement) return
+          const headerHeight = scrollElement.querySelector('thead')?.offsetHeight ?? 0
+          const findRow = () =>
+            scrollElement.querySelector<HTMLElement>(
+              // Expanded config-drawing rows can carry the same data-path as the file's own row.
+              `tr[data-path="${CSS.escape(pendingScrollToFile)}"]:not(.config-drawing-row)`,
+            )
+
+          // Judge against the real row when it is rendered. Otherwise scroll near it by the
+          // virtualizer's estimate, then correct once the row has actually rendered.
+          if (alignRowToTopIfHidden(scrollElement, findRow(), headerHeight)) return
+          virtualizer.scrollToIndex(idx, { align: 'start' })
+          requestAnimationFrame(() =>
+            requestAnimationFrame(() => {
+              alignRowToTopIfHidden(scrollElement, findRow(), headerHeight)
+            }),
+          )
         })
       }
       setPendingScrollToFile(null)
-    }, [pendingScrollToFile, virtualRows, virtualizer, setPendingScrollToFile])
+    }, [pendingScrollToFile, virtualRows, virtualizer, setPendingScrollToFile, tableRef])
 
     // Calculate padding for spacer rows to maintain scroll position
     // This technique renders only visible rows with spacer rows above/below
