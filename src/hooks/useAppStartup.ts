@@ -9,7 +9,7 @@
  */
 import { useState, useEffect, useRef } from 'react'
 import { usePDMStore, getHasHydrated } from '@/stores/pdmStore'
-import { isSupabaseConfigured } from '@/lib/supabase'
+import { resolveBackend } from '@/lib/backend'
 import { t } from '@/lib/i18n'
 import { log } from '@/lib/logger'
 import { recordMetric } from '@/lib/performanceMetrics'
@@ -115,8 +115,8 @@ export function useAppStartup(): StartupState {
         // Step 1.2: Check Supabase configuration
         setStatus('Checking configuration...')
 
-        const supabaseConfigured = isSupabaseConfigured()
-        if (!supabaseConfigured) {
+        const backendResolution = resolveBackend()
+        if (backendResolution.status !== 'ready') {
           // Supabase not configured - app will show setup screen
           // Mark as ready so App.tsx can handle the setup flow
           log.info('[Startup]', 'Supabase not configured, deferring to setup screen')

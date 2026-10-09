@@ -16,7 +16,7 @@ vi.mock('@/lib/supabase', () => ({
   syncUserSessionsOrgId: vi.fn(),
   updateLastOnline: vi.fn(),
 }))
-vi.mock('@/lib/supabaseConfig', () => ({ clearConfig: vi.fn() }))
+vi.mock('@/lib/supabaseConfig', () => ({ clearConfig: vi.fn(), loadConfig: vi.fn(() => null) }))
 vi.mock('@/lib/userActionLogger', () => ({ logUserAction: vi.fn() }))
 vi.mock('@/lib/logger', () => ({
   log: {
@@ -133,9 +133,7 @@ describe('auth session boundaries', () => {
     expect(committedUser).toBeNull()
     expect(userA.sessionGeneration).toBe(1)
     expect(userB.sessionGeneration).toBe(3)
-    expect(
-      advanceAuthSessionBoundary(userB, 'TOKEN_REFRESHED', 'user-b'),
-    ).toEqual(userB)
+    expect(advanceAuthSessionBoundary(userB, 'TOKEN_REFRESHED', 'user-b')).toEqual(userB)
   })
 
   it('rejects late cache and realtime responses from the old session', async () => {

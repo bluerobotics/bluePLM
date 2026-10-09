@@ -4,16 +4,9 @@ import { useShallow } from 'zustand/react/shallow'
 import { usePDMStore } from '@/stores/pdmStore'
 import { setAnalyticsUser, clearAnalyticsUser } from '@/lib/analytics'
 import { setLoadFilesSessionContext } from '@/hooks/loadFilesCoordination'
-import {
-  supabase,
-  isSupabaseConfigured,
-  linkUserToOrganization,
-  getUserProfile,
-  setCurrentAccessToken,
-  signOut,
-  syncUserSessionsOrgId,
-  updateLastOnline,
-} from '@/lib/supabase'
+import { setCurrentAccessToken, syncUserSessionsOrgId, updateLastOnline } from '@/lib/supabase'
+import { getBackend, resolveBackend } from '@/lib/backend'
+import type { AuthStateListener } from '@/types/backend'
 import { logUserAction } from '@/lib/userActionLogger'
 import { clearConfig } from '@/lib/supabaseConfig'
 import { log } from '@/lib/logger'
@@ -141,7 +134,7 @@ export function useAuth() {
   )
 
   // Track if Supabase is configured (can change at runtime)
-  const [supabaseReady, setSupabaseReady] = useState(() => isSupabaseConfigured())
+  const [supabaseReady, setSupabaseReady] = useState(() => resolveBackend().status === 'ready')
   const [sessionGeneration, setSessionGeneration] = useState(0)
   const sessionBoundaryRef = useRef<AuthSessionBoundary>({
     authenticatedUserId: null,
@@ -185,7 +178,7 @@ export function useAuth() {
   const handleChangeOrg = useCallback(async () => {
     advanceSession('SIGNED_OUT', null)
     // Sign out first if user is signed in
-    await signOut()
+    await getBackend().auth.signOut()
     // Clear the stored Supabase config
     clearConfig()
     // Reset state to show setup screen
@@ -202,9 +195,9 @@ export function useAuth() {
 
     // Listen for auth state changes (also handles session restoration on startup)
     const listenerEpoch = ++authListenerEpochRef.current
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const backend = getBackend()
+
+    const onAuthStateChange: AuthStateListener = async (event, session) => {
       if (authListenerEpochRef.current !== listenerEpoch) return
 
       const eventSequence = ++authEventSequenceRef.current
@@ -269,7 +262,9 @@ export function useAuth() {
 
           // Fetch user profile from database to get role
           const profileStart = performance.now()
-          const { profile, error: profileError } = await getUserProfile(session.user.id)
+          const { profile, error: profileError } = await backend.identity.getUserProfile(
+            session.user.id,
+          )
           const profileDuration = performance.now() - profileStart
           recordMetric('Startup', 'getUserProfile complete', {
             durationMs: Math.round(profileDuration),
@@ -360,7 +355,7 @@ export function useAuth() {
           // Load organization (setOrganization will clear isConnecting)
           // Pass cached org_id to avoid duplicate profile fetch in linkUserToOrganization
           const orgStart = performance.now()
-          const { org, error: orgError } = await linkUserToOrganization(
+          const { org, error: orgError } = await backend.identity.linkUserToOrganization(
             session.user.id,
             session.user.email || '',
             userProfile?.org_id,
@@ -455,7 +450,8 @@ export function useAuth() {
         // the vault load and nothing else will come along to restore it.
         setAuthInitialized(true)
       }
-    })
+    }
+    const subscription = backend.auth.subscribeToAuthStateChange(onAuthStateChange)
 
     return () => {
       authListenerEpochRef.current += 1

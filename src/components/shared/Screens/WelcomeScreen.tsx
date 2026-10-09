@@ -21,20 +21,11 @@ import {
   LogOut,
   Trash2,
 } from 'lucide-react'
+
 import { usePDMStore, ConnectedVault } from '@/stores/pdmStore'
-import {
-  signInWithGoogle,
-  signInWithEmail,
-  signUpWithEmail,
-  signInWithPhone,
-  verifyPhoneOTP,
-  isSupabaseConfigured,
-  supabase,
-  getAccessibleVaults,
-  signOut as supabaseSignOut,
-  getOrgAuthProviders,
-  type AuthProviders,
-} from '@/lib/supabase'
+import { supabase, getAccessibleVaults } from '@/lib/supabase'
+import { getBackend, resolveBackend } from '@/lib/backend'
+import type { AuthProviders } from '@/types/backend'
 import { clearConfig, loadConfig } from '@/lib/supabaseConfig'
 import { getInitials, getEffectiveAvatarUrl } from '@/lib/utils'
 import { formatFileSize } from '@/lib/utils'
@@ -46,6 +37,8 @@ import { calculateVaultSyncStats } from '@/lib/vaultHealthCheck'
 import { useTranslation } from '@/lib/i18n'
 import { log } from '@/lib/logger'
 import type { AccountType } from '@/types/database'
+
+import { createWelcomeCredentialAuthHandlers } from './welcomeCredentialAuth'
 
 // Build vault path based on platform
 function buildVaultPath(platform: string, vaultSlug: string): string {
@@ -166,7 +159,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
       log.info('[WelcomeScreen]', 'Fetching auth providers for org', {
         orgSlug: config?.orgSlug || '(fallback)',
       })
-      const providers = await getOrgAuthProviders(config?.orgSlug)
+      const providers = await getBackend().identity.getOrgAuthProviders(config?.orgSlug)
       if (providers) {
         log.info('[WelcomeScreen]', 'Auth providers loaded', { providers })
         setOrgAuthProviders(providers)
@@ -294,10 +287,11 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
 
         // Load stats for each vault (with pagination to handle >1000 files)
         const vaultsWithStats = await Promise.all(
-          (vaultsData as any[]).map(async (vault: any) => { // TODO: type this
+          (vaultsData as any[]).map(async (vault: any) => {
+            // TODO: type this
             // Fetch file count and total size using pagination (Supabase default limit is 1000)
             const PAGE_SIZE = 1000
-            let allFileSizes: number[] = []
+            const allFileSizes: number[] = []
             let offset = 0
             let hasMore = true
 
@@ -379,7 +373,8 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
               .map((cv) => cv.localPath.toLowerCase().replace(/\\/g, '/')),
           )
 
-          for (const serverVault of vaultsData as any[]) { // TODO: type this
+          for (const serverVault of vaultsData as any[]) {
+            // TODO: type this
             // Check if this server vault is already connected (with correct ID)
             const isConnected = connectedVaults.some((cv) => cv.id === serverVault.id)
             if (isConnected) {
@@ -524,7 +519,8 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
     logAuth('Sign in with Google clicked')
     log.info('[WelcomeScreen]', 'Sign in button clicked')
 
-    if (!isSupabaseConfigured()) {
+    const resolution = resolveBackend()
+    if (resolution.status !== 'ready') {
       log.warn('[WelcomeScreen]', 'Supabase not configured')
       setStatusMessage('Supabase not configured')
       return
@@ -550,7 +546,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
     }, 30000)
 
     try {
-      const { data, error } = await signInWithGoogle()
+      const { data, error } = await resolution.backend.auth.signInWithGoogle()
 
       // Clear timeout if sign-in completes
       if (signInTimeoutRef.current) {
@@ -590,117 +586,22 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
     }
   }
 
-  // Email/password sign-in (for both suppliers and team members)
-  const handleEmailAuth = async () => {
-    if (!authEmail || !authPassword) {
-      setAuthError('Please enter email and password')
-      return
-    }
-
-    // Validate password confirmation for new accounts
-    if (isNewAccount && authPassword !== authPasswordConfirm) {
-      setAuthError(t('welcome.passwordMismatch'))
-      return
-    }
-
-    setIsSigningIn(true)
-    setAuthError(null)
-
-    try {
-      if (isNewAccount) {
-        // Sign up
-        log.info('[WelcomeScreen]', 'Starting email sign-up', { accountType })
-        const { data, error } = await signUpWithEmail(
-          authEmail,
-          authPassword,
-          authName || undefined,
-        )
-
-        if (error) {
-          setAuthError(error.message)
-          return
-        }
-
-        if (!data?.session) {
-          // Email confirmation needed
-          setAuthError('Please check your email to confirm your account')
-          setIsNewAccount(false) // Switch back to login view
-          return
-        }
-
-        log.info('[WelcomeScreen]', 'Email sign-up successful')
-      } else {
-        // Sign in
-        log.info('[WelcomeScreen]', 'Starting email sign-in', { accountType })
-        const { error } = await signInWithEmail(authEmail, authPassword)
-
-        if (error) {
-          setAuthError(error.message)
-          return
-        }
-
-        log.info('[WelcomeScreen]', 'Email sign-in successful')
-      }
-    } catch (error) {
-      setAuthError('Authentication failed. Please try again.')
-    } finally {
-      setIsSigningIn(false)
-    }
-  }
-
-  // Phone OTP sign-in (for both suppliers and team members)
-  const handleSendPhoneOTP = async () => {
-    if (!authPhone) {
-      setAuthError('Please enter your phone number')
-      return
-    }
-
-    setIsSigningIn(true)
-    setAuthError(null)
-
-    try {
-      log.info('[WelcomeScreen]', 'Sending phone OTP', { accountType })
-      const { error } = await signInWithPhone(authPhone)
-
-      if (error) {
-        setAuthError(error.message)
-        return
-      }
-
-      setIsOtpSent(true)
-      log.info('[WelcomeScreen]', 'Phone OTP sent successfully')
-    } catch (error) {
-      setAuthError('Failed to send verification code. Please try again.')
-    } finally {
-      setIsSigningIn(false)
-    }
-  }
-
-  const handleVerifyPhoneOTP = async () => {
-    if (!phoneOtp) {
-      setAuthError('Please enter the verification code')
-      return
-    }
-
-    setIsSigningIn(true)
-    setAuthError(null)
-
-    try {
-      log.info('[WelcomeScreen]', 'Verifying phone OTP', { accountType })
-      const { error } = await verifyPhoneOTP(authPhone, phoneOtp)
-
-      if (error) {
-        setAuthError(error.message)
-        return
-      }
-
-      log.info('[WelcomeScreen]', 'Phone verification successful')
-    } catch (error) {
-      setAuthError('Verification failed. Please try again.')
-    } finally {
-      setIsSigningIn(false)
-    }
-  }
+  const { handleEmailAuth, handleSendPhoneOTP, handleVerifyPhoneOTP } =
+    createWelcomeCredentialAuthHandlers({
+      accountType,
+      authEmail,
+      authPassword,
+      authPasswordConfirm,
+      authName,
+      authPhone,
+      phoneOtp,
+      isNewAccount,
+      t,
+      setAuthError,
+      setIsSigningIn,
+      setIsNewAccount,
+      setIsOtpSent,
+    })
 
   // Reset auth state
   const resetAuth = () => {
@@ -729,7 +630,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
 
     // Sign out if there's any session
     try {
-      await supabaseSignOut()
+      await getBackend().auth.signOut()
     } catch (error) {
       log.warn('[WelcomeScreen]', 'Error signing out during fresh start', { error: String(error) })
     }
@@ -816,7 +717,9 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
               setSetupVaultSyncStats(stats)
             })
             .catch((error) => {
-              log.warn('[WelcomeScreen]', 'Failed to calculate sync stats', { error: String(error) })
+              log.warn('[WelcomeScreen]', 'Failed to calculate sync stats', {
+                error: String(error),
+              })
               setSetupVaultSyncStats(null) // Fall back to basic stats
             })
         }
@@ -883,7 +786,9 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
               setSetupVaultSyncStats(stats)
             })
             .catch((error) => {
-              log.warn('[WelcomeScreen]', 'Failed to calculate sync stats', { error: String(error) })
+              log.warn('[WelcomeScreen]', 'Failed to calculate sync stats', {
+                error: String(error),
+              })
               setSetupVaultSyncStats(null) // Fall back to basic stats
             })
         }
@@ -994,8 +899,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
   if (isAuthConnecting) {
     const handleCancelConnecting = async () => {
       log.info('[WelcomeScreen]', 'User cancelled connecting - signing out')
-      const { signOut: supabaseSignOut } = await import('@/lib/supabase')
-      await supabaseSignOut()
+      await getBackend().auth.signOut()
     }
 
     return (
@@ -1194,7 +1098,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                   <div className="flex gap-2">
                     <button
                       onClick={handleSignIn}
-                      disabled={isSigningIn || !isSupabaseConfigured()}
+                      disabled={isSigningIn || resolveBackend().status !== 'ready'}
                       className="flex-1 btn btn-primary btn-lg gap-3 justify-center py-4"
                     >
                       {isSigningIn ? (
@@ -1840,8 +1744,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
   if (user && !organization && !isOfflineMode) {
     const handleSignOutAndRetry = async () => {
       log.info('[WelcomeScreen]', 'User signing out to retry with different account')
-      const { signOut: supabaseSignOut } = await import('@/lib/supabase')
-      await supabaseSignOut()
+      await getBackend().auth.signOut()
     }
 
     return (
