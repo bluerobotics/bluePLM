@@ -112,6 +112,9 @@ jobs:
       - name: Build Electron app
         run: npm run build -- --publish never
 
+      - name: Verify eDrawings preview payload is present
+        run: node scripts/verify-edrawings-preview-artifacts.js
+
       # electron-builder skips an extraResources entry whose `from` directory is missing rather
       # than failing. Verify after the build that its expected service binary exists.
       - name: Verify SolidWorks service binary is present

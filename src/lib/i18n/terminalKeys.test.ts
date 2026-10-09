@@ -17,7 +17,12 @@ import type { Language } from './types'
 
 const LOCALES: Language[] = ['en', 'de', 'es', 'fr', 'pt', 'zh-CN', 'zh-TW']
 
-const PLAIN = ['terminal.confirmationPending', 'terminal.confirmationCancelled'] as const
+const PLAIN = [
+  'terminal.confirmationPending',
+  'terminal.confirmationCancelled',
+  'terminal.cadPreviewModeHelp',
+  'terminal.cadPreviewModeInvalid',
+] as const
 
 describe('terminal.* keys exist in every locale', () => {
   it.each(LOCALES)('%s resolves every key to a sentence rather than the key', (locale) => {
@@ -25,6 +30,15 @@ describe('terminal.* keys exist in every locale', () => {
       const text = getTranslation(locale, key)
       expect(text, `${locale}: ${key}`).not.toBe(key)
       expect(text.length, `${locale}: ${key}`).toBeGreaterThan(0)
+    }
+  })
+
+  it.each(LOCALES)('%s names every accepted cadPreviewMode value', (locale) => {
+    for (const key of ['terminal.cadPreviewModeHelp', 'terminal.cadPreviewModeInvalid']) {
+      const text = getTranslation(locale, key)
+      expect(text).toContain('thumbnail')
+      expect(text).toContain('edrawings')
+      expect(text).toContain('edrawings-embedded')
     }
   })
 })

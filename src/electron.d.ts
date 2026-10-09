@@ -167,6 +167,41 @@ interface ZipProgressEvent {
 }
 
 declare global {
+  /** Stable renderer-facing failures for the embedded eDrawings IPC contract. */
+  type EDrawingsPreviewErrorCode =
+    | 'preview-service-unavailable'
+    | 'preview-session-not-active'
+    | 'preview-request-not-from-window'
+    | 'preview-module-unavailable'
+    | 'preview-host-unavailable'
+    | 'preview-host-handshake-failed'
+    | 'preview-host-timeout'
+    | 'preview-host-exited'
+    | 'preview-document-load-failed'
+    | 'preview-file-invalid'
+    | 'preview-vault-unavailable'
+    | 'preview-vault-not-local'
+    | 'preview-file-not-allowed'
+    | 'preview-file-type-unsupported'
+    | 'preview-file-not-available'
+    | 'preview-file-outside-vault'
+    | 'preview-bounds-invalid'
+    | 'preview-operation-failed'
+
+  interface EDrawingsPreviewFailure {
+    success: false
+    errorCode: EDrawingsPreviewErrorCode
+  }
+
+  type EDrawingsPreviewOperationResult = { success: true } | EDrawingsPreviewFailure
+  type EDrawingsExternalOpenResult =
+    | { success: true; fallback?: true }
+    | { success: false; errorCode: 'external-open-failed' }
+  type EDrawingsPreviewCreateResult = { success: true; sessionId: string } | EDrawingsPreviewFailure
+  type EDrawingsPreviewLoadResult =
+    | { success: true; accepted: true; ready: true }
+    | EDrawingsPreviewFailure
+
   /**
    * A SOLIDWORKS release as described by its COM registration.
    *
@@ -562,7 +597,7 @@ declare global {
 
       // eDrawings preview
       checkEDrawingsInstalled: () => Promise<{ installed: boolean; path: string | null }>
-      openInEDrawings: (filePath: string) => Promise<{ success: boolean; error?: string }>
+      openInEDrawings: (filePath: string) => Promise<EDrawingsExternalOpenResult>
       getWindowHandle: () => Promise<number[] | null>
 
       // SolidWorks thumbnail extraction (low-res, for file browser icons)
@@ -1297,18 +1332,23 @@ declare global {
 
       // Embedded eDrawings preview
       isEDrawingsNativeAvailable: () => Promise<boolean>
-      createEDrawingsPreview: () => Promise<{ success: boolean; error?: string }>
-      attachEDrawingsPreview: () => Promise<{ success: boolean; error?: string }>
-      loadEDrawingsFile: (filePath: string) => Promise<{ success: boolean; error?: string }>
+      createEDrawingsPreview: () => Promise<EDrawingsPreviewCreateResult>
+      attachEDrawingsPreview: (sessionId: string) => Promise<EDrawingsPreviewOperationResult>
+      loadEDrawingsFile: (
+        sessionId: string,
+        filePath: string,
+      ) => Promise<EDrawingsPreviewLoadResult>
+      getEDrawingsPreviewStatus: (sessionId: string) => Promise<EDrawingsPreviewOperationResult>
       setEDrawingsBounds: (
+        sessionId: string,
         x: number,
         y: number,
-        w: number,
-        h: number,
-      ) => Promise<{ success: boolean }>
-      showEDrawingsPreview: () => Promise<{ success: boolean }>
-      hideEDrawingsPreview: () => Promise<{ success: boolean }>
-      destroyEDrawingsPreview: () => Promise<{ success: boolean }>
+        width: number,
+        height: number,
+      ) => Promise<EDrawingsPreviewOperationResult>
+      showEDrawingsPreview: (sessionId: string) => Promise<EDrawingsPreviewOperationResult>
+      hideEDrawingsPreview: (sessionId: string) => Promise<EDrawingsPreviewOperationResult>
+      destroyEDrawingsPreview: (sessionId: string) => Promise<EDrawingsPreviewOperationResult>
 
       // Machine identification (for backup service)
       getMachineId: () => Promise<string | null>

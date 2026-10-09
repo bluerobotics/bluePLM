@@ -2,6 +2,34 @@ import type { TranslationDict } from '../types'
 
 // French translations
 export const fr: TranslationDict = {
+  solidworksSettings: {
+    previewMode: 'Mode aperçu',
+    embeddedThumbnail: 'Miniature intégrée',
+    embeddedThumbnailDescription:
+      'Extraire et afficher l’image d’aperçu du fichier SolidWorks',
+    externalEDrawings: 'eDrawings (externe)',
+    externalEDrawingsDescription: 'Ouvrir les fichiers dans l’application eDrawings externe',
+    embeddedEDrawings: 'Aperçu 3D eDrawings (Windows, optionnel)',
+    embeddedEDrawingsAvailable:
+      'Visionneuse 3D interactive dans BluePLM. Fonction Windows expérimentale.',
+    embeddedEDrawingsUnavailable:
+      'Nécessite Windows, eDrawings avec le contrôle ActiveX, Microsoft .NET 8 Desktop Runtime (x64) et le module d’aperçu optionnel.',
+    previewStarting: 'Démarrage de l’aperçu eDrawings intégré…',
+    previewStartFailed: 'Impossible de démarrer l’aperçu eDrawings intégré.',
+    previewUnavailable:
+      'L’aperçu eDrawings optionnel pour Windows n’est pas disponible sur cet ordinateur.',
+    previewServiceUnavailable: 'Le service d’aperçu eDrawings n’est pas disponible.',
+    previewSessionUnavailable: 'La session d’aperçu eDrawings n’est plus active.',
+    previewHostUnavailable:
+      'L’hôte d’aperçu eDrawings intégré n’est pas disponible. Microsoft .NET 8 Desktop Runtime (x64) est requis.',
+    previewHostTimeout: 'Le démarrage de l’aperçu eDrawings intégré a pris trop de temps.',
+    previewDocumentLoadFailed: 'Le document sélectionné n’a pas pu être chargé dans eDrawings.',
+    previewFileUnavailable: 'Ce fichier n’est pas disponible pour l’aperçu eDrawings intégré.',
+    previewNotLocal: 'Téléchargez ce fichier avant d’ouvrir l’aperçu eDrawings intégré.',
+    previewBoundsUnavailable: 'L’aperçu eDrawings intégré n’a pas pu être positionné.',
+    openInEDrawings: 'Ouvrir dans eDrawings',
+    openInEDrawingsFailed: 'Le fichier n’a pas pu être ouvert dans eDrawings.',
+  },
   checkoutDisplay: {
     you: 'Vous',
     loadingOwner: 'Chargement du propriétaire du checkout',
@@ -622,6 +650,9 @@ export const fr: TranslationDict = {
     confirmationPending:
       'En attente de confirmation — appuyez sur Entrée pour confirmer, Échap ou Ctrl+C pour annuler.',
     confirmationCancelled: 'Confirmation annulée.',
+    cadPreviewModeHelp: 'Valeurs de cadPreviewMode : thumbnail, edrawings, edrawings-embedded',
+    cadPreviewModeInvalid:
+      'cadPreviewMode doit être l’une des valeurs suivantes : « thumbnail », « edrawings » ou « edrawings-embedded ».',
   },
 
   resolveMoves: {

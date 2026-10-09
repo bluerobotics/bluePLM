@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Image,
   ExternalLink,
@@ -14,6 +14,7 @@ import {
   Check,
   ChevronDown,
   Cpu,
+  Box,
 } from 'lucide-react'
 
 import { useTranslation } from '@/lib/i18n'
@@ -23,6 +24,7 @@ import { useSolidWorksSettings } from '../hooks'
 export function SettingsTab() {
   const { t } = useTranslation()
   const [isVersionDropdownOpen, setIsVersionDropdownOpen] = useState(false)
+  const [embeddedPreviewAvailable, setEmbeddedPreviewAvailable] = useState(false)
   const {
     cadPreviewMode,
     setCadPreviewMode,
@@ -48,12 +50,20 @@ export function SettingsTab() {
     isAdmin,
   } = useSolidWorksSettings()
 
+  useEffect(() => {
+    const api = window.electronAPI
+    if (!api) return
+    void api.isEDrawingsNativeAvailable()
+      .then(setEmbeddedPreviewAvailable)
+      .catch(() => setEmbeddedPreviewAvailable(false))
+  }, [])
+
   return (
     <div className="space-y-6">
       {/* Preview Mode */}
       <div className="space-y-3">
         <label className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium">
-          Preview Mode
+          {t('solidworksSettings.previewMode')}
         </label>
         <div className="space-y-2">
           <button
@@ -66,9 +76,11 @@ export function SettingsTab() {
           >
             <Image size={24} className={cadPreviewMode === 'thumbnail' ? 'text-plm-accent' : ''} />
             <div className="text-left">
-              <div className="text-base font-medium">Embedded Thumbnail</div>
+              <div className="text-base font-medium">
+                {t('solidworksSettings.embeddedThumbnail')}
+              </div>
               <div className="text-sm opacity-70">
-                Extract and show preview image from SolidWorks file
+                {t('solidworksSettings.embeddedThumbnailDescription')}
               </div>
             </div>
           </button>
@@ -86,8 +98,37 @@ export function SettingsTab() {
               className={cadPreviewMode === 'edrawings' ? 'text-plm-accent' : ''}
             />
             <div className="text-left">
-              <div className="text-base font-medium">eDrawings (External)</div>
-              <div className="text-sm opacity-70">Open files in external eDrawings application</div>
+              <div className="text-base font-medium">
+                {t('solidworksSettings.externalEDrawings')}
+              </div>
+              <div className="text-sm opacity-70">
+                {t('solidworksSettings.externalEDrawingsDescription')}
+              </div>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setCadPreviewMode('edrawings-embedded')}
+            disabled={!embeddedPreviewAvailable}
+            className={`w-full flex items-center gap-4 p-4 rounded-lg border transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+              cadPreviewMode === 'edrawings-embedded'
+                ? 'bg-plm-accent/10 border-plm-accent text-plm-fg'
+                : 'bg-plm-bg border-plm-border text-plm-fg-muted hover:border-plm-fg-muted'
+            }`}
+          >
+            <Box
+              size={24}
+              className={cadPreviewMode === 'edrawings-embedded' ? 'text-plm-accent' : ''}
+            />
+            <div className="text-left">
+              <div className="text-base font-medium">
+                {t('solidworksSettings.embeddedEDrawings')}
+              </div>
+              <div className="text-sm opacity-70">
+                {embeddedPreviewAvailable
+                  ? t('solidworksSettings.embeddedEDrawingsAvailable')
+                  : t('solidworksSettings.embeddedEDrawingsUnavailable')}
+              </div>
             </div>
           </button>
         </div>

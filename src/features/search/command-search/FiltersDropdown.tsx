@@ -17,7 +17,11 @@ export function FiltersDropdown({
   onScopeChange,
 }: FiltersDropdownProps) {
   return (
-    <div className="absolute top-full left-0 mt-1 w-64 bg-plm-bg border border-plm-border rounded-lg shadow-2xl z-[60] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+    <div
+      data-native-preview-overlay="dropdown"
+      role="menu"
+      className="absolute top-full left-0 mt-1 w-64 bg-plm-bg border border-plm-border rounded-lg shadow-2xl z-[60] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150"
+    >
       <div className="p-2 border-b border-plm-border">
         <div className="text-[10px] uppercase tracking-wider text-plm-fg-muted font-medium mb-2">
           Scope

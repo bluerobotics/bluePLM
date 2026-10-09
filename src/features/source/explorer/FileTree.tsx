@@ -1314,7 +1314,11 @@ export function FileTree({ onRefresh }: FileTreeProps) {
 
         {/* Vault Context Menu */}
         {vaultContextMenu && (
-          <div className="fixed inset-0 z-50" onClick={() => setVaultContextMenu(null)}>
+          <div
+            data-native-preview-overlay="context-menu"
+            className="fixed inset-0 z-50"
+            onClick={() => setVaultContextMenu(null)}
+          >
             <div
               className="fixed bg-plm-bg-light border border-plm-border rounded-lg shadow-xl py-1 min-w-[160px]"
               style={{ left: vaultContextMenu.x, top: vaultContextMenu.y }}
@@ -1433,6 +1437,7 @@ export function FileTree({ onRefresh }: FileTreeProps) {
         {/* Disconnect Vault Confirmation Dialog */}
         {disconnectingVault && (
           <div
+            data-native-preview-overlay="modal"
             className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center"
             onClick={() => setDisconnectingVault(null)}
           >
@@ -1597,6 +1602,7 @@ export function FileTree({ onRefresh }: FileTreeProps) {
         {/* Vault Properties Modal */}
         {showVaultProperties && (
           <div
+            data-native-preview-overlay="modal"
             className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center"
             onClick={() => setShowVaultProperties(null)}
           >
@@ -1826,6 +1832,7 @@ export function FileTree({ onRefresh }: FileTreeProps) {
         {/* New Folder Dialog */}
         {showNewFolderDialog && (
           <div
+            data-native-preview-overlay="modal"
             className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center"
             onClick={() => setShowNewFolderDialog(false)}
           >

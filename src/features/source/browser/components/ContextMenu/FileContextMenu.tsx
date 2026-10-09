@@ -33,6 +33,7 @@ import {
 } from './actions'
 import { VaultTransferMenuItems } from '@/features/source/vaultTransferMenu/VaultTransferMenuItems'
 import { ContextMenuGroup, ExpandableSection } from './components'
+import { NativePreviewContextMenuBackdrop } from './NativePreviewContextMenuBackdrop'
 import { shouldShowExpandableSection, countCollaborationActions } from './utils'
 
 export interface FileContextMenuProps {
@@ -250,14 +251,7 @@ export function FileContextMenu({
   return (
     <>
       {/* Overlay to close menu on click */}
-      <div
-        className="fixed inset-0 z-50"
-        onClick={handleCloseMenu}
-        onContextMenu={(e) => {
-          e.preventDefault()
-          handleCloseMenu()
-        }}
-      />
+      <NativePreviewContextMenuBackdrop onClose={handleCloseMenu} />
 
       {/* Context menu */}
       <div

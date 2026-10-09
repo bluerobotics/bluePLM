@@ -42,6 +42,8 @@ export function SearchResults({
   return (
     <div
       ref={dropdownRef}
+      data-native-preview-overlay="dropdown"
+      role="listbox"
       className="absolute top-full left-0 right-0 mt-1 bg-plm-bg border border-plm-border rounded-lg shadow-2xl z-[60] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150"
     >
       <div className="max-h-80 overflow-y-auto">

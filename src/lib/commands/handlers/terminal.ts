@@ -4,7 +4,10 @@
  * Commands: echo, clear, cls, help, history, cancel, settings, set, get
  */
 
+import { isCadPreviewMode } from '@/types/cadPreviewMode'
+
 import { usePDMStore } from '../../../stores/pdmStore'
+import { t } from '../../i18n'
 import {
   getCommandHistory,
   cancelAllOperations,
@@ -72,6 +75,7 @@ export function handleSettings(addOutput: OutputFn): void {
     `   listRowSize: ${state.listRowSize}`,
     `   lowercaseExtensions: ${state.lowercaseExtensions}`,
     `   cadPreviewMode: ${state.cadPreviewMode}`,
+    `   ${t('terminal.cadPreviewModeHelp')}`,
     '',
     'Theme & Appearance:',
     `   theme: ${state.theme}`,
@@ -146,8 +150,8 @@ export function handleSet(parsed: ParsedCommand, addOutput: OutputFn): void {
   switch (setting) {
     // Display settings
     case 'cadPreviewMode':
-      if (value !== 'thumbnail' && value !== 'edrawings') {
-        addOutput('error', 'Value must be "thumbnail" or "edrawings"')
+      if (!isCadPreviewMode(value)) {
+        addOutput('error', t('terminal.cadPreviewModeInvalid'))
         return
       }
       store.setCadPreviewMode(value)
@@ -634,7 +638,11 @@ registerTerminalCommand(
     aliases: ['set'],
     description: 'Change a setting',
     usage: 'set <setting> <value>',
-    examples: ['set theme dark', 'set viewMode icons'],
+    examples: [
+      'set theme dark',
+      'set viewMode icons',
+      'set cadPreviewMode edrawings-embedded',
+    ],
     category: 'terminal',
   },
   (parsed, _files, addOutput) => {

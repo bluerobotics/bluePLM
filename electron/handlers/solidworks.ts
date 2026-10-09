@@ -5,7 +5,7 @@
 // TODO(decompose): Extract to swRegistry.ts — registry helpers for file locations, license operations, and version detection (lines ~1528–2143)
 
 // SolidWorks handlers for Electron main process
-import { app, ipcMain, BrowserWindow, shell } from 'electron'
+import { app, ipcMain, BrowserWindow } from 'electron'
 import fs from 'fs'
 import type * as fsTypes from 'fs'
 import path from 'path'
@@ -3616,99 +3616,6 @@ export function registerSolidWorksHandlers(
     return sendSWCommand({ action: 'getSelectedFiles' }, { timeoutMs: 2000 }) // Short timeout for responsiveness
   })
 
-  // eDrawings handlers
-  ipcMain.handle('edrawings:check-installed', async () => {
-    const paths = [
-      'C:\\Program Files\\SOLIDWORKS Corp\\eDrawings\\eDrawings.exe',
-      'C:\\Program Files\\eDrawings\\eDrawings.exe',
-      'C:\\Program Files (x86)\\eDrawings\\eDrawings.exe',
-      'C:\\Program Files\\SOLIDWORKS Corp\\SOLIDWORKS\\eDrawings\\eDrawings.exe',
-    ]
-
-    for (const ePath of paths) {
-      if (fs.existsSync(ePath)) {
-        return { installed: true, path: ePath }
-      }
-    }
-
-    return { installed: false, path: null }
-  })
-
-  ipcMain.handle('edrawings:native-available', () => {
-    return false // Native module not available in refactored version
-  })
-
-  ipcMain.handle('edrawings:open-file', async (_, filePath: string) => {
-    const eDrawingsPaths = [
-      'C:\\Program Files\\SOLIDWORKS Corp\\eDrawings\\eDrawings.exe',
-      'C:\\Program Files\\eDrawings\\eDrawings.exe',
-      'C:\\Program Files (x86)\\eDrawings\\eDrawings.exe',
-      'C:\\Program Files\\SOLIDWORKS Corp\\SOLIDWORKS\\eDrawings\\eDrawings.exe',
-    ]
-
-    let eDrawingsPath: string | null = null
-    for (const ePath of eDrawingsPaths) {
-      if (fs.existsSync(ePath)) {
-        eDrawingsPath = ePath
-        break
-      }
-    }
-
-    if (!eDrawingsPath) {
-      try {
-        await shell.openPath(filePath)
-        return { success: true, fallback: true }
-      } catch {
-        return { success: false, error: 'eDrawings not found' }
-      }
-    }
-
-    try {
-      spawn(eDrawingsPath, [filePath], {
-        detached: true,
-        stdio: 'ignore',
-      }).unref()
-      return { success: true }
-    } catch (error) {
-      return { success: false, error: String(error) }
-    }
-  })
-
-  ipcMain.handle('edrawings:get-window-handle', () => {
-    if (!mainWindow) return null
-    const handle = mainWindow.getNativeWindowHandle()
-    return Array.from(handle)
-  })
-
-  // Placeholder handlers for eDrawings preview (native module not loaded)
-  ipcMain.handle('edrawings:create-preview', () => {
-    return { success: false, error: 'Native module not available' }
-  })
-
-  ipcMain.handle('edrawings:attach-preview', () => {
-    return { success: false, error: 'Preview not created' }
-  })
-
-  ipcMain.handle('edrawings:load-file', async () => {
-    return { success: false, error: 'Preview not attached' }
-  })
-
-  ipcMain.handle('edrawings:set-bounds', async () => {
-    return { success: false }
-  })
-
-  ipcMain.handle('edrawings:show-preview', () => {
-    return { success: false }
-  })
-
-  ipcMain.handle('edrawings:hide-preview', () => {
-    return { success: false }
-  })
-
-  ipcMain.handle('edrawings:destroy-preview', () => {
-    return { success: true }
-  })
-
   // ============================================
   // SOLIDWORKS File Locations (Registry) Handlers
   // ============================================
@@ -3886,17 +3793,6 @@ export function unregisterSolidWorksHandlers(): void {
     'solidworks:remove-license-registry',
     'solidworks:check-license-registry',
     'solidworks:open-license-manager',
-    'edrawings:check-installed',
-    'edrawings:native-available',
-    'edrawings:open-file',
-    'edrawings:get-window-handle',
-    'edrawings:create-preview',
-    'edrawings:attach-preview',
-    'edrawings:load-file',
-    'edrawings:set-bounds',
-    'edrawings:show-preview',
-    'edrawings:hide-preview',
-    'edrawings:destroy-preview',
   ]
 
   for (const handler of handlers) {

@@ -2,6 +2,31 @@ import type { TranslationDict } from '../types'
 
 // Simplified Chinese translations (简体中文)
 export const zhCN: TranslationDict = {
+  solidworksSettings: {
+    previewMode: '预览模式',
+    embeddedThumbnail: '嵌入式缩略图',
+    embeddedThumbnailDescription: '从 SolidWorks 文件中提取并显示预览图像',
+    externalEDrawings: 'eDrawings（外部）',
+    externalEDrawingsDescription: '在外部 eDrawings 应用程序中打开文件',
+    embeddedEDrawings: 'eDrawings 3D 预览（Windows，可选）',
+    embeddedEDrawingsAvailable: 'BluePLM 内的交互式 3D 查看器。Windows 实验性功能。',
+    embeddedEDrawingsUnavailable:
+      '需要 Windows、带 ActiveX 控件的 eDrawings、Microsoft .NET 8 Desktop Runtime (x64) 和可选的预览模块。',
+    previewStarting: '正在启动嵌入式 eDrawings 预览…',
+    previewStartFailed: '无法启动嵌入式 eDrawings 预览。',
+    previewUnavailable: '此计算机无法使用可选的 Windows eDrawings 预览。',
+    previewServiceUnavailable: 'eDrawings 预览服务不可用。',
+    previewSessionUnavailable: 'eDrawings 预览会话已不再活动。',
+    previewHostUnavailable:
+      '嵌入式 eDrawings 预览主机不可用。需要 Microsoft .NET 8 Desktop Runtime (x64)。',
+    previewHostTimeout: '嵌入式 eDrawings 预览启动超时。',
+    previewDocumentLoadFailed: '无法在 eDrawings 中加载所选文档。',
+    previewFileUnavailable: '此文件无法用于嵌入式 eDrawings 预览。',
+    previewNotLocal: '请先下载此文件，再打开嵌入式 eDrawings 预览。',
+    previewBoundsUnavailable: '无法定位嵌入式 eDrawings 预览。',
+    openInEDrawings: '在 eDrawings 中打开',
+    openInEDrawingsFailed: '无法在 eDrawings 中打开此文件。',
+  },
   checkoutDisplay: {
     you: '你',
     loadingOwner: '正在加载签出者',
@@ -591,6 +616,9 @@ export const zhCN: TranslationDict = {
   terminal: {
     confirmationPending: 'Waiting for confirmation — press Enter to confirm, Esc or Ctrl+C to cancel.',
     confirmationCancelled: 'Confirmation cancelled.',
+    cadPreviewModeHelp: 'cadPreviewMode 可选值：thumbnail、edrawings、edrawings-embedded',
+    cadPreviewModeInvalid:
+      'cadPreviewMode 必须是以下值之一：“thumbnail”、“edrawings”或“edrawings-embedded”。',
   },
 
   resolveMoves: {

@@ -16,7 +16,10 @@ export const DragOverlay = memo(function DragOverlay({
   if (!isVisible) return null
 
   return (
-    <div className="absolute inset-0 z-40 bg-plm-accent/10 border-2 border-dashed border-plm-accent rounded-lg flex items-center justify-center pointer-events-none">
+    <div
+      data-native-preview-overlay="drag"
+      className="absolute inset-0 z-40 bg-plm-accent/10 border-2 border-dashed border-plm-accent rounded-lg flex items-center justify-center pointer-events-none"
+    >
       <div className="bg-plm-bg-light border border-plm-accent rounded-xl p-6 flex flex-col items-center gap-3 shadow-xl">
         <div className="w-16 h-16 rounded-full bg-plm-accent/20 flex items-center justify-center">
           <Upload size={32} className="text-plm-accent" />

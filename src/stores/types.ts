@@ -1,4 +1,6 @@
 // Store types - extracted from pdmStore.ts for use across slices
+import type { CadPreviewMode } from '@/types/cadPreviewMode'
+
 import type { CheckoutUserProfile, PDMFile, Organization, User, SearchScope } from '../types/pdm'
 import type { ModuleId, ModuleConfig } from '../types/modules'
 import type {
@@ -680,7 +682,7 @@ export interface UISlice {
 
 export interface SettingsSlice {
   // State - Preview & Topbar
-  cadPreviewMode: 'thumbnail' | 'edrawings'
+  cadPreviewMode: CadPreviewMode
   topbarConfig: {
     showFps: boolean
     showZoom: boolean
@@ -787,7 +789,7 @@ export interface SettingsSlice {
   testFolderName: string // Name of the temporary test folder inside vault root (default "0 - Tests")
 
   // Actions - Preview & Topbar
-  setCadPreviewMode: (mode: 'thumbnail' | 'edrawings') => void
+  setCadPreviewMode: (mode: CadPreviewMode) => void
   setTopbarConfig: (config: Partial<SettingsSlice['topbarConfig']>) => void
 
   // Actions - SolidWorks

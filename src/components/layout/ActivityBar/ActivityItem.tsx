@@ -214,6 +214,8 @@ export function ActivityItem({
         (!hasChildren || isComingSoon) &&
         createPortal(
           <div
+            data-native-preview-overlay="tooltip"
+            role="tooltip"
             className="fixed z-50 pointer-events-none"
             style={{
               top: tooltipPos.top,

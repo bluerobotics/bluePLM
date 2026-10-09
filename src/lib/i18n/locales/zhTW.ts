@@ -2,6 +2,31 @@ import type { TranslationDict } from '../types'
 
 // Traditional Chinese translations (繁體中文)
 export const zhTW: TranslationDict = {
+  solidworksSettings: {
+    previewMode: '預覽模式',
+    embeddedThumbnail: '內嵌縮圖',
+    embeddedThumbnailDescription: '從 SolidWorks 檔案中擷取並顯示預覽影像',
+    externalEDrawings: 'eDrawings（外部）',
+    externalEDrawingsDescription: '在外部 eDrawings 應用程式中開啟檔案',
+    embeddedEDrawings: 'eDrawings 3D 預覽（Windows，可選）',
+    embeddedEDrawingsAvailable: 'BluePLM 內的互動式 3D 檢視器。Windows 實驗性功能。',
+    embeddedEDrawingsUnavailable:
+      '需要 Windows、具備 ActiveX 控制項的 eDrawings、Microsoft .NET 8 Desktop Runtime (x64) 和可選的預覽模組。',
+    previewStarting: '正在啟動內嵌 eDrawings 預覽…',
+    previewStartFailed: '無法啟動內嵌 eDrawings 預覽。',
+    previewUnavailable: '此電腦無法使用選用的 Windows eDrawings 預覽。',
+    previewServiceUnavailable: 'eDrawings 預覽服務無法使用。',
+    previewSessionUnavailable: 'eDrawings 預覽工作階段已不再啟用。',
+    previewHostUnavailable:
+      '內嵌 eDrawings 預覽主機無法使用。需要 Microsoft .NET 8 Desktop Runtime (x64)。',
+    previewHostTimeout: '內嵌 eDrawings 預覽啟動逾時。',
+    previewDocumentLoadFailed: '無法在 eDrawings 中載入所選文件。',
+    previewFileUnavailable: '此檔案無法用於內嵌 eDrawings 預覽。',
+    previewNotLocal: '請先下載此檔案，再開啟內嵌 eDrawings 預覽。',
+    previewBoundsUnavailable: '無法定位內嵌 eDrawings 預覽。',
+    openInEDrawings: '在 eDrawings 中開啟',
+    openInEDrawingsFailed: '無法在 eDrawings 中開啟此檔案。',
+  },
   checkoutDisplay: {
     you: '你',
     loadingOwner: '正在載入簽出者',
@@ -591,6 +616,9 @@ export const zhTW: TranslationDict = {
   terminal: {
     confirmationPending: 'Waiting for confirmation — press Enter to confirm, Esc or Ctrl+C to cancel.',
     confirmationCancelled: 'Confirmation cancelled.',
+    cadPreviewModeHelp: 'cadPreviewMode 可選值：thumbnail、edrawings、edrawings-embedded',
+    cadPreviewModeInvalid:
+      'cadPreviewMode 必須是以下值之一：「thumbnail」、「edrawings」或「edrawings-embedded」。',
   },
 
   resolveMoves: {
