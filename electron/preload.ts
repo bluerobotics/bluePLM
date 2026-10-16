@@ -709,13 +709,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Embedded eDrawings preview
   isEDrawingsNativeAvailable: () => ipcRenderer.invoke('edrawings:native-available'),
   createEDrawingsPreview: () => ipcRenderer.invoke('edrawings:create-preview'),
-  attachEDrawingsPreview: () => ipcRenderer.invoke('edrawings:attach-preview'),
-  loadEDrawingsFile: (filePath: string) => ipcRenderer.invoke('edrawings:load-file', filePath),
-  setEDrawingsBounds: (x: number, y: number, w: number, h: number) =>
-    ipcRenderer.invoke('edrawings:set-bounds', x, y, w, h),
-  showEDrawingsPreview: () => ipcRenderer.invoke('edrawings:show-preview'),
-  hideEDrawingsPreview: () => ipcRenderer.invoke('edrawings:hide-preview'),
-  destroyEDrawingsPreview: () => ipcRenderer.invoke('edrawings:destroy-preview'),
+  attachEDrawingsPreview: (sessionId: string) =>
+    ipcRenderer.invoke('edrawings:attach-preview', sessionId),
+  loadEDrawingsFile: (sessionId: string, filePath: string) =>
+    ipcRenderer.invoke('edrawings:load-file', sessionId, filePath),
+  getEDrawingsPreviewStatus: (sessionId: string) =>
+    ipcRenderer.invoke('edrawings:preview-status', sessionId),
+  setEDrawingsBounds: (sessionId: string, x: number, y: number, width: number, height: number) =>
+    ipcRenderer.invoke('edrawings:set-bounds', sessionId, x, y, width, height),
+  showEDrawingsPreview: (sessionId: string) =>
+    ipcRenderer.invoke('edrawings:show-preview', sessionId),
+  hideEDrawingsPreview: (sessionId: string) =>
+    ipcRenderer.invoke('edrawings:hide-preview', sessionId),
+  destroyEDrawingsPreview: (sessionId: string) =>
+    ipcRenderer.invoke('edrawings:destroy-preview', sessionId),
 
   // Auto Updater
   checkForUpdates: () => ipcRenderer.invoke('updater:check'),
@@ -1090,6 +1097,40 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
 // Type declarations for the renderer process
 declare global {
+  type EDrawingsPreviewErrorCode =
+    | 'preview-service-unavailable'
+    | 'preview-session-not-active'
+    | 'preview-request-not-from-window'
+    | 'preview-module-unavailable'
+    | 'preview-host-unavailable'
+    | 'preview-host-handshake-failed'
+    | 'preview-host-timeout'
+    | 'preview-host-exited'
+    | 'preview-document-load-failed'
+    | 'preview-file-invalid'
+    | 'preview-vault-unavailable'
+    | 'preview-vault-not-local'
+    | 'preview-file-not-allowed'
+    | 'preview-file-type-unsupported'
+    | 'preview-file-not-available'
+    | 'preview-file-outside-vault'
+    | 'preview-bounds-invalid'
+    | 'preview-operation-failed'
+
+  interface EDrawingsPreviewFailure {
+    success: false
+    errorCode: EDrawingsPreviewErrorCode
+  }
+
+  type EDrawingsPreviewOperationResult = { success: true } | EDrawingsPreviewFailure
+  type EDrawingsExternalOpenResult =
+    | { success: true; fallback?: true }
+    | { success: false; errorCode: 'external-open-failed' }
+  type EDrawingsPreviewCreateResult = { success: true; sessionId: string } | EDrawingsPreviewFailure
+  type EDrawingsPreviewLoadResult =
+    | { success: true; accepted: true; ready: true }
+    | EDrawingsPreviewFailure
+
   interface Window {
     electronAPI: {
       // App info
@@ -1328,7 +1369,7 @@ declare global {
 
       // eDrawings preview
       checkEDrawingsInstalled: () => Promise<{ installed: boolean; path: string | null }>
-      openInEDrawings: (filePath: string) => Promise<{ success: boolean; error?: string }>
+      openInEDrawings: (filePath: string) => Promise<EDrawingsExternalOpenResult>
       getWindowHandle: () => Promise<number[] | null>
 
       // SolidWorks thumbnail extraction
@@ -1801,18 +1842,23 @@ declare global {
 
       // Embedded eDrawings preview
       isEDrawingsNativeAvailable: () => Promise<boolean>
-      createEDrawingsPreview: () => Promise<{ success: boolean; error?: string }>
-      attachEDrawingsPreview: () => Promise<{ success: boolean; error?: string }>
-      loadEDrawingsFile: (filePath: string) => Promise<{ success: boolean; error?: string }>
+      createEDrawingsPreview: () => Promise<EDrawingsPreviewCreateResult>
+      attachEDrawingsPreview: (sessionId: string) => Promise<EDrawingsPreviewOperationResult>
+      loadEDrawingsFile: (
+        sessionId: string,
+        filePath: string,
+      ) => Promise<EDrawingsPreviewLoadResult>
+      getEDrawingsPreviewStatus: (sessionId: string) => Promise<EDrawingsPreviewOperationResult>
       setEDrawingsBounds: (
+        sessionId: string,
         x: number,
         y: number,
-        w: number,
-        h: number,
-      ) => Promise<{ success: boolean }>
-      showEDrawingsPreview: () => Promise<{ success: boolean }>
-      hideEDrawingsPreview: () => Promise<{ success: boolean }>
-      destroyEDrawingsPreview: () => Promise<{ success: boolean }>
+        width: number,
+        height: number,
+      ) => Promise<EDrawingsPreviewOperationResult>
+      showEDrawingsPreview: (sessionId: string) => Promise<EDrawingsPreviewOperationResult>
+      hideEDrawingsPreview: (sessionId: string) => Promise<EDrawingsPreviewOperationResult>
+      destroyEDrawingsPreview: (sessionId: string) => Promise<EDrawingsPreviewOperationResult>
 
       // Auto Updater
       checkForUpdates: () => Promise<{ success: boolean; updateInfo?: unknown; error?: string }>

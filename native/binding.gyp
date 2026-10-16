@@ -1,4 +1,7 @@
 {
+  "variables": {
+    "edrawings_verify%": 0
+  },
   "targets": [
     {
       "target_name": "edrawings_preview",
@@ -13,12 +16,21 @@
         [
           "OS=='win'",
           {
-            "libraries": ["ole32.lib", "oleaut32.lib", "user32.lib", "gdi32.lib"],
+            "libraries": ["ole32.lib", "oleaut32.lib", "user32.lib"],
             "msvs_settings": {
               "VCCLCompilerTool": {
                 "ExceptionHandling": 1
               }
-            }
+            },
+            "conditions": [
+              [
+                "edrawings_verify==1",
+                {
+                  "defines": ["BLUEPLM_EDRAWINGS_VERIFY=1"],
+                  "libraries": ["gdi32.lib"]
+                }
+              ]
+            ]
           }
         ]
       ]

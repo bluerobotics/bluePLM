@@ -2,6 +2,34 @@ import type { TranslationDict } from '../types'
 
 // Spanish translations
 export const es: TranslationDict = {
+  solidworksSettings: {
+    previewMode: 'Modo de vista previa',
+    embeddedThumbnail: 'Miniatura integrada',
+    embeddedThumbnailDescription:
+      'Extraer y mostrar la imagen de vista previa del archivo SolidWorks',
+    externalEDrawings: 'eDrawings (externo)',
+    externalEDrawingsDescription: 'Abrir archivos en la aplicación eDrawings externa',
+    embeddedEDrawings: 'Vista previa 3D de eDrawings (Windows, opcional)',
+    embeddedEDrawingsAvailable:
+      'Visor 3D interactivo dentro de BluePLM. Función experimental de Windows.',
+    embeddedEDrawingsUnavailable:
+      'Requiere Windows, eDrawings con el control ActiveX, Microsoft .NET 8 Desktop Runtime (x64) y el módulo de vista previa opcional.',
+    previewStarting: 'Iniciando la vista previa integrada de eDrawings…',
+    previewStartFailed: 'No se pudo iniciar la vista previa integrada de eDrawings.',
+    previewUnavailable:
+      'La vista previa opcional de eDrawings para Windows no está disponible en este equipo.',
+    previewServiceUnavailable: 'El servicio de vista previa de eDrawings no está disponible.',
+    previewSessionUnavailable: 'La sesión de vista previa de eDrawings ya no está activa.',
+    previewHostUnavailable:
+      'El host de vista previa integrada de eDrawings no está disponible. Se requiere Microsoft .NET 8 Desktop Runtime (x64).',
+    previewHostTimeout: 'La vista previa integrada de eDrawings tardó demasiado en iniciarse.',
+    previewDocumentLoadFailed: 'El documento seleccionado no se pudo cargar en eDrawings.',
+    previewFileUnavailable: 'Este archivo no está disponible para la vista previa integrada de eDrawings.',
+    previewNotLocal: 'Descargue este archivo antes de abrir la vista previa integrada de eDrawings.',
+    previewBoundsUnavailable: 'No se pudo colocar la vista previa integrada de eDrawings.',
+    openInEDrawings: 'Abrir en eDrawings',
+    openInEDrawingsFailed: 'No se pudo abrir el archivo en eDrawings.',
+  },
   checkoutDisplay: {
     you: 'Tú',
     loadingOwner: 'Cargando propietario del checkout',
@@ -617,6 +645,9 @@ export const es: TranslationDict = {
     confirmationPending:
       'Esperando confirmación — pulse Intro para confirmar, Esc o Ctrl+C para cancelar.',
     confirmationCancelled: 'Confirmación cancelada.',
+    cadPreviewModeHelp: 'Valores de cadPreviewMode: thumbnail, edrawings, edrawings-embedded',
+    cadPreviewModeInvalid:
+      'cadPreviewMode debe ser uno de estos valores: "thumbnail", "edrawings" o "edrawings-embedded".',
   },
 
   resolveMoves: {

@@ -54,3 +54,31 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+  # The reusable verification job runs on Linux and cannot compile or execute the
+  # optional Win32 addon/host harnesses. Keep this focused Windows contract gate
+  # in CI without changing the release workflow's existing verification policy.
+  edrawings-windows:
+    name: eDrawings Windows contracts
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test eDrawings Windows contracts
+        run: npm run test:edrawings-windows

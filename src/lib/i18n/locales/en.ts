@@ -2,6 +2,34 @@ import type { TranslationDict } from '../types'
 
 // English translations (default/fallback)
 export const en: TranslationDict = {
+  solidworksSettings: {
+    previewMode: 'Preview mode',
+    embeddedThumbnail: 'Embedded thumbnail',
+    embeddedThumbnailDescription:
+      'Extract and show the preview image from the SolidWorks file',
+    externalEDrawings: 'eDrawings (external)',
+    externalEDrawingsDescription: 'Open files in the external eDrawings application',
+    embeddedEDrawings: 'eDrawings 3D preview (Windows, optional)',
+    embeddedEDrawingsAvailable:
+      'Interactive 3D viewer inside BluePLM. Experimental Windows feature.',
+    embeddedEDrawingsUnavailable:
+      'Requires Windows, eDrawings with its ActiveX control, Microsoft .NET 8 Desktop Runtime (x64), and the optional preview module.',
+    previewStarting: 'Starting embedded eDrawings preview…',
+    previewStartFailed: 'The embedded eDrawings preview could not be started.',
+    previewUnavailable:
+      'The optional Windows eDrawings preview is unavailable on this computer.',
+    previewServiceUnavailable: 'The eDrawings preview service is unavailable.',
+    previewSessionUnavailable: 'The eDrawings preview session is no longer active.',
+    previewHostUnavailable:
+      'The embedded eDrawings preview host is unavailable. Microsoft .NET 8 Desktop Runtime (x64) is required.',
+    previewHostTimeout: 'The embedded eDrawings preview took too long to start.',
+    previewDocumentLoadFailed: 'The selected document could not be loaded in eDrawings.',
+    previewFileUnavailable: 'This file is not available for the embedded eDrawings preview.',
+    previewNotLocal: 'Download this file before opening the embedded eDrawings preview.',
+    previewBoundsUnavailable: 'The embedded eDrawings preview could not be positioned.',
+    openInEDrawings: 'Open in eDrawings',
+    openInEDrawingsFailed: 'The file could not be opened in eDrawings.',
+  },
   app: {
     recoveredFromCrash: 'BluePLM stopped responding and reloaded. Your vault is being re-read.',
   },
@@ -1834,6 +1862,9 @@ export const en: TranslationDict = {
   terminal: {
     confirmationPending: 'Waiting for confirmation — press Enter to confirm, Esc or Ctrl+C to cancel.',
     confirmationCancelled: 'Confirmation cancelled.',
+    cadPreviewModeHelp: 'cadPreviewMode values: thumbnail, edrawings, edrawings-embedded',
+    cadPreviewModeInvalid:
+      'cadPreviewMode must be one of: "thumbnail", "edrawings", or "edrawings-embedded".',
   },
 
   // The resolve-moves dialog — the discoverable, two-directional entry point to

@@ -30,7 +30,10 @@ export function Toast() {
   }
 
   return (
-    <div className="fixed bottom-8 left-4 z-50 flex flex-col gap-2 max-w-md">
+    <div
+      data-native-preview-overlay="toast"
+      className="fixed bottom-8 left-4 z-50 flex flex-col gap-2 max-w-md"
+    >
       {/* Update toasts at the very top */}
       {updateToasts.map((toast) => (
         <UpdateToastItem key={toast.id} toast={toast} onDismiss={dismissUpdateToast} />

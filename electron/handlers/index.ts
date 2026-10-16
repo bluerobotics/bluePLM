@@ -22,6 +22,11 @@ import {
   SolidWorksHandlerDependencies,
 } from './solidworks'
 import {
+  registerEDrawingsHandlers,
+  unregisterEDrawingsHandlers,
+  type EDrawingsHandlerDependencies,
+} from './edrawings'
+import {
   registerDialogHandlers,
   unregisterDialogHandlers,
   DialogHandlerDependencies,
@@ -188,6 +193,11 @@ export function registerAllHandlers(mainWindow: BrowserWindow, deps: AllHandlerD
     logWarn,
   }
 
+  const eDrawingsHandlerDeps: EDrawingsHandlerDependencies = {
+    getWorkingDirectory,
+    logWarn,
+  }
+
   const dialogHandlerDeps: DialogHandlerDependencies = {
     log,
     restoreMainWindowFocus: restoreMainWindowFocusFn,
@@ -232,6 +242,7 @@ export function registerAllHandlers(mainWindow: BrowserWindow, deps: AllHandlerD
   registerFsHandlers(mainWindow, fsHandlerDeps)
   registerBackupHandlers(mainWindow, backupHandlerDeps)
   registerSolidWorksHandlers(mainWindow, solidWorksHandlerDeps)
+  registerEDrawingsHandlers(mainWindow, eDrawingsHandlerDeps)
   registerDialogHandlers(mainWindow, dialogHandlerDeps)
   registerSystemHandlers(mainWindow, systemHandlerDeps)
   registerLoggingHandlers(mainWindow, loggingHandlerDeps)
@@ -266,6 +277,7 @@ export function unregisterAllHandlers(): void {
   unregisterFsHandlers()
   unregisterBackupHandlers()
   unregisterSolidWorksHandlers()
+  unregisterEDrawingsHandlers()
   unregisterDialogHandlers()
   unregisterSystemHandlers()
   unregisterLoggingHandlers()

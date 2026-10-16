@@ -101,6 +101,7 @@ export const CardViewFieldsPopover = memo(function CardViewFieldsPopover() {
       {isOpen && (
         <div
           ref={popoverRef}
+          data-native-preview-overlay="dropdown"
           className="absolute top-full right-0 mt-1 z-50 bg-plm-bg-lighter border border-plm-border rounded-lg shadow-xl min-w-[240px] overflow-hidden"
         >
           {/* Header */}

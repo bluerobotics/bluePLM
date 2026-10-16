@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <!-- AxHost and ComEventsHelper both compile against the supported .NET 8
+         Windows Desktop reference assemblies; publishing stays framework-dependent. -->
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PublishSingleFile>false</PublishSingleFile>
+    <AssemblyName>BluePLM.EDrawingsPreviewHost</AssemblyName>
+    <RootNamespace>BluePLM.EDrawingsPreviewHost</RootNamespace>
+  </PropertyGroup>
+</Project>

@@ -7,11 +7,11 @@ import { formatFileSize } from '@/lib/utils'
 import { resolvePartNumber, resolveRevision, resolvedText } from '@/lib/metadata/overlay'
 import { DraggableTab, TabDropZone, PanelLocation } from '@/components/shared/DraggableTab'
 import { WhereUsedTab } from '@/features/integrations/solidworks'
-import { SWDatacardPanel } from '@/features/integrations/solidworks'
 import { InspectionTab } from '@/features/integrations/solidworks'
+import { CadFilePreview } from '@/features/source/details/components/CadFilePreview'
 import { VendorsTab } from '@/features/source/details/VendorsTab'
 import { ItemBomPanel } from '@/features/items/itemBrowser/components/ItemBomPanel'
-import { FileBox, Layers, File, Loader2, FilePen, ExternalLink, ArrowLeft } from 'lucide-react'
+import { FileBox, Layers, File, Loader2, FilePen, ArrowLeft } from 'lucide-react'
 
 // Lazy so the customers feature (and its charting library) stays out of the
 // main bundle. Imported by path rather than through the feature barrel, which
@@ -70,7 +70,6 @@ export function RightPanel() {
     moveTabToBottom,
     moveTabToRight,
     reorderTabsInPanel,
-    addToast,
     itemPanel,
     setItemPanel,
     customerPanel,
@@ -108,31 +107,6 @@ export function RightPanel() {
   const [pdfDataUrl, setPdfDataUrl] = useState<string | null>(null)
   const [pdfLoading, setPdfLoading] = useState(false)
 
-  // eDrawings state
-  const [, setEDrawingsStatus] = useState<{
-    checked: boolean
-    installed: boolean
-    path: string | null
-  }>({ checked: false, installed: false, path: null })
-
-
-  // Check if eDrawings is installed
-  useEffect(() => {
-    const checkEDrawings = async () => {
-      if (!window.electronAPI?.checkEDrawingsInstalled) {
-        setEDrawingsStatus({ checked: true, installed: false, path: null })
-        return
-      }
-      try {
-        const result = await window.electronAPI.checkEDrawingsInstalled()
-        setEDrawingsStatus({ checked: true, installed: result.installed, path: result.path })
-      } catch {
-        setEDrawingsStatus({ checked: true, installed: false, path: null })
-      }
-    }
-    checkEDrawings()
-  }, [])
-
   // Load PDF when file changes
   useEffect(() => {
     const loadPdf = async () => {
@@ -154,14 +128,6 @@ export function RightPanel() {
     loadPdf()
   }, [file?.path, file?.extension, rightPanelTab])
 
-  // CAD preview URL, resolved by the main process against the thumbnail cache.
-  const cadPreviewUrl = useMemo(() => {
-    if (rightPanelTab !== 'preview' || !file) return null
-    return buildThumbnailUrl(file, 'preview')
-  }, [file, rightPanelTab])
-
-  const { src: cadPreview, onError: onCadPreviewError } = useRetryableImage(cadPreviewUrl)
-
   const ext = file?.extension?.toLowerCase() || ''
   const isSolidWorksFile = ['.sldprt', '.sldasm', '.slddrw'].includes(ext)
   const isCADFile = [
@@ -176,15 +142,6 @@ export function RightPanel() {
   ].includes(ext)
   const isImageFile = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.svg'].includes(ext)
   const isPDFFile = ext === '.pdf'
-
-  const handleOpenInEDrawings = async () => {
-    if (!file?.path) return
-    try {
-      await window.electronAPI?.openInEDrawings(file.path)
-    } catch {
-      addToast('error', 'Failed to open in eDrawings')
-    }
-  }
 
   const getFileIcon = () => {
     if (!file) return <File size={24} className="text-plm-fg-muted" />
@@ -344,38 +301,14 @@ export function RightPanel() {
                         className="max-w-full max-h-full object-contain"
                       />
                     </div>
-                  ) : isSolidWorksFile ? (
-                    // Use the preview panel for SolidWorks files
-                    <SWDatacardPanel file={file} />
                   ) : isCADFile ? (
-                    cadPreview ? (
-                      <div className="flex-1 flex flex-col">
-                        <div className="flex-1 flex items-center justify-center bg-gradient-to-b from-gray-800 to-gray-900 rounded overflow-auto">
-                          <img
-                            src={cadPreview}
-                            alt={file.name}
-                            className="max-w-full max-h-full object-contain"
-                            decoding="async"
-                            onError={onCadPreviewError}
-                          />
-                        </div>
-                        <button
-                          onClick={handleOpenInEDrawings}
-                          className="btn btn-sm btn-secondary gap-2 mt-2 self-center"
-                        >
-                          <ExternalLink size={14} />
-                          Open in eDrawings
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex-1 flex flex-col items-center justify-center">
-                        <FileBox size={48} className="mb-4 text-plm-accent" />
-                        <button onClick={handleOpenInEDrawings} className="btn btn-primary gap-2">
-                          <ExternalLink size={16} />
-                          Open in eDrawings
-                        </button>
-                      </div>
-                    )
+                    // The right panel shares the CAD fallback logic, but intentionally never owns
+                    // the single native child window. Embedded mode remains in DetailsPanel only.
+                    <CadFilePreview
+                      file={file}
+                      solidWorks={isSolidWorksFile}
+                      embeddedAvailable={false}
+                    />
                   ) : (
                     <div className="flex-1 flex items-center justify-center text-plm-fg-muted">
                       No preview available

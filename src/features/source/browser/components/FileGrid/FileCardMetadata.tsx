@@ -382,6 +382,8 @@ function ConfigIndicator({ file, fontSize }: { file: LocalFile; fontSize: number
       {showTooltip &&
         createPortal(
           <div
+            data-native-preview-overlay="tooltip"
+            role="tooltip"
             className="fixed z-50 px-2 py-1 bg-plm-bg-lighter border border-plm-border rounded shadow-lg text-xs text-plm-fg"
             style={{ top: tooltipPos.top, left: tooltipPos.left }}
           >
