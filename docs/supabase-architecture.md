@@ -302,11 +302,13 @@ In-app notification system.
 | `action_url` | `TEXT` | Click action URL |
 
 #### `color_swatches`
-Personal color palette for users.
+Personal and organization color palettes. Each swatch belongs to exactly one scope.
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `user_id` | `UUID` | Owner |
+| `user_id` | `UUID` | Personal-swatch owner; null for organization swatches |
+| `org_id` | `UUID` | Organization scope; null for personal swatches |
+| `created_by` | `UUID` | Original creator, retained for audit when available |
 | `name` | `TEXT` | Color name |
 | `color` | `TEXT` | Hex color value |
 | `sort_order` | `INTEGER` | Display order |
@@ -1619,7 +1621,7 @@ Database and app versions must match to prevent compatibility issues.
 SELECT version FROM schema_version;  -- e.g., 100
 
 -- App expected version
-EXPECTED_SCHEMA_VERSION = 101  -- src/lib/schemaVersion.ts
+EXPECTED_SCHEMA_VERSION = 103  -- src/lib/schemaVersion.ts
 ```
 
 ### Version Mismatch Handling
