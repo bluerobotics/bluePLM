@@ -1,0 +1,848 @@
+{
+  "schema": 1,
+  "sha": "74c066bbda1a0252edb6362418030f59a20d448e",
+  "ref": "refs/heads/main",
+  "runId": "40288461805",
+  "date": "2026-10-26T09:16:30.524Z",
+  "fileCount": 30000,
+  "reps": 3,
+  "sessionMinutes": 30,
+  "metrics": {
+    "coldStart.launchToLoadedMs": 3168,
+    "coldStart.navigationToLoadedMs": 2664,
+    "coldStart.longTasks": 7,
+    "coldStart.totalBlockingMs": 1211,
+    "coldStart.longestTaskMs": 472,
+    "coldStart.scriptingMs": 2046.9,
+    "coldStart.layoutMs": 193.8,
+    "coldStart.paintMs": 64.7,
+    "coldStart.gcMs": 100.8,
+    "display.vsyncMs": 15.6,
+    "search.settleMs": 393,
+    "search.rows": 25,
+    "search.longTasks": 2,
+    "search.totalBlockingMs": 141,
+    "search.longestTaskMs": 186,
+    "search.scriptingMs": 245,
+    "search.layoutMs": 116.6,
+    "search.paintMs": 141.7,
+    "search.gcMs": 10.1,
+    "scroll.distancePx": 719830,
+    "scroll.frames": 2065,
+    "scroll.durationMs": 110156,
+    "scroll.fps": 18.7,
+    "scroll.p50FrameMs": 46.9,
+    "scroll.p95FrameMs": 78.1,
+    "scroll.maxFrameMs": 1125.1,
+    "scroll.droppedFrames": 4985,
+    "scroll.jankyFrames": 2064,
+    "scroll.longTasks": 341,
+    "scroll.totalBlockingMs": 5994,
+    "scroll.longestTaskMs": 1063,
+    "scroll.scriptingMs": 25336.1,
+    "scroll.layoutMs": 38239.4,
+    "scroll.paintMs": 27836.6,
+    "scroll.gcMs": 1604.4,
+    "tree.settleMs": 122,
+    "tree.longTasks": 0,
+    "tree.totalBlockingMs": 0,
+    "tree.longestTaskMs": 0,
+    "tree.scriptingMs": 49.2,
+    "tree.layoutMs": 78.9,
+    "tree.paintMs": 84.2,
+    "tree.gcMs": 0,
+    "select.clicks": 10,
+    "select.medianClickMs": 158,
+    "select.maxClickMs": 236,
+    "select.longTasks": 6,
+    "select.totalBlockingMs": 65,
+    "select.longestTaskMs": 65,
+    "select.scriptingMs": 670,
+    "select.layoutMs": 630.3,
+    "select.paintMs": 929.7,
+    "select.gcMs": 11.8,
+    "realtime.delivered": 500,
+    "realtime.settleMs": 3835,
+    "realtime.longTasks": 17,
+    "realtime.totalBlockingMs": 2090,
+    "realtime.longestTaskMs": 259,
+    "realtime.scriptingMs": 2678,
+    "realtime.layoutMs": 140.8,
+    "realtime.paintMs": 219.1,
+    "realtime.gcMs": 68.1,
+    "session.cycles": 397,
+    "session.heapStartMB": 97,
+    "session.heapEndMB": 515.2,
+    "session.heapPeakMB": 518.6,
+    "session.heapGrowthMB": 418.2,
+    "session.heapSlopeMBPer10Min": 140.9,
+    "session.longTasks": 4951,
+    "session.totalBlockingMs": 352944
+  },
+  "repetitions": [
+    {
+      "coldStart.launchToLoadedMs": 3213,
+      "coldStart.navigationToLoadedMs": 2696,
+      "coldStart.longTasks": 7,
+      "coldStart.totalBlockingMs": 1439,
+      "coldStart.longestTaskMs": 472,
+      "coldStart.scriptingMs": 2046.9,
+      "coldStart.layoutMs": 579.4,
+      "coldStart.paintMs": 64.7,
+      "coldStart.gcMs": 100.8,
+      "display.vsyncMs": 15.6,
+      "search.settleMs": 329,
+      "search.rows": 25,
+      "search.longTasks": 2,
+      "search.totalBlockingMs": 97,
+      "search.longestTaskMs": 142,
+      "search.scriptingMs": 207.5,
+      "search.layoutMs": 130.8,
+      "search.paintMs": 161.4,
+      "search.gcMs": 3.1,
+      "scroll.distancePx": 719830,
+      "scroll.frames": 2065,
+      "scroll.durationMs": 104688,
+      "scroll.fps": 19.7,
+      "scroll.p50FrameMs": 46.9,
+      "scroll.p95FrameMs": 78.1,
+      "scroll.maxFrameMs": 250,
+      "scroll.droppedFrames": 4635,
+      "scroll.jankyFrames": 2064,
+      "scroll.longTasks": 258,
+      "scroll.totalBlockingMs": 3656,
+      "scroll.longestTaskMs": 137,
+      "scroll.scriptingMs": 21563.7,
+      "scroll.layoutMs": 37365.5,
+      "scroll.paintMs": 27152,
+      "scroll.gcMs": 1552,
+      "tree.settleMs": 129,
+      "tree.longTasks": 0,
+      "tree.totalBlockingMs": 0,
+      "tree.longestTaskMs": 0,
+      "tree.scriptingMs": 49.2,
+      "tree.layoutMs": 82.9,
+      "tree.paintMs": 95.1,
+      "tree.gcMs": 23.7,
+      "select.clicks": 10,
+      "select.medianClickMs": 205,
+      "select.maxClickMs": 236,
+      "select.longTasks": 3,
+      "select.totalBlockingMs": 8,
+      "select.longestTaskMs": 55,
+      "select.scriptingMs": 600.1,
+      "select.layoutMs": 767.5,
+      "select.paintMs": 1140.4,
+      "select.gcMs": 11.8,
+      "realtime.delivered": 500,
+      "realtime.settleMs": 3820,
+      "realtime.longTasks": 18,
+      "realtime.totalBlockingMs": 2090,
+      "realtime.longestTaskMs": 259,
+      "realtime.scriptingMs": 2760.9,
+      "realtime.layoutMs": 140.8,
+      "realtime.paintMs": 224.3,
+      "realtime.gcMs": 87.6
+    },
+    {
+      "coldStart.launchToLoadedMs": 3168,
+      "coldStart.navigationToLoadedMs": 2664,
+      "coldStart.longTasks": 7,
+      "coldStart.totalBlockingMs": 1211,
+      "coldStart.longestTaskMs": 491,
+      "coldStart.scriptingMs": 2277.8,
+      "coldStart.layoutMs": 193.8,
+      "coldStart.paintMs": 96,
+      "coldStart.gcMs": 103.6,
+      "display.vsyncMs": 15.6,
+      "search.settleMs": 437,
+      "search.rows": 25,
+      "search.longTasks": 2,
+      "search.totalBlockingMs": 184,
+      "search.longestTaskMs": 223,
+      "search.scriptingMs": 293.8,
+      "search.layoutMs": 116.6,
+      "search.paintMs": 141.7,
+      "search.gcMs": 17.4,
+      "scroll.distancePx": 719830,
+      "scroll.frames": 2065,
+      "scroll.durationMs": 114469,
+      "scroll.fps": 18,
+      "scroll.p50FrameMs": 46.9,
+      "scroll.p95FrameMs": 78.2,
+      "scroll.maxFrameMs": 1125.1,
+      "scroll.droppedFrames": 5261,
+      "scroll.jankyFrames": 2064,
+      "scroll.longTasks": 433,
+      "scroll.totalBlockingMs": 8445,
+      "scroll.longestTaskMs": 1063,
+      "scroll.scriptingMs": 26525.8,
+      "scroll.layoutMs": 39412.8,
+      "scroll.paintMs": 28968.6,
+      "scroll.gcMs": 1705.7,
+      "tree.settleMs": 122,
+      "tree.longTasks": 1,
+      "tree.totalBlockingMs": 2,
+      "tree.longestTaskMs": 52,
+      "tree.scriptingMs": 60.8,
+      "tree.layoutMs": 78.9,
+      "tree.paintMs": 84.2,
+      "tree.gcMs": 0,
+      "select.clicks": 10,
+      "select.medianClickMs": 145,
+      "select.maxClickMs": 334,
+      "select.longTasks": 6,
+      "select.totalBlockingMs": 146,
+      "select.longestTaskMs": 143,
+      "select.scriptingMs": 772.4,
+      "select.layoutMs": 577.5,
+      "select.paintMs": 813.7,
+      "select.gcMs": 10.9,
+      "realtime.delivered": 500,
+      "realtime.settleMs": 3835,
+      "realtime.longTasks": 16,
+      "realtime.totalBlockingMs": 1826,
+      "realtime.longestTaskMs": 274,
+      "realtime.scriptingMs": 2340.2,
+      "realtime.layoutMs": 142,
+      "realtime.paintMs": 219.1,
+      "realtime.gcMs": 68.1
+    },
+    {
+      "coldStart.launchToLoadedMs": 2598,
+      "coldStart.navigationToLoadedMs": 2114,
+      "coldStart.longTasks": 6,
+      "coldStart.totalBlockingMs": 966,
+      "coldStart.longestTaskMs": 437,
+      "coldStart.scriptingMs": 2004.3,
+      "coldStart.layoutMs": 130.9,
+      "coldStart.paintMs": 53.6,
+      "coldStart.gcMs": 96.9,
+      "display.vsyncMs": 15.6,
+      "search.settleMs": 393,
+      "search.rows": 25,
+      "search.longTasks": 2,
+      "search.totalBlockingMs": 141,
+      "search.longestTaskMs": 186,
+      "search.scriptingMs": 245,
+      "search.layoutMs": 103.3,
+      "search.paintMs": 108.7,
+      "search.gcMs": 10.1,
+      "scroll.distancePx": 719830,
+      "scroll.frames": 2065,
+      "scroll.durationMs": 110156,
+      "scroll.fps": 18.7,
+      "scroll.p50FrameMs": 46.9,
+      "scroll.p95FrameMs": 78.1,
+      "scroll.maxFrameMs": 1156.2,
+      "scroll.droppedFrames": 4985,
+      "scroll.jankyFrames": 2064,
+      "scroll.longTasks": 341,
+      "scroll.totalBlockingMs": 5994,
+      "scroll.longestTaskMs": 1076,
+      "scroll.scriptingMs": 25336.1,
+      "scroll.layoutMs": 38239.4,
+      "scroll.paintMs": 27836.6,
+      "scroll.gcMs": 1604.4,
+      "tree.settleMs": 105,
+      "tree.longTasks": 0,
+      "tree.totalBlockingMs": 0,
+      "tree.longestTaskMs": 0,
+      "tree.scriptingMs": 41.8,
+      "tree.layoutMs": 34.9,
+      "tree.paintMs": 29.5,
+      "tree.gcMs": 0,
+      "select.clicks": 10,
+      "select.medianClickMs": 158,
+      "select.maxClickMs": 226,
+      "select.longTasks": 7,
+      "select.totalBlockingMs": 65,
+      "select.longestTaskMs": 65,
+      "select.scriptingMs": 670,
+      "select.layoutMs": 630.3,
+      "select.paintMs": 929.7,
+      "select.gcMs": 38.7,
+      "realtime.delivered": 500,
+      "realtime.settleMs": 4267,
+      "realtime.longTasks": 17,
+      "realtime.totalBlockingMs": 2126,
+      "realtime.longestTaskMs": 252,
+      "realtime.scriptingMs": 2678,
+      "realtime.layoutMs": 135.79999999999998,
+      "realtime.paintMs": 212.2,
+      "realtime.gcMs": 64.3
+    }
+  ],
+  "heap": [
+    {
+      "minute": 0,
+      "usedMB": 96.96614074707031
+    },
+    {
+      "minute": 1.01,
+      "usedMB": 99.13175201416016
+    },
+    {
+      "minute": 2.03,
+      "usedMB": 113.53305435180664
+    },
+    {
+      "minute": 3.02,
+      "usedMB": 132.4006004333496
+    },
+    {
+      "minute": 4.12,
+      "usedMB": 151.12392044067383
+    },
+    {
+      "minute": 5.04,
+      "usedMB": 166.58691024780273
+    },
+    {
+      "minute": 6.02,
+      "usedMB": 184.98566436767578
+    },
+    {
+      "minute": 7.04,
+      "usedMB": 203.16020584106445
+    },
+    {
+      "minute": 8.09,
+      "usedMB": 222.22821044921875
+    },
+    {
+      "minute": 9.01,
+      "usedMB": 238.51277542114258
+    },
+    {
+      "minute": 10.16,
+      "usedMB": 251.38124465942383
+    },
+    {
+      "minute": 11.03,
+      "usedMB": 264.1844367980957
+    },
+    {
+      "minute": 12.06,
+      "usedMB": 278.9601593017578
+    },
+    {
+      "minute": 13.01,
+      "usedMB": 300.6714859008789
+    },
+    {
+      "minute": 14.07,
+      "usedMB": 306.77757263183594
+    },
+    {
+      "minute": 15.06,
+      "usedMB": 320.0365180969238
+    },
+    {
+      "minute": 16.02,
+      "usedMB": 335.24819564819336
+    },
+    {
+      "minute": 17.05,
+      "usedMB": 349.73254013061523
+    },
+    {
+      "minute": 18.15,
+      "usedMB": 361.29772567749023
+    },
+    {
+      "minute": 19,
+      "usedMB": 379.53925704956055
+    },
+    {
+      "minute": 20.05,
+      "usedMB": 388.4525947570801
+    },
+    {
+      "minute": 21.01,
+      "usedMB": 403.1326332092285
+    },
+    {
+      "minute": 22.07,
+      "usedMB": 421.9929885864258
+    },
+    {
+      "minute": 23.04,
+      "usedMB": 426.2861099243164
+    },
+    {
+      "minute": 24.22,
+      "usedMB": 436.6475486755371
+    },
+    {
+      "minute": 25.05,
+      "usedMB": 449.15101623535156
+    },
+    {
+      "minute": 26.02,
+      "usedMB": 462.61320877075195
+    },
+    {
+      "minute": 27.03,
+      "usedMB": 475.7481460571289
+    },
+    {
+      "minute": 28.05,
+      "usedMB": 487.0187568664551
+    },
+    {
+      "minute": 29.05,
+      "usedMB": 498.9488716125488
+    },
+    {
+      "minute": 30.01,
+      "usedMB": 518.593017578125
+    },
+    {
+      "minute": 30.05,
+      "usedMB": 515.1872367858887
+    }
+  ],
+  "heapByStep": {
+    "expand": 45.1,
+    "open-folder": -27.5,
+    "select": -17,
+    "search": 11.7,
+    "scroll": -36.2,
+    "scroll-top": 25.6,
+    "clear-search": 7.6,
+    "realtime-50": 513.9,
+    "collapse": -525.5,
+    "settle": -29.6
+  },
+  "retained": [
+    {
+      "stack": "(anonymous) src/features/source/explorer/file-tree/hooks/useVaultTree.ts:253 < updateMemo node_modules/react-dom/cjs/react-dom-client.production.js:5162 < useVaultTree src/features/source/explorer/file-tree/hooks/useVaultTree.ts:118 < FileTree src/features/source/explorer/FileTree.tsx:84 < updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.production.js:6489 < beginWork node_modules/react-dom/cjs/react-dom-client.production.js:7392",
+      "MB": 162.8
+    },
+    {
+      "stack": "buildIndex src/features/source/browser/utils/folderIndex.ts:45 < getFolderChildren src/features/source/browser/utils/folderIndex.ts:98 < (anonymous) src/features/source/browser/hooks/useSorting.ts:68 < updateMemo node_modules/react-dom/cjs/react-dom-client.production.js:5162 < useSorting src/features/source/browser/hooks/useSorting.ts:41 < FilePane src/features/source/browser/FilePane.tsx:112",
+      "MB": 86.6
+    },
+    {
+      "stack": "map < applyServerPdmUpdates src/stores/serverPdmUpdate.ts:107 < state src/stores/slices/filesSlice.ts:1698 < (anonymous) node_modules/zustand/esm/vanilla.mjs:4 < (anonymous) src/stores/pdmStore.ts:130 < ids src/hooks/useRealtimeSubscriptions.ts:350",
+      "MB": 45.1
+    },
+    {
+      "stack": "getCheckoutSignature src/lib/checkout/checkoutDisplay.ts:160 < getCheckoutDisplayUser src/lib/checkout/checkoutDisplay.ts:176 < (anonymous) src/features/source/explorer/file-tree/hooks/useVaultTree.ts:253 < updateMemo node_modules/react-dom/cjs/react-dom-client.production.js:5162 < useVaultTree src/features/source/explorer/file-tree/hooks/useVaultTree.ts:118 < FileTree src/features/source/explorer/FileTree.tsx:84",
+      "MB": 24.5
+    },
+    {
+      "stack": "set < (anonymous) src/features/source/explorer/file-tree/hooks/useVaultTree.ts:253 < updateMemo node_modules/react-dom/cjs/react-dom-client.production.js:5162 < useVaultTree src/features/source/explorer/file-tree/hooks/useVaultTree.ts:118 < FileTree src/features/source/explorer/FileTree.tsx:84 < updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.production.js:6489",
+      "MB": 22.9
+    },
+    {
+      "stack": "set < buildIndex src/features/source/browser/utils/folderIndex.ts:45 < getFolderChildren src/features/source/browser/utils/folderIndex.ts:98 < (anonymous) src/features/source/browser/hooks/useSorting.ts:68 < updateMemo node_modules/react-dom/cjs/react-dom-client.production.js:5162 < useSorting src/features/source/browser/hooks/useSorting.ts:41",
+      "MB": 20.7
+    },
+    {
+      "stack": "(anonymous) src/features/source/explorer/file-tree/hooks/useVaultTree.ts:290 < (anonymous) src/features/source/explorer/file-tree/hooks/useVaultTree.ts:253 < updateMemo node_modules/react-dom/cjs/react-dom-client.production.js:5162 < useVaultTree src/features/source/explorer/file-tree/hooks/useVaultTree.ts:118 < FileTree src/features/source/explorer/FileTree.tsx:84 < updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.production.js:6489",
+      "MB": 18.7
+    },
+    {
+      "stack": "emitRealtime src/test/fakeSupabase.ts:542 < realtimeBurst src/perf/app/control.ts:184 < (anonymous) < evaluate < (anonymous) < (root)",
+      "MB": 15.6
+    },
+    {
+      "stack": "from < (anonymous) src/features/source/explorer/file-tree/hooks/useVaultTree.ts:253 < updateMemo node_modules/react-dom/cjs/react-dom-client.production.js:5162 < useVaultTree src/features/source/explorer/file-tree/hooks/useVaultTree.ts:118 < FileTree src/features/source/explorer/FileTree.tsx:84 < updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.production.js:6489",
+      "MB": 4.9
+    },
+    {
+      "stack": "(anonymous) src/features/source/explorer/file-tree/hooks/useVaultTree.ts:253 < updateMemo node_modules/react-dom/cjs/react-dom-client.production.js:5162 < E.useMemo node_modules/react/cjs/react.production.js:513 < useVaultTree src/features/source/explorer/file-tree/hooks/useVaultTree.ts:118 < FileTree src/features/source/explorer/FileTree.tsx:84 < updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.production.js:6489",
+      "MB": 4.4
+    },
+    {
+      "stack": "buildIndex src/features/source/browser/utils/folderIndex.ts:45 < getFolderChildren src/features/source/browser/utils/folderIndex.ts:98 < (anonymous) src/features/source/browser/hooks/useSorting.ts:68 < updateMemo node_modules/react-dom/cjs/react-dom-client.production.js:5162 < E.useMemo node_modules/react/cjs/react.production.js:513 < useSorting src/features/source/browser/hooks/useSorting.ts:41",
+      "MB": 4.2
+    },
+    {
+      "stack": "file src/features/source/explorer/file-tree/hooks/useVaultTree.ts:192 < forEach < (anonymous) src/features/source/explorer/file-tree/hooks/useVaultTree.ts:152 < updateMemo node_modules/react-dom/cjs/react-dom-client.production.js:5162 < useVaultTree src/features/source/explorer/file-tree/hooks/useVaultTree.ts:118 < FileTree src/features/source/explorer/FileTree.tsx:84",
+      "MB": 3
+    },
+    {
+      "stack": "map < applyServerPdmUpdates src/stores/serverPdmUpdate.ts:107 < state src/stores/slices/filesSlice.ts:1698 < (anonymous) node_modules/zustand/esm/vanilla.mjs:4 < (anonymous) src/stores/pdmStore.ts:130 < updates src/stores/slices/filesSlice.ts:1696",
+      "MB": 3
+    },
+    {
+      "stack": "split < file src/features/source/browser/utils/filtering.ts:178 < filter < getFilesInFolder src/features/source/browser/utils/filtering.ts:174 < getFolderChildren src/features/source/browser/utils/folderIndex.ts:98 < (anonymous) src/features/source/browser/hooks/useSorting.ts:68",
+      "MB": 1.8
+    },
+    {
+      "stack": "map < applyServerPdmUpdates src/stores/serverPdmUpdate.ts:107 < state src/stores/slices/filesSlice.ts:1698 < (anonymous) node_modules/zustand/esm/vanilla.mjs:4 < (anonymous) node_modules/zustand/esm/middleware.mjs:367 < (anonymous) src/stores/pdmStore.ts:130",
+      "MB": 1.7
+    },
+    {
+      "stack": "applyServerPdmUpdate src/stores/serverPdmUpdate.ts:10 < f src/stores/serverPdmUpdate.ts:117 < map < applyServerPdmUpdates src/stores/serverPdmUpdate.ts:107 < state src/stores/slices/filesSlice.ts:1698 < (anonymous) node_modules/zustand/esm/vanilla.mjs:4",
+      "MB": 1.1
+    },
+    {
+      "stack": "set < buildIndex src/features/source/browser/utils/folderIndex.ts:45 < getFolderChildren src/features/source/browser/utils/folderIndex.ts:98 < (anonymous) src/features/source/browser/hooks/useSorting.ts:68 < updateMemo node_modules/react-dom/cjs/react-dom-client.production.js:5162 < E.useMemo node_modules/react/cjs/react.production.js:513",
+      "MB": 0.8
+    },
+    {
+      "stack": "reconcileCheckoutProfile src/types/pdm.ts:533 < mergePdmFileData src/types/pdm.ts:546 < applyServerPdmUpdate src/stores/serverPdmUpdate.ts:10 < f src/stores/serverPdmUpdate.ts:117 < map < applyServerPdmUpdates src/stores/serverPdmUpdate.ts:107",
+      "MB": 0.8
+    },
+    {
+      "stack": "reconcileCheckoutProfile src/types/pdm.ts:533 < mergePdmFileData src/types/pdm.ts:546 < applyServerPdmUpdate src/stores/serverPdmUpdate.ts:10 < reduce < f src/stores/serverPdmUpdate.ts:117 < map",
+      "MB": 0.8
+    },
+    {
+      "stack": "applyServerPdmUpdate src/stores/serverPdmUpdate.ts:10 < reduce < f src/stores/serverPdmUpdate.ts:117 < map < applyServerPdmUpdates src/stores/serverPdmUpdate.ts:107 < state src/stores/slices/filesSlice.ts:1698",
+      "MB": 0.8
+    }
+  ],
+  "topSelfTime": {
+    "cold-start": [
+      [
+        "FunctionCall",
+        1652.6
+      ],
+      [
+        "RunTask",
+        593.3
+      ],
+      [
+        "Layout",
+        483.1
+      ],
+      [
+        "TimerFire",
+        327.9
+      ],
+      [
+        "UpdateLayoutTree",
+        93.7
+      ],
+      [
+        "V8.GC_SCAVENGER_SCAVENGE_PARALLEL",
+        71.4
+      ],
+      [
+        "v8.evaluateModule",
+        48.1
+      ],
+      [
+        "Layerize",
+        21.5
+      ],
+      [
+        "Paint",
+        20.8
+      ],
+      [
+        "PrePaint",
+        11.2
+      ],
+      [
+        "EvaluateScript",
+        8.7
+      ],
+      [
+        "UpdateLayer",
+        8.6
+      ]
+    ],
+    "search": [
+      [
+        "FunctionCall",
+        205.3
+      ],
+      [
+        "UpdateLayoutTree",
+        109
+      ],
+      [
+        "Layerize",
+        98.1
+      ],
+      [
+        "RunTask",
+        56.1
+      ],
+      [
+        "Paint",
+        34
+      ],
+      [
+        "Layout",
+        21.8
+      ],
+      [
+        "PrePaint",
+        13.4
+      ],
+      [
+        "UpdateLayer",
+        12.7
+      ],
+      [
+        "HitTest",
+        6.1
+      ],
+      [
+        "Commit",
+        3.3
+      ],
+      [
+        "V8.GC_SCAVENGER_SCAVENGE_PARALLEL",
+        1
+      ],
+      [
+        "FireAnimationFrame",
+        1
+      ]
+    ],
+    "scroll": [
+      [
+        "UpdateLayoutTree",
+        27782.2
+      ],
+      [
+        "FunctionCall",
+        19932.4
+      ],
+      [
+        "RunTask",
+        16286.6
+      ],
+      [
+        "Layout",
+        9583.3
+      ],
+      [
+        "Layerize",
+        9144.2
+      ],
+      [
+        "Paint",
+        8690.5
+      ],
+      [
+        "PrePaint",
+        7824.9
+      ],
+      [
+        "UpdateLayer",
+        1134.2
+      ],
+      [
+        "EventDispatch",
+        930.2
+      ],
+      [
+        "V8.GC_SCAVENGER_SCAVENGE_PARALLEL",
+        639.9
+      ],
+      [
+        "FireAnimationFrame",
+        540.9
+      ],
+      [
+        "HitTest",
+        475.5
+      ]
+    ],
+    "tree": [
+      [
+        "UpdateLayoutTree",
+        56.2
+      ],
+      [
+        "Layerize",
+        54.6
+      ],
+      [
+        "FunctionCall",
+        47.1
+      ],
+      [
+        "RunTask",
+        33
+      ],
+      [
+        "Layout",
+        26.7
+      ],
+      [
+        "Paint",
+        20.8
+      ],
+      [
+        "PrePaint",
+        9.8
+      ],
+      [
+        "UpdateLayer",
+        7.5
+      ],
+      [
+        "HitTest",
+        7.1
+      ],
+      [
+        "V8.GC_MC_INCREMENTAL_EMBEDDER_TRACING",
+        6
+      ],
+      [
+        "V8.GC_SCAVENGER_SCAVENGE_PARALLEL",
+        4.4
+      ],
+      [
+        "V8.GC_MC_INCREMENTAL",
+        3.3
+      ]
+    ],
+    "select": [
+      [
+        "UpdateLayoutTree",
+        675.1
+      ],
+      [
+        "Layerize",
+        656.4
+      ],
+      [
+        "FunctionCall",
+        568.1
+      ],
+      [
+        "RunTask",
+        321.8
+      ],
+      [
+        "Paint",
+        264.5
+      ],
+      [
+        "PrePaint",
+        92.7
+      ],
+      [
+        "Layout",
+        92.4
+      ],
+      [
+        "UpdateLayer",
+        88.9
+      ],
+      [
+        "HitTest",
+        73.6
+      ],
+      [
+        "Commit",
+        37.8
+      ],
+      [
+        "EventDispatch",
+        11.1
+      ],
+      [
+        "FireAnimationFrame",
+        9
+      ]
+    ],
+    "realtime": [
+      [
+        "FunctionCall",
+        2754.8
+      ],
+      [
+        "RunTask",
+        846.1
+      ],
+      [
+        "Layerize",
+        136
+      ],
+      [
+        "UpdateLayoutTree",
+        113.5
+      ],
+      [
+        "Paint",
+        44
+      ],
+      [
+        "V8.GC_SCAVENGER_SCAVENGE_PARALLEL",
+        39.1
+      ],
+      [
+        "Layout",
+        27.3
+      ],
+      [
+        "PrePaint",
+        20.2
+      ],
+      [
+        "UpdateLayer",
+        18.3
+      ],
+      [
+        "HitTest",
+        12.6
+      ],
+      [
+        "V8.GC_SCAVENGER_SCAVENGE",
+        6.9
+      ],
+      [
+        "Commit",
+        5.6
+      ]
+    ]
+  },
+  "unmodelled": [
+    [
+      "rpc(get_google_drive_settings): rpc 'get_google_drive_settings' called but no handler is registered",
+      43
+    ],
+    [
+      "rpc(update_last_online): rpc 'update_last_online' called but no handler is registered",
+      10
+    ],
+    [
+      "from(user_sessions).select: select('\n      user_id,\n      machine_name,\n      platform,\n      last_seen,\n      users!inner (\n        email,\n        full_name,\n        avatar_url,\n        custom_avatar_url,\n        role\n      )\n    '): this embedded select shape is not modelled",
+      4
+    ],
+    [
+      "from(review_responses).select: select('\n      id,\n      status,\n      review:reviews!inner(\n        id,\n        title,\n        message,\n        priority,\n        due_date,\n        file_version,\n        created_at,\n        requested_by,\n        status,\n        file:files(id, file_name, file_path, extension, part_number, description, revision),\n        requester:users!requested_by(email, full_name, avatar_url),\n        responses:review_responses(\n          id,\n          reviewer_id,\n          status,\n          comment,\n          responded_at,\n          reviewer:users!reviewer_id(id, email, full_name, avatar_url)\n        )\n      )\n    '): this embedded select shape is not modelled",
+      4
+    ],
+    [
+      "electron.getAppVersion",
+      2
+    ],
+    [
+      "electron.prewarmThumbnails.call",
+      2
+    ],
+    [
+      "electron.getUpdateStatus",
+      1
+    ],
+    [
+      "from(color_swatches).is: color_swatches.org_id: no such column in src/types/supabase.ts",
+      1
+    ],
+    [
+      "rpc(get_denied_modules): rpc 'get_denied_modules' called but no handler is registered",
+      1
+    ],
+    [
+      "electron.consumeCrashNotice",
+      1
+    ],
+    [
+      "electron.checkEDrawingsInstalled",
+      1
+    ]
+  ]
+}
