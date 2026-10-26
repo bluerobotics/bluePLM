@@ -37,7 +37,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 350
     concurrency:
-      group: soak
+      group: soak-${{ github.ref }}
       cancel-in-progress: false
     defaults:
       run:

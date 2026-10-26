@@ -57,6 +57,8 @@ const SAMPLE_HOURS = new Set([0, 7])
 /** Days on which every channel dies silently; the health monitor must recover it. */
 const SILENT_DEATH_EVERY_DAYS = 6
 const RECOVERY_DEADLINE_MS = 6 * 60_000
+/** Quiet time before a sample: longer than the app's debounces (watcher, realtime, toasts). */
+const SETTLE_MS = 20_000
 
 /** One working hour of a busy office (about 40 users): 2,100 file updates a simulated day. */
 const HOUR: SoakHourSpec = {
@@ -147,6 +149,11 @@ async function main(): Promise<void> {
   let failure: unknown = null
 
   const sample = async (simDay: number) => {
+    // At rest, so each sample sees the app between bursts, not in the middle of one: debounces and
+    // the reloads a rejoin starts have run out.
+    await page.evaluate(() => window.__blueplmPerf!.waitForQuiet(2000, 60_000))
+    await new Promise((resolve) => setTimeout(resolve, SETTLE_MS))
+    await page.evaluate(() => window.__blueplmPerf!.waitForQuiet(1000, 30_000))
     const values: Record<string, number> = {
       ...(await rendererCounters(cdp)),
       ...(await page.evaluate(() => window.__blueplmSoak!.sample())),
@@ -172,6 +179,9 @@ async function main(): Promise<void> {
     for (let day = 0; day < options.days; day++) {
       for (let hour = 0; hour < WORK_HOURS; hour++) {
         const simDay = day + hour / 24
+        // Each working hour has its slot of the real budget; what the work leaves is idle time,
+        // in which the app's own timers (health checks, refreshes, retries) run as they would.
+        const slotEnds = startedAt + ((day * WORK_HOURS + hour + 1) * realBudgetMs) / workHours
         if (SAMPLE_HOURS.has(hour)) await sample(simDay)
 
         const result = await page.evaluate((spec) => window.__blueplmSoak!.hour(spec), HOUR)
@@ -208,6 +218,8 @@ async function main(): Promise<void> {
           if (!recovered) await page.evaluate(() => window.__blueplmSoak!.restoreNetwork())
         }
 
+        const idle = slotEnds - Date.now()
+        if (idle > 0) await new Promise((resolve) => setTimeout(resolve, idle))
         // Keep the app's clock on the schedule: never behind the hours done.
         await page.evaluate((t) => window.__blueplmSoak!.catchUpClock(t), (day * 24 + hour + 1) * HOUR_MS)
       }
