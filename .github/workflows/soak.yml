@@ -1,0 +1,114 @@
+name: Soak
+
+# A compressed month of use in one app process (scripts/render-perf/soak.ts): other users'
+# realtime traffic, folder browsing, metadata edits, checkouts, SolidWorks service calls, watcher
+# bursts, network drops, sleeps and token refreshes, over the render-perf boot's 30k-file fake
+# vault (src/perf/app/). Renderer, main process and service are sampled twice a simulated day;
+# after warmup every series must be flat (scripts/render-perf/soakAnalysis.ts). Launched only
+# here, never on a developer machine.
+#
+# One job, because the point is one long-lived process: the default 30 days in 4.5 hours, plus
+# about 20 minutes of setup, stays under GitHub's 6-hour job limit. A longer soak would have to be
+# run as several jobs, each its own process, which no longer measures one session.
+#
+# Reporting only: a growing series or an unrecovered realtime death turns the run red with a
+# summary table; nothing blocks a push or a release. Main runs keep their result on the
+# `perf-results` branch under soak/.
+on:
+  schedule:
+    - cron: '17 3 * * 0'
+  workflow_dispatch:
+    inputs:
+      days:
+        description: Simulated days
+        type: number
+        default: 30
+      hours:
+        description: Real hours to spend on them
+        type: number
+        default: 4.5
+
+permissions:
+  contents: write
+
+jobs:
+  soak:
+    name: Soak (a month of use, one process)
+    runs-on: windows-latest
+    timeout-minutes: 350
+    concurrency:
+      group: soak
+      cancel-in-progress: false
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Release renderer carries no perf boot
+        run: |
+          npx vite build
+          test ! -e dist/perf.html
+          if grep -rl "__blueplmPerf\|__blueplmSoak\b\|perf.blueplm.invalid" dist dist-electron; then
+            echo "::error::the release build contains the render-performance boot"; exit 1
+          fi
+
+      - name: Build the perf app
+        env:
+          BLUEPLM_PERF_BUILD: '1'
+        run: |
+          npx tsx scripts/render-perf/emitSchemaShape.ts
+          npx vite build
+          node scripts/copy-extension-host.js
+          test -e dist/perf.html
+
+      - name: Soak
+        id: soak
+        run: |
+          set +e
+          npx tsx scripts/render-perf/soak.ts --out soak-out --days "${{ inputs.days }}" --hours "${{ inputs.hours }}"
+          echo "failed=$?" >> "$GITHUB_OUTPUT"
+          cat soak-out/summary.md >> "$GITHUB_STEP_SUMMARY" || true
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: soak
+          path: soak-out
+          retention-days: 60
+
+      - name: Record the result on perf-results
+        if: github.ref == 'refs/heads/main' && hashFiles('soak-out/soak-result.json') != ''
+        run: |
+          name="$(date -u +%Y-%m-%dT%H%M%SZ)-${GITHUB_SHA::8}-${GITHUB_RUN_ID}.json"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git fetch --depth=1 origin perf-results; then
+            git worktree add perf-history FETCH_HEAD
+            cd perf-history
+          else
+            git worktree add --orphan -b perf-results perf-history && cd perf-history
+          fi
+          mkdir -p soak
+          cp ../soak-out/soak-result.json "soak/$name"
+          git add soak
+          git commit -m "soak: $name"
+          # The render-perf nightly pushes to the same branch; rebase onto it if it got there first.
+          for attempt in 1 2 3; do
+            git push origin HEAD:refs/heads/perf-results && break
+            git pull --rebase origin perf-results
+          done
+
+      - name: Fail on growth
+        if: steps.soak.outputs.failed != '0'
+        run: |
+          echo "::error::a series grew or a recovery failed during the soak; see the job summary"
+          exit 1

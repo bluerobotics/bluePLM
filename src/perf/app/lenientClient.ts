@@ -152,10 +152,19 @@ function trimCalls(db: FakeSupabase): void {
   if (db.calls.length > 500) db.calls.splice(0, db.calls.length - 100)
 }
 
+/** What the soak (soak.ts) drives and reads in the client: auth events and its channel count. */
+export interface LenientClientHooks {
+  /** Deliver an auth event (`TOKEN_REFRESHED`, ...) to every listener, with a renewed session. */
+  emitAuth(event: string): number
+  authListenerCount(): number
+  channelCount(): number
+}
+
 export function lenientClient(
   db: FakeSupabase,
   session: PerfSession,
   misses: Misses,
+  hooks?: Partial<LenientClientHooks>,
 ): SupabaseClient<Database> {
   const raw = db.client as unknown as {
     from: (table: string) => object
@@ -165,6 +174,22 @@ export function lenientClient(
   }
 
   const channels = new Set<object>()
+  const authListeners = new Set<(event: string, s: PerfSession | null) => unknown>()
+  // A refresh issues a token that expires a day from now on the app's clock, as GoTrue does; the
+  // soak runs that clock fast, so a session minted once at boot would read as long expired.
+  const renewed = (): PerfSession => {
+    session.expires_at = Math.floor(Date.now() / 1000) + session.expires_in
+    return session
+  }
+  if (hooks) {
+    hooks.emitAuth = (event) => {
+      const current = renewed()
+      for (const listener of [...authListeners]) void listener(event, current)
+      return authListeners.size
+    }
+    hooks.authListenerCount = () => authListeners.size
+    hooks.channelCount = () => channels.size
+  }
 
   const client = {
     from(table: string) {
@@ -188,7 +213,15 @@ export function lenientClient(
       from: (bucket: string) => lenientObject(raw.storage.from(bucket), `storage(${bucket})`, misses),
     },
     channel(name: string) {
-      const channel = lenientObject(raw.channel(name), `channel(${name})`, misses)
+      const rawChannel = raw.channel(name) as { unsubscribe?: () => Promise<unknown> }
+      const channel = lenientObject(rawChannel, `channel(${name})`, misses)
+      // `channel.unsubscribe()` also takes it off the client, as realtime-js does; without this
+      // every resubscribe left one more channel in the set.
+      const closeRaw = rawChannel.unsubscribe?.bind(rawChannel)
+      rawChannel.unsubscribe = async () => {
+        channels.delete(channel)
+        return closeRaw?.()
+      }
       channels.add(channel)
       return channel
     },
@@ -214,7 +247,7 @@ export function lenientClient(
           return { data: { user: session.user }, error: null }
         },
         async refreshSession() {
-          return { data: { session, user: session.user }, error: null }
+          return { data: { session: renewed(), user: session.user }, error: null }
         },
         async setSession() {
           return { data: { session, user: session.user }, error: null }
@@ -225,7 +258,12 @@ export function lenientClient(
         onAuthStateChange(callback: (event: string, s: PerfSession | null) => unknown) {
           // supabase-js announces the restored session on the next tick.
           const timer = setTimeout(() => void callback('INITIAL_SESSION', session), 0)
-          return { data: { subscription: { id: 'perf', unsubscribe: () => clearTimeout(timer) } } }
+          authListeners.add(callback)
+          const unsubscribe = () => {
+            clearTimeout(timer)
+            authListeners.delete(callback)
+          }
+          return { data: { subscription: { id: 'perf', unsubscribe } } }
         },
         startAutoRefresh: async () => {},
         stopAutoRefresh: async () => {},

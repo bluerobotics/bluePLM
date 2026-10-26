@@ -12,7 +12,7 @@ import { EXPECTED_SCHEMA_VERSION } from '@/lib/schemaVersion'
 import { FakeSupabase, type Row } from '@/test/fakeSupabase'
 import type { Database } from '@/types/supabase'
 
-import { createSession, lenientClient, type Misses, type PerfSession } from './lenientClient'
+import { createSession, lenientClient, type LenientClientHooks, type Misses, type PerfSession } from './lenientClient'
 
 export const PERF_ORG_ID = '00000000-0000-4000-8000-0000000000a1'
 export const PERF_VAULT_ID = '00000000-0000-4000-8000-0000000000b1'
@@ -27,6 +27,8 @@ export interface PerfBackend {
   session: PerfSession
   vault: SyntheticVault
   misses: Misses
+  /** Auth events and the client's channel count, for the soak. */
+  clientHooks: LenientClientHooks
   /** The full `files` row a realtime event carries for the vault's `index`-th file. */
   fileRow(index: number): Row
 }
@@ -81,5 +83,7 @@ export function createPerfBackend(vault: SyntheticVault, misses: Misses = new Ma
   }
 
   const session = createSession(PERF_USER_ID, PERF_USER_EMAIL)
-  return { db, client: lenientClient(db, session, misses), session, vault, misses, fileRow }
+  const clientHooks = {} as LenientClientHooks
+  const client = lenientClient(db, session, misses, clientHooks)
+  return { db, client, session, vault, misses, clientHooks, fileRow }
 }

@@ -55,13 +55,42 @@ function parentOf(relativePath: string): string {
   return slash < 0 ? '' : relativePath.slice(0, slash)
 }
 
+/** Main-process events the soak sends (`onFilesChanged`, ...) and the subscriptions it counts. */
+export interface PerfElectronHooks {
+  emit(event: string, ...args: unknown[]): number
+  /** Subscriptions to main-process events the app holds now (the preload's `ipcRenderer.on`s). */
+  listenerCount(): number
+  /** The kit's SolidWorks service fake, for the soak's service calls. */
+  solidworks: ElectronAPI['solidworks']
+}
+
 export function createPerfElectron(
   vault: SyntheticVault,
   root: string,
   misses: Misses,
   real: ElectronAPI | undefined,
+  hooks?: Partial<PerfElectronHooks>,
 ): ElectronAPI {
   const kit = createFakeElectron()
+  // `onX(callback)` subscriptions, by event: what the preload would hold as ipcRenderer listeners.
+  const subscriptions = new Map<string, Set<Fn>>()
+  const subscribe = (event: string) => (callback: Fn) => {
+    let set = subscriptions.get(event)
+    if (!set) subscriptions.set(event, (set = new Set()))
+    set.add(callback)
+    return () => {
+      set.delete(callback)
+    }
+  }
+  if (hooks) {
+    hooks.emit = (event, ...args) => {
+      const listeners = [...(subscriptions.get(event) ?? [])]
+      for (const listener of listeners) listener(...args)
+      return listeners.length
+    }
+    hooks.listenerCount = () => [...subscriptions.values()].reduce((n, set) => n + set.size, 0)
+    hooks.solidworks = kit.api.solidworks
+  }
   // The kit records every call for test assertions; over a long session that list is a leak.
   const trimKit = () => {
     if (kit.calls.length > 500) kit.calls.splice(0, kit.calls.length - 100)
@@ -124,6 +153,7 @@ export function createPerfElectron(
         const value = (real as unknown as Record<string, unknown>)[prop]
         return typeof value === 'function' ? (value as Fn).bind(real) : value
       }
+      if (/^on[A-Z]/.test(prop)) return subscribe(prop)
       const fromKit = (kit.api as unknown as Record<string, unknown>)[prop]
       if (fromKit !== undefined) {
         if (typeof fromKit !== 'function') return fromKit

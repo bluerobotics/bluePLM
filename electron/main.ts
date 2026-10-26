@@ -2,7 +2,7 @@
 // This file contains only app lifecycle, window creation, and imports handlers from modules
 
 // First: in a render-performance boot it moves userData before any module reads it.
-import { isPerfBoot, PERF_BOOT_ARG, PERF_BLOCKED_URLS } from './perfBoot'
+import { isPerfBoot, isSoakBoot, PERF_BOOT_ARG, PERF_BLOCKED_URLS } from './perfBoot'
 import { app, BrowserWindow, shell, screen, nativeTheme, session, Menu, ipcMain } from 'electron'
 import path from 'path'
 import fs from 'fs'
@@ -480,6 +480,9 @@ const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
 nativeTheme.themeSource = 'system'
 
 app.commandLine.appendSwitch('enable-features', 'SharedArrayBuffer')
+// Without it performance.memory is bucketed and reads the same value all session; the renderer's
+// health monitor (src/lib/health/healthMonitor.ts) needs the real JS heap for its high-water mark.
+app.commandLine.appendSwitch('enable-precise-memory-info')
 
 // ============================================
 // Deep Link Protocol Registration
@@ -1020,7 +1023,11 @@ function createWindow() {
   if (isDev && !isPerfBoot) {
     mainWindow.loadURL(loadPath)
   } else {
-    mainWindow.loadFile(loadPath).catch((error) => log('Error loading file: ' + String(error)))
+    // A soak boot tells the page to install its probes and drivers (src/perf/app/soak.ts).
+    mainWindow
+      .loadFile(loadPath, isSoakBoot ? { query: { soak: '1' } } : undefined)
+      .catch((error) => log('Error loading file: ' + String(error)))
+    if (isSoakBoot) void import('./perfSoak').then((m) => m.installSoakMainProbe())
   }
 
   // In production, intercept OAuth redirects

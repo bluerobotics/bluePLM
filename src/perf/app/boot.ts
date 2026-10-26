@@ -13,7 +13,8 @@
 import { buildSyntheticVault, FIXTURE_VAULT_ROOT } from '@/lib/loadPipelineFixtures'
 
 import type { Misses } from './lenientClient'
-import { createPerfElectron } from './perfElectron'
+import { createPerfElectron, type PerfElectronHooks } from './perfElectron'
+import { installFakeClock, installTimerProbe } from './soakProbes'
 
 /** How far the boot got: read by the runner when a boot never reports the vault loaded. */
 function stage(name: string): void {
@@ -22,13 +23,19 @@ function stage(name: string): void {
 
 export async function installPerfBoot(fileCount = 30_000): Promise<void> {
   const bootStartedAt = performance.now()
+  // The soak (scripts/render-perf/soak.ts) loads the page with ?soak=1. Its probes go in first, so
+  // every timer and date the app makes is seen.
+  const soakProbes = new URLSearchParams(location.search).has('soak')
+    ? { timers: installTimerProbe(), clock: installFakeClock() }
+    : null
+  const electronHooks = {} as PerfElectronHooks
   stage('vault')
   const vault = buildSyntheticVault(fileCount)
   const misses: Misses = new Map()
 
   const real = (window as Window & { electronAPIReal?: Window['electronAPI'] }).electronAPIReal
   Object.defineProperty(window, 'electronAPI', {
-    value: createPerfElectron(vault, FIXTURE_VAULT_ROOT, misses, real),
+    value: createPerfElectron(vault, FIXTURE_VAULT_ROOT, misses, real, electronHooks),
     configurable: true,
     writable: true,
   })
@@ -61,6 +68,10 @@ export async function installPerfBoot(fileCount = 30_000): Promise<void> {
     activeVaultId: PERF_VAULT_ID,
     vaultPath: FIXTURE_VAULT_ROOT,
   })
-  installControl(backend, usePDMStore, bootStartedAt)
+  const control = installControl(backend, usePDMStore, bootStartedAt)
+  if (soakProbes) {
+    const { installSoak } = await import('./soak')
+    installSoak(backend, usePDMStore, control, soakProbes, electronHooks)
+  }
   stage('installed')
 }

@@ -18,6 +18,9 @@ export { PERF_BOOT_ARG } from './perfBootFlag'
 
 export const isPerfBoot = isPerfBootRequested(app.isPackaged, process.env)
 
+/** A perf boot the soak drives (scripts/render-perf/soak.ts): main-process probes, `?soak=1` page. */
+export const isSoakBoot = isPerfBoot && process.env.BLUEPLM_PERF_SOAK === '1'
+
 if (isPerfBoot && process.env.BLUEPLM_PERF_USER_DATA) {
   app.setPath('userData', process.env.BLUEPLM_PERF_USER_DATA)
 }

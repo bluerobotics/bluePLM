@@ -397,6 +397,9 @@ type ChangeHandler = (payload: Row) => void
 /** A realtime channel: `.on('postgres_changes', { table }, cb)` handlers and `.subscribe()`. */
 class FakeChannel {
   subscribed = false
+  /** realtime-js's channel state, which the health monitor reads. */
+  state: 'closed' | 'joined' | 'errored' = 'closed'
+  private status: ((status: string) => void) | null = null
   private readonly handlers: Array<{ table: string | null; event: string; handler: ChangeHandler }> =
     []
 
@@ -414,14 +417,35 @@ class FakeChannel {
 
   subscribe(callback?: (status: string) => void): this {
     this.subscribed = true
+    this.state = 'joined'
+    this.status = callback ?? null
     callback?.('SUBSCRIBED')
     return this
   }
 
   async unsubscribe(): Promise<'ok'> {
     this.subscribed = false
+    this.state = 'closed'
     this.onClose(this)
     return 'ok'
+  }
+
+  /** The socket dropped: realtime-js reports CHANNEL_ERROR, and nothing arrives until a rejoin. */
+  fail(): boolean {
+    if (!this.subscribed) return false
+    this.subscribed = false
+    this.state = 'errored'
+    this.status?.('CHANNEL_ERROR')
+    return true
+  }
+
+  /** realtime-js rejoined after a drop: SUBSCRIBED again. What it missed is not replayed. */
+  rejoin(): boolean {
+    if (this.state !== 'errored') return false
+    this.subscribed = true
+    this.state = 'joined'
+    this.status?.('SUBSCRIBED')
+    return true
   }
 
   deliver(payload: Row): number {
@@ -528,6 +552,21 @@ export class FakeSupabase {
     })
     this.channels.push(channel)
     return channel
+  }
+
+  /** Drop every channel's socket (a network loss). Returns how many channels it reached. */
+  dropRealtime(): number {
+    return [...this.channels].filter((c) => c.fail()).length
+  }
+
+  /** Rejoin every dropped channel, as supabase-js does when the network returns. */
+  rejoinRealtime(): number {
+    return [...this.channels].filter((c) => c.rejoin()).length
+  }
+
+  /** Channels open (joined or errored, not yet unsubscribed). */
+  openChannelCount(): number {
+    return this.channels.length
   }
 
   /** Channels currently subscribed, by name. */
