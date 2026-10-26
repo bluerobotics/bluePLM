@@ -3390,3 +3390,8 @@ export async function cleanupFs(timeoutMs: number = 2000): Promise<void> {
     }
   }
 }
+
+/** Baseline shim for the soak's "before" run. */
+export function openFileWatcherCount(): number {
+  return fileWatcher ? 1 : 0
+}

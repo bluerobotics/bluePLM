@@ -3970,3 +3970,18 @@ export async function cleanupSolidWorksService(): Promise<void> {
   clearServiceState('App quit cleanup', true)
   log('[SolidWorks] Service cleanup complete')
 }
+
+/** Baseline shim for the soak's "before" run: the queue as it is, no health readings. */
+export function getServiceHealthSnapshot() {
+  return {
+    rssMb: null,
+    baselineMs: null,
+    recentMs: null,
+    restarts: 0,
+    lastRestartReason: null,
+    queueDepth: commandQueue.length,
+    pendingRequests: swPendingRequests.size,
+    stdoutBufferChars: swServiceBuffer.length,
+    pid: swServiceProcess?.pid ?? null,
+  }
+}
