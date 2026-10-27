@@ -115,6 +115,9 @@ export function installControl(
 
   const versions = new Map<number, number>()
   let burstCursor = 0
+  // Every realtime row carries its event number: the runner's heap snapshot then tells which
+  // rows outlive the file's next update, and what holds them (scripts/render-perf/heapRetainers.ts).
+  let probeSeq = 0
 
   const control: PerfControl = {
     bootStartedAt,
@@ -196,6 +199,7 @@ export function installControl(
           updated_at: new Date().toISOString(),
           updated_by: PERF_OTHER_USER_ID,
           checked_out_by: i % 10 === 0 ? PERF_OTHER_USER_ID : old.checked_out_by,
+          __probe: `p${probeSeq++}`,
         }
         delivered += backend.db.emitRealtime('files', 'UPDATE', next, old)
       }

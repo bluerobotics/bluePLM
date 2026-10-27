@@ -34,6 +34,7 @@ import {
   type HeapSample,
   type SamplingHeapNode,
 } from './stats'
+import { probeRetainers, type HeapSnapshot, type ProbeReport } from './heapRetainers'
 import { SourceMapLookup, type RawSourceMap } from './sourceMap'
 import { mainThreadBreakdown, TraceStreamParser, type TraceEvent } from './traceMetrics'
 
@@ -214,6 +215,23 @@ async function stopProfile(cdp: CDPSession, name: string, traceDir: string): Pro
     // React's own frames fill the top of `total`; the app's functions are what to act on.
     app: byFunction.total.filter(([frame]) => frame.includes(' src/')).slice(0, 25),
   }
+}
+
+/** Take a heap snapshot and report what holds the oldest tagged realtime rows. */
+async function snapshotProbes(cdp: CDPSession): Promise<ProbeReport> {
+  let json = ''
+  const onChunk = (event: { chunk: string }) => {
+    json += event.chunk
+  }
+  cdp.on('HeapProfiler.addHeapSnapshotChunk', onChunk)
+  try {
+    await cdp.send('Runtime.discardConsoleEntries').catch(() => undefined)
+    await cdp.send('HeapProfiler.collectGarbage')
+    await cdp.send('HeapProfiler.takeHeapSnapshot', { reportProgress: false })
+  } finally {
+    cdp.off('HeapProfiler.addHeapSnapshotChunk', onChunk)
+  }
+  return probeRetainers(JSON.parse(json) as HeapSnapshot)
 }
 
 /** Run `body` under a trace and the in-page long task window; returns both with its own result. */
@@ -486,6 +504,9 @@ async function longSession(minutes: number, out: string): Promise<SessionResult>
     const { profile } = await cdp.send('HeapProfiler.getSamplingProfile')
     await cdp.send('HeapProfiler.stopSampling')
     writeFileSync(join(out, 'session-heap.heapprofile'), JSON.stringify(profile))
+    const probes = await snapshotProbes(cdp)
+    writeFileSync(join(out, 'session-probes.json'), JSON.stringify(probes, null, 2))
+    say(`session: ${probes.alive} realtime rows alive (newest event ${probes.newestEvent})`)
     const retained = retainedByStack(profile.head as SamplingHeapNode, { frameName: sourceFrameName() })
     const hs = heapStats(heap)
     say(`session: ${cycles} cycles, heap ${hs.startMB} -> ${hs.endMB} MB`)

@@ -10,6 +10,7 @@ import {
   retainedByStack,
   type SamplingHeapNode,
 } from './stats'
+import { probeRetainers } from './heapRetainers'
 import { decodeSegment, SourceMapLookup } from './sourceMap'
 import { categoryOf, mainThreadBreakdown, TraceStreamParser, type TraceEvent } from './traceMetrics'
 
@@ -248,5 +249,53 @@ describe('SourceMapLookup', () => {
     expect(map.lookup(2, 0)).toEqual({ source: '../src/a.ts', line: 2, column: 0, name: 'foo' })
     expect(map.lookup(2, 9)).toEqual({ source: '../src/a.ts', line: 2, column: 4, name: null })
     expect(map.lookup(5, 0)).toBeNull()
+  })
+})
+
+describe('probeRetainers', () => {
+  // root -(holder)-> Cache -(rows)-> Array -[0]-> Row{__probe:'p3'}; Row{__probe:'p9'} only weakly.
+  const NF = 5
+  const strings = ['', 'root', 'Cache', 'Array', 'Row', 'holder', 'rows', '__probe', 'p3', 'p9', 'ref']
+  const nodeTypes = ['synthetic', 'object', 'array', 'string']
+  const edgeTypes = ['context', 'element', 'property', 'internal', 'hidden', 'shortcut', 'weak']
+  // type, name, id, self_size, edge_count
+  const nodes = [
+    0, 1, 1, 0, 2, // 0 root: holder, weak ref
+    1, 2, 2, 0, 1, // 1 Cache: rows
+    2, 3, 3, 0, 1, // 2 Array: [0]
+    1, 4, 4, 0, 1, // 3 Row p3
+    3, 8, 5, 0, 0, // 4 'p3'
+    1, 4, 6, 0, 1, // 5 Row p9
+    3, 9, 7, 0, 0, // 6 'p9'
+  ]
+  const P = edgeTypes.indexOf('property')
+  const edges = [
+    P, 5, 1 * NF, edgeTypes.indexOf('weak'), 10, 5 * NF, // root
+    P, 6, 2 * NF, // Cache.rows
+    edgeTypes.indexOf('element'), 0, 3 * NF, // Array[0]
+    P, 7, 4 * NF, // Row.__probe = 'p3'
+    P, 7, 6 * NF, // Row.__probe = 'p9'
+  ]
+  const snap = {
+    snapshot: {
+      meta: {
+        node_fields: ['type', 'name', 'id', 'self_size', 'edge_count'],
+        node_types: [nodeTypes] as [string[]],
+        edge_fields: ['type', 'name_or_index', 'to_node'],
+        edge_types: [edgeTypes] as [string[]],
+      },
+    },
+    nodes,
+    edges,
+    strings,
+  }
+
+  it('finds tagged objects and the shortest strong path to the oldest', () => {
+    const report = probeRetainers(snap, '__probe', 1)
+    expect(report.alive).toBe(2)
+    expect(report.newestEvent).toBe(9)
+    expect(report.oldest).toEqual([
+      { event: 3, path: ['holder -> object:Cache', 'rows -> array:Array', '[0] -> object:Row'] },
+    ])
   })
 })
