@@ -535,12 +535,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('solidworks:get-preview', filePath, configuration),
     getMassProperties: (filePath: string, configuration?: string) =>
       ipcRenderer.invoke('solidworks:get-mass-properties', filePath, configuration),
-    getInspectionCharacteristics: (filePath: string) =>
-      ipcRenderer.invoke('solidworks:get-inspection-characteristics', filePath),
-    setInspectionCharacteristics: (
-      filePath: string,
-      characteristics: Array<Record<string, string | null>>,
-    ) => ipcRenderer.invoke('solidworks:set-inspection-characteristics', filePath, characteristics),
     extractDrawingCharacteristics: (filePath: string) =>
       ipcRenderer.invoke('solidworks:extract-drawing-characteristics', filePath),
     applyInspectionBalloons: (
@@ -1607,62 +1601,6 @@ declare global {
           }
           error?: string
         }>
-        getInspectionCharacteristics: (filePath: string) => Promise<{
-          success: boolean
-          data?: {
-            filePath: string
-            count: number
-            characteristics: Array<{
-              charId: string | null
-              zone: string | null
-              subType: number | null
-              value: string | null
-              unit: string | null
-              tolerancePlus: string | null
-              toleranceMinus: string | null
-              upperLimit: string | null
-              lowerLimit: string | null
-              classification: string | null
-              method: string | null
-              operation: string | null
-              aql: string | null
-              sampleSize: number | null
-              quantity: number | null
-              isReference: boolean
-              comments: string | null
-              sheet: string | null
-              view: string | null
-            }>
-          }
-          error?: string
-          errorCode?: string
-        }>
-        setInspectionCharacteristics: (
-          filePath: string,
-          characteristics: Array<Record<string, string | null>>,
-        ) => Promise<{
-          success: boolean
-          data?: {
-            filePath: string
-            requested: number
-            matched: number
-            updated: number
-            saved: boolean
-            results: Array<{
-              charId: string | null
-              applied: string[]
-              readback: {
-                classification: string | null
-                method: string | null
-                operation: string | null
-                aql: string | null
-                comments: string | null
-              }
-            }>
-          }
-          error?: string
-          errorCode?: string
-        }>
         // Mirrors src/lib/inspection/types.ts (the electron program cannot import from src/).
         extractDrawingCharacteristics: (filePath: string) => Promise<{
           success: boolean
@@ -1701,7 +1639,13 @@ declare global {
           balloons: Array<{ sourceKey: string; label: string; persistRef?: string }>,
         ) => Promise<{
           success: boolean
-          data?: { placed: number; missing: string[]; removedPrevious: number; saved: boolean }
+          data?: {
+            placed: number
+            missing: string[]
+            removedPrevious: number
+            keptPositions: number
+            saved: boolean
+          }
           error?: string
           errorCode?: string
         }>

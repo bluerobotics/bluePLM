@@ -636,37 +636,10 @@ export const en: TranslationDict = {
       noMethods: 'No methods yet. Add one above.',
       builtIn: 'Built-in',
       empty: 'No inspection characteristics yet.',
-      importFromSw: 'Pull from SW Inspection',
-      importing: 'Pulling…',
-      importServiceOffline: 'Start the SOLIDWORKS service to import inspection characteristics.',
-      importNotDrawing: 'Open a SOLIDWORKS drawing (.slddrw) to import inspection characteristics.',
-      importAddinUnavailable:
-        'SOLIDWORKS Inspection add-in not available. Install it, ensure it is licensed, and enable it in Tools > Add-Ins.',
-      importNone: 'No SOLIDWORKS Inspection characteristics found in this drawing.',
-      importSuccess: 'Imported {count} characteristic(s) from SOLIDWORKS',
-      importFailed: 'Failed to import from SOLIDWORKS',
-      importConfirmReplace:
-        'This will replace the current inspection rows with the characteristics from SOLIDWORKS. Continue?',
-      pushToSw: 'Push to SW Inspection',
-      pushing: 'Pushing…',
-      pushConfirm:
-        'This will write inspection metadata (criticality, method, operation, AQL, comments) for {count} changed characteristic(s) back into the SOLIDWORKS drawing and save it. Continue?',
-      pushSuccess: 'Pushed metadata to {matched} characteristic(s) and saved the drawing',
-      pushSavedWarn:
-        'Pushed metadata to {matched} characteristic(s), but the drawing could not be saved automatically — save it in SOLIDWORKS.',
-      pushNoneMatched:
-        'No matching characteristics found in the SOLIDWORKS drawing (matched by balloon number).',
-      pushNoChanges: 'No unpushed changes to send to SOLIDWORKS.',
-      pushFailed: 'Failed to push to SOLIDWORKS',
-      unpushedBadge: '{count} unpushed',
-      unpushedTitle:
-        '{count} characteristic(s) have metadata changes not yet pushed to the SOLIDWORKS drawing.',
-      unpushedWarnLeave:
-        'You have inspection changes that have not been pushed to the SOLIDWORKS drawing. Leave anyway?',
-      // Native extraction and ballooning (plain SOLIDWORKS API, no Inspection add-in).
+      // Extraction and ballooning through the plain SOLIDWORKS API.
       extractFromDrawing: 'Extract from drawing',
       extractTitle:
-        'Read dimensions, GTOLs and surface finish symbols from the drawing. No SOLIDWORKS Inspection license needed.',
+        'Read dimensions, GTOLs and surface finish symbols from the drawing.',
       extracting: 'Extracting…',
       extractServiceOffline: 'Start the SOLIDWORKS service to read the drawing.',
       serviceTooOld:
@@ -707,8 +680,8 @@ export const en: TranslationDict = {
       balloonConfirmTitle: 'Balloon drawing',
       balloonConfirmBody:
         'Place {{count}} balloon(s) in the drawing on the BluePLM Inspection layer. Balloons BluePLM placed before are replaced.',
-      balloonConfirmAddin:
-        'Balloons placed by the SOLIDWORKS Inspection add-in are not touched and stay in the drawing.',
+      balloonConfirmOtherBalloons:
+        'Balloons BluePLM did not place, such as older balloons already on the drawing, are not touched.',
       balloonConfirmUnkeyed:
         '{{count}} row(s) without a drawing link or balloon number get no balloon.',
       balloonConfirmStale:
@@ -718,6 +691,7 @@ export const en: TranslationDict = {
       balloonConfirmApply: 'Balloon drawing',
       balloonApplied:
         'Placed {{placed}} balloon(s) (replaced {{removedPrevious}}) and saved the drawing. Check it in to share it.',
+      balloonKeptPositions: '{{count}} balloon(s) kept the position you moved them to.',
       balloonNotSaved:
         'Placed {{placed}} balloon(s), but the drawing could not be saved. Save it in SOLIDWORKS, then check it in.',
       balloonMissing:

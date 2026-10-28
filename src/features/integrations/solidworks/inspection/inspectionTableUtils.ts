@@ -54,25 +54,3 @@ export function matchesFilter(
   const text = value === null || value === undefined ? '' : String(value)
   return text.toLowerCase().includes(filterValue.toLowerCase())
 }
-
-// Metadata fields we can write back to the SOLIDWORKS Bill of Characteristics. Geometry-derived
-// values (nominal, tolerances, limits) are never pushed. Order matters for the serialized baseline.
-export const PUSHABLE_FIELDS: (keyof InspectionRowValues)[] = [
-  'classification',
-  'inspection_method',
-  'operation',
-  'aql',
-  'comments',
-]
-
-/** Serialize a row's pushable metadata for baseline/dirty comparison. */
-export function serializePushable(row: InspectionRowInput): string {
-  return JSON.stringify(PUSHABLE_FIELDS.map((key) => row[key] ?? null))
-}
-
-/** Build a baseline map (row id -> serialized pushable fields) for unpushed-change tracking. */
-export function buildPushBaseline(rows: InspectionRowInput[]): Record<string, string> {
-  const baseline: Record<string, string> = {}
-  for (const row of rows) baseline[row.id] = serializePushable(row)
-  return baseline
-}

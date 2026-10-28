@@ -32,8 +32,6 @@ import {
   ClipboardList,
   Lock,
   Database,
-  FileDown,
-  FileUp,
   FileSpreadsheet,
   ChevronDown,
   ArrowUp,
@@ -47,15 +45,7 @@ import {
 import { useSolidWorksService } from '../SolidWorksPanel'
 import { uploadInspectionPreview } from './uploadPreview'
 import { COLUMNS, DEFAULT_INSPECTION_METHODS } from './inspectionColumns'
-import { deriveCharType, subtypeLabel } from './swInspectionSubtypes'
-import {
-  buildPushBaseline,
-  compareRows,
-  matchesFilter,
-  serializePushable,
-  sortByBalloonAsc,
-  type SortDir,
-} from './inspectionTableUtils'
+import { compareRows, matchesFilter, sortByBalloonAsc, type SortDir } from './inspectionTableUtils'
 import { InspectionCell } from './InspectionCell'
 import { ColumnFilter } from './ColumnFilter'
 import { MethodManagerModal } from './MethodManagerModal'
@@ -88,8 +78,6 @@ export function InspectionTab({ file }: InspectionTabProps) {
   const [rows, setRows] = useState<InspectionRowInput[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  const [isImporting, setIsImporting] = useState(false)
-  const [isPushing, setIsPushing] = useState(false)
   const [notInstalled, setNotInstalled] = useState(false)
   const [versions, setVersions] = useState<VersionOption[]>([])
   const [selectedVersion, setSelectedVersion] = useState<string>(CURRENT_VERSION)
@@ -104,10 +92,6 @@ export function InspectionTab({ file }: InspectionTabProps) {
   const [templateMenuOpen, setTemplateMenuOpen] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const templateMenuRef = useRef<HTMLDivElement | null>(null)
-  // Baseline of pushable metadata as it exists in the SOLIDWORKS drawing (captured on pull/push).
-  // A row is "unpushed" when its current pushable fields differ from this baseline.
-  const [pushBaseline, setPushBaseline] = useState<Record<string, string>>({})
-
   const { status: swStatus } = useSolidWorksService()
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -129,17 +113,6 @@ export function InspectionTab({ file }: InspectionTabProps) {
     (organization as { google_drive_inspection_template_folder_id?: string } | null)
       ?.google_drive_inspection_template_folder_id ?? ''
   const canGenerateTemplate = isDrawing && !!templateFolderId
-
-  // Rows whose pushable metadata differs from the SOLIDWORKS baseline and can be matched by balloon
-  // number. These are the only rows Push sends, and drive the "unpushed" badge / leave warning.
-  const unpushedRows = useMemo(
-    () =>
-      rows.filter(
-        (row) => row.balloon_number && pushBaseline[row.id] !== serializePushable(row),
-      ),
-    [rows, pushBaseline],
-  )
-  const hasUnpushed = unpushedRows.length > 0
 
   // Load version list for the history selector
   useEffect(() => {
@@ -214,9 +187,6 @@ export function InspectionTab({ file }: InspectionTabProps) {
         const mapped = (result.rows ?? []).map((r) => toRowInput(r))
         const sorted = sortByBalloonAsc(mapped)
         setRows(sorted)
-        // Treat freshly loaded rows as the in-sync baseline; unpushed changes are tracked per session
-        // relative to the last pull/push.
-        setPushBaseline(buildPushBaseline(sorted))
         dirtyRef.current = false
         loadedForRef.current = viewingCurrent ? fileId : null
       })
@@ -302,15 +272,13 @@ export function InspectionTab({ file }: InspectionTabProps) {
     return persist(rowsRef.current)
   }, [persist])
 
-  // Extraction replaced the table. New rows have nothing to push to the add-in, so they join
-  // the push baseline as in sync.
+  // Extraction replaced the table: show the merged rows and save them.
   const commitMergedRows = useCallback(
-    async (next: InspectionRowInput[], added: InspectionRowInput[]): Promise<boolean> => {
+    async (next: InspectionRowInput[]): Promise<boolean> => {
       if (saveTimer.current) clearTimeout(saveTimer.current)
       saveTimer.current = null
       rowsRef.current = next
       setRows(next)
-      setPushBaseline((prev) => ({ ...prev, ...buildPushBaseline(added) }))
       return persist(next)
     },
     [persist],
@@ -344,17 +312,6 @@ export function InspectionTab({ file }: InspectionTabProps) {
       if (saveTimer.current) clearTimeout(saveTimer.current)
     }
   }, [])
-
-  // Warn on app close/reload while metadata changes have not been pushed to the drawing.
-  useEffect(() => {
-    if (!hasUnpushed) return
-    const handler = (event: BeforeUnloadEvent) => {
-      event.preventDefault()
-      event.returnValue = ''
-    }
-    window.addEventListener('beforeunload', handler)
-    return () => window.removeEventListener('beforeunload', handler)
-  }, [hasUnpushed])
 
   const updateRows = useCallback(
     (updater: (prev: InspectionRowInput[]) => InspectionRowInput[]) => {
@@ -594,153 +551,6 @@ export function InspectionTab({ file }: InspectionTabProps) {
     [templateFolderId, file, fileId, orgId, displayRows, addToast],
   )
 
-  // Import the Bill of Characteristics from the SOLIDWORKS Inspection add-in (via the SW service)
-  const handleImportFromSw = useCallback(async () => {
-    if (!editable) return
-    if (!isDrawing) {
-      addToast('info', t('source.inspection.importNotDrawing'))
-      return
-    }
-    if (!swStatus.running) {
-      addToast('info', t('source.inspection.importServiceOffline'))
-      return
-    }
-    if (rows.length > 0 && !window.confirm(t('source.inspection.importConfirmReplace'))) return
-
-    setIsImporting(true)
-    try {
-      const result = await window.electronAPI?.solidworks?.getInspectionCharacteristics(file.path)
-      if (!result?.success || !result.data) {
-        if (result?.errorCode === 'INSPECTION_ADDIN_UNAVAILABLE') {
-          addToast('error', t('source.inspection.importAddinUnavailable'))
-        } else {
-          addToast('error', result?.error || t('source.inspection.importFailed'))
-        }
-        return
-      }
-
-      const characteristics = result.data.characteristics ?? []
-      if (characteristics.length === 0) {
-        addToast('info', t('source.inspection.importNone'))
-        return
-      }
-
-      const mapped: InspectionRowInput[] = characteristics.map((characteristic, index) => ({
-        ...emptyRowValues(index),
-        id: crypto.randomUUID(),
-        balloon_number: characteristic.charId,
-        zone: characteristic.zone,
-        char_type: deriveCharType(characteristic.subType),
-        sub_type: subtypeLabel(characteristic.subType),
-        nominal_value: characteristic.value,
-        unit: characteristic.unit,
-        plus_tolerance: characteristic.tolerancePlus,
-        minus_tolerance: characteristic.toleranceMinus,
-        upper_limit: characteristic.upperLimit,
-        lower_limit: characteristic.lowerLimit,
-        classification: characteristic.classification,
-        inspection_method: characteristic.method,
-        operation: characteristic.operation,
-        aql: characteristic.aql,
-        sample_size: characteristic.sampleSize,
-        comments: characteristic.comments,
-      }))
-
-      const sorted = sortByBalloonAsc(mapped)
-      setRows(sorted)
-      // Just pulled from SOLIDWORKS, so this is now the in-sync baseline.
-      setPushBaseline(buildPushBaseline(sorted))
-      dirtyRef.current = false
-      void persist(sorted)
-      addToast(
-        'success',
-        t('source.inspection.importSuccess').replace('{count}', String(mapped.length)),
-      )
-    } catch (error) {
-      log.error('[InspectionTab]', 'Import from SOLIDWORKS failed', { error: String(error) })
-      addToast('error', t('source.inspection.importFailed'))
-    } finally {
-      setIsImporting(false)
-    }
-  }, [editable, isDrawing, swStatus.running, rows.length, file.path, addToast, persist])
-
-  // EXPERIMENTAL: push editable metadata back into the SOLIDWORKS Inspection Bill of Characteristics.
-  // Only writable metadata fields are sent; geometry-derived values are never overwritten. Rows are
-  // matched to SOLIDWORKS characteristics by balloon number (charId).
-  const handlePushToSw = useCallback(async () => {
-    if (!editable) return
-    if (!isDrawing) {
-      addToast('info', t('source.inspection.importNotDrawing'))
-      return
-    }
-    if (!swStatus.running) {
-      addToast('info', t('source.inspection.importServiceOffline'))
-      return
-    }
-    if (unpushedRows.length === 0) {
-      addToast('info', t('source.inspection.pushNoChanges'))
-      return
-    }
-    if (
-      !window.confirm(
-        t('source.inspection.pushConfirm').replace('{count}', String(unpushedRows.length)),
-      )
-    )
-      return
-
-    const pushedRows = unpushedRows
-    const payload = pushedRows.map((row) => ({
-      charId: row.balloon_number,
-      classification: row.classification,
-      method: row.inspection_method,
-      operation: row.operation,
-      aql: row.aql,
-      comments: row.comments,
-    }))
-
-    setIsPushing(true)
-    try {
-      const result = await window.electronAPI?.solidworks?.setInspectionCharacteristics(
-        file.path,
-        payload,
-      )
-      if (!result?.success || !result.data) {
-        if (result?.errorCode === 'INSPECTION_ADDIN_UNAVAILABLE') {
-          addToast('error', t('source.inspection.importAddinUnavailable'))
-        } else {
-          addToast('error', result?.error || t('source.inspection.pushFailed'))
-        }
-        return
-      }
-
-      log.info('[InspectionTab]', 'Push to SOLIDWORKS result', { data: result.data })
-
-      if (result.data.matched === 0) {
-        addToast('info', t('source.inspection.pushNoneMatched'))
-        return
-      }
-
-      // Clear the unpushed flag for the rows we successfully sent by refreshing their baseline.
-      setPushBaseline((prev) => {
-        const next = { ...prev }
-        for (const row of pushedRows) next[row.id] = serializePushable(row)
-        return next
-      })
-
-      const matched = String(result.data.matched)
-      if (result.data.saved === false) {
-        addToast('warning', t('source.inspection.pushSavedWarn').replace('{matched}', matched))
-      } else {
-        addToast('success', t('source.inspection.pushSuccess').replace('{matched}', matched))
-      }
-    } catch (error) {
-      log.error('[InspectionTab]', 'Push to SOLIDWORKS failed', { error: String(error) })
-      addToast('error', t('source.inspection.pushFailed'))
-    } finally {
-      setIsPushing(false)
-    }
-  }, [editable, isDrawing, swStatus.running, unpushedRows, file.path, addToast])
-
   if (!fileId) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-plm-fg/60 p-6 text-center">
@@ -809,7 +619,7 @@ export function InspectionTab({ file }: InspectionTabProps) {
           <button
             type="button"
             onClick={() => void drawing.handleExtract()}
-            disabled={drawing.busy || isImporting || isPushing}
+            disabled={drawing.busy}
             className="btn btn-secondary btn-sm gap-1"
             title={t('source.inspection.extractTitle')}
           >
@@ -828,7 +638,7 @@ export function InspectionTab({ file }: InspectionTabProps) {
           <button
             type="button"
             onClick={() => void drawing.handleBalloon()}
-            disabled={drawing.busy || isImporting || isPushing}
+            disabled={drawing.busy}
             className="btn btn-secondary btn-sm gap-1"
             title={t('source.inspection.balloonTitle')}
           >
@@ -840,47 +650,6 @@ export function InspectionTab({ file }: InspectionTabProps) {
             {drawing.isBallooning
               ? t('source.inspection.ballooning')
               : t('source.inspection.balloonDrawing')}
-          </button>
-        )}
-
-        {editable && isDrawing && (
-          <button
-            type="button"
-            onClick={handleImportFromSw}
-            disabled={isImporting || isPushing || drawing.busy}
-            className="btn btn-secondary btn-sm gap-1"
-            title={t('source.inspection.importFromSw')}
-          >
-            {isImporting ? <Loader2 size={12} className="animate-spin" /> : <FileDown size={12} />}
-            {isImporting ? t('source.inspection.importing') : t('source.inspection.importFromSw')}
-          </button>
-        )}
-
-        {editable && isDrawing && rows.length > 0 && (
-          <button
-            type="button"
-            onClick={handlePushToSw}
-            disabled={isImporting || isPushing || drawing.busy || !hasUnpushed}
-            className="btn btn-secondary btn-sm gap-1"
-            title={
-              hasUnpushed
-                ? t('source.inspection.unpushedTitle').replace(
-                    '{count}',
-                    String(unpushedRows.length),
-                  )
-                : t('source.inspection.pushToSw')
-            }
-          >
-            {isPushing ? <Loader2 size={12} className="animate-spin" /> : <FileUp size={12} />}
-            {isPushing ? t('source.inspection.pushing') : t('source.inspection.pushToSw')}
-            {hasUnpushed && (
-              <span className="ml-1 rounded-full bg-amber-500/20 text-amber-500 px-1.5 py-0.5 text-[10px] font-medium leading-none">
-                {t('source.inspection.unpushedBadge').replace(
-                  '{count}',
-                  String(unpushedRows.length),
-                )}
-              </span>
-            )}
           </button>
         )}
 
@@ -972,7 +741,7 @@ export function InspectionTab({ file }: InspectionTabProps) {
                   <button
                     type="button"
                     onClick={() => void drawing.handleExtract()}
-                    disabled={drawing.busy || isImporting}
+                    disabled={drawing.busy}
                     className="btn btn-secondary btn-sm gap-1"
                   >
                     {drawing.isExtracting ? (
@@ -983,23 +752,6 @@ export function InspectionTab({ file }: InspectionTabProps) {
                     {drawing.isExtracting
                       ? t('source.inspection.extracting')
                       : t('source.inspection.extractFromDrawing')}
-                  </button>
-                )}
-                {isDrawing && (
-                  <button
-                    type="button"
-                    onClick={handleImportFromSw}
-                    disabled={isImporting || drawing.busy}
-                    className="btn btn-secondary btn-sm gap-1"
-                  >
-                    {isImporting ? (
-                      <Loader2 size={12} className="animate-spin" />
-                    ) : (
-                      <FileDown size={12} />
-                    )}
-                    {isImporting
-                      ? t('source.inspection.importing')
-                      : t('source.inspection.importFromSw')}
                   </button>
                 )}
                 <button

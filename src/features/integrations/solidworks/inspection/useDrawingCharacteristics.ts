@@ -40,7 +40,7 @@ interface UseDrawingCharacteristicsOptions {
   /** Write pending table edits now; false when the save failed. */
   flushPendingSave: () => Promise<boolean>
   /** Replace the table with the merged rows and persist them; false when the save failed. */
-  commitMergedRows: (next: InspectionRowInput[], added: InspectionRowInput[]) => Promise<boolean>
+  commitMergedRows: (next: InspectionRowInput[]) => Promise<boolean>
 }
 
 /** File and version a flow started on. A flow whose scope no longer matches stops silently. */
@@ -64,7 +64,7 @@ interface PendingBalloons {
 
 /**
  * The "Extract from drawing" and "Balloon drawing" flows of the Inspection tab. Extraction reads
- * the drawing through the plain SOLIDWORKS API (no Inspection add-in), plans the merge and holds
+ * the drawing through the plain SOLIDWORKS API, plans the merge and holds
  * it for the preview dialog. Ballooning re-extracts so each row's persist reference is current,
  * holds the request for the confirm dialog, then writes and saves the drawing.
  */
@@ -231,7 +231,7 @@ export function useDrawingCharacteristics({
     try {
       const next = applyCharacteristicMerge(getRows(), pending.plan, pending.removeIds)
       const removed = pending.plan.missing.filter((r) => pending.removeIds.has(r.id)).length
-      if (!(await commitMergedRows(next, pending.plan.added))) return
+      if (!(await commitMergedRows(next))) return
       addToast(
         'success',
         t('source.inspection.extractApplied', {
@@ -316,12 +316,25 @@ export function useDrawingCharacteristics({
         }
         return
       }
-      const { placed, missing, removedPrevious, saved } = result.data
-      log.info('[InspectionTab]', 'Balloons applied', { placed, missing, removedPrevious, saved })
+      const { placed, missing, removedPrevious, saved, keptPositions } = result.data
+      log.info('[InspectionTab]', 'Balloons applied', {
+        placed,
+        missing,
+        removedPrevious,
+        keptPositions,
+        saved,
+      })
       if (!saved) {
         addToast('warning', t('source.inspection.balloonNotSaved', { placed }))
       } else {
-        addToast('success', t('source.inspection.balloonApplied', { placed, removedPrevious }))
+        const kept =
+          keptPositions > 0
+            ? ` ${t('source.inspection.balloonKeptPositions', { count: keptPositions })}`
+            : ''
+        addToast(
+          'success',
+          `${t('source.inspection.balloonApplied', { placed, removedPrevious })}${kept}`,
+        )
       }
       if (missing.length > 0) {
         addToast('warning', t('source.inspection.balloonMissing', { count: missing.length }))

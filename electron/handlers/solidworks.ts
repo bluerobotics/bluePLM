@@ -3462,19 +3462,8 @@ export function registerSolidWorksHandlers(
     },
   )
 
-  ipcMain.handle('solidworks:get-inspection-characteristics', async (_, filePath: string) => {
-    return sendSWCommand({ action: 'getInspectionCharacteristics', filePath })
-  })
-
-  ipcMain.handle(
-    'solidworks:set-inspection-characteristics',
-    async (_, filePath: string, characteristics: Array<Record<string, string | null>>) => {
-      return sendSWCommand({ action: 'setInspectionCharacteristics', filePath, characteristics })
-    },
-  )
-
   // Native inspection: read characteristics through the plain SOLIDWORKS API (no Inspection
-  // add-in) and write BluePLM's balloons. Shapes: src/lib/inspection/types.ts.
+  // licence) and write BluePLM's balloons. Shapes: src/lib/inspection/types.ts.
   ipcMain.handle('solidworks:extract-drawing-characteristics', async (_, filePath: string) => {
     return sendSWCommand({ action: 'extractDrawingCharacteristics', filePath })
   })

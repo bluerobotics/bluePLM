@@ -57,7 +57,7 @@ export interface InspectionRowValues {
   internal_inspection_rate: number | null
   reference: string | null
   comments: string | null
-  /** Stable key of the drawing annotation this row was extracted from (null for manual / add-in rows). */
+  /** Stable key of the drawing annotation this row was extracted from (null for manual or older imported rows). */
   source_key: string | null
   /** Sheet the annotation sits on, as extracted. */
   source_sheet: string | null

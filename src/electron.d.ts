@@ -927,62 +927,6 @@ declare global {
           }
           error?: string
         }>
-        getInspectionCharacteristics: (filePath: string) => Promise<{
-          success: boolean
-          data?: {
-            filePath: string
-            count: number
-            characteristics: Array<{
-              charId: string | null
-              zone: string | null
-              subType: number | null
-              value: string | null
-              unit: string | null
-              tolerancePlus: string | null
-              toleranceMinus: string | null
-              upperLimit: string | null
-              lowerLimit: string | null
-              classification: string | null
-              method: string | null
-              operation: string | null
-              aql: string | null
-              sampleSize: number | null
-              quantity: number | null
-              isReference: boolean
-              comments: string | null
-              sheet: string | null
-              view: string | null
-            }>
-          }
-          error?: string
-          errorCode?: string
-        }>
-        setInspectionCharacteristics: (
-          filePath: string,
-          characteristics: Array<Record<string, string | null>>,
-        ) => Promise<{
-          success: boolean
-          data?: {
-            filePath: string
-            requested: number
-            matched: number
-            updated: number
-            saved: boolean
-            results: Array<{
-              charId: string | null
-              applied: string[]
-              readback: {
-                classification: string | null
-                method: string | null
-                operation: string | null
-                aql: string | null
-                comments: string | null
-              }
-            }>
-          }
-          error?: string
-          errorCode?: string
-        }>
         extractDrawingCharacteristics: (filePath: string) => Promise<{
           success: boolean
           data?: ExtractedDrawingCharacteristics

@@ -1,7 +1,7 @@
 /**
  * Wire types of the two native-inspection service commands: `extractDrawingCharacteristics`
  * (reads a drawing's dimensions, GTOLs and surface finish symbols through the plain SOLIDWORKS
- * API, no Inspection add-in) and `applyInspectionBalloons` (writes BluePLM's numbered balloons on
+ * API) and `applyInspectionBalloons` (writes BluePLM's numbered balloons on
  * the `BluePLM Inspection` layer). The shapes are the service's JSON exactly; the field lists are
  * pinned against `solidworks-service/wire-manifest.json` by `solidworksWire.contract.test.ts`.
  */
@@ -93,6 +93,8 @@ export interface AppliedInspectionBalloons {
   missing: string[]
   /** BluePLM balloons deleted from the layer before placing the new set. */
   removedPrevious: number
+  /** Balloons placed at a position the user had moved them to by hand (service 1.25.0). */
+  keptPositions: number
   saved: boolean
 }
 

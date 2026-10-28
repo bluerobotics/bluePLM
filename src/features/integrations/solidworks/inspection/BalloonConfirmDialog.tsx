@@ -12,7 +12,7 @@ interface BalloonConfirmDialogProps {
 
 /**
  * Confirms writing BluePLM balloons into the drawing. Names the rows whose annotation is gone
- * (they get no balloon), says that SOLIDWORKS Inspection add-in balloons stay, and that the
+ * (they get no balloon), says that balloons BluePLM did not place stay, and that the
  * drawing is saved and then needs a check-in.
  */
 export function BalloonConfirmDialog({ plan, onConfirm, onCancel }: BalloonConfirmDialogProps) {
@@ -46,7 +46,7 @@ export function BalloonConfirmDialog({ plan, onConfirm, onCancel }: BalloonConfi
           <p className="text-plm-fg">
             {t('source.inspection.balloonConfirmBody', { count: plan.balloons.length })}
           </p>
-          <p className="text-plm-fg-muted">{t('source.inspection.balloonConfirmAddin')}</p>
+          <p className="text-plm-fg-muted">{t('source.inspection.balloonConfirmOtherBalloons')}</p>
           {plan.unkeyed > 0 && (
             <p className="text-plm-fg-muted">
               {t('source.inspection.balloonConfirmUnkeyed', { count: plan.unkeyed })}

@@ -531,6 +531,7 @@ export function createFakeElectron(
           placed: placed.length,
           missing: balloons.filter((b) => !keys.has(b.sourceKey)).map((b) => b.sourceKey),
           removedPrevious,
+          keptPositions: 0,
           saved: true,
         },
       }
