@@ -381,6 +381,62 @@ namespace BluePLM.SolidWorksService
             }
             return result;
         }
+
+        /// <summary>A BluePLM balloon found on the drawing before it is replaced.</summary>
+        internal sealed class OldBalloon
+        {
+            public string? Label;
+            public string Sheet = "";
+            /// <summary>Owning view name, or null for a balloon on the sheet itself.</summary>
+            public string? View;
+            public double X;
+            public double Y;
+        }
+
+        /// <summary>One balloon about to be placed: its label and the sheet / view of its annotation.</summary>
+        internal readonly struct BalloonTarget
+        {
+            public BalloonTarget(string label, string sheet, string? view) { Label = label; Sheet = sheet; View = view; }
+            public string Label { get; }
+            public string Sheet { get; }
+            public string? View { get; }
+        }
+
+        /// <summary>
+        /// For each target, the index of the old balloon whose position it reuses, or null to place it
+        /// at the computed position. Balloon numbers are stable, so an old balloon matches a target by
+        /// label (trimmed, exact). The first pass takes old balloons in the target annotation's own
+        /// view; the second takes any remaining one with that label on the same sheet, first in
+        /// drawing order. Each old balloon is used at most once. Positions are sheet coordinates, so
+        /// a balloon on another sheet is never reused.
+        /// </summary>
+        public static List<int?> MatchOldBalloons(IReadOnlyList<OldBalloon> old, IReadOnlyList<BalloonTarget> targets)
+        {
+            var result = new List<int?>(new int?[targets.Count]);
+            var used = new bool[old.Count];
+
+            bool SameLabel(OldBalloon o, BalloonTarget t) =>
+                o.Label != null && string.Equals(o.Label.Trim(), (t.Label ?? "").Trim(), StringComparison.Ordinal)
+                && (t.Label ?? "").Trim().Length > 0;
+            bool SameSheet(OldBalloon o, BalloonTarget t) => string.Equals(o.Sheet, t.Sheet, StringComparison.OrdinalIgnoreCase);
+            bool SameView(OldBalloon o, BalloonTarget t) => SameSheet(o, t) && string.Equals(o.View, t.View, StringComparison.Ordinal);
+
+            foreach (var pass in new Func<OldBalloon, BalloonTarget, bool>[] { SameView, SameSheet })
+            {
+                for (var t = 0; t < targets.Count; t++)
+                {
+                    if (result[t] != null) continue;
+                    for (var o = 0; o < old.Count; o++)
+                    {
+                        if (used[o] || !SameLabel(old[o], targets[t]) || !pass(old[o], targets[t])) continue;
+                        used[o] = true;
+                        result[t] = o;
+                        break;
+                    }
+                }
+            }
+            return result;
+        }
     }
 
     // ---------------------------------------------------------------------- wire shapes
@@ -450,5 +506,7 @@ namespace BluePLM.SolidWorksService
         [JsonProperty("missing")] public List<string> Missing { get; set; } = new List<string>();
         [JsonProperty("removedPrevious")] public int RemovedPrevious { get; set; }
         [JsonProperty("saved")] public bool Saved { get; set; }
+        /// <summary>Balloons placed at the position of the old balloon with the same label (hand-moved ones stay put).</summary>
+        [JsonProperty("keptPositions")] public int KeptPositions { get; set; }
     }
 }

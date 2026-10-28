@@ -36,6 +36,8 @@ namespace BluePLM.SolidWorksService
     ///   R11 IModelDoc2.ReloadOrReplace(false, samePath, true) discards a user-open document's unsaved
     ///       edits and returns swReloadOkay; anything else is reported as DOC_MODIFIED_NOT_SAVED.
     ///   R12 ISelectionMgr.GetSelectedObjectType3 reports a selected note (balloon) as swSelNOTES.
+    ///   R13 INote.GetText on a BluePLM balloon returns exactly its label, and GetPosition of the old
+    ///       balloon fed back to SetPosition2 puts the new one in the same place (same space both ways).
     /// </summary>
     public partial class SolidWorksAPI
     {
@@ -1037,12 +1039,20 @@ namespace BluePLM.SolidWorksService
                     return new CommandResult { Success = false, Error = $"Could not create the '{InspectionNative.BalloonLayer}' layer" };
             }
 
-            // 1. Remove every note on the BluePLM layer, sheet by sheet (selection is per active sheet).
-            //    Delete only when exactly those notes, and nothing else, are selected.
-            var previous = sites
+            // 1. Record every note on the BluePLM layer (label, owner, position) so a balloon the user
+            //    moved by hand is re-placed where it was, then remove them sheet by sheet (selection
+            //    is per active sheet). Delete only when exactly those notes, and nothing else, are selected.
+            var previousSites = sites
                 .Where(s => s.Type == (int)swAnnotationType_e.swNote
                             && string.Equals(s.Layer, InspectionNative.BalloonLayer, StringComparison.OrdinalIgnoreCase))
-                .GroupBy(s => s.Sheet.Name, StringComparer.OrdinalIgnoreCase);
+                .ToList();
+            var oldBalloons = previousSites.Select(s =>
+            {
+                string? label = null;
+                try { label = (s.Annotation.GetSpecificAnnotation() as Note)?.GetText(); } catch { }
+                return new InspectionNative.OldBalloon { Label = label, Sheet = s.Sheet.Name, View = s.ViewName, X = s.X, Y = s.Y };
+            }).ToList();
+            var previous = previousSites.GroupBy(s => s.Sheet.Name, StringComparer.OrdinalIgnoreCase);
             foreach (var group in previous)
             {
                 var expected = group.Count();
@@ -1120,7 +1130,15 @@ namespace BluePLM.SolidWorksService
             {
                 try { layerMgr.SetCurrentLayer(InspectionNative.BalloonLayer); } catch { }
             }
-            foreach (var sheetGroup in placements.GroupBy(p => p.site.Sheet.Name, StringComparer.OrdinalIgnoreCase))
+
+            // A request whose label matches an old balloon reuses that balloon's position.
+            var ordered = placements.GroupBy(p => p.site.Sheet.Name, StringComparer.OrdinalIgnoreCase).ToList();
+            var targets = ordered.SelectMany(sg => sg.SelectMany(p => p.items.Select(b =>
+                new InspectionNative.BalloonTarget(b.Label, p.site.Sheet.Name, p.site.ViewName)))).ToList();
+            var matches = InspectionNative.MatchOldBalloons(oldBalloons, targets);
+            var targetIndex = 0;
+
+            foreach (var sheetGroup in ordered)
             {
                 try { drw.ActivateSheet(sheetGroup.Key); } catch { }
                 foreach (var (site, items) in sheetGroup)
@@ -1132,7 +1150,15 @@ namespace BluePLM.SolidWorksService
                     for (var i = 0; i < items.Count; i++)
                     {
                         changed = true;
-                        if (!InsertBalloon(doc, drw, site, items[i].Label, positions[i].X, positions[i].Y))
+                        var (x, y) = positions[i];
+                        var match = matches[targetIndex++];
+                        if (match != null)
+                        {
+                            x = oldBalloons[match.Value].X;
+                            y = oldBalloons[match.Value].Y;
+                            report.KeptPositions++;
+                        }
+                        if (!InsertBalloon(doc, drw, site, items[i].Label, x, y))
                         {
                             return new CommandResult
                             {

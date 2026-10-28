@@ -31,6 +31,7 @@
         "balloons"
       ],
       "responseData": [
+        "keptPositions",
         "missing",
         "placed",
         "removedPrevious",
@@ -146,9 +147,6 @@
     "getDocumentInfo": {
       "request": []
     },
-    "getInspectionCharacteristics": {
-      "request": []
-    },
     "getMassProperties": {
       "request": [
         "configuration"
@@ -240,11 +238,6 @@
         "readOnly"
       ]
     },
-    "setInspectionCharacteristics": {
-      "request": [
-        "characteristics"
-      ]
-    },
     "setProperties": {
       "request": [
         "configuration",
@@ -276,7 +269,6 @@
       "DOC_HAS_UNSAVED_CHANGES",
       "DOC_MODIFIED_NOT_SAVED",
       "FILE_OPEN_IN_SOLIDWORKS",
-      "INSPECTION_ADDIN_UNAVAILABLE",
       "NOT_A_DRAWING",
       "NO_ENGINE_AVAILABLE",
       "PAG_UNMAPPED_REFERENCES",

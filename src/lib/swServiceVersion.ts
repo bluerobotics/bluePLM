@@ -120,6 +120,12 @@
  *                   is keyed by a SHA-1 of its persist reference, not by view or annotation name, so
  *                   renames keep the key. New error codes DOC_HAS_UNSAVED_CHANGES, NOT_A_DRAWING and
  *                   DOC_MODIFIED_NOT_SAVED (a failed write whose edits could not be discarded)
+ * - Version 1.25.0: applyInspectionBalloons keeps hand-moved balloons where they are: before it
+ *                   replaces BluePLM's balloons it records each one's label, owner and position, and
+ *                   a new balloon with the same label (same view first, then same sheet) is placed
+ *                   there; data.keptPositions counts them. Removed the SOLIDWORKS Inspection add-in
+ *                   path: getInspectionCharacteristics, setInspectionCharacteristics and the
+ *                   INSPECTION_ADDIN_UNAVAILABLE code are gone (native extraction replaces them)
  *
  * When making service changes:
  * 1. Increment SERVICE_VERSION in Program.cs
@@ -129,7 +135,7 @@
 
 // The SolidWorks service version this app version expects
 // Uses semver: MAJOR.MINOR.PATCH
-export const EXPECTED_SW_SERVICE_VERSION = '1.23.0'
+export const EXPECTED_SW_SERVICE_VERSION = '1.25.0'
 
 // Minimum service version that will still work (for soft warnings vs hard errors)
 // Breaking changes should bump the major version and update this
@@ -192,13 +198,17 @@ export const SW_SERVICE_VERSION_DESCRIPTIONS: Record<string, string> = {
     'Drawing previews are sharper: when a file has no Document Manager preview (common for modern formats) the caller now chooses the Windows thumbnail size, so the details panel asks for a 1024px render while file-browser grid icons stay at 256px instead of being fetched at many times the pixels they need',
   '1.23.0':
     'Drawings can be bubbled without a SOLIDWORKS Inspection licence: the service reads every dimension, hole callout, chamfer, GTOL and surface finish symbol straight from the drawing, and writes numbered balloons on a dedicated "BluePLM Inspection" layer, replacing the ones it placed before. Each characteristic keeps the same key when a view or feature is renamed, so balloon numbers stay put',
+  '1.25.0':
+    'Balloons you move by hand in SOLIDWORKS now stay where you put them when BluePLM re-balloons a drawing: a balloon whose number is still in the table goes back to its old spot, and only new numbers are placed automatically. The SOLIDWORKS Inspection add-in import and push are gone; extracting from the drawing needs no Inspection licence',
 }
 
 /**
- * First service version that answers `extractDrawingCharacteristics` and `applyInspectionBalloons`.
- * Gate the native inspection buttons on this, not on `EXPECTED_SW_SERVICE_VERSION`.
+ * First service version whose `extractDrawingCharacteristics` and `applyInspectionBalloons` match
+ * what the app reads: commands from 1.23.0, `skipped` / `incompleteSheets` and `keptPositions`
+ * (kept hand-moved balloon positions) from 1.25.0. Gate the native inspection buttons on this,
+ * not on `EXPECTED_SW_SERVICE_VERSION`.
  */
-export const SW_SERVICE_VERSION_NATIVE_INSPECTION = '1.23.0'
+export const SW_SERVICE_VERSION_NATIVE_INSPECTION = '1.25.0'
 
 /**
  * First service version that answers `getPropertiesDocumentManager`.

@@ -244,5 +244,54 @@ namespace BluePLM.SolidWorksService.Tests
                 Assert.InRange(q.Y, 0.005, 0.292);
             });
         }
+
+        // ---------------------------------------------------------------- kept positions
+
+        static InspectionNative.OldBalloon Old(string? label, string sheet, string? view, double x = 0, double y = 0) =>
+            new InspectionNative.OldBalloon { Label = label, Sheet = sheet, View = view, X = x, Y = y };
+
+        static InspectionNative.BalloonTarget Target(string label, string sheet, string? view) =>
+            new InspectionNative.BalloonTarget(label, sheet, view);
+
+        [Fact]
+        public void A_request_reuses_the_old_balloon_with_its_label()
+        {
+            var old = new[] { Old("1", "Sheet1", "View1"), Old("2", "Sheet1", "View1") };
+            var m = InspectionNative.MatchOldBalloons(old, new[] { Target("2", "Sheet1", "View1"), Target("1", "Sheet1", "View1") });
+            Assert.Equal(new int?[] { 1, 0 }, m);
+        }
+
+        [Fact]
+        public void Unmatched_requests_get_no_old_position()
+        {
+            var old = new[] { Old("1", "Sheet1", "View1"), Old(null, "Sheet1", "View1") };
+            var m = InspectionNative.MatchOldBalloons(old, new[] { Target("7", "Sheet1", "View1"), Target("", "Sheet1", "View1") });
+            Assert.Equal(new int?[] { null, null }, m);
+        }
+
+        [Fact]
+        public void Duplicate_labels_prefer_the_target_view_then_the_first_on_the_sheet()
+        {
+            var old = new[] { Old("5", "Sheet1", "View1"), Old("5", "Sheet1", "View2"), Old("6", "Sheet1", "View3"), Old("6", "Sheet1", "View4") };
+            var m = InspectionNative.MatchOldBalloons(old, new[] { Target("5", "Sheet1", "View2"), Target("6", "Sheet1", "View9") });
+            Assert.Equal(new int?[] { 1, 2 }, m);
+        }
+
+        [Fact]
+        public void A_same_view_match_is_not_stolen_by_an_earlier_fallback()
+        {
+            // Target 0 has no balloon in its view; target 1 does. The view pass runs first for all.
+            var old = new[] { Old("3", "Sheet1", "View2") };
+            var m = InspectionNative.MatchOldBalloons(old, new[] { Target("3", "Sheet1", "View1"), Target("3", "Sheet1", "View2") });
+            Assert.Equal(new int?[] { null, 0 }, m);
+        }
+
+        [Fact]
+        public void A_balloon_on_another_sheet_is_never_reused_and_labels_match_trimmed()
+        {
+            var old = new[] { Old("4", "Sheet2", "View1"), Old(" 8 ", "Sheet1", null) };
+            var m = InspectionNative.MatchOldBalloons(old, new[] { Target("4", "Sheet1", "View1"), Target("8", "Sheet1", null) });
+            Assert.Equal(new int?[] { null, 1 }, m);
+        }
     }
 }

@@ -35,7 +35,7 @@ namespace BluePLM.SolidWorksService
         /// Service version - bump this when making changes that affect functionality.
         /// The app checks this version and warns if there's a mismatch.
         /// </summary>
-        private const string SERVICE_VERSION = "1.23.0";
+        private const string SERVICE_VERSION = "1.25.0";
 
         /// <summary>
         /// Error code returned for an action this build does not implement. The app matches on this
@@ -428,18 +428,6 @@ namespace BluePLM.SolidWorksService
                     // getMassProperties requires full SolidWorks (needs rebuild)
                     "getMassProperties" => RequiresSolidWorks(() => _swApi!.GetMassProperties(filePath,
                         command["configuration"]?.ToString()), "getMassProperties"),
-
-                    // getInspectionCharacteristics reads the SOLIDWORKS Inspection add-in's
-                    // Bill of Characteristics from a drawing (requires full SW + Inspection add-in)
-                    "getInspectionCharacteristics" => RequiresSolidWorks(
-                        () => _swApi!.GetInspectionCharacteristics(filePath), "getInspectionCharacteristics"),
-
-                    // setInspectionCharacteristics (EXPERIMENTAL) writes bluePLM inspection metadata
-                    // back into the drawing's Bill of Characteristics (requires full SW + Inspection add-in)
-                    "setInspectionCharacteristics" => RequiresSolidWorks(
-                        () => _swApi!.SetInspectionCharacteristics(filePath,
-                            command["characteristics"]?.ToObject<System.Collections.Generic.List<System.Collections.Generic.Dictionary<string, string>>>()),
-                        "setInspectionCharacteristics"),
 
                     // Native inspection (plain SOLIDWORKS API, no Inspection add-in): read a drawing's
                     // dimensions / GTOLs / surface finish symbols, and write BluePLM's balloons.
