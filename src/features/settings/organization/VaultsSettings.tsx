@@ -259,7 +259,7 @@ export function VaultsSettings() {
         return
       }
 
-      addToast('success', `Vault "${name}" created`)
+      addToast('success', t('vaultOperations.created', { name }))
       // Map Supabase nullables to app types with defaults
       const mappedVault: Vault = {
         ...vault,
@@ -275,7 +275,7 @@ export function VaultsSettings() {
       triggerVaultsRefresh()
     } catch (error) {
       log.error('[VaultsSettings]', 'Failed to create vault', { error: error })
-      addToast('error', 'Failed to create vault')
+      addToast('error', t('vaultOperations.createError'))
     } finally {
       setIsSavingVault(false)
       // Small delay before allowing realtime sync again to let the update propagate
@@ -302,7 +302,7 @@ export function VaultsSettings() {
         .eq('id', vault.id)
 
       if (error) {
-        addToast('error', `Failed to rename vault: ${error.message}`)
+        addToast('error', t('vaultOperations.renameErrorDetails', { error: error.message }))
         return
       }
 
@@ -314,11 +314,11 @@ export function VaultsSettings() {
       setOrgVaults(
         orgVaults.map((v) => (v.id === vault.id ? { ...v, name: newName, slug: newSlug } : v)),
       )
-      addToast('success', `Vault renamed to "${newName}"`)
+      addToast('success', t('vaultOperations.renamed', { name: newName }))
       setRenamingVaultId(null)
     } catch (error) {
       log.error('[VaultsSettings]', 'Failed to rename vault', { error: error })
-      addToast('error', 'Failed to rename vault')
+      addToast('error', t('vaultOperations.renameError'))
     } finally {
       setTimeout(() => {
         savingRef.current = false
@@ -336,7 +336,7 @@ export function VaultsSettings() {
       const { error } = await supabase.from('vaults').update({ is_default: true }).eq('id', vaultId)
 
       if (error) {
-        addToast('error', 'Failed to set default vault')
+        addToast('error', t('vaultOperations.defaultError'))
         return
       }
 
@@ -346,7 +346,7 @@ export function VaultsSettings() {
           is_default: v.id === vaultId,
         })),
       )
-      addToast('success', 'Default vault updated')
+      addToast('success', t('vaultOperations.defaultUpdated'))
     } catch (error) {
       log.error('[VaultsSettings]', 'Failed to set default vault', { error: error })
     } finally {
@@ -385,7 +385,7 @@ export function VaultsSettings() {
       const { error } = await supabase.from('vaults').delete().eq('id', deletingVault.id)
 
       if (error) {
-        addToast('error', `Failed to delete vault: ${error.message}`)
+        addToast('error', t('vaultOperations.deleteErrorDetails', { error: error.message }))
         return
       }
 
@@ -394,13 +394,13 @@ export function VaultsSettings() {
       }
 
       setOrgVaults(orgVaults.filter((v) => v.id !== deletingVault.id))
-      addToast('success', `Vault "${deletingVault.name}" permanently deleted`)
+      addToast('success', t('vaultOperations.deleted', { name: deletingVault.name }))
       setDeletingVault(null)
       setDeleteConfirmText('')
       triggerVaultsRefresh()
     } catch (error) {
       log.error('[VaultsSettings]', 'Failed to delete vault', { error: error })
-      addToast('error', 'Failed to delete vault')
+      addToast('error', t('vaultOperations.deleteError'))
     } finally {
       setIsDeleting(false)
       setTimeout(() => {
@@ -423,7 +423,7 @@ export function VaultsSettings() {
 
     try {
       // Delete all files from the vault in the database
-      addToast('info', 'Clearing database records...')
+      addToast('info', t('vaultOperations.clearingDb'))
       const { error: filesError } = await supabase
         .from('files')
         .delete()
@@ -433,7 +433,7 @@ export function VaultsSettings() {
         log.error('[VaultsSettings]', 'Failed to delete files during vault clear', {
           error: filesError,
         })
-        addToast('error', `Failed to clear vault files: ${filesError.message}`)
+        addToast('error', t('vaultOperations.clearFilesError', { error: filesError.message }))
         return
       }
 
@@ -443,7 +443,7 @@ export function VaultsSettings() {
         const api = window.electronAPI
         if (api) {
           try {
-            addToast('info', 'Clearing local files...')
+            addToast('info', t('vaultOperations.clearingLocal'))
             // Stop file watcher first to release file handles
             await api.clearWorkingDir()
             await new Promise((resolve) => setTimeout(resolve, 200))
@@ -465,20 +465,23 @@ export function VaultsSettings() {
                   })
                 }
               }
-              addToast('success', `Deleted ${deletedCount} of ${totalItems} local items`)
+              addToast(
+                'success',
+                t('vaultOperations.localDeleted', { count: deletedCount, total: totalItems }),
+              )
             } else {
-              addToast('info', 'No local files to delete')
+              addToast('info', t('vaultOperations.noLocal'))
             }
           } catch (error) {
             log.error('[VaultsSettings]', 'Failed to clear local files', { error: error })
-            addToast('warning', 'Could not clear some local files')
+            addToast('warning', t('vaultOperations.clearLocalWarning'))
           }
         }
       }
 
       // Delete files from storage bucket
       try {
-        addToast('info', 'Clearing cloud storage...')
+        addToast('info', t('vaultOperations.clearingCloud'))
         const { data: storageFiles } = await supabase.storage
           .from('vault')
           .list(`${organization.id}/${clearingVault.id}`)
@@ -488,13 +491,13 @@ export function VaultsSettings() {
             (f) => `${organization.id}/${clearingVault.id}/${f.name}`,
           )
           await supabase.storage.from('vault').remove(filePaths)
-          addToast('success', `Deleted ${storageFiles.length} files from cloud storage`)
+          addToast('success', t('vaultOperations.cloudDeleted', { count: storageFiles.length }))
         } else {
-          addToast('info', 'No cloud storage files to delete')
+          addToast('info', t('vaultOperations.noCloud'))
         }
       } catch (error) {
         log.error('[VaultsSettings]', 'Failed to clear storage files', { error: error })
-        addToast('warning', 'Could not clear cloud storage files')
+        addToast('warning', t('vaultOperations.clearCloudWarning'))
       }
 
       // Clear local state if this is the active vault
@@ -506,14 +509,14 @@ export function VaultsSettings() {
         setFilesLoaded(true)
       }
 
-      addToast('success', `Vault "${clearingVault.name}" cleared successfully`)
+      addToast('success', t('vaultOperations.cleared', { name: clearingVault.name }))
       setClearingVault(null)
       setClearConfirmText('')
       setClearConfirmText2('')
       triggerVaultsRefresh()
     } catch (error) {
       log.error('[VaultsSettings]', 'Failed to clear vault', { error: error })
-      addToast('error', 'Failed to clear vault')
+      addToast('error', t('vaultOperations.clearError'))
     } finally {
       setIsClearing(false)
       setTimeout(() => {
@@ -528,7 +531,7 @@ export function VaultsSettings() {
     try {
       const api = window.electronAPI
       if (!api) {
-        addToast('error', 'Electron API not available')
+        addToast('error', t('vaultOperations.electronUnavailable'))
         return
       }
 
@@ -568,11 +571,11 @@ export function VaultsSettings() {
             })
         }
       } else {
-        addToast('error', `Failed to create vault folder: ${result.error}`)
+        addToast('error', t('vaultOperations.folderError', { error: String(result.error) }))
       }
     } catch (error) {
       log.error('[VaultsSettings]', 'Failed to connect vault', { error: error })
-      addToast('error', 'Failed to connect vault')
+      addToast('error', t('vaultOperations.connectError'))
     } finally {
       setConnectingVaultId(null)
     }
@@ -607,7 +610,7 @@ export function VaultsSettings() {
     setVaultPath(setupVaultPath)
     setVaultConnected(true)
 
-    addToast('success', `Connected to "${setupVault.name}"`)
+    addToast('success', t('vaultOperations.connected', { name: setupVault.name }))
 
     // Clear setup state
     setSetupVault(null)
@@ -658,7 +661,7 @@ export function VaultsSettings() {
     setDisconnectingVault(null)
     setIsDisconnecting(false)
 
-    addToast('success', 'Vault disconnected (local files preserved)')
+    addToast('success', t('vaultOperations.disconnected'))
   }
 
   const handleWipeLocalFiles = async () => {
@@ -669,7 +672,7 @@ export function VaultsSettings() {
     try {
       const api = window.electronAPI
       if (!api) {
-        addToast('error', 'Electron API not available')
+        addToast('error', t('vaultOperations.electronUnavailable'))
         return
       }
 
@@ -698,9 +701,12 @@ export function VaultsSettings() {
           }
         }
 
-        addToast('success', `Deleted ${deletedCount} of ${totalItems} local items`)
+        addToast(
+          'success',
+          t('vaultOperations.localDeleted', { count: deletedCount, total: totalItems }),
+        )
       } else {
-        addToast('info', 'No local files to delete')
+        addToast('info', t('vaultOperations.noLocal'))
       }
 
       // Clear local state if this is the active vault
@@ -711,7 +717,7 @@ export function VaultsSettings() {
       }
     } catch (error) {
       log.error('[VaultsSettings]', 'Failed to wipe local files', { error: error })
-      addToast('error', 'Failed to wipe local files')
+      addToast('error', t('vaultOperations.wipeError'))
     } finally {
       setWipingVault(null)
       setIsWiping(false)
@@ -1124,7 +1130,12 @@ export function VaultsSettings() {
                           if (result.succeeded > 0) {
                             addToast(
                               'info',
-                              `Auto-discarded ${result.succeeded} orphaned file${result.succeeded > 1 ? 's' : ''}`,
+                              t(
+                                result.succeeded > 1
+                                  ? 'vaultOperations.autoDiscardMany'
+                                  : 'vaultOperations.autoDiscardOne',
+                                { count: result.succeeded },
+                              ),
                             )
                           }
                         } catch (error) {
