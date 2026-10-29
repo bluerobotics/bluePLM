@@ -8,6 +8,12 @@ All notable changes to BluePLM will be documented in this file.
 
 ### Added
 
+- **User profile history names its files.** Recent Activity on a user's profile now shows each
+  entry's file name and folder (the full path on hover); clicking an entry closes the profile and
+  opens that folder in the file browser with the file selected. Clicking a day in the
+  contribution grid lists everything that day, and chips above the list count each action and
+  filter by it. Before, most entries read only "Checked out", because the profile looked for the
+  file name in the activity details, which a checkout does not record.
 - **Search settings.** A search box at the top of the settings sidebar finds individual
   settings, not just tabs, as you type: the main view lists every match grouped by tab with the
   matched letters highlighted, and the sidebar narrows to the tabs that have one. The matching

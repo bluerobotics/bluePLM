@@ -14,6 +14,7 @@ import { usePDMStore } from '@/stores/pdmStore'
 export interface RevealInFileBrowser {
   /** Absolute path of the loaded file, or null when it has no local copy to show. */
   resolve: (relativePath: string) => string | null
+  /** Opens the containing folder, and selects the file when it is loaded. */
   reveal: (relativePath: string) => void
 }
 
@@ -48,8 +49,9 @@ export function useRevealInFileBrowser(): RevealInFileBrowser {
 
   const reveal = useCallback(
     (relativePath: string) => {
+      // A file that is not loaded (deleted, or outside what this vault shows) still has a folder
+      // worth opening; only the selection needs the loaded row.
       const absolutePath = resolve(relativePath)
-      if (!absolutePath) return
 
       const parts = relativePath.replace(/\\/g, '/').split('/')
       parts.pop()
@@ -60,8 +62,10 @@ export function useRevealInFileBrowser(): RevealInFileBrowser {
       }
 
       setCurrentFolder(parts.join('/'))
-      setSelectedFiles([absolutePath])
-      setPendingScrollToFile(absolutePath)
+      if (absolutePath) {
+        setSelectedFiles([absolutePath])
+        setPendingScrollToFile(absolutePath)
+      }
       setActiveView('explorer')
     },
     [

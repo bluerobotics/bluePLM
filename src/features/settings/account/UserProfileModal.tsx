@@ -19,12 +19,21 @@ import {
   ShoppingCart,
   Loader2,
   Clock,
+  Folder,
 } from 'lucide-react'
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { useShallow } from 'zustand/react/shallow'
 import { getSupabaseClient } from '@/lib/supabase'
 import { getInitials, getEffectiveAvatarUrl } from '@/lib/utils'
+import { useTranslation } from '@/lib/i18n'
+import { useRevealInFileBrowser } from '@/features/settings/system/vault-audit/useRevealInFileBrowser'
+import {
+  countByAction,
+  toProfileActivity,
+  type ProfileActivity,
+  type ProfileActivityRow,
+} from './profileActivity'
 
 // Supabase v2 type inference incomplete for user profile queries
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -51,13 +60,6 @@ interface UserData {
 interface DayData {
   date: string
   count: number
-}
-
-interface ActivityRecord {
-  id: string
-  action: string
-  created_at: string
-  file_name?: string
 }
 
 interface ECORecord {
@@ -176,8 +178,12 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
 
   const [userData, setUserData] = useState<UserData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const { t } = useTranslation()
+  const { reveal } = useRevealInFileBrowser()
   const [activityData, setActivityData] = useState<Map<string, DayData>>(new Map())
-  const [recentActivity, setRecentActivity] = useState<ActivityRecord[]>([])
+  const [activities, setActivities] = useState<ProfileActivity[]>([])
+  const [selectedDay, setSelectedDay] = useState<string | null>(null)
+  const [actionFilter, setActionFilter] = useState<string | null>(null)
   const [userECOs, setUserECOs] = useState<ECORecord[]>([])
   const [userRFQs, setUserRFQs] = useState<RFQRecord[]>([])
   const [totalContributions, setTotalContributions] = useState(0)
@@ -258,35 +264,27 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
         }
 
         // Load activity for heatmap and recent list (limited for performance)
-        const { data: activities, error: activityError } = await client
+        const { data: activityRows, error: activityError } = await client
           .from('activity')
-          .select('id, action, created_at, details')
+          .select('id, action, created_at, file_id, details, file:files(file_name, file_path)')
           .eq('user_id', userId)
           .eq('org_id', organization.id)
           .gte('created_at', oneYearAgo.toISOString())
           .order('created_at', { ascending: false })
           .limit(5000) // Enough for heatmap visualization
 
-        if (!activityError && activities) {
+        if (!activityError && activityRows) {
           const dataMap = new Map<string, DayData>()
-          // Supabase v2 nested select type inference incomplete
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const fileActivities: ActivityRecord[] = activities.map((a: any) => ({
-            id: a.id,
-            action: a.action,
-            created_at: a.created_at,
-            file_name: (a.details as Record<string, unknown>)?.file_name as string | undefined,
-          }))
+          const loaded = (activityRows as ProfileActivityRow[]).map(toProfileActivity)
 
-          fileActivities.forEach((activity) => {
-            const date = activity.created_at.split('T')[0]
-            const existing = dataMap.get(date) || { date, count: 0 }
+          loaded.forEach((activity) => {
+            const existing = dataMap.get(activity.day) || { date: activity.day, count: 0 }
             existing.count++
-            dataMap.set(date, existing)
+            dataMap.set(activity.day, existing)
           })
 
           setActivityData(dataMap)
-          setRecentActivity(fileActivities.slice(0, 15))
+          setActivities(loaded)
         }
 
         // Load ECOs
@@ -331,6 +329,26 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
     })
     return max
   }, [activityData])
+
+  // A selected day shows everything that day; otherwise the latest entries. The action breakdown
+  // follows the day so its counts match the list under it.
+  const dayActivities = useMemo(
+    () => (selectedDay ? activities.filter((a) => a.day === selectedDay) : activities),
+    [activities, selectedDay],
+  )
+  const actionCounts = useMemo(() => countByAction(dayActivities), [dayActivities])
+  const visibleActivity = useMemo(() => {
+    const filtered = actionFilter
+      ? dayActivities.filter((a) => a.action === actionFilter)
+      : dayActivities
+    return selectedDay ? filtered : filtered.slice(0, 50)
+  }, [dayActivities, actionFilter, selectedDay])
+
+  const openActivityFile = (activity: ProfileActivity) => {
+    if (!activity.filePath) return
+    reveal(activity.filePath)
+    onClose()
+  }
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -587,10 +605,17 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
                               'bg-emerald-400',
                             ]
 
+                            const isSelected = selectedDay === dateStr
                             return (
-                              <div
+                              <button
+                                type="button"
                                 key={dayIndex}
-                                className={`aspect-square rounded-sm ${colorClasses[level]}`}
+                                disabled={count === 0}
+                                onClick={() => {
+                                  setSelectedDay(isSelected ? null : dateStr)
+                                  setActionFilter(null)
+                                }}
+                                className={`block w-full aspect-square rounded-sm ${colorClasses[level]} ${count > 0 ? 'cursor-pointer hover:ring-1 hover:ring-plm-fg-muted' : 'cursor-default'} ${isSelected ? 'ring-2 ring-plm-accent' : ''}`}
                                 title={`${cell.date.toLocaleDateString()}: ${count} contributions`}
                               />
                             )
@@ -627,40 +652,97 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
 
               {/* Recent Activity */}
               <div className="bg-plm-bg rounded-lg border border-plm-border p-4">
-                <h3 className="text-sm font-medium text-plm-fg mb-3 flex items-center gap-2">
-                  <Activity size={16} className="text-plm-accent" />
-                  Recent Activity
-                </h3>
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <h3 className="text-sm font-medium text-plm-fg flex items-center gap-2">
+                    <Activity size={16} className="text-plm-accent" />
+                    Recent Activity
+                    {selectedDay && (
+                      <span className="text-plm-fg-muted font-normal">
+                        • {formatDate(`${selectedDay}T12:00:00Z`)}
+                      </span>
+                    )}
+                  </h3>
+                  {(selectedDay || actionFilter) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedDay(null)
+                        setActionFilter(null)
+                      }}
+                      className="text-xs text-plm-fg-muted hover:text-plm-fg px-2 py-0.5 rounded hover:bg-plm-bg-lighter"
+                    >
+                      {t('common.clear')}
+                    </button>
+                  )}
+                </div>
 
-                {recentActivity.length === 0 ? (
+                {actionCounts.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {actionCounts.map(({ action, count }) => {
+                      const active = actionFilter === action
+                      return (
+                        <button
+                          type="button"
+                          key={action}
+                          onClick={() => setActionFilter(active ? null : action)}
+                          className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-xs border transition-colors ${active ? 'border-plm-accent bg-plm-accent/15 text-plm-fg' : 'border-plm-border bg-plm-bg-lighter text-plm-fg-muted hover:text-plm-fg'}`}
+                        >
+                          <span className={ACTION_COLORS[action] || 'text-plm-fg-muted'}>
+                            {ACTION_ICONS[action] || <Activity size={12} />}
+                          </span>
+                          {getActionLabel(action)}
+                          <span className="text-plm-fg-dim tabular-nums">{count}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {visibleActivity.length === 0 ? (
                   <div className="text-center py-6 text-plm-fg-muted text-sm">
                     No recent activity
                   </div>
                 ) : (
-                  <div className="space-y-1 max-h-48 overflow-y-auto">
-                    {recentActivity.map((activity, index) => (
-                      <div
-                        key={`${activity.id}-${index}`}
-                        className="flex items-center gap-3 p-2 hover:bg-plm-bg-lighter rounded-lg transition-colors"
-                      >
-                        <div
-                          className={`p-1.5 rounded-full bg-plm-bg-lighter ${ACTION_COLORS[activity.action] || 'text-plm-fg-muted'}`}
+                  <div className="space-y-1 max-h-80 overflow-y-auto">
+                    {visibleActivity.map((activity, index) => {
+                      const canOpen = !!activity.filePath
+                      return (
+                        <button
+                          type="button"
+                          key={`${activity.id}-${index}`}
+                          disabled={!canOpen}
+                          onClick={() => openActivityFile(activity)}
+                          title={activity.filePath ?? undefined}
+                          className={`w-full text-left flex items-center gap-3 p-2 rounded-lg transition-colors ${canOpen ? 'hover:bg-plm-bg-lighter cursor-pointer' : 'cursor-default'}`}
                         >
-                          {ACTION_ICONS[activity.action] || <Activity size={14} />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm text-plm-fg">
-                            <span className="font-medium">{getActionLabel(activity.action)}</span>
-                            {activity.file_name && (
-                              <span className="text-plm-fg-muted"> • {activity.file_name}</span>
+                          <div
+                            className={`p-1.5 rounded-full bg-plm-bg-lighter flex-shrink-0 ${ACTION_COLORS[activity.action] || 'text-plm-fg-muted'}`}
+                          >
+                            {ACTION_ICONS[activity.action] || <Activity size={14} />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm text-plm-fg truncate">
+                              <span className="font-medium">{getActionLabel(activity.action)}</span>
+                              {activity.fileName && (
+                                <span className="text-plm-fg-muted"> • {activity.fileName}</span>
+                              )}
+                            </div>
+                            {activity.folderPath !== null && (
+                              <div className="text-xs text-plm-fg-dim truncate flex items-center gap-1">
+                                <Folder size={11} className="flex-shrink-0" />
+                                <span className="truncate">{activity.folderPath || '/'}</span>
+                              </div>
                             )}
                           </div>
-                        </div>
-                        <div className="text-xs text-plm-fg-dim flex-shrink-0">
-                          {formatRelativeTime(activity.created_at)}
-                        </div>
-                      </div>
-                    ))}
+                          <div
+                            className="text-xs text-plm-fg-dim flex-shrink-0"
+                            title={new Date(activity.createdAt).toLocaleString()}
+                          >
+                            {formatRelativeTime(activity.createdAt)}
+                          </div>
+                        </button>
+                      )
+                    })}
                   </div>
                 )}
               </div>
