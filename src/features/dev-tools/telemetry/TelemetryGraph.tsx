@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { telemetry, TelemetrySnapshot } from '@/lib/telemetry'
 import { Play, Pause, Trash2, Settings2 } from 'lucide-react'
+import { t } from '@/lib/i18n'
 
 interface TelemetryGraphProps {
   metric: 'fps'
@@ -10,7 +11,12 @@ interface TelemetryGraphProps {
 }
 
 const METRIC_CONFIG = {
-  fps: { label: 'FPS', color: '#22c55e', max: 120, format: (v: number) => `${v}` },
+  fps: {
+    label: 'performanceTelemetry.fps',
+    color: '#22c55e',
+    max: 120,
+    format: (v: number) => `${v}`,
+  },
 }
 
 export function TelemetryGraph({
@@ -32,6 +38,7 @@ export function TelemetryGraph({
 
   // Subscribe to telemetry updates
   useEffect(() => {
+    telemetry.loadConfig()
     // Load initial data
     setData(telemetry.getHistory())
     setIsRunning(telemetry.isRunning())
@@ -39,6 +46,7 @@ export function TelemetryGraph({
     const unsubscribe = telemetry.subscribe((snapshot) => {
       setData(telemetry.getHistory())
       setCurrentValue(getValue(snapshot))
+      setIsRunning(telemetry.isRunning())
     })
 
     return unsubscribe
@@ -105,7 +113,7 @@ export function TelemetryGraph({
       {/* Header */}
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-plm-fg">{config.label}</span>
+          <span className="text-xs font-medium text-plm-fg">{t(config.label)}</span>
           <span className="text-xs font-mono tabular-nums" style={{ color: graphColor }}>
             {config.format(currentValue)}
           </span>
@@ -116,14 +124,14 @@ export function TelemetryGraph({
             <button
               onClick={handleToggle}
               className="p-1 rounded hover:bg-plm-bg-lighter text-plm-fg-muted hover:text-plm-fg transition-colors"
-              title={isRunning ? 'Pause' : 'Start'}
+              title={isRunning ? t('performanceTelemetry.pause') : t('performanceTelemetry.start')}
             >
               {isRunning ? <Pause size={12} /> : <Play size={12} />}
             </button>
             <button
               onClick={handleClear}
               className="p-1 rounded hover:bg-plm-bg-lighter text-plm-fg-muted hover:text-plm-fg transition-colors"
-              title="Clear data"
+              title={t('performanceTelemetry.clear')}
             >
               <Trash2 size={12} />
             </button>
@@ -180,8 +188,10 @@ export function TelemetryGraph({
 
       {/* Time axis labels */}
       <div className="flex justify-between mt-0.5 text-[9px] text-plm-fg-muted">
-        <span>{telemetry.getConfig().retentionSeconds}s ago</span>
-        <span>now</span>
+        <span>
+          {t('performanceTelemetry.secondsAgo', { count: telemetry.getConfig().retentionSeconds })}
+        </span>
+        <span>{t('performanceTelemetry.now')}</span>
       </div>
     </div>
   )
@@ -229,13 +239,15 @@ export function TelemetryDashboard() {
             }`}
           >
             {isRunning ? <Pause size={14} /> : <Play size={14} />}
-            {isRunning ? 'Stop Recording' : 'Start Recording'}
+            {isRunning
+              ? t('performanceTelemetry.stopRecording')
+              : t('performanceTelemetry.startRecording')}
           </button>
 
           {isRunning && (
             <span className="flex items-center gap-1 text-xs text-plm-fg-muted">
               <span className="w-2 h-2 rounded-full bg-plm-error animate-pulse" />
-              Recording at {config.sampleRateHz}Hz
+              {t('performanceTelemetry.recordingAt', { rate: config.sampleRateHz })}
             </span>
           )}
         </div>
@@ -247,7 +259,7 @@ export function TelemetryDashboard() {
               ? 'bg-plm-bg-lighter text-plm-fg'
               : 'text-plm-fg-muted hover:text-plm-fg hover:bg-plm-bg-lighter'
           }`}
-          title="Settings"
+          title={t('performanceTelemetry.settings')}
         >
           <Settings2 size={16} />
         </button>
@@ -256,11 +268,15 @@ export function TelemetryDashboard() {
       {/* Settings panel */}
       {showSettings && (
         <div className="p-3 bg-plm-bg rounded-lg border border-plm-border space-y-3">
-          <h4 className="text-xs font-medium text-plm-fg">Telemetry Settings</h4>
+          <h4 className="text-xs font-medium text-plm-fg">
+            {t('performanceTelemetry.telemetrySettings')}
+          </h4>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-[10px] text-plm-fg-muted block mb-1">Sample Rate (Hz)</label>
+              <label className="text-[10px] text-plm-fg-muted block mb-1">
+                {t('performanceTelemetry.sampleRateHz')}
+              </label>
               <input
                 type="range"
                 min="1"
@@ -274,7 +290,7 @@ export function TelemetryDashboard() {
 
             <div>
               <label className="text-[10px] text-plm-fg-muted block mb-1">
-                Retention (seconds)
+                {t('performanceTelemetry.retentionSeconds')}
               </label>
               <input
                 type="range"

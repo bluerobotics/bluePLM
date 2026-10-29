@@ -27,6 +27,22 @@ const DEFAULT_CONFIG: TelemetryConfig = {
   enabled: false,
 }
 
+function normalizeSavedConfig(value: unknown): TelemetryConfig {
+  if (!value || typeof value !== 'object') return { ...DEFAULT_CONFIG }
+  const saved = value as Partial<TelemetryConfig>
+  const sampleRateHz = Number.isFinite(saved.sampleRateHz)
+    ? Math.min(60, Math.max(1, Math.trunc(saved.sampleRateHz!)))
+    : DEFAULT_CONFIG.sampleRateHz
+  const retentionSeconds = Number.isFinite(saved.retentionSeconds)
+    ? Math.min(300, Math.max(10, Math.trunc(saved.retentionSeconds!)))
+    : DEFAULT_CONFIG.retentionSeconds
+  return {
+    sampleRateHz,
+    retentionSeconds,
+    enabled: false,
+  }
+}
+
 // Circular buffer for efficient time-series storage
 class CircularBuffer<T> {
   private buffer: T[]
@@ -124,14 +140,23 @@ class TelemetryService {
 
   // Load saved config
   loadConfig(): TelemetryConfig {
-    const saved = localStorage.getItem('telemetry.config')
+    let saved: string | null = null
+    try {
+      saved = localStorage.getItem('telemetry.config')
+    } catch {
+      this.config = { ...DEFAULT_CONFIG }
+    }
     if (saved) {
       try {
-        this.config = { ...DEFAULT_CONFIG, ...JSON.parse(saved) }
+        this.config = normalizeSavedConfig(JSON.parse(saved))
       } catch {
         // Ignore parse errors
+        this.config = { ...DEFAULT_CONFIG }
       }
     }
+    this.buffer.resize(this.config.sampleRateHz * this.config.retentionSeconds)
+    // Restoring settings never resumes a recording.
+    this.stop()
     return this.config
   }
 
