@@ -4,6 +4,14 @@ A Claude Code cloud routine (scheduled task) that reads the nightly checks, fixe
 applies finished schema releases to production and cuts patch releases. The prompt below is the
 source of truth: when the routine changes, update this file too.
 
+## Where it runs
+
+The live routine is `trig_015HmkNokwLaNK1Z23VEwmBL` on the owner's eldinhigh claude.ai account
+(https://claude.ai/code/routines/trig_015HmkNokwLaNK1Z23VEwmBL). Sessions signed into another account
+(for example the bluerobotics one) cannot see or manage it: RemoteTrigger returns 404 there. Its
+commits on main are authored `Claude <noreply@anthropic.com>` around 08:00-09:00 UTC. Never create a
+second copy on another account while it is enabled; two would push and apply in parallel.
+
 ## Setup on a claude.ai account
 
 1. **GitHub**: connect GitHub to the account (claude.ai/connect-github) and make sure the Claude
