@@ -25,7 +25,7 @@ All IPC goes through `window.electronAPI` (defined in `src/electron.d.ts`).
 
 ## Adding New IPC
 
-1. Define type in `src/electron.d.ts`
+1. Define the API type in `src/electron.d.ts`; lifecycle and extension types live in `src/types/electron/`
 2. Implement handler in `electron/handlers/`
 3. Expose via `preload.ts` contextBridge
 

@@ -237,39 +237,6 @@ declare global {
 
   interface Window {
     electronAPI: {
-      // App info
-      getVersion: () => Promise<string>
-      getPlatform: () => Promise<string>
-      getTitleBarOverlayRect: () => Promise<{ x: number; y: number; width: number; height: number }>
-      setTitleBarOverlay: (options: {
-        color: string
-        symbolColor: string
-      }) => Promise<{ success: boolean; error?: string }>
-      getZoomFactor: () => Promise<number>
-      setZoomFactor: (
-        factor: number,
-      ) => Promise<{ success: boolean; factor?: number; error?: string }>
-      onZoomChanged: (callback: (factor: number) => void) => () => void
-      getWindowSize: () => Promise<{ width: number; height: number } | null>
-      setWindowSize: (
-        width: number,
-        height: number,
-      ) => Promise<{ success: boolean; error?: string }>
-      resetWindowSize: () => Promise<{
-        success: boolean
-        size?: { width: number; height: number }
-        error?: string
-      }>
-      getPathForFile: (file: File) => string
-      reloadApp: () => Promise<{ success: boolean; error?: string }>
-      requestFocus: () => Promise<{ success: boolean; error?: string }>
-      openPerformanceWindow: () => Promise<{ success: boolean; error?: string }>
-      createTabWindow: (
-        view: string,
-        title: string,
-        customData?: Record<string, unknown>,
-      ) => Promise<{ success: boolean; error?: string }>
-
       // OAuth
       openOAuthWindow: (
         url: string,
@@ -385,12 +352,6 @@ declare global {
       ) => Promise<{ success: boolean; content?: string; error?: string }>
       openCrashesDir: () => Promise<{ success: boolean; error?: string }>
       getCrashesDir: () => Promise<string>
-
-      // Window controls
-      minimize: () => void
-      maximize: () => void
-      close: () => void
-      isMaximized: () => Promise<boolean>
 
       // Working directory
       selectWorkingDir: () => Promise<PathResult>
@@ -1636,172 +1597,9 @@ declare global {
         success: boolean,
         error?: string,
       ) => Promise<{ success: boolean }>
-
-      // ═══════════════════════════════════════════════════════════════════════════════
-      // EXTENSION SYSTEM API
-      // ═══════════════════════════════════════════════════════════════════════════════
-
-      // Per-machine extension packages (store browsing, install, uninstall; never run)
-      // and org-installed native extensions (see docs/extensions/index.md).
-      extensions: {
-        // ----- Queries -----
-        getAll: () => Promise<ExtensionInfo[]>
-        getExtension: (extensionId: string) => Promise<ExtensionInfo | undefined>
-
-        // ----- Store Operations -----
-        fetchStore: () => Promise<StoreExtensionInfo[]>
-        searchStore: (request: {
-          query?: string
-          category?: string
-          verifiedOnly?: boolean
-          sort?: 'popular' | 'recent' | 'name'
-          page?: number
-          pageSize?: number
-        }) => Promise<{
-          extensions: StoreExtensionInfo[]
-          total: number
-          page: number
-          hasMore: boolean
-        }>
-        getStoreExtension: (extensionId: string) => Promise<StoreExtensionInfo | undefined>
-
-        // ----- Installation -----
-        // downloadId: database UUID for download, manifestId: expected manifest ID for validation
-        install: (
-          downloadId: string,
-          version?: string,
-          manifestId?: string,
-        ) => Promise<ExtensionInstallResult>
-        installFromFile: (
-          bpxPath: string,
-          acknowledgeUnsigned?: boolean,
-        ) => Promise<ExtensionInstallResult>
-        uninstall: (extensionId: string) => Promise<{ success: boolean; error?: string }>
-
-        // ----- Native extensions (org-installed, SHA-256 pinned) -----
-        nativePrepare: (request: {
-          extensionId: string
-          version: string
-          sha256: string
-          downloadUrl: string
-        }) => Promise<NativePrepareResult>
-        nativePrune: (
-          keepShas: string[],
-        ) => Promise<{ success: boolean; removed: string[]; error?: string }>
-        nativeInspect: () => Promise<NativeInspectResult>
-
-        // ----- Events -----
-        onStateChange: (callback: (event: ExtensionStateChangeEvent) => void) => () => void
-      }
-    }
+    } & import('./types/electron/desktopLifecycle').DesktopLifecycleAPI &
+      import('./types/electron/extensions').ExtensionAPI
   }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// EXTENSION SYSTEM TYPES
-// ═══════════════════════════════════════════════════════════════════════════════
-
-/** Extension state as main reports it: a package is either installed or not. */
-type ExtensionState = 'not-installed' | 'installed'
-
-/** Extension verification status */
-type ExtensionVerificationStatus = 'verified' | 'community' | 'sideloaded'
-
-/** Extension category */
-type ExtensionCategory = 'sandboxed' | 'native'
-
-/** An installed extension package, as `extensions:get-all` returns it */
-interface ExtensionInfo {
-  manifest: {
-    id: string
-    name: string
-    version: string
-    publisher: string
-    description?: string
-    icon?: string
-    repository?: string
-    license?: string
-    category?: ExtensionCategory
-    main?: string
-    serverMain?: string
-  }
-  state: ExtensionState
-  verification: ExtensionVerificationStatus
-  installedAt: string
-}
-
-/** Store extension listing */
-interface StoreExtensionInfo {
-  id: string
-  extensionId: string
-  publisher: {
-    id: string
-    name: string
-    slug: string
-    verified: boolean
-  }
-  name: string
-  description?: string
-  iconUrl?: string
-  repositoryUrl: string
-  license: string
-  category: ExtensionCategory
-  categories: string[]
-  tags: string[]
-  verified: boolean
-  featured: boolean
-  downloadCount: number
-  latestVersion: string
-  createdAt: string
-  updatedAt: string
-  deprecation?: {
-    deprecatedAt: string
-    reason: string
-    replacementId?: string
-    sunsetDate?: string
-  }
-}
-
-/** Result of `extensions:install` and `extensions:install-from-file` */
-interface ExtensionInstallResult {
-  success: boolean
-  extensionId?: string
-  version?: string
-  error?: string
-  warning?: string
-  requiresAcknowledgment?: boolean
-}
-
-/** `extensions:native-prepare` result */
-type NativePrepareResult =
-  | {
-      success: true
-      sha256: string
-      /** `blueplm-ext://<sha256>/` */
-      baseUrl: string
-      clientEntryUrl: string
-      manifest: ExtensionInfo['manifest'] & Record<string, unknown>
-      cached: boolean
-    }
-  | { success: false; error: string }
-
-/** `extensions:native-inspect` result (admin upload) */
-type NativeInspectResult =
-  | {
-      success: true
-      manifest: ExtensionInfo['manifest'] & Record<string, unknown>
-      sha256: string
-      size: number
-      sqlFiles: Array<{ name: string; content: string }>
-      data: Uint8Array
-    }
-  | { success: false; canceled?: boolean; error?: string }
-
-/** `extension:state-change`: sent by main after an install or an uninstall */
-interface ExtensionStateChangeEvent {
-  extensionId: string
-  state: ExtensionState
-  timestamp: number
 }
 
 export {}

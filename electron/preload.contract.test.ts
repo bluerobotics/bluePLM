@@ -178,7 +178,9 @@ describe('preload ↔ ipcMain channels', () => {
       expect(sf).toBeDefined()
       const { found, unresolved } = collectCalls(sf!, 'ipcRenderer', ['invoke'])
       expect(unresolved).toEqual([])
-      const missing = found.filter((c) => !handled.has(c.channel)).map((c) => `${c.channel} (${c.where})`)
+      const missing = found
+        .filter((c) => !handled.has(c.channel))
+        .map((c) => `${c.channel} (${c.where})`)
       expect(missing).toEqual([])
     })
 
@@ -223,10 +225,14 @@ type Shape = Map<string, Shape | null>
 function shapeOfObjectLiteral(obj: ts.ObjectLiteralExpression): Shape {
   const shape: Shape = new Map()
   for (const prop of obj.properties) {
-    if (ts.isSpreadAssignment(prop)) throw new Error('spread in exposed API is not supported by this test')
+    if (ts.isSpreadAssignment(prop))
+      throw new Error('spread in exposed API is not supported by this test')
     const nameNode = prop.name
     if (!nameNode) continue
-    const key = ts.isIdentifier(nameNode) || ts.isStringLiteralLike(nameNode) ? nameNode.text : nameNode.getText()
+    const key =
+      ts.isIdentifier(nameNode) || ts.isStringLiteralLike(nameNode)
+        ? nameNode.text
+        : nameNode.getText()
     if (ts.isPropertyAssignment(prop) && ts.isObjectLiteralExpression(prop.initializer)) {
       shape.set(key, shapeOfObjectLiteral(prop.initializer))
     } else {
@@ -236,14 +242,28 @@ function shapeOfObjectLiteral(obj: ts.ObjectLiteralExpression): Shape {
   return shape
 }
 
-function shapeOfTypeLiteral(type: ts.TypeLiteralNode): Shape {
+function shapeOfResolvedType(type: ts.Type, checker: ts.TypeChecker): Shape {
+  if ((type.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown)) !== 0) {
+    throw new Error(`unresolved ElectronAPI type: ${checker.typeToString(type)}`)
+  }
   const shape: Shape = new Map()
-  for (const member of type.members) {
-    if (!member.name) continue
-    const nameNode = member.name
-    const key = ts.isIdentifier(nameNode) || ts.isStringLiteralLike(nameNode) ? nameNode.text : nameNode.getText()
-    if (ts.isPropertySignature(member) && member.type && ts.isTypeLiteralNode(member.type)) {
-      shape.set(key, shapeOfTypeLiteral(member.type))
+  const properties = checker.getPropertiesOfType(type)
+  if (properties.length === 0)
+    throw new Error(`empty ElectronAPI object type: ${checker.typeToString(type)}`)
+  for (const property of properties) {
+    const key = property.getName()
+    const declaration = property.valueDeclaration ?? property.declarations?.[0]
+    if (!declaration) throw new Error(`unresolved ElectronAPI member: ${key}`)
+    const propertyType = checker.getTypeOfSymbolAtLocation(property, declaration)
+    if ((propertyType.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown)) !== 0) {
+      throw new Error(`unresolved ElectronAPI member type: ${checker.typeToString(propertyType)}`)
+    }
+    if (
+      (propertyType.flags & ts.TypeFlags.Object) !== 0 &&
+      propertyType.getCallSignatures().length === 0 &&
+      checker.getPropertiesOfType(propertyType).length > 0
+    ) {
+      shape.set(key, shapeOfResolvedType(propertyType, checker))
     } else {
       shape.set(key, null)
     }
@@ -261,7 +281,11 @@ function missingPaths(left: Shape, right: Shape, prefix = ''): string[] {
       continue
     }
     const other = right.get(key)
-    if (sub && other) out.push(...missingPaths(sub, other, path))
+    if (sub && other) {
+      out.push(...missingPaths(sub, other, path))
+    } else if (sub !== other) {
+      out.push(`${path} (object/leaf mismatch)`)
+    }
   }
   return out
 }
@@ -281,32 +305,74 @@ function exposedApiShape(): Shape {
       shape = shapeOfObjectLiteral(n.arguments[1])
     }
   })
-  if (!shape) throw new Error("exposeInMainWorld('electronAPI', {...}) not found in electron/preload.ts")
+  if (!shape)
+    throw new Error("exposeInMainWorld('electronAPI', {...}) not found in electron/preload.ts")
   return shape
 }
 
-function declaredApiShape(): Shape {
-  const sf = parse(TYPES_FILE)
+function declaredApiShapeFromProgram(program: ts.Program, declarationFile = TYPES_FILE): Shape {
+  const diagnostics = ts.getPreEmitDiagnostics(program)
+  if (diagnostics.length > 0) {
+    throw new Error(
+      ts.formatDiagnosticsWithColorAndContext(diagnostics, {
+        getCanonicalFileName: (name) => name,
+        getCurrentDirectory: () => process.cwd(),
+        getNewLine: () => '\n',
+      }),
+    )
+  }
+  const checker = program.getTypeChecker()
+  const sf = program.getSourceFile(declarationFile)
+  if (!sf) throw new Error(`could not load ${declarationFile}`)
   let shape: Shape | undefined
   walk(sf, (n) => {
-    if (
-      ts.isInterfaceDeclaration(n) &&
-      n.name.text === 'Window'
-    ) {
+    if (ts.isInterfaceDeclaration(n) && n.name.text === 'Window') {
       for (const m of n.members) {
-        if (
-          ts.isPropertySignature(m) &&
-          m.name.getText() === 'electronAPI' &&
-          m.type &&
-          ts.isTypeLiteralNode(m.type)
-        ) {
-          shape = shapeOfTypeLiteral(m.type)
+        if (ts.isPropertySignature(m) && m.name.getText() === 'electronAPI' && m.type) {
+          shape = shapeOfResolvedType(checker.getTypeAtLocation(m), checker)
         }
       }
     }
   })
-  if (!shape) throw new Error('Window.electronAPI type literal not found in src/electron.d.ts')
+  if (!shape) throw new Error('Window.electronAPI type not found in src/electron.d.ts')
   return shape
+}
+
+function declaredApiShape(): Shape {
+  const program = ts.createProgram([TYPES_FILE], {
+    target: ts.ScriptTarget.ESNext,
+    module: ts.ModuleKind.ESNext,
+    moduleResolution: ts.ModuleResolutionKind.Bundler,
+    skipLibCheck: true,
+  })
+  return declaredApiShapeFromProgram(program)
+}
+
+function virtualElectronApiProgram(
+  apiType: string,
+  fileName: string,
+): { program: ts.Program; file: string } {
+  const file = resolve(ELECTRON_DIR, fileName)
+  const virtualSource = [`interface Window { electronAPI: ${apiType} }`, 'export {}'].join('\n')
+  const options: ts.CompilerOptions = {
+    target: ts.ScriptTarget.ESNext,
+    module: ts.ModuleKind.ESNext,
+    moduleResolution: ts.ModuleResolutionKind.Bundler,
+    skipLibCheck: true,
+    types: [],
+  }
+  const host = ts.createCompilerHost(options)
+  const originalFileExists = host.fileExists.bind(host)
+  const originalReadFile = host.readFile.bind(host)
+  const originalGetSourceFile = host.getSourceFile.bind(host)
+  host.fileExists = (candidate) => resolve(candidate) === file || originalFileExists(candidate)
+  host.readFile = (candidate) =>
+    resolve(candidate) === file ? virtualSource : originalReadFile(candidate)
+  host.getSourceFile = (candidate, languageVersion, onError, shouldCreateNewSourceFile) =>
+    resolve(candidate) === file
+      ? ts.createSourceFile(candidate, virtualSource, languageVersion)
+      : originalGetSourceFile(candidate, languageVersion, onError, shouldCreateNewSourceFile)
+  return { program: ts.createProgram([file], options, host), file }
 }
 
 describe('window.electronAPI ↔ src/electron.d.ts', () => {
@@ -324,5 +390,38 @@ describe('window.electronAPI ↔ src/electron.d.ts', () => {
 
   it('every exposed member is declared', () => {
     expect(missingPaths(exposed, declared)).toEqual([])
+  })
+
+  it('isolates the virtual fixture from ambient package types and resolves valid members', () => {
+    const { program, file } = virtualElectronApiProgram(
+      '{ getVersion: () => string }',
+      '__valid_electron_api__.d.ts',
+    )
+    const ambientFiles = program
+      .getSourceFiles()
+      .map((sf) => sf.fileName.replace(/\\/g, '/'))
+      .filter((name) => name.includes('/node_modules/@types/'))
+    expect(ambientFiles).toEqual([])
+    expect([...declaredApiShapeFromProgram(program, file).keys()]).toEqual(['getVersion'])
+  })
+
+  it('fails closed when an extracted API import cannot be resolved', () => {
+    const { program, file } = virtualElectronApiProgram(
+      "import('./missing-extracted-api').ExtensionAPI",
+      '__missing_extracted_api__.d.ts',
+    )
+    expect(() => declaredApiShapeFromProgram(program, file)).toThrow(
+      /unresolved ElectronAPI type: any/,
+    )
+  })
+
+  it.each(['any', 'unknown'])('fails closed when an API member is %s', (memberType) => {
+    const { program, file } = virtualElectronApiProgram(
+      `{ getVersion: ${memberType} }`,
+      `__member_${memberType}_electron_api__.d.ts`,
+    )
+    expect(() => declaredApiShapeFromProgram(program, file)).toThrow(
+      `unresolved ElectronAPI member type: ${memberType}`,
+    )
   })
 })
