@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight, Globe, Loader2, Lock, Save, Users, X } from 
 import { usePDMStore } from '@/stores/pdmStore'
 import { supabase } from '@/lib/supabase'
 import { log } from '@/lib/logger'
+import { useTranslation } from '@/lib/i18n'
 import { MODULE_GROUPS, MODULES, type ModuleGroupId, type ModuleId } from '@/types/modules'
 
 interface OrgTeam {
@@ -49,6 +50,7 @@ export function ModuleAccessSettings() {
   const getEffectiveRole = usePDMStore((s) => s.getEffectiveRole)
   const addToast = usePDMStore((s) => s.addToast)
   const loadModuleAccess = usePDMStore((s) => s.loadModuleAccess)
+  const { t } = useTranslation()
 
   const isAdmin = getEffectiveRole() === 'admin'
 
@@ -98,7 +100,7 @@ export function ModuleAccessSettings() {
       setDrafts(byModule)
     } catch (error) {
       log.error('[ModuleAccessSettings]', 'Failed to load module access', { error })
-      addToast('error', 'Failed to load module access')
+      addToast('error', t('settingsPages.moduleAccess.loadFailed'))
     } finally {
       setLoading(false)
     }
@@ -159,10 +161,13 @@ export function ModuleAccessSettings() {
       // The admin editing this may themselves be affected once they leave the
       // Administrators team, and impersonation reads the same store value.
       await loadModuleAccess()
-      addToast('success', 'Module access updated')
+      addToast('success', t('settingsPages.moduleAccess.updated'))
     } catch (error) {
       log.error('[ModuleAccessSettings]', 'Failed to save module access', { error })
-      addToast('error', error instanceof Error ? error.message : 'Failed to save module access')
+      addToast(
+        'error',
+        error instanceof Error ? error.message : t('settingsPages.moduleAccess.saveFailed'),
+      )
     } finally {
       setSavingModuleId(null)
     }
@@ -171,10 +176,10 @@ export function ModuleAccessSettings() {
   if (!isAdmin) {
     return (
       <div className="space-y-2">
-        <h1 className="text-xl font-semibold text-plm-fg">Module Access</h1>
-        <p className="text-sm text-plm-warning">
-          Only organization admins can configure module access.
-        </p>
+        <h1 className="text-xl font-semibold text-plm-fg">
+          {t('settingsPages.moduleAccess.title')}
+        </h1>
+        <p className="text-sm text-plm-warning">{t('settingsPages.moduleAccess.adminOnly')}</p>
       </div>
     )
   }
@@ -182,10 +187,11 @@ export function ModuleAccessSettings() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-plm-fg">Module Access</h1>
+        <h1 className="text-xl font-semibold text-plm-fg">
+          {t('settingsPages.moduleAccess.title')}
+        </h1>
         <p className="text-sm text-plm-fg-muted mt-1">
-          Restrict a module to specific teams or people. Modules with no restriction stay visible to
-          everyone in the organization. Admins always keep access.
+          {t('settingsPages.moduleAccess.description')}
         </p>
       </div>
 
@@ -242,7 +248,7 @@ export function ModuleAccessSettings() {
                           ) : (
                             <span className="flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full bg-plm-bg-lighter text-plm-fg-dim">
                               <Globe size={10} />
-                              Everyone
+                              {t('settingsPages.moduleAccess.everyone')}
                             </span>
                           )}
                         </button>
@@ -252,10 +258,12 @@ export function ModuleAccessSettings() {
                             <div>
                               <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-plm-fg-muted mb-1.5">
                                 <Users size={11} />
-                                Teams
+                                {t('settingsPages.moduleAccess.teams')}
                               </div>
                               {teams.length === 0 ? (
-                                <p className="text-xs text-plm-fg-dim">No teams yet.</p>
+                                <p className="text-xs text-plm-fg-dim">
+                                  {t('settingsPages.moduleAccess.noTeams')}
+                                </p>
                               ) : (
                                 <div className="flex flex-wrap gap-1.5">
                                   {teams.map((team) => {
@@ -285,7 +293,7 @@ export function ModuleAccessSettings() {
 
                             <div>
                               <div className="text-[11px] uppercase tracking-wide text-plm-fg-muted mb-1.5">
-                                Individual people
+                                {t('settingsPages.moduleAccess.individualPeople')}
                               </div>
                               <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto">
                                 {members.map((member) => {
@@ -320,7 +328,7 @@ export function ModuleAccessSettings() {
                                 ) : (
                                   <Save size={14} />
                                 )}
-                                Save
+                                {t('common.save')}
                               </button>
 
                               {(draft.teamIds.length > 0 || draft.userIds.length > 0) && (
@@ -328,17 +336,17 @@ export function ModuleAccessSettings() {
                                   type="button"
                                   onClick={() => clearRestriction(module.id)}
                                   className="flex items-center gap-1.5 px-2.5 py-1.5 text-sm rounded-lg border border-plm-border text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight transition-colors"
-                                  title="Remove the restriction so everyone can see this module"
+                                  title={t('settingsPages.moduleAccess.allowEveryoneHelp')}
                                 >
                                   <X size={14} />
-                                  Allow everyone
+                                  {t('settingsPages.moduleAccess.allowEveryone')}
                                 </button>
                               )}
 
                               <p className="text-xs text-plm-fg-dim">
                                 {draft.teamIds.length === 0 && draft.userIds.length === 0
-                                  ? 'Visible to the whole organization.'
-                                  : 'Everyone else sees this module greyed out in their sidebar settings.'}
+                                  ? t('settingsPages.moduleAccess.visibleToAll')
+                                  : t('settingsPages.moduleAccess.restrictedHelp')}
                               </p>
                             </div>
                           </div>

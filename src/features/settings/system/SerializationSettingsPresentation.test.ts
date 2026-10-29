@@ -2,6 +2,7 @@ import { createElement, isValidElement, type ReactNode } from 'react'
 import { createHash } from 'node:crypto'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
+import { getTranslation } from '@/lib/i18n'
 import {
   SerializationSettingsPresentation,
   type SerializationSettingsBindings,
@@ -50,7 +51,12 @@ function bindings(
     setCustomExtension: vi.fn(),
     toggleExtension: vi.fn(),
     addCustomExtension: vi.fn(),
-    t: (key, params) => (params ? `${key}:${JSON.stringify(params)}` : key),
+    t: (key, params) =>
+      key.startsWith('settingsPages.')
+        ? getTranslation('en', key, params)
+        : params
+          ? `${key}:${JSON.stringify(params)}`
+          : key,
     saving: false,
     handleSave: vi.fn(async () => undefined),
     ...overrides,

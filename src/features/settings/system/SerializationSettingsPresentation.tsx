@@ -104,7 +104,9 @@ export function SerializationSettingsPresentation({
   } = bindings
 
   if (!organization) {
-    return <div className="text-center py-12 text-plm-fg-muted">No organization connected</div>
+    return (
+      <div className="text-center py-12 text-plm-fg-muted">{t('settingsPages.noOrganization')}</div>
+    )
   }
 
   if (loading) {
@@ -121,17 +123,17 @@ export function SerializationSettingsPresentation({
       <div>
         <h2 className="text-lg font-semibold text-plm-fg flex items-center gap-2">
           <Hash className="text-plm-accent" size={20} />
-          Serial Number Settings
+          {t('settingsPages.serialization.title')}
         </h2>
         <p className="text-sm text-plm-fg-muted mt-1">
-          Configure how sequential item/part numbers are generated for your organization.
+          {t('settingsPages.serialization.description')}
         </p>
       </div>
 
       {/* Read-only notice for non-admins */}
       {!isAdmin && (
         <div className="p-3 bg-plm-highlight rounded-lg border border-plm-border text-sm text-plm-fg-muted">
-          Only administrators can modify serialization settings. You are viewing in read-only mode.
+          {t('settingsPages.serialization.readOnly')}
         </div>
       )}
 
@@ -140,7 +142,7 @@ export function SerializationSettingsPresentation({
         <div className="flex items-center justify-between">
           <div>
             <div className="text-xs text-plm-fg-muted uppercase tracking-wider mb-1">
-              Next Serial Number Preview
+              {t('settingsPages.serialization.nextPreview')}
             </div>
             <div className="text-2xl font-mono font-bold text-plm-accent">{livePreview}</div>
           </div>
@@ -148,7 +150,7 @@ export function SerializationSettingsPresentation({
             onClick={fetchPreview}
             disabled={loadingPreview}
             className="p-2 rounded-lg hover:bg-plm-highlight text-plm-fg-muted hover:text-plm-fg transition-colors"
-            title="Fetch from server"
+            title={t('settingsPages.serialization.fetchPreview')}
           >
             {loadingPreview ? (
               <Loader2 size={18} className="animate-spin" />
@@ -159,7 +161,8 @@ export function SerializationSettingsPresentation({
         </div>
         {previewNumber && (
           <div className="text-xs text-plm-fg-muted mt-2">
-            Server preview: <span className="font-mono">{previewNumber}</span>
+            {t('settingsPages.serialization.serverPreview')}{' '}
+            <span className="font-mono">{previewNumber}</span>
           </div>
         )}
       </div>
@@ -170,9 +173,11 @@ export function SerializationSettingsPresentation({
           className={`flex items-center justify-between ${isAdmin ? 'cursor-pointer' : 'cursor-not-allowed'}`}
         >
           <div>
-            <span className="text-sm font-medium text-plm-fg">Enable Auto-Serialization</span>
+            <span className="text-sm font-medium text-plm-fg">
+              {t('settingsPages.serialization.enable')}
+            </span>
             <p className="text-xs text-plm-fg-muted mt-0.5">
-              Automatically generate sequential part numbers for new files
+              {t('settingsPages.serialization.enableHelp')}
             </p>
           </div>
           <button
@@ -196,9 +201,11 @@ export function SerializationSettingsPresentation({
         className={`p-4 bg-plm-bg rounded-lg border border-plm-border ${!settings.enabled ? 'opacity-50' : ''}`}
       >
         <div className="mb-4">
-          <h3 className="text-base font-medium text-plm-fg">Auto-Apply File Types</h3>
+          <h3 className="text-base font-medium text-plm-fg">
+            {t('settingsPages.serialization.fileTypes')}
+          </h3>
           <p className="text-xs text-plm-fg-muted mt-0.5">
-            Select which file types should automatically receive a serial number when created
+            {t('settingsPages.serialization.fileTypesHelp')}
           </p>
         </div>
 
@@ -247,7 +254,9 @@ export function SerializationSettingsPresentation({
 
         {/* Custom extension input */}
         <div className="flex items-center gap-2 pt-3 border-t border-plm-border">
-          <span className="text-sm text-plm-fg-muted">Custom:</span>
+          <span className="text-sm text-plm-fg-muted">
+            {t('settingsPages.serialization.custom')}
+          </span>
           <input
             type="text"
             value={customExtension}
@@ -262,7 +271,7 @@ export function SerializationSettingsPresentation({
             disabled={!isAdmin || !settings.enabled || !customExtension.trim()}
             className="px-2 py-1 text-sm bg-plm-highlight hover:bg-plm-highlight/80 text-plm-fg rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Add
+            {t('settingsPages.serialization.add')}
           </button>
 
           {/* Show selected extensions not in common list */}
@@ -288,7 +297,7 @@ export function SerializationSettingsPresentation({
         {/* Summary */}
         {(settings.auto_apply_extensions || []).length > 0 && (
           <div className="mt-3 text-xs text-plm-fg-muted">
-            Auto-serialization enabled for:{' '}
+            {t('settingsPages.serialization.enabledFor')}{' '}
             <span className="font-mono text-plm-fg">
               {(settings.auto_apply_extensions || []).join(', ')}
             </span>
@@ -297,7 +306,7 @@ export function SerializationSettingsPresentation({
         {(settings.auto_apply_extensions || []).length === 0 && settings.enabled && (
           <div className="mt-3 text-xs text-plm-warning flex items-center gap-1">
             <AlertTriangle size={12} />
-            No file types selected. Auto-serialization won't apply to any files.
+            {t('settingsPages.serialization.noFileTypes')}
           </div>
         )}
       </div>
@@ -306,12 +315,16 @@ export function SerializationSettingsPresentation({
       <div
         className={`p-4 bg-plm-bg rounded-lg border border-plm-border ${!settings.enabled ? 'opacity-50' : ''}`}
       >
-        <h3 className="text-base font-medium text-plm-fg mb-4">Number Format</h3>
+        <h3 className="text-base font-medium text-plm-fg mb-4">
+          {t('settingsPages.serialization.numberFormat')}
+        </h3>
 
         <div className="grid grid-cols-2 gap-4">
           {/* Prefix */}
           <div>
-            <label className="text-sm text-plm-fg-muted block mb-1">Prefix</label>
+            <label className="text-sm text-plm-fg-muted block mb-1">
+              {t('settingsPages.serialization.prefix')}
+            </label>
             <input
               type="text"
               value={settings.prefix}
@@ -320,12 +333,16 @@ export function SerializationSettingsPresentation({
               disabled={!isAdmin || !settings.enabled}
               className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent disabled:opacity-60 disabled:cursor-not-allowed font-mono"
             />
-            <p className="text-xs text-plm-fg-muted mt-1">Text before the number</p>
+            <p className="text-xs text-plm-fg-muted mt-1">
+              {t('settingsPages.serialization.prefixHelp')}
+            </p>
           </div>
 
           {/* Suffix */}
           <div>
-            <label className="text-sm text-plm-fg-muted block mb-1">Suffix</label>
+            <label className="text-sm text-plm-fg-muted block mb-1">
+              {t('settingsPages.serialization.suffix')}
+            </label>
             <input
               type="text"
               value={settings.suffix}
@@ -334,12 +351,16 @@ export function SerializationSettingsPresentation({
               disabled={!isAdmin || !settings.enabled}
               className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent disabled:opacity-60 disabled:cursor-not-allowed font-mono"
             />
-            <p className="text-xs text-plm-fg-muted mt-1">Text after the number</p>
+            <p className="text-xs text-plm-fg-muted mt-1">
+              {t('settingsPages.serialization.suffixHelp')}
+            </p>
           </div>
 
           {/* Letter Prefix */}
           <div>
-            <label className="text-sm text-plm-fg-muted block mb-1">Letter Prefix</label>
+            <label className="text-sm text-plm-fg-muted block mb-1">
+              {t('settingsPages.serialization.letterPrefix')}
+            </label>
             <input
               type="text"
               value={settings.letter_prefix}
@@ -350,38 +371,56 @@ export function SerializationSettingsPresentation({
               className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent disabled:opacity-60 disabled:cursor-not-allowed font-mono uppercase"
             />
             <p className="text-xs text-plm-fg-muted mt-1">
-              Letters between prefix and number (e.g., AB in PN-AB00001)
+              {t('settingsPages.serialization.letterPrefixHelp')}
             </p>
           </div>
 
           {/* Number of Digits */}
           <div>
-            <label className="text-sm text-plm-fg-muted block mb-1">Number Padding</label>
+            <label className="text-sm text-plm-fg-muted block mb-1">
+              {t('settingsPages.serialization.numberPadding')}
+            </label>
             <select
               value={settings.padding_digits}
               onChange={(e) => updateSetting('padding_digits', parseInt(e.target.value))}
               disabled={!isAdmin || !settings.enabled}
               className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg focus:outline-none focus:border-plm-accent disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <option value={3}>3 digits (001)</option>
-              <option value={4}>4 digits (0001)</option>
-              <option value={5}>5 digits (00001)</option>
-              <option value={6}>6 digits (000001)</option>
-              <option value={7}>7 digits (0000001)</option>
-              <option value={8}>8 digits (00000001)</option>
+              <option value={3}>
+                {t('settingsPages.serialization.digitsOption', { digits: 3, sample: '001' })}
+              </option>
+              <option value={4}>
+                {t('settingsPages.serialization.digitsOption', { digits: 4, sample: '0001' })}
+              </option>
+              <option value={5}>
+                {t('settingsPages.serialization.digitsOption', { digits: 5, sample: '00001' })}
+              </option>
+              <option value={6}>
+                {t('settingsPages.serialization.digitsOption', { digits: 6, sample: '000001' })}
+              </option>
+              <option value={7}>
+                {t('settingsPages.serialization.digitsOption', { digits: 7, sample: '0000001' })}
+              </option>
+              <option value={8}>
+                {t('settingsPages.serialization.digitsOption', { digits: 8, sample: '00000001' })}
+              </option>
             </select>
-            <p className="text-xs text-plm-fg-muted mt-1">Zero-padding for the numeric part</p>
+            <p className="text-xs text-plm-fg-muted mt-1">
+              {t('settingsPages.serialization.numberPaddingHelp')}
+            </p>
           </div>
         </div>
 
         {/* Current Counter */}
         <div className="mt-4 pt-4 border-t border-plm-border">
           <div className="flex items-center gap-2 mb-2">
-            <label className="text-sm text-plm-fg-muted">Current Counter Value</label>
+            <label className="text-sm text-plm-fg-muted">
+              {t('settingsPages.serialization.currentCounter')}
+            </label>
             <div className="group relative">
               <Info size={14} className="text-plm-fg-muted/50" />
               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-plm-bg-elevated border border-plm-border rounded text-xs text-plm-fg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                The next number generated will be this value + 1
+                {t('settingsPages.serialization.currentCounterHelp')}
               </div>
             </div>
           </div>
@@ -397,7 +436,7 @@ export function SerializationSettingsPresentation({
               className="w-32 px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg focus:outline-none focus:border-plm-accent disabled:opacity-60 disabled:cursor-not-allowed font-mono"
             />
             <span className="text-sm text-plm-fg-muted">
-              Next number will be:{' '}
+              {t('settingsPages.serialization.nextNumber')}{' '}
               <span className="font-mono font-medium text-plm-fg">
                 {settings.current_counter + 1}
               </span>
@@ -406,7 +445,7 @@ export function SerializationSettingsPresentation({
           {isAdmin && (
             <p className="text-xs text-plm-warning mt-2 flex items-center gap-1">
               <AlertTriangle size={12} />
-              Changing this value can cause duplicate or skipped numbers. Use with caution.
+              {t('settingsPages.serialization.counterWarning')}
             </p>
           )}
 
@@ -415,9 +454,11 @@ export function SerializationSettingsPresentation({
             <div className="mt-4 p-3 bg-plm-highlight/50 rounded-lg">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-sm text-plm-fg font-medium">Detect Highest Used Number</div>
+                  <div className="text-sm text-plm-fg font-medium">
+                    {t('settingsPages.serialization.detectHighest')}
+                  </div>
                   <div className="text-xs text-plm-fg-muted mt-0.5">
-                    Scan vault files to find the highest serial number in use
+                    {t('settingsPages.serialization.detectHighestHelp')}
                   </div>
                 </div>
                 <button
@@ -430,16 +471,24 @@ export function SerializationSettingsPresentation({
                   ) : (
                     <Search size={14} />
                   )}
-                  Scan Vault
+                  {t('settingsPages.serialization.scanVault')}
                 </button>
               </div>
 
               {detectedResult && (
                 <div className="mt-3 p-2 bg-plm-bg rounded border border-plm-border">
                   <div className="text-xs text-plm-fg-muted">
-                    Scanned{' '}
-                    <span className="font-medium text-plm-fg">{detectedResult.totalScanned}</span>{' '}
-                    files
+                    {
+                      t('settingsPages.serialization.scannedFiles', { count: '__COUNT__' }).split(
+                        '__COUNT__',
+                      )[0]
+                    }
+                    <span className="font-medium text-plm-fg">{detectedResult.totalScanned}</span>
+                    {
+                      t('settingsPages.serialization.scannedFiles', { count: '__COUNT__' }).split(
+                        '__COUNT__',
+                      )[1]
+                    }
                   </div>
                   {detectedResult.skippedHidden > 0 && (
                     <div className="text-xs text-plm-fg-muted mt-1 flex items-center gap-1">
@@ -451,25 +500,27 @@ export function SerializationSettingsPresentation({
                     <div className="flex items-center justify-between mt-2">
                       <div>
                         <div className="text-sm text-plm-fg">
-                          Highest found:{' '}
+                          {t('settingsPages.serialization.highestFound')}{' '}
                           <span className="font-mono font-medium text-plm-accent">
                             {detectedResult.highestPartNumber}
                           </span>
                         </div>
                         <div className="text-xs text-plm-fg-muted">
-                          Counter value: {detectedResult.highestCounter}
+                          {t('settingsPages.serialization.counterValue', {
+                            counter: detectedResult.highestCounter,
+                          })}
                         </div>
                       </div>
                       <button
                         onClick={applyDetectedCounter}
                         className="flex items-center gap-1 px-2 py-1 text-xs bg-plm-accent hover:bg-plm-accent-hover text-white rounded transition-colors"
                       >
-                        Apply
+                        {t('settingsPages.serialization.apply')}
                       </button>
                     </div>
                   ) : (
                     <div className="text-sm text-plm-fg-muted mt-1">
-                      No matching serial numbers found
+                      {t('settingsPages.serialization.noMatches')}
                     </div>
                   )}
                 </div>
@@ -487,10 +538,13 @@ export function SerializationSettingsPresentation({
           <div className="flex items-center gap-2">
             <SplitSquareHorizontal size={18} className="text-plm-accent" />
             <div>
-              <h3 className="text-base font-medium text-plm-fg">Tab Numbers</h3>
+              <h3 className="text-base font-medium text-plm-fg">
+                {t('settingsPages.serialization.tabNumbers')}
+              </h3>
               <p className="text-xs text-plm-fg-muted mt-0.5">
-                Add variant suffixes to base numbers (e.g., BR101101
-                <span className="text-plm-accent">-104</span>)
+                {t('settingsPages.serialization.tabNumbersHelp').split('-104')[0]}
+                <span className="text-plm-accent">-104</span>
+                {t('settingsPages.serialization.tabNumbersHelp').split('-104')[1]}
               </p>
             </div>
           </div>
@@ -515,7 +569,9 @@ export function SerializationSettingsPresentation({
           <div className="grid grid-cols-2 gap-4">
             {/* Tab Separator */}
             <div>
-              <label className="text-sm text-plm-fg-muted block mb-1">Tab Separator</label>
+              <label className="text-sm text-plm-fg-muted block mb-1">
+                {t('settingsPages.serialization.tabSeparator')}
+              </label>
               <input
                 type="text"
                 value={settings.tab_separator}
@@ -526,25 +582,53 @@ export function SerializationSettingsPresentation({
                 className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent disabled:opacity-60 disabled:cursor-not-allowed font-mono"
               />
               <p className="text-xs text-plm-fg-muted mt-1">
-                Character(s) between base and tab (e.g., "-")
+                {t('settingsPages.serialization.tabSeparatorHelp')}
               </p>
             </div>
 
             {/* Tab Digits */}
             <div>
-              <label className="text-sm text-plm-fg-muted block mb-1">Tab Digits</label>
+              <label className="text-sm text-plm-fg-muted block mb-1">
+                {t('settingsPages.serialization.tabDigits')}
+              </label>
               <select
                 value={settings.tab_padding_digits}
                 onChange={(e) => updateSetting('tab_padding_digits', parseInt(e.target.value))}
                 disabled={!isAdmin || !settings.enabled}
                 className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg focus:outline-none focus:border-plm-accent disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <option value={1}>1 digit (1-9)</option>
-                <option value={2}>2 digits (01-99)</option>
-                <option value={3}>3 digits (001-999)</option>
-                <option value={4}>4 digits (0001-9999)</option>
+                <option value={1}>
+                  {t('settingsPages.serialization.tabDigitsOptionOne', {
+                    digits: 1,
+                    first: '1',
+                    last: '9',
+                  })}
+                </option>
+                <option value={2}>
+                  {t('settingsPages.serialization.tabDigitsOption', {
+                    digits: 2,
+                    first: '01',
+                    last: '99',
+                  })}
+                </option>
+                <option value={3}>
+                  {t('settingsPages.serialization.tabDigitsOption', {
+                    digits: 3,
+                    first: '001',
+                    last: '999',
+                  })}
+                </option>
+                <option value={4}>
+                  {t('settingsPages.serialization.tabDigitsOption', {
+                    digits: 4,
+                    first: '0001',
+                    last: '9999',
+                  })}
+                </option>
               </select>
-              <p className="text-xs text-plm-fg-muted mt-1">Zero-padding for the tab number</p>
+              <p className="text-xs text-plm-fg-muted mt-1">
+                {t('settingsPages.serialization.tabDigitsHelp')}
+              </p>
             </div>
 
             {/* Auto-pad Numbers */}
@@ -557,9 +641,13 @@ export function SerializationSettingsPresentation({
                   disabled={!isAdmin || !settings.enabled}
                   className="rounded border-plm-border text-plm-accent focus:ring-plm-accent disabled:opacity-60"
                 />
-                <span className="text-sm text-plm-fg">Auto-pad with zeros</span>
+                <span className="text-sm text-plm-fg">
+                  {t('settingsPages.serialization.autoPad')}
+                </span>
               </label>
-              <p className="text-xs text-plm-fg-muted mt-1 ml-6">"1" → "001" on blur</p>
+              <p className="text-xs text-plm-fg-muted mt-1 ml-6">
+                {t('settingsPages.serialization.autoPadHelp')}
+              </p>
             </div>
 
             {/* Tab Required */}
@@ -572,10 +660,14 @@ export function SerializationSettingsPresentation({
                   disabled={!isAdmin || !settings.enabled}
                   className="rounded border-plm-border text-plm-accent focus:ring-plm-accent disabled:opacity-60"
                 />
-                <span className="text-sm text-plm-fg">Tab required</span>
+                <span className="text-sm text-plm-fg">
+                  {t('settingsPages.serialization.tabRequired')}
+                </span>
               </label>
               <p className="text-xs text-plm-fg-muted mt-1 ml-6">
-                {settings.tab_required ? 'Tab must be specified' : 'Tab is optional'}
+                {settings.tab_required
+                  ? t('settingsPages.serialization.tabRequiredHelp')
+                  : t('settingsPages.serialization.tabOptionalHelp')}
               </p>
             </div>
           </div>
@@ -584,7 +676,9 @@ export function SerializationSettingsPresentation({
         {/* Tab Character Settings */}
         {settings.tab_enabled && (
           <div className="mt-4 pt-4 border-t border-plm-border">
-            <h4 className="text-sm font-medium text-plm-fg mb-3">Allowed Characters</h4>
+            <h4 className="text-sm font-medium text-plm-fg mb-3">
+              {t('settingsPages.serialization.allowedCharacters')}
+            </h4>
             <div className="grid grid-cols-2 gap-4">
               {/* Allow Numbers */}
               <div>
@@ -598,7 +692,9 @@ export function SerializationSettingsPresentation({
                     disabled={!isAdmin || !settings.enabled}
                     className="rounded border-plm-border text-plm-accent focus:ring-plm-accent disabled:opacity-60"
                   />
-                  <span className="text-sm text-plm-fg">Allow numbers (0-9)</span>
+                  <span className="text-sm text-plm-fg">
+                    {t('settingsPages.serialization.allowNumbers')}
+                  </span>
                 </label>
               </div>
 
@@ -614,7 +710,9 @@ export function SerializationSettingsPresentation({
                     disabled={!isAdmin || !settings.enabled}
                     className="rounded border-plm-border text-plm-accent focus:ring-plm-accent disabled:opacity-60"
                   />
-                  <span className="text-sm text-plm-fg">Allow letters (A-Z)</span>
+                  <span className="text-sm text-plm-fg">
+                    {t('settingsPages.serialization.allowLetters')}
+                  </span>
                 </label>
               </div>
 
@@ -630,7 +728,9 @@ export function SerializationSettingsPresentation({
                     disabled={!isAdmin || !settings.enabled}
                     className="rounded border-plm-border text-plm-accent focus:ring-plm-accent disabled:opacity-60"
                   />
-                  <span className="text-sm text-plm-fg">Allow special characters</span>
+                  <span className="text-sm text-plm-fg">
+                    {t('settingsPages.serialization.allowSpecial')}
+                  </span>
                 </label>
               </div>
 
@@ -638,7 +738,7 @@ export function SerializationSettingsPresentation({
               {settings.tab_allow_special && (
                 <div>
                   <label className="text-sm text-plm-fg-muted block mb-1">
-                    Allowed special characters
+                    {t('settingsPages.serialization.allowedSpecial')}
                   </label>
                   <input
                     type="text"
@@ -659,7 +759,7 @@ export function SerializationSettingsPresentation({
               !settings.tab_allow_special && (
                 <div className="mt-3 text-xs text-plm-warning flex items-center gap-1">
                   <AlertTriangle size={12} />
-                  No characters allowed. Tab input will be disabled.
+                  {t('settingsPages.serialization.noCharacters')}
                 </div>
               )}
           </div>
@@ -668,7 +768,9 @@ export function SerializationSettingsPresentation({
         {settings.tab_enabled && (
           <div className="mt-4 p-3 bg-plm-highlight/50 rounded-lg space-y-2">
             <div>
-              <div className="text-xs text-plm-fg-muted mb-1">Example with tab:</div>
+              <div className="text-xs text-plm-fg-muted mb-1">
+                {t('settingsPages.serialization.exampleWithTab')}
+              </div>
               <div className="flex items-center gap-2">
                 <code className="px-2 py-1 bg-plm-bg rounded font-mono text-plm-accent">
                   {basePreview}
@@ -694,7 +796,9 @@ export function SerializationSettingsPresentation({
             </div>
             {!settings.tab_required && (
               <div>
-                <div className="text-xs text-plm-fg-muted mb-1">Base only (no tab):</div>
+                <div className="text-xs text-plm-fg-muted mb-1">
+                  {t('settingsPages.serialization.baseOnly')}
+                </div>
                 <code className="px-2 py-1 bg-plm-bg rounded font-mono text-plm-accent">
                   {basePreview}
                   {settings.suffix}
@@ -711,9 +815,11 @@ export function SerializationSettingsPresentation({
       >
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="text-base font-medium text-plm-fg">Keepout Zones</h3>
+            <h3 className="text-base font-medium text-plm-fg">
+              {t('settingsPages.serialization.keepoutZones')}
+            </h3>
             <p className="text-xs text-plm-fg-muted mt-0.5">
-              Reserved number ranges that will be skipped during auto-generation
+              {t('settingsPages.serialization.keepoutZonesHelp')}
             </p>
           </div>
           {isAdmin && settings.enabled && (
@@ -722,7 +828,7 @@ export function SerializationSettingsPresentation({
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-plm-highlight hover:bg-plm-highlight/80 text-plm-fg rounded-lg transition-colors"
             >
               <Plus size={14} />
-              Add Zone
+              {t('settingsPages.serialization.addZone')}
             </button>
           )}
         </div>
@@ -732,7 +838,9 @@ export function SerializationSettingsPresentation({
           <div className="p-3 bg-plm-highlight rounded-lg mb-4">
             <div className="grid grid-cols-4 gap-3">
               <div>
-                <label className="text-xs text-plm-fg-muted block mb-1">Start</label>
+                <label className="text-xs text-plm-fg-muted block mb-1">
+                  {t('settingsPages.serialization.start')}
+                </label>
                 <input
                   type="number"
                   value={newKeepout.start}
@@ -743,7 +851,9 @@ export function SerializationSettingsPresentation({
                 />
               </div>
               <div>
-                <label className="text-xs text-plm-fg-muted block mb-1">End</label>
+                <label className="text-xs text-plm-fg-muted block mb-1">
+                  {t('settingsPages.serialization.end')}
+                </label>
                 <input
                   type="number"
                   value={newKeepout.end}
@@ -754,7 +864,9 @@ export function SerializationSettingsPresentation({
                 />
               </div>
               <div className="col-span-2">
-                <label className="text-xs text-plm-fg-muted block mb-1">Description</label>
+                <label className="text-xs text-plm-fg-muted block mb-1">
+                  {t('settingsPages.serialization.zoneDescription')}
+                </label>
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -762,14 +874,14 @@ export function SerializationSettingsPresentation({
                     onChange={(e) =>
                       setNewKeepout((prev) => ({ ...prev, description: e.target.value }))
                     }
-                    placeholder="Legacy part numbers"
+                    placeholder={t('settingsPages.serialization.zonePlaceholder')}
                     className="flex-1 px-2 py-1.5 bg-plm-input border border-plm-border rounded text-sm text-plm-fg focus:outline-none focus:border-plm-accent"
                   />
                   <button
                     onClick={addKeepoutZone}
                     className="px-3 py-1.5 bg-plm-accent hover:bg-plm-accent-hover text-white rounded text-sm transition-colors"
                   >
-                    Add
+                    {t('settingsPages.serialization.add')}
                   </button>
                   <button
                     onClick={() => {
@@ -789,7 +901,7 @@ export function SerializationSettingsPresentation({
         {/* Keepout zones list */}
         {settings.keepout_zones.length === 0 ? (
           <div className="text-center py-6 text-sm text-plm-fg-muted">
-            No keepout zones defined. All numbers will be available for assignment.
+            {t('settingsPages.serialization.noKeepoutZones')}
           </div>
         ) : (
           <div className="space-y-2">
@@ -806,14 +918,16 @@ export function SerializationSettingsPresentation({
                   </div>
                   <span className="text-sm text-plm-fg-muted">{zone.description}</span>
                   <span className="text-xs text-plm-fg-muted/60">
-                    ({(zone.end_num - zone.start + 1).toLocaleString()} numbers)
+                    {t('settingsPages.serialization.numberCount', {
+                      count: (zone.end_num - zone.start + 1).toLocaleString(),
+                    })}
                   </span>
                 </div>
                 {isAdmin && settings.enabled && (
                   <button
                     onClick={() => removeKeepoutZone(index)}
                     className="p-1.5 text-plm-fg-muted hover:text-plm-error transition-colors"
-                    title="Remove zone"
+                    title={t('settingsPages.serialization.removeZone')}
                   >
                     <X size={16} />
                   </button>
@@ -826,27 +940,37 @@ export function SerializationSettingsPresentation({
 
       {/* Example Patterns */}
       <div className="p-4 bg-plm-highlight/50 rounded-lg border border-plm-border/50">
-        <h4 className="text-sm font-medium text-plm-fg mb-3">Example Patterns</h4>
+        <h4 className="text-sm font-medium text-plm-fg mb-3">
+          {t('settingsPages.serialization.examplePatterns')}
+        </h4>
         <div className="grid grid-cols-2 gap-3 text-sm">
           <div className="flex items-center gap-2">
             <code className="px-2 py-1 bg-plm-bg rounded font-mono text-plm-accent">PN-00001</code>
-            <span className="text-plm-fg-muted">Prefix: "PN-", 5 digits</span>
+            <span className="text-plm-fg-muted">
+              {t('settingsPages.serialization.examplePrefixDigits')}
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <code className="px-2 py-1 bg-plm-bg rounded font-mono text-plm-accent">
               BR-AB00001
             </code>
-            <span className="text-plm-fg-muted">Prefix: "BR-", Letters: "AB"</span>
+            <span className="text-plm-fg-muted">
+              {t('settingsPages.serialization.examplePrefixLetters')}
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <code className="px-2 py-1 bg-plm-bg rounded font-mono text-plm-accent">100001</code>
-            <span className="text-plm-fg-muted">No prefix, 6 digits</span>
+            <span className="text-plm-fg-muted">
+              {t('settingsPages.serialization.exampleNoPrefix')}
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <code className="px-2 py-1 bg-plm-bg rounded font-mono text-plm-accent">
               PN-00001-REV
             </code>
-            <span className="text-plm-fg-muted">With suffix: "-REV"</span>
+            <span className="text-plm-fg-muted">
+              {t('settingsPages.serialization.exampleSuffix')}
+            </span>
           </div>
         </div>
       </div>
@@ -860,7 +984,7 @@ export function SerializationSettingsPresentation({
             className="btn btn-primary flex items-center gap-2"
           >
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-            Save Settings
+            {t('settingsPages.saveSettings')}
           </button>
         </div>
       )}

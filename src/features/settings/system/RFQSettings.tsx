@@ -4,6 +4,7 @@ import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { useShallow } from 'zustand/react/shallow'
 import { supabase } from '@/lib/supabase'
+import { useTranslation } from '@/lib/i18n'
 
 interface RFQSettingsData {
   default_payment_terms: string
@@ -43,6 +44,7 @@ export function RFQSettings() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [settings, setSettings] = useState<RFQSettingsData>(DEFAULT_RFQ_SETTINGS)
+  const { t } = useTranslation()
 
   // Track if we're currently saving to avoid overwriting with stale realtime data
   const savingRef = useRef(false)
@@ -105,10 +107,10 @@ export function RFQSettings() {
         .eq('id', organization.id)
 
       if (error) throw error
-      addToast('success', 'RFQ settings saved')
+      addToast('success', t('settingsPages.rfq.saved'))
     } catch (error) {
       log.error('[RFQ]', 'Failed to save RFQ settings', { error: error })
-      addToast('error', 'Failed to save RFQ settings')
+      addToast('error', t('settingsPages.rfq.saveFailed'))
     } finally {
       setSaving(false)
       // Small delay before allowing realtime sync again to let the update propagate
@@ -124,7 +126,9 @@ export function RFQSettings() {
   }
 
   if (!organization) {
-    return <div className="text-center py-12 text-plm-fg-muted">No organization connected</div>
+    return (
+      <div className="text-center py-12 text-plm-fg-muted">{t('settingsPages.noOrganization')}</div>
+    )
   }
 
   if (loading) {
@@ -140,7 +144,7 @@ export function RFQSettings() {
       {/* Read-only notice for non-admins */}
       {!isAdmin && (
         <div className="p-3 bg-plm-highlight rounded-lg border border-plm-border text-sm text-plm-fg-muted">
-          Only administrators can modify RFQ settings. You are viewing in read-only mode.
+          {t('settingsPages.rfq.readOnly')}
         </div>
       )}
 
@@ -148,14 +152,16 @@ export function RFQSettings() {
       <div className="p-4 bg-plm-bg rounded-lg border border-plm-border">
         <div className="flex items-center gap-2 mb-4">
           <FileText size={20} className="text-plm-accent" />
-          <h3 className="text-base font-medium text-plm-fg">RFQ Template Defaults</h3>
+          <h3 className="text-base font-medium text-plm-fg">{t('settingsPages.rfq.title')}</h3>
         </div>
 
         <div className="space-y-4">
           {/* Default values */}
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="text-sm text-plm-fg-muted block mb-1">Payment Terms</label>
+              <label className="text-sm text-plm-fg-muted block mb-1">
+                {t('settingsPages.rfq.paymentTerms')}
+              </label>
               <input
                 type="text"
                 value={settings.default_payment_terms}
@@ -166,7 +172,9 @@ export function RFQSettings() {
               />
             </div>
             <div>
-              <label className="text-sm text-plm-fg-muted block mb-1">Incoterms</label>
+              <label className="text-sm text-plm-fg-muted block mb-1">
+                {t('settingsPages.rfq.incoterms')}
+              </label>
               <input
                 type="text"
                 value={settings.default_incoterms}
@@ -177,7 +185,9 @@ export function RFQSettings() {
               />
             </div>
             <div>
-              <label className="text-sm text-plm-fg-muted block mb-1">Quote Valid (days)</label>
+              <label className="text-sm text-plm-fg-muted block mb-1">
+                {t('settingsPages.rfq.validDays')}
+              </label>
               <input
                 type="number"
                 value={settings.default_valid_days}
@@ -193,7 +203,9 @@ export function RFQSettings() {
 
           {/* Column visibility */}
           <div>
-            <label className="text-sm text-plm-fg-muted block mb-2">RFQ Document Columns</label>
+            <label className="text-sm text-plm-fg-muted block mb-2">
+              {t('settingsPages.rfq.documentColumns')}
+            </label>
             <div className="grid grid-cols-2 gap-2">
               <label
                 className={`flex items-center gap-2 ${isAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}
@@ -205,7 +217,7 @@ export function RFQSettings() {
                   disabled={!isAdmin}
                   className="rounded"
                 />
-                <span className="text-sm text-plm-fg">Show company logo</span>
+                <span className="text-sm text-plm-fg">{t('settingsPages.rfq.showLogo')}</span>
               </label>
               <label
                 className={`flex items-center gap-2 ${isAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}
@@ -217,7 +229,7 @@ export function RFQSettings() {
                   disabled={!isAdmin}
                   className="rounded"
                 />
-                <span className="text-sm text-plm-fg">Show revision column</span>
+                <span className="text-sm text-plm-fg">{t('settingsPages.rfq.showRevision')}</span>
               </label>
               <label
                 className={`flex items-center gap-2 ${isAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}
@@ -229,7 +241,7 @@ export function RFQSettings() {
                   disabled={!isAdmin}
                   className="rounded"
                 />
-                <span className="text-sm text-plm-fg">Show material column</span>
+                <span className="text-sm text-plm-fg">{t('settingsPages.rfq.showMaterial')}</span>
               </label>
               <label
                 className={`flex items-center gap-2 ${isAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}
@@ -241,7 +253,7 @@ export function RFQSettings() {
                   disabled={!isAdmin}
                   className="rounded"
                 />
-                <span className="text-sm text-plm-fg">Show finish column</span>
+                <span className="text-sm text-plm-fg">{t('settingsPages.rfq.showFinish')}</span>
               </label>
               <label
                 className={`flex items-center gap-2 ${isAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}
@@ -253,19 +265,21 @@ export function RFQSettings() {
                   disabled={!isAdmin}
                   className="rounded"
                 />
-                <span className="text-sm text-plm-fg">Show notes column</span>
+                <span className="text-sm text-plm-fg">{t('settingsPages.rfq.showNotes')}</span>
               </label>
             </div>
           </div>
 
           {/* Terms and conditions */}
           <div>
-            <label className="text-sm text-plm-fg-muted block mb-1">Terms and Conditions</label>
+            <label className="text-sm text-plm-fg-muted block mb-1">
+              {t('settingsPages.rfq.terms')}
+            </label>
             <textarea
               value={settings.terms_and_conditions}
               onChange={(e) => updateSetting('terms_and_conditions', e.target.value)}
               rows={4}
-              placeholder="Enter standard terms and conditions for RFQ documents..."
+              placeholder={t('settingsPages.rfq.termsPlaceholder')}
               disabled={!isAdmin}
               className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent resize-none disabled:opacity-60 disabled:cursor-not-allowed"
             />
@@ -273,12 +287,14 @@ export function RFQSettings() {
 
           {/* Footer text */}
           <div>
-            <label className="text-sm text-plm-fg-muted block mb-1">Footer Text</label>
+            <label className="text-sm text-plm-fg-muted block mb-1">
+              {t('settingsPages.rfq.footer')}
+            </label>
             <input
               type="text"
               value={settings.footer_text}
               onChange={(e) => updateSetting('footer_text', e.target.value)}
-              placeholder="Custom footer text for RFQ documents"
+              placeholder={t('settingsPages.rfq.footerPlaceholder')}
               disabled={!isAdmin}
               className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent disabled:opacity-60 disabled:cursor-not-allowed"
             />
@@ -295,7 +311,7 @@ export function RFQSettings() {
             className="btn btn-primary flex items-center gap-2"
           >
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-            Save Settings
+            {t('settingsPages.saveSettings')}
           </button>
         </div>
       )}

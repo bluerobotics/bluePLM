@@ -214,14 +214,14 @@ export function AccountSettings() {
   }
 
   const formatLastSeen = (lastSeen: string | null) => {
-    if (!lastSeen) return 'unknown'
+    if (!lastSeen) return t('accountSettings.unknownLastSeen')
     const date = new Date(lastSeen)
     const now = new Date()
     const diffMs = now.getTime() - date.getTime()
     const diffMins = Math.floor(diffMs / 60000)
 
-    if (diffMins < 1) return 'Just now'
-    if (diffMins < 60) return `${diffMins}m ago`
+    if (diffMins < 1) return t('accountSettings.justNow')
+    if (diffMins < 60) return t('accountSettings.minutesAgo', { count: diffMins })
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   }
 
@@ -282,7 +282,11 @@ export function AccountSettings() {
   const currentVaultPatterns = activeVaultId ? ignorePatterns[activeVaultId] || [] : []
 
   if (!user) {
-    return <div className="text-center py-12 text-plm-fg-muted text-base">Not signed in</div>
+    return (
+      <div className="text-center py-12 text-plm-fg-muted text-base">
+        {t('accountSettings.notSignedIn')}
+      </div>
+    )
   }
 
   // Sort sessions so current device is first
@@ -297,7 +301,7 @@ export function AccountSettings() {
       {/* User profile card */}
       <section>
         <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3">
-          Profile
+          {t('accountSettings.profile')}
         </h2>
         <div className="flex items-center gap-4 p-4 bg-plm-bg rounded-lg border border-plm-border">
           {getEffectiveAvatarUrl(user) ? (
@@ -324,7 +328,7 @@ export function AccountSettings() {
           )}
           <div className="flex-1 min-w-0">
             <div className="text-xl font-medium text-plm-fg truncate">
-              {user.full_name || 'No name'}
+              {user.full_name || t('accountSettings.noName')}
             </div>
             {user.job_title && <div className="text-base text-plm-fg-muted">{user.job_title}</div>}
             <div className="text-base text-plm-fg-muted truncate flex items-center gap-1.5">
@@ -332,7 +336,7 @@ export function AccountSettings() {
               {user.email}
             </div>
             <div className="text-sm text-plm-fg-dim mt-1">
-              Role: <span className="capitalize">{user.role}</span>
+              {t('accountSettings.role')}: <span className="capitalize">{user.role}</span>
             </div>
           </div>
         </div>
@@ -344,21 +348,23 @@ export function AccountSettings() {
       {/* Sessions */}
       <section>
         <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3">
-          Sessions
+          {t('accountSettings.sessions')}
         </h2>
         <div className="bg-plm-bg rounded-lg border border-plm-border overflow-hidden">
           <div className="px-4 py-3 border-b border-plm-border">
-            <p className="text-sm text-plm-fg-muted">Devices where you're currently signed in</p>
+            <p className="text-sm text-plm-fg-muted">{t('accountSettings.sessionsDescription')}</p>
           </div>
 
           <div className="p-4">
             {isLoading ? (
               <div className="flex items-center justify-center py-4 text-plm-fg-muted">
                 <Loader2 size={18} className="animate-spin mr-2" />
-                <span className="text-base">Loading sessions...</span>
+                <span className="text-base">{t('accountSettings.loadingSessions')}</span>
               </div>
             ) : sortedSessions.length === 0 ? (
-              <div className="text-center py-4 text-plm-fg-muted text-base">No active sessions</div>
+              <div className="text-center py-4 text-plm-fg-muted text-base">
+                {t('accountSettings.noActiveSessions')}
+              </div>
             ) : (
               <div className="space-y-2">
                 {sortedSessions.map((session) => {
@@ -385,12 +391,14 @@ export function AccountSettings() {
                           {session.machine_name}
                           {isCurrentDevice && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-plm-accent/20 text-plm-accent font-medium">
-                              This device
+                              {t('accountSettings.thisDevice')}
                             </span>
                           )}
                         </div>
                         <div className="text-sm text-plm-fg-muted flex items-center gap-2">
-                          <span className="capitalize">{session.platform || 'Unknown'}</span>
+                          <span className="capitalize">
+                            {session.platform || t('accountSettings.unknown')}
+                          </span>
                           {session.app_version && (
                             <>
                               <span className="text-plm-border">•</span>
@@ -412,7 +420,11 @@ export function AccountSettings() {
                           }
                           disabled={isSigningOut}
                           className="p-1.5 rounded hover:bg-plm-error/20 text-plm-fg-muted hover:text-plm-error transition-colors disabled:opacity-50"
-                          title={isCurrentDevice ? 'Sign out' : 'Sign out this device'}
+                          title={
+                            isCurrentDevice
+                              ? t('accountSettings.signOut')
+                              : t('accountSettings.signOutDevice')
+                          }
                         >
                           {isSigningOut ? (
                             <Loader2 size={14} className="animate-spin" />

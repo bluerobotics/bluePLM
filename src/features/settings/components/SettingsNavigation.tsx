@@ -1,6 +1,7 @@
 import { usePDMStore } from '@/stores/pdmStore'
 import type { IntegrationStatusValue, IntegrationId, BackupStatusValue } from '@/stores/types'
 import type { SettingsTab } from '@/types/settings'
+import { useTranslation } from '@/lib/i18n'
 import { logSettings } from '@/lib/userActionLogger'
 
 interface SettingsNavigationProps {
@@ -22,53 +23,53 @@ interface SettingsSection {
 
 // A function rather than a constant because the labels are translated at render time, and the
 // language can change without the module being re-evaluated.
-const settingsSections = (): SettingsSection[] => [
+const settingsSections = (t: ReturnType<typeof useTranslation>['t']): SettingsSection[] => [
   {
-    category: 'Account',
+    category: t('settings.account'),
     items: [
-      { id: 'profile', label: 'Profile' },
-      { id: 'preferences', label: 'Preferences' },
-      { id: 'keybindings', label: 'Keybindings' },
-      { id: 'modules', label: 'Sidebar' },
-      { id: 'delete-account', label: 'Delete Account' },
+      { id: 'profile', label: t('settings.profile') },
+      { id: 'preferences', label: t('settings.preferences') },
+      { id: 'keybindings', label: t('settings.keybindings') },
+      { id: 'modules', label: t('settings.sidebar') },
+      { id: 'delete-account', label: t('settings.deleteAccount') },
     ],
   },
   {
-    category: 'Organization',
+    category: t('settings.organization'),
     items: [
-      { id: 'supabase', label: 'Supabase' },
-      { id: 'backup', label: 'Backups' },
-      { id: 'vaults', label: 'Vaults' },
-      { id: 'team-members', label: 'Members & Teams' },
-      { id: 'module-access', label: 'Module Access' },
-      { id: 'company-profile', label: 'Company Profile' },
-      { id: 'auth-providers', label: 'Sign-In Methods' },
-      { id: 'serialization', label: 'Serialization' },
-      { id: 'export', label: 'Export Options' },
-      { id: 'metadata-columns', label: 'File Metadata' },
-      { id: 'item-designations', label: 'Item Designations' },
-      { id: 'rfq', label: 'RFQ Settings' },
-      { id: 'recovery-codes', label: 'Recovery Codes' },
+      { id: 'supabase', label: t('settings.supabase') },
+      { id: 'backup', label: t('settings.backups') },
+      { id: 'vaults', label: t('settings.vaults') },
+      { id: 'team-members', label: t('settings.membersAndTeams') },
+      { id: 'module-access', label: t('settings.moduleAccess') },
+      { id: 'company-profile', label: t('settings.companyProfile') },
+      { id: 'auth-providers', label: t('settings.signInMethods') },
+      { id: 'serialization', label: t('settings.serialization') },
+      { id: 'export', label: t('settings.exportOptions') },
+      { id: 'metadata-columns', label: t('settings.fileMetadata') },
+      { id: 'item-designations', label: t('settings.itemDesignations') },
+      { id: 'rfq', label: t('settings.rfqSettings') },
+      { id: 'recovery-codes', label: t('settings.recoveryCodes') },
     ],
   },
   {
-    category: 'Extensions',
+    category: t('settings.extensions'),
     items: [
-      { id: 'extension-store', label: 'Extension Store' },
-      { id: 'solidworks', label: 'SolidWorks' },
-      { id: 'google-drive', label: 'Google Drive' },
-      { id: 'odoo', label: 'Odoo ERP' },
-      { id: 'api', label: 'REST API' },
-      { id: 'webhooks', label: 'Webhooks' },
+      { id: 'extension-store', label: t('settings.extensionStore') },
+      { id: 'solidworks', label: t('settings.solidworks') },
+      { id: 'google-drive', label: t('settings.googleDrive') },
+      { id: 'odoo', label: t('settings.odooErp') },
+      { id: 'api', label: t('settings.restApi') },
+      { id: 'webhooks', label: t('settings.webhooks') },
     ],
   },
   {
-    category: 'System',
+    category: t('settings.system'),
     items: [
-      { id: 'performance', label: 'Performance' },
-      { id: 'logs', label: 'Logs' },
-      { id: 'dev-tools', label: 'Dev Tools' },
-      { id: 'about', label: 'About' },
+      { id: 'performance', label: t('settings.performance') },
+      { id: 'logs', label: t('settings.logs') },
+      { id: 'dev-tools', label: t('settings.devTools') },
+      { id: 'about', label: t('settings.about') },
     ],
   },
 ]
@@ -84,6 +85,7 @@ const integrationIds = [
 ] as const
 
 function StatusDot({ status }: { status: IntegrationStatusValue }) {
+  const { t } = useTranslation()
   const colors: Record<IntegrationStatusValue, string> = {
     online: 'bg-plm-success',
     partial: 'bg-yellow-500',
@@ -94,12 +96,12 @@ function StatusDot({ status }: { status: IntegrationStatusValue }) {
   }
 
   const titles: Record<IntegrationStatusValue, string> = {
-    online: 'Connected',
-    partial: 'Partially connected',
-    offline: 'Offline',
-    'not-configured': 'Not configured',
-    'coming-soon': 'Coming soon',
-    checking: 'Checking status...',
+    online: t('settings.connected'),
+    partial: t('settings.partiallyConnected'),
+    offline: t('settings.offline'),
+    'not-configured': t('settings.notConfigured'),
+    'coming-soon': t('settings.comingSoon'),
+    checking: t('settings.checkingStatus'),
   }
 
   return (
@@ -111,6 +113,7 @@ function StatusDot({ status }: { status: IntegrationStatusValue }) {
 }
 
 function BackupStatusDot({ status }: { status: BackupStatusValue }) {
+  const { t } = useTranslation()
   const colors: Record<BackupStatusValue, string> = {
     online: 'bg-plm-success',
     partial: 'bg-yellow-500',
@@ -119,10 +122,10 @@ function BackupStatusDot({ status }: { status: BackupStatusValue }) {
   }
 
   const titles: Record<BackupStatusValue, string> = {
-    online: 'Backups working',
-    partial: 'Needs attention',
-    offline: 'Backup failed',
-    'not-configured': 'Not configured',
+    online: t('settings.backupsWorking'),
+    partial: t('settings.needsAttention'),
+    offline: t('settings.backupFailed'),
+    'not-configured': t('settings.notConfigured'),
   }
 
   return (
@@ -134,6 +137,7 @@ function BackupStatusDot({ status }: { status: BackupStatusValue }) {
 }
 
 export function SettingsNavigation({ activeTab, onTabChange }: SettingsNavigationProps) {
+  const { t } = useTranslation()
   // ═══════════════════════════════════════════════════════════════════════════
   // INTEGRATION & BACKUP STATUSES - Consumed from centralized store slice
   // ═══════════════════════════════════════════════════════════════════════════
@@ -144,7 +148,7 @@ export function SettingsNavigation({ activeTab, onTabChange }: SettingsNavigatio
   const backupStatus = usePDMStore((s) => s.backupStatus)
   const isAdmin = usePDMStore((s) => s.getEffectiveRole() === 'admin')
 
-  const sections = settingsSections().map((section) => ({
+  const sections = settingsSections(t).map((section) => ({
     ...section,
     items: section.items.filter((item) => !item.adminOnly || isAdmin),
   }))
@@ -166,7 +170,7 @@ export function SettingsNavigation({ activeTab, onTabChange }: SettingsNavigatio
       <nav
         className="flex-1 overflow-y-auto hide-scrollbar"
         role="menu"
-        aria-label="Settings navigation"
+        aria-label={t('settings.navigation')}
       >
         <div className="flex flex-col py-1">
           {sections.map((section, sectionIndex) => (

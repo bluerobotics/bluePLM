@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { log } from '@/lib/logger'
-import { useTranslation } from '@/lib/i18n'
+import { getTranslation, useTranslation } from '@/lib/i18n'
 import { usePDMStore } from '@/stores/pdmStore'
 import { useShallow } from 'zustand/react/shallow'
 import { supabase } from '@/lib/supabase'
@@ -46,7 +46,7 @@ export function SerializationSettings() {
 
   // Generate a live preview of what the serial number will look like
   const livePreview = useMemo(() => {
-    if (!settings.enabled) return 'Disabled'
+    if (!settings.enabled) return t('settingsPages.serialization.disabled')
 
     let nextNumber = settings.current_counter + 1
 
@@ -73,7 +73,7 @@ export function SerializationSettings() {
     serial += settings.suffix
 
     return serial
-  }, [settings])
+  }, [settings, t])
 
   // Generate base-only preview (without tab)
   const basePreview = useMemo(() => {
@@ -167,7 +167,7 @@ export function SerializationSettings() {
       setPreviewNumber(data as string)
     } catch (error) {
       log.error('[Serialization]', 'Failed to fetch preview', { error: error })
-      addToast('error', 'Failed to fetch serial number preview')
+      addToast('error', t('settingsPages.serialization.previewFailed'))
     } finally {
       setLoadingPreview(false)
     }
@@ -192,13 +192,13 @@ export function SerializationSettings() {
       })
 
       if (error) throw error
-      addToast('success', 'Serialization settings saved')
+      addToast('success', t('settingsPages.serialization.saved'))
 
       // Refresh preview after save
       fetchPreview()
     } catch (error) {
       log.error('[Serialization]', 'Failed to save settings', { error: error })
-      addToast('error', 'Failed to save serialization settings')
+      addToast('error', t('settingsPages.serialization.saveFailed'))
     } finally {
       setSaving(false)
       // Small delay before allowing realtime sync again to let the update propagate
@@ -222,7 +222,7 @@ export function SerializationSettings() {
     const end = parseInt(newKeepout.end)
 
     if (isNaN(start) || isNaN(end) || start < 0 || end < start) {
-      addToast('error', 'Invalid range: end must be greater than or equal to start')
+      addToast('error', t('settingsPages.serialization.invalidRange'))
       return
     }
 
@@ -235,14 +235,16 @@ export function SerializationSettings() {
     )
 
     if (overlaps) {
-      addToast('error', 'This range overlaps with an existing keepout zone')
+      addToast('error', t('settingsPages.serialization.overlap'))
       return
     }
 
     const newZone: KeepoutZone = {
       start,
       end_num: end,
-      description: newKeepout.description || `Reserved range ${start}-${end}`,
+      description:
+        newKeepout.description ||
+        getTranslation('en', 'settingsPages.serialization.reservedRange', { start, end }),
     }
 
     updateSetting(
@@ -304,14 +306,20 @@ export function SerializationSettings() {
       if (result && result.highestCounter > 0) {
         addToast(
           'success',
-          `Found highest: ${result.highestPartNumber} (counter: ${result.highestCounter})`,
+          t('settingsPages.serialization.highestFoundToast', {
+            partNumber: result.highestPartNumber,
+            counter: result.highestCounter,
+          }),
         )
       } else if (result) {
-        addToast('info', `Scanned ${result.totalScanned} files, no matching serial numbers found`)
+        addToast(
+          'info',
+          t('settingsPages.serialization.noMatchToast', { count: result.totalScanned }),
+        )
       }
     } catch (error) {
       log.error('[Serialization]', 'Failed to detect highest serial', { error: error })
-      addToast('error', 'Failed to scan files')
+      addToast('error', t('settingsPages.serialization.scanFailed'))
     } finally {
       setDetecting(false)
     }
@@ -321,7 +329,10 @@ export function SerializationSettings() {
   const applyDetectedCounter = () => {
     if (detectedResult && detectedResult.highestCounter > 0) {
       updateSetting('current_counter', detectedResult.highestCounter)
-      addToast('success', `Counter set to ${detectedResult.highestCounter}`)
+      addToast(
+        'success',
+        t('settingsPages.serialization.counterSet', { counter: detectedResult.highestCounter }),
+      )
     }
   }
 
