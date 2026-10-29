@@ -12,6 +12,7 @@ export default defineConfig({
       'src/**/*.test.ts',
       'src/**/*.test.tsx',
       'electron/**/*.test.ts',
+      'tests/mdbAuthIpc.test.ts',
       'scripts/**/*.test.ts',
     ],
     // Measured, not gated: `npm run test:coverage` writes a text summary and lcov to coverage/.

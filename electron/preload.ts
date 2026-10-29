@@ -1,4 +1,5 @@
 import { contextBridge as electronContextBridge, ipcRenderer, webUtils } from 'electron'
+import { createMdbAuthBridge } from './preloadMdbAuth'
 import { PERF_BOOT_ARG } from './perfBootFlag'
 import type { LocalFileInfo } from './types'
 
@@ -104,6 +105,7 @@ const contextBridge: Pick<typeof electronContextBridge, 'exposeInMainWorld'> = p
 
 // Expose APIs to renderer
 contextBridge.exposeInMainWorld('electronAPI', {
+  mdbAuth: createMdbAuthBridge(),
   // App info
   getVersion: () => ipcRenderer.invoke('app:get-version'),
   reloadApp: () => ipcRenderer.invoke('app:reload'),

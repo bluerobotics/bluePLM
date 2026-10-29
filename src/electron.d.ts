@@ -237,6 +237,7 @@ declare global {
 
   interface Window {
     electronAPI: {
+      mdbAuth: import('./lib/backend/contracts/mdbAuth').MdbAuthCapability
       // App info
       getVersion: () => Promise<string>
       getPlatform: () => Promise<string>

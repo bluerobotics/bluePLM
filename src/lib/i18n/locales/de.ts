@@ -1,9 +1,11 @@
+import dialogStrings from '../../../../electron/backend/mdbAuthDialogStrings.json'
 import type { TranslationDict } from '../types'
 import { reviewsUiStrings } from './reviewsUi'
 import { reviewPackageStrings } from './reviewPackage'
 
 // German translations
 export const de: TranslationDict = {
+  mdbAuth: dialogStrings.de,
   solidworksSettings: {
     previewMode: 'Vorschaumodus',
     embeddedThumbnail: 'Eingebettete Miniaturansicht',
@@ -59,7 +61,7 @@ export const de: TranslationDict = {
   },
   common: {
     save: 'Speichern',
-    cancel: 'Abbrechen',
+    cancel: dialogStrings.de.cancel,
     delete: 'Löschen',
     edit: 'Bearbeiten',
     add: 'Hinzufügen',

@@ -7,11 +7,18 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
     "strict": true
   },
   // api/src/native-extensions/safeExtract.ts is the one package extractor; the API
   // (built on its own from api/) and the desktop both use it.
-  "include": ["vite.config.ts", "vite.perf.ts", "electron/**/*.ts", "api/src/native-extensions/safeExtract.ts"]
+  "include": [
+    "vite.config.ts",
+    "vite.perf.ts",
+    "electron/**/*.ts",
+    "api/src/native-extensions/safeExtract.ts",
+    "src/lib/backend/contracts/mdbAuthShared.d.ts"
+  ]
 }
 

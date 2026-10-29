@@ -1,0 +1,7 @@
+export const MDB_AUTH_VALIDATE = 'mdb-auth:validate-server'
+export const MDB_AUTH_SIGN_IN = 'mdb-auth:sign-in'
+export const MDB_AUTH_VERIFY_TOTP = 'mdb-auth:verify-totp'
+export const MDB_AUTH_RESTORE = 'mdb-auth:restore'
+export const MDB_AUTH_SIGN_OUT = 'mdb-auth:sign-out'
+export const MDB_AUTH_GET_STATE = 'mdb-auth:get-state'
+export const MDB_AUTH_CHANGED = 'mdb-auth:changed'
