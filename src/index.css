@@ -2189,3 +2189,20 @@ tr.selected.diff-cloud {
 .pdf-page {
   transition: box-shadow 0.15s;
 }
+/* Settings search: flash the setting a search result opened */
+@keyframes settings-search-flash {
+  0%,
+  40% {
+    box-shadow: 0 0 0 2px var(--plm-accent);
+    background-color: color-mix(in srgb, var(--plm-accent) 14%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 2px transparent;
+    background-color: transparent;
+  }
+}
+
+.settings-search-flash {
+  border-radius: 6px;
+  animation: settings-search-flash 2.2s ease-out;
+}

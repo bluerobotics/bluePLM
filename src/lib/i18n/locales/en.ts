@@ -267,6 +267,14 @@ export const en: TranslationDict = {
     api: 'API',
     logs: 'Logs',
     about: 'About',
+    searchPlaceholder: 'Search settings',
+    searchClear: 'Clear search',
+    searchResultCount: '{{count}} settings',
+    searchResultCountOne: '1 setting',
+    searchNoResults: 'No settings match "{{query}}"',
+    searchNoResultsHint: 'Try fewer letters or a different word.',
+    searchKeyboardHint: '↑ ↓ to move · Enter to open · Esc to clear',
+    searchMatchedKeyword: 'matches "{{keyword}}"',
   },
 
   // Log viewer

@@ -6,6 +6,15 @@ All notable changes to BluePLM will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Search settings.** A search box at the top of the settings sidebar finds individual
+  settings, not just tabs, as you type: the main view lists every match grouped by tab with the
+  matched letters highlighted, and the sidebar narrows to the tabs that have one. The matching
+  is fuzzy (abbreviations such as "autodl", camelCase acronyms such as "sw", synonyms such as
+  "hotkeys", and typos such as "seiral"). Arrow keys and Enter open a result, which jumps to the
+  setting and flashes it; Esc clears, Ctrl+F focuses the box.
+
 ## [4.8.1] - 2026-10-29
 
 App only: no schema, API or SolidWorks service change, so it runs on schema 109, API 3.0.0 and

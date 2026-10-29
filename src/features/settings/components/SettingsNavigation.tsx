@@ -2,76 +2,14 @@ import { usePDMStore } from '@/stores/pdmStore'
 import type { IntegrationStatusValue, IntegrationId, BackupStatusValue } from '@/stores/types'
 import type { SettingsTab } from '@/types/settings'
 import { logSettings } from '@/lib/userActionLogger'
+import { settingsSections } from '../settingsCatalog'
+import { SettingsSearchBox } from './SettingsSearchBox'
+import { useSettingsSearch } from '../useSettingsSearch'
 
 interface SettingsNavigationProps {
   activeTab: SettingsTab
   onTabChange: (tab: SettingsTab) => void
 }
-
-interface SettingsNavigationItem {
-  id: SettingsTab
-  label: string
-  /** Hidden from the navigation for everyone but an admin. The panel gates itself as well. */
-  adminOnly?: boolean
-}
-
-interface SettingsSection {
-  category: string
-  items: SettingsNavigationItem[]
-}
-
-// A function rather than a constant because the labels are translated at render time, and the
-// language can change without the module being re-evaluated.
-const settingsSections = (): SettingsSection[] => [
-  {
-    category: 'Account',
-    items: [
-      { id: 'profile', label: 'Profile' },
-      { id: 'preferences', label: 'Preferences' },
-      { id: 'keybindings', label: 'Keybindings' },
-      { id: 'modules', label: 'Sidebar' },
-      { id: 'delete-account', label: 'Delete Account' },
-    ],
-  },
-  {
-    category: 'Organization',
-    items: [
-      { id: 'supabase', label: 'Supabase' },
-      { id: 'backup', label: 'Backups' },
-      { id: 'vaults', label: 'Vaults' },
-      { id: 'team-members', label: 'Members & Teams' },
-      { id: 'module-access', label: 'Module Access' },
-      { id: 'company-profile', label: 'Company Profile' },
-      { id: 'auth-providers', label: 'Sign-In Methods' },
-      { id: 'serialization', label: 'Serialization' },
-      { id: 'export', label: 'Export Options' },
-      { id: 'metadata-columns', label: 'File Metadata' },
-      { id: 'item-designations', label: 'Item Designations' },
-      { id: 'rfq', label: 'RFQ Settings' },
-      { id: 'recovery-codes', label: 'Recovery Codes' },
-    ],
-  },
-  {
-    category: 'Extensions',
-    items: [
-      { id: 'extension-store', label: 'Extension Store' },
-      { id: 'solidworks', label: 'SolidWorks' },
-      { id: 'google-drive', label: 'Google Drive' },
-      { id: 'odoo', label: 'Odoo ERP' },
-      { id: 'api', label: 'REST API' },
-      { id: 'webhooks', label: 'Webhooks' },
-    ],
-  },
-  {
-    category: 'System',
-    items: [
-      { id: 'performance', label: 'Performance' },
-      { id: 'logs', label: 'Logs' },
-      { id: 'dev-tools', label: 'Dev Tools' },
-      { id: 'about', label: 'About' },
-    ],
-  },
-]
 
 // Items that show status dots (integrations + Supabase which is now in Organization)
 const integrationIds = [
@@ -144,10 +82,18 @@ export function SettingsNavigation({ activeTab, onTabChange }: SettingsNavigatio
   const backupStatus = usePDMStore((s) => s.backupStatus)
   const isAdmin = usePDMStore((s) => s.getEffectiveRole() === 'admin')
 
-  const sections = settingsSections().map((section) => ({
-    ...section,
-    items: section.items.filter((item) => !item.adminOnly || isAdmin),
-  }))
+  const { query, groups } = useSettingsSearch()
+  const matchedTabs = new Set(groups.map((g) => g.tab))
+
+  // While searching, the navigation narrows to the tabs that have a match.
+  const sections = settingsSections()
+    .map((section) => ({
+      ...section,
+      items: section.items.filter(
+        (item) => (!item.adminOnly || isAdmin) && (!query || matchedTabs.has(item.id)),
+      ),
+    }))
+    .filter((section) => section.items.length > 0)
 
   const isIntegration = (id: SettingsTab): boolean => {
     return (integrationIds as readonly string[]).includes(id)
@@ -162,6 +108,8 @@ export function SettingsNavigation({ activeTab, onTabChange }: SettingsNavigatio
 
   return (
     <div className="flex flex-col h-full bg-plm-sidebar">
+      <SettingsSearchBox />
+
       {/* Scrollable navigation */}
       <nav
         className="flex-1 overflow-y-auto hide-scrollbar"
@@ -188,10 +136,14 @@ export function SettingsNavigation({ activeTab, onTabChange }: SettingsNavigatio
                       role="menuitem"
                       onClick={() => {
                         logSettings(`Changed settings tab to ${item.label}`, { tabId: item.id })
-                        onTabChange(item.id)
+                        if (query) {
+                          usePDMStore.getState().openSettingFromSearch(item.id, item.label)
+                        } else {
+                          onTabChange(item.id)
+                        }
                       }}
                       className={`w-full flex items-center justify-between px-3 py-1 rounded-lg text-[13px] font-sans transition-colors outline-none focus-visible:ring-1 focus-visible:ring-plm-accent ${
-                        activeTab === item.id
+                        activeTab === item.id && !query
                           ? 'bg-plm-highlight text-plm-fg font-semibold'
                           : 'text-plm-fg-dim hover:text-plm-fg'
                       }`}

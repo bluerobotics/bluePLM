@@ -595,6 +595,15 @@ export interface UISlice {
 
   // Settings navigation
   settingsTab: SettingsTab
+  /** Live query of the settings sidebar search box; non-empty shows results in the main view. */
+  settingsSearchQuery: string
+  /** Keyboard-highlighted result (index into the flattened results); reset on each query. */
+  settingsSearchActiveIndex: number
+  /**
+   * A setting to scroll to and flash once its panel renders, set when a search result is
+   * opened. `nonce` lets opening the same setting twice fire again.
+   */
+  settingsFocusTarget: { tab: SettingsTab; label: string; nonce: number } | null
 
   // Google Drive navigation
   gdriveCurrentFolderId: string | null
@@ -666,6 +675,11 @@ export interface UISlice {
 
   // Settings navigation
   setSettingsTab: (tab: SettingsTab) => void
+  setSettingsSearchQuery: (query: string) => void
+  setSettingsSearchActiveIndex: (index: number) => void
+  /** Open `tab`, clear the search, and ask the panel to reveal the setting named `label`. */
+  openSettingFromSearch: (tab: SettingsTab, label: string) => void
+  clearSettingsFocusTarget: () => void
 
   // Deep Link
   setPendingDeepLinkInstall: (data: { extensionId: string; version?: string } | null) => void

@@ -27,6 +27,9 @@ export const createUISlice: StateCreator<
 
   // Initial state - Settings navigation
   settingsTab: 'profile' as SettingsTab,
+  settingsSearchQuery: '',
+  settingsSearchActiveIndex: 0,
+  settingsFocusTarget: null,
 
   // Initial state - Google Drive
   gdriveCurrentFolderId: null,
@@ -239,6 +242,16 @@ export const createUISlice: StateCreator<
 
   // Actions - Settings navigation
   setSettingsTab: (tab: SettingsTab) => set({ settingsTab: tab }),
+  setSettingsSearchQuery: (query: string) =>
+    set({ settingsSearchQuery: query, settingsSearchActiveIndex: 0 }),
+  setSettingsSearchActiveIndex: (index: number) => set({ settingsSearchActiveIndex: index }),
+  openSettingFromSearch: (tab: SettingsTab, label: string) =>
+    set((state) => ({
+      settingsTab: tab,
+      settingsSearchQuery: '',
+      settingsFocusTarget: { tab, label, nonce: (state.settingsFocusTarget?.nonce ?? 0) + 1 },
+    })),
+  clearSettingsFocusTarget: () => set({ settingsFocusTarget: null }),
 
   // Actions - Deep Link
   setPendingDeepLinkInstall: (data) => set({ pendingDeepLinkInstall: data }),

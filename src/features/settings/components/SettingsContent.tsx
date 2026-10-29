@@ -1,7 +1,10 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect, useRef } from 'react'
 import { Loader2 } from 'lucide-react'
 import type { SettingsTab } from '@/types/settings'
+import { usePDMStore } from '@/stores/pdmStore'
 import { ExtensionStoreView } from '@/features/extensions'
+import { SettingsSearchResults } from './SettingsSearchResults'
+import { findSettingElement, flashSettingElement } from '../revealSetting'
 
 // Lazy loaded settings panels - only loaded when the tab is selected
 // This saves memory by not loading all settings components upfront
@@ -110,7 +113,48 @@ function SettingsLoading() {
   )
 }
 
+/** How long to wait for a lazy panel (and the data it loads) to render the setting asked for. */
+const REVEAL_TIMEOUT_MS = 4000
+const REVEAL_POLL_MS = 100
+
+/**
+ * When a search result opened this tab, wait for the panel to render the setting, then scroll
+ * to it and flash it. Gives up quietly if the panel never shows that label.
+ */
+function useRevealSearchedSetting(activeTab: SettingsTab) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const focusTarget = usePDMStore((s) => s.settingsFocusTarget)
+  const clearFocusTarget = usePDMStore((s) => s.clearSettingsFocusTarget)
+
+  useEffect(() => {
+    if (!focusTarget || focusTarget.tab !== activeTab) return
+    const startedAt = performance.now()
+    let timer = 0
+    const tick = () => {
+      const root = containerRef.current
+      const el = root ? findSettingElement(root, focusTarget.label) : null
+      if (root && el) {
+        flashSettingElement(el, root)
+        clearFocusTarget()
+        return
+      }
+      if (performance.now() - startedAt > REVEAL_TIMEOUT_MS) {
+        clearFocusTarget()
+        return
+      }
+      timer = window.setTimeout(tick, REVEAL_POLL_MS)
+    }
+    timer = window.setTimeout(tick, 0)
+    return () => window.clearTimeout(timer)
+  }, [focusTarget, activeTab, clearFocusTarget])
+
+  return containerRef
+}
+
 export function SettingsContent({ activeTab }: SettingsContentProps) {
+  const searchQuery = usePDMStore((s) => s.settingsSearchQuery)
+  const containerRef = useRevealSearchedSetting(activeTab)
+
   const renderContent = () => {
     switch (activeTab) {
       case 'profile':
@@ -176,17 +220,21 @@ export function SettingsContent({ activeTab }: SettingsContentProps) {
     }
   }
 
+  if (searchQuery.trim()) {
+    return <SettingsSearchResults />
+  }
+
   // Logs view needs full width for the log viewer
   if (activeTab === 'logs') {
     return (
-      <div className="flex-1 overflow-hidden bg-plm-bg p-4">
+      <div ref={containerRef} className="flex-1 overflow-hidden bg-plm-bg p-4">
         <Suspense fallback={<SettingsLoading />}>{renderContent()}</Suspense>
       </div>
     )
   }
 
   return (
-    <div className="flex-1 overflow-y-auto bg-plm-bg">
+    <div ref={containerRef} className="flex-1 overflow-y-auto bg-plm-bg">
       <div className="max-w-6xl mx-auto p-6">
         <Suspense fallback={<SettingsLoading />}>{renderContent()}</Suspense>
       </div>
