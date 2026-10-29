@@ -6,6 +6,17 @@ All notable changes to BluePLM will be documented in this file.
 
 ## [Unreleased]
 
+## [4.7.7-beta.1] - 2026-10-28
+
+Test build for native inspection ballooning, cut from 4.7.6. Nothing else from main is in it:
+no schema change (still 103), no API change (2.8.3).
+
+### Changed
+- SOLIDWORKS service 1.25.0: Balloon drawing keeps balloons you moved by hand when it runs again,
+  and the toast counts them.
+- The Pull from / Push to SW Inspection buttons and the add-in service commands are removed.
+  Extract from drawing and Balloon drawing need only SOLIDWORKS, not an Inspection license.
+
 ## [4.7.6] - 2026-10-28
 
 Renderer, Electron main, API 2.8.3, schema 103, SolidWorks service 1.23.0. The database must be
