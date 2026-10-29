@@ -64,7 +64,7 @@ export function ReviewWorkflowBar({ detail, onChanged }: ReviewWorkflowBarProps)
             count: stuck.length,
             files: stuck
               .slice(0, 5)
-              .map((s) => `${s.fileName} (${t(`reviewDetail.workflow.reasons.${s.reason}`)})`)
+              .map((s) => `${s.fileName} (${t(`reviewDetail.workflowReason.${s.reason}`)})`)
               .join(', '),
           }),
         )

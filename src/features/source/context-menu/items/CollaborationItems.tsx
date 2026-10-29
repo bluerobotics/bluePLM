@@ -22,7 +22,6 @@ interface CollaborationItemsProps {
 }
 
 export function CollaborationItems({
-  contextFiles,
   firstFile,
   multiSelect,
   isFolder,

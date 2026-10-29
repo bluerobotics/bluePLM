@@ -132,7 +132,7 @@ export async function addFilesToOpenReview(
     .map((f) => f.pdmData?.id)
     .filter((id): id is string => !!id && !contained.has(id))
   if (fileIds.length === 0) {
-    state.addToast('info', t('contextMenu.review.toast.alreadyInReview', { title: review.title }))
+    state.addToast('info', t('contextMenu.review.toastAlreadyInReview', { title: review.title }))
     return
   }
 
@@ -148,7 +148,7 @@ export async function addFilesToOpenReview(
     )
     state.addToast(
       'success',
-      t('contextMenu.review.toast.added', { count: result.added, title: review.title }),
+      t('contextMenu.review.toastAdded', { count: result.added, title: review.title }),
     )
     const skipped = fileIds.length - latest.length
     if (skipped > 0)
@@ -161,7 +161,7 @@ export async function addFilesToOpenReview(
     })
     state.addToast(
       'error',
-      t('contextMenu.review.toast.addFailed', { message: describeReviewError(error) }),
+      t('contextMenu.review.toastAddFailed', { message: describeReviewError(error) }),
     )
   }
 }
@@ -178,7 +178,7 @@ export async function removeFilesFromOpenReview(
     const result = await removeReviewItems(review.reviewId, ids)
     state.addToast(
       'success',
-      t('contextMenu.review.toast.removed', { count: result.removed, title: review.title }),
+      t('contextMenu.review.toastRemoved', { count: result.removed, title: review.title }),
     )
     usePDMStore.getState().requestReviewQueueRefresh()
   } catch (error) {
@@ -188,7 +188,7 @@ export async function removeFilesFromOpenReview(
     })
     state.addToast(
       'error',
-      t('contextMenu.review.toast.removeFailed', { message: describeReviewError(error) }),
+      t('contextMenu.review.toastRemoveFailed', { message: describeReviewError(error) }),
     )
   }
 }
@@ -200,5 +200,5 @@ export function removeFilesFromReviewPackage(fileIds: readonly string[]): void {
   const ids = fileIds.filter((id) => inDraft.has(id))
   for (const id of ids) state.removeReviewPackageItem(id)
   if (ids.length > 0)
-    state.addToast('success', t('contextMenu.review.toast.removedFromDraft', { count: ids.length }))
+    state.addToast('success', t('contextMenu.review.toastRemovedFromDraft', { count: ids.length }))
 }
