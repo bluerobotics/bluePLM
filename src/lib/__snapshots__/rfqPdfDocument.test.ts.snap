@@ -1,0 +1,389 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`RFQ PDF document extraction baseline > captures formatter markup: 'legacy address and optional columns d…' 1`] = `""\\n<!DOCTYPE html>\\n<html>\\n<head>\\n  <meta charset=\\"utf-8\\">\\n  <title>RFQ RFQ-1042</title>\\n  <style>\\n    * {\\n      margin: 0;\\n      padding: 0;\\n      box-sizing: border-box;\\n    }\\n    \\n    body {\\n      font-family: 'Segoe UI', Arial, sans-serif;\\n      font-size: 11px;\\n      color: #1a1a1a;\\n      line-height: 1.4;\\n      padding: 40px;\\n      max-width: 1000px;\\n      margin: 0 auto;\\n    }\\n    \\n    .header {\\n      display: flex;\\n      justify-content: space-between;\\n      align-items: flex-start;\\n      margin-bottom: 30px;\\n      padding-bottom: 20px;\\n      border-bottom: 2px solid #0066cc;\\n    }\\n    \\n    .company-info {\\n      flex: 1;\\n    }\\n    \\n    .company-name {\\n      font-size: 20px;\\n      font-weight: 700;\\n      color: #0066cc;\\n      margin-bottom: 8px;\\n    }\\n    \\n    .company-address {\\n      color: #666;\\n      font-size: 10px;\\n      line-height: 1.5;\\n    }\\n    \\n    .company-contact {\\n      margin-top: 8px;\\n      color: #666;\\n      font-size: 10px;\\n    }\\n    \\n    .rfq-title {\\n      text-align: right;\\n    }\\n    \\n    .rfq-number {\\n      font-size: 24px;\\n      font-weight: 700;\\n      color: #1a1a1a;\\n    }\\n    \\n    .rfq-label {\\n      font-size: 12px;\\n      color: #666;\\n      text-transform: uppercase;\\n      letter-spacing: 1px;\\n    }\\n    \\n    .logo {\\n      max-height: 60px;\\n      max-width: 200px;\\n      margin-bottom: 10px;\\n    }\\n    \\n    .meta-section {\\n      display: flex;\\n      gap: 40px;\\n      margin-bottom: 25px;\\n      padding: 15px;\\n      background: #f8f9fa;\\n      border-radius: 6px;\\n    }\\n    \\n    .meta-group {\\n      flex: 1;\\n    }\\n    \\n    .meta-label {\\n      font-size: 9px;\\n      color: #666;\\n      text-transform: uppercase;\\n      letter-spacing: 0.5px;\\n      margin-bottom: 3px;\\n    }\\n    \\n    .meta-value {\\n      font-size: 12px;\\n      font-weight: 500;\\n    }\\n    \\n    .addresses-section {\\n      display: flex;\\n      gap: 40px;\\n      margin-bottom: 25px;\\n    }\\n    \\n    .address-box {\\n      flex: 1;\\n      padding: 15px;\\n      background: #f8f9fa;\\n      border-radius: 6px;\\n    }\\n    \\n    .address-label {\\n      font-size: 10px;\\n      font-weight: 600;\\n      text-transform: uppercase;\\n      letter-spacing: 0.5px;\\n      color: #666;\\n      margin-bottom: 8px;\\n    }\\n    \\n    .address-content {\\n      font-size: 11px;\\n      line-height: 1.5;\\n    }\\n    \\n    .section-title {\\n      font-size: 14px;\\n      font-weight: 600;\\n      color: #1a1a1a;\\n      margin-bottom: 12px;\\n      padding-bottom: 6px;\\n      border-bottom: 1px solid #ddd;\\n    }\\n    \\n    .items-table {\\n      width: 100%;\\n      border-collapse: collapse;\\n      margin-bottom: 25px;\\n    }\\n    \\n    .items-table th {\\n      background: #0066cc;\\n      color: white;\\n      padding: 10px 8px;\\n      text-align: left;\\n      font-size: 10px;\\n      font-weight: 600;\\n      text-transform: uppercase;\\n      letter-spacing: 0.5px;\\n    }\\n    \\n    .items-table td {\\n      padding: 10px 8px;\\n      border-bottom: 1px solid #e5e5e5;\\n      vertical-align: top;\\n    }\\n    \\n    .items-table tr:nth-child(even) {\\n      background: #fafafa;\\n    }\\n    \\n    .items-table tr:hover {\\n      background: #f0f7ff;\\n    }\\n    \\n    .line-num {\\n      width: 30px;\\n      text-align: center;\\n      color: #999;\\n    }\\n    \\n    .part-num {\\n      font-weight: 600;\\n      color: #0066cc;\\n    }\\n    \\n    .qty {\\n      text-align: center;\\n      font-weight: 500;\\n    }\\n    \\n    .rev {\\n      text-align: center;\\n    }\\n    \\n    .notes-section {\\n      margin-bottom: 25px;\\n    }\\n    \\n    .notes-content {\\n      padding: 15px;\\n      background: #fffbeb;\\n      border-left: 3px solid #f59e0b;\\n      border-radius: 0 6px 6px 0;\\n      font-size: 11px;\\n    }\\n    \\n    .terms-section {\\n      margin-bottom: 25px;\\n    }\\n    \\n    .terms-content {\\n      padding: 15px;\\n      background: #f8f9fa;\\n      border-radius: 6px;\\n      font-size: 10px;\\n      color: #666;\\n      white-space: pre-wrap;\\n    }\\n    \\n    .footer {\\n      margin-top: 40px;\\n      padding-top: 20px;\\n      border-top: 1px solid #ddd;\\n      text-align: center;\\n      font-size: 9px;\\n      color: #999;\\n    }\\n    \\n    .signature-section {\\n      margin-top: 40px;\\n      display: flex;\\n      justify-content: space-between;\\n      gap: 60px;\\n    }\\n    \\n    .signature-box {\\n      flex: 1;\\n      border-top: 1px solid #333;\\n      padding-top: 8px;\\n    }\\n    \\n    .signature-label {\\n      font-size: 10px;\\n      color: #666;\\n    }\\n    \\n    @media print {\\n      body {\\n        padding: 20px;\\n      }\\n      \\n      .items-table {\\n        page-break-inside: auto;\\n      }\\n      \\n      .items-table tr {\\n        page-break-inside: avoid;\\n      }\\n    }\\n  </style>\\n</head>\\n<body>\\n  <div class=\\"header\\">\\n    <div class=\\"company-info\\">\\n      \\n      <div class=\\"company-name\\">Blue Example Manufacturing</div>\\n      \\n        <div class=\\"company-address\\">\\n          100 Industrial Way<br>Springfield, Ohio, 45502<br>USA\\n        </div>\\n      \\n      \\n        <div class=\\"company-contact\\">\\n          Tel: +1 555 0100 • Email: purchasing@example.invalid • https://example.invalid\\n        </div>\\n      \\n    </div>\\n    <div class=\\"rfq-title\\">\\n      <div class=\\"rfq-label\\">Request for Quote</div>\\n      <div class=\\"rfq-number\\">RFQ-1042</div>\\n    </div>\\n  </div>\\n  \\n  <div class=\\"meta-section\\">\\n    <div class=\\"meta-group\\">\\n      <div class=\\"meta-label\\">RFQ Title</div>\\n      <div class=\\"meta-value\\">Precision bracket</div>\\n    </div>\\n    <div class=\\"meta-group\\">\\n      <div class=\\"meta-label\\">Date Issued</div>\\n      <div class=\\"meta-value\\">10/18/2026</div>\\n    </div>\\n    \\n      <div class=\\"meta-group\\">\\n        <div class=\\"meta-label\\">Quote Due By</div>\\n        <div class=\\"meta-value\\">10/30/2026</div>\\n      </div>\\n    \\n    \\n      <div class=\\"meta-group\\">\\n        <div class=\\"meta-label\\">Delivery Required</div>\\n        <div class=\\"meta-value\\">11/7/2026</div>\\n      </div>\\n    \\n  </div>\\n  \\n  \\n    <div class=\\"notes-section\\">\\n      <div class=\\"section-title\\">Project Description</div>\\n      <div class=\\"notes-content\\">Quote the listed machined component.</div>\\n    </div>\\n  \\n  \\n  \\n    <div class=\\"addresses-section\\">\\n      \\n        <div class=\\"address-box\\">\\n          <div class=\\"address-label\\">Bill To:</div>\\n          <div class=\\"address-content\\">\\n            100 Industrial Way<br>Springfield, Ohio, 45502\\n          </div>\\n        </div>\\n      \\n      \\n    </div>\\n  \\n  \\n  <div class=\\"section-title\\">Items (1)</div>\\n  <table class=\\"items-table\\">\\n    <thead>\\n      <tr>\\n        <th>#</th>\\n        <th>Part Number</th>\\n        <th>Description</th>\\n        <th>Quantity</th>\\n      </tr>\\n    </thead>\\n    <tbody>\\n      <tr><td class=\\"line-num\\">1</td><td class=\\"part-num\\">BRK-204</td><td class=\\"desc\\">Mounting bracket</td><td class=\\"qty\\">25 pcs</td></tr>\\n    </tbody>\\n  </table>\\n  \\n  \\n    <div class=\\"notes-section\\">\\n      <div class=\\"section-title\\">Notes to Supplier</div>\\n      <div class=\\"notes-content\\">Include material certificate.</div>\\n    </div>\\n  \\n  \\n  \\n    <div class=\\"terms-section\\">\\n      <div class=\\"section-title\\">Terms and Conditions</div>\\n      <div class=\\"terms-content\\">Pricing must remain valid for 30 days.</div>\\n    </div>\\n  \\n  \\n  <div class=\\"signature-section\\">\\n    <div class=\\"signature-box\\">\\n      <div class=\\"signature-label\\">Supplier Signature / Date</div>\\n    </div>\\n    <div class=\\"signature-box\\">\\n      <div class=\\"signature-label\\">Print Name / Title</div>\\n    </div>\\n  </div>\\n  \\n  <div class=\\"footer\\">\\n    Thank you for your quotation.\\n  </div>\\n</body>\\n</html>\\n""`;
+
+exports[`RFQ PDF document extraction baseline > captures formatter markup: 'logo and decimal quantity' 1`] = `""\\n<!DOCTYPE html>\\n<html>\\n<head>\\n  <meta charset=\\"utf-8\\">\\n  <title>RFQ RFQ-1042</title>\\n  <style>\\n    * {\\n      margin: 0;\\n      padding: 0;\\n      box-sizing: border-box;\\n    }\\n    \\n    body {\\n      font-family: 'Segoe UI', Arial, sans-serif;\\n      font-size: 11px;\\n      color: #1a1a1a;\\n      line-height: 1.4;\\n      padding: 40px;\\n      max-width: 1000px;\\n      margin: 0 auto;\\n    }\\n    \\n    .header {\\n      display: flex;\\n      justify-content: space-between;\\n      align-items: flex-start;\\n      margin-bottom: 30px;\\n      padding-bottom: 20px;\\n      border-bottom: 2px solid #0066cc;\\n    }\\n    \\n    .company-info {\\n      flex: 1;\\n    }\\n    \\n    .company-name {\\n      font-size: 20px;\\n      font-weight: 700;\\n      color: #0066cc;\\n      margin-bottom: 8px;\\n    }\\n    \\n    .company-address {\\n      color: #666;\\n      font-size: 10px;\\n      line-height: 1.5;\\n    }\\n    \\n    .company-contact {\\n      margin-top: 8px;\\n      color: #666;\\n      font-size: 10px;\\n    }\\n    \\n    .rfq-title {\\n      text-align: right;\\n    }\\n    \\n    .rfq-number {\\n      font-size: 24px;\\n      font-weight: 700;\\n      color: #1a1a1a;\\n    }\\n    \\n    .rfq-label {\\n      font-size: 12px;\\n      color: #666;\\n      text-transform: uppercase;\\n      letter-spacing: 1px;\\n    }\\n    \\n    .logo {\\n      max-height: 60px;\\n      max-width: 200px;\\n      margin-bottom: 10px;\\n    }\\n    \\n    .meta-section {\\n      display: flex;\\n      gap: 40px;\\n      margin-bottom: 25px;\\n      padding: 15px;\\n      background: #f8f9fa;\\n      border-radius: 6px;\\n    }\\n    \\n    .meta-group {\\n      flex: 1;\\n    }\\n    \\n    .meta-label {\\n      font-size: 9px;\\n      color: #666;\\n      text-transform: uppercase;\\n      letter-spacing: 0.5px;\\n      margin-bottom: 3px;\\n    }\\n    \\n    .meta-value {\\n      font-size: 12px;\\n      font-weight: 500;\\n    }\\n    \\n    .addresses-section {\\n      display: flex;\\n      gap: 40px;\\n      margin-bottom: 25px;\\n    }\\n    \\n    .address-box {\\n      flex: 1;\\n      padding: 15px;\\n      background: #f8f9fa;\\n      border-radius: 6px;\\n    }\\n    \\n    .address-label {\\n      font-size: 10px;\\n      font-weight: 600;\\n      text-transform: uppercase;\\n      letter-spacing: 0.5px;\\n      color: #666;\\n      margin-bottom: 8px;\\n    }\\n    \\n    .address-content {\\n      font-size: 11px;\\n      line-height: 1.5;\\n    }\\n    \\n    .section-title {\\n      font-size: 14px;\\n      font-weight: 600;\\n      color: #1a1a1a;\\n      margin-bottom: 12px;\\n      padding-bottom: 6px;\\n      border-bottom: 1px solid #ddd;\\n    }\\n    \\n    .items-table {\\n      width: 100%;\\n      border-collapse: collapse;\\n      margin-bottom: 25px;\\n    }\\n    \\n    .items-table th {\\n      background: #0066cc;\\n      color: white;\\n      padding: 10px 8px;\\n      text-align: left;\\n      font-size: 10px;\\n      font-weight: 600;\\n      text-transform: uppercase;\\n      letter-spacing: 0.5px;\\n    }\\n    \\n    .items-table td {\\n      padding: 10px 8px;\\n      border-bottom: 1px solid #e5e5e5;\\n      vertical-align: top;\\n    }\\n    \\n    .items-table tr:nth-child(even) {\\n      background: #fafafa;\\n    }\\n    \\n    .items-table tr:hover {\\n      background: #f0f7ff;\\n    }\\n    \\n    .line-num {\\n      width: 30px;\\n      text-align: center;\\n      color: #999;\\n    }\\n    \\n    .part-num {\\n      font-weight: 600;\\n      color: #0066cc;\\n    }\\n    \\n    .qty {\\n      text-align: center;\\n      font-weight: 500;\\n    }\\n    \\n    .rev {\\n      text-align: center;\\n    }\\n    \\n    .notes-section {\\n      margin-bottom: 25px;\\n    }\\n    \\n    .notes-content {\\n      padding: 15px;\\n      background: #fffbeb;\\n      border-left: 3px solid #f59e0b;\\n      border-radius: 0 6px 6px 0;\\n      font-size: 11px;\\n    }\\n    \\n    .terms-section {\\n      margin-bottom: 25px;\\n    }\\n    \\n    .terms-content {\\n      padding: 15px;\\n      background: #f8f9fa;\\n      border-radius: 6px;\\n      font-size: 10px;\\n      color: #666;\\n      white-space: pre-wrap;\\n    }\\n    \\n    .footer {\\n      margin-top: 40px;\\n      padding-top: 20px;\\n      border-top: 1px solid #ddd;\\n      text-align: center;\\n      font-size: 9px;\\n      color: #999;\\n    }\\n    \\n    .signature-section {\\n      margin-top: 40px;\\n      display: flex;\\n      justify-content: space-between;\\n      gap: 60px;\\n    }\\n    \\n    .signature-box {\\n      flex: 1;\\n      border-top: 1px solid #333;\\n      padding-top: 8px;\\n    }\\n    \\n    .signature-label {\\n      font-size: 10px;\\n      color: #666;\\n    }\\n    \\n    @media print {\\n      body {\\n        padding: 20px;\\n      }\\n      \\n      .items-table {\\n        page-break-inside: auto;\\n      }\\n      \\n      .items-table tr {\\n        page-break-inside: avoid;\\n      }\\n    }\\n  </style>\\n</head>\\n<body>\\n  <div class=\\"header\\">\\n    <div class=\\"company-info\\">\\n      <img src=\\"https://example.invalid/logo.png\\" class=\\"logo\\" alt=\\"Blue Example Manufacturing\\" />\\n      <div class=\\"company-name\\">Blue Example Manufacturing</div>\\n      \\n        <div class=\\"company-address\\">\\n          100 Industrial Way<br>Springfield, Ohio, 45502<br>USA\\n        </div>\\n      \\n      \\n        <div class=\\"company-contact\\">\\n          Tel: +1 555 0100 • Email: purchasing@example.invalid • https://example.invalid\\n        </div>\\n      \\n    </div>\\n    <div class=\\"rfq-title\\">\\n      <div class=\\"rfq-label\\">Request for Quote</div>\\n      <div class=\\"rfq-number\\">RFQ-1042</div>\\n    </div>\\n  </div>\\n  \\n  <div class=\\"meta-section\\">\\n    <div class=\\"meta-group\\">\\n      <div class=\\"meta-label\\">RFQ Title</div>\\n      <div class=\\"meta-value\\">Precision bracket</div>\\n    </div>\\n    <div class=\\"meta-group\\">\\n      <div class=\\"meta-label\\">Date Issued</div>\\n      <div class=\\"meta-value\\">10/18/2026</div>\\n    </div>\\n    \\n      <div class=\\"meta-group\\">\\n        <div class=\\"meta-label\\">Quote Due By</div>\\n        <div class=\\"meta-value\\">10/30/2026</div>\\n      </div>\\n    \\n    \\n      <div class=\\"meta-group\\">\\n        <div class=\\"meta-label\\">Delivery Required</div>\\n        <div class=\\"meta-value\\">11/7/2026</div>\\n      </div>\\n    \\n  </div>\\n  \\n  \\n    <div class=\\"notes-section\\">\\n      <div class=\\"section-title\\">Project Description</div>\\n      <div class=\\"notes-content\\">Quote the listed machined component.</div>\\n    </div>\\n  \\n  \\n  \\n    <div class=\\"addresses-section\\">\\n      \\n        <div class=\\"address-box\\">\\n          <div class=\\"address-label\\">Bill To:</div>\\n          <div class=\\"address-content\\">\\n            ATTN: Accounts Payable<br>100 Industrial Way<br>Springfield, Ohio, 45502\\n          </div>\\n        </div>\\n      \\n      \\n        <div class=\\"address-box\\">\\n          <div class=\\"address-label\\">Ship To:</div>\\n          <div class=\\"address-content\\">\\n            ATTN: Dock 4<br>200 Receiving Road<br>Springfield, Ohio, 45503\\n          </div>\\n        </div>\\n      \\n    </div>\\n  \\n  \\n  <div class=\\"section-title\\">Items (1)</div>\\n  <table class=\\"items-table\\">\\n    <thead>\\n      <tr>\\n        <th>#</th>\\n        <th>Part Number</th>\\n        <th>Description</th>\\n        <th>Rev</th>\\n        <th>Quantity</th>\\n        <th>Material</th>\\n        <th>Finish</th>\\n        <th>Notes</th>\\n      </tr>\\n    </thead>\\n    <tbody>\\n      <tr><td class=\\"line-num\\">1</td><td class=\\"part-num\\">BRK-204</td><td class=\\"desc\\">Mounting bracket</td><td class=\\"rev\\">B</td><td class=\\"qty\\">2.5 kg</td><td class=\\"material\\">6061-T6 Aluminum</td><td class=\\"finish\\">Clear anodize</td><td class=\\"notes\\">Keep flatness within drawing tolerance.</td></tr>\\n    </tbody>\\n  </table>\\n  \\n  \\n    <div class=\\"notes-section\\">\\n      <div class=\\"section-title\\">Notes to Supplier</div>\\n      <div class=\\"notes-content\\">Include material certificate.</div>\\n    </div>\\n  \\n  \\n  \\n    <div class=\\"terms-section\\">\\n      <div class=\\"section-title\\">Terms and Conditions</div>\\n      <div class=\\"terms-content\\">Pricing must remain valid for 30 days.</div>\\n    </div>\\n  \\n  \\n  <div class=\\"signature-section\\">\\n    <div class=\\"signature-box\\">\\n      <div class=\\"signature-label\\">Supplier Signature / Date</div>\\n    </div>\\n    <div class=\\"signature-box\\">\\n      <div class=\\"signature-label\\">Print Name / Title</div>\\n    </div>\\n  </div>\\n  \\n  <div class=\\"footer\\">\\n    Thank you for your quotation.\\n  </div>\\n</body>\\n</html>\\n""`;
+
+exports[`RFQ PDF document extraction baseline > captures formatter markup: 'shipping only and no optional dates' 1`] = `""\\n<!DOCTYPE html>\\n<html>\\n<head>\\n  <meta charset=\\"utf-8\\">\\n  <title>RFQ RFQ-1042</title>\\n  <style>\\n    * {\\n      margin: 0;\\n      padding: 0;\\n      box-sizing: border-box;\\n    }\\n    \\n    body {\\n      font-family: 'Segoe UI', Arial, sans-serif;\\n      font-size: 11px;\\n      color: #1a1a1a;\\n      line-height: 1.4;\\n      padding: 40px;\\n      max-width: 1000px;\\n      margin: 0 auto;\\n    }\\n    \\n    .header {\\n      display: flex;\\n      justify-content: space-between;\\n      align-items: flex-start;\\n      margin-bottom: 30px;\\n      padding-bottom: 20px;\\n      border-bottom: 2px solid #0066cc;\\n    }\\n    \\n    .company-info {\\n      flex: 1;\\n    }\\n    \\n    .company-name {\\n      font-size: 20px;\\n      font-weight: 700;\\n      color: #0066cc;\\n      margin-bottom: 8px;\\n    }\\n    \\n    .company-address {\\n      color: #666;\\n      font-size: 10px;\\n      line-height: 1.5;\\n    }\\n    \\n    .company-contact {\\n      margin-top: 8px;\\n      color: #666;\\n      font-size: 10px;\\n    }\\n    \\n    .rfq-title {\\n      text-align: right;\\n    }\\n    \\n    .rfq-number {\\n      font-size: 24px;\\n      font-weight: 700;\\n      color: #1a1a1a;\\n    }\\n    \\n    .rfq-label {\\n      font-size: 12px;\\n      color: #666;\\n      text-transform: uppercase;\\n      letter-spacing: 1px;\\n    }\\n    \\n    .logo {\\n      max-height: 60px;\\n      max-width: 200px;\\n      margin-bottom: 10px;\\n    }\\n    \\n    .meta-section {\\n      display: flex;\\n      gap: 40px;\\n      margin-bottom: 25px;\\n      padding: 15px;\\n      background: #f8f9fa;\\n      border-radius: 6px;\\n    }\\n    \\n    .meta-group {\\n      flex: 1;\\n    }\\n    \\n    .meta-label {\\n      font-size: 9px;\\n      color: #666;\\n      text-transform: uppercase;\\n      letter-spacing: 0.5px;\\n      margin-bottom: 3px;\\n    }\\n    \\n    .meta-value {\\n      font-size: 12px;\\n      font-weight: 500;\\n    }\\n    \\n    .addresses-section {\\n      display: flex;\\n      gap: 40px;\\n      margin-bottom: 25px;\\n    }\\n    \\n    .address-box {\\n      flex: 1;\\n      padding: 15px;\\n      background: #f8f9fa;\\n      border-radius: 6px;\\n    }\\n    \\n    .address-label {\\n      font-size: 10px;\\n      font-weight: 600;\\n      text-transform: uppercase;\\n      letter-spacing: 0.5px;\\n      color: #666;\\n      margin-bottom: 8px;\\n    }\\n    \\n    .address-content {\\n      font-size: 11px;\\n      line-height: 1.5;\\n    }\\n    \\n    .section-title {\\n      font-size: 14px;\\n      font-weight: 600;\\n      color: #1a1a1a;\\n      margin-bottom: 12px;\\n      padding-bottom: 6px;\\n      border-bottom: 1px solid #ddd;\\n    }\\n    \\n    .items-table {\\n      width: 100%;\\n      border-collapse: collapse;\\n      margin-bottom: 25px;\\n    }\\n    \\n    .items-table th {\\n      background: #0066cc;\\n      color: white;\\n      padding: 10px 8px;\\n      text-align: left;\\n      font-size: 10px;\\n      font-weight: 600;\\n      text-transform: uppercase;\\n      letter-spacing: 0.5px;\\n    }\\n    \\n    .items-table td {\\n      padding: 10px 8px;\\n      border-bottom: 1px solid #e5e5e5;\\n      vertical-align: top;\\n    }\\n    \\n    .items-table tr:nth-child(even) {\\n      background: #fafafa;\\n    }\\n    \\n    .items-table tr:hover {\\n      background: #f0f7ff;\\n    }\\n    \\n    .line-num {\\n      width: 30px;\\n      text-align: center;\\n      color: #999;\\n    }\\n    \\n    .part-num {\\n      font-weight: 600;\\n      color: #0066cc;\\n    }\\n    \\n    .qty {\\n      text-align: center;\\n      font-weight: 500;\\n    }\\n    \\n    .rev {\\n      text-align: center;\\n    }\\n    \\n    .notes-section {\\n      margin-bottom: 25px;\\n    }\\n    \\n    .notes-content {\\n      padding: 15px;\\n      background: #fffbeb;\\n      border-left: 3px solid #f59e0b;\\n      border-radius: 0 6px 6px 0;\\n      font-size: 11px;\\n    }\\n    \\n    .terms-section {\\n      margin-bottom: 25px;\\n    }\\n    \\n    .terms-content {\\n      padding: 15px;\\n      background: #f8f9fa;\\n      border-radius: 6px;\\n      font-size: 10px;\\n      color: #666;\\n      white-space: pre-wrap;\\n    }\\n    \\n    .footer {\\n      margin-top: 40px;\\n      padding-top: 20px;\\n      border-top: 1px solid #ddd;\\n      text-align: center;\\n      font-size: 9px;\\n      color: #999;\\n    }\\n    \\n    .signature-section {\\n      margin-top: 40px;\\n      display: flex;\\n      justify-content: space-between;\\n      gap: 60px;\\n    }\\n    \\n    .signature-box {\\n      flex: 1;\\n      border-top: 1px solid #333;\\n      padding-top: 8px;\\n    }\\n    \\n    .signature-label {\\n      font-size: 10px;\\n      color: #666;\\n    }\\n    \\n    @media print {\\n      body {\\n        padding: 20px;\\n      }\\n      \\n      .items-table {\\n        page-break-inside: auto;\\n      }\\n      \\n      .items-table tr {\\n        page-break-inside: avoid;\\n      }\\n    }\\n  </style>\\n</head>\\n<body>\\n  <div class=\\"header\\">\\n    <div class=\\"company-info\\">\\n      \\n      <div class=\\"company-name\\">Blue Example Manufacturing</div>\\n      \\n        <div class=\\"company-address\\">\\n          Springfield, Ohio, 45502<br>USA\\n        </div>\\n      \\n      \\n        <div class=\\"company-contact\\">\\n          Tel: +1 555 0100 • Email: purchasing@example.invalid • https://example.invalid\\n        </div>\\n      \\n    </div>\\n    <div class=\\"rfq-title\\">\\n      <div class=\\"rfq-label\\">Request for Quote</div>\\n      <div class=\\"rfq-number\\">RFQ-1042</div>\\n    </div>\\n  </div>\\n  \\n  <div class=\\"meta-section\\">\\n    <div class=\\"meta-group\\">\\n      <div class=\\"meta-label\\">RFQ Title</div>\\n      <div class=\\"meta-value\\">Precision bracket</div>\\n    </div>\\n    <div class=\\"meta-group\\">\\n      <div class=\\"meta-label\\">Date Issued</div>\\n      <div class=\\"meta-value\\">10/18/2026</div>\\n    </div>\\n    \\n    \\n  </div>\\n  \\n  \\n    <div class=\\"notes-section\\">\\n      <div class=\\"section-title\\">Project Description</div>\\n      <div class=\\"notes-content\\">Quote the listed machined component.</div>\\n    </div>\\n  \\n  \\n  \\n    <div class=\\"addresses-section\\">\\n      \\n      \\n        <div class=\\"address-box\\">\\n          <div class=\\"address-label\\">Ship To:</div>\\n          <div class=\\"address-content\\">\\n            ATTN: Dock 4<br>200 Receiving Road<br>Springfield, Ohio, 45503\\n          </div>\\n        </div>\\n      \\n    </div>\\n  \\n  \\n  <div class=\\"section-title\\">Items (1)</div>\\n  <table class=\\"items-table\\">\\n    <thead>\\n      <tr>\\n        <th>#</th>\\n        <th>Part Number</th>\\n        <th>Description</th>\\n        <th>Rev</th>\\n        <th>Quantity</th>\\n        <th>Material</th>\\n        <th>Finish</th>\\n        <th>Notes</th>\\n      </tr>\\n    </thead>\\n    <tbody>\\n      <tr><td class=\\"line-num\\">1</td><td class=\\"part-num\\">BRK-204</td><td class=\\"desc\\">Mounting bracket</td><td class=\\"rev\\">B</td><td class=\\"qty\\">25 pcs</td><td class=\\"material\\">6061-T6 Aluminum</td><td class=\\"finish\\">Clear anodize</td><td class=\\"notes\\">Keep flatness within drawing tolerance.</td></tr>\\n    </tbody>\\n  </table>\\n  \\n  \\n    <div class=\\"notes-section\\">\\n      <div class=\\"section-title\\">Notes to Supplier</div>\\n      <div class=\\"notes-content\\">Include material certificate.</div>\\n    </div>\\n  \\n  \\n  \\n    <div class=\\"terms-section\\">\\n      <div class=\\"section-title\\">Terms and Conditions</div>\\n      <div class=\\"terms-content\\">Pricing must remain valid for 30 days.</div>\\n    </div>\\n  \\n  \\n  <div class=\\"signature-section\\">\\n    <div class=\\"signature-box\\">\\n      <div class=\\"signature-label\\">Supplier Signature / Date</div>\\n    </div>\\n    <div class=\\"signature-box\\">\\n      <div class=\\"signature-label\\">Print Name / Title</div>\\n    </div>\\n  </div>\\n  \\n  <div class=\\"footer\\">\\n    Thank you for your quotation.\\n  </div>\\n</body>\\n</html>\\n""`;
+
+exports[`RFQ PDF document extraction baseline > captures the existing renderer formatter markup for a fixed RFQ fixture 1`] = `
+"
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>RFQ RFQ-1042</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 11px;
+      color: #1a1a1a;
+      line-height: 1.4;
+      padding: 40px;
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+    
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 2px solid #0066cc;
+    }
+    
+    .company-info {
+      flex: 1;
+    }
+    
+    .company-name {
+      font-size: 20px;
+      font-weight: 700;
+      color: #0066cc;
+      margin-bottom: 8px;
+    }
+    
+    .company-address {
+      color: #666;
+      font-size: 10px;
+      line-height: 1.5;
+    }
+    
+    .company-contact {
+      margin-top: 8px;
+      color: #666;
+      font-size: 10px;
+    }
+    
+    .rfq-title {
+      text-align: right;
+    }
+    
+    .rfq-number {
+      font-size: 24px;
+      font-weight: 700;
+      color: #1a1a1a;
+    }
+    
+    .rfq-label {
+      font-size: 12px;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    
+    .logo {
+      max-height: 60px;
+      max-width: 200px;
+      margin-bottom: 10px;
+    }
+    
+    .meta-section {
+      display: flex;
+      gap: 40px;
+      margin-bottom: 25px;
+      padding: 15px;
+      background: #f8f9fa;
+      border-radius: 6px;
+    }
+    
+    .meta-group {
+      flex: 1;
+    }
+    
+    .meta-label {
+      font-size: 9px;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 3px;
+    }
+    
+    .meta-value {
+      font-size: 12px;
+      font-weight: 500;
+    }
+    
+    .addresses-section {
+      display: flex;
+      gap: 40px;
+      margin-bottom: 25px;
+    }
+    
+    .address-box {
+      flex: 1;
+      padding: 15px;
+      background: #f8f9fa;
+      border-radius: 6px;
+    }
+    
+    .address-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #666;
+      margin-bottom: 8px;
+    }
+    
+    .address-content {
+      font-size: 11px;
+      line-height: 1.5;
+    }
+    
+    .section-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #1a1a1a;
+      margin-bottom: 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #ddd;
+    }
+    
+    .items-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 25px;
+    }
+    
+    .items-table th {
+      background: #0066cc;
+      color: white;
+      padding: 10px 8px;
+      text-align: left;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .items-table td {
+      padding: 10px 8px;
+      border-bottom: 1px solid #e5e5e5;
+      vertical-align: top;
+    }
+    
+    .items-table tr:nth-child(even) {
+      background: #fafafa;
+    }
+    
+    .items-table tr:hover {
+      background: #f0f7ff;
+    }
+    
+    .line-num {
+      width: 30px;
+      text-align: center;
+      color: #999;
+    }
+    
+    .part-num {
+      font-weight: 600;
+      color: #0066cc;
+    }
+    
+    .qty {
+      text-align: center;
+      font-weight: 500;
+    }
+    
+    .rev {
+      text-align: center;
+    }
+    
+    .notes-section {
+      margin-bottom: 25px;
+    }
+    
+    .notes-content {
+      padding: 15px;
+      background: #fffbeb;
+      border-left: 3px solid #f59e0b;
+      border-radius: 0 6px 6px 0;
+      font-size: 11px;
+    }
+    
+    .terms-section {
+      margin-bottom: 25px;
+    }
+    
+    .terms-content {
+      padding: 15px;
+      background: #f8f9fa;
+      border-radius: 6px;
+      font-size: 10px;
+      color: #666;
+      white-space: pre-wrap;
+    }
+    
+    .footer {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid #ddd;
+      text-align: center;
+      font-size: 9px;
+      color: #999;
+    }
+    
+    .signature-section {
+      margin-top: 40px;
+      display: flex;
+      justify-content: space-between;
+      gap: 60px;
+    }
+    
+    .signature-box {
+      flex: 1;
+      border-top: 1px solid #333;
+      padding-top: 8px;
+    }
+    
+    .signature-label {
+      font-size: 10px;
+      color: #666;
+    }
+    
+    @media print {
+      body {
+        padding: 20px;
+      }
+      
+      .items-table {
+        page-break-inside: auto;
+      }
+      
+      .items-table tr {
+        page-break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="company-info">
+      
+      <div class="company-name">Blue Example Manufacturing</div>
+      
+        <div class="company-address">
+          100 Industrial Way<br>Springfield, Ohio, 45502<br>USA
+        </div>
+      
+      
+        <div class="company-contact">
+          Tel: +1 555 0100 • Email: purchasing@example.invalid • https://example.invalid
+        </div>
+      
+    </div>
+    <div class="rfq-title">
+      <div class="rfq-label">Request for Quote</div>
+      <div class="rfq-number">RFQ-1042</div>
+    </div>
+  </div>
+  
+  <div class="meta-section">
+    <div class="meta-group">
+      <div class="meta-label">RFQ Title</div>
+      <div class="meta-value">Precision bracket</div>
+    </div>
+    <div class="meta-group">
+      <div class="meta-label">Date Issued</div>
+      <div class="meta-value">10/18/2026</div>
+    </div>
+    
+      <div class="meta-group">
+        <div class="meta-label">Quote Due By</div>
+        <div class="meta-value">10/30/2026</div>
+      </div>
+    
+    
+      <div class="meta-group">
+        <div class="meta-label">Delivery Required</div>
+        <div class="meta-value">11/7/2026</div>
+      </div>
+    
+  </div>
+  
+  
+    <div class="notes-section">
+      <div class="section-title">Project Description</div>
+      <div class="notes-content">Quote the listed machined component.</div>
+    </div>
+  
+  
+  
+    <div class="addresses-section">
+      
+        <div class="address-box">
+          <div class="address-label">Bill To:</div>
+          <div class="address-content">
+            ATTN: Accounts Payable<br>100 Industrial Way<br>Springfield, Ohio, 45502
+          </div>
+        </div>
+      
+      
+        <div class="address-box">
+          <div class="address-label">Ship To:</div>
+          <div class="address-content">
+            ATTN: Dock 4<br>200 Receiving Road<br>Springfield, Ohio, 45503
+          </div>
+        </div>
+      
+    </div>
+  
+  
+  <div class="section-title">Items (1)</div>
+  <table class="items-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Part Number</th>
+        <th>Description</th>
+        <th>Rev</th>
+        <th>Quantity</th>
+        <th>Material</th>
+        <th>Finish</th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td class="line-num">1</td><td class="part-num">BRK-204</td><td class="desc">Mounting bracket</td><td class="rev">B</td><td class="qty">25 pcs</td><td class="material">6061-T6 Aluminum</td><td class="finish">Clear anodize</td><td class="notes">Keep flatness within drawing tolerance.</td></tr>
+    </tbody>
+  </table>
+  
+  
+    <div class="notes-section">
+      <div class="section-title">Notes to Supplier</div>
+      <div class="notes-content">Include material certificate.</div>
+    </div>
+  
+  
+  
+    <div class="terms-section">
+      <div class="section-title">Terms and Conditions</div>
+      <div class="terms-content">Pricing must remain valid for 30 days.</div>
+    </div>
+  
+  
+  <div class="signature-section">
+    <div class="signature-box">
+      <div class="signature-label">Supplier Signature / Date</div>
+    </div>
+    <div class="signature-box">
+      <div class="signature-label">Print Name / Title</div>
+    </div>
+  </div>
+  
+  <div class="footer">
+    Thank you for your quotation.
+  </div>
+</body>
+</html>
+"
+`;
