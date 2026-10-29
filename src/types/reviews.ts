@@ -82,6 +82,10 @@ export type ReviewErrorCode =
   | 'REVIEWER_NO_VAULT_ACCESS'
   | 'TEAM_NOT_FOUND'
   | 'PDF_EXISTS'
+  | 'REVIEW_NOT_OPEN'
+  | 'LAST_ITEM'
+  | 'WORKFLOWS_DISABLED'
+  | 'NOT_APPROVED'
   | 'UNKNOWN'
 
 export interface ReviewUser {
@@ -432,4 +436,81 @@ export interface RecordVersionReferencesResult {
   exact: number
   approximate: number
   unresolved: number
+}
+
+// ============================================
+// Open reviews: add / remove files (schema 110)
+// ============================================
+
+/** An open review a file selection can be added to or removed from (file context menu). */
+export interface OpenReviewForFiles {
+  reviewId: string
+  title: string
+  /** `open` while reviewers decide; `changes_requested` while it waits on a resubmit. */
+  outcome: ReviewOutcome
+  itemCount: number
+  requestedByMe: boolean
+  /** Files can be added only while the round is open. */
+  canAdd: boolean
+  /** Which of the asked-about files the review already holds. */
+  containedFileIds: string[]
+}
+
+export interface AddReviewItemsResult {
+  reviewId: string
+  added: number
+}
+
+export interface RemoveReviewItemsResult {
+  reviewId: string
+  removed: number
+  outcome: ReviewOutcome
+}
+
+// ============================================
+// Review stages: workflow after a review (schema 110)
+// ============================================
+
+/** What an approved review does with files in a review stage: move them, or wait for the requester. */
+export type ReviewStageOnApproval = 'hold' | 'advance'
+
+/** A package moves as one once fully approved, or each file moves once it is approved. */
+export type ReviewStagePackagePolicy = 'together' | 'approved_only'
+
+/** Why an item did not move to its next stage. */
+export type ReviewStageSkipReason =
+  | 'not_approved'
+  | 'deleted'
+  | 'not_in_review_stage'
+  | 'changed_since_review'
+  | 'checked_out'
+  | 'no_next_stage'
+  | 'gated'
+  | 'checkout_required'
+  | 'transition_failed'
+
+export interface AdvanceReviewedFilesResult {
+  moved: number
+  skipped: { itemId: string; fileId: string; fileName: string; reason: ReviewStageSkipReason }[]
+}
+
+/** Where one review item's file stands in its workflow. */
+export interface ReviewWorkflowItem {
+  itemId: string
+  fileId: string
+  outcome: ReviewItemOutcome
+  stateName: string | null
+  stateColor: string | null
+  inReviewStage: boolean
+  /** The stage an approval moves it to; null when the stage names no single exit. */
+  nextStateName: string | null
+  advancedAt: string | null
+  advancedToStateName: string | null
+}
+
+export interface ReviewWorkflowStatus {
+  workflowsEnabled: boolean
+  onApproval: ReviewStageOnApproval
+  packagePolicy: ReviewStagePackagePolicy
+  items: ReviewWorkflowItem[]
 }

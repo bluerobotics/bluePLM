@@ -1,6 +1,7 @@
 // Edit State Dialog Component
 import { useState, useEffect } from 'react'
 import { BadgeCheck, CheckCircle } from 'lucide-react'
+import { t } from '@/lib/i18n'
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { useShallow } from 'zustand/react/shallow'
@@ -20,6 +21,10 @@ export function EditStateDialog({ state, onClose, onSave }: EditStateDialogProps
   // requires_checkout is now auto-set to match is_editable (simplified UX)
   const [autoRev, setAutoRev] = useState(state.auto_increment_revision)
   const [requiredRoles, setRequiredRoles] = useState<string[]>(state.required_workflow_roles || [])
+  const [isReviewStage, setIsReviewStage] = useState(state.triggers_review === true)
+  const [approvedStateId, setApprovedStateId] = useState<string | null>(
+    state.review_approved_state_id ?? null,
+  )
 
   // Resync form fields when the dialog is reused for a different state
   useEffect(() => {
@@ -31,7 +36,11 @@ export function EditStateDialog({ state, onClose, onSave }: EditStateDialogProps
     setIsEditable(state.is_editable)
     setAutoRev(state.auto_increment_revision)
     setRequiredRoles(state.required_workflow_roles || [])
+    setIsReviewStage(state.triggers_review === true)
+    setApprovedStateId(state.review_approved_state_id ?? null)
   }, [
+    state.triggers_review,
+    state.review_approved_state_id,
     state.id,
     state.name,
     state.label,
@@ -70,6 +79,33 @@ export function EditStateDialog({ state, onClose, onSave }: EditStateDialogProps
     }
     loadRoles()
   }, [organization])
+
+  // The states this one can move to: a review stage's approval takes one of these exits.
+  const [exits, setExits] = useState<{ id: string; name: string }[]>([])
+  useEffect(() => {
+    let cancelled = false
+    const loadExits = async () => {
+      const { data, error } = await supabase
+        .from('workflow_transitions')
+        .select('to_state_id, to_state:workflow_states!workflow_transitions_to_state_id_fkey(name)')
+        .eq('from_state_id', state.id)
+      if (cancelled) return
+      if (error) {
+        log.warn('[Workflow]', 'Failed to load the exits of the state', { error })
+        return
+      }
+      setExits(
+        (data ?? []).map((row) => ({
+          id: row.to_state_id,
+          name: (row.to_state as { name?: string } | null)?.name ?? row.to_state_id,
+        })),
+      )
+    }
+    void loadExits()
+    return () => {
+      cancelled = true
+    }
+  }, [state.id])
 
   const toggleRequiredRole = (roleId: string) => {
     if (requiredRoles.includes(roleId)) {
@@ -226,6 +262,48 @@ export function EditStateDialog({ state, onClose, onSave }: EditStateDialogProps
               <span className="text-sm">Auto-increment revision on transition</span>
             </label>
           </div>
+
+          {/* Review stage: files entering it go to a review; an approval moves them on */}
+          <div className="space-y-2 border-t border-plm-border pt-3">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isReviewStage}
+                onChange={(e) => setIsReviewStage(e.target.checked)}
+                className="rounded"
+              />
+              <span className="text-sm">{t('workflows.reviewStage.toggle')}</span>
+            </label>
+            <p className="text-[10px] text-plm-fg-muted">{t('workflows.reviewStage.hint')}</p>
+            {isReviewStage && (
+              <div>
+                <label className="block text-xs text-plm-fg-muted mb-1">
+                  {t('workflows.reviewStage.onApproval')}
+                </label>
+                <select
+                  value={approvedStateId ?? ''}
+                  onChange={(e) => setApprovedStateId(e.target.value || null)}
+                  className="w-full bg-plm-input border border-plm-border rounded px-2 py-1.5 text-sm"
+                >
+                  <option value="">
+                    {exits.length === 1
+                      ? t('workflows.reviewStage.onlyExit', { state: exits[0].name })
+                      : t('workflows.reviewStage.chooseExit')}
+                  </option>
+                  {exits.map((exit) => (
+                    <option key={exit.id} value={exit.id}>
+                      {exit.name}
+                    </option>
+                  ))}
+                </select>
+                {exits.length !== 1 && !approvedStateId && (
+                  <p className="text-[10px] text-plm-warning mt-1">
+                    {t('workflows.reviewStage.needsExit')}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="flex justify-end gap-2 mt-4">
@@ -244,6 +322,8 @@ export function EditStateDialog({ state, onClose, onSave }: EditStateDialogProps
                 requires_checkout: isEditable, // Auto-set: editable states require checkout
                 auto_increment_revision: autoRev,
                 required_workflow_roles: requiredRoles,
+                triggers_review: isReviewStage,
+                review_approved_state_id: isReviewStage ? approvedStateId : null,
               })
             }
             className="px-3 py-1.5 text-sm bg-plm-accent hover:bg-plm-accent-hover text-white rounded"

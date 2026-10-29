@@ -63,6 +63,8 @@ export interface WorkflowState extends Tables<'workflow_states'> {
   requires_checkout: boolean
   auto_increment_revision: boolean
   triggers_review: boolean
+  /** Review stage only: where an approved review moves files (schema 110); null = the only exit. */
+  review_approved_state_id?: string | null
   required_workflow_roles: string[]
   sort_order: number
 }

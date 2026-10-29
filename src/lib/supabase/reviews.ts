@@ -16,12 +16,16 @@ import type { TeamMember, TeamReviewerConfig, TeamWithMembers } from './reviewTe
 import { log } from '@/lib/logger'
 import type { Json } from '@/types/supabase'
 import type {
+  AddReviewItemsResult,
+  AdvanceReviewedFilesResult,
   CancelResult,
   DependencyClosureRow,
   DrawingPdf,
   ItemDecisionInput,
+  OpenReviewForFiles,
   RecordDrawingPdfResult,
   RecordVersionReferencesResult,
+  RemoveReviewItemsResult,
   RequestReviewInput,
   RequestReviewResult,
   ResubmitItemInput,
@@ -32,21 +36,27 @@ import type {
   ReviewMetaResult,
   ReviewQueuePage,
   ReviewQueueQuery,
+  ReviewWorkflowStatus,
   VersionReferenceInput,
 } from '@/types/reviews'
 import {
   decisionsArg,
+  mapAddReviewItemsResult,
+  mapAdvanceReviewedFilesResult,
   mapCancelResult,
   mapClosureRows,
   mapDrawingPdf,
+  mapOpenReviewsForFiles,
   mapQueuePage,
   mapRecordDrawingPdfResult,
   mapRecordVersionReferencesResult,
+  mapRemoveReviewItemsResult,
   mapRequestReviewResult,
   mapRespondResult,
   mapResubmitResult,
   mapReviewDetail,
   mapReviewMetaResult,
+  mapReviewWorkflowStatus,
   requestReviewArgs,
   resubmitItemsArg,
   reviewMetaArgs,
@@ -190,6 +200,66 @@ export async function cancelReview(
         p_review_id: reviewId,
         p_reason: trimmedOrNull(reason),
       }),
+    ),
+  )
+}
+
+/**
+ * Open reviews the caller requested (an administrator also sees every open review holding one of
+ * the files), with which of `fileIds` each already holds. Feeds Reviews > Add to / Remove from.
+ */
+export async function listOpenReviewsForFiles(fileIds: string[]): Promise<OpenReviewForFiles[]> {
+  return mapOpenReviewsForFiles(
+    await callReviewRpc('list_open_reviews_for_files', (c) =>
+      c.rpc('list_open_reviews_for_files', { p_file_ids: fileIds }),
+    ),
+  )
+}
+
+/** Add file versions to a review whose round is open; reviewers owe a decision on them. */
+export async function addReviewItems(
+  reviewId: string,
+  fileVersionIds: string[],
+): Promise<AddReviewItemsResult> {
+  return mapAddReviewItemsResult(
+    await callReviewRpc('add_review_items', (c) =>
+      c.rpc('add_review_items', { p_review_id: reviewId, p_file_version_ids: fileVersionIds }),
+    ),
+  )
+}
+
+/** Take files out of an open review. Refuses to remove the last one (`LAST_ITEM`). */
+export async function removeReviewItems(
+  reviewId: string,
+  fileIds: string[],
+): Promise<RemoveReviewItemsResult> {
+  return mapRemoveReviewItemsResult(
+    await callReviewRpc('remove_review_items', (c) =>
+      c.rpc('remove_review_items', { p_review_id: reviewId, p_file_ids: fileIds }),
+    ),
+  )
+}
+
+/** Where each item's file stands in its workflow, with the organization's review-stage settings. */
+export async function getReviewWorkflowStatus(reviewId: string): Promise<ReviewWorkflowStatus> {
+  return mapReviewWorkflowStatus(
+    await callReviewRpc('get_review_workflow_status', (c) =>
+      c.rpc('get_review_workflow_status', { p_review_id: reviewId }),
+    ),
+  )
+}
+
+/**
+ * Move reviewed files out of their review stage. `onlyApproved: false` moves the whole package and
+ * needs the review approved; `true` moves the approved files and leaves the rest.
+ */
+export async function advanceReviewedFiles(
+  reviewId: string,
+  onlyApproved: boolean,
+): Promise<AdvanceReviewedFilesResult> {
+  return mapAdvanceReviewedFilesResult(
+    await callReviewRpc('advance_reviewed_files', (c) =>
+      c.rpc('advance_reviewed_files', { p_review_id: reviewId, p_only_approved: onlyApproved }),
     ),
   )
 }

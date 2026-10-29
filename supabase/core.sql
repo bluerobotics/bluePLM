@@ -115,16 +115,19 @@ ON CONFLICT (id) DO NOTHING;
 -- what a database must contain to be allowed to claim it.
 
 CREATE OR REPLACE FUNCTION schema_release_version() RETURNS INTEGER
-LANGUAGE sql IMMUTABLE AS $$ SELECT 109 $$;
+LANGUAGE sql IMMUTABLE AS $$ SELECT 110 $$;
 
 CREATE OR REPLACE FUNCTION schema_release_description() RETURNS TEXT
 LANGUAGE sql IMMUTABLE AS $$ SELECT
-  'Shared color palette changes reach every client live. color_swatches joins the '
-  'supabase_realtime publication and gets REPLICA IDENTITY FULL. Both are needed: the desktop '
-  'subscribes to INSERT and DELETE filtered on org_id, and without the full identity a DELETE''s '
-  'old record carries only the primary key, so the org filter never matches and a removed org '
-  'color stays on other clients until they reload. check_release_residue() refuses to stamp '
-  'while color_swatches is missing from the publication or its relreplident is not ''f''.'
+  'Reviews and file workflows work together. Files can be added to and removed from an open '
+  'review (add_review_items, remove_review_items, list_open_reviews_for_files). File workflows '
+  'can be turned off per organization (organizations.settings.file_workflows_enabled; '
+  'execute_workflow_transition refuses WORKFLOWS_DISABLED). A review stage '
+  '(workflow_states.triggers_review) names where approved files go (review_approved_state_id); '
+  'an approved review moves them there automatically or holds them for the requester '
+  '(advance_reviewed_files), and a package moves as one or approved files move ahead, per '
+  'organizations.settings review_stage_on_approval and review_stage_package_policy. '
+  'review_items records advanced_at and advanced_to_state_id.'
 $$;
 
 -- One row per object this release requires, scoped to the module that creates it.
@@ -425,7 +428,9 @@ LANGUAGE sql IMMUTABLE AS $$
     -- second go missing in a function this manifest already listed.
     ('10-source-files', NULL, 'function', 'apply_workflow_transition(uuid,uuid,uuid,text,jsonb)', 'require_file_access && wtpl.org_id = v_org_id'),
     -- Schema 105: one row per reviewer under one attempt id.
-    ('10-source-files', NULL, 'function', 'execute_workflow_transition(uuid,uuid,text)', 'is_org_member && wtpl.org_id = v_file.org_id && gate_reviewer_user_ids && v_attempt_id'),
+    ('10-source-files', NULL, 'function', 'execute_workflow_transition(uuid,uuid,text)', 'is_org_member && wtpl.org_id = v_file.org_id && gate_reviewer_user_ids && v_attempt_id && org_file_workflows_enabled'),
+    ('10-source-files', NULL, 'function', 'org_file_workflows_enabled(uuid)', 'jsonb_typeof'),
+    ('10-source-files', NULL, 'function', 'review_stage_exit_transition(uuid)', 'review_approved_state_id'),
     ('10-source-files', NULL, 'function', 'execute_transition_to_legacy_state(uuid,text,text)', 'require_file_access'),
     ('10-source-files', NULL, 'function', 'get_user_vault_access(uuid)', 'require_same_org_user'),
     -- Who may decide a gate, in one place instead of two. complete_gate_review
@@ -478,11 +483,11 @@ LANGUAGE sql IMMUTABLE AS $$
     ('20-change-control', 'ecos', 'table', 'review_decisions', NULL),
     ('20-change-control', 'ecos', 'function', 'require_review_access(uuid)',
       'current_actor_id && u.org_id = v_org_id'),
-    ('20-change-control', 'ecos', 'function', 'review_settle(uuid,uuid,boolean)', 'review_notify && withdrawn_at'),
+    ('20-change-control', 'ecos', 'function', 'review_settle(uuid,uuid,boolean)', 'review_notify && withdrawn_at && review_workflow_after_settle'),
     ('20-change-control', 'ecos', 'function', 'review_owed_item_ids(uuid,uuid)', 'review_decisions && withdrawn_at'),
     ('20-change-control', 'ecos', 'function', 'review_withdraw_lost_reviewers()', 'user_may_access_vault && review_settle'),
     ('20-change-control', 'ecos', 'function', 'review_withdraw_lost_reviewers_trigger()', 'review_withdraw_lost_reviewers'),
-    ('20-change-control', 'ecos', 'function', 'review_items_deleted_resettle()', 'review_settle && old_items'),
+    ('20-change-control', 'ecos', 'function', 'review_items_deleted_resettle()', 'review_settle && old_items && current_setting'),
     ('20-change-control', 'ecos', 'function', 'team_reviewer_user_ids(uuid)', 'team_reviewers'),
     ('20-change-control', 'ecos', 'function', 'review_notify(uuid,uuid[],uuid,text,text,text,uuid,text)', 'u.org_id = p_org_id'),
     ('20-change-control', 'ecos', 'function', 'request_review(uuid[],uuid[],uuid[],text,text,text,text,date)',
@@ -498,6 +503,19 @@ LANGUAGE sql IMMUTABLE AS $$
     ('20-change-control', 'ecos', 'function', 'list_review_queue(text,uuid,text,integer,text)',
       'require_org_member && gate_review_ids_awaiting'),
     ('20-change-control', 'ecos', 'function', 'get_review_detail(uuid)', 'require_review_access'),
+    ('20-change-control', 'ecos', 'function', 'list_open_reviews_for_files(uuid[])', 'require_org_member && is_org_admin'),
+    ('20-change-control', 'ecos', 'function', 'add_review_items(uuid,uuid[])',
+      'require_review_access && is_org_admin && user_may_access_vault && review_settle'),
+    ('20-change-control', 'ecos', 'function', 'remove_review_items(uuid,uuid[])',
+      'require_review_access && is_org_admin && set_config && review_settle'),
+    ('20-change-control', 'ecos', 'function', 'review_advance_items(uuid,boolean)',
+      'review_stage_exit_transition && apply_workflow_transition && current_version'),
+    ('20-change-control', 'ecos', 'function', 'review_workflow_after_settle(uuid,text)',
+      'org_file_workflows_enabled && review_advance_items'),
+    ('20-change-control', 'ecos', 'function', 'advance_reviewed_files(uuid,boolean)',
+      'require_review_access && is_org_admin && org_file_workflows_enabled && review_advance_items'),
+    ('20-change-control', 'ecos', 'function', 'get_review_workflow_status(uuid)',
+      'require_review_access && review_stage_exit_transition'),
     ('20-change-control', 'ecos', 'function', 'get_review_badge_count()', 'is_org_member && gate_review_ids_awaiting'),
     ('20-change-control', 'ecos', 'function', 'file_comments_review_link()', 'review_responses'),
     ('20-change-control', 'ecos', 'function', 'notify_overdue_reviews()', 'review_responses'),

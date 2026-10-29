@@ -11,13 +11,11 @@ import {
   Loader2,
   Network,
   Users,
-  ListChecks,
 } from 'lucide-react'
 import type { LocalFile } from '@/stores/pdmStore'
 import { useShallow } from 'zustand/react/shallow'
 import { usePDMStore } from '@/stores/pdmStore'
 import { executeCommand } from '@/lib/commands'
-import { ReviewPackageMenuItems } from '@/features/source/reviewPackage/components/ReviewPackageMenuItems'
 import type { RefreshableActionProps, SelectionState } from './types'
 
 interface CollaborationActionsProps extends RefreshableActionProps {
@@ -52,12 +50,11 @@ export function CollaborationActions({
   isCreatingShareLink,
   handleQuickShareLink,
 }: CollaborationActionsProps) {
-  const { user, files, addToast, setActiveView } = usePDMStore(
+  const { user, files, addToast } = usePDMStore(
     useShallow((s) => ({
       user: s.user,
       files: s.files,
       addToast: s.addToast,
-      setActiveView: s.setActiveView,
     })),
   )
   const isFolder = firstFile.isDirectory
@@ -163,23 +160,6 @@ export function CollaborationActions({
           <Network size={14} className="text-plm-accent" />
           Extract References ({assemblyFilesInFolder.length}{' '}
           {assemblyFilesInFolder.length === 1 ? 'assembly' : 'assemblies'})
-        </div>
-      )}
-
-      {/* Request review / add to the review package - one file or a selection */}
-      <ReviewPackageMenuItems contextFiles={contextFiles} onClose={onClose} />
-
-      {/* View Reviews - navigate to Reviews Dashboard */}
-      {!multiSelect && !isFolder && state.isSynced && firstFile.pdmData?.id && (
-        <div
-          className="context-menu-item"
-          onClick={() => {
-            onClose()
-            setActiveView('reviews')
-          }}
-        >
-          <ListChecks size={14} className="text-plm-fg-dim" />
-          View Reviews
         </div>
       )}
 

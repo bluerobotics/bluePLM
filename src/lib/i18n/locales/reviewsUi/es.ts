@@ -191,9 +191,41 @@ export const es: TranslationDict = {
       REVIEWER_NO_VAULT_ACCESS: 'Un revisor elegido no tiene acceso a esta bóveda.',
       TEAM_NOT_FOUND: 'Un equipo elegido ya no existe.',
       DUPLICATE_FILE: 'Un archivo está dos veces en el paquete.',
+      REVIEW_NOT_OPEN:
+        'Solo se pueden añadir archivos mientras la revisión espera a sus revisores.',
+      LAST_ITEM: 'Una revisión necesita al menos un archivo. Cancele la revisión en su lugar.',
+      WORKFLOWS_DISABLED:
+        'Los flujos de trabajo de archivos están desactivados en esta organización.',
+      NOT_APPROVED: 'El paquete avanza como uno solo cuando todos los archivos están aprobados.',
     },
   },
   reviewDetail: {
+    // A review's place in the file workflow (schema 110).
+    workflow: {
+      waiting: 'En una etapa de revisión: {{count}}',
+      waitingTo: 'En una etapa de revisión: {{count}}, después {{state}}',
+      movedTo: 'Movidos a {{state}}: {{count}}',
+      held: 'Los archivos aprobados esperan a que el solicitante los mueva.',
+      autoPackage: 'El paquete avanza solo cuando todos los archivos están aprobados.',
+      autoEach: 'Cada archivo avanza solo en cuanto se aprueba.',
+      moveApproved: 'Mover archivos aprobados ({{count}})',
+      moveApprovedHint:
+        'Mover los archivos aprobados a su siguiente etapa y dejar el resto en revisión',
+      movePackage: 'Mover paquete ({{count}})',
+      moved: 'Movidos a la siguiente etapa: {{count}}',
+      notMoved: 'No movidos ({{count}}): {{files}}',
+      reasons: {
+        not_approved: 'no aprobado',
+        deleted: 'eliminado',
+        not_in_review_stage: 'ya no está en una etapa de revisión',
+        changed_since_review: 'registrado de nuevo desde su aprobación',
+        checked_out: 'extraído',
+        no_next_stage: 'su etapa no indica una única etapa siguiente',
+        gated: 'la siguiente etapa necesita su propia aprobación',
+        checkout_required: 'la siguiente etapa requiere extraerlo',
+        transition_failed: 'el movimiento falló',
+      },
+    },
     back: 'Volver a la lista',
     noItems: 'Esta revisión no tiene archivos.',
     unknownUser: 'Usuario desconocido',

@@ -27,6 +27,7 @@ import { AdminItems } from './items/AdminItems'
 import { DeleteItems } from './items/DeleteItems'
 import { MovedFileItems } from './items/MovedFileItems'
 import { VaultTransferMenuItems } from '@/features/source/vaultTransferMenu/VaultTransferMenuItems'
+import { ReviewsSubmenu } from '@/features/source/reviewPackage/components/ReviewsSubmenu'
 
 // Dialog components
 import { DeleteConfirmDialog } from './dialogs'
@@ -345,6 +346,9 @@ export function FileContextMenu({
           onClose={onClose}
           onRefresh={onRefresh}
         />
+
+        {/* Reviews submenu (new review, add to / remove from a review, view reviews) */}
+        <ReviewsSubmenu contextFiles={contextFiles} onClose={onClose} />
 
         {/* File Operation Items */}
         <FileOperationItems

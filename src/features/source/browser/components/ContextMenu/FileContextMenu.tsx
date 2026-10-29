@@ -35,6 +35,8 @@ import {
 import { VaultTransferMenuItems } from '@/features/source/vaultTransferMenu/VaultTransferMenuItems'
 import { ContextMenuGroup, ExpandableSection } from './components'
 import { NativePreviewContextMenuBackdrop } from './NativePreviewContextMenuBackdrop'
+import { ReviewsSubmenu } from '@/features/source/reviewPackage/components/ReviewsSubmenu'
+import { fileWorkflowsEnabled } from '@/lib/fileWorkflows'
 import { shouldShowExpandableSection, countCollaborationActions } from './utils'
 
 export interface FileContextMenuProps {
@@ -165,9 +167,10 @@ export function FileContextMenu({
   savingConfigsToSW,
 }: FileContextMenuProps) {
   // Get user and other values from store
-  const { user, files, getEffectiveRole, solidworksIntegrationEnabled } = usePDMStore(
+  const { user, files, getEffectiveRole, solidworksIntegrationEnabled, organization } = usePDMStore(
     useShallow((s) => ({
       user: s.user,
+      organization: s.organization,
       files: s.files,
       getEffectiveRole: s.getEffectiveRole,
       solidworksIntegrationEnabled: s.solidworksIntegrationEnabled,
@@ -200,6 +203,7 @@ export function FileContextMenu({
       userId: user?.id,
       isAdmin: getEffectiveRole() === 'admin',
       solidworksEnabled: solidworksIntegrationEnabled,
+      workflowsEnabled: fileWorkflowsEnabled(organization),
       allFiles: files,
     }),
     [
@@ -211,6 +215,7 @@ export function FileContextMenu({
       user?.id,
       getEffectiveRole,
       solidworksIntegrationEnabled,
+      organization,
       files,
     ],
   )
@@ -338,6 +343,9 @@ export function FileContextMenu({
           stateSubmenuTimeoutRef={stateSubmenuTimeoutRef}
           savingConfigsToSW={savingConfigsToSW}
         />
+
+        {/* Reviews submenu (new review, add to / remove from a review, view reviews) */}
+        <ReviewsSubmenu contextFiles={contextFiles} onClose={onClose} />
 
         {/* ===== GROUPED SUBMENUS ===== */}
         <div className="context-menu-separator" />

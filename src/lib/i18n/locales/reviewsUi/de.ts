@@ -191,9 +191,41 @@ export const de: TranslationDict = {
       REVIEWER_NO_VAULT_ACCESS: 'Ein gewählter Prüfer hat keinen Zugriff auf diesen Tresor.',
       TEAM_NOT_FOUND: 'Ein gewähltes Team existiert nicht mehr.',
       DUPLICATE_FILE: 'Eine Datei ist doppelt im Paket.',
+      REVIEW_NOT_OPEN:
+        'Dateien können nur hinzugefügt werden, solange die Prüfung auf ihre Prüfer wartet.',
+      LAST_ITEM:
+        'Eine Prüfung braucht mindestens eine Datei. Brechen Sie die Prüfung stattdessen ab.',
+      WORKFLOWS_DISABLED: 'Datei-Workflows sind für diese Organisation ausgeschaltet.',
+      NOT_APPROVED: 'Das Paket geht erst als Ganzes weiter, wenn jede Datei freigegeben ist.',
     },
   },
   reviewDetail: {
+    // A review's place in the file workflow (schema 110).
+    workflow: {
+      waiting: 'In einer Prüfstufe: {{count}}',
+      waitingTo: 'In einer Prüfstufe: {{count}}, danach {{state}}',
+      movedTo: 'Nach {{state}} verschoben: {{count}}',
+      held: 'Freigegebene Dateien warten, bis der Anforderer sie weiterschiebt.',
+      autoPackage: 'Das Paket geht von selbst weiter, sobald jede Datei freigegeben ist.',
+      autoEach: 'Jede Datei geht von selbst weiter, sobald sie freigegeben ist.',
+      moveApproved: 'Freigegebene Dateien weiterschieben ({{count}})',
+      moveApprovedHint:
+        'Die freigegebenen Dateien in ihre nächste Stufe schieben, der Rest bleibt in Prüfung',
+      movePackage: 'Paket weiterschieben ({{count}})',
+      moved: 'In die nächste Stufe verschoben: {{count}}',
+      notMoved: 'Nicht verschoben ({{count}}): {{files}}',
+      reasons: {
+        not_approved: 'nicht freigegeben',
+        deleted: 'gelöscht',
+        not_in_review_stage: 'nicht mehr in einer Prüfstufe',
+        changed_since_review: 'seit der Freigabe erneut eingecheckt',
+        checked_out: 'ausgecheckt',
+        no_next_stage: 'ihre Stufe nennt keine eindeutige nächste Stufe',
+        gated: 'die nächste Stufe braucht eine eigene Freigabe',
+        checkout_required: 'die nächste Stufe verlangt ein Auschecken',
+        transition_failed: 'das Verschieben ist fehlgeschlagen',
+      },
+    },
     back: 'Zurück zur Liste',
     noItems: 'Diese Prüfung enthält keine Dateien.',
     unknownUser: 'Unbekannter Benutzer',

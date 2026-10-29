@@ -428,6 +428,11 @@ CREATE TABLE IF NOT EXISTS workflow_states (
 -- Migration: Add triggers_review column for existing tables
 DO $$ BEGIN ALTER TABLE workflow_states ADD COLUMN triggers_review BOOLEAN DEFAULT FALSE; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 
+-- Schema 110: a review stage (triggers_review) names the state an approved review
+-- moves its files to. NULL = the stage's only outgoing transition.
+ALTER TABLE workflow_states ADD COLUMN IF NOT EXISTS review_approved_state_id UUID
+  REFERENCES workflow_states(id) ON DELETE SET NULL;
+
 -- Migration (v86): node size is part of the saved diagram, not per-session UI state
 ALTER TABLE workflow_states ADD COLUMN IF NOT EXISTS width INTEGER NOT NULL DEFAULT 120;
 ALTER TABLE workflow_states ADD COLUMN IF NOT EXISTS height INTEGER NOT NULL DEFAULT 60;
@@ -2288,6 +2293,15 @@ BEGIN
     v_key_map := v_key_map || jsonb_build_object(v_state->>'key', v_state_id::text);
     v_state_count := v_state_count + 1;
   END LOOP;
+
+  -- A review stage names, by key, where an approval moves files (schema 110). Resolved once
+  -- every state has its new id; a key that is not in the payload leaves it unset.
+  UPDATE workflow_states ws
+  SET review_approved_state_id = (v_key_map->>(x.st->>'review_approved'))::uuid
+  FROM jsonb_array_elements(p_payload->'states') AS x(st)
+  WHERE ws.id = (v_key_map->>(x.st->>'key'))::uuid
+    AND x.st->>'review_approved' IS NOT NULL
+    AND v_key_map ? (x.st->>'review_approved');
 
   IF jsonb_typeof(p_payload->'transitions') = 'array' THEN
     FOR v_transition IN SELECT * FROM jsonb_array_elements(p_payload->'transitions') LOOP
@@ -4852,6 +4866,52 @@ REVOKE EXECUTE ON FUNCTION apply_workflow_transition(UUID, UUID, UUID, TEXT, JSO
 -- the transition has blocking gates, having raised the reviews they need.
 DROP FUNCTION IF EXISTS execute_workflow_transition(UUID, UUID, UUID, TEXT) CASCADE;
 DROP FUNCTION IF EXISTS execute_workflow_transition(UUID, UUID, TEXT) CASCADE;
+-- File workflows can be switched off for an organization (schema 110):
+-- organizations.settings.file_workflows_enabled = false. Unset means on, so an
+-- organization that never touched the setting keeps its workflows. While off, no
+-- transition runs (execute_workflow_transition refuses WORKFLOWS_DISABLED) and an
+-- approved review moves nothing.
+CREATE OR REPLACE FUNCTION org_file_workflows_enabled(p_org_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT COALESCE((
+    SELECT CASE WHEN jsonb_typeof(o.settings -> 'file_workflows_enabled') = 'boolean'
+                THEN (o.settings ->> 'file_workflows_enabled')::boolean
+           END
+    FROM organizations o WHERE o.id = p_org_id
+  ), true);
+$$;
+
+-- Only the definer functions above and below call it; a client reads the setting from its own
+-- organization row.
+REVOKE ALL ON FUNCTION org_file_workflows_enabled(UUID) FROM PUBLIC, anon, authenticated;
+
+-- The transition an approved review takes a file out of a review stage
+-- (workflow_states.triggers_review) by: the one to the state's
+-- review_approved_state_id when that is set, else the state's only outgoing
+-- transition. NULL when neither names exactly one.
+CREATE OR REPLACE FUNCTION review_stage_exit_transition(p_state_id UUID)
+RETURNS UUID
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT CASE
+    WHEN s.review_approved_state_id IS NOT NULL THEN (
+      SELECT t.id FROM workflow_transitions t
+      WHERE t.from_state_id = s.id AND t.to_state_id = s.review_approved_state_id
+    )
+    ELSE (
+      SELECT CASE WHEN count(*) = 1 THEN min(t.id::text)::uuid END
+      FROM workflow_transitions t WHERE t.from_state_id = s.id
+    )
+  END
+  FROM workflow_states s WHERE s.id = p_state_id;
+$$;
+
+REVOKE ALL ON FUNCTION review_stage_exit_transition(UUID) FROM PUBLIC, anon, authenticated;
+
 CREATE OR REPLACE FUNCTION execute_workflow_transition(
   p_file_id UUID,
   p_transition_id UUID,
@@ -4888,6 +4948,11 @@ BEGIN
   IF NOT is_org_member(v_file.org_id) THEN
     RETURN jsonb_build_object('success', false, 'error_code', 'FORBIDDEN',
       'error_message', 'File belongs to another organization');
+  END IF;
+
+  IF NOT org_file_workflows_enabled(v_file.org_id) THEN
+    RETURN jsonb_build_object('success', false, 'error_code', 'WORKFLOWS_DISABLED',
+      'error_message', 'File workflows are turned off for this organization');
   END IF;
 
   -- Scoped to the file's organization, like apply_workflow_transition below it.

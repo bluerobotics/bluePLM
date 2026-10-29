@@ -22,6 +22,21 @@ import { t } from '@/lib/i18n'
 import type { AvailableTransition } from '@/types/workflow'
 
 import { ContextSubmenu } from '../components'
+import { addFilesToReviewPackage } from '@/features/source/reviewPackage/addToPackage'
+
+/** Whether a state is a review stage (`triggers_review`): files entering it go to the review package. */
+async function isReviewStage(stateId: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('workflow_states')
+    .select('triggers_review')
+    .eq('id', stateId)
+    .maybeSingle()
+  if (error) {
+    log.warn('[Workflow]', 'Reading the target state failed', { error, stateId })
+    return false
+  }
+  return data?.triggers_review === true
+}
 
 interface ChangeStateSubmenuProps {
   targetFile: LocalFile
@@ -165,6 +180,11 @@ export function ChangeStateSubmenu({
         onRefresh(true)
         onClose()
         setShowStateSubmenu(false)
+        // Into a review stage: put the file in the review package so its reviewers can be chosen.
+        // The review's approval later moves it on (Settings > File Workflows).
+        if (await isReviewStage(transition.to_state_id)) {
+          void addFilesToReviewPackage([targetFile])
+        }
         return
       }
 

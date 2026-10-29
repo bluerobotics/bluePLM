@@ -28,6 +28,8 @@ export interface MenuItemCountProps {
   userId?: string
   isAdmin?: boolean
   solidworksEnabled?: boolean
+  /** File workflows on for the organization (Change State shows); default true. */
+  workflowsEnabled?: boolean
   allFiles: LocalFile[]
 }
 
@@ -122,8 +124,11 @@ export function countCheckoutActions(props: MenuItemCountProps): number {
   // Admin: Force Release - for files checked out by others
   if (isAdmin && counts.checkedOutByOthersCount > 0) count++
 
-  // Change State submenu - for synced files
-  if (state.anySynced) count++
+  // Change State submenu - for synced files, while file workflows are on
+  if (state.anySynced && props.workflowsEnabled !== false) count++
+
+  // Reviews submenu (ReviewsSubmenu) - any reviewable file in the selection
+  if (reviewableFiles(props.contextFiles).length > 0) count++
 
   return count
 }
@@ -279,12 +284,6 @@ export function countCollaborationActions(props: MenuItemCountProps): number {
 
   // Extract References - for folders containing assemblies
   if (isFolder && !multiSelect && assemblyFilesInFolder.length > 0) count++
-
-  // Request review - any synced file in the selection (ReviewPackageMenuItems)
-  if (reviewableFiles(contextFiles).length > 0) count++
-
-  // View Reviews - for synced files (same condition as Request Review)
-  if (!multiSelect && !isFolder && state.isSynced && firstFile.pdmData?.id) count++
 
   // Request Checkout - for files checked out by others
   if (

@@ -8,10 +8,17 @@
 
 import { log } from '@/lib/logger'
 import { t } from '@/lib/i18n'
-import { getLatestCheckedInVersions } from '@/lib/supabase/reviews'
+import {
+  addReviewItems,
+  getLatestCheckedInVersions,
+  removeReviewItems,
+} from '@/lib/supabase/reviews'
+import { describeReviewError } from '@/features/source/reviews/lib/reviewErrors'
 import { usePDMStore } from '@/stores/pdmStore'
+import { selectReviewPackageDraft } from '@/stores/slices/reviewsSlice'
 import type { LocalFile } from '@/stores/types'
 import type { ReviewPackageDraftItem } from '@/types/reviewPackageDraft'
+import type { OpenReviewForFiles } from '@/types/reviews'
 
 import { reviewableFiles } from './lib/localCopy'
 
@@ -109,4 +116,89 @@ export function addVersionToReviewPackage(
   ])
   announce(outcome, 0)
   openPaneIfAsked(options)
+}
+
+/**
+ * Add files to an open review at their latest checked-in versions. Files the review already holds
+ * are left out; a newer version of one of those goes in through resubmit.
+ */
+export async function addFilesToOpenReview(
+  files: readonly LocalFile[],
+  review: OpenReviewForFiles,
+): Promise<void> {
+  const state = usePDMStore.getState()
+  const contained = new Set(review.containedFileIds)
+  const fileIds = reviewableFiles(files)
+    .map((f) => f.pdmData?.id)
+    .filter((id): id is string => !!id && !contained.has(id))
+  if (fileIds.length === 0) {
+    state.addToast('info', t('contextMenu.review.toast.alreadyInReview', { title: review.title }))
+    return
+  }
+
+  try {
+    const latest = await getLatestCheckedInVersions(fileIds)
+    if (latest.length === 0) {
+      state.addToast('warning', t('reviewBuilder.toast.noVersion', { count: fileIds.length }))
+      return
+    }
+    const result = await addReviewItems(
+      review.reviewId,
+      latest.map((v) => v.fileVersionId),
+    )
+    state.addToast(
+      'success',
+      t('contextMenu.review.toast.added', { count: result.added, title: review.title }),
+    )
+    const skipped = fileIds.length - latest.length
+    if (skipped > 0)
+      state.addToast('warning', t('reviewBuilder.toast.noVersion', { count: skipped }))
+    usePDMStore.getState().requestReviewQueueRefresh()
+  } catch (error) {
+    log.error('[Reviews]', 'Adding files to an open review failed', {
+      error,
+      reviewId: review.reviewId,
+    })
+    state.addToast(
+      'error',
+      t('contextMenu.review.toast.addFailed', { message: describeReviewError(error) }),
+    )
+  }
+}
+
+/** Take files out of an open review. */
+export async function removeFilesFromOpenReview(
+  review: OpenReviewForFiles,
+  fileIds: readonly string[],
+): Promise<void> {
+  const state = usePDMStore.getState()
+  const ids = fileIds.filter((id) => review.containedFileIds.includes(id))
+  if (ids.length === 0) return
+  try {
+    const result = await removeReviewItems(review.reviewId, ids)
+    state.addToast(
+      'success',
+      t('contextMenu.review.toast.removed', { count: result.removed, title: review.title }),
+    )
+    usePDMStore.getState().requestReviewQueueRefresh()
+  } catch (error) {
+    log.error('[Reviews]', 'Removing files from an open review failed', {
+      error,
+      reviewId: review.reviewId,
+    })
+    state.addToast(
+      'error',
+      t('contextMenu.review.toast.removeFailed', { message: describeReviewError(error) }),
+    )
+  }
+}
+
+/** Take files out of the unsent package being built. */
+export function removeFilesFromReviewPackage(fileIds: readonly string[]): void {
+  const state = usePDMStore.getState()
+  const inDraft = new Set(selectReviewPackageDraft(state).items.map((i) => i.fileId))
+  const ids = fileIds.filter((id) => inDraft.has(id))
+  for (const id of ids) state.removeReviewPackageItem(id)
+  if (ids.length > 0)
+    state.addToast('success', t('contextMenu.review.toast.removedFromDraft', { count: ids.length }))
 }

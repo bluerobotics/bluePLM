@@ -3,7 +3,6 @@ import { ArrowDown, Users, Eye, EyeOff, Link, ClipboardList, Loader2 } from 'luc
 import type { LocalFile } from '@/stores/pdmStore'
 import type { DialogName } from '../types'
 import type { ToastType } from '@/stores/types'
-import { ReviewPackageMenuItems } from '@/features/source/reviewPackage/components/ReviewPackageMenuItems'
 
 interface CollaborationItemsProps {
   contextFiles: LocalFile[]
@@ -44,9 +43,6 @@ export function CollaborationItems({
 
   return (
     <>
-      {/* Request review / add to the review package - one file or a selection */}
-      <ReviewPackageMenuItems contextFiles={contextFiles} onClose={onClose} />
-
       {/* Request Checkout - for files checked out by others */}
       {!multiSelect && !isFolder && anySynced && isCheckedOutByOther && (
         <div className="context-menu-item" onClick={() => openDialog('checkoutRequest')}>

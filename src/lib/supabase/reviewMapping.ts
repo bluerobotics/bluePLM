@@ -9,6 +9,8 @@
 
 import type { Json } from '@/types/supabase'
 import type {
+  AddReviewItemsResult,
+  AdvanceReviewedFilesResult,
   CancelResult,
   ClosureEdgeSource,
   DependencyClosureRow,
@@ -51,6 +53,10 @@ import type {
   ReviewUser,
   ReviewViewerContext,
   VersionReferenceInput,
+  OpenReviewForFiles,
+  RemoveReviewItemsResult,
+  ReviewStageSkipReason,
+  ReviewWorkflowStatus,
 } from '@/types/reviews'
 
 // ---------------------------------------------------------------------------
@@ -180,6 +186,10 @@ const ERROR_CODES: readonly ReviewErrorCode[] = [
   'REVIEWER_NO_VAULT_ACCESS',
   'TEAM_NOT_FOUND',
   'PDF_EXISTS',
+  'REVIEW_NOT_OPEN',
+  'LAST_ITEM',
+  'WORKFLOWS_DISABLED',
+  'NOT_APPROVED',
   'UNKNOWN',
 ]
 
@@ -616,5 +626,93 @@ export function mapRecordVersionReferencesResult(v: unknown): RecordVersionRefer
     exact: num(o.exact),
     approximate: num(o.approximate),
     unresolved: num(o.unresolved),
+  }
+}
+
+// ============================================
+// Open reviews: add / remove files (schema 110)
+// ============================================
+
+export function mapOpenReviewsForFiles(v: unknown): OpenReviewForFiles[] {
+  return arr(v)
+    .filter(isObj)
+    .map((o) => ({
+      reviewId: str(o.review_id),
+      title: str(o.title),
+      outcome: reviewOutcomeFromStatus(o.status),
+      itemCount: num(o.item_count),
+      requestedByMe: bool(o.requested_by_me),
+      canAdd: bool(o.can_add),
+      containedFileIds: arr(o.contained_file_ids).filter(
+        (id): id is string => typeof id === 'string',
+      ),
+    }))
+}
+
+export function mapAddReviewItemsResult(v: unknown): AddReviewItemsResult {
+  const o = obj(v)
+  return { reviewId: str(o.review_id), added: num(o.added) }
+}
+
+export function mapRemoveReviewItemsResult(v: unknown): RemoveReviewItemsResult {
+  const o = obj(v)
+  return {
+    reviewId: str(o.review_id),
+    removed: num(o.removed),
+    outcome: reviewOutcomeFromStatus(o.status),
+  }
+}
+
+// ============================================
+// Review stages (schema 110)
+// ============================================
+
+const STAGE_SKIP_REASONS: readonly ReviewStageSkipReason[] = [
+  'not_approved',
+  'deleted',
+  'not_in_review_stage',
+  'changed_since_review',
+  'checked_out',
+  'no_next_stage',
+  'gated',
+  'checkout_required',
+  'transition_failed',
+]
+
+export function mapAdvanceReviewedFilesResult(v: unknown): AdvanceReviewedFilesResult {
+  const o = obj(v)
+  return {
+    moved: num(o.moved),
+    skipped: arr(o.skipped)
+      .filter(isObj)
+      .map((s) => ({
+        itemId: str(s.item_id),
+        fileId: str(s.file_id),
+        fileName: str(s.file_name),
+        reason: oneOf(s.reason, STAGE_SKIP_REASONS, 'transition_failed'),
+      })),
+  }
+}
+
+export function mapReviewWorkflowStatus(v: unknown): ReviewWorkflowStatus {
+  const o = obj(v)
+  return {
+    // Absent means on, as on the server.
+    workflowsEnabled: o.workflows_enabled !== false,
+    onApproval: oneOf(o.on_approval, ['hold', 'advance'] as const, 'hold'),
+    packagePolicy: oneOf(o.package_policy, ['together', 'approved_only'] as const, 'together'),
+    items: arr(o.items)
+      .filter(isObj)
+      .map((i) => ({
+        itemId: str(i.item_id),
+        fileId: str(i.file_id),
+        outcome: oneOf(i.outcome, ITEM_OUTCOMES, 'pending'),
+        stateName: strOrNull(i.state_name),
+        stateColor: strOrNull(i.state_color),
+        inReviewStage: bool(i.in_review_stage),
+        nextStateName: strOrNull(i.next_state_name),
+        advancedAt: strOrNull(i.advanced_at),
+        advancedToStateName: strOrNull(i.advanced_to_state_name),
+      })),
   }
 }

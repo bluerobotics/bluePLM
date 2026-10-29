@@ -1013,6 +1013,44 @@ export const en: TranslationDict = {
   // Workflows
   workflows: {
     layoutSaveFailed: 'Could not save the diagram layout',
+    reviewStage: {
+      toggle: 'Review stage',
+      hint: 'Files entering this state go to a review. Settings > File Workflows decides whether an approval moves them on by itself.',
+      onApproval: 'When approved, move to',
+      onlyExit: 'Its only exit ({{state}})',
+      chooseExit: 'Choose a state',
+      needsExit: 'Choose where approved files go: this state has more than one exit.',
+    },
+    settings: {
+      title: 'File Workflows',
+      intro: 'Workflows move files through states such as WIP, In Review and Released.',
+      adminOnly: 'Only administrators can change these settings.',
+      enable: 'Use file workflows',
+      enabledHint:
+        'Files follow their workflows. Change State is in the file menus and Workflows in the sidebar.',
+      disabledHint:
+        'Workflows are off: no Workflows view, no Change State in the file menus, and no state changes. Workflows and file states are kept.',
+      onApprovalTitle: 'When a review approves files in a review stage',
+      onApprovalIntro:
+        'A review stage is a workflow state marked "Review stage". Files in it are reviewed in a review package.',
+      hold: 'Mark them approved; the requester moves them',
+      holdHint:
+        'The review shows the files as approved and offers the move. Nothing moves until the requester (or an administrator) does it.',
+      advance: 'Move them to the next stage',
+      advanceHint:
+        'Approved files move to the state the review stage names, without anyone acting.',
+      packageTitle: 'When a package comes back partly approved',
+      packageIntro:
+        'Applies to automatic moves. The requester can always move the approved files or the whole package from the review.',
+      together: 'Move the package as one',
+      togetherHint: 'Nothing moves until every file in the package is approved.',
+      approvedOnly: 'Move approved files ahead',
+      approvedOnlyHint:
+        'Each file moves as soon as it is approved; the rest stay in review or go back for changes.',
+      saved: 'File workflow settings saved',
+      saveFailed: 'Could not save the file workflow settings: {{message}}',
+      noPermission: 'Update failed: you may not have permission',
+    },
     transition: {
       moved: 'Moved to {{state}}',
       failed: 'Failed to change state',
@@ -1344,6 +1382,26 @@ export const en: TranslationDict = {
       requestMany: 'Request review of {{count}} files…',
       addToPackage: 'Add to review package',
       addToPackageHint: 'Add to the review package being built (files in it: {{count}})',
+      reviews: 'Reviews',
+      newReview: 'New review…',
+      newReviewMany: 'New review of {{count}} files…',
+      addTo: 'Add to review',
+      removeFrom: 'Remove from review',
+      draft: 'Review being built ({{count}} files)',
+      reviewHint: '{{count}} files in this review',
+      loading: 'Loading reviews…',
+      loadFailed: 'Could not load open reviews',
+      noneToAdd: 'No open review to add to',
+      noneToRemove: 'Not in an open review',
+      view: 'View reviews',
+      toast: {
+        added: 'Added {{count}} to {{title}}',
+        alreadyInReview: 'Already in {{title}}',
+        addFailed: 'Could not add to the review: {{message}}',
+        removed: 'Removed {{count}} from {{title}}',
+        removeFailed: 'Could not remove from the review: {{message}}',
+        removedFromDraft: 'Removed {{count}} from the review being built',
+      },
     },
     assembly: {
       title: 'Assembly',

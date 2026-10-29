@@ -706,6 +706,15 @@ export interface OrgSettings {
    * readable through the API, so this is not an access restriction.
    */
   admin_only_folders?: string[]
+  /**
+   * File workflows for the organization (schema 110). Unset or true = on. When false the Workflows
+   * sidebar view and every Change State menu entry are hidden, and the server refuses transitions.
+   */
+  file_workflows_enabled?: boolean
+  /** Files in a review stage, once approved: 'hold' (default) for the requester to move, or 'advance'. */
+  review_stage_on_approval?: 'hold' | 'advance'
+  /** A package moves 'together' (default) once fully approved, or 'approved_only' files move as approved. */
+  review_stage_package_policy?: 'together' | 'approved_only'
 }
 
 /**

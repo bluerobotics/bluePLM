@@ -27,6 +27,10 @@ const TRANSLATED: ReadonlySet<ReviewErrorCode> = new Set<ReviewErrorCode>([
   'REVIEWER_NO_VAULT_ACCESS',
   'TEAM_NOT_FOUND',
   'DUPLICATE_FILE',
+  'REVIEW_NOT_OPEN',
+  'LAST_ITEM',
+  'WORKFLOWS_DISABLED',
+  'NOT_APPROVED',
 ])
 
 export function describeReviewError(error: unknown): string {

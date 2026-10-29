@@ -40,6 +40,7 @@ export const settingsSections = (): SettingsSection[] => [
       { id: 'serialization', label: 'Serialization', keywords: ['serial numbers', 'numbering'] },
       { id: 'export', label: 'Export Options', keywords: ['pdf', 'step', 'dxf'] },
       { id: 'metadata-columns', label: 'File Metadata', keywords: ['columns', 'properties'] },
+      { id: 'file-workflows', label: 'File Workflows', keywords: ['workflow', 'review stage', 'approval'] },
       { id: 'item-designations', label: 'Item Designations', keywords: ['part types'] },
       { id: 'rfq', label: 'RFQ Settings', keywords: ['quote', 'request for quote'] },
       { id: 'recovery-codes', label: 'Recovery Codes', keywords: ['admin recovery'] },
@@ -255,6 +256,11 @@ export const settingsCatalog: SettingsCatalog = {
     { label: 'Show notes column', keywords: ['notes'] },
     { label: 'Terms and Conditions', keywords: ['legal', 't&c'] },
     { label: 'Footer Text', keywords: ['footer'] },
+  ],
+  'file-workflows': [
+    { label: 'Use file workflows', keywords: ['enable workflows', 'states'] },
+    { label: 'When a review approves files in a review stage', keywords: ['hold', 'advance', 'approve'] },
+    { label: 'When a package comes back partly approved', keywords: ['together', 'approved only', 'partial'] },
   ],
   'metadata-columns': [
     { label: 'Built-in Columns', keywords: ['columns', 'file browser'] },

@@ -268,6 +268,12 @@ CREATE TABLE IF NOT EXISTS review_items (
   UNIQUE (review_id, file_id)
 );
 
+-- Schema 110: when an approved review moved the item's file out of its review
+-- stage, and to which state.
+ALTER TABLE review_items ADD COLUMN IF NOT EXISTS advanced_at TIMESTAMPTZ;
+ALTER TABLE review_items ADD COLUMN IF NOT EXISTS advanced_to_state_id UUID
+  REFERENCES workflow_states(id) ON DELETE SET NULL;
+
 CREATE INDEX IF NOT EXISTS idx_review_items_review ON review_items(review_id, sort_order);
 CREATE INDEX IF NOT EXISTS idx_review_items_file ON review_items(file_id);
 CREATE INDEX IF NOT EXISTS idx_review_items_version ON review_items(file_version_id);
@@ -1424,6 +1430,7 @@ BEGIN
     AND NOT rri.carried_forward AND rri.outcome = 'pending';
 
   IF v_open > 0 THEN
+    PERFORM review_workflow_after_settle(p_review_id, 'pending');
     RETURN 'pending';
   END IF;
 
@@ -1482,6 +1489,8 @@ BEGIN
         p_review_id, r.priority);
     END IF;
   END IF;
+
+  PERFORM review_workflow_after_settle(p_review_id, v_status::text);
 
   RETURN v_status::text;
 END;
@@ -1624,6 +1633,12 @@ DECLARE
   v_status TEXT;
   v_title TEXT;
 BEGIN
+  -- remove_review_items() settles and notifies itself; this trigger is for files
+  -- deleted from the vault.
+  IF current_setting('blueplm.review_items_removed_by_rpc', true) = 'on' THEN
+    RETURN NULL;
+  END IF;
+
   FOR x IN
     SELECT o.review_id, count(*)::integer AS n
     FROM old_items o
@@ -2294,6 +2309,543 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION cancel_review(UUID, TEXT) TO authenticated;
+
+-- ===========================================
+-- REVIEW ITEMS: ADD TO / REMOVE FROM AN OPEN REVIEW (schema 110)
+-- ===========================================
+
+-- Open reviews a file selection can be added to or removed from, for the file
+-- context menu (Reviews > Add to review / Remove from review). Lists reviews that
+-- are still open (pending, or kicked_back awaiting a resubmit) that the caller
+-- requested, plus, for an administrator, every open review holding one of the
+-- files. contained_file_ids says which of p_file_ids each review already holds;
+-- can_add is true only while the round is open (pending).
+CREATE OR REPLACE FUNCTION list_open_reviews_for_files(p_file_ids UUID[] DEFAULT '{}'::UUID[])
+RETURNS JSONB
+LANGUAGE plpgsql STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_actor UUID;
+  v_org_id UUID;
+  v_admin BOOLEAN;
+  v_files UUID[];
+BEGIN
+  v_actor := current_actor_id();
+  SELECT u.org_id INTO v_org_id FROM users u WHERE u.id = v_actor;
+  PERFORM require_org_member(v_org_id);
+  v_admin := is_org_admin();
+  v_files := COALESCE(p_file_ids, '{}'::UUID[]);
+
+  RETURN COALESCE((
+    SELECT jsonb_agg(x.row_json ORDER BY x.requested_at DESC)
+    FROM (
+      SELECT r.requested_at,
+        jsonb_build_object(
+          'review_id', r.id,
+          'title', review_display_title(r.id),
+          'status', r.status,
+          'item_count', (SELECT count(*) FROM review_items i WHERE i.review_id = r.id),
+          'requested_by_me', r.requested_by = v_actor,
+          'can_add', r.status = 'pending',
+          'contained_file_ids', COALESCE((
+            SELECT jsonb_agg(i.file_id) FROM review_items i
+            WHERE i.review_id = r.id AND i.file_id = ANY (v_files)
+          ), '[]'::jsonb)
+        ) AS row_json
+      FROM reviews r
+      WHERE r.org_id = v_org_id
+        AND r.status IN ('pending', 'kicked_back')
+        AND (
+          r.requested_by = v_actor
+          OR (v_admin AND EXISTS (
+            SELECT 1 FROM review_items i WHERE i.review_id = r.id AND i.file_id = ANY (v_files)
+          ))
+        )
+      ORDER BY r.requested_at DESC
+      LIMIT 50
+    ) x
+  ), '[]'::jsonb);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION list_open_reviews_for_files(UUID[]) TO authenticated;
+
+-- Add file versions to a review whose round is open (requester or administrator).
+--
+-- The versions are pinned and validated as request_review pins them. A file
+-- already in the review is refused (DUPLICATE_FILE): a newer version of an item
+-- goes in through resubmit. Every reviewer of the current round must be able to
+-- see the new items' vaults (REVIEWER_NO_VAULT_ACCESS), because they owe a
+-- decision on them. The new items join the current round, so reviewers who had
+-- finished it owe a decision again (review_settle recomputes their assignment),
+-- and they are told what was added.
+CREATE OR REPLACE FUNCTION add_review_items(p_review_id UUID, p_file_version_ids UUID[])
+RETURNS JSONB
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_actor UUID;
+  v_org_id UUID;
+  r reviews%ROWTYPE;
+  v_bad UUID;
+  v_count INTEGER;
+  v_items INTEGER;
+  v_base INTEGER;
+  v_reviewers UUID[];
+  v_title TEXT;
+BEGIN
+  v_actor := current_actor_id();
+  v_org_id := require_review_access(p_review_id);
+
+  SELECT * INTO r FROM reviews WHERE id = p_review_id AND org_id = v_org_id FOR UPDATE;
+
+  IF r.requested_by IS DISTINCT FROM v_actor AND NOT is_org_admin() THEN
+    RAISE EXCEPTION 'Only the requester or an administrator can add files to a review'
+      USING ERRCODE = 'insufficient_privilege', HINT = 'FORBIDDEN';
+  END IF;
+
+  IF r.status <> 'pending' THEN
+    RAISE EXCEPTION 'Files can be added only while the review is waiting on its reviewers'
+      USING ERRCODE = 'object_not_in_prerequisite_state', HINT = 'REVIEW_NOT_OPEN';
+  END IF;
+
+  v_count := COALESCE(cardinality(p_file_version_ids), 0);
+  IF v_count = 0 THEN
+    RAISE EXCEPTION 'Nothing to add'
+      USING ERRCODE = 'invalid_parameter_value', HINT = 'NO_ITEMS';
+  END IF;
+  IF v_count + (SELECT count(*) FROM review_items i WHERE i.review_id = p_review_id) > 500 THEN
+    RAISE EXCEPTION 'A review can hold at most 500 files'
+      USING ERRCODE = 'invalid_parameter_value', HINT = 'TOO_MANY_ITEMS';
+  END IF;
+
+  SELECT x.id INTO v_bad
+  FROM unnest(p_file_version_ids) AS x(id)
+  LEFT JOIN file_versions fv ON fv.id = x.id
+  LEFT JOIN files f ON f.id = fv.file_id
+  WHERE fv.id IS NULL
+     OR f.org_id IS DISTINCT FROM v_org_id
+     OR f.deleted_at IS NOT NULL
+     OR NOT user_may_access_vault(v_actor, f.vault_id)
+  LIMIT 1;
+  IF FOUND THEN
+    RAISE EXCEPTION 'File version not found'
+      USING ERRCODE = 'insufficient_privilege', HINT = 'VERSION_NOT_FOUND',
+            DETAIL = COALESCE(v_bad::text, '');
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM unnest(p_file_version_ids) AS x(id)
+    JOIN file_versions fv ON fv.id = x.id
+    GROUP BY fv.file_id HAVING count(*) > 1
+  ) OR EXISTS (
+    SELECT 1 FROM unnest(p_file_version_ids) AS x(id)
+    JOIN file_versions fv ON fv.id = x.id
+    JOIN review_items i ON i.review_id = p_review_id AND i.file_id = fv.file_id
+  ) THEN
+    RAISE EXCEPTION 'A file can be in a review only once'
+      USING ERRCODE = 'invalid_parameter_value', HINT = 'DUPLICATE_FILE';
+  END IF;
+
+  v_reviewers := ARRAY(
+    SELECT rr.reviewer_id FROM review_responses rr
+    WHERE rr.review_id = p_review_id AND rr.round_number = r.current_round AND rr.withdrawn_at IS NULL
+  );
+
+  SELECT rv.id INTO v_bad
+  FROM unnest(v_reviewers) AS rv(id)
+  WHERE EXISTS (
+    SELECT 1 FROM unnest(p_file_version_ids) AS x(id)
+    JOIN file_versions fv ON fv.id = x.id
+    JOIN files f ON f.id = fv.file_id
+    WHERE NOT user_may_access_vault(rv.id, f.vault_id)
+  )
+  LIMIT 1;
+  IF FOUND THEN
+    RAISE EXCEPTION 'A reviewer cannot see a vault these files use'
+      USING ERRCODE = 'insufficient_privilege', HINT = 'REVIEWER_NO_VAULT_ACCESS',
+            DETAIL = COALESCE(v_bad::text, '');
+  END IF;
+
+  SELECT COALESCE(max(i.sort_order), 0) INTO v_base FROM review_items i WHERE i.review_id = p_review_id;
+
+  INSERT INTO review_items (org_id, review_id, file_id, vault_id, file_version_id, sort_order, added_in_round)
+  SELECT v_org_id, p_review_id, fv.file_id, f.vault_id, fv.id, v_base + x.ord::integer, r.current_round
+  FROM unnest(p_file_version_ids) WITH ORDINALITY AS x(id, ord)
+  JOIN file_versions fv ON fv.id = x.id
+  JOIN files f ON f.id = fv.file_id;
+  GET DIAGNOSTICS v_items = ROW_COUNT;
+
+  INSERT INTO review_round_items (org_id, review_id, item_id, round_number, file_version_id)
+  SELECT v_org_id, p_review_id, i.id, r.current_round, i.file_version_id
+  FROM review_items i
+  WHERE i.review_id = p_review_id
+    AND NOT EXISTS (
+      SELECT 1 FROM review_round_items rri WHERE rri.item_id = i.id AND rri.round_number = r.current_round
+    );
+
+  -- One vault for the whole review, or none once it spans several.
+  UPDATE reviews
+  SET vault_id = (
+        SELECT CASE WHEN count(DISTINCT i.vault_id) = 1 THEN min(i.vault_id::text)::uuid END
+        FROM review_items i WHERE i.review_id = p_review_id
+      ),
+      updated_at = NOW()
+  WHERE id = p_review_id;
+
+  PERFORM review_settle(p_review_id, v_actor, false);
+
+  v_title := review_display_title(p_review_id);
+  PERFORM review_notify(
+    v_org_id, v_reviewers, v_actor, 'review_request',
+    'Files added to review: ' || v_title,
+    v_items || ' file(s) were added to this review and need your decision.',
+    p_review_id, r.priority);
+
+  RETURN jsonb_build_object('review_id', p_review_id, 'added', v_items);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION add_review_items(UUID, UUID[]) TO authenticated;
+
+-- Take files out of an open review (requester or administrator). Their items,
+-- rounds and decisions go with them (ON DELETE CASCADE). Removing every file is
+-- refused (LAST_ITEM): cancel the review instead. The round is re-settled here, so
+-- the review completes when what is left is decided. The delete trigger, which is
+-- for files deleted from the vault, is told to stand aside so the requester is
+-- not told their files were deleted.
+CREATE OR REPLACE FUNCTION remove_review_items(p_review_id UUID, p_file_ids UUID[])
+RETURNS JSONB
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_actor UUID;
+  v_org_id UUID;
+  r reviews%ROWTYPE;
+  v_files UUID[];
+  v_removed INTEGER;
+  v_status TEXT;
+  v_owing UUID[];
+  v_title TEXT;
+BEGIN
+  v_actor := current_actor_id();
+  v_org_id := require_review_access(p_review_id);
+  v_files := COALESCE(p_file_ids, '{}'::UUID[]);
+
+  SELECT * INTO r FROM reviews WHERE id = p_review_id AND org_id = v_org_id FOR UPDATE;
+
+  IF r.requested_by IS DISTINCT FROM v_actor AND NOT is_org_admin() THEN
+    RAISE EXCEPTION 'Only the requester or an administrator can remove files from a review'
+      USING ERRCODE = 'insufficient_privilege', HINT = 'FORBIDDEN';
+  END IF;
+
+  IF r.status NOT IN ('pending', 'kicked_back') THEN
+    RAISE EXCEPTION 'This review is already closed'
+      USING ERRCODE = 'object_not_in_prerequisite_state', HINT = 'REVIEW_CLOSED';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM review_items i WHERE i.review_id = p_review_id AND NOT (i.file_id = ANY (v_files))
+  ) THEN
+    RAISE EXCEPTION 'A review needs at least one file. Cancel the review instead.'
+      USING ERRCODE = 'invalid_parameter_value', HINT = 'LAST_ITEM';
+  END IF;
+
+  v_owing := ARRAY(
+    SELECT rr.reviewer_id FROM review_responses rr
+    WHERE rr.review_id = p_review_id AND rr.round_number = r.current_round
+      AND rr.status = 'pending' AND rr.withdrawn_at IS NULL
+  );
+
+  PERFORM set_config('blueplm.review_items_removed_by_rpc', 'on', true);
+  DELETE FROM review_items i WHERE i.review_id = p_review_id AND i.file_id = ANY (v_files);
+  GET DIAGNOSTICS v_removed = ROW_COUNT;
+  PERFORM set_config('blueplm.review_items_removed_by_rpc', '', true);
+
+  IF v_removed = 0 THEN
+    RETURN jsonb_build_object('review_id', p_review_id, 'removed', 0, 'status', r.status::text);
+  END IF;
+
+  UPDATE reviews
+  SET vault_id = (
+        SELECT CASE WHEN count(DISTINCT i.vault_id) = 1 THEN min(i.vault_id::text)::uuid END
+        FROM review_items i WHERE i.review_id = p_review_id
+      ),
+      updated_at = NOW()
+  WHERE id = p_review_id;
+
+  IF r.status = 'pending' THEN
+    v_status := review_settle(p_review_id, v_actor, true);
+  ELSIF NOT EXISTS (
+    SELECT 1 FROM review_items i WHERE i.review_id = p_review_id AND i.outcome <> 'approved'
+  ) THEN
+    -- A review sent back for changes whose only unapproved files were just taken
+    -- out: everything left is approved, so the review is.
+    UPDATE reviews SET status = 'approved', completed_at = NOW(), updated_at = NOW()
+    WHERE id = p_review_id;
+    UPDATE review_rounds SET outcome = 'approved'
+    WHERE review_id = p_review_id AND round_number = r.current_round;
+    v_status := 'approved';
+    PERFORM review_workflow_after_settle(p_review_id, v_status);
+  ELSE
+    v_status := r.status::text;
+  END IF;
+
+  IF v_status = 'pending' THEN
+    v_title := review_display_title(p_review_id);
+    PERFORM review_notify(
+      v_org_id, v_owing, v_actor, 'review_item_removed',
+      'Files removed from review: ' || v_title,
+      v_removed || ' file(s) were taken out of this review and no longer need a decision.',
+      p_review_id, r.priority);
+  END IF;
+
+  RETURN jsonb_build_object('review_id', p_review_id, 'removed', v_removed, 'status', v_status);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION remove_review_items(UUID, UUID[]) TO authenticated;
+
+-- ===========================================
+-- REVIEW STAGES: WORKFLOW AFTER A REVIEW (schema 110)
+-- ===========================================
+-- A review stage is a workflow state with triggers_review. When files in a review
+-- stage are approved in a review, they leave the stage by
+-- review_stage_exit_transition(). Two organization settings
+-- (organizations.settings) decide when:
+--
+--   review_stage_on_approval     'hold' (default): the files are approved and wait
+--                                for the requester (or an administrator) to move
+--                                them, with advance_reviewed_files().
+--                                'advance': they move as soon as the rule below
+--                                allows.
+--   review_stage_package_policy  'together' (default): a package moves as one,
+--                                once the whole review is approved.
+--                                'approved_only': each file moves as soon as it is
+--                                approved, while the rest of the package is still
+--                                under review or being reworked.
+--
+-- Nothing moves while file workflows are off for the organization.
+
+-- Move a review's approved items out of their review stage. p_only_approved =
+-- false is the package move: the caller has checked that every item is
+-- approved. An item moves only when all of these hold, otherwise it is reported
+-- in 'skipped' with the reason:
+--   approved; the file is live; it sits in a review stage; it is still at the
+--   version that was approved (a newer check-in was not reviewed); nobody has it
+--   checked out; its stage names one exit; that exit has no blocking gate (a gate
+--   is its own approval, which a review does not replace); and its target state
+--   does not require a checkout.
+-- The review's approval is the authority for the move, so the transition's
+-- workflow roles are not asked of the actor. Each move is its own subtransaction:
+-- one failure is reported and does not undo the others.
+CREATE OR REPLACE FUNCTION review_advance_items(p_review_id UUID, p_only_approved BOOLEAN)
+RETURNS JSONB
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  x RECORD;
+  v_moved INTEGER := 0;
+  v_skipped JSONB := '[]'::jsonb;
+  v_reason TEXT;
+  v_transition workflow_transitions%ROWTYPE;
+BEGIN
+  FOR x IN
+    SELECT i.id AS item_id, i.file_id, i.outcome, fv.version AS reviewed_version,
+           f.version AS current_version, f.deleted_at, f.checked_out_by, f.file_name,
+           fwa.current_state_id, COALESCE(ws.triggers_review, false) AS in_review_stage
+    FROM review_items i
+    JOIN file_versions fv ON fv.id = i.file_version_id
+    JOIN files f ON f.id = i.file_id
+    LEFT JOIN file_workflow_assignments fwa ON fwa.file_id = i.file_id
+    LEFT JOIN workflow_states ws ON ws.id = fwa.current_state_id
+    WHERE i.review_id = p_review_id
+      AND i.advanced_at IS NULL
+      AND (NOT p_only_approved OR i.outcome = 'approved')
+    ORDER BY i.sort_order, i.id
+  LOOP
+    v_reason := NULL;
+    v_transition := NULL;
+
+    IF x.outcome <> 'approved' THEN
+      v_reason := 'not_approved';
+    ELSIF x.deleted_at IS NOT NULL THEN
+      v_reason := 'deleted';
+    ELSIF x.current_state_id IS NULL OR NOT x.in_review_stage THEN
+      v_reason := 'not_in_review_stage';
+    ELSIF x.current_version IS DISTINCT FROM x.reviewed_version THEN
+      v_reason := 'changed_since_review';
+    ELSIF x.checked_out_by IS NOT NULL THEN
+      v_reason := 'checked_out';
+    ELSE
+      SELECT * INTO v_transition FROM workflow_transitions
+      WHERE id = review_stage_exit_transition(x.current_state_id);
+      IF v_transition.id IS NULL THEN
+        v_reason := 'no_next_stage';
+      ELSIF EXISTS (
+        SELECT 1 FROM workflow_gates g
+        WHERE g.transition_id = v_transition.id AND COALESCE(g.is_blocking, true)
+      ) THEN
+        v_reason := 'gated';
+      ELSIF EXISTS (
+        SELECT 1 FROM workflow_states s
+        WHERE s.id = v_transition.to_state_id AND COALESCE(s.requires_checkout, false)
+      ) THEN
+        v_reason := 'checkout_required';
+      END IF;
+    END IF;
+
+    IF v_reason IS NULL THEN
+      BEGIN
+        PERFORM 1 FROM file_workflow_assignments WHERE file_id = x.file_id FOR UPDATE;
+        PERFORM apply_workflow_transition(x.file_id, v_transition.id, NULL, 'Review approved', NULL);
+        UPDATE review_items
+        SET advanced_at = NOW(), advanced_to_state_id = v_transition.to_state_id
+        WHERE id = x.item_id;
+        v_moved := v_moved + 1;
+      EXCEPTION WHEN OTHERS THEN
+        v_reason := 'transition_failed';
+      END;
+    END IF;
+
+    IF v_reason IS NOT NULL THEN
+      v_skipped := v_skipped || jsonb_build_object(
+        'item_id', x.item_id, 'file_id', x.file_id, 'file_name', x.file_name, 'reason', v_reason);
+    END IF;
+  END LOOP;
+
+  RETURN jsonb_build_object('moved', v_moved, 'skipped', v_skipped);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION review_advance_items(UUID, BOOLEAN) FROM PUBLIC, anon, authenticated;
+
+-- Called by review_settle() with the status it settled on. Applies the
+-- organization's 'advance' setting; with 'hold' it does nothing.
+CREATE OR REPLACE FUNCTION review_workflow_after_settle(p_review_id UUID, p_status TEXT)
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_org_id UUID;
+  v_settings JSONB;
+BEGIN
+  SELECT r.org_id INTO v_org_id FROM reviews r WHERE r.id = p_review_id;
+  IF v_org_id IS NULL OR NOT org_file_workflows_enabled(v_org_id) THEN
+    RETURN;
+  END IF;
+
+  SELECT COALESCE(o.settings, '{}'::jsonb) INTO v_settings FROM organizations o WHERE o.id = v_org_id;
+  IF COALESCE(v_settings ->> 'review_stage_on_approval', 'hold') <> 'advance' THEN
+    RETURN;
+  END IF;
+
+  IF COALESCE(v_settings ->> 'review_stage_package_policy', 'together') = 'approved_only' THEN
+    PERFORM review_advance_items(p_review_id, true);
+  ELSIF p_status = 'approved' THEN
+    PERFORM review_advance_items(p_review_id, false);
+  END IF;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION review_workflow_after_settle(UUID, TEXT) FROM PUBLIC, anon, authenticated;
+
+-- The requester (or an administrator) moves reviewed files to their next stage.
+-- p_only_approved = false moves the package as one and needs the whole review
+-- approved (NOT_APPROVED otherwise); true moves the approved files and leaves the
+-- rest in their review stage. Returns { moved, skipped: [{ item_id, file_id,
+-- file_name, reason }] }.
+CREATE OR REPLACE FUNCTION advance_reviewed_files(p_review_id UUID, p_only_approved BOOLEAN DEFAULT false)
+RETURNS JSONB
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_actor UUID;
+  v_org_id UUID;
+  r reviews%ROWTYPE;
+BEGIN
+  v_actor := current_actor_id();
+  v_org_id := require_review_access(p_review_id);
+
+  SELECT * INTO r FROM reviews WHERE id = p_review_id AND org_id = v_org_id FOR UPDATE;
+
+  IF r.requested_by IS DISTINCT FROM v_actor AND NOT is_org_admin() THEN
+    RAISE EXCEPTION 'Only the requester or an administrator can move reviewed files'
+      USING ERRCODE = 'insufficient_privilege', HINT = 'FORBIDDEN';
+  END IF;
+
+  IF NOT org_file_workflows_enabled(v_org_id) THEN
+    RAISE EXCEPTION 'File workflows are turned off for this organization'
+      USING ERRCODE = 'object_not_in_prerequisite_state', HINT = 'WORKFLOWS_DISABLED';
+  END IF;
+
+  IF r.status = 'cancelled' THEN
+    RAISE EXCEPTION 'This review was cancelled'
+      USING ERRCODE = 'object_not_in_prerequisite_state', HINT = 'REVIEW_CLOSED';
+  END IF;
+
+  IF NOT COALESCE(p_only_approved, false) AND r.status <> 'approved' THEN
+    RAISE EXCEPTION 'The package moves as one only once every file is approved'
+      USING ERRCODE = 'object_not_in_prerequisite_state', HINT = 'NOT_APPROVED';
+  END IF;
+
+  RETURN review_advance_items(p_review_id, COALESCE(p_only_approved, false));
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION advance_reviewed_files(UUID, BOOLEAN) TO authenticated;
+
+-- Where each item of a review stands in its workflow, for the review's header:
+-- the organization's settings, and per item its current state, whether that is a
+-- review stage, the stage it would move to, and when the review moved it.
+CREATE OR REPLACE FUNCTION get_review_workflow_status(p_review_id UUID)
+RETURNS JSONB
+LANGUAGE plpgsql STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_org_id UUID;
+  v_settings JSONB;
+BEGIN
+  v_org_id := require_review_access(p_review_id);
+  SELECT COALESCE(o.settings, '{}'::jsonb) INTO v_settings FROM organizations o WHERE o.id = v_org_id;
+
+  RETURN jsonb_build_object(
+    'workflows_enabled', org_file_workflows_enabled(v_org_id),
+    'on_approval', COALESCE(v_settings ->> 'review_stage_on_approval', 'hold'),
+    'package_policy', COALESCE(v_settings ->> 'review_stage_package_policy', 'together'),
+    'items', COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+        'item_id', i.id,
+        'file_id', i.file_id,
+        'outcome', i.outcome,
+        'state_name', ws.name,
+        'state_color', ws.color,
+        'in_review_stage', COALESCE(ws.triggers_review, false),
+        'next_state_name', nx.name,
+        'advanced_at', i.advanced_at,
+        'advanced_to_state_name', adv.name
+      ) ORDER BY i.sort_order, i.id)
+      FROM review_items i
+      LEFT JOIN file_workflow_assignments fwa ON fwa.file_id = i.file_id
+      LEFT JOIN workflow_states ws ON ws.id = fwa.current_state_id
+      LEFT JOIN workflow_transitions t
+        ON ws.triggers_review AND t.id = review_stage_exit_transition(ws.id)
+      LEFT JOIN workflow_states nx ON nx.id = t.to_state_id
+      LEFT JOIN workflow_states adv ON adv.id = i.advanced_to_state_id
+      WHERE i.review_id = p_review_id
+    ), '[]'::jsonb)
+  );
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION get_review_workflow_status(UUID) TO authenticated;
 
 -- Change the priority or due date of an open review (requester or
 -- administrator). NULL leaves a value as it is; p_clear_due_date removes the

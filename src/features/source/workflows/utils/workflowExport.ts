@@ -54,6 +54,8 @@ export interface ExportedState {
   requires_checkout: boolean
   auto_increment_revision: boolean
   triggers_review: boolean
+  /** Review stage: the key of the state an approval moves files to (schema 110). */
+  review_approved?: string | null
   sort_order: number
 }
 
@@ -126,6 +128,7 @@ export function buildExportPayload(
       requires_checkout: s.requires_checkout,
       auto_increment_revision: s.auto_increment_revision,
       triggers_review: s.triggers_review,
+      review_approved: s.review_approved_state_id ?? null,
       sort_order: s.sort_order,
     })),
     transitions: transitions.map((t) => ({
@@ -295,6 +298,7 @@ function normaliseState(state: Record<string, unknown>): ExportedState {
     requires_checkout: bool(state.requires_checkout, true),
     auto_increment_revision: bool(state.auto_increment_revision, false),
     triggers_review: bool(state.triggers_review, false),
+    review_approved: nullableStr(state.review_approved),
     sort_order: num(state.sort_order, 0),
   }
 }

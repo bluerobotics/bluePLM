@@ -5,5 +5,5 @@
 
 export { ReviewPackagePane } from './ReviewPackagePane'
 export { addFilesToReviewPackage, addVersionToReviewPackage } from './addToPackage'
-export { ReviewPackageMenuItems } from './components/ReviewPackageMenuItems'
+export { ReviewsSubmenu } from './components/ReviewsSubmenu'
 export { AddVersionToPackageButton } from './components/AddVersionToPackageButton'

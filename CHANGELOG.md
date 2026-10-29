@@ -6,8 +6,32 @@ All notable changes to BluePLM will be documented in this file.
 
 ## [Unreleased]
 
+Schema 110 (no API or SolidWorks service change). Apply `supabase/core.sql`, then modules 10 to 50
+in order. Until it is applied, the new review menu entries, the File Workflows settings and the
+review workflow bar fail with "function not found"; everything else keeps working.
+
 ### Added
 
+- **Reviews submenu** in the top section of the file context menu (file list and explorer tree):
+  Reviews > New review…, Add to review > (the review being built, then your open reviews), Remove
+  from review > (open reviews holding the file), View reviews. Adding pins the latest checked-in
+  version and joins the open round, so reviewers who had finished owe a decision on the new files;
+  removing never takes out a review's last file (cancel it instead). Server: `add_review_items`,
+  `remove_review_items`, `list_open_reviews_for_files`. Replaces the separate "Request review…",
+  "Add to review package" and "View Reviews" entries.
+- **Settings > File Workflows** (admins change it): turn file workflows off for the organization.
+  While off there is no Workflows view in the sidebar, no Change State in any file menu, and the
+  server refuses transitions (`WORKFLOWS_DISABLED`). Workflows and file states are kept.
+- **Review stages.** A workflow state marked "Review stage" (Edit State) names where an approval
+  sends files ("When approved, move to"; its only exit when it has one). Moving a file into a
+  review stage puts it in the review being built. When a review approves files in a review stage,
+  Settings > File Workflows decides what happens: mark them approved and let the requester move
+  them (default), or move them on by themselves; and for a package that comes back partly
+  approved, move it as one once every file is approved (default) or move each approved file
+  ahead. The review shows where its files stand and, for the requester or an admin, "Move approved
+  files" and "Move package". A file moves only at the version that was approved, when nobody has
+  it checked out, and never through a gated exit (a gate is its own approval). Server:
+  `advance_reviewed_files`, `get_review_workflow_status`, `review_items.advanced_at`.
 - **User profile history names its files.** Recent Activity on a user's profile now shows each
   entry's file name and folder (the full path on hover); clicking an entry closes the profile and
   opens that folder in the file browser with the file selected. Clicking a day in the
@@ -28,6 +52,8 @@ All notable changes to BluePLM will be documented in this file.
 - Sign-out from Account, Delete Account and Preferences, the welcome screen's sign-in messages
   and the session heartbeat's "signed out" notice go through the same backend sign-out path and are
   translated (#91).
+- The top-bar right-pane button hides and shows the comment sidebar in the Reviews view. It used to
+  toggle the file panel, which the Reviews view does not show, so it did nothing there.
 
 ## [4.8.1] - 2026-10-29
 

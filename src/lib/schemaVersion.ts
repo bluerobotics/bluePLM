@@ -41,7 +41,7 @@ import { supabase } from './supabase'
 
 // The schema version this app version expects
 // Increment this when releasing app updates that require schema changes
-export const EXPECTED_SCHEMA_VERSION = 109
+export const EXPECTED_SCHEMA_VERSION = 110
 
 // Minimum schema version that will still work (for soft warnings vs hard errors)
 // Set this to allow some backwards compatibility
@@ -162,6 +162,8 @@ export const VERSION_DESCRIPTIONS: Record<number, string> = {
     "Drawing review upkeep (20-change-control, 10-source-files). A reviewer who still owes a decision in an open round and leaves the organization, or can no longer see the vault of an item they owe, is withdrawn from the round (review_responses.withdrawn_at and withdrawn_reason); the round is re-settled without them and the requester is notified. Statement triggers on users, team_members, vault_access and team_vault_access run review_withdraw_lost_reviewers(), and resubmit_review carries forward only reviewers who can still see every item. Hard-deleting a file or file version re-settles every open review that lost items and cancels a review left with none (review_items_deleted_resettle). record_version_references is write-once: only the author may replace a recorded set, and only while the version is the file's newest.",
   109:
     "Shared color palette changes reach every client live. color_swatches joins the supabase_realtime publication and gets REPLICA IDENTITY FULL. Both are needed: the desktop subscribes to INSERT and DELETE filtered on org_id, and without the full identity a DELETE's old record carries only the primary key, so the org filter never matches and a removed org color stays on other clients until they reload. check_release_residue() refuses to stamp while color_swatches is missing from the publication or its relreplident is not 'f'.",
+  110:
+    "Reviews and file workflows work together. Files can be added to and removed from an open review (add_review_items, remove_review_items, list_open_reviews_for_files). File workflows can be turned off per organization (organizations.settings.file_workflows_enabled; execute_workflow_transition refuses WORKFLOWS_DISABLED). A review stage (workflow_states.triggers_review) names where approved files go (review_approved_state_id); an approved review moves them there automatically or holds them for the requester (advance_reviewed_files), and a package moves as one or approved files move ahead, per organizations.settings review_stage_on_approval and review_stage_package_policy. review_items records advanced_at and advanced_to_state_id.",
   // Note: Process templates module (v26+) is optional - see modules/process-templates.sql
 }
 

@@ -15,6 +15,7 @@ export const SETTINGS_TABS = [
   'export',
   'rfq',
   'metadata-columns',
+  'file-workflows',
   'item-designations',
   'backup',
   'solidworks',

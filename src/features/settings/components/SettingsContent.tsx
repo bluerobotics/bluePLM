@@ -48,6 +48,11 @@ const ExportSettings = lazy(() =>
 const RFQSettings = lazy(() =>
   import('../system/RFQSettings').then((m) => ({ default: m.RFQSettings })),
 )
+const FileWorkflowsSettings = lazy(() =>
+  import('../organization/FileWorkflowsSettings').then((m) => ({
+    default: m.FileWorkflowsSettings,
+  })),
+)
 const MetadataColumnsSettings = lazy(() =>
   import('../organization/MetadataColumnsSettings').then((m) => ({
     default: m.MetadataColumnsSettings,
@@ -183,6 +188,8 @@ export function SettingsContent({ activeTab }: SettingsContentProps) {
         return <RFQSettings />
       case 'metadata-columns':
         return <MetadataColumnsSettings />
+      case 'file-workflows':
+        return <FileWorkflowsSettings />
       case 'item-designations':
         return <ItemDesignationsSettings />
       case 'backup':

@@ -26,6 +26,7 @@ import { ItemPreview } from './ItemPreview'
 import { ResubmitDialog } from './ResubmitDialog'
 import { ReviewHeader } from './ReviewHeader'
 import { ReviewItemList } from './ReviewItemList'
+import { ReviewWorkflowBar } from './ReviewWorkflowBar'
 
 export function ReviewDetailPane() {
   const reviewId = usePDMStore((s) => s.activeReviewId)
@@ -141,6 +142,14 @@ export function ReviewDetailPane() {
         detail={detail}
         onBack={() => setActiveReviewId(null)}
         onResubmit={() => setResubmitOpen(true)}
+        onChanged={() => {
+          refreshQueue()
+          void reload()
+        }}
+      />
+
+      <ReviewWorkflowBar
+        detail={detail}
         onChanged={() => {
           refreshQueue()
           void reload()

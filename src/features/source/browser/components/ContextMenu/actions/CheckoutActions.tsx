@@ -16,6 +16,7 @@ import { useSolidWorksStatus } from '@/hooks/useSolidWorksStatus'
 import { isSolidWorksUsable } from '@/types/solidworks'
 import { ChangeStateSubmenu } from './ChangeStateSubmenu'
 import { isFileWriteInFlight } from '@/lib/metadata/writeInFlight'
+import { fileWorkflowsEnabled } from '@/lib/fileWorkflows'
 
 interface CheckoutActionsProps extends RefreshableActionProps {
   counts: SelectionCounts
@@ -60,6 +61,8 @@ export function CheckoutActions({
   const { status, hasChecked: swStatusChecked } = useSolidWorksStatus()
   const [isSyncing, setIsSyncing] = useState(false)
   const heldFile = syncedFilesInSelection.length === 1 ? syncedFilesInSelection[0] : null
+  // File workflows switched off for the organization hide every Change State entry.
+  const workflowsOn = usePDMStore((s) => fileWorkflowsEnabled(s.organization))
   const heldFileHydration = usePDMStore((s) =>
     heldFile?.pdmData?.id ? s.checkoutHydration[heldFile.pdmData.id]?.state : undefined,
   )
@@ -310,7 +313,7 @@ export function CheckoutActions({
       )}
 
       {/* Change State - single file uses the workflow engine's available transitions */}
-      {syncedFilesInSelection.length === 1 && (
+      {workflowsOn && syncedFilesInSelection.length === 1 && (
         <ChangeStateSubmenu
           targetFile={syncedFilesInSelection[0]}
           onClose={onClose}
@@ -322,7 +325,7 @@ export function CheckoutActions({
       )}
 
       {/* Change State - multi-select falls back to the legacy bulk state change */}
-      {syncedFilesInSelection.length > 1 && (
+      {workflowsOn && syncedFilesInSelection.length > 1 && (
         <div
           className="context-menu-item relative"
           onMouseEnter={() => {
