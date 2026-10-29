@@ -6,6 +6,11 @@ All notable changes to BluePLM will be documented in this file.
 
 ## [Unreleased]
 
+## [4.8.1] - 2026-10-29
+
+App only: no schema, API or SolidWorks service change, so it runs on schema 109, API 3.0.0 and
+service 1.26.0 like 4.8.0.
+
 ### Fixed
 
 - Context-menu links into Settings (for example "open settings tab") work again: the app shell
