@@ -1,4 +1,5 @@
-import { Loader2, Play, X } from 'lucide-react'
+import { useState } from 'react'
+import { ChevronDown, ChevronRight, Loader2, Play, X } from 'lucide-react'
 
 import { t } from '@/lib/i18n'
 import type { VaultAuditScope, VaultAuditScopeKind } from '@/types/vaultAudit'
@@ -58,14 +59,42 @@ export function VaultAuditScopeForm({
   onStart,
   onCancel,
 }: VaultAuditScopeFormProps) {
+  // Once there is a result the list is what matters, so the three options fold into one line
+  // naming the scope, and open again on request.
+  const [expanded, setExpanded] = useState(false)
+  const showOptions = !hasResult || expanded
+  const options = scopeOptions()
+  const current = options.find((option) => option.kind === scope.kind)
+  const Chevron = showOptions ? ChevronDown : ChevronRight
+
   return (
-    <div className="space-y-4">
-      <fieldset disabled={isRunning} className="space-y-2">
+    <div className="space-y-3">
+      {hasResult && (
+        <button
+          type="button"
+          onClick={() => setExpanded((value) => !value)}
+          aria-expanded={showOptions}
+          className="flex items-center gap-1.5 text-sm text-plm-fg-muted hover:text-plm-fg"
+        >
+          <Chevron size={14} />
+          {t('vaultAudit.scope.current', {
+            scope:
+              scope.kind === 'folder' && scope.folderPath
+                ? `${current?.label ?? ''}: ${scope.folderPath}`
+                : (current?.label ?? ''),
+          })}
+        </button>
+      )}
+
+      <fieldset
+        disabled={isRunning}
+        className={`grid gap-2 lg:grid-cols-3 ${showOptions ? '' : 'hidden'}`}
+      >
         <legend className="text-sm font-medium text-plm-fg mb-2">
           {t('vaultAudit.scope.legend')}
         </legend>
 
-        {scopeOptions().map((option) => (
+        {options.map((option) => (
           <label
             key={option.kind}
             className={`flex gap-3 p-3 rounded-md border cursor-pointer transition-colors ${

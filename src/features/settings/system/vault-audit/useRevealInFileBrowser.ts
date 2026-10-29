@@ -9,11 +9,13 @@
 
 import { useCallback, useMemo } from 'react'
 
-import { usePDMStore } from '@/stores/pdmStore'
+import { usePDMStore, type LocalFile } from '@/stores/pdmStore'
 
 export interface RevealInFileBrowser {
   /** Absolute path of the loaded file, or null when it has no local copy to show. */
   resolve: (relativePath: string) => string | null
+  /** The loaded file itself, for its icon and thumbnail. Null when it is not loaded. */
+  resolveFile: (relativePath: string) => LocalFile | null
   /** Opens the containing folder, and selects the file when it is loaded. */
   reveal: (relativePath: string) => void
 }
@@ -34,17 +36,22 @@ export function useRevealInFileBrowser(): RevealInFileBrowser {
   // Indexed once per loaded list. The findings table asks per visible row, and a linear search of
   // every loaded file for each of them is what made scrolling a long list stutter.
   const pathIndex = useMemo(() => {
-    const index = new Map<string, string>()
+    const index = new Map<string, LocalFile>()
     for (const file of files) {
       const key = normalize(file.relativePath)
-      if (!index.has(key)) index.set(key, file.path)
+      if (!index.has(key)) index.set(key, file)
     }
     return index
   }, [files])
 
-  const resolve = useCallback(
+  const resolveFile = useCallback(
     (relativePath: string) => pathIndex.get(normalize(relativePath)) ?? null,
     [pathIndex],
+  )
+
+  const resolve = useCallback(
+    (relativePath: string) => resolveFile(relativePath)?.path ?? null,
+    [resolveFile],
   )
 
   const reveal = useCallback(
@@ -79,5 +86,5 @@ export function useRevealInFileBrowser(): RevealInFileBrowser {
     ],
   )
 
-  return { resolve, reveal }
+  return { resolve, resolveFile, reveal }
 }

@@ -144,8 +144,29 @@ const CONTEXT_CHARS = 14
  */
 const MAX_MIDDLE_CHARS = 80
 
-export function segmentValue(value: string, difference: ValueDifference): ValueSegments {
+/**
+ * How a cell is cut. `trimmed` keeps a little context either side of the difference for a narrow
+ * column; `full` keeps the whole value and only marks the span, for a row with room to wrap.
+ */
+export type SegmentMode = 'trimmed' | 'full'
+
+export function segmentValue(
+  value: string,
+  difference: ValueDifference,
+  mode: SegmentMode = 'trimmed',
+): ValueSegments {
   const { prefixLength, suffixLength } = difference
+
+  if (mode === 'full') {
+    const middleEnd = value.length - suffixLength
+    return {
+      elidedStart: false,
+      head: value.slice(0, prefixLength),
+      middle: value.slice(prefixLength, middleEnd),
+      tail: value.slice(middleEnd),
+      elidedEnd: false,
+    }
+  }
 
   const headStart = Math.max(0, prefixLength - CONTEXT_CHARS)
   const head = value.slice(headStart, prefixLength)
@@ -182,6 +203,7 @@ export interface ValueComparisonDisplay {
 export function compareForDisplay(
   databaseValue: string | null,
   fileValue: string | null,
+  mode: SegmentMode = 'trimmed',
 ): ValueComparisonDisplay | null {
   if (databaseValue === null || fileValue === null) return null
   if (databaseValue === fileValue) return null
@@ -189,7 +211,7 @@ export function compareForDisplay(
   const difference = diffValues(databaseValue, fileValue)
   return {
     kind: difference.kind,
-    database: segmentValue(databaseValue, difference),
-    file: segmentValue(fileValue, difference),
+    database: segmentValue(databaseValue, difference, mode),
+    file: segmentValue(fileValue, difference, mode),
   }
 }

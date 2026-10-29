@@ -1514,7 +1514,9 @@ export const en: TranslationDict = {
       wholeVaultHint:
         'Every part and assembly. Around eight thousand documents and roughly three minutes.',
       folder: 'One folder',
-      folderHint: 'That folder and everything beneath it.',
+      folderHint:
+        'That folder and everything beneath it. A path inside the vault, or a full path copied from the browser.',
+      current: 'Scope: {{scope}}',
       folderPlaceholder: 'e.g. 0 - SHARED\\00 - REGRESSION TESTS',
       configurationRecorded: 'Multi-configuration files',
       configurationRecordedHint:
@@ -1545,6 +1547,10 @@ export const en: TranslationDict = {
         'No parts or assemblies matched this scope, so nothing was compared. This is not an all-clear.',
       folderMatchedNothing:
         'No file’s path begins with “{{path}}”. The folder is relative to the vault root, like “0 - SHARED\\00 - REGRESSION TESTS” — the browser’s Copy Path buttons give a full path starting with a drive letter, which never matches.',
+      // Replaces the line above: a full path inside the vault is now accepted. A new key, so other
+      // locales fall back to this English rather than keep telling users full paths never match.
+      folderMatchedNothingAnywhere:
+        'No part or assembly is inside “{{path}}”. Check the folder name, or that a full path starts with this vault’s folder ({{vault}}).',
       comparedNothing:
         '{{rows}} files matched this scope and none of them could be read, so nothing was compared. See below for why.',
       filesWithFindings: '{{files}} of {{compared}} files have at least one finding',
@@ -1572,6 +1578,10 @@ export const en: TranslationDict = {
       noConfigurationRecord:
         '{{count}} carry no configuration record, so a scan of this scope never opens them',
       beyondLimit: '{{count}} were beyond the run’s limit',
+    },
+
+    details: {
+      heading: 'Configuration records and field totals',
     },
 
     integrity: {
@@ -1778,6 +1788,11 @@ export const en: TranslationDict = {
       empty: '—',
       reveal: 'Show in file browser',
       revealUnavailable: 'This file has no local copy to show.',
+      expandFile: 'Show this file’s values',
+      collapseFile: 'Hide this file’s values',
+      selectFile: 'Select or clear every value of this file',
+      expandAll: 'Expand all',
+      collapseAll: 'Collapse all',
     },
 
     repair: {

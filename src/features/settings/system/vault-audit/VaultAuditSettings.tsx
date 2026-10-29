@@ -24,8 +24,8 @@
  * rendering, and that is all it decides.
  */
 
-import { useRef, useState } from 'react'
-import { AlertTriangle, Lock, Trash2 } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { AlertTriangle, ChevronRight, Lock, Trash2 } from 'lucide-react'
 
 import { SwServiceVersionNotice } from '@/components/shared'
 import { t } from '@/lib/i18n'
@@ -41,6 +41,7 @@ import { VaultAuditOverview } from './VaultAuditOverview'
 import { VaultAuditProgress } from './VaultAuditProgress'
 import { VaultAuditRevisionRule } from './VaultAuditRevisionRule'
 import { VaultAuditScopeForm } from './VaultAuditScopeForm'
+import { categoryDescription, categoryLabel } from './vaultAuditLabels'
 import { hasEvidence } from './vaultAuditView'
 
 function AdminOnlyNotice() {
@@ -57,14 +58,26 @@ export function VaultAuditSettings() {
   const [selectedCategory, setSelectedCategory] = useState<VaultAuditCategoryKind | null>(null)
   const findingsRef = useRef<HTMLDivElement>(null)
 
-  // The list is below the cards, and on a short window choosing a card appeared to do nothing.
-  const handleSelectCategory = (kind: VaultAuditCategoryKind | null) => {
-    setSelectedCategory(kind)
-    if (kind) {
-      requestAnimationFrame(() =>
-        findingsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+  // A fresh result opens on its worst non-empty category, so the list is there without a click.
+  // A category that emptied (after a re-run, or the revision rule) gives way the same way.
+  const categories = audit.view?.categories
+  useEffect(() => {
+    if (!categories) return
+    setSelectedCategory((current) => {
+      const stillThere = categories.some(
+        (category) => category.kind === current && category.valueCount > 0,
       )
-    }
+      if (stillThere) return current
+      return categories.find((category) => category.valueCount > 0)?.kind ?? null
+    })
+  }, [categories])
+
+  // On a short window the list starts below the fold; bring it up when a category is chosen.
+  const handleSelectCategory = (kind: VaultAuditCategoryKind) => {
+    setSelectedCategory(kind)
+    requestAnimationFrame(() =>
+      findingsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }),
+    )
   }
 
   return (
@@ -126,27 +139,59 @@ export function VaultAuditSettings() {
               */}
               {hasEvidence(audit.view) && (
                 <>
-                  <VaultAuditCoverage coverage={audit.view.coverage} />
+                  {/*
+                    The list is the page: categories in a rail on the left, the files of the chosen
+                    one filling the rest. The revision rule sits in the rail because it changes the
+                    counts there, and reading a total before the rule that produced it is the wrong
+                    order.
+                  */}
+                  <div className="flex flex-col lg:flex-row gap-4 items-start">
+                    <aside className="w-full lg:w-64 flex-shrink-0 space-y-3 lg:sticky lg:top-0">
+                      <VaultAuditCategories
+                        categories={audit.view.categories}
+                        selected={selectedCategory}
+                        onSelect={handleSelectCategory}
+                      />
+                      <VaultAuditRevisionRule
+                        expectRevisionOnModels={audit.expectRevisionOnModels}
+                        hiddenCount={audit.view.revisionOnModelsHidden}
+                        onChange={audit.setExpectRevisionOnModels}
+                      />
+                    </aside>
 
-                  {/* Above the categories because it changes their counts. Reading a total and
-                      then finding the rule that produced it underneath is the wrong order. */}
-                  <VaultAuditRevisionRule
-                    expectRevisionOnModels={audit.expectRevisionOnModels}
-                    hiddenCount={audit.view.revisionOnModelsHidden}
-                    onChange={audit.setExpectRevisionOnModels}
-                  />
-
-                  <VaultAuditCategories
-                    categories={audit.view.categories}
-                    selected={selectedCategory}
-                    onSelect={handleSelectCategory}
-                  />
-
-                  <div ref={findingsRef} className="scroll-mt-4">
-                    <VaultAuditFindings findings={audit.view.findings} kind={selectedCategory} />
+                    <div ref={findingsRef} className="flex-1 min-w-0 w-full space-y-2 scroll-mt-4">
+                      {/* No category is chosen only when all six are empty, which the overview
+                          has already said in words. */}
+                      {selectedCategory && (
+                        <>
+                          <div>
+                            <h3 className="text-sm font-medium text-plm-fg">
+                              {categoryLabel(selectedCategory)}
+                            </h3>
+                            <p className="text-xs text-plm-fg-muted">
+                              {categoryDescription(selectedCategory)}
+                            </p>
+                          </div>
+                          <VaultAuditFindings
+                            findings={audit.view.findings}
+                            kind={selectedCategory}
+                          />
+                        </>
+                      )}
+                    </div>
                   </div>
 
-                  <VaultAuditFieldTable tallies={audit.view.fieldTallies} />
+                  {/* Context for the numbers, not something to act on, so it stays folded. */}
+                  <details className="group rounded-md border border-plm-border">
+                    <summary className="flex items-center gap-1.5 px-3 py-2 text-sm text-plm-fg-muted hover:text-plm-fg cursor-pointer select-none list-none">
+                      <ChevronRight size={14} className="transition-transform group-open:rotate-90" />
+                      {t('vaultAudit.details.heading')}
+                    </summary>
+                    <div className="space-y-6 px-3 pb-3 pt-1">
+                      <VaultAuditCoverage coverage={audit.view.coverage} />
+                      <VaultAuditFieldTable tallies={audit.view.fieldTallies} />
+                    </div>
+                  </details>
                 </>
               )}
 

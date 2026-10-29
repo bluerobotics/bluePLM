@@ -93,6 +93,16 @@ describe('segmentValue', () => {
     expect(long).toContain(`${segments.head}${segments.middle}${segments.tail}`)
   })
 
+  // The file list wraps values over as many lines as they need, so nothing may be cut there.
+  it('keeps the whole value in full mode and still marks only the difference', () => {
+    const segments = segmentValue(long, diffValues(long, other), 'full')
+
+    expect(`${segments.head}${segments.middle}${segments.tail}`).toBe(long)
+    expect(segments.middle).toBe('LEF')
+    expect(segments.elidedStart).toBe(false)
+    expect(segments.elidedEnd).toBe(false)
+  })
+
   it('does not elide a short value', () => {
     const difference = diffValues('BR-100', 'BR-200')
     const segments = segmentValue('BR-100', difference)

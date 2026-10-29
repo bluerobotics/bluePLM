@@ -34,8 +34,23 @@ All notable changes to BluePLM will be documented in this file.
 App only: no schema, API or SolidWorks service change, so it runs on schema 109, API 3.0.0 and
 service 1.26.0 like 4.8.0.
 
+### Changed
+
+- **Metadata Audit is a file list.** The SOLIDWORKS > Metadata Audit results are now laid out like
+  the file browser: categories in a rail on the left, and the chosen category's files filling the
+  rest of a wider page, one row per file (icon or thumbnail, name, folder, value count, who holds
+  it) with its values underneath. Values wrap in full with the differing span highlighted, instead
+  of being cut to a few words. A file's box ticks all of its values, files collapse and expand, and
+  the first non-empty category opens on its own. The scope options fold to one line once there is
+  a result, and the configuration-record and field tallies fold into a closed section.
+
 ### Fixed
 
+- **Metadata Audit accepts a full folder path.** A folder scope pasted from the browser's Copy Path
+  (for example `C:\BluePLM\br-vault\POWERMODULE\development\`) matched nothing and came back blank
+  (Wilson, 2026-10-29). The scan knows the vault root, so a path inside it is now cut back to its
+  vault-relative part; a path outside the vault still matches nothing and says so. Also applies to
+  `scan-divergence --path` and `restore-metadata-from-files --path`.
 - Context-menu links into Settings (for example "open settings tab") work again: the app shell
   listens for the navigation event once more (#87).
 - The installer packages the SolidWorks service once, from the staged `resources/bin/win32`

@@ -31,7 +31,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { X } from 'lucide-react'
+import { ChevronsDownUp, ChevronsUpDown, Search, X } from 'lucide-react'
 
 import { t } from '@/lib/i18n'
 import type { VaultAuditCategoryKind, VaultAuditFinding } from '@/types/vaultAudit'
@@ -44,9 +44,15 @@ import { useVaultAuditRepair } from './useVaultAuditRepair'
 import { useVaultAuditFill } from './useVaultAuditFill'
 import { VaultAuditActionBar } from './VaultAuditActionBar'
 import { VaultAuditFillActionBar } from './VaultAuditFillActionBar'
-import { VaultAuditFindingsTable } from './VaultAuditFindingsTable'
+import { VaultAuditFileList } from './VaultAuditFileList'
 import { VaultAuditSelectionBar } from './VaultAuditSelectionBar'
 import { categoryDirectionOf } from './vaultAuditActions'
+import {
+  flattenGroups,
+  groupRowsByFile,
+  rowsInDisplayOrder,
+  type VaultAuditFileGroup,
+} from './vaultAuditGroups'
 import { buildFindingRows, type VaultAuditFindingRow } from './vaultAuditRows'
 import {
   hiddenSelectedRows,
@@ -86,6 +92,7 @@ export function VaultAuditFindings({ findings, kind }: VaultAuditFindingsProps) 
   const [filter, setFilter] = useState('')
   const [actionableOnly, setActionableOnly] = useState(false)
   const [sort, setSort] = useState<FindingSort>(DEFAULT_FINDING_SORT)
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set())
   const anchorId = useRef<string | null>(null)
 
   useEffect(() => {
@@ -96,6 +103,7 @@ export function VaultAuditFindings({ findings, kind }: VaultAuditFindingsProps) 
   // A different category is a different list: an anchor from the last one points at nothing.
   useEffect(() => {
     anchorId.current = null
+    setCollapsed(new Set())
   }, [kind])
 
   const repair = useVaultAuditRepair()
@@ -178,6 +186,11 @@ export function VaultAuditFindings({ findings, kind }: VaultAuditFindingsProps) 
     })
   }, [allRows, haystacks, filter, actionableOnly])
 
+  const groups = useMemo(() => groupRowsByFile(visibleRows), [visibleRows])
+  // The order rows are drawn in, file by file. A shift-click range follows this, not the sort.
+  const displayRows = useMemo(() => rowsInDisplayOrder(groups), [groups])
+  const items = useMemo(() => flattenGroups(groups, collapsed), [groups, collapsed])
+
   const summary = useMemo(() => summarizeSelection(allRows, visibleRows), [allRows, visibleRows])
 
   const busy = repair.applying || push.running || conflict.applying || fill.applying
@@ -228,14 +241,14 @@ export function VaultAuditFindings({ findings, kind }: VaultAuditFindingsProps) 
       // Over every row the filter lets through, in the order they are displayed - not over what
       // happens to be drawn, which is why a range can span hundreds of rows.
       const span = rangeBetween(
-        visibleRows.map((candidate) => candidate.id),
+        displayRows.map((candidate) => candidate.id),
         anchorId.current,
         row.id,
       )
       if (span) {
         const spanIds = new Set(span)
         applySelection(
-          visibleRows.filter((candidate) => spanIds.has(candidate.id) && candidate.selectable),
+          displayRows.filter((candidate) => spanIds.has(candidate.id) && candidate.selectable),
           selected,
         )
         anchorId.current = row.id
@@ -248,6 +261,24 @@ export function VaultAuditFindings({ findings, kind }: VaultAuditFindingsProps) 
   }
 
   const handleSort = (key: FindingSortKey) => setSort((current) => nextSort(current, key))
+
+  // A file's box ticks every value of it that can be ticked, or clears them when all already are.
+  const handleToggleFile = (group: VaultAuditFileGroup) => {
+    const targets = group.rows.filter((row) => row.selectable)
+    applySelection(targets, group.selectedCount < group.selectableCount)
+  }
+
+  const handleToggleCollapsed = (fileId: string) =>
+    setCollapsed((current) => {
+      const next = new Set(current)
+      if (next.has(fileId)) next.delete(fileId)
+      else next.add(fileId)
+      return next
+    })
+
+  const allCollapsed = groups.length > 0 && groups.every((group) => collapsed.has(group.fileId))
+  const toggleCollapseAll = () =>
+    setCollapsed(allCollapsed ? new Set() : new Set(groups.map((group) => group.fileId)))
 
   const handleConflictChoice = (
     row: VaultAuditFindingRow,
@@ -286,101 +317,130 @@ export function VaultAuditFindings({ findings, kind }: VaultAuditFindingsProps) 
   const actionableTotal = allRows.filter((row) => row.selectable).length
 
   return (
-    <section className="space-y-2">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h3 className="text-sm font-medium text-plm-fg">{t('vaultAudit.findings.heading')}</h3>
-        <div className="flex items-center gap-3">
-          {actionableTotal > 0 && actionableTotal < allRows.length && (
-            <label
-              className="flex items-center gap-1.5 text-xs text-plm-fg-muted cursor-pointer"
-              title={t('vaultAudit.findings.actionableOnlyHint')}
+    <section className="flex flex-col gap-2 min-w-0">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[14rem]">
+          <Search
+            size={13}
+            className="absolute left-2 top-1/2 -translate-y-1/2 text-plm-fg-muted pointer-events-none"
+          />
+          <input
+            type="text"
+            value={filterInput}
+            placeholder={t('vaultAudit.findings.filterPlaceholder')}
+            onChange={(event) => setFilterInput(event.target.value)}
+            className="w-full pl-7 pr-7 py-1.5 text-sm bg-plm-bg border border-plm-border rounded-md text-plm-fg outline-none focus:border-plm-accent"
+          />
+          {filterInput && (
+            <button
+              type="button"
+              onClick={() => {
+                setFilterInput('')
+                setFilter('')
+              }}
+              title={t('vaultAudit.findings.clearFilter')}
+              aria-label={t('vaultAudit.findings.clearFilter')}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-plm-fg-muted hover:text-plm-fg"
             >
-              <input
-                type="checkbox"
-                checked={actionableOnly}
-                onChange={(event) => setActionableOnly(event.target.checked)}
-                className="accent-plm-accent"
-              />
-              {t('vaultAudit.findings.actionableOnly')}
-            </label>
+              <X size={12} />
+            </button>
           )}
-          <div className="relative">
-            <input
-              type="text"
-              value={filterInput}
-              placeholder={t('vaultAudit.findings.filterPlaceholder')}
-              onChange={(event) => setFilterInput(event.target.value)}
-              className="w-64 pl-2 pr-7 py-1 text-xs bg-plm-bg border border-plm-border rounded text-plm-fg outline-none focus:border-plm-accent"
-            />
-            {filterInput && (
-              <button
-                type="button"
-                onClick={() => {
-                  setFilterInput('')
-                  setFilter('')
-                }}
-                title={t('vaultAudit.findings.clearFilter')}
-                aria-label={t('vaultAudit.findings.clearFilter')}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-plm-fg-muted hover:text-plm-fg"
-              >
-                <X size={12} />
-              </button>
-            )}
-          </div>
         </div>
+
+        {actionableTotal > 0 && actionableTotal < allRows.length && (
+          <label
+            className="flex items-center gap-1.5 text-xs text-plm-fg-muted cursor-pointer"
+            title={t('vaultAudit.findings.actionableOnlyHint')}
+          >
+            <input
+              type="checkbox"
+              checked={actionableOnly}
+              onChange={(event) => setActionableOnly(event.target.checked)}
+              className="accent-plm-accent"
+            />
+            {t('vaultAudit.findings.actionableOnly')}
+          </label>
+        )}
+
+        {groups.length > 1 && (
+          <button
+            type="button"
+            onClick={toggleCollapseAll}
+            className="flex items-center gap-1 px-2 py-1 text-xs text-plm-fg-muted hover:text-plm-fg border border-plm-border rounded-md hover:bg-plm-bg-lighter transition-colors"
+          >
+            {allCollapsed ? <ChevronsUpDown size={12} /> : <ChevronsDownUp size={12} />}
+            {allCollapsed
+              ? t('vaultAudit.findings.expandAll')
+              : t('vaultAudit.findings.collapseAll')}
+          </button>
+        )}
       </div>
 
-      <p className="text-xs text-plm-fg-muted">{t('vaultAudit.findings.directionNote')}</p>
-
-      {inCategory.length === 0 && (
-        <p className="text-xs text-plm-fg-muted">{t('vaultAudit.findings.none')}</p>
-      )}
-
-      {inCategory.length > 0 && visibleRows.length === 0 && (
-        <p className="text-xs text-plm-fg-muted">{t('vaultAudit.findings.noMatches')}</p>
-      )}
-
       {inCategory.length > 0 && (
-        <VaultAuditSelectionBar
-          summary={summary}
-          unit={unit}
-          disabled={busy}
-          onSelectAll={() => applyBulk('select-all')}
-          onClear={() => applyBulk('clear')}
-          onInvert={() => applyBulk('invert')}
-          onClearHidden={clearHidden}
-        />
-      )}
-
-      {visibleRows.length > 0 && (
-        <>
-          <VaultAuditFindingsTable
-            rows={visibleRows}
-            sort={sort}
-            scrollResetKey={`${kind}|${filter}|${actionableOnly}|${sort.key}|${sort.direction}`}
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+          <VaultAuditSelectionBar
+            summary={summary}
+            unit={unit}
             disabled={busy}
-            allSelected={summary.allSelected}
-            someSelected={summary.someSelected}
-            canSelectAny={summary.selectableUnits > 0}
-            onSort={handleSort}
-            onToggleAll={() => applyBulk(summary.allSelected ? 'clear' : 'select-all')}
-            onToggle={handleToggle}
-            onChooseConflict={handleConflictChoice}
+            onSelectAll={() => applyBulk('select-all')}
+            onClear={() => applyBulk('clear')}
+            onInvert={() => applyBulk('invert')}
+            onClearHidden={clearHidden}
           />
-
-          <p className="text-xs text-plm-fg-muted">
+          <span className="text-xs text-plm-fg-muted">
             {filtering
               ? t('vaultAudit.findings.showing', {
                   shown: visibleRows.length,
                   total: allRows.length,
                 })
               : t('vaultAudit.findings.total', { count: allRows.length })}
+            {' · '}
+            {t('vaultAudit.category.files', { count: groups.length })}
+          </span>
+        </div>
+      )}
+
+      {inCategory.length === 0 && (
+        <p className="text-xs text-plm-fg-muted py-6 text-center">
+          {t('vaultAudit.findings.none')}
+        </p>
+      )}
+
+      {inCategory.length > 0 && visibleRows.length === 0 && (
+        <p className="text-xs text-plm-fg-muted py-6 text-center">
+          {t('vaultAudit.findings.noMatches')}
+        </p>
+      )}
+
+      {visibleRows.length > 0 && (
+        <>
+          {/* Sized to the window, so once scrolled to, the list is most of what is on screen. */}
+          <div className="h-[calc(100vh-17rem)] min-h-[24rem]">
+            <VaultAuditFileList
+              items={items}
+              sort={sort}
+              scrollResetKey={`${kind}|${filter}|${actionableOnly}|${sort.key}|${sort.direction}`}
+              disabled={busy}
+              allSelected={summary.allSelected}
+              someSelected={summary.someSelected}
+              canSelectAny={summary.selectableUnits > 0}
+              onSort={handleSort}
+              onToggleAll={() => applyBulk(summary.allSelected ? 'clear' : 'select-all')}
+              onToggle={handleToggle}
+              onToggleFile={handleToggleFile}
+              onToggleCollapsed={handleToggleCollapsed}
+              onChooseConflict={handleConflictChoice}
+            />
+          </div>
+
+          <p className="text-[11px] text-plm-fg-muted">
+            {t('vaultAudit.findings.directionNote')}
             {summary.selectableUnits > 1 && <> {t('vaultAudit.findings.rangeHint')}</>}
           </p>
 
           {/* Stays at the bottom of the scrolling settings area, so the button and the count of
-              what it will write are in reach however far down the list the reader has gone. */}
-          <div className="sticky bottom-0 z-20 -mx-1 px-1 pt-2 pb-1 bg-plm-bg border-t border-plm-border max-h-[45vh] overflow-y-auto">
+              what it will write are in reach however far down the page the reader has gone. */}
+          <div className="sticky bottom-0 z-20 -mx-1 px-1 pt-2 pb-1 bg-plm-bg border-t border-plm-border max-h-[40vh] overflow-y-auto">
             {kind === 'conflicting' ? (
               <VaultAuditConflictActionBar conflict={conflict} push={push} />
             ) : kind === 'empty-in-database' ? (

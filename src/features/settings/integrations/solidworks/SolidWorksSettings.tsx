@@ -66,8 +66,11 @@ export function SolidWorksSettings() {
     }
   }
 
+  // The audit is a file list and uses the full width it is given; the forms read better narrow.
+  const width = currentTab === 'metadata-audit' ? '' : 'max-w-6xl mx-auto'
+
   return (
-    <div className="space-y-6">
+    <div className={`space-y-6 ${width}`}>
       {/* Tab Navigation */}
       <div className="border-b border-plm-border">
         <nav className="flex gap-1" aria-label="SolidWorks Settings Tabs">

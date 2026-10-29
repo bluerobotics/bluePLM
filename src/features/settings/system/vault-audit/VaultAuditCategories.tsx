@@ -6,19 +6,22 @@ import { categoryDescription, categoryLabel, TONE_TEXT } from './vaultAuditLabel
 interface VaultAuditCategoriesProps {
   categories: VaultAuditCategory[]
   selected: VaultAuditCategoryKind | null
-  onSelect: (kind: VaultAuditCategoryKind | null) => void
+  onSelect: (kind: VaultAuditCategoryKind) => void
 }
 
 /**
- * The six categories, worst first.
+ * The six categories, worst first, as the rail beside the file list.
  *
  * All six are always shown, including the empty ones, because "no values are lost" is the answer
- * an administrator came for and a card that disappears when it hits zero cannot give it.
+ * an administrator came for and an entry that disappears when it hits zero cannot give it.
  *
- * Each is titled by what resolving it consists of rather than by what the evidence is. The two
- * read very differently at a glance: "The file still has it" describes a state and leaves the
- * reader to work out which way the fix runs, where "Copy the file's value into BluePLM" is the
- * fix. The evidence has not gone anywhere - it is the sentence underneath.
+ * Each is titled by what resolving it consists of rather than by what the evidence is: "Copy the
+ * file's value into BluePLM" is the fix, where "The file still has it" leaves the reader to work
+ * out which way it runs. The evidence is the description, shown above the list for the selected
+ * category and on hover for the rest.
+ *
+ * They used to be a grid of cards above the list, which pushed the list below the fold and made
+ * choosing one look like it did nothing. As a rail they stay beside the list they filter.
  */
 export function VaultAuditCategories({
   categories,
@@ -26,48 +29,49 @@ export function VaultAuditCategories({
   onSelect,
 }: VaultAuditCategoriesProps) {
   return (
-    <section className="space-y-2">
-      <h3 className="text-sm font-medium text-plm-fg">{t('vaultAudit.category.heading')}</h3>
+    <nav aria-label={t('vaultAudit.category.heading')} className="space-y-1">
+      <h3 className="px-2 pb-1 text-[11px] uppercase tracking-wide text-plm-fg-muted">
+        {t('vaultAudit.category.heading')}
+      </h3>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {categories.map((category) => {
-          const empty = category.valueCount === 0
-          const isSelected = selected === category.kind
+      {categories.map((category) => {
+        const empty = category.valueCount === 0
+        const isSelected = selected === category.kind
 
-          return (
-            <button
-              key={category.kind}
-              onClick={() => onSelect(isSelected ? null : category.kind)}
-              disabled={empty}
-              aria-pressed={isSelected}
-              className={`text-left p-3 rounded-md border transition-colors ${
-                isSelected
-                  ? 'border-plm-accent bg-plm-highlight ring-1 ring-plm-accent'
-                  : 'border-plm-border hover:bg-plm-bg-lighter'
-              } ${empty ? 'opacity-60 cursor-default hover:bg-transparent' : ''}`}
-            >
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="text-sm text-plm-fg">{categoryLabel(category.kind)}</span>
-                <span
-                  className={`text-lg font-mono ${
-                    empty ? 'text-plm-fg-muted' : TONE_TEXT[category.tone]
-                  }`}
-                >
-                  {category.valueCount}
-                </span>
-              </div>
-              <p className="text-xs text-plm-fg-muted mt-1">
-                {categoryDescription(category.kind)}
-              </p>
-              {!empty && (
-                <p className="text-xs text-plm-fg-muted/70 mt-1">
-                  {t('vaultAudit.category.files', { count: category.fileCount })}
-                </p>
-              )}
-            </button>
-          )
-        })}
-      </div>
-    </section>
+        return (
+          <button
+            key={category.kind}
+            type="button"
+            onClick={() => onSelect(category.kind)}
+            disabled={empty}
+            aria-pressed={isSelected}
+            title={categoryDescription(category.kind)}
+            className={`w-full text-left px-2.5 py-2 rounded-md border-l-2 transition-colors ${
+              isSelected
+                ? 'border-plm-accent bg-plm-highlight'
+                : 'border-transparent hover:bg-plm-bg-lighter'
+            } ${empty ? 'opacity-50 cursor-default hover:bg-transparent' : ''}`}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <span className={`text-sm ${isSelected ? 'text-plm-fg' : 'text-plm-fg/90'}`}>
+                {categoryLabel(category.kind)}
+              </span>
+              <span
+                className={`text-sm font-mono tabular-nums flex-shrink-0 ${
+                  empty ? 'text-plm-fg-muted' : TONE_TEXT[category.tone]
+                }`}
+              >
+                {category.valueCount}
+              </span>
+            </div>
+            {!empty && (
+              <span className="block text-[11px] text-plm-fg-muted mt-0.5">
+                {t('vaultAudit.category.files', { count: category.fileCount })}
+              </span>
+            )}
+          </button>
+        )
+      })}
+    </nav>
   )
 }

@@ -235,7 +235,8 @@ export function SettingsContent({ activeTab }: SettingsContentProps) {
 
   return (
     <div ref={containerRef} className="flex-1 overflow-y-auto bg-plm-bg">
-      <div className="max-w-6xl mx-auto p-6">
+      {/* SOLIDWORKS is wider for its Metadata Audit file list; its other tabs keep 6xl themselves. */}
+      <div className={`${activeTab === 'solidworks' ? 'max-w-[110rem]' : 'max-w-6xl'} mx-auto p-6`}>
         <Suspense fallback={<SettingsLoading />}>{renderContent()}</Suspense>
       </div>
     </div>
