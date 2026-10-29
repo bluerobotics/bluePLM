@@ -109,6 +109,14 @@ export const pt: TranslationDict = {
   },
 
   welcome: {
+    signedOutFromAnotherDevice: 'A sua sessão foi terminada a partir de outro dispositivo',
+    credentialsRequired: 'Introduza o e-mail e a palavra-passe',
+    confirmEmail: 'Confirme a sua conta através do e-mail',
+    authenticationFailed: 'Falha na autenticação. Tente novamente.',
+    phoneRequired: 'Introduza o número de telefone',
+    sendCodeFailed: 'Não foi possível enviar o código de verificação. Tente novamente.',
+    codeRequired: 'Introduza o código de verificação',
+    verificationFailed: 'Falha na verificação. Tente novamente.',
     title: 'BluePLM',
     tagline: 'Gestão de ciclo de vida de produto open source',
     selectAccountType: 'Selecione o tipo de conta',

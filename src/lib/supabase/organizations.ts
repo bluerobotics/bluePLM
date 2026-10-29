@@ -2,6 +2,8 @@ import { getSupabaseClient, authLog, getCurrentConfigValues } from './client'
 import { getCurrentAccessToken } from './auth'
 import { recordMetric } from '@/lib/performanceMetrics'
 import type { Organization } from '@/types/pdm'
+import type { AuthProviders } from '@/types/backend'
+export type { AuthProviders } from '@/types/backend'
 
 // ============================================
 // User & Organization
@@ -107,12 +109,6 @@ export async function getOrganization(orgId: string) {
   } catch (error) {
     return { org: null, error: error as Error }
   }
-}
-
-// Auth provider settings type
-export interface AuthProviders {
-  users: { google: boolean; email: boolean; phone: boolean }
-  suppliers: { google: boolean; email: boolean; phone: boolean }
 }
 
 // Default auth providers (all enabled) - used as fallback

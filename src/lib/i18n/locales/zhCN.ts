@@ -105,6 +105,14 @@ export const zhCN: TranslationDict = {
   },
 
   welcome: {
+    signedOutFromAnotherDevice: '您的账户已从另一台设备退出',
+    credentialsRequired: '请输入电子邮箱和密码',
+    confirmEmail: '请通过电子邮件确认您的账户',
+    authenticationFailed: '身份验证失败，请重试。',
+    phoneRequired: '请输入电话号码',
+    sendCodeFailed: '无法发送验证码，请重试。',
+    codeRequired: '请输入验证码',
+    verificationFailed: '验证失败，请重试。',
     title: 'BluePLM',
     tagline: '开源产品生命周期管理',
     selectAccountType: '选择您的账户类型',

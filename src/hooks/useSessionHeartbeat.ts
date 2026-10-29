@@ -1,11 +1,8 @@
 import { useEffect } from 'react'
 import { usePDMStore } from '@/stores/pdmStore'
-import {
-  registerDeviceSession,
-  startSessionHeartbeat,
-  stopSessionHeartbeat,
-  signOut,
-} from '@/lib/supabase'
+import { registerDeviceSession, startSessionHeartbeat, stopSessionHeartbeat } from '@/lib/supabase'
+import { getBackend } from '@/lib/backend'
+import { t } from '@/lib/i18n'
 import { log } from '@/lib/logger'
 import type { User, Organization } from '@/types/pdm'
 
@@ -41,8 +38,8 @@ export function useSessionHeartbeat(user: User | null, organization: Organizatio
                 setUser: clearUser,
                 setOrganization: clearOrg,
               } = usePDMStore.getState()
-              toast('info', 'You were signed out from another device')
-              await signOut()
+              toast('info', t('welcome.signedOutFromAnotherDevice'))
+              await getBackend().auth.signOut()
               clearUser(null)
               clearOrg(null)
             },

@@ -32,7 +32,8 @@ import { log } from '@/lib/logger'
 import { usePDMStore, ThemeMode, Language } from '@/stores/pdmStore'
 import { useShallow } from 'zustand/react/shallow'
 import { CalendarDays } from 'lucide-react'
-import { signOut, getSupabaseClient, endRemoteSession } from '@/lib/supabase'
+import { getSupabaseClient, endRemoteSession } from '@/lib/supabase'
+import { getBackend } from '@/lib/backend'
 import { getMachineId } from '@/lib/backup'
 import { useTranslation } from '@/lib/i18n'
 import { isAnalyticsEnabled, initAnalytics } from '@/lib/analytics'
@@ -241,7 +242,7 @@ export function PreferencesSettings() {
   }, [user])
 
   const handleSignOut = async () => {
-    await signOut()
+    await getBackend().auth.signOut()
     setUser(null)
     setOrganization(null)
   }

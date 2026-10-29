@@ -280,15 +280,7 @@ export function useAuth() {
             return
           }
 
-          const userProfile = profile as {
-            full_name?: string
-            avatar_url?: string
-            custom_avatar_url?: string
-            job_title?: string
-            org_id?: string
-            role?: string
-            last_sign_in?: string
-          } | null
+          const userProfile = profile
 
           // Set user from profile (includes role) or fallback to session data
           // Note: Google OAuth stores avatar as 'picture' in user_metadata, not 'avatar_url'

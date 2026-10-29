@@ -148,6 +148,14 @@ export const en: TranslationDict = {
 
   // Welcome/Auth Screen
   welcome: {
+    signedOutFromAnotherDevice: 'You were signed out from another device',
+    credentialsRequired: 'Please enter email and password',
+    confirmEmail: 'Please check your email to confirm your account',
+    authenticationFailed: 'Authentication failed. Please try again.',
+    phoneRequired: 'Please enter your phone number',
+    sendCodeFailed: 'Failed to send verification code. Please try again.',
+    codeRequired: 'Please enter the verification code',
+    verificationFailed: 'Verification failed. Please try again.',
     title: 'BluePLM',
     tagline: 'Open-source Product Lifecycle Management',
     selectAccountType: 'Select your account type',

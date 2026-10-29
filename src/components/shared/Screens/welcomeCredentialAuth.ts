@@ -37,7 +37,7 @@ export function createWelcomeCredentialAuthHandlers({
   // Email/password sign-in (for both suppliers and team members)
   const handleEmailAuth = async () => {
     if (!authEmail || !authPassword) {
-      setAuthError('Please enter email and password')
+      setAuthError(t('welcome.credentialsRequired'))
       return
     }
 
@@ -67,7 +67,7 @@ export function createWelcomeCredentialAuthHandlers({
 
         if (!data?.session) {
           // Email confirmation needed
-          setAuthError('Please check your email to confirm your account')
+          setAuthError(t('welcome.confirmEmail'))
           setIsNewAccount(false) // Switch back to login view
           return
         }
@@ -86,7 +86,7 @@ export function createWelcomeCredentialAuthHandlers({
         log.info('[WelcomeScreen]', 'Email sign-in successful')
       }
     } catch (error) {
-      setAuthError('Authentication failed. Please try again.')
+      setAuthError(t('welcome.authenticationFailed'))
     } finally {
       setIsSigningIn(false)
     }
@@ -95,7 +95,7 @@ export function createWelcomeCredentialAuthHandlers({
   // Phone OTP sign-in (for both suppliers and team members)
   const handleSendPhoneOTP = async () => {
     if (!authPhone) {
-      setAuthError('Please enter your phone number')
+      setAuthError(t('welcome.phoneRequired'))
       return
     }
 
@@ -114,7 +114,7 @@ export function createWelcomeCredentialAuthHandlers({
       setIsOtpSent(true)
       log.info('[WelcomeScreen]', 'Phone OTP sent successfully')
     } catch (error) {
-      setAuthError('Failed to send verification code. Please try again.')
+      setAuthError(t('welcome.sendCodeFailed'))
     } finally {
       setIsSigningIn(false)
     }
@@ -122,7 +122,7 @@ export function createWelcomeCredentialAuthHandlers({
 
   const handleVerifyPhoneOTP = async () => {
     if (!phoneOtp) {
-      setAuthError('Please enter the verification code')
+      setAuthError(t('welcome.codeRequired'))
       return
     }
 
@@ -140,7 +140,7 @@ export function createWelcomeCredentialAuthHandlers({
 
       log.info('[WelcomeScreen]', 'Phone verification successful')
     } catch (error) {
-      setAuthError('Verification failed. Please try again.')
+      setAuthError(t('welcome.verificationFailed'))
     } finally {
       setIsSigningIn(false)
     }

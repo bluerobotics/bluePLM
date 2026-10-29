@@ -105,6 +105,14 @@ export const zhTW: TranslationDict = {
   },
 
   welcome: {
+    signedOutFromAnotherDevice: '您的帳戶已從另一台裝置登出',
+    credentialsRequired: '請輸入電子郵件和密碼',
+    confirmEmail: '請透過電子郵件確認您的帳戶',
+    authenticationFailed: '身分驗證失敗，請重試。',
+    phoneRequired: '請輸入電話號碼',
+    sendCodeFailed: '無法傳送驗證碼，請重試。',
+    codeRequired: '請輸入驗證碼',
+    verificationFailed: '驗證失敗，請重試。',
     title: 'BluePLM',
     tagline: '開源產品生命週期管理',
     selectAccountType: '選擇您的帳戶類型',

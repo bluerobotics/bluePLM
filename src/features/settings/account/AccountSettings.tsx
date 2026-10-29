@@ -26,7 +26,8 @@ import {
 import { log } from '@/lib/logger'
 import { usePDMStore, ThemeMode, Language } from '@/stores/pdmStore'
 import { useShallow } from 'zustand/react/shallow'
-import { signOut, getSupabaseClient, endRemoteSession } from '@/lib/supabase'
+import { getSupabaseClient, endRemoteSession } from '@/lib/supabase'
+import { getBackend } from '@/lib/backend'
 import { getInitials, getEffectiveAvatarUrl } from '@/lib/utils'
 import { getMachineId } from '@/lib/backup'
 import { useTranslation } from '@/lib/i18n'
@@ -208,7 +209,7 @@ export function AccountSettings() {
   }, [user])
 
   const handleSignOut = async () => {
-    await signOut()
+    await getBackend().auth.signOut()
     setUser(null)
     setOrganization(null)
   }

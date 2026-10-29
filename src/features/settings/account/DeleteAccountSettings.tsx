@@ -3,7 +3,8 @@ import { AlertTriangle, Loader2, Trash2, UserX } from 'lucide-react'
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { useShallow } from 'zustand/react/shallow'
-import { getSupabaseClient, signOut } from '@/lib/supabase'
+import { getSupabaseClient } from '@/lib/supabase'
+import { getBackend } from '@/lib/backend'
 
 export function DeleteAccountSettings() {
   const { user, setUser, setOrganization, addToast } = usePDMStore(
@@ -44,7 +45,7 @@ export function DeleteAccountSettings() {
       }
 
       // Sign out after successful deletion
-      await signOut()
+      await getBackend().auth.signOut()
       setUser(null)
       setOrganization(null)
 

@@ -112,6 +112,10 @@ describe('authentication call-site import boundaries', () => {
       'src/components/shared/Screens/WelcomeScreen.tsx',
       'src/components/shared/Screens/welcomeCredentialAuth.ts',
       'src/components/layout/MenuBar/MenuBar.tsx',
+      'src/features/settings/account/AccountSettings.tsx',
+      'src/features/settings/account/DeleteAccountSettings.tsx',
+      'src/features/settings/account/PreferencesSettings.tsx',
+      'src/hooks/useSessionHeartbeat.ts',
     ]
     for (const callSite of callSites) {
       expect(authImportViolations(readFileSync(resolve(process.cwd(), callSite), 'utf8'))).toEqual(

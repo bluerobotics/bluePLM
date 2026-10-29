@@ -109,6 +109,14 @@ export const fr: TranslationDict = {
   },
 
   welcome: {
+    signedOutFromAnotherDevice: 'Vous avez été déconnecté depuis un autre appareil',
+    credentialsRequired: 'Veuillez saisir votre adresse e-mail et votre mot de passe',
+    confirmEmail: 'Veuillez confirmer votre compte par e-mail',
+    authenticationFailed: 'Échec de l’authentification. Veuillez réessayer.',
+    phoneRequired: 'Veuillez saisir votre numéro de téléphone',
+    sendCodeFailed: 'Échec de l’envoi du code de vérification. Veuillez réessayer.',
+    codeRequired: 'Veuillez saisir le code de vérification',
+    verificationFailed: 'Échec de la vérification. Veuillez réessayer.',
     title: 'BluePLM',
     tagline: 'Gestion du cycle de vie des produits open source',
     selectAccountType: 'Sélectionnez votre type de compte',
