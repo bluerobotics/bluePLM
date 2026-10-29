@@ -23,6 +23,7 @@ export const createUISlice: StateCreator<
   rightPanelWidth: 350,
   rightPanelTab: null,
   rightPanelTabs: [],
+  reviewCommentsVisible: true,
   bottomPanelTabOrder: [],
 
   // Initial state - Settings navigation
@@ -156,6 +157,8 @@ export const createUISlice: StateCreator<
       })
     }
   },
+
+  toggleReviewComments: () => set((s) => ({ reviewCommentsVisible: !s.reviewCommentsVisible })),
 
   setRightPanelWidth: (width: number) =>
     set({ rightPanelWidth: Math.max(200, Math.min(1200, width)) }),

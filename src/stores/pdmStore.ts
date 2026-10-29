@@ -230,6 +230,7 @@ export const usePDMStore = create<PDMStoreState>()(
         detailsPanelHeight: state.detailsPanelHeight,
         rightPanelVisible: state.rightPanelVisible,
         rightPanelWidth: state.rightPanelWidth,
+        reviewCommentsVisible: state.reviewCommentsVisible,
         rightPanelTabs: state.rightPanelTabs,
         bottomPanelTabOrder: state.bottomPanelTabOrder,
 

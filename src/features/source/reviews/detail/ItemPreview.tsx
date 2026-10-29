@@ -48,6 +48,8 @@ export function ItemPreview({ reviewId, item, round, canMarkup }: ItemPreviewPro
   const setShowCommentInput = usePDMStore((s) => s.setShowCommentInput)
   const setPendingAnnotation = usePDMStore((s) => s.setPendingAnnotation)
   const clearAnnotations = usePDMStore((s) => s.clearAnnotations)
+  const commentsVisible = usePDMStore((s) => s.reviewCommentsVisible)
+  const toggleReviewComments = usePDMStore((s) => s.toggleReviewComments)
 
   const [preview, setPreview] = useState<Preview | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -96,8 +98,10 @@ export function ItemPreview({ reviewId, item, round, canMarkup }: ItemPreviewPro
     (data: NewAnnotationData) => {
       setPendingAnnotation(data)
       setShowCommentInput(true)
+      // The comment input lives in the sidebar, so a new markup brings it back.
+      if (!usePDMStore.getState().reviewCommentsVisible) toggleReviewComments()
     },
-    [setPendingAnnotation, setShowCommentInput],
+    [setPendingAnnotation, setShowCommentInput, toggleReviewComments],
   )
 
   const generate = async () => {
@@ -115,7 +119,7 @@ export function ItemPreview({ reviewId, item, round, canMarkup }: ItemPreviewPro
 
   return (
     <div className="flex-1 flex min-h-0 min-w-0">
-      <div className="flex-[7] min-w-0 h-full flex flex-col">
+      <div className={`${commentsVisible ? 'flex-[7]' : 'flex-1'} min-w-0 h-full flex flex-col`}>
         {error ? (
           <div className="flex-1 flex items-center justify-center p-6 text-center text-xs text-plm-error">
             {t('reviewDetail.preview.failed', { message: error })}
@@ -162,20 +166,23 @@ export function ItemPreview({ reviewId, item, round, canMarkup }: ItemPreviewPro
           </div>
         )}
       </div>
-      <div className="flex-[3] min-w-[220px] max-w-[400px] border-l border-plm-border">
-        {!sameVersion && (
-          <div className="px-3 py-1.5 text-[10px] text-plm-warning border-b border-plm-border">
-            {t('reviewDetail.preview.otherVersion', { version: markupVersion })}
-          </div>
-        )}
-        <CommentSidebar
-          fileId={item.fileId}
-          fileName={fileName}
-          fileVersion={markupVersion}
-          review={{ reviewId, round, itemId: item.id }}
-          readOnly={!editable}
-        />
-      </div>
+      {/* Comments: the top-bar right-pane toggle hides and shows them in the Reviews view */}
+      {commentsVisible && (
+        <div className="flex-[3] min-w-[220px] max-w-[400px] border-l border-plm-border">
+          {!sameVersion && (
+            <div className="px-3 py-1.5 text-[10px] text-plm-warning border-b border-plm-border">
+              {t('reviewDetail.preview.otherVersion', { version: markupVersion })}
+            </div>
+          )}
+          <CommentSidebar
+            fileId={item.fileId}
+            fileName={fileName}
+            fileVersion={markupVersion}
+            review={{ reviewId, round, itemId: item.id }}
+            readOnly={!editable}
+          />
+        </div>
+      )}
     </div>
   )
 }

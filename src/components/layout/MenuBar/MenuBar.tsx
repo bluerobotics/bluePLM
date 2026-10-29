@@ -106,6 +106,9 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
     toggleDetailsPanel,
     rightPanelVisible,
     toggleRightPanel,
+    activeView,
+    reviewCommentsVisible,
+    toggleReviewComments,
     topbarConfig,
     setTopbarConfig,
     tabsEnabled,
@@ -130,6 +133,9 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
       toggleDetailsPanel: s.toggleDetailsPanel,
       rightPanelVisible: s.rightPanelVisible,
       toggleRightPanel: s.toggleRightPanel,
+      activeView: s.activeView,
+      reviewCommentsVisible: s.reviewCommentsVisible,
+      toggleReviewComments: s.toggleReviewComments,
       topbarConfig: s.topbarConfig,
       setTopbarConfig: s.setTopbarConfig,
       tabsEnabled: s.tabsEnabled,
@@ -137,6 +143,11 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
       getEffectiveVaultIds: s.getEffectiveVaultIds,
     })),
   )
+
+  // In the Reviews view the right pane is the comment sidebar beside the drawing,
+  // which has its own visibility flag; everywhere else it is the tabbed right panel.
+  const rightPaneIsReviewComments = activeView === 'reviews'
+  const rightPaneShown = rightPaneIsReviewComments ? reviewCommentsVisible : rightPanelVisible
 
   // Filter vaults based on impersonated user's access
   const effectiveVaultIds = getEffectiveVaultIds()
@@ -699,13 +710,13 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
                   <PanelBottom size={16} />
                 </button>
                 <button
-                  onClick={toggleRightPanel}
+                  onClick={rightPaneIsReviewComments ? toggleReviewComments : toggleRightPanel}
                   className={`p-1.5 rounded transition-colors ${
-                    rightPanelVisible
+                    rightPaneShown
                       ? 'text-plm-fg hover:bg-plm-bg-lighter'
                       : 'text-plm-fg-muted hover:text-plm-fg hover:bg-plm-bg-lighter'
                   }`}
-                  title={`${rightPanelVisible ? 'Hide' : 'Show'} Right Sidebar`}
+                  title={`${rightPaneShown ? 'Hide' : 'Show'} Right Sidebar`}
                 >
                   <PanelRight size={16} />
                 </button>

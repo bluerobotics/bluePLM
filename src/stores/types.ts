@@ -591,6 +591,8 @@ export interface UISlice {
   rightPanelWidth: number
   rightPanelTab: DetailsPanelTab | null
   rightPanelTabs: DetailsPanelTab[]
+  /** Reviews view: the comment sidebar beside the drawing (the top-bar right-pane toggle drives it there) */
+  reviewCommentsVisible: boolean
   bottomPanelTabOrder: DetailsPanelTab[]
 
   // Settings navigation
@@ -664,6 +666,7 @@ export interface UISlice {
   setDetailsPanelHeight: (height: number) => void
   setDetailsPanelTab: (tab: DetailsPanelTab) => void
   toggleRightPanel: () => void
+  toggleReviewComments: () => void
   setRightPanelWidth: (width: number) => void
   setRightPanelTab: (tab: DetailsPanelTab | null) => void
   moveTabToRight: (tab: DetailsPanelTab) => void
