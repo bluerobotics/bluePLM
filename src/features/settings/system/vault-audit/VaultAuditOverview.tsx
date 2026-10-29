@@ -110,7 +110,10 @@ export function VaultAuditOverview({ view, artifactPath }: VaultAuditOverviewPro
           <p className="text-sm text-plm-fg">{headlineTextOf(view, tone)}</p>
           {unmatchedFolderPath && (
             <p className="text-xs text-plm-fg-muted mt-1">
-              {t('vaultAudit.result.folderMatchedNothing', { path: unmatchedFolderPath })}
+              {t('vaultAudit.result.folderMatchedNothingAnywhere', {
+                path: unmatchedFolderPath,
+                vault: view.scopeDescription.vaultPath,
+              })}
             </p>
           )}
           <p className="text-xs text-plm-fg-muted mt-0.5">

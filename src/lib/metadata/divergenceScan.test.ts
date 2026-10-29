@@ -83,12 +83,29 @@ describe('inFileScope', () => {
 
   /**
    * Both copy-path affordances in the browser hand out an absolute path, so this is the easiest
-   * wrong thing to paste into the folder box. Nothing here can rescue it - the rows are relative -
-   * so the run reports a scope that matched no rows rather than an empty result that looks clean.
+   * thing to paste into the folder box. The run knows its vault root exactly, so a path inside it
+   * is cut back to the relative part (Wilson's blank POWERMODULE run, 2026-10-29).
    */
-  it('matches nothing when given an absolute path, rather than guessing at the vault root', () => {
-    const options = optionsWith('C:\\BluePLM\\br-vault\\0 - SHARED')
+  it('accepts an absolute path inside the vault root', () => {
+    const options = optionsWith('C:\\BluePLM\\br-vault\\0 - SHARED\\')
+    expect(inFileScope(rowAt('0 - SHARED/ORING.SLDPRT'), options)).toBe(true)
+    expect(inFileScope(rowAt('Parts/ORING.SLDPRT'), options)).toBe(false)
+  })
+
+  it('is case-insensitive about the vault root and its separators', () => {
+    const options = optionsWith('c:/bluePLM/BR-VAULT/0 - SHARED')
+    expect(inFileScope(rowAt('0 - SHARED/ORING.SLDPRT'), options)).toBe(true)
+  })
+
+  // Outside the root nothing can be cut, so it still matches nothing and is reported as such.
+  it('matches nothing for an absolute path outside the vault root', () => {
+    const options = optionsWith('D:\\Elsewhere\\0 - SHARED')
     expect(inFileScope(rowAt('0 - SHARED/ORING.SLDPRT'), options)).toBe(false)
+  })
+
+  it('treats the vault root itself as the whole vault', () => {
+    const options = optionsWith('C:\\BluePLM\\br-vault')
+    expect(inFileScope(rowAt('Parts/ORING.SLDPRT'), options)).toBe(true)
   })
 
   it('treats a folder of nothing but separators as the vault root', () => {

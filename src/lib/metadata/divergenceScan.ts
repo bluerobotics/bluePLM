@@ -282,6 +282,24 @@ function normalizeRelativePath(value: string): string {
     .toLowerCase()
 }
 
+/**
+ * The folder scope as a vault-relative prefix, lower-cased with the ends trimmed.
+ *
+ * The browser's Copy Path buttons hand out absolute paths, and pasting one used to match no row
+ * at all (Wilson, 2026-10-29: `C:\BluePLM\br-vault\POWERMODULE\development\` came back blank).
+ * The run knows the vault root exactly, so a path inside it is cut back to its relative part. That
+ * is not a guess: a path outside the root keeps its drive letter and still matches nothing, which
+ * the result reports as an unmatched scope rather than a clean run.
+ */
+export function scopePrefixOf(pathPrefix: string, vaultPath: string): string {
+  const prefix = normalizeRelativePath(pathPrefix)
+  const root = normalizeRelativePath(vaultPath)
+  if (!root) return prefix
+  if (prefix === root) return ''
+  if (prefix.startsWith(`${root}\\`)) return prefix.slice(root.length + 1)
+  return prefix
+}
+
 /** Absolute path of a row's file inside the working copy. */
 export function resolveAbsolutePath(vaultPath: string, relativePath: string): string {
   const root = normalizeSeparators(vaultPath).replace(/\\+$/, '')
@@ -579,7 +597,7 @@ export function inFileScope(row: ScanRow, options: DivergenceScanOptions): boole
     // The trailing separator is what stops a scope of `Parts` from also claiming `Parts-Old`, for
     // the same reason `isInsideFixtureRoot` above appends one. A bare `startsWith` quietly widened
     // every folder run to its similarly named siblings.
-    const prefix = normalizeRelativePath(options.pathPrefix)
+    const prefix = scopePrefixOf(options.pathPrefix, options.vaultPath)
     if (prefix && !normalizeRelativePath(row.file_path).startsWith(`${prefix}\\`)) return false
   }
 

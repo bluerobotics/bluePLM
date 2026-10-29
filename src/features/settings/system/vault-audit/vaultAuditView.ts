@@ -413,6 +413,7 @@ export function buildVaultAuditView(
     cancelled: report.cancelled,
     scopeDescription: {
       pathPrefix: report.scope.pathPrefix,
+      vaultPath: report.scope.vaultPath,
       configurationRecordedOnly: report.scope.configurationRecordedOnly,
       includeDrawings: report.scope.includeDrawings,
     },

@@ -273,6 +273,8 @@ export interface VaultAuditView {
   cancelled: boolean
   scopeDescription: {
     pathPrefix: string | null
+    /** The working copy the run read, so an unmatched full path can be checked against it. */
+    vaultPath: string
     configurationRecordedOnly: boolean
     includeDrawings: boolean
   }
