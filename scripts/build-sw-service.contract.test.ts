@@ -11,6 +11,7 @@ type PackageManifest = {
     win?: {
       extraResources?: Array<{
         from?: string
+        to?: string
       }>
     }
   }
@@ -32,12 +33,8 @@ describe('production packaging build contract', () => {
 
   it('packages the SolidWorks service from its staged payload exactly once', () => {
     const servicePayloadSources = packageManifest.build?.win?.extraResources
-      ?.map(({ from }) => from)
-      .filter(
-        (from) =>
-          from === 'resources/bin/win32' ||
-          from === 'solidworks-service/BluePLM.SolidWorksService/bin/Release',
-      )
+      ?.filter(({ to }) => to === 'bin')
+      .map(({ from }) => from)
 
     expect(servicePayloadSources).toEqual(['resources/bin/win32'])
   })
