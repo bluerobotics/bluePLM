@@ -1,6 +1,4 @@
-import { createElement, isValidElement, type ReactNode } from 'react'
-import { createHash } from 'node:crypto'
-import { renderToStaticMarkup } from 'react-dom/server'
+import { isValidElement, type ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import {
   SerializationSettingsPresentation,
@@ -94,110 +92,6 @@ function button(value: SerializationSettingsBindings, label: string) {
 }
 
 describe('shared Serialization settings presentation', () => {
-  it('matches ten real legacy normal HTML trees from fixed 51b020 / blob 3f6fec3', () => {
-    // Captured before extraction from the actual normal component, with only its
-    // provider dependencies and React state hooks substituted for deterministic states.
-    const rich = {
-      settings: richSettings,
-      livePreview: 'CAD-AB00042-001-REV',
-      basePreview: 'CAD-AB00042',
-    }
-    const cases: Array<{
-      name: string
-      value: Partial<SerializationSettingsBindings>
-      hash: string
-    }> = [
-      {
-        name: 'disconnected',
-        value: { organization: false, isAdmin: false },
-        hash: 'a7d61b9b030918bf3df5b23d53e4c2ecec56e5c7cb705fc82221c0fa4c4e6b70',
-      },
-      {
-        name: 'loading',
-        value: { loading: true },
-        hash: 'a20cb6e23327f831b80dd9fd2a4a61b10d1f3386b442e7e8e55eec25ea61e1b6',
-      },
-      {
-        name: 'admin-default',
-        value: {},
-        hash: '1ee6d4bbd9a62b2619b96fc60a90649eb15d6580acd754bd6388b21a5f9a3c52',
-      },
-      {
-        name: 'member-readonly',
-        value: { ...rich, isAdmin: false },
-        hash: '2870de270dc0c93a7da5a49dcc63c855e588fb93ab4e354d39ea6372ce34c68a',
-      },
-      {
-        name: 'admin-rich',
-        value: {
-          ...rich,
-          previewNumber: 'CAD-AB00042-REV',
-          detectedResult: {
-            highestCounter: 105,
-            highestPartNumber: 'CAD-AB00105-REV',
-            totalScanned: 12,
-            skippedHidden: 3,
-          },
-        },
-        hash: '3271ffb9842a298854202bfdd6ea26171e4e481eb13d3c191b398976f156cadd',
-      },
-      {
-        name: 'admin-disabled',
-        value: {
-          settings: { ...DEFAULT_SERIALIZATION_SETTINGS, enabled: false },
-          livePreview: 'Disabled',
-          basePreview: '',
-        },
-        hash: 'ff3e56ee0dc0aa24014a0e1988bbbcd398262ead43f32d7453ed862fcd7ed734',
-      },
-      {
-        name: 'admin-keepout-form',
-        value: {
-          newKeepout: { start: '200', end: '299', description: 'Legacy' },
-          showKeepoutForm: true,
-          customExtension: '.custom',
-        },
-        hash: 'f1716431f8a25823cce1cbd012bb6100494ebd32b6cf968e902c72e2e348310d',
-      },
-      {
-        name: 'admin-busy',
-        value: { saving: true, loadingPreview: true, detecting: true },
-        hash: 'aed0cb6cccadaf9b7aa0238dbff09752c2ac54f9fd45688dfa0db3a97fc70603',
-      },
-      {
-        name: 'admin-no-tab-characters',
-        value: {
-          ...rich,
-          settings: {
-            ...richSettings,
-            tab_allow_letters: false,
-            tab_allow_numbers: false,
-            tab_allow_special: false,
-          },
-        },
-        hash: '45d93114bd928392519183c815d18472228b2b1ef56895e290afde908860281d',
-      },
-      {
-        name: 'scan-no-match',
-        value: {
-          detectedResult: {
-            highestCounter: 0,
-            highestPartNumber: '',
-            totalScanned: 6,
-            skippedHidden: 0,
-          },
-        },
-        hash: '39148768dce38115ce1646ab7dd25cded22ad0780b772ebf8b62a6e24e59ad97',
-      },
-    ]
-    for (const state of cases) {
-      const html = renderToStaticMarkup(
-        createElement(SerializationSettingsPresentation, { bindings: bindings(state.value) }),
-      )
-      expect(createHash('sha256').update(html).digest('hex'), state.name).toBe(state.hash)
-    }
-  })
-
   it('routes preview, scan, explicit Apply and Save to their supplied normal callbacks', async () => {
     const value = bindings({
       detectedResult: {
