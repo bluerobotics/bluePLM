@@ -21,6 +21,14 @@ All notable changes to BluePLM will be documented in this file.
   "hotkeys", and typos such as "seiral"). Arrow keys and Enter open a result, which jumps to the
   setting and flashes it; Esc clears, Ctrl+F focuses the box.
 
+### Fixed
+
+- Every notification in vault settings is translated
+  in all seven languages (#94).
+- Sign-out from Account, Delete Account and Preferences, the welcome screen's sign-in messages
+  and the session heartbeat's "signed out" notice go through the same backend sign-out path and are
+  translated (#91).
+
 ## [4.8.1] - 2026-10-29
 
 App only: no schema, API or SolidWorks service change, so it runs on schema 109, API 3.0.0 and
