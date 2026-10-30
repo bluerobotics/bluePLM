@@ -167,15 +167,6 @@ export function HalloweenEffects() {
     resizeCanvas()
     window.addEventListener('resize', resizeCanvas)
 
-    // Decoration never competes with scrolling: the sparks hold still while anything scrolls and
-    // for a moment after, so the frames go to the list. Scroll events do not bubble; capture
-    // sees every scroll container.
-    let lastScrollAt = -Infinity
-    const onScroll = () => {
-      lastScrollAt = performance.now()
-    }
-    window.addEventListener('scroll', onScroll, { capture: true, passive: true })
-
     const initialSparks: Spark[] = []
     for (let i = 0; i < 80; i++) {
       initialSparks.push({
@@ -236,10 +227,6 @@ export function HalloweenEffects() {
 
     // Main animation loop
     const animate = () => {
-      if (performance.now() - lastScrollAt < 250) {
-        animationRef.current = requestAnimationFrame(animate)
-        return
-      }
       const speedValue = sparksSpeedRef.current ?? 40
       const speedMultiplier = 0.1 + (speedValue / 100) * 2.9
 
@@ -282,7 +269,6 @@ export function HalloweenEffects() {
 
     return () => {
       window.removeEventListener('resize', resizeCanvas)
-      window.removeEventListener('scroll', onScroll, { capture: true })
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current)
       }
