@@ -70,7 +70,7 @@ function statusLabel(status: string): string {
 }
 
 /**
- * Backups run by the API's backup worker (schema 113): whether a worker is alive,
+ * Backups run by the API's backup worker (schema 501): whether a worker is alive,
  * when the next backup is due, what the last backups and tests found, and buttons
  * to back up or test now. Requests are rows in backup_config the worker picks up
  * within a minute; results are rows in backup_history.
@@ -97,7 +97,7 @@ export function ServerBackupSection({ config: initialConfig, orgId, userEmail, i
   }, [orgId])
 
   const pending =
-    !!config.backup_requested_at || !!config.verify_requested_at || !!config.backup_running_since
+    !!config.backup_requested_at || !!config.verify_requested_at || !!config.backup_started_at
 
   useEffect(() => {
     void reload()
@@ -168,17 +168,17 @@ export function ServerBackupSection({ config: initialConfig, orgId, userEmail, i
             })}
           </div>
         )}
-        {config.backup_running_since && (
+        {config.backup_started_at && (
           <div className="flex items-center gap-1 text-plm-accent">
             <Loader2 className="w-3 h-3 animate-spin" />
-            {t('serverBackup.running', { when: formatDate(config.backup_running_since) })}
+            {t('serverBackup.running', { when: formatDate(config.backup_started_at) })}
           </div>
         )}
-        {config.backup_requested_at && !config.backup_running_since && <div>{t('serverBackup.backupRequested')}</div>}
+        {config.backup_requested_at && !config.backup_started_at && <div>{t('serverBackup.backupRequested')}</div>}
         {config.verify_requested_at && <div>{t('serverBackup.testRequested')}</div>}
       </div>
 
-      {lastGoodAgeHours !== null && lastGoodAgeHours > STALE_HOURS && config.schedule_enabled && (
+      {lastGoodAgeHours !== null && lastGoodAgeHours > STALE_HOURS && config.is_schedule_enabled && (
         <div className="flex items-start gap-2 p-2 rounded bg-plm-warning/10 text-xs text-plm-warning">
           <AlertTriangle className="w-4 h-4 shrink-0" />
           {t('serverBackup.staleWarning', { hours: STALE_HOURS })}
@@ -191,7 +191,7 @@ export function ServerBackupSection({ config: initialConfig, orgId, userEmail, i
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => void send(() => requestBackup(orgId, userEmail), t('serverBackup.backupRequestSent'))}
-              disabled={sending || !!config.backup_requested_at || !!config.backup_running_since}
+              disabled={sending || !!config.backup_requested_at || !!config.backup_started_at}
               className="btn btn-primary btn-sm flex items-center gap-1"
             >
               <Play className="w-3.5 h-3.5" />

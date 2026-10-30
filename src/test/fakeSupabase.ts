@@ -119,8 +119,8 @@ const UNIQUE_INDEXES: Partial<Record<TableName, Array<(row: Row) => string | nul
         ? `${String(row.vault_id)}|${String(row.file_path).toLowerCase()}`
         : null,
   ],
-  // backup_locks.org_id UNIQUE: the backup worker's claim relies on it.
-  backup_locks: [(row) => String(row.org_id)],
+  // backup_lock.org_id UNIQUE: the backup worker's claim relies on it.
+  backup_lock: [(row) => String(row.org_id)],
 }
 
 /** Column defaults the real tables apply, for the columns tests read back. */

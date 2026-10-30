@@ -83,7 +83,7 @@ describe('repository and encryption', () => {
     const repo = await newRepo(store)
     const org = seedOrg(2)
     await backup(repo, org)
-    const [a, b] = org.rows('files').map((f) => String(f.content_hash))
+    const [a, b] = org.rows('file').map((f) => String(f.content_hash))
     store.objects.set(repo.blobKey(b), store.objects.get(repo.blobKey(a))!)
     await expect(repo.checkBlob(b)).rejects.toThrow(/authentication/)
     await expect(repo.checkBlob(a)).resolves.toBeDefined()
@@ -101,13 +101,13 @@ describe('backup and restore', () => {
     const out = path.join(tmp, 'restore')
     const restored = await restoreSnapshot(repo, out)
     expect(restored.failed).toEqual([])
-    expect(restored.files).toBe(org.rows('files').length)
-    for (const file of org.rows('files')) {
+    expect(restored.files).toBe(org.rows('file').length)
+    for (const file of org.rows('file')) {
       const bytes = fs.readFileSync(path.join(out, 'Main Vault', String(file.file_path)))
       expect(crypto.createHash('sha256').update(bytes).digest('hex')).toBe(file.content_hash)
     }
-    const versions = JSON.parse(fs.readFileSync(path.join(out, '_blueplm-backup', 'file_versions.json'), 'utf8'))
-    expect(versions).toHaveLength(org.rows('file_versions').length)
+    const versions = JSON.parse(fs.readFileSync(path.join(out, '_blueplm-backup', 'file_version.json'), 'utf8'))
+    expect(versions).toHaveLength(org.rows('file_version').length)
   })
 
   it('is incremental: a second backup uploads only new content', async () => {
@@ -181,17 +181,17 @@ describe('backup and restore', () => {
   it('commits nothing when a table cannot be exported', async () => {
     const repo = await newRepo()
     const org = seedOrg(2)
-    org.failTable('file_versions')
-    await expect(backup(repo, org)).rejects.toThrow(/file_versions/)
+    org.failTable('file_version')
+    await expect(backup(repo, org)).rejects.toThrow(/file_version/)
     expect((await repo.listSnapshots()).manifests).toHaveLength(0)
   })
 
   it('records a table whose module is not installed, by name', async () => {
     const repo = await newRepo()
     const org = seedOrg(1)
-    org.dropModule('ecos')
+    org.dropModule('eco')
     const run = await backup(repo, org)
-    expect(run.manifest.tablesMissing).toEqual(['ecos'])
+    expect(run.manifest.tablesMissing).toEqual(['eco'])
     expect(seriousProblems(run.problems)).toEqual([])
   })
 
@@ -259,7 +259,7 @@ describe('testing a backup (verify)', () => {
     const repo = await newRepo(store)
     const org = seedOrg()
     await backup(repo, org)
-    const victim = String(org.rows('files')[0].content_hash)
+    const victim = String(org.rows('file')[0].content_hash)
     await store.delete([repo.blobKey(victim)])
     const report = await verifyRepository(repo, { mode: 'quick' })
     expect(report.ok).toBe(false)
@@ -271,7 +271,7 @@ describe('testing a backup (verify)', () => {
     const repo = await newRepo(store)
     const org = seedOrg()
     await backup(repo, org)
-    const victim = String(org.rows('files')[1].content_hash)
+    const victim = String(org.rows('file')[1].content_hash)
     const sealed = store.objects.get(repo.blobKey(victim))!
     sealed[40] ^= 0x01
     expect((await verifyRepository(repo, { mode: 'quick' })).ok).toBe(true) // size is unchanged
@@ -284,7 +284,7 @@ describe('testing a backup (verify)', () => {
     const store = new MemoryObjectStore()
     const repo = await newRepo(store)
     await backup(repo, seedOrg(2))
-    const key = [...store.objects.keys()].find((k) => k.endsWith('tables/files.bin'))!
+    const key = [...store.objects.keys()].find((k) => k.endsWith('tables/file.bin'))!
     store.objects.get(key)![30] ^= 0x01
     const report = await verifyRepository(repo, { mode: 'quick' })
     expect(report.ok).toBe(false)

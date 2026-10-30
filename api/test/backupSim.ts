@@ -52,9 +52,9 @@ export class SimulatedOrg implements BackupSource {
 
   constructor(readonly name = 'Simulated Robotics', vaultName = 'Main Vault') {
     for (const table of BACKUP_TABLES) this.tables.set(table, [])
-    this.rows('organizations').push({ id: this.orgId, name })
-    this.rows('vaults').push({ id: this.vaultId, org_id: this.orgId, name: vaultName })
-    this.rows('users').push({ id: uuid(), org_id: this.orgId, email: 'admin@example.test', role: 'admin' })
+    this.rows('organization').push({ id: this.orgId, name })
+    this.rows('vault').push({ id: this.vaultId, org_id: this.orgId, name: vaultName })
+    this.rows('app_user').push({ id: uuid(), org_id: this.orgId, email: 'admin@example.test', role: 'admin' })
   }
 
   rows(table: string): Row[] {
@@ -68,7 +68,7 @@ export class SimulatedOrg implements BackupSource {
   }
 
   file(path: string): Row | undefined {
-    return this.rows('files').find((f) => f.file_path === path && !f.deleted_at)
+    return this.rows('file').find((f) => f.file_path === path && !f.deleted_at)
   }
 
   /** Adds a file, or a new version of one. Returns the content hash. */
@@ -90,14 +90,14 @@ export class SimulatedOrg implements BackupSource {
         deleted_at: null,
         updated_at: at,
       }
-      this.rows('files').push(file)
+      this.rows('file').push(file)
     } else {
       file.version = Number(file.version) + 1
       file.content_hash = hash
       file.file_size = bytes.length
       file.updated_at = at
     }
-    this.rows('file_versions').push({
+    this.rows('file_version').push({
       id: uuid(),
       file_id: file.id,
       version: file.version,

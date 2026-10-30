@@ -2346,13 +2346,13 @@ export const en: TranslationDict = {
     runLocationLabel: 'Where backups run',
     runLocationServer: 'BluePLM server (recommended)',
     runLocationServerHint:
-      'The API backs up the whole vault, every version and the database on schedule, with no computer on. Needs API 3.1.0 or later with the service key set.',
+      'The API backs up the whole vault, every version and the database on schedule, with no computer on. Needs API 4.1.0 or later with the service key set.',
     runLocationDesktop: 'Designated computer',
     runLocationDesktopHint:
       'One computer backs up its local copy of the vault with restic. Only runs while that computer is on and signed in, and only covers files downloaded there.',
     title: 'Server backups',
     workerOnline: 'Server backup worker online (last seen {{ago}})',
-    workerOffline: 'No server backup worker has checked in. Deploy API 3.1.0 or later with SUPABASE_SERVICE_KEY set.',
+    workerOffline: 'No server backup worker has checked in. Deploy API 4.1.0 or later with SUPABASE_SERVICE_KEY set.',
     workerStale: 'The server backup worker was last seen {{ago}}.',
     nextRun: 'Next scheduled backup: {{when}}',
     scheduleOff: 'No schedule: backups run only when requested.',

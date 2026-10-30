@@ -1071,13 +1071,13 @@ export const de: TranslationDict = {
     runLocationLabel: 'Wo Sicherungen laufen',
     runLocationServer: 'BluePLM-Server (empfohlen)',
     runLocationServerHint:
-      'Die API sichert den ganzen Tresor, jede Version und die Datenbank nach Zeitplan, ohne dass ein Computer eingeschaltet ist. Benötigt API 3.1.0 oder neuer mit gesetztem Service-Schlüssel.',
+      'Die API sichert den ganzen Tresor, jede Version und die Datenbank nach Zeitplan, ohne dass ein Computer eingeschaltet ist. Benötigt API 4.1.0 oder neuer mit gesetztem Service-Schlüssel.',
     runLocationDesktop: 'Festgelegter Computer',
     runLocationDesktopHint:
       'Ein Computer sichert seine lokale Kopie des Tresors mit restic. Läuft nur, solange dieser Computer eingeschaltet und angemeldet ist, und erfasst nur dort heruntergeladene Dateien.',
     title: 'Server-Sicherungen',
     workerOnline: 'Server-Sicherungsdienst online (zuletzt gesehen {{ago}})',
-    workerOffline: 'Kein Server-Sicherungsdienst hat sich gemeldet. Stellen Sie API 3.1.0 oder neuer mit gesetztem SUPABASE_SERVICE_KEY bereit.',
+    workerOffline: 'Kein Server-Sicherungsdienst hat sich gemeldet. Stellen Sie API 4.1.0 oder neuer mit gesetztem SUPABASE_SERVICE_KEY bereit.',
     workerStale: 'Der Server-Sicherungsdienst wurde zuletzt {{ago}} gesehen.',
     nextRun: 'Nächste geplante Sicherung: {{when}}',
     scheduleOff: 'Kein Zeitplan: Sicherungen laufen nur auf Anforderung.',

@@ -47,7 +47,7 @@ interface UseBackupConfigReturn {
   setScheduleTimezone: (timezone: string) => void
 
   // Actions
-  // Where backups run (schema 113)
+  // Where backups run (schema 501)
   runLocation: 'desktop' | 'server'
   setRunLocation: (location: 'desktop' | 'server') => void
   handleSave: () => Promise<void>

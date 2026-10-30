@@ -49,7 +49,7 @@ interface BackupConfigFormProps {
   retentionYearly: number
   onRetentionYearlyChange: (years: number) => void
   totalRetentionPoints: number
-  // Where backups run (schema 113)
+  // Where backups run (schema 501)
   runLocation: 'desktop' | 'server'
   onRunLocationChange: (location: 'desktop' | 'server') => void
   // Schedule settings

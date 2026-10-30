@@ -58,18 +58,36 @@ good backup-testing tools in the app, and schedules that work without a computer
 
 ## Deploy
 
-1. Apply the schema (see the 5.0 port below).
-2. Redeploy the API (3.1.0) with `SUPABASE_SERVICE_KEY` set. `BACKUP_WORKER=false` turns the worker off.
+1. Schema 501: an org admin opens the 5.x app, which applies `supabase/migrations/0501_server_backups.sql`
+   through the migration runner (or the nightly routine applies it from main). Land only after 5.0 (500)
+   is applied to production.
+2. Redeploy the API (4.1.0) with `SUPABASE_SERVICE_KEY` set. `BACKUP_WORKER=false` turns the worker off.
 3. In the app, Settings > Backup > Backup Configuration > Where backups run: BluePLM server. Save.
 4. Back up now, then Test backup > Full restore test.
 
-## 5.0 port (pending)
+## 5.0 port (done 2026-10-30)
 
-BluePLM 5.0 (branch `release/5.0`, worktree `bluePLM-5.0`) renames every table and function and moves to
-numbered migrations. This work is ported as `supabase/migrations/0501_server_backups.sql` on the renamed
-tables, with functions named `backup_row_export` / `backup_vault_object_list`, the table names in the
-export CASE and `BACKUP_TABLES` taken from `supabase/rename-map-5.0.json`, and the core.sql 113 bump
-dropped. The schema must not land on main before the 5.0 window (the nightly routine would apply it).
+Branch `server-backups-5`, cut from `v5.0.0` (45f9cc38): the four commits of `server-backups`
+cherry-picked, the 4.x SQL (core.sql 113, module 10) dropped, TypeScript renamed with
+`scripts/rename-5.0/rename.mjs --mode ts` plus the bare table names it leaves ambiguous, and the schema
+written as `supabase/migrations/0501_server_backups.sql`:
+
+- Functions are `backup_list_org_rows` and `backup_list_vault_objects`. `backup_row_export` (suggested)
+  breaks the 5.0 naming rule: `export` is not in `VERBS` (`scripts/rename-5.0/namingRules.mjs`).
+- `last_scheduled_slot` is `last_scheduled_slot_at` (timestamps end in `_at`).
+- `backup_running_since` is 5.0's `backup_started_at`; `schedule_enabled` is `is_schedule_enabled`;
+  `backup_locks` is `backup_lock`.
+- Schema 501, API 4.1.0 (5.0 is 500 / 4.0.0); `REQUIRED_SCHEMA_VERSION` (dbUpgrade gate) is 501.
+- `src/lib/schemaVersion.test.ts` read the release version and description from `core.sql` only. From
+  5.0 the baseline is never edited, so it now reads the newest migration that rewrites
+  `schema_release_description()`, falling back to `core.sql`.
+- `src/lib/supabase/serverBackupsMigration.test.ts` applies 0501 to the real 5.0 baseline on PGlite and
+  checks: stamps 501 with no problems, every exported table is a valid org-scoped query on the real
+  tables, no other org's rows, the list matches `BACKUP_TABLES`, service_role only, the CHECKs, and
+  `backup_get_status()` shows members the new columns without secrets.
+
+Note for the record: production's empty `backup_history` does not show that restic never ran. Nothing
+wrote `backup_history` before this work; the desktop recorded runs only as restic snapshots in the bucket.
 
 ## Names other work depends on (do not rename in 0501)
 

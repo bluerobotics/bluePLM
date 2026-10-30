@@ -36,7 +36,7 @@ import { supabase } from './supabase'
 
 // The schema version this app version expects
 // Increment this when releasing app updates that require schema changes
-export const EXPECTED_SCHEMA_VERSION = 500
+export const EXPECTED_SCHEMA_VERSION = 501
 
 // 5.0 renamed the schema (supabase/rename-map-5.0.json), so no 5.x app can run against a 4.x
 // database at all: anything below this is a hard block (src/features/dbUpgrade), never a warning.
@@ -50,6 +50,8 @@ export const MINIMUM_COMPATIBLE_VERSION = EXPECTED_SCHEMA_VERSION
 export const VERSION_DESCRIPTIONS: Record<number, string> = {
   500:
     'BluePLM 5.0: one clean schema with consistent names (singular tables such as organization, app_user, file and file_version; org_ prefixes; <entity>_<verb> functions), upgraded from 112 in place by migrations/0500_from_4x.sql. From 5.0 on, the desktop app applies the database SQL itself: an organization admin gives the database connection once, the app runs the numbered migrations in supabase/migrations under an advisory lock, each in its own transaction, records them in schema_migration with a checksum, and verifies. client_min_version() names the oldest app allowed to connect; older 5.x apps update before they continue.',
+  501:
+    "Server-run backups. backup_config.run_location chooses who runs scheduled and requested backups: the designated desktop machine (restic over its local vault copy, as before) or the API backup worker, which backs up the whole vault bucket and the organization's rows with no computer on. last_scheduled_slot_at lets a missed slot be caught up once; verify_requested_at and verify_mode request a test of the backup; server_worker_seen_at shows the worker is alive. backup_history gains kind (backup or verify), trigger, runner and report. backup_list_org_rows() and backup_list_vault_objects() are callable by service_role only.",
 }
 
 export interface SchemaVersionInfo {

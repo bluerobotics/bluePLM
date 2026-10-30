@@ -4,9 +4,14 @@
  */
 
 /** The schema version 5.0 needs; must equal EXPECTED_SCHEMA_VERSION (asserted in the test). */
-export const REQUIRED_SCHEMA_VERSION = 500
+export const REQUIRED_SCHEMA_VERSION = 501
 /** The schema version a 4.10 database is stamped at. */
 export const LEGACY_SCHEMA_VERSION = 112
+/**
+ * The schema version the 5.0 baseline installs and 0500 upgrades a 4.10 database to. Fixed from
+ * 5.0 on, unlike REQUIRED_SCHEMA_VERSION, which every later migration raises.
+ */
+export const BASELINE_SCHEMA_VERSION = 500
 
 export type DbGateDecision = 'clear' | 'update-required' | 'db-upgrade-admin' | 'db-upgrade-wait'
 
@@ -73,11 +78,13 @@ export function estimatePending(
 ): PendingEstimate {
   const sorted = [...migrations].sort((a, b) => a.version - b.version)
   if (recordedVersion === null) return { needsLegacy: false, unknownStart: true, migrations: [] }
-  if (recordedVersion < REQUIRED_SCHEMA_VERSION) {
+  // A 4.x database starts at 0500 (after the 4.10 snapshot when it is below 112). Comparing with
+  // REQUIRED_SCHEMA_VERSION here dropped 0500 itself as soon as a migration above it existed.
+  if (recordedVersion < BASELINE_SCHEMA_VERSION) {
     return {
       needsLegacy: recordedVersion < LEGACY_SCHEMA_VERSION,
       unknownStart: false,
-      migrations: sorted.filter((m) => m.version >= REQUIRED_SCHEMA_VERSION),
+      migrations: sorted.filter((m) => m.version >= BASELINE_SCHEMA_VERSION),
     }
   }
   return {

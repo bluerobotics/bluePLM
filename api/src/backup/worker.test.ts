@@ -3,8 +3,8 @@
  * and a simulated organization: what runs when, what the app sees in backup_config
  * and backup_history, and that two API replicas never run one organization twice.
  *
- * The schema-113 columns are added to the fake's shape here: the generated types
- * gain them when gen:types runs against a database with 113 applied.
+ * The schema-501 columns are added to the fake's shape here: the generated types
+ * gain them when gen:types runs against a database with 501 applied.
  */
 
 import { describe, expect, it } from 'vitest'
@@ -15,10 +15,10 @@ import { MemoryObjectStore } from './objectStore.js'
 import { BackupRepository } from './repository.js'
 import { BackupWorker, planJob, type ServerBackupConfig } from './worker.js'
 
-const SCHEMA_113: Record<string, string[]> = {
+const SCHEMA_501: Record<string, string[]> = {
   backup_config: [
     'run_location',
-    'last_scheduled_slot',
+    'last_scheduled_slot_at',
     'verify_requested_at',
     'verify_requested_by',
     'verify_mode',
@@ -28,9 +28,9 @@ const SCHEMA_113: Record<string, string[]> = {
   backup_history: ['kind', 'trigger', 'runner', 'report'],
 }
 
-function fakeWith113(): FakeSupabase {
+function fakeWith501(): FakeSupabase {
   const fake = new FakeSupabase()
-  for (const [table, columns] of Object.entries(SCHEMA_113)) {
+  for (const [table, columns] of Object.entries(SCHEMA_501)) {
     const shape = fake.schema.tables.get(table)!
     for (const column of columns) (shape.columns as Set<string>).add(column)
   }
@@ -50,7 +50,7 @@ interface World {
 }
 
 function world(overrides: Record<string, unknown> = {}): World {
-  const fake = fakeWith113()
+  const fake = fakeWith501()
   const org = new SimulatedOrg()
   for (let i = 0; i < 5; i++) org.checkIn(`Parts/p${i}.sldprt`, seededBytes(`w${i}`, 2000 + i))
   const store = new MemoryObjectStore()
@@ -65,7 +65,7 @@ function world(overrides: Record<string, unknown> = {}): World {
     access_key_encrypted: 'key',
     secret_key_encrypted: 'secret',
     restic_password_encrypted: 'pw',
-    schedule_enabled: true,
+    is_schedule_enabled: true,
     schedule_hour: 2,
     schedule_minute: 0,
     schedule_timezone: 'UTC',
@@ -75,9 +75,9 @@ function world(overrides: Record<string, unknown> = {}): World {
     retention_yearly: 1,
     backup_requested_at: null,
     backup_requested_by: null,
-    backup_running_since: null,
+    backup_started_at: null,
     run_location: 'server',
-    last_scheduled_slot: '2026-07-01T02:00:00.000Z',
+    last_scheduled_slot_at: '2026-07-01T02:00:00.000Z',
     verify_requested_at: null,
     verify_requested_by: null,
     verify_mode: null,
@@ -123,7 +123,7 @@ describe('planJob', () => {
   })
 
   it('puts a requested backup before a due slot, and a due slot before a requested test', () => {
-    const due = { ...base, last_scheduled_slot: '2026-06-30T02:00:00.000Z', verify_requested_at: now.toISOString() }
+    const due = { ...base, last_scheduled_slot_at: '2026-06-30T02:00:00.000Z', verify_requested_at: now.toISOString() }
     expect(planJob({ ...due, backup_requested_at: now.toISOString() }, now)).toMatchObject({ kind: 'backup', trigger: 'manual' })
     expect(planJob(due, now)).toMatchObject({ kind: 'backup', trigger: 'scheduled' })
     expect(planJob({ ...base, verify_requested_at: now.toISOString(), verify_mode: 'full' }, now)).toMatchObject({
@@ -135,7 +135,7 @@ describe('planJob', () => {
 
 describe('BackupWorker', () => {
   it('runs a missed nightly slot once, with no desktop, and records it for the app', async () => {
-    const w = world({ last_scheduled_slot: '2026-06-28T02:00:00.000Z' })
+    const w = world({ last_scheduled_slot_at: '2026-06-28T02:00:00.000Z' })
     const worker = w.worker()
     await tick(worker)
 
@@ -143,12 +143,12 @@ describe('BackupWorker', () => {
     expect(w.history()[0]).toMatchObject({ kind: 'backup', trigger: 'scheduled', runner: 'server', status: 'completed' })
     expect(w.history()[0].files_total).toBe(5)
     expect(w.config()).toMatchObject({
-      last_scheduled_slot: '2026-07-01T02:00:00.000Z',
-      backup_running_since: null,
+      last_scheduled_slot_at: '2026-07-01T02:00:00.000Z',
+      backup_started_at: null,
       server_worker_seen_at: '2026-07-01T12:00:00.000Z',
       server_worker_version: '3.1.0',
     })
-    expect(w.fake.rows('backup_locks')).toHaveLength(0)
+    expect(w.fake.rows('backup_lock')).toHaveLength(0)
     const report = w.history()[0].report as { verify: { ok: boolean; blobsRead: number } }
     expect(report.verify).toMatchObject({ ok: true, blobsRead: 3 })
     expect((await (await w.repo()).listSnapshots()).manifests).toHaveLength(1)
@@ -163,7 +163,7 @@ describe('BackupWorker', () => {
   })
 
   it('leaves a desktop-run organization alone', async () => {
-    const w = world({ run_location: 'desktop', last_scheduled_slot: null, backup_requested_at: '2026-07-01T11:00:00Z' })
+    const w = world({ run_location: 'desktop', last_scheduled_slot_at: null, backup_requested_at: '2026-07-01T11:00:00Z' })
     await tick(w.worker())
     expect(w.history()).toHaveLength(0)
     expect(w.config().server_worker_seen_at).toBeNull()
@@ -187,7 +187,7 @@ describe('BackupWorker', () => {
     expect(w.config().verify_requested_at).toBeNull()
 
     const repo = await w.repo()
-    const victim = String(w.org.rows('files')[2].content_hash)
+    const victim = String(w.org.rows('file')[2].content_hash)
     w.store.objects.get(repo.blobKey(victim))![50] ^= 1
     w.set({ verify_requested_at: '2026-07-01T12:10:00Z', verify_mode: 'full' })
     await tick(worker)
@@ -204,7 +204,7 @@ describe('BackupWorker', () => {
   })
 
   it('reports a backup that cannot reach its bucket as failed, and does not retry it every minute', async () => {
-    const w = world({ last_scheduled_slot: '2026-06-30T02:00:00.000Z' })
+    const w = world({ last_scheduled_slot_at: '2026-06-30T02:00:00.000Z' })
     const worker = new BackupWorker({
       admin: w.fake.client as never,
       openStore: () => {
@@ -218,7 +218,7 @@ describe('BackupWorker', () => {
     await tick(worker)
     expect(w.history()).toHaveLength(1)
     expect(w.history()[0]).toMatchObject({ status: 'failed', error_message: 'InvalidAccessKeyId' })
-    expect(w.fake.rows('backup_locks')).toHaveLength(0)
+    expect(w.fake.rows('backup_lock')).toHaveLength(0)
   })
 
   it('runs an organization on one replica only', async () => {
@@ -232,7 +232,7 @@ describe('BackupWorker', () => {
 
   it('takes over an expired lock, and leaves a live one alone', async () => {
     const w = world({ backup_requested_at: '2026-07-01T11:59:00Z' })
-    w.fake.rows('backup_locks').push({
+    w.fake.rows('backup_lock').push({
       id: 'held',
       org_id: w.org.orgId,
       locked_by_machine_id: 'server:other',
@@ -250,7 +250,7 @@ describe('BackupWorker', () => {
   })
 
   it('closes a backup interrupted by a restart and resumes it, reusing what it stored', async () => {
-    const w = world({ backup_running_since: '2026-07-01T11:00:00.000Z' })
+    const w = world({ backup_started_at: '2026-07-01T11:00:00.000Z' })
     w.fake.rows('backup_history').push({
       id: 'stale',
       org_id: w.org.orgId,

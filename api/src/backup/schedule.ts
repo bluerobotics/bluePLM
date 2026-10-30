@@ -2,11 +2,11 @@
  * When a scheduled backup is due.
  *
  * A schedule is one wall-clock time per day in a time zone. The runner keeps
- * the last slot it ran (`backup_config.last_scheduled_slot`) and asks for the
+ * the last slot it ran (`backup_config.last_scheduled_slot_at`) and asks for the
  * most recent slot at or before now: if that slot is newer than the last one
  * run, it is due. A runner that was down at the scheduled minute therefore runs
  * the missed slot as soon as it is back, once, instead of skipping the day (the
- * desktop scheduler before schedule 113 matched the exact minute and lost any
+ * desktop scheduler before schema 501 matched the exact minute and lost any
  * slot it was not awake for). A runner down for several days runs only the
  * latest slot: one fresh backup, not a backlog of identical ones.
  *

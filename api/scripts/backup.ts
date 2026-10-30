@@ -119,7 +119,7 @@ async function sandbox(): Promise<boolean> {
   const out = path.join(dir, 'restore')
   const restored = await restoreSnapshot(repo, out, { snapshotId: lastSnapshot })
   let mismatched = 0
-  for (const file of org.rows('files')) {
+  for (const file of org.rows('file')) {
     if (file.deleted_at) continue
     const bytes = fs.readFileSync(path.join(out, 'Main Vault', String(file.file_path)))
     if (crypto.createHash('sha256').update(bytes).digest('hex') !== file.content_hash) mismatched++
@@ -161,7 +161,7 @@ async function sandbox(): Promise<boolean> {
 
   // Backed-up content that rots in the live vault: a backup does not re-read it,
   // so the test's live audit must find it, and the backup must still hold good bytes.
-  const rotting = org.rows('files').find((f) => !f.deleted_at && f.file_path !== 'Parts/fresh.sldprt')!
+  const rotting = org.rows('file').find((f) => !f.deleted_at && f.file_path !== 'Parts/fresh.sldprt')!
   const rotHash = org.corrupt(String(rotting.file_path))
   const audit = await verifyRepository(repo, { mode: 'sample', source: org, sampleSize: org.objects.size })
   check(

@@ -4,7 +4,7 @@
  *
  * The production source (`SupabaseBackupSource`) uses the service-role client
  * and two service-role-only SQL functions from module 10,
- * `backup_export_rows()` (each table's organization scope is written out there)
+ * `backup_list_org_rows()` (each table's organization scope is written out there)
  * and `backup_list_vault_objects()`. Vault content is streamed through a signed
  * URL, never buffered whole: a CAD file can be larger than the worker's memory.
  *
@@ -17,53 +17,54 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 /**
  * Tables a snapshot holds, in restore order (parents first). Must match the
- * CASE in `backup_export_rows()`; `src/lib/supabase/backupExportSql.test.ts` checks both lists agree.
+ * CASE in `backup_list_org_rows()` (migration 0501); `src/lib/supabase/serverBackupsMigration.test.ts`
+ * checks both lists agree.
  */
 export const BACKUP_TABLES = [
-  'organizations',
-  'users',
-  'teams',
-  'team_members',
-  'team_permissions',
-  'user_permissions',
+  'organization',
+  'app_user',
+  'team',
+  'team_member',
+  'team_permission',
+  'user_permission',
   'module_access',
-  'vaults',
+  'vault',
   'vault_access',
   'team_vault_access',
-  'workflow_templates',
-  'workflow_roles',
-  'workflow_states',
-  'workflow_transitions',
-  'workflow_gates',
-  'user_workflow_roles',
-  'folders',
-  'files',
-  'file_versions',
-  'file_references',
-  'file_version_references',
-  'drawing_pdf_renders',
-  'release_files',
-  'file_metadata_columns',
-  'file_comments',
-  'file_watchers',
-  'file_workflow_assignments',
-  'file_state_entries',
+  'workflow_template',
+  'workflow_role',
+  'workflow_state',
+  'workflow_transition',
+  'workflow_gate',
+  'user_workflow_role',
+  'folder',
+  'file',
+  'file_version',
+  'file_reference',
+  'file_version_reference',
+  'drawing_pdf_render',
+  'release_file',
+  'file_metadata_column',
+  'file_comment',
+  'file_watcher',
+  'file_workflow_assignment',
+  'file_state_entry',
   'workflow_history',
-  'pending_reviews',
-  'reviews',
-  'review_items',
-  'review_rounds',
-  'review_responses',
-  'ecos',
-  'file_ecos',
-  'deviations',
-  'file_deviations',
-  'item_designations',
-  'item_designation_assignments',
-  'inspection_characteristics',
-  'inspection_characteristic_versions',
-  'suppliers',
-  'part_suppliers',
+  'workflow_gate_review',
+  'review',
+  'review_item',
+  'review_round',
+  'review_response',
+  'eco',
+  'file_eco',
+  'deviation',
+  'file_deviation',
+  'item_designation',
+  'item_designation_assignment',
+  'inspection_characteristic',
+  'inspection_characteristic_version',
+  'supplier',
+  'part_supplier',
   'activity',
   'backup_history',
 ] as const
@@ -118,13 +119,13 @@ export class SupabaseBackupSource implements BackupSource {
   }
 
   async orgName(): Promise<string> {
-    const { data, error } = await this.admin.from('organizations').select('name').eq('id', this.orgId).single()
+    const { data, error } = await this.admin.from('organization').select('name').eq('id', this.orgId).single()
     if (error) throw new SourceError(`Could not read the organization: ${error.message}`)
     return (data as { name: string }).name
   }
 
   async exportTable(table: BackupTable, after: string | null, limit: number): Promise<TablePage> {
-    const { data, error } = await this.admin.rpc('backup_export_rows', {
+    const { data, error } = await this.admin.rpc('backup_list_org_rows', {
       p_org_id: this.orgId,
       p_table: table,
       p_after: after,

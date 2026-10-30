@@ -6,7 +6,7 @@
  * that fails:
  * - A table that cannot be exported fails the whole run: no manifest is
  *   written, so no snapshot claims rows it does not have. (The desktop export
- *   before 113 logged failed file_versions batches and carried on.) A table
+ *   before 501 logged failed file_versions batches and carried on.) A table
  *   whose module is not installed is recorded as missing, by name.
  * - A vault object whose bytes do not hash to its name is never stored. It is
  *   reported as `corrupt_source`: the live vault holds damaged content, and an

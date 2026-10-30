@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
@@ -20,14 +20,31 @@ import { EXPECTED_SCHEMA_VERSION, VERSION_DESCRIPTIONS } from './schemaVersion'
 // generates the SQL from the entry below, so the two start identical; this keeps
 // them that way.
 const CORE_SQL = resolve(__dirname, '../../supabase/core.sql')
+const MIGRATIONS = resolve(__dirname, '../../supabase/migrations')
+
+/**
+ * The SQL that defines the current release: from 5.0 on the baseline (core.sql) is never
+ * edited, and each numbered migration raises schema_release_version() and rewrites
+ * schema_release_description(). So it is the newest migration that does, else core.sql.
+ */
+function releaseSource(): { path: string; sql: string } {
+  const newest = readdirSync(MIGRATIONS)
+    .filter((f) => /^\d{4}_.+\.sql$/.test(f))
+    .sort()
+    .reverse()
+    .map((f) => resolve(MIGRATIONS, f))
+    .find((f) => readFileSync(f, 'utf8').includes('FUNCTION schema_release_description()'))
+  const path = newest ?? CORE_SQL
+  return { path, sql: readFileSync(path, 'utf8') }
+}
 
 function readReleaseDescriptionFromSql(): string {
-  const sql = readFileSync(CORE_SQL, 'utf8')
+  const { path, sql } = releaseSource()
 
   const fn = sql.match(
     /CREATE OR REPLACE FUNCTION schema_release_description\(\) RETURNS TEXT[\s\S]*?AS \$\$ SELECT([\s\S]*?)\r?\n\$\$;/,
   )
-  if (!fn) throw new Error('schema_release_description() not found in supabase/core.sql')
+  if (!fn) throw new Error(`schema_release_description() not found in ${path}`)
 
   // The body is a run of adjacent single-quoted literals that PostgreSQL
   // concatenates. '' is an escaped apostrophe, not a literal boundary.
@@ -71,7 +88,7 @@ describe('organization color swatch schema', () => {
       core.indexOf(');\n', core.indexOf('CREATE POLICY "color_swatch: users manage"')),
     )
 
-    expect(core).toContain(`LANGUAGE sql IMMUTABLE AS $$ SELECT ${EXPECTED_SCHEMA_VERSION} $$`)
+    expect(releaseSource().sql).toContain(`LANGUAGE sql IMMUTABLE AS $$ SELECT ${EXPECTED_SCHEMA_VERSION} $$`)
     expect(table).toContain('user_id UUID REFERENCES app_user(id) ON DELETE CASCADE')
     expect(table).toContain('org_id UUID REFERENCES organization(id) ON DELETE CASCADE')
     expect(table).toContain('created_by UUID REFERENCES app_user(id) ON DELETE SET NULL')

@@ -1061,13 +1061,13 @@ export const pt: TranslationDict = {
     runLocationLabel: 'Onde os backups são executados',
     runLocationServer: 'Servidor do BluePLM (recomendado)',
     runLocationServerHint:
-      'A API faz backup de todo o cofre, de cada versão e do banco de dados conforme o agendamento, sem nenhum computador ligado. Requer a API 3.1.0 ou posterior com a chave de serviço definida.',
+      'A API faz backup de todo o cofre, de cada versão e do banco de dados conforme o agendamento, sem nenhum computador ligado. Requer a API 4.1.0 ou posterior com a chave de serviço definida.',
     runLocationDesktop: 'Computador designado',
     runLocationDesktopHint:
       'Um computador faz backup da sua cópia local do cofre com restic. Só funciona enquanto esse computador está ligado e conectado, e só cobre os arquivos baixados nele.',
     title: 'Backups no servidor',
     workerOnline: 'Serviço de backup do servidor online (visto {{ago}})',
-    workerOffline: 'Nenhum serviço de backup do servidor se conectou. Implante a API 3.1.0 ou posterior com SUPABASE_SERVICE_KEY definida.',
+    workerOffline: 'Nenhum serviço de backup do servidor se conectou. Implante a API 4.1.0 ou posterior com SUPABASE_SERVICE_KEY definida.',
     workerStale: 'O serviço de backup do servidor foi visto pela última vez {{ago}}.',
     nextRun: 'Próximo backup agendado: {{when}}',
     scheduleOff: 'Sem agendamento: os backups só são executados quando solicitados.',

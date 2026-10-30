@@ -1067,13 +1067,13 @@ export const fr: TranslationDict = {
     runLocationLabel: "Où les sauvegardes s'exécutent",
     runLocationServer: 'Serveur BluePLM (recommandé)',
     runLocationServerHint:
-      "L'API sauvegarde tout le coffre, chaque version et la base de données selon la planification, sans aucun ordinateur allumé. Nécessite l'API 3.1.0 ou plus récente avec la clé de service définie.",
+      "L'API sauvegarde tout le coffre, chaque version et la base de données selon la planification, sans aucun ordinateur allumé. Nécessite l'API 4.1.0 ou plus récente avec la clé de service définie.",
     runLocationDesktop: 'Ordinateur désigné',
     runLocationDesktopHint:
       'Un ordinateur sauvegarde sa copie locale du coffre avec restic. Ne fonctionne que lorsque cet ordinateur est allumé et connecté, et ne couvre que les fichiers téléchargés sur celui-ci.',
     title: 'Sauvegardes sur le serveur',
     workerOnline: 'Service de sauvegarde du serveur en ligne (vu {{ago}})',
-    workerOffline: "Aucun service de sauvegarde du serveur ne s'est signalé. Déployez l'API 3.1.0 ou plus récente avec SUPABASE_SERVICE_KEY défini.",
+    workerOffline: "Aucun service de sauvegarde du serveur ne s'est signalé. Déployez l'API 4.1.0 ou plus récente avec SUPABASE_SERVICE_KEY défini.",
     workerStale: 'Le service de sauvegarde du serveur a été vu pour la dernière fois {{ago}}.',
     nextRun: 'Prochaine sauvegarde planifiée : {{when}}',
     scheduleOff: "Aucune planification : les sauvegardes ne s'exécutent que sur demande.",

@@ -12,7 +12,7 @@ import {
 
 const base = {
   appVersion: '5.0.0',
-  recordedVersion: 500,
+  recordedVersion: REQUIRED_SCHEMA_VERSION,
   clientMinVersion: '5.0.0',
   isAdmin: false,
   hasDesktop: true,
@@ -24,7 +24,8 @@ describe('decideGate', () => {
     expect(requiresDatabaseUpgrade(499)).toBe(true)
     expect(requiresDatabaseUpgrade(0)).toBe(true)
     expect(requiresDatabaseUpgrade(null)).toBe(true)
-    expect(requiresDatabaseUpgrade(500)).toBe(false)
+    expect(requiresDatabaseUpgrade(EXPECTED_SCHEMA_VERSION - 1)).toBe(true)
+    expect(requiresDatabaseUpgrade(EXPECTED_SCHEMA_VERSION)).toBe(false)
   })
 
   it('lets a current app through a current database', () => {

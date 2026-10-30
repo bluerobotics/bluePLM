@@ -82,10 +82,10 @@ export async function restoreSnapshot(
   if (options.metadataOnly) return result
 
   const vaultNames = new Map<string, string>()
-  for (const vault of (tables.get('vaults') ?? []) as Array<{ id: string; name: string }>) {
+  for (const vault of (tables.get('vault') ?? []) as Array<{ id: string; name: string }>) {
     vaultNames.set(vault.id, sanitizeSegment(vault.name))
   }
-  const files = (tables.get('files') ?? []) as unknown as FileRow[]
+  const files = (tables.get('file') ?? []) as unknown as FileRow[]
   const prefix = options.pathPrefix?.replace(/\\/g, '/').replace(/^\/+/, '')
   for (const file of files) {
     if (!file.content_hash) continue

@@ -167,7 +167,7 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
           isUsingCachedData={isUsingCachedData}
         />
 
-        {/* Server-run backups (schema 113): the API's worker, no designated machine */}
+        {/* Server-run backups (schema 501): the API's worker, no designated machine */}
         {status?.isConfigured && config?.run_location === 'server' && organization?.id && (
           <ServerBackupSection
             config={config}

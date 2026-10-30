@@ -1060,13 +1060,13 @@ export const es: TranslationDict = {
     runLocationLabel: 'Dónde se ejecutan las copias',
     runLocationServer: 'Servidor de BluePLM (recomendado)',
     runLocationServerHint:
-      'La API copia todo el almacén, cada versión y la base de datos según la programación, sin ningún ordenador encendido. Requiere la API 3.1.0 o posterior con la clave de servicio configurada.',
+      'La API copia todo el almacén, cada versión y la base de datos según la programación, sin ningún ordenador encendido. Requiere la API 4.1.0 o posterior con la clave de servicio configurada.',
     runLocationDesktop: 'Ordenador designado',
     runLocationDesktopHint:
       'Un ordenador copia su copia local del almacén con restic. Solo funciona mientras ese ordenador está encendido y con sesión iniciada, y solo cubre los archivos descargados en él.',
     title: 'Copias de seguridad en el servidor',
     workerOnline: 'Servicio de copias del servidor en línea (visto {{ago}})',
-    workerOffline: 'Ningún servicio de copias del servidor se ha conectado. Despliegue la API 3.1.0 o posterior con SUPABASE_SERVICE_KEY configurada.',
+    workerOffline: 'Ningún servicio de copias del servidor se ha conectado. Despliegue la API 4.1.0 o posterior con SUPABASE_SERVICE_KEY configurada.',
     workerStale: 'El servicio de copias del servidor se vio por última vez {{ago}}.',
     nextRun: 'Próxima copia programada: {{when}}',
     scheduleOff: 'Sin programación: las copias solo se ejecutan cuando se solicitan.',

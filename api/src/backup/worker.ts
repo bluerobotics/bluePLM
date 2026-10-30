@@ -9,7 +9,7 @@
  * 2. if it is not already running a job, picks one per organization in this
  *    order: a requested backup, a due scheduled slot (`schedule.ts`; a missed
  *    slot is caught up once), a requested test;
- * 3. claims the organization's row in backup_locks (unique per org; an expired
+ * 3. claims the organization's row in backup_lock (unique per org; an expired
  *    lease may be taken over), so two API replicas never run the same
  *    organization at once, and renews the lease while the job runs;
  * 4. writes a backup_history row (kind, trigger, runner 'server', report) and
@@ -33,7 +33,7 @@ import { dueSlot } from './schedule.js'
 import type { BackupSource } from './source.js'
 import { verifyRepository, type VerifyMode, type VerifyReport } from './verify.js'
 
-/** The backup_config columns the worker reads. The 113 columns are not in the generated types yet. */
+/** The backup_config columns the worker reads. The 501 columns are not in the generated types yet. */
 export interface ServerBackupConfig {
   org_id: string
   provider: string
@@ -43,7 +43,7 @@ export interface ServerBackupConfig {
   access_key_encrypted: string | null
   secret_key_encrypted: string | null
   restic_password_encrypted: string | null
-  schedule_enabled: boolean | null
+  is_schedule_enabled: boolean | null
   schedule_hour: number | null
   schedule_minute: number | null
   schedule_timezone: string | null
@@ -53,9 +53,9 @@ export interface ServerBackupConfig {
   retention_yearly: number | null
   backup_requested_at: string | null
   backup_requested_by: string | null
-  backup_running_since: string | null
+  backup_started_at: string | null
   run_location: string
-  last_scheduled_slot: string | null
+  last_scheduled_slot_at: string | null
   verify_requested_at: string | null
   verify_requested_by: string | null
   verify_mode: string | null
@@ -87,9 +87,9 @@ export interface BackupWorkerDeps {
 
 const CONFIG_COLUMNS =
   'org_id, provider, bucket, region, endpoint, access_key_encrypted, secret_key_encrypted, ' +
-  'restic_password_encrypted, schedule_enabled, schedule_hour, schedule_minute, schedule_timezone, ' +
+  'restic_password_encrypted, is_schedule_enabled, schedule_hour, schedule_minute, schedule_timezone, ' +
   'retention_daily, retention_weekly, retention_monthly, retention_yearly, backup_requested_at, ' +
-  'backup_requested_by, backup_running_since, run_location, last_scheduled_slot, verify_requested_at, ' +
+  'backup_requested_by, backup_started_at, run_location, last_scheduled_slot_at, verify_requested_at, ' +
   'verify_requested_by, verify_mode'
 
 export function isServerConfigComplete(config: ServerBackupConfig): boolean {
@@ -104,13 +104,13 @@ export function planJob(config: ServerBackupConfig, now: Date): PlannedJob | nul
   }
   const slot = dueSlot(
     {
-      enabled: !!config.schedule_enabled,
+      enabled: !!config.is_schedule_enabled,
       hour: config.schedule_hour ?? 0,
       minute: config.schedule_minute ?? 0,
       timezone: config.schedule_timezone || 'UTC',
     },
     now.getTime(),
-    config.last_scheduled_slot,
+    config.last_scheduled_slot_at,
   )
   if (slot !== null) return { kind: 'backup', trigger: 'scheduled', slot, verifyMode: 'sample', requestedBy: null }
   if (config.verify_requested_at) {
@@ -176,7 +176,7 @@ export class BackupWorker {
     }
     if (this.busy) return
     for (const config of configs) {
-      if (config.backup_running_since) {
+      if (config.backup_started_at) {
         await this.recoverInterrupted(config)
         continue
       }
@@ -192,7 +192,7 @@ export class BackupWorker {
   }
 
   private untyped(): SupabaseClient {
-    // The schema-113 columns are not in the generated Database type until gen:types runs against 113.
+    // The schema-501 columns are not in the generated Database type until gen:types runs against 501.
     return this.deps.admin as unknown as SupabaseClient
   }
 
@@ -217,7 +217,7 @@ export class BackupWorker {
     const db = this.untyped()
     const now = this.now()
     const { data: live, error: lockError } = await db
-      .from('backup_locks')
+      .from('backup_lock')
       .select('id')
       .eq('org_id', config.org_id)
       .gt('expires_at', now.toISOString())
@@ -253,7 +253,7 @@ export class BackupWorker {
       (row) => row.error_details?.interrupted,
     ).length
     const resume = staleRows.some((row) => row.kind === 'backup') && interruptions <= 3
-    const patch: Record<string, unknown> = { backup_running_since: null }
+    const patch: Record<string, unknown> = { backup_started_at: null }
     if (resume) {
       patch.backup_requested_at = now.toISOString()
       patch.backup_requested_by = 'BluePLM server (resuming an interrupted backup)'
@@ -266,13 +266,13 @@ export class BackupWorker {
   private async claim(orgId: string): Promise<string | null> {
     const now = this.now()
     const db = this.untyped()
-    const { error: expireError } = await db.from('backup_locks').delete().eq('org_id', orgId).lt('expires_at', now.toISOString())
+    const { error: expireError } = await db.from('backup_lock').delete().eq('org_id', orgId).lt('expires_at', now.toISOString())
     if (expireError) {
       this.log.warn('backup worker: could not clear an expired lock', { orgId, error: expireError.message })
       return null
     }
     const { data, error } = await db
-      .from('backup_locks')
+      .from('backup_lock')
       .insert({
         org_id: orgId,
         locked_by_machine_id: this.instanceId,
@@ -295,12 +295,12 @@ export class BackupWorker {
     const startedAt = this.now()
 
     // Consume the request or the slot first: a failure is then reported once.
-    const consumed: Record<string, unknown> = { backup_running_since: startedAt.toISOString() }
+    const consumed: Record<string, unknown> = { backup_started_at: startedAt.toISOString() }
     if (job.kind === 'backup' && job.trigger === 'manual') {
       consumed.backup_requested_at = null
       consumed.backup_requested_by = null
     }
-    if (job.kind === 'backup' && job.slot !== null) consumed.last_scheduled_slot = new Date(job.slot).toISOString()
+    if (job.kind === 'backup' && job.slot !== null) consumed.last_scheduled_slot_at = new Date(job.slot).toISOString()
     if (job.kind === 'verify') {
       consumed.verify_requested_at = null
       consumed.verify_requested_by = null
@@ -309,7 +309,7 @@ export class BackupWorker {
     const { error: consumeError } = await db.from('backup_config').update(consumed).eq('org_id', orgId)
     if (consumeError) {
       this.log.error('backup worker: could not mark the job started', { orgId, error: consumeError.message })
-      await db.from('backup_locks').delete().eq('id', lockId)
+      await db.from('backup_lock').delete().eq('id', lockId)
       return
     }
 
@@ -334,7 +334,7 @@ export class BackupWorker {
       () => {
         const expires = new Date(this.now().getTime() + this.leaseSeconds * 1000).toISOString()
         void db
-          .from('backup_locks')
+          .from('backup_lock')
           .update({ expires_at: expires })
           .eq('id', lockId)
           .then(({ error }) => {
@@ -442,8 +442,8 @@ export class BackupWorker {
         .eq('id', historyId)
       if (error) this.log.warn('backup worker: could not finish history', { orgId, error: error.message })
     }
-    await db.from('backup_config').update({ backup_running_since: null }).eq('org_id', orgId)
-    await db.from('backup_locks').delete().eq('id', lockId)
+    await db.from('backup_config').update({ backup_started_at: null }).eq('org_id', orgId)
+    await db.from('backup_lock').delete().eq('id', lockId)
     this.log.info('backup worker: job finished', { orgId, kind: job.kind, trigger: job.trigger, status: outcome.status })
   }
 }
