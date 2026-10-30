@@ -121,7 +121,7 @@ Organization Code (Step 6).
 
 ## Step 5: Create Your Organization
 
-Run this in the Supabase SQL Editor (customize the values):
+This needs the schema from Step 4 at version 502 or later. Run this in the Supabase SQL Editor (customize the values):
 
 ```sql
 SELECT org_create_with_founder(
