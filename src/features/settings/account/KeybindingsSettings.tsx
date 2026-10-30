@@ -4,7 +4,9 @@ import { useShallow } from 'zustand/react/shallow'
 
 import { Button } from '@/components/core/ui'
 import { SettingsGroup, SettingsPage, SettingsSection } from '@/features/settings/components/ui'
+import { hasDesktop } from '@/lib/platform'
 import { usePDMStore } from '@/stores/pdmStore'
+import { QuickExportFolderRow } from '@/features/settings/system'
 import type { KeybindingAction, Keybinding } from '@/types/settings'
 
 // Keybinding action definitions with labels and descriptions
@@ -91,6 +93,21 @@ const keybindingDefinitions: {
     label: 'Refresh',
     description: 'Refresh the file list',
     category: 'General',
+  },
+
+  // Export (desktop only: needs SOLIDWORKS)
+  {
+    action: 'exportPdf',
+    label: 'Export PDF',
+    description: 'Queue the selected drawings for PDF export to the quick export folder',
+    category: 'Export',
+  },
+  {
+    action: 'exportStep',
+    label: 'Export STEP',
+    description:
+      'Queue the selected parts and assemblies, or the models of selected drawings, for STEP export',
+    category: 'Export',
   },
 ]
 
@@ -308,7 +325,9 @@ export function KeybindingsSettings() {
   }, [resetKeybindings, addToast])
 
   // Group keybindings by category
-  const categories = ['Navigation', 'Editing', 'General']
+  const categories = hasDesktop()
+    ? ['Navigation', 'Editing', 'General', 'Export']
+    : ['Navigation', 'Editing', 'General']
   const keybindingsByCategory = categories.map((category) => ({
     category,
     items: keybindingDefinitions.filter((k) => k.category === category),
@@ -344,6 +363,7 @@ export function KeybindingsSettings() {
                 onCancel={handleCancel}
               />
             ))}
+            {category === 'Export' && <QuickExportFolderRow />}
           </SettingsGroup>
         </SettingsSection>
       ))}

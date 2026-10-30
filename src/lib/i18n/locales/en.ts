@@ -1562,6 +1562,42 @@ export const en: TranslationDict = {
       dialogMoveButton: 'Move {{files}}',
       dialogFailed: 'Could not prepare the transfer: {{error}}',
     },
+    export: {
+      noFiles: 'No files to export as {{format}}',
+      noDrawings: 'No drawing files selected',
+      progress: 'Exporting {{format}}...',
+      progressMany: 'Exporting {{format}} ({{count}} files)...',
+      progressFromDrawing: 'Exporting STEP from drawing...',
+      progressFromDrawings: 'Exporting STEP from drawings ({{count}})...',
+      done: 'Exported {{count}} {{format}} file(s)',
+      doneFromDrawings: 'Exported {{count}} STEP file(s) from drawings',
+      partial: 'Exported {{succeeded}}, failed {{failed}}',
+      failed: 'Failed to export {{format}}',
+      failedFromDrawings: 'Failed to export STEP from drawing references',
+      error: 'Export failed: {{error}}',
+      startSolidWorks: 'Start SolidWorks to export STEP from drawings',
+      itemNumberMismatch:
+        '{{name}} has item number {{fileNumber}} in its file properties but {{pdmNumber}} in BluePLM. The export used {{fileNumber}}. Run Sync Metadata to correct the file.',
+    },
+    quickExport: {
+      toFolder: 'Export to Quick Export Folder',
+      sectionTitle: 'Quick Export',
+      sectionDescription:
+        'The Export PDF and Export STEP shortcuts (Settings > Keybindings) queue the selected files for export to this folder.',
+      folderLabel: 'Quick export folder',
+      folderDescription: 'Where the export shortcuts write on this computer.',
+      folderChoose: 'Choose...',
+      folderClear: 'Export next to each file instead',
+      nextToFiles: 'next to each file',
+      queued: 'Queued {{format}} export of {{count}} file(s) to {{destination}}',
+      queuedBehind:
+        'Queued {{format}} export of {{count}} file(s) to {{destination}}, behind {{ahead}} running or waiting',
+      skipped: '{{count}} selected file(s) skipped.',
+      alreadyQueued: 'The selection is already queued for {{format}} export',
+      nothingPdf: 'Select one or more drawings to export PDF',
+      nothingStep: 'Select parts, assemblies or drawings to export STEP',
+      serviceNotRunning: 'The SolidWorks service is not running, so nothing was exported',
+    },
   },
 
   // Admin-only Vault Audit page - presents the read-only divergence scan

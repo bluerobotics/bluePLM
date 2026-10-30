@@ -28,6 +28,7 @@ import { useEffect, useCallback, useRef } from 'react'
 import { usePDMStore, type LocalFile } from '@/stores/pdmStore'
 import type { KeybindingAction } from '@/types/settings'
 import { executeCommand } from '@/lib/commands'
+import { quickExport } from '../exports/quickExport'
 import type { SelectableRow } from '../components/FileList/rowTypes'
 
 /** How long a typed character stays in the type-ahead buffer before the next key starts fresh */
@@ -320,6 +321,23 @@ export function useKeyboardNav({
         e.preventDefault()
         e.stopPropagation()
         onRefresh?.()
+        return
+      }
+
+      // Quick export: queue the selection for PDF or STEP export to the quick export folder
+      const exportKind = matchesKeybinding(e, 'exportPdf')
+        ? 'pdf'
+        : matchesKeybinding(e, 'exportStep')
+          ? 'step'
+          : null
+      if (exportKind) {
+        e.preventDefault()
+        e.stopPropagation()
+        const selected = new Set(selectedFiles)
+        quickExport(
+          exportKind,
+          selectableRows.filter((row) => selected.has(row.path)).map((row) => row.file),
+        )
         return
       }
 

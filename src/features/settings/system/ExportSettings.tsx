@@ -9,12 +9,15 @@ import {
   TextInput,
   type SegmentedOption,
 } from '@/components/core/ui'
+import { useTranslation } from '@/lib/i18n'
 import { log } from '@/lib/logger'
+import { hasDesktop } from '@/lib/platform'
 import { supabase } from '@/lib/supabase'
 import { usePDMStore } from '@/stores/pdmStore'
 import { ExportSettings as ExportSettingsType, DEFAULT_EXPORT_SETTINGS } from '@/types/pdm'
 
 import { SettingRow, SettingsGroup, SettingsPage, SettingsSection } from '../components/ui'
+import { QuickExportFolderRow } from './QuickExportFolderRow'
 
 // LocalStorage key for user preferences
 const USER_EXPORT_SETTINGS_KEY = 'blueplm_export_settings'
@@ -169,6 +172,7 @@ export function getEffectiveExportSettings(
 }
 
 export function ExportSettings() {
+  const { t } = useTranslation()
   const { organization, addToast, getEffectiveRole, updateOrganization } = usePDMStore(
     useShallow((s) => ({
       organization: s.organization,
@@ -549,6 +553,17 @@ export function ExportSettings() {
           </SettingRow>
         </SettingsGroup>
       </SettingsSection>
+
+      {hasDesktop() && (
+        <SettingsSection
+          title={t('contextMenu.quickExport.sectionTitle')}
+          description={t('contextMenu.quickExport.sectionDescription')}
+        >
+          <SettingsGroup>
+            <QuickExportFolderRow />
+          </SettingsGroup>
+        </SettingsSection>
+      )}
 
       <SettingsSection title="Token Reference">
         <SettingsGroup>

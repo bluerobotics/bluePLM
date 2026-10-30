@@ -115,12 +115,14 @@ interface FilePaneProps {
 // NOTE: FileIconCard and ListRowIcon components have been extracted to file-pane/
 // They are now imported at the top of this file
 
-/** File-pane shortcuts that write the local vault, so do nothing on BluePLM Web. */
+/** File-pane shortcuts that write the local vault or need SOLIDWORKS, so do nothing on BluePLM Web. */
 const WEB_DISABLED_KEYBINDINGS: ReadonlySet<KeybindingAction> = new Set<KeybindingAction>([
   'copy',
   'cut',
   'paste',
   'delete',
+  'exportPdf',
+  'exportStep',
 ])
 export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
   const { t } = useTranslation()

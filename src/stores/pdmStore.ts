@@ -84,7 +84,7 @@ import {
   createReviewsSlice,
   createDbUpgradeSlice,
 } from './slices'
-import { defaultCardViewFields } from './slices/settingsSlice'
+import { defaultCardViewFields, defaultKeybindings } from './slices/settingsSlice'
 
 const PERSIST_STORAGE_NAME = 'blue-plm-storage'
 
@@ -346,6 +346,7 @@ export const usePDMStore = create<PDMStoreState>()(
         cadPreviewMode: state.cadPreviewMode,
         topbarConfig: state.topbarConfig,
         keybindings: state.keybindings,
+        quickExportFolder: state.quickExportFolder,
         pinnedFolders: state.pinnedFolders,
         pinnedSectionExpanded: state.pinnedSectionExpanded,
         colorSwatches: state.colorSwatches,
@@ -550,23 +551,11 @@ export const usePDMStore = create<PDMStoreState>()(
               : (persisted.settingsTab as SettingsTab) || 'profile',
           // Ensure keybindings has defaults (merge with defaults for new keybindings)
           keybindings: Object.assign(
-            {
-              navigateUp: { key: 'ArrowUp' },
-              navigateDown: { key: 'ArrowDown' },
-              expandFolder: { key: 'ArrowRight' },
-              collapseFolder: { key: 'ArrowLeft' },
-              selectAll: { key: 'a', ctrlKey: true },
-              copy: { key: 'c', ctrlKey: true },
-              cut: { key: 'x', ctrlKey: true },
-              paste: { key: 'v', ctrlKey: true },
-              delete: { key: 'Delete' },
-              escape: { key: 'Escape' },
-              openFile: { key: 'Enter' },
-              toggleDetailsPanel: { key: 'p', ctrlKey: true },
-              refresh: { key: 'r', ctrlKey: true },
-            },
+            {},
+            defaultKeybindings,
             (persisted.keybindings as KeybindingsConfig) || {},
           ),
+          quickExportFolder: (persisted.quickExportFolder as string | null | undefined) ?? null,
           // Ensure onboarding state has defaults
           onboardingComplete: (persisted.onboardingComplete as boolean) || false,
           logSharingEnabled: (persisted.logSharingEnabled as boolean) || false,
