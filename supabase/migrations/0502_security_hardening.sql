@@ -1220,8 +1220,10 @@ BEGIN
       END IF;
     END IF;
 
-    -- Backups (columns from 0501). A failed or warning run is reported once (keyed by its row);
-    -- only runs that finished in the last two days are looked at, so the scan stays small.
+    -- Backups (columns from 0501). A failed or warning run (backup or verify) is reported once,
+    -- keyed by its row; only runs that finished in the last two days are looked at. A run closed
+    -- as failed because the worker restarted ({"interrupted": true}) is resumed by the worker and
+    -- is not news; one that never completes shows up as backup_overdue instead.
     IF o.is_backup_alert_enabled THEN
       PERFORM security_event_record(o.org_id, 'backup_failed',
         CASE WHEN h.status = 'failed' THEN 'high' ELSE 'normal' END,
@@ -1231,6 +1233,7 @@ BEGIN
                            'dedup_key', format('backup_failed:%s', h.id)))
       FROM backup_history h
       WHERE h.org_id = o.org_id AND h.status IN ('failed', 'warning')
+        AND NOT COALESCE((h.error_details->>'interrupted')::boolean, false)
         AND COALESCE(h.completed_at, h.started_at) > v_now - INTERVAL '2 days';
 
       -- Scheduled server backups: one succeeded within the window, and the worker is alive.

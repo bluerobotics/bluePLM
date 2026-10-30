@@ -79,7 +79,7 @@ CREATE TABLE backup_config (
 CREATE TABLE backup_history (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(), org_id uuid NOT NULL, started_at timestamptz DEFAULT now(),
   completed_at timestamptz, status text NOT NULL DEFAULT 'running', kind text NOT NULL DEFAULT 'backup',
-  runner text, error_message text
+  runner text, error_message text, error_details jsonb
 );
 
 CREATE SCHEMA storage;
@@ -497,13 +497,16 @@ describe('5. security monitoring', () => {
         ('${ORG_A}', 'completed', 'backup', 'server', NULL, now() - interval '40 hours', now() - interval '39 hours'),
         ('${ORG_B}', 'completed', 'backup', 'server', NULL, now() - interval '2 hours', now() - interval '1 hour'),
         ('${ORG_B}', 'failed', 'backup', 'server', 'old', now() - interval '9 days', now() - interval '9 days');
+      INSERT INTO backup_history (org_id, status, kind, runner, error_message, error_details, started_at, completed_at) VALUES
+        ('${ORG_B}', 'failed', 'backup', 'server', 'restart', '{"interrupted": true}', now() - interval '3 hours', now() - interval '3 hours');
     `)
     await db.exec(`SELECT security_monitor_run()`)
     await db.exec(`SELECT security_monitor_run()`)
     const ev = await rows<{ org_id: string; kind: string }>(
       `SELECT org_id, kind FROM security_event WHERE kind LIKE 'backup%' ORDER BY org_id, kind`,
     )
-    // B succeeded recently and its worker is alive; its failure is older than the two-day window.
+    // B succeeded recently and its worker is alive; one failure is older than the two-day window and
+    // the other was a restart the worker resumes.
     expect(ev).toEqual([
       { org_id: ORG_A, kind: 'backup_failed' },
       { org_id: ORG_A, kind: 'backup_overdue' },
