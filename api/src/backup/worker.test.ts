@@ -103,6 +103,7 @@ function world(overrides: Record<string, unknown> = {}): World {
         instanceId: id,
         version: '3.1.0',
         postBackupSampleSize: 3,
+        progressIntervalMs: 0,
       }),
     repo: () => BackupRepository.open(store, 'pw'),
   }
@@ -160,6 +161,21 @@ describe('BackupWorker', () => {
     w.clock.now = Date.parse('2026-07-02T02:00:30Z')
     await tick(worker)
     expect(w.history()).toHaveLength(2)
+  })
+
+  it('records its progress on the running history row, then replaces it with the result', async () => {
+    const w = world({ backup_requested_at: '2026-07-01T11:59:00Z' })
+    const seen: Array<Record<string, unknown> | undefined> = []
+    const open = w.org.openObject.bind(w.org)
+    w.org.openObject = async (name: string) => {
+      const report = w.fake.rows('backup_history')[0]?.report as { progress?: Record<string, unknown> } | null
+      seen.push(report?.progress)
+      return open(name)
+    }
+    await tick(w.worker())
+    expect(seen.some((p) => p?.phase === 'objects' && p.total === 5)).toBe(true)
+    expect(w.history()[0].status).toBe('completed')
+    expect(w.history()[0].report).not.toHaveProperty('progress')
   })
 
   it('leaves a desktop-run organization alone', async () => {

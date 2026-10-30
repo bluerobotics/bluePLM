@@ -170,7 +170,8 @@ export function useBackupStatus(
         loadedConfig?.access_key_encrypted &&
         loadedConfig?.restic_password_encrypted
       ) {
-        loadSnapshots(loadedConfig)
+        // Server-run backups do not use restic; its slow snapshot list loads only when asked for.
+        if (loadedConfig.run_location !== 'server') loadSnapshots(loadedConfig)
       }
     })
   }, [orgId, loadConfig, loadSnapshots])
@@ -236,6 +237,7 @@ export function useBackupStatus(
         log.debug('[Backup]', 'Skipping periodic refresh - previous error')
         return
       }
+      if (config.run_location === 'server') return
       loadSnapshots(config)
     }, 60000) // Every 60 seconds for slow operation
 

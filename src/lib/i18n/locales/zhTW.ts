@@ -1064,6 +1064,12 @@ export const zhTW: TranslationDict = {
     lastTestFailed: '失敗',
     restoreHint: '若要從伺服器備份還原，請執行：npm run backup --prefix api -- restore --org {{orgId}} --to <資料夾>。只會寫入該資料夾。',
     adminOnly: '只有管理員可以啟動備份與測試。',
+    progressReadingDatabase: "正在讀取資料庫…",
+    progressUploading: "{{done}} / {{total}} 個檔案，已上傳 {{size}}",
+    progressChecking: "已驗證 {{done}} / {{total}} 個檔案",
+    statusInterrupted: "已中斷，已繼續",
+    interruptedDetail: "伺服器在本次執行期間重新啟動（更新），已在上面的執行中繼續。沒有遺失任何內容。",
+    howToRestore: "如何還原伺服器備份",
   },
   backupPanel: {
     title: "備份與還原",
@@ -1105,5 +1111,9 @@ export const zhTW: TranslationDict = {
     nowDesktop: "備份現在在指定的電腦上執行。",
     restoreHintServer: "下方的還原點是指定電腦的快照。伺服器備份使用「伺服器備份」中顯示的指令還原。",
     rateLimited: "備份儲存桶正在限制要求。請在 {{seconds}} 秒後重試。",
+    firstBackupRunning: "首次備份進行中",
+    inProgress: "進行中",
+    selected: "已選取",
+    desktopSnapshots: "電腦快照（restic）",
   },
 }

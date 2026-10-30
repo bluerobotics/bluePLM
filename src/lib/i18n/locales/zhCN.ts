@@ -1064,6 +1064,12 @@ export const zhCN: TranslationDict = {
     lastTestFailed: '失败',
     restoreHint: '要从服务器备份恢复，请运行：npm run backup --prefix api -- restore --org {{orgId}} --to <文件夹>。只会写入该文件夹。',
     adminOnly: '只有管理员可以启动备份和测试。',
+    progressReadingDatabase: "正在读取数据库…",
+    progressUploading: "{{done}} / {{total}} 个文件，已上传 {{size}}",
+    progressChecking: "已校验 {{done}} / {{total}} 个文件",
+    statusInterrupted: "已中断，已继续",
+    interruptedDetail: "服务器在本次运行期间重启（更新），已在上面的运行中继续。没有丢失任何内容。",
+    howToRestore: "如何恢复服务器备份",
   },
   backupPanel: {
     title: "备份与恢复",
@@ -1105,5 +1111,9 @@ export const zhCN: TranslationDict = {
     nowDesktop: "备份现在在指定的电脑上运行。",
     restoreHintServer: "下方的恢复点是指定电脑的快照。服务器备份使用“服务器备份”中显示的命令恢复。",
     rateLimited: "备份存储桶正在限制请求。请在 {{seconds}} 秒后重试。",
+    firstBackupRunning: "首次备份进行中",
+    inProgress: "进行中",
+    selected: "已选择",
+    desktopSnapshots: "电脑快照（restic）",
   },
 }

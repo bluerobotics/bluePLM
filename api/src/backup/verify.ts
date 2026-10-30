@@ -68,7 +68,8 @@ export interface VerifyOptions {
   source?: BackupSource
   now?: () => Date
   random?: () => number
-  onProgress?: () => void | Promise<void>
+  /** Called as the test goes: blobs read so far out of those it will read. */
+  onProgress?: (progress: { phase: 'parts' | 'blobs' | 'live'; done: number; total: number }) => void | Promise<void>
 }
 
 function pickSample<T>(items: T[], count: number, random: () => number): T[] {
@@ -142,6 +143,7 @@ export async function verifyRepository(repo: BackupRepository, options: VerifyOp
       report.partsFailed.push({ part: manifest.objects.part, error: err instanceof Error ? err.message : String(err) })
     }
     if (manifest.id === target.id) targetEntries = entries
+    await options.onProgress?.({ phase: 'parts', done: toCheck.indexOf(manifest) + 1, total: toCheck.length })
     for (const entry of entries) {
       const key = repo.blobKey(entry.hash)
       if (referenced.has(key)) continue
@@ -154,7 +156,6 @@ export async function verifyRepository(repo: BackupRepository, options: VerifyOp
         report.blobsWrongSize++
       }
     }
-    await options.onProgress?.()
   }
   for (const failed of report.partsFailed) report.problems.push(`Snapshot part ${failed.part} is damaged: ${failed.error}`)
   report.blobsReferenced = referenced.size
@@ -177,7 +178,7 @@ export async function verifyRepository(repo: BackupRepository, options: VerifyOp
     } catch (err) {
       report.blobsReadFailed.push({ name: entry.name, error: err instanceof Error ? err.message : String(err) })
     }
-    await options.onProgress?.()
+    await options.onProgress?.({ phase: 'blobs', done: report.blobsRead + report.blobsReadFailed.length, total: toRead.length })
   }
   if (report.blobsReadFailed.length > 0) {
     report.problems.push(`${report.blobsReadFailed.length} file content object(s) could not be restored intact.`)
@@ -228,7 +229,7 @@ export async function verifyRepository(repo: BackupRepository, options: VerifyOp
         } catch {
           report.liveAudit.unreadable++
         }
-        await options.onProgress?.()
+        await options.onProgress?.({ phase: 'live', done: report.liveAudit.checked + report.liveAudit.unreadable, total: sample.length })
       }
       if (report.liveAudit.corrupt.length > 0) {
         const restorable = report.liveAudit.corrupt.filter((name) => inSnapshot.has(hashFromObjectName(name)!)).length

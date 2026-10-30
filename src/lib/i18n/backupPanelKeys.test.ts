@@ -50,6 +50,10 @@ const KEYS = [
   'backupPanel.nowDesktop',
   'backupPanel.restoreHintServer',
   'backupPanel.rateLimited',
+  'backupPanel.firstBackupRunning',
+  'backupPanel.inProgress',
+  'backupPanel.selected',
+  'backupPanel.desktopSnapshots',
 ] as const
 
 describe('backupPanel.* keys exist in every locale', () => {

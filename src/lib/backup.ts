@@ -72,7 +72,11 @@ export interface BackupRun {
   duration_seconds: number | null
   snapshot_id: string | null
   error_message: string | null
+  /** `{ interrupted: true }` when a restart cut the run short; the worker resumes such a backup. */
+  error_details?: { interrupted?: boolean } | null
   report: {
+    /** While running (API 4.1.1): how far it is, rewritten every 30 s. */
+    progress?: { phase: string; done: number; total: number; bytesUploaded?: number; at: string }
     verify?: { ok: boolean; blobsRead: number; problems: string[] }
     problems?: Array<{ kind: string; name: string; detail: string }>
     problemCount?: number

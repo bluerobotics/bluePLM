@@ -6,6 +6,7 @@ import {
   CloudOff,
   Loader2,
   Play,
+  RotateCcw,
   ShieldCheck,
   XCircle,
 } from 'lucide-react'
@@ -54,17 +55,41 @@ function runSummary(run: BackupRun): string {
   })
 }
 
-function StatusIcon({ status }: { status: string }) {
-  if (status === 'completed') return <CheckCircle2 className="w-4 h-4 text-plm-success shrink-0" />
-  if (status === 'warning') return <AlertTriangle className="w-4 h-4 text-plm-warning shrink-0" />
-  if (status === 'running') return <Loader2 className="w-4 h-4 animate-spin text-plm-accent shrink-0" />
+/** A run a server restart cut short. The worker closes it and resumes the backup, so it is not a failure. */
+export function isInterrupted(run: BackupRun): boolean {
+  return run.status === 'failed' && !!run.error_details?.interrupted
+}
+
+/** "1,234 of 33,925 files, 49.7 GB uploaded", or null before the first progress report. */
+export function progressText(run: BackupRun | undefined): string | null {
+  const p = run?.report?.progress
+  if (!run || !p) return null
+  if (run.kind === 'backup' && p.phase === 'tables')
+    return t('serverBackup.progressReadingDatabase')
+  if (!p.total) return null
+  const done = p.done.toLocaleString()
+  const total = p.total.toLocaleString()
+  return run.kind === 'backup'
+    ? t('serverBackup.progressUploading', { done, total, size: formatBytes(p.bytesUploaded ?? 0) })
+    : t('serverBackup.progressChecking', { done, total })
+}
+
+function StatusIcon({ run }: { run: BackupRun }) {
+  if (run.status === 'completed')
+    return <CheckCircle2 className="w-4 h-4 text-plm-success shrink-0" />
+  if (run.status === 'warning')
+    return <AlertTriangle className="w-4 h-4 text-plm-warning shrink-0" />
+  if (run.status === 'running')
+    return <Loader2 className="w-4 h-4 animate-spin text-plm-accent shrink-0" />
+  if (isInterrupted(run)) return <RotateCcw className="w-4 h-4 text-plm-fg-muted shrink-0" />
   return <XCircle className="w-4 h-4 text-plm-error shrink-0" />
 }
 
-function statusLabel(status: string): string {
-  if (status === 'completed') return t('serverBackup.statusCompleted')
-  if (status === 'warning') return t('serverBackup.statusWarning')
-  if (status === 'running') return t('serverBackup.statusRunning')
+function statusLabel(run: BackupRun): string {
+  if (run.status === 'completed') return t('serverBackup.statusCompleted')
+  if (run.status === 'warning') return t('serverBackup.statusWarning')
+  if (run.status === 'running') return t('serverBackup.statusRunning')
+  if (isInterrupted(run)) return t('serverBackup.statusInterrupted')
   return t('serverBackup.statusFailed')
 }
 
@@ -90,7 +115,10 @@ export function ServerBackupSection({
   const [expandedRunId, setExpandedRunId] = useState<string | null>(null)
   const online = isServerWorkerOnline(config)
 
-  const send = async (action: () => Promise<{ success: boolean; error?: string }>, sent: string) => {
+  const send = async (
+    action: () => Promise<{ success: boolean; error?: string }>,
+    sent: string,
+  ) => {
     setSending(true)
     try {
       const result = await action()
@@ -121,9 +149,13 @@ export function ServerBackupSection({
         )}
         <span className={online ? 'text-plm-fg-muted' : 'text-plm-warning'}>
           {online
-            ? t('serverBackup.workerOnline', { ago: formatRelativeTime(config.server_worker_seen_at as string) })
+            ? t('serverBackup.workerOnline', {
+                ago: formatRelativeTime(config.server_worker_seen_at as string),
+              })
             : config.server_worker_seen_at
-              ? t('serverBackup.workerStale', { ago: formatRelativeTime(config.server_worker_seen_at) })
+              ? t('serverBackup.workerStale', {
+                  ago: formatRelativeTime(config.server_worker_seen_at),
+                })
               : t('serverBackup.workerOffline')}
         </span>
       </div>
@@ -135,7 +167,9 @@ export function ServerBackupSection({
             {t('serverBackup.lastTest', {
               when: formatDate(lastTest.started_at),
               result:
-                lastTest.status === 'completed' ? t('serverBackup.lastTestPassed') : t('serverBackup.lastTestFailed'),
+                lastTest.status === 'completed'
+                  ? t('serverBackup.lastTestPassed')
+                  : t('serverBackup.lastTestFailed'),
             })}
           </div>
         )}
@@ -143,9 +177,16 @@ export function ServerBackupSection({
           <div className="flex items-center gap-1 text-plm-accent">
             <Loader2 className="w-3 h-3 animate-spin" />
             {t('serverBackup.running', { when: formatDate(config.backup_started_at) })}
+            {progressText(runs.find((r) => r.status === 'running')) && (
+              <span className="text-plm-fg-muted">
+                · {progressText(runs.find((r) => r.status === 'running'))}
+              </span>
+            )}
           </div>
         )}
-        {config.backup_requested_at && !config.backup_started_at && <div>{t('serverBackup.backupRequested')}</div>}
+        {config.backup_requested_at && !config.backup_started_at && (
+          <div>{t('serverBackup.backupRequested')}</div>
+        )}
         {config.verify_requested_at && <div>{t('serverBackup.testRequested')}</div>}
       </div>
 
@@ -154,7 +195,12 @@ export function ServerBackupSection({
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <button
-              onClick={() => void send(() => requestBackup(orgId, userEmail), t('serverBackup.backupRequestSent'))}
+              onClick={() =>
+                void send(
+                  () => requestBackup(orgId, userEmail),
+                  t('serverBackup.backupRequestSent'),
+                )
+              }
               disabled={sending || !!config.backup_requested_at || !!config.backup_started_at}
               className="btn btn-primary btn-sm flex items-center gap-1"
             >
@@ -178,7 +224,10 @@ export function ServerBackupSection({
             </select>
             <button
               onClick={() =>
-                void send(() => requestBackupTest(orgId, userEmail, testMode), t('serverBackup.testRequestSent'))
+                void send(
+                  () => requestBackupTest(orgId, userEmail, testMode),
+                  t('serverBackup.testRequestSent'),
+                )
               }
               disabled={sending || !!config.verify_requested_at}
               className="btn btn-secondary btn-sm flex items-center gap-1"
@@ -202,12 +251,15 @@ export function ServerBackupSection({
       {/* Recent runs */}
       <div>
         <div className="text-xs font-medium mb-1">{t('serverBackup.recentRuns')}</div>
-        {runsLoaded && runs.length === 0 && <div className="text-xs text-plm-fg-muted">{t('serverBackup.noRuns')}</div>}
+        {runsLoaded && runs.length === 0 && (
+          <div className="text-xs text-plm-fg-muted">{t('serverBackup.noRuns')}</div>
+        )}
         <ul className="space-y-1">
           {runs.map((run) => {
             const problems = run.report?.problems ?? []
             const verifyProblems = run.report?.verify?.problems ?? []
-            const expandable = !!run.error_message || problems.length > 0 || verifyProblems.length > 0
+            const expandable =
+              !!run.error_message || problems.length > 0 || verifyProblems.length > 0
             return (
               <li key={run.id} className="text-xs">
                 <button
@@ -215,27 +267,44 @@ export function ServerBackupSection({
                   disabled={!expandable}
                   onClick={() => setExpandedRunId(expandedRunId === run.id ? null : run.id)}
                 >
-                  <StatusIcon status={run.status} />
+                  <StatusIcon run={run} />
                   <span className="font-medium">
-                    {run.kind === 'verify' ? t('serverBackup.kindVerify') : t('serverBackup.kindBackup')}
+                    {run.kind === 'verify'
+                      ? t('serverBackup.kindVerify')
+                      : t('serverBackup.kindBackup')}
                   </span>
                   <span className="text-plm-fg-muted">
-                    {run.trigger === 'scheduled' ? t('serverBackup.triggerScheduled') : t('serverBackup.triggerManual')}
+                    {run.trigger === 'scheduled'
+                      ? t('serverBackup.triggerScheduled')
+                      : t('serverBackup.triggerManual')}
                   </span>
                   <span className="text-plm-fg-muted">{formatDate(run.started_at)}</span>
-                  <span className="ml-auto">{statusLabel(run.status)}</span>
+                  <span className={`ml-auto ${isInterrupted(run) ? 'text-plm-fg-muted' : ''}`}>
+                    {statusLabel(run)}
+                  </span>
                 </button>
                 {run.status !== 'running' && run.status !== 'failed' && (
                   <div className="pl-6 text-plm-fg-muted">{runSummary(run)}</div>
                 )}
+                {run.status === 'running' && progressText(run) && (
+                  <div className="pl-6 text-plm-fg-muted">{progressText(run)}</div>
+                )}
                 {expandedRunId === run.id && (
                   <div className="pl-6 mt-1 space-y-0.5 text-plm-fg-muted">
-                    {run.error_message && <div className="text-plm-error">{run.error_message}</div>}
-                    {[...verifyProblems, ...problems.map((p) => `${p.name}: ${p.detail}`)].slice(0, 20).map((line) => (
-                      <div key={line} className="break-all">
-                        {line}
+                    {run.error_message && (
+                      <div className={isInterrupted(run) ? '' : 'text-plm-error'}>
+                        {isInterrupted(run)
+                          ? t('serverBackup.interruptedDetail')
+                          : run.error_message}
                       </div>
-                    ))}
+                    )}
+                    {[...verifyProblems, ...problems.map((p) => `${p.name}: ${p.detail}`)]
+                      .slice(0, 20)
+                      .map((line) => (
+                        <div key={line} className="break-all">
+                          {line}
+                        </div>
+                      ))}
                   </div>
                 )}
               </li>
@@ -244,7 +313,10 @@ export function ServerBackupSection({
         </ul>
       </div>
 
-      <p className="text-xs text-plm-fg-muted break-all">{t('serverBackup.restoreHint', { orgId })}</p>
+      <details className="text-xs text-plm-fg-muted">
+        <summary className="cursor-pointer select-none">{t('serverBackup.howToRestore')}</summary>
+        <p className="mt-1 break-all">{t('serverBackup.restoreHint', { orgId })}</p>
+      </details>
     </div>
   )
 }

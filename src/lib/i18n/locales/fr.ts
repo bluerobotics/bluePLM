@@ -1114,6 +1114,12 @@ export const fr: TranslationDict = {
     restoreHint:
       'Pour restaurer depuis une sauvegarde du serveur, exécutez : npm run backup --prefix api -- restore --org {{orgId}} --to <dossier>. Seul ce dossier est modifié.',
     adminOnly: 'Seuls les administrateurs peuvent lancer des sauvegardes et des tests.',
+    progressReadingDatabase: "Lecture de la base de données…",
+    progressUploading: "{{done}} fichiers sur {{total}}, {{size}} envoyés",
+    progressChecking: "{{done}} fichiers sur {{total}} vérifiés",
+    statusInterrupted: "Interrompue, reprise",
+    interruptedDetail: "Le serveur a redémarré pendant cette exécution (une mise à jour) et a continué dans l'exécution ci-dessus. Rien n'a été perdu.",
+    howToRestore: "Comment restaurer une sauvegarde du serveur",
   },
   backupPanel: {
     title: "Sauvegarde et restauration",
@@ -1155,5 +1161,9 @@ export const fr: TranslationDict = {
     nowDesktop: "Les sauvegardes s'exécutent maintenant sur l'ordinateur désigné.",
     restoreHintServer: "Les points de restauration ci-dessous sont les instantanés de l'ordinateur désigné. Les sauvegardes du serveur se restaurent avec la commande indiquée dans Sauvegardes sur le serveur.",
     rateLimited: "Le bucket de sauvegarde limite les requêtes. Réessayez dans {{seconds}} s.",
+    firstBackupRunning: "Première sauvegarde en cours",
+    inProgress: "En cours",
+    selected: "Sélectionné",
+    desktopSnapshots: "Instantanés de l'ordinateur (restic)",
   },
 }

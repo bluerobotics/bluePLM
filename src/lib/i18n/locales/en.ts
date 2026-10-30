@@ -2397,6 +2397,12 @@ export const en: TranslationDict = {
     restoreHint:
       'To restore from a server backup, run: npm run backup --prefix api -- restore --org {{orgId}} --to <folder>. It writes only to that folder.',
     adminOnly: 'Only administrators can start backups and tests.',
+    progressReadingDatabase: "Reading the database…",
+    progressUploading: "{{done}} of {{total}} files, {{size}} uploaded",
+    progressChecking: "{{done}} of {{total}} files checked",
+    statusInterrupted: "Interrupted, resumed",
+    interruptedDetail: "The server restarted during this run (an update), so it carried on in the run above. Nothing was lost.",
+    howToRestore: "How to restore a server backup",
   },
   backupPanel: {
     title: "Backup & Restore",
@@ -2438,5 +2444,9 @@ export const en: TranslationDict = {
     nowDesktop: "Backups now run on the designated computer.",
     restoreHintServer: "Restore points below are the designated computer's snapshots. Server backups are restored with the command shown in Server backups.",
     rateLimited: "The backup bucket is rate limiting requests. Retry in {{seconds}} s.",
+    firstBackupRunning: "First backup in progress",
+    inProgress: "In progress",
+    selected: "Selected",
+    desktopSnapshots: "Desktop snapshots (restic)",
   },
 }

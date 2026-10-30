@@ -1108,6 +1108,12 @@ export const pt: TranslationDict = {
     restoreHint:
       'Para restaurar de um backup do servidor, execute: npm run backup --prefix api -- restore --org {{orgId}} --to <pasta>. Só grava nessa pasta.',
     adminOnly: 'Apenas administradores podem iniciar backups e testes.',
+    progressReadingDatabase: "Lendo o banco de dados…",
+    progressUploading: "{{done}} de {{total}} arquivos, {{size}} enviados",
+    progressChecking: "{{done}} de {{total}} arquivos conferidos",
+    statusInterrupted: "Interrompido, retomado",
+    interruptedDetail: "O servidor reiniciou durante esta execução (uma atualização) e continuou na execução acima. Nada foi perdido.",
+    howToRestore: "Como restaurar um backup do servidor",
   },
   backupPanel: {
     title: "Backup e restauração",
@@ -1149,5 +1155,9 @@ export const pt: TranslationDict = {
     nowDesktop: "Os backups agora são executados no computador designado.",
     restoreHintServer: "Os pontos de restauração abaixo são os snapshots do computador designado. Os backups do servidor são restaurados com o comando mostrado em Backups no servidor.",
     rateLimited: "O bucket de backup está limitando as solicitações. Tente de novo em {{seconds}} s.",
+    firstBackupRunning: "Primeiro backup em andamento",
+    inProgress: "Em andamento",
+    selected: "Selecionado",
+    desktopSnapshots: "Snapshots do computador (restic)",
   },
 }

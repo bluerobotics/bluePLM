@@ -1107,6 +1107,12 @@ export const es: TranslationDict = {
     restoreHint:
       'Para restaurar desde una copia del servidor, ejecute: npm run backup --prefix api -- restore --org {{orgId}} --to <carpeta>. Solo escribe en esa carpeta.',
     adminOnly: 'Solo los administradores pueden iniciar copias y pruebas.',
+    progressReadingDatabase: "Leyendo la base de datos…",
+    progressUploading: "{{done}} de {{total}} archivos, {{size}} subidos",
+    progressChecking: "{{done}} de {{total}} archivos comprobados",
+    statusInterrupted: "Interrumpida, reanudada",
+    interruptedDetail: "El servidor se reinició durante esta ejecución (una actualización) y continuó en la ejecución de arriba. No se perdió nada.",
+    howToRestore: "Cómo restaurar una copia del servidor",
   },
   backupPanel: {
     title: "Copia de seguridad y restauración",
@@ -1148,5 +1154,9 @@ export const es: TranslationDict = {
     nowDesktop: "Las copias ahora se ejecutan en el ordenador designado.",
     restoreHintServer: "Los puntos de restauración de abajo son las instantáneas del ordenador designado. Las copias del servidor se restauran con el comando que aparece en Copias de seguridad en el servidor.",
     rateLimited: "El bucket de copias está limitando las solicitudes. Reintente en {{seconds}} s.",
+    firstBackupRunning: "Primera copia en curso",
+    inProgress: "En curso",
+    selected: "Seleccionado",
+    desktopSnapshots: "Instantáneas del ordenador (restic)",
   },
 }

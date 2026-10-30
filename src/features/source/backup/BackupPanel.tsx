@@ -74,7 +74,8 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
   } = statusHook
 
   const serverRun = isServerRun(config)
-  const pending = !!config?.backup_requested_at || !!config?.verify_requested_at || !!config?.backup_started_at
+  const pending =
+    !!config?.backup_requested_at || !!config?.verify_requested_at || !!config?.backup_started_at
   const serverRuns = useServerBackupRuns(orgId, isConfigured && serverRun, pending)
   const reloadRuns = serverRuns.reload
 
@@ -112,7 +113,9 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
   )
 
   const handleVaultToggle = (vaultId: string, checked: boolean) => {
-    operations.setSelectedVaultIds((prev) => (checked ? [...prev, vaultId] : prev.filter((id) => id !== vaultId)))
+    operations.setSelectedVaultIds((prev) =>
+      checked ? [...prev, vaultId] : prev.filter((id) => id !== vaultId),
+    )
   }
 
   const handleRunLocation = async (location: 'desktop' | 'server') => {
@@ -142,7 +145,40 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
     )
   }
 
-  const lastBackupAt = serverRun ? (serverRuns.lastGood?.started_at ?? null) : (lastSnapshot?.time ?? null)
+  const lastBackupAt = serverRun
+    ? (serverRuns.lastGood?.started_at ?? null)
+    : (lastSnapshot?.time ?? null)
+
+  const restorePoints = (
+    <>
+      {isBackoffActive && backoffRemainingSeconds > 0 && (
+        <div className="flex items-center gap-2 p-2 rounded border bg-amber-500/10 border-amber-500/30 text-xs">
+          <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+          {t('backupPanel.rateLimited', { seconds: backoffRemainingSeconds })}
+        </div>
+      )}
+      <BackupHistory
+        status={status}
+        isAdmin={isAdmin}
+        selectedSnapshot={operations.selectedSnapshot}
+        onSelectSnapshot={operations.setSelectedSnapshot}
+        deletingSnapshotIds={operations.deletingSnapshotIds}
+        onRequestDelete={operations.setDeleteConfirmTarget}
+        historyVaultFilter={operations.historyVaultFilter}
+        onHistoryVaultFilterChange={operations.setHistoryVaultFilter}
+        isRestoring={operations.isRestoring}
+        isLoadingSnapshots={isLoadingSnapshots}
+      />
+      {operations.selectedSnapshot && (
+        <RestoreActionBar
+          selectedSnapshot={operations.selectedSnapshot}
+          isRestoring={operations.isRestoring}
+          onRestore={operations.handleRestore}
+          onCancel={() => operations.setSelectedSnapshot(null)}
+        />
+      )}
+    </>
+  )
 
   return (
     <div className="p-4 space-y-6">
@@ -169,6 +205,7 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
         lastBackupAt={lastBackupAt}
         isDesignatedOnline={isDesignatedOnline}
         isThisDesignated={isThisDesignated}
+        isRunning={!!config?.backup_started_at}
         onOpenSettings={() => setShowConfig(true)}
       />
 
@@ -208,41 +245,30 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
               onClearDesignatedMachine={operations.handleClearDesignatedMachine}
             />
           )}
-          <BackupStatusViewer isRunningBackup={operations.isRunningBackup} isRestoring={operations.isRestoring} />
+          <BackupStatusViewer
+            isRunningBackup={operations.isRunningBackup}
+            isRestoring={operations.isRestoring}
+          />
         </section>
       )}
 
-      {/* Restore points (restic snapshots made by the designated computer) */}
-      {isConfigured && (
-        <section className="space-y-2">
-          {serverRun && <p className="text-xs text-plm-fg-muted">{t('backupPanel.restoreHintServer')}</p>}
-          {isBackoffActive && backoffRemainingSeconds > 0 && (
-            <div className="flex items-center gap-2 p-2 rounded border bg-amber-500/10 border-amber-500/30 text-xs">
-              <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
-              {t('backupPanel.rateLimited', { seconds: backoffRemainingSeconds })}
-            </div>
-          )}
-          <BackupHistory
-            status={status}
-            isAdmin={isAdmin}
-            selectedSnapshot={operations.selectedSnapshot}
-            onSelectSnapshot={operations.setSelectedSnapshot}
-            deletingSnapshotIds={operations.deletingSnapshotIds}
-            onRequestDelete={operations.setDeleteConfirmTarget}
-            historyVaultFilter={operations.historyVaultFilter}
-            onHistoryVaultFilterChange={operations.setHistoryVaultFilter}
-            isRestoring={operations.isRestoring}
-            isLoadingSnapshots={isLoadingSnapshots}
-          />
-          {operations.selectedSnapshot && (
-            <RestoreActionBar
-              selectedSnapshot={operations.selectedSnapshot}
-              isRestoring={operations.isRestoring}
-              onRestore={operations.handleRestore}
-              onCancel={() => operations.setSelectedSnapshot(null)}
-            />
-          )}
-        </section>
+      {/* Restore points (restic snapshots made by the designated computer). With server-run
+          backups they are older history, folded away and loaded only when opened. */}
+      {isConfigured && !serverRun && <section className="space-y-2">{restorePoints}</section>}
+      {isConfigured && serverRun && (
+        <details
+          className="space-y-2"
+          onToggle={(e) => {
+            if ((e.currentTarget as HTMLDetailsElement).open && snapshots.length === 0)
+              void refreshSnapshots()
+          }}
+        >
+          <summary className="text-sm cursor-pointer select-none text-plm-fg-muted">
+            {t('backupPanel.desktopSnapshots')}
+          </summary>
+          <p className="text-xs text-plm-fg-muted">{t('backupPanel.restoreHintServer')}</p>
+          {restorePoints}
+        </details>
       )}
 
       {/* Bucket, credentials, retention and schedule (admins) */}

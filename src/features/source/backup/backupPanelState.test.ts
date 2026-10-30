@@ -51,6 +51,7 @@ vi.mock('@/lib/platform', async (importOriginal) => ({
 const { useBackupHeartbeat } = await import('@/hooks/useBackupHeartbeat')
 const { getDesktopBackupState, runDesktopBackup, subscribeDesktopBackup } = await import('@/lib/desktopBackupRunner')
 const { backupAttention, STALE_BACKUP_HOURS } = await import('./BackupOverview')
+const { isInterrupted, progressText } = await import('./ServerBackupSection')
 
 const CONFIG = { org_id: 'org-1', designated_machine_id: 'm-1', is_schedule_enabled: true } as unknown as BackupConfig
 
@@ -165,5 +166,37 @@ describe('backupAttention', () => {
     const seen = new Date(now - 60_000).toISOString()
     expect(backupAttention({ ...server, server_worker_seen_at: seen }, recent, false, now)).toEqual([])
     expect(backupAttention({ ...server, server_worker_seen_at: null }, recent, false, now)).toHaveLength(1)
+  })
+})
+
+describe('a first backup in progress is not an alarm', () => {
+  const now = Date.parse('2026-10-30T12:00:00Z')
+  const server = {
+    ...CONFIG,
+    run_location: 'server',
+    designated_machine_id: null,
+    server_worker_seen_at: new Date(now - 30_000).toISOString(),
+  } as BackupConfig
+
+  it('raises nothing while the first backup runs, and "never backed up" once it is not running', () => {
+    expect(backupAttention(server, null, false, now, true)).toEqual([])
+    expect(backupAttention(server, null, false, now, false)).toHaveLength(1)
+  })
+
+  it('shows a run cut short by a restart as interrupted, not failed', () => {
+    const base = { kind: 'backup', status: 'failed', report: null } as unknown as import('@/lib/backup').BackupRun
+    expect(isInterrupted({ ...base, error_details: { interrupted: true } })).toBe(true)
+    expect(isInterrupted({ ...base, error_details: null })).toBe(false)
+  })
+
+  it('describes a running backup by files and bytes', () => {
+    const run = {
+      kind: 'backup',
+      status: 'running',
+      report: { progress: { phase: 'objects', done: 18532, total: 33925, bytesUploaded: 49.67e9, at: '' } },
+    } as unknown as import('@/lib/backup').BackupRun
+    expect(progressText(run)).toMatch(/33,925/)
+    expect(progressText(run)).toMatch(/GB/)
+    expect(progressText({ ...run, report: null })).toBeNull()
   })
 })

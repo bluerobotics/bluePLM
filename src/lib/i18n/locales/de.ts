@@ -1118,6 +1118,12 @@ export const de: TranslationDict = {
     restoreHint:
       'Zum Wiederherstellen aus einer Server-Sicherung ausführen: npm run backup --prefix api -- restore --org {{orgId}} --to <Ordner>. Es wird nur in diesen Ordner geschrieben.',
     adminOnly: 'Nur Administratoren können Sicherungen und Tests starten.',
+    progressReadingDatabase: "Datenbank wird gelesen…",
+    progressUploading: "{{done}} von {{total}} Dateien, {{size}} hochgeladen",
+    progressChecking: "{{done}} von {{total}} Dateien geprüft",
+    statusInterrupted: "Unterbrochen, fortgesetzt",
+    interruptedDetail: "Der Server wurde während dieses Laufs neu gestartet (ein Update) und hat im Lauf darüber weitergemacht. Es ging nichts verloren.",
+    howToRestore: "So stellen Sie eine Server-Sicherung wieder her",
   },
   backupPanel: {
     title: "Sicherung und Wiederherstellung",
@@ -1159,5 +1165,9 @@ export const de: TranslationDict = {
     nowDesktop: "Sicherungen laufen jetzt auf dem festgelegten Computer.",
     restoreHintServer: "Die Wiederherstellungspunkte unten sind die Snapshots des festgelegten Computers. Server-Sicherungen werden mit dem unter Server-Sicherungen gezeigten Befehl wiederhergestellt.",
     rateLimited: "Der Sicherungs-Bucket begrenzt Anfragen. Erneut versuchen in {{seconds}} s.",
+    firstBackupRunning: "Erste Sicherung läuft",
+    inProgress: "Läuft",
+    selected: "Ausgewählt",
+    desktopSnapshots: "Desktop-Snapshots (restic)",
   },
 }

@@ -1,4 +1,4 @@
-import { Cloud, Loader2, Monitor } from 'lucide-react'
+import { CheckCircle2, Cloud, Loader2, Monitor } from 'lucide-react'
 import { t } from '@/lib/i18n'
 
 type RunLocation = 'desktop' | 'server'
@@ -11,8 +11,18 @@ interface RunLocationPickerProps {
 }
 
 const OPTIONS: Array<{ value: RunLocation; icon: typeof Cloud; label: string; hint: string }> = [
-  { value: 'server', icon: Cloud, label: 'serverBackup.runLocationServer', hint: 'serverBackup.runLocationServerHint' },
-  { value: 'desktop', icon: Monitor, label: 'serverBackup.runLocationDesktop', hint: 'serverBackup.runLocationDesktopHint' },
+  {
+    value: 'server',
+    icon: Cloud,
+    label: 'serverBackup.runLocationServer',
+    hint: 'serverBackup.runLocationServerHint',
+  },
+  {
+    value: 'desktop',
+    icon: Monitor,
+    label: 'serverBackup.runLocationDesktop',
+    hint: 'serverBackup.runLocationDesktopHint',
+  },
 ]
 
 /**
@@ -35,17 +45,27 @@ export function RunLocationPicker({ value, isAdmin, saving, onChange }: RunLocat
               key={option.value}
               role="radio"
               aria-checked={selected}
-              disabled={!isAdmin || saving || selected}
-              onClick={() => onChange(option.value)}
-              className={`text-left p-3 rounded-lg border transition-colors ${
+              // Not `disabled` when selected: buttons are dimmed when disabled, which made the
+              // chosen option look like the unavailable one.
+              aria-disabled={!isAdmin || saving}
+              onClick={() => {
+                if (isAdmin && !saving && !selected) onChange(option.value)
+              }}
+              className={`text-left p-3 rounded-lg border-2 transition-colors ${
                 selected
                   ? 'border-plm-accent bg-plm-accent/10'
-                  : 'border-plm-border bg-plm-bg-secondary enabled:hover:border-plm-fg-muted'
-              } disabled:cursor-default`}
+                  : `border-plm-border bg-plm-bg-secondary ${isAdmin && !saving ? 'hover:border-plm-fg-muted' : ''}`
+              } ${selected || !isAdmin ? 'cursor-default' : 'cursor-pointer'}`}
             >
               <div className="flex items-center gap-2 text-sm font-medium">
                 <Icon className={`w-4 h-4 ${selected ? 'text-plm-accent' : 'text-plm-fg-muted'}`} />
-                {t(option.label)}
+                <span className={selected ? '' : 'text-plm-fg-muted'}>{t(option.label)}</span>
+                {selected && (
+                  <span className="ml-auto flex items-center gap-1 text-xs text-plm-accent">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    {t('backupPanel.selected')}
+                  </span>
+                )}
               </div>
               <div className="mt-1 text-xs text-plm-fg-muted">{t(option.hint)}</div>
             </button>

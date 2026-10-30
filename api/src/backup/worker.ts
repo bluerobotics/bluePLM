@@ -83,6 +83,8 @@ export interface BackupWorkerDeps {
   /** Lease on the organization's lock; renewed every `leaseSeconds / 3`. */
   leaseSeconds?: number
   postBackupSampleSize?: number
+  /** How often a running job writes its progress to backup_history.report.progress. */
+  progressIntervalMs?: number
 }
 
 const CONFIG_COLUMNS =
@@ -262,6 +264,27 @@ export class BackupWorker {
     this.log.warn('backup worker: recovered an interrupted job', { orgId: config.org_id, resume, interruptions })
   }
 
+  /**
+   * Records how far a running job is in its backup_history row (report.progress), at most every
+   * `progressIntervalMs`, so the app can show more than "running". The finished row's report
+   * replaces it.
+   */
+  private progressWriter(historyId: string | null) {
+    const interval = this.deps.progressIntervalMs ?? 30_000
+    let last = -Infinity
+    return async (progress: Record<string, unknown>) => {
+      if (!historyId) return
+      const at = this.now().getTime()
+      if (at - last < interval) return
+      last = at
+      const { error } = await this.untyped()
+        .from('backup_history')
+        .update({ report: { progress: { ...progress, at: new Date(at).toISOString() } } })
+        .eq('id', historyId)
+      if (error) this.log.warn('backup worker: could not record progress', { error: error.message })
+    }
+  }
+
   /** Takes the organization's lock, or returns null when another runner holds a live one. */
   private async claim(orgId: string): Promise<string | null> {
     const now = this.now()
@@ -345,6 +368,8 @@ export class BackupWorker {
     )
     renew.unref()
 
+    const progress = this.progressWriter(historyId)
+
     let outcome: Record<string, unknown>
     try {
       const store = await this.deps.openStore(config)
@@ -361,6 +386,8 @@ export class BackupWorker {
           scheduledSlot: job.slot !== null ? new Date(job.slot).toISOString() : null,
           now: this.now,
           log: this.log,
+          onProgress: (p) =>
+            progress({ phase: p.phase, done: p.objectsDone, total: p.objectsTotal, bytesUploaded: p.bytesUploaded }),
         })
         let retention: PruneResult | { error: string }
         try {
@@ -413,6 +440,7 @@ export class BackupWorker {
           mode: job.verifyMode,
           source: this.deps.openSource(orgId),
           now: this.now,
+          onProgress: (p) => progress({ phase: p.phase, done: p.done, total: p.total }),
         })
         outcome = {
           status: verify.ok ? 'completed' : 'failed',

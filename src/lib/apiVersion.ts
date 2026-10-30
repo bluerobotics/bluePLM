@@ -38,7 +38,7 @@ import { usePDMStore } from '../stores/pdmStore'
 
 // The API version this app version expects
 // Uses semver: MAJOR.MINOR.PATCH
-export const EXPECTED_API_VERSION = '4.1.0'
+export const EXPECTED_API_VERSION = '4.1.1'
 
 // Minimum API version that will still work (for soft warnings vs hard errors)
 // Breaking changes should bump the major version and update this
@@ -86,6 +86,8 @@ export const API_VERSION_DESCRIPTIONS: Record<string, string> = {
     'BluePLM 5.0. Every query uses the 5.0 schema names (organization, app_user, file, org_integration, ...), so 4.0.0 needs a 5.0 database and a 5.0 database needs 4.0.0; it is also the minimum version. Removed: the REST duplicates of what the app does through Supabase RPCs (/files/*, /vaults, /trash, /parts, /bom, /suppliers, /activity, /checkouts, /auth/login, /auth/refresh, /auth/me) and the sandbox extension system (/extensions/*, GET/POST/PATCH/DELETE /admin/extensions); kept: /health, /docs, /auth/invite, /integrations/odoo/*, /webhooks, /ext/* and POST /admin/extensions/reload. The Odoo connection settings take and return is_auto_sync, and the dropped always-NULL credential columns are no longer written. The Odoo supplier sync returns only its own raw XML samples (a module-wide buffer could hand one organization the responses of another). /health no longer reads a table with the anon key. Fastify 5.12 and @fastify/static 10.1: proxies are trusted by address (TRUST_PROXY, default the private ranges) instead of a hop count (TRUST_PROXY_HOPS is gone)',
   '4.1.0':
     'Server backups: a backup worker runs scheduled and requested backups and backup tests for organizations that choose server backups (backup_config.run_location, schema 501), with no desktop on. Needs SUPABASE_SERVICE_KEY; BACKUP_WORKER=false turns it off. Per-client rate limits on Railway: its edge reaches the API from a public address that TRUST_PROXY cannot match, so every caller shared one bucket; the rate limiter and the request log now take the client address from CLIENT_IP_HEADER (default x-real-ip on Railway, which its edge overwrites on every public request; first entry, validated as an IP, else request.ip; off turns it off). TRUST_PROXY is unchanged for other hosts.',
+  '4.1.1':
+    'A server backup or test in progress records how far it is (backup_history.report.progress: phase, done, total, bytes uploaded) every 30 s, so the backup page can show it.',
 }
 
 export interface ApiVersionCheckResult {

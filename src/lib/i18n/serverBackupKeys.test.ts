@@ -57,6 +57,12 @@ const KEYS = [
   'serverBackup.lastTestFailed',
   'serverBackup.restoreHint',
   'serverBackup.adminOnly',
+  'serverBackup.progressReadingDatabase',
+  'serverBackup.progressUploading',
+  'serverBackup.progressChecking',
+  'serverBackup.statusInterrupted',
+  'serverBackup.interruptedDetail',
+  'serverBackup.howToRestore',
 ] as const
 
 describe('serverBackup.* keys exist in every locale', () => {

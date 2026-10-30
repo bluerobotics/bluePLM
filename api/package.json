@@ -1,6 +1,6 @@
 {
   "name": "bluepdm-api",
-  "version": "4.1.0",
+  "version": "4.1.1",
   "description": "BluePLM REST API",
   "type": "module",
   "main": "dist/server.js",
