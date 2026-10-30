@@ -30,7 +30,7 @@ const mocks = vi.hoisted(() => {
     const recorded: RecordedQuery = { table, filters: [] }
     queries.push(recorded)
     const result =
-      table === 'users'
+      table === 'app_user'
         ? (userResults.shift() ?? Promise.resolve({ data: [], error: null }))
         : Promise.resolve({ data: [], error: null })
     const query = {
@@ -111,7 +111,7 @@ describe('getCheckedOutUsers', () => {
 
     const result = await getCheckedOutUsers(owners, SCOPE)
 
-    expect(mocks.queries.map((q) => q.table)).toEqual(['users'])
+    expect(mocks.queries.map((q) => q.table)).toEqual(['app_user'])
     expect(inValues(mocks.queries[0])).toHaveLength(VAULT_OWNER_COUNT)
     expect(mocks.queries[0].filters).toContainEqual({ op: 'eq', column: 'org_id', value: ORG_ID })
     expect(result.error).toBeNull()
@@ -128,7 +128,7 @@ describe('getCheckedOutUsers', () => {
 
     expect(mocks.queries).toEqual([
       {
-        table: 'users',
+        table: 'app_user',
         filters: [
           { op: 'in', column: 'id', value: [FIRST_OWNER_ID] },
           { op: 'eq', column: 'org_id', value: ORG_ID },

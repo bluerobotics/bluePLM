@@ -303,10 +303,10 @@ describe('pipeline scaling performance gate', () => {
     recordingSupabase.setResponder((query) => {
       if (query.kind === 'storage' && query.op === 'list') return { data: [] }
       if (query.kind === 'storage') return { data: { path: 'x' } }
-      if (query.kind === 'table' && query.name === 'files' && query.op === 'select') {
+      if (query.kind === 'table' && query.name === 'file' && query.op === 'select') {
         return { data: null, error: { code: 'PGRST116', message: 'no rows' } }
       }
-      if (query.kind === 'table' && query.name === 'files' && query.op === 'insert') {
+      if (query.kind === 'table' && query.name === 'file' && query.op === 'insert') {
         const payload = query.payload as Record<string, unknown>
         return {
           data: { id: `id-${String(payload.file_path)}`, version: 1, revision: 'A', state: null, ...payload },
@@ -335,7 +335,7 @@ describe('pipeline scaling performance gate', () => {
       perFile[batch] = recordingSupabase.calls.length / batch
       out(`syncFile x${batch}: ${perFile[batch]} queries per file ${JSON.stringify(recordingSupabase.summary())}`)
       // The case-insensitive lookup is only for a collision, never on the hot path.
-      expect(recordingSupabase.summary()['rpc:get_active_file_by_path'] ?? 0).toBe(0)
+      expect(recordingSupabase.summary()['rpc:file_get_active_by_path'] ?? 0).toBe(0)
     }
     expect(perFile[100]).toBeLessThanOrEqual(6)
     expect(perFile[1_000]).toBe(perFile[100])

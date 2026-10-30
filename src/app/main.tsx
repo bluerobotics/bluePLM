@@ -2,6 +2,11 @@ import ReactDOM from 'react-dom/client'
 import { App } from './App'
 import { ErrorBoundary } from '@/components/core'
 import { initAnalytics, trackError } from '@/lib/analytics'
+// Plus Jakarta Sans, bundled with the app (no request to Google Fonts from either host).
+import '@fontsource/plus-jakarta-sans/400.css'
+import '@fontsource/plus-jakarta-sans/500.css'
+import '@fontsource/plus-jakarta-sans/600.css'
+import '@fontsource/plus-jakarta-sans/700.css'
 import '@/index.css'
 import { hasDesktop } from '@/lib/platform'
 

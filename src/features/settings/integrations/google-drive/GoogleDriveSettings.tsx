@@ -43,7 +43,7 @@ export function GoogleDriveSettings() {
 
     setIsLoading(true)
     try {
-      const { data, error } = await (supabase.rpc as any)('get_google_drive_settings', { // TODO: type this
+      const { data, error } = await (supabase.rpc as any)('org_get_google_drive_settings', { // TODO: type this
         p_org_id: organization.id,
       })
 
@@ -56,12 +56,12 @@ export function GoogleDriveSettings() {
         const settings = data[0] as {
           client_id?: string
           client_secret?: string
-          enabled?: boolean
+          is_enabled?: boolean
           inspection_template_folder_id?: string
         }
         setClientId(settings.client_id || '')
         setClientSecret(settings.client_secret || '')
-        setEnabled(settings.enabled || false)
+        setEnabled(settings.is_enabled || false)
         setInspectionTemplateFolderId(settings.inspection_template_folder_id || '')
       }
     } catch (error) {
@@ -81,8 +81,8 @@ export function GoogleDriveSettings() {
     // Sync Google Drive fields from realtime organization object
     const org = organization as any // TODO: type this
     if (org) {
-      if (org.google_drive_enabled !== undefined) {
-        setEnabled(org.google_drive_enabled)
+      if (org.is_google_drive_enabled !== undefined) {
+        setEnabled(org.is_google_drive_enabled)
       }
       if (org.google_drive_client_id !== undefined) {
         setClientId(org.google_drive_client_id || '')
@@ -96,7 +96,7 @@ export function GoogleDriveSettings() {
     }
   }, [
     isLoading,
-    (organization as any)?.google_drive_enabled, // TODO: type this
+    (organization as any)?.is_google_drive_enabled, // TODO: type this
     (organization as any)?.google_drive_client_id, // TODO: type this
     (organization as any)?.google_drive_client_secret, // TODO: type this
     (organization as any)?.google_drive_inspection_template_folder_id, // TODO: type this
@@ -108,7 +108,7 @@ export function GoogleDriveSettings() {
     setIsSaving(true)
     savingRef.current = true
     try {
-      const { error } = await (supabase.rpc as any)('update_google_drive_settings', { // TODO: type this
+      const { error } = await (supabase.rpc as any)('org_update_google_drive_settings', { // TODO: type this
         p_org_id: organization.id,
         p_client_id: clientId || null,
         p_client_secret: clientSecret || null,

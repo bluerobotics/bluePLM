@@ -188,10 +188,6 @@ export function createFakeFsApi(disk: FakeDisk, options: FakeFsOptions): Partial
       })
       return { success: results.every((r) => r.success), results, summary: summary(results) }
     },
-    async trashBatch(paths) {
-      const results = paths.map((path) => trashOne(path, true))
-      return { success: results.every((r) => r.success), results, summary: summary(results) }
-    },
     async trashEmptyDirs(paths) {
       const results = paths.map((path) => {
         const k = `${norm(path).toLowerCase()}\\`

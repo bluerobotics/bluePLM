@@ -296,12 +296,26 @@ jobs:
           echo "$CHANGELOG" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
+      # A major release (X.0.0) can need the database upgraded before older clients may update to it
+      # (5.0.0 renamed the schema), so it is published as a draft and released by hand after the
+      # database upgrade. Every other release publishes at once.
+      - name: Detect major release
+        id: major
+        shell: bash
+        run: |
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          if [[ "${VERSION#v}" =~ ^[0-9]+\.0\.0$ ]]; then
+            echo "IS_MAJOR=true" >> $GITHUB_OUTPUT
+          else
+            echo "IS_MAJOR=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           name: ${{ steps.get_version.outputs.VERSION }}
           body: ${{ steps.changelog.outputs.CHANGELOG }}
-          draft: false
+          draft: ${{ steps.major.outputs.IS_MAJOR }}
           prerelease: ${{ steps.prerelease.outputs.IS_PRERELEASE }}
           files: |
             dist/windows/*
@@ -315,8 +329,12 @@ jobs:
   # `npm run deploy:web`: the renderer built for the browser, served by the Workers static-assets
   # service in web/wrangler.jsonc on the route blueplm.io/*. The repository variables carry the
   # public build values (Supabase URL, anon key, the org's API URL for connect-src).
+  # A major release (X.0.0) is published as a draft and may need the database upgraded first
+  # (5.0.0 renamed the schema), so its web build is deployed by hand (`npm run deploy:web`) in the
+  # cutover window, after the database upgrade, instead of here.
   deploy-web:
     needs: [release]
+    if: ${{ !endsWith(github.ref_name, '.0.0') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read

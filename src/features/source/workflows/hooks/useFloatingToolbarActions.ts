@@ -387,8 +387,8 @@ export function useFloatingToolbarActions(options: UseFloatingToolbarActionsOpti
         position_x: state.position_x + 40,
         position_y: state.position_y + 40,
         is_editable: state.is_editable,
-        requires_checkout: state.requires_checkout,
-        auto_increment_revision: state.auto_increment_revision,
+        is_checkout_required: state.is_checkout_required,
+        is_revision_auto_incremented: state.is_revision_auto_incremented,
         sort_order: states.length,
         shape: state.shape,
       }

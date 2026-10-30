@@ -14,6 +14,6 @@
 -- which merely re-covered the anon case would not catch it.
 CREATE MATERIALIZED VIEW IF NOT EXISTS nc_all_tenants_matview AS
   SELECT f.id, f.org_id, f.part_number, f.description
-  FROM files f;
+  FROM file f;
 
 GRANT SELECT ON nc_all_tenants_matview TO authenticated;

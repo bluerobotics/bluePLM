@@ -8,7 +8,7 @@
 --
 -- policy-controls.ps1 restores the real policy afterwards from a snapshot taken
 -- at the start of the run, so nothing here has to know what schema 95 says.
-DROP POLICY IF EXISTS "Users can update their own profile" ON users;
-CREATE POLICY "Users can update their own profile"
-  ON users FOR UPDATE
+DROP POLICY IF EXISTS "app_user: users update own" ON app_user;
+CREATE POLICY "app_user: users update own"
+  ON app_user FOR UPDATE
   USING (id = auth.uid());

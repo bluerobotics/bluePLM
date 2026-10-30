@@ -4,6 +4,7 @@
  * Bursts (an install writes the row, then the admin toggles it) are debounced.
  */
 
+import { onRowDeleted } from '@/lib/realtimeTombstones'
 import { getSupabaseClient } from '@/lib/supabase/client'
 
 export const EXTENSION_CHANGE_DEBOUNCE_MS = 1000
@@ -27,7 +28,7 @@ export function createDebouncer(onChange: () => void, delayMs: number) {
 }
 
 /**
- * Subscribe to INSERT/UPDATE/DELETE on org_installed_extensions for one org.
+ * Subscribe to inserts, updates and deletes (tombstones) of org_installed_extension for one org.
  * Returns the unsubscribe function (it also cancels a pending notice).
  */
 export function subscribeToOrgExtensionChanges(
@@ -44,12 +45,14 @@ export function subscribeToOrgExtensionChanges(
       {
         event: '*',
         schema: 'public',
-        table: 'org_installed_extensions',
+        table: 'org_installed_extension',
         filter: `org_id=eq.${orgId}`,
       },
       () => debouncer.notify(),
     )
-    .subscribe()
+  // An uninstall is a delete, which arrives as a tombstone (schema 502).
+  onRowDeleted(channel, 'org_installed_extension', () => debouncer.notify())
+  channel.subscribe()
 
   return () => {
     debouncer.cancel()

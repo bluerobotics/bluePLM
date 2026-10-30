@@ -41,7 +41,7 @@ export function EditTransitionDialog({ transition, onClose, onSave }: EditTransi
       if (!organization) return
       try {
         const { data, error } = await supabase
-          .from('workflow_roles')
+          .from('workflow_role')
           .select('id, name, color, icon')
           .eq('org_id', organization.id)
           .eq('is_active', true)

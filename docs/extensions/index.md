@@ -5,16 +5,16 @@ Welcome to the BluePLM Extension Development documentation. This comprehensive g
 ## Status: what actually runs (October 2026)
 
 Read this first. Most of these pages describe the sandboxed extension API as designed, not as
-it runs today.
+it runs in BluePLM 5.0: only native extensions run.
 
 - **Native extensions run.** A `.bpx` with `"category": "native"` is installed for the whole
   organization by an administrator (Settings > Extensions > Install for organization). The
   package is stored in the organization's `org-extensions` bucket and pinned by SHA-256 in
-  `org_installed_extensions`. Every desktop runs `client/index.js` (`activate(host)`) and the
+  `org_installed_extension`. Every desktop runs `client/index.js` (`activate(host)`) and the
   API runs `server/index.js` (`register(app)`, routes under `/ext/<extension-id>/`) only from
   bytes that match that hash. Native code has full trust; it is not sandboxed. The contract
-  (host API v1, request shape, error codes) is in
-  `.cursor/plans/extensions-native-runtime.plan.md` until it moves to its own page here.
+  (host API v1) is in `src/types/nativeExtensions.ts` (desktop) and
+  `api/src/native-extensions/types.ts` (API) until it moves to its own page here.
 - **The API runs native server code only for organizations its operator trusts.** A native
   extension's `server/index.js` runs in-process with the API's full privileges, including the
   service-role database client that can read every organization. An org admin installing one
@@ -24,13 +24,12 @@ it runs today.
   NATIVE_EXTENSIONS_DISABLED`. Each allowed org gets its own copy (keyed by org and extension),
   extracted into a private 0700 directory under `NATIVE_EXTENSIONS_DIR` (default: the OS temp
   directory). `POST /admin/extensions/reload` reloads only the calling admin's org.
-- **Store and sideloaded packages do not run.** Per-machine installs (store or file) are
-  listed and can be uninstalled, but there is no Extension Host and no client sandbox, and the
-  API's V8 isolate pool returns `SANDBOX_UNAVAILABLE` for every sandboxed handler. Native
-  packages are refused on every per-machine path.
+- **There is no Extension Store and no per-machine install.** BluePLM 5.0 removed the
+  per-machine Extension Store settings page and sideloading, and the API no longer has a
+  sandbox for extension handlers. An extension is built into a `.bpx` from its own repository
+  and installed for the organization; see [Distributing an Extension](./publishing.md).
 - **What install checks:** the package id and version against the manifest schema, every zip
-  entry (no absolute paths, no `..`, no symlinks, size and entry limits), for store downloads
-  the SHA-256 in the `X-Content-SHA256` response header, and for native packages the
+  entry (no absolute paths, no `..`, no symlinks, size and entry limits), and the
   `engines.blueplm` range. `SIGNATURE` files are not verified.
 - **Who can install:** organization administrators only (the `admin` role or the
   Administrators team).
@@ -108,7 +107,7 @@ The designed architecture (not running today; see Status above):
 
 ### Guides
 - [Package Format (.bpx)](./package-format.md) — Bundle structure and packaging
-- [Publishing Guide](./publishing.md) — Submit to the Extension Store
+- [Distributing an Extension](./publishing.md) — Build a `.bpx` and install it for an organization
 - [Best Practices](./best-practices.md) — Patterns and recommendations
 - [Troubleshooting](./troubleshooting.md) — Common issues and solutions
 
@@ -191,7 +190,6 @@ All API calls require declared permissions. The system validates at runtime:
 ## Support
 
 - **GitHub Issues:** [bluerobotics/bluePLM](https://github.com/bluerobotics/bluePLM/issues)
-- **Extension Store:** [extensions.blueplm.io](https://extensions.blueplm.io)
 - **Documentation:** You're here!
 
 ---

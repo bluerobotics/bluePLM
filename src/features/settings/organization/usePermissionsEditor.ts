@@ -147,7 +147,7 @@ export function usePermissionsEditor(team: Team, userId: string | undefined, isA
     const loadVaults = async () => {
       try {
         const { data: orgData } = await supabase
-          .from('teams')
+          .from('team')
           .select('org_id')
           .eq('id', team.id)
           .single()
@@ -155,7 +155,7 @@ export function usePermissionsEditor(team: Team, userId: string | undefined, isA
         if (!orgData) return
 
         const { data, error } = await supabase
-          .from('vaults')
+          .from('vault')
           .select('id, name, slug')
           .eq('org_id', orgData.org_id)
           .order('name')
@@ -190,7 +190,7 @@ export function usePermissionsEditor(team: Team, userId: string | undefined, isA
     try {
       // Load global permissions (vault_id IS NULL) for non-source-files resources
       const { data: globalData, error: globalError } = await supabase
-        .from('team_permissions')
+        .from('team_permission')
         .select('*')
         .eq('team_id', team.id)
         .is('vault_id', null)
@@ -210,7 +210,7 @@ export function usePermissionsEditor(team: Team, userId: string | undefined, isA
 
       // Load source files permissions per vault
       const { data: vaultPermsData, error: vaultError } = await supabase
-        .from('team_permissions')
+        .from('team_permission')
         .select('*')
         .eq('team_id', team.id)
         .not('vault_id', 'is', null)
@@ -219,7 +219,7 @@ export function usePermissionsEditor(team: Team, userId: string | undefined, isA
 
       // Also load "All Vaults" source files permissions (vault_id IS NULL)
       const { data: allVaultsSourceFiles } = await supabase
-        .from('team_permissions')
+        .from('team_permission')
         .select('*')
         .eq('team_id', team.id)
         .is('vault_id', null)
@@ -258,7 +258,7 @@ export function usePermissionsEditor(team: Team, userId: string | undefined, isA
   const loadPresets = async () => {
     try {
       const { data: orgData } = await supabase
-        .from('teams')
+        .from('team')
         .select('org_id')
         .eq('id', team.id)
         .single()
@@ -266,7 +266,7 @@ export function usePermissionsEditor(team: Team, userId: string | undefined, isA
       if (!orgData) return
 
       const { data, error } = await supabase
-        .from('permission_presets')
+        .from('permission_preset')
         .select('*')
         .eq('org_id', orgData.org_id)
         .order('name')
@@ -300,7 +300,7 @@ export function usePermissionsEditor(team: Team, userId: string | undefined, isA
     setIsSaving(true)
     try {
       // Delete all existing permissions for this team
-      await supabase.from('team_permissions').delete().eq('team_id', team.id)
+      await supabase.from('team_permission').delete().eq('team_id', team.id)
 
       const allNewPerms: any[] = []
 
@@ -334,7 +334,7 @@ export function usePermissionsEditor(team: Team, userId: string | undefined, isA
       }
 
       if (allNewPerms.length > 0) {
-        const { error } = await supabase.from('team_permissions').insert(allNewPerms)
+        const { error } = await supabase.from('team_permission').insert(allNewPerms)
 
         if (error) throw error
       }

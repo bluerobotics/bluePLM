@@ -6,11 +6,11 @@ DECLARE
   v_org_id UUID;
   v_name TEXT;
 BEGIN
-  v_org_id := require_file_access(p_file_id);
+  v_org_id := file_require_access(p_file_id);
 
   SELECT wt.name INTO v_name
-  FROM workflow_transitions wt
-  JOIN workflow_templates wtpl ON wtpl.id = wt.workflow_id
+  FROM workflow_transition wt
+  JOIN workflow_template wtpl ON wtpl.id = wt.workflow_id
   WHERE wt.id = p_transition_id AND wtpl.org_id = v_org_id;
 
   RETURN COALESCE(v_name, 'not found');

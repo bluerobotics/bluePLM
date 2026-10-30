@@ -34,7 +34,7 @@ export async function getOrgVaultAccess(orgId: string): Promise<{
 
   // Get all vaults for the org
   const { data: vaults, error: vaultsError } = await client
-    .from('vaults')
+    .from('vault')
     .select('id')
     .eq('org_id', orgId)
 
@@ -133,7 +133,7 @@ export async function setUserVaultAccess(
 
   // Get all vaults for the org to only remove access for vaults in this org
   const { data: orgVaults, error: vaultsError } = await client
-    .from('vaults')
+    .from('vault')
     .select('id')
     .eq('org_id', orgId)
 
@@ -212,7 +212,7 @@ export async function getEffectiveUserVaultAccess(
 ): Promise<{ vaultIds: string[]; error?: string }> {
   const client = getSupabaseClient()
 
-  const { data, error } = await client.rpc('get_user_vault_access', { p_user_id: userId })
+  const { data, error } = await client.rpc('user_vault_access_list', { p_user_id: userId })
 
   if (error) {
     return { vaultIds: [], error: error.message }
@@ -247,7 +247,7 @@ export async function getAccessibleVaults(
 
   // Get all vaults for the org first
   const { data: allVaults, error: vaultsError } = await client
-    .from('vaults')
+    .from('vault')
     .select('id, name, slug, description, is_default, created_at')
     .eq('org_id', orgId)
     .order('is_default', { ascending: false })

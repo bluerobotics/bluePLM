@@ -269,7 +269,7 @@ export async function getSupplierContact(authUserId: string) {
     const accessToken = currentAccessToken || key
 
     const response = await fetch(
-      `${url}/rest/v1/supplier_contacts?select=*,supplier:suppliers(id,name,code,org_id)&auth_user_id=eq.${authUserId}`,
+      `${url}/rest/v1/supplier_contact?select=*,supplier:supplier(id,name,code,org_id)&auth_user_id=eq.${authUserId}`,
       {
         headers: {
           apikey: key,

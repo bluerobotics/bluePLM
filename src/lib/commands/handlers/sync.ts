@@ -111,7 +111,7 @@ export function findLikelyMovedFiles(
  * Turn a raw server error into something the user can act on.
  *
  * Mirrors `translateCheckinError` in `checkin.ts`. The unique-index violation is the one that
- * needs restating: Postgres reports `23505` on `idx_files_vault_path_unique_active`, which reads
+ * needs restating: Postgres reports `23505` on `file_vault_id_file_path_idx`, which reads
  * as a key collision but means a file already holds that path with different letter casing. The
  * remedy is a refresh — once the colliding row is in the local list the file is no longer treated
  * as unsynced, so retrying the sync can never clear it. Anything else is passed through, since a
@@ -120,7 +120,7 @@ export function findLikelyMovedFiles(
 export function translateSyncError(error: string | null | undefined, fileName: string): string {
   if (!error) return `${fileName}: ${t('syncError.failed')}`
   if (
-    error.includes('idx_files_vault_path_unique_active') ||
+    error.includes('file_vault_id_file_path_idx') ||
     error.includes('duplicate key') ||
     error.includes('23505')
   ) {

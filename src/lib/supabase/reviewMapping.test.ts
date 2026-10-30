@@ -364,14 +364,14 @@ describe('result mappers', () => {
             created_by: 'u1',
             references_recorded: true,
           },
-          pdf: { storage_hash: HASH, file_size: 2048, closure_exact: false, generated_by: 'u1', generated_at: '2026-10-20T10:01:00Z' },
+          pdf: { storage_hash: HASH, file_size: 2048, is_closure_exact: false, generated_by: 'u1', generated_at: '2026-10-20T10:01:00Z' },
           rounds: [
             {
               round_number: 1,
               file_version_id: 'v4',
               version: 4,
               revision: 'B',
-              carried_forward: false,
+              is_carried_forward: false,
               outcome: 'changes_requested',
               decided_at: '2026-10-21T09:00:00Z',
               decisions: [
@@ -465,7 +465,7 @@ describe('result mappers', () => {
         file_id: 'f1',
         storage_hash: HASH,
         file_size: '4096',
-        closure_exact: null,
+        is_closure_exact: null,
         generated_by: null,
         generated_at: '2026-10-20T10:01:00Z',
       }),
@@ -484,10 +484,10 @@ describe('result mappers', () => {
 
   it('mapClosureRows keeps the root, exact and missing rows apart', () => {
     const rows = mapClosureRows([
-      { depth: 0, parent_version_id: null, file_id: 'f1', file_version_id: 'v1', edge_source: 'root', exact: true, missing: false, quantity: 1, version: 4, file_size: '100', deleted: false },
-      { depth: 1, parent_version_id: 'v1', file_id: 'f2', file_version_id: 'v2', reference_path: 'parts/a.sldprt', configuration: 'Default', reference_type: 'component', quantity: 2, exact: true, edge_source: 'recorded', missing: false, version: 3 },
-      { depth: 1, parent_version_id: 'v1', file_id: null, file_version_id: null, reference_path: 'C:/toolbox/screw.sldprt', reference_type: 'reference', quantity: 1, exact: false, edge_source: 'recorded', missing: true, version: null, file_size: null },
-      { depth: 2, parent_version_id: 'v2', file_id: 'f3', file_version_id: 'v3', exact: false, edge_source: 'fallback', missing: false, reference_type: 'weird' },
+      { depth: 0, parent_version_id: null, file_id: 'f1', file_version_id: 'v1', edge_source: 'root', is_exact: true, missing: false, quantity: 1, version: 4, file_size: '100', deleted: false },
+      { depth: 1, parent_version_id: 'v1', file_id: 'f2', file_version_id: 'v2', reference_path: 'parts/a.sldprt', configuration: 'Default', reference_type: 'component', quantity: 2, is_exact: true, edge_source: 'recorded', missing: false, version: 3 },
+      { depth: 1, parent_version_id: 'v1', file_id: null, file_version_id: null, reference_path: 'C:/toolbox/screw.sldprt', reference_type: 'reference', quantity: 1, is_exact: false, edge_source: 'recorded', missing: true, version: null, file_size: null },
+      { depth: 2, parent_version_id: 'v2', file_id: 'f3', file_version_id: 'v3', is_exact: false, edge_source: 'fallback', missing: false, reference_type: 'weird' },
     ])
 
     expect(rows.map((r) => [r.depth, r.edgeSource, r.exact, r.missing])).toEqual([

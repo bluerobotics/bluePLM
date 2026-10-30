@@ -1,23 +1,16 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { log } from '@/lib/logger'
 import {
-  runBackup,
   restoreFromSnapshot,
   deleteSnapshot,
   designateThisMachine,
   clearDesignatedMachine,
   requestBackup,
-  markBackupStarted,
-  markBackupComplete,
-  startBackupService,
-  stopBackupService,
-  getBackupConfig,
   importDatabaseMetadata,
-  isBackupRunningLocally,
-  setBackupRunningLocally,
   type BackupConfig,
   type DatabaseExport,
 } from '@/lib/backup'
+import { getDesktopBackupState, runDesktopBackup, subscribeDesktopBackup } from '@/lib/desktopBackupRunner'
 import type { BackupProgress, DeleteConfirmTarget, ConnectedVault, BackupLogEntry } from '../types'
 
 // Helper to emit a synthetic backup log for renderer-side operations
@@ -77,8 +70,12 @@ export function useBackupOperations(
   loadStatus: () => Promise<void>,
 ): UseBackupOperationsReturn {
   // Backup state
-  const [isRunningBackup, setIsRunningBackup] = useState(false)
-  const [backupProgress, setBackupProgress] = useState<BackupProgress | null>(null)
+  // A desktop backup runs at app level (useBackupHeartbeat / desktopBackupRunner); this view
+  // follows it, so it shows a run started by the schedule or by another machine's request.
+  const [runnerState, setRunnerState] = useState(getDesktopBackupState)
+  useEffect(() => subscribeDesktopBackup(setRunnerState), [])
+  const isRunningBackup = runnerState.running
+  const backupProgress: BackupProgress | null = runnerState.progress
 
   // Restore state
   const [isRestoring, setIsRestoring] = useState(false)
@@ -101,143 +98,6 @@ export function useBackupOperations(
     }
   }, [connectedVaults, selectedVaultIds.length])
 
-  // Restore backup running state on mount (survives tab switches)
-  useEffect(() => {
-    if (isBackupRunningLocally()) {
-      setIsRunningBackup(true)
-      setBackupProgress({
-        phase: 'Backing up',
-        percent: 50,
-        message: 'Backup in progress (resumed view)...',
-      })
-    }
-    // Also check the main process in case the module flag was lost (e.g., hot reload)
-    window.electronAPI?.isBackupRunning?.().then((result) => {
-      if (result?.running) {
-        setIsRunningBackup(true)
-        setBackupRunningLocally(true)
-        setBackupProgress({ phase: 'Backing up', percent: 50, message: 'Backup in progress...' })
-      }
-    })
-  }, [])
-
-  // Internal function to actually run the backup (used by designated machine)
-  const handleRunBackupInternal = useCallback(
-    async (backupConfig: BackupConfig) => {
-      const vaultsToBackup = connectedVaults.filter((v) => selectedVaultIds.includes(v.id))
-
-      window.electronAPI?.log('info', '[Backup] handleRunBackupInternal called', {
-        configOrgId: backupConfig.org_id,
-        vaultsToBackup: vaultsToBackup.map((v) => ({ id: v.id, name: v.name })),
-        selectedVaultIds,
-      })
-
-      if (vaultsToBackup.length === 0) {
-        addToast('error', 'No vaults selected for backup')
-        return
-      }
-
-      setIsRunningBackup(true)
-      setBackupRunningLocally(true)
-      setBackupProgress({ phase: 'Starting', percent: 0, message: 'Initializing backup...' })
-
-      // Mark backup as started in database
-      await markBackupStarted(orgId || '')
-
-      const cleanupProgress = window.electronAPI?.onBackupProgress?.((progress) => {
-        setBackupProgress(progress)
-      })
-
-      let successCount = 0
-      let failCount = 0
-
-      try {
-        for (let i = 0; i < vaultsToBackup.length; i++) {
-          const vault = vaultsToBackup[i]
-          setBackupProgress({
-            phase: `Vault ${i + 1}/${vaultsToBackup.length}`,
-            percent: Math.round((i / vaultsToBackup.length) * 100),
-            message: `Backing up ${vault.name}...`,
-          })
-
-          try {
-            window.electronAPI?.log('info', '[Backup] Running backup for vault', {
-              vaultId: vault.id,
-              vaultName: vault.name,
-              vaultPath: vault.localPath,
-              configOrgId: backupConfig.org_id,
-            })
-            const result = await runBackup(backupConfig, {
-              vaultId: vault.id,
-              vaultName: vault.name,
-              vaultPath: vault.localPath,
-            })
-
-            if (result.success) {
-              successCount++
-              addToast('success', `Backed up ${vault.name}: ${result.snapshotId?.substring(0, 8)}`)
-            } else {
-              failCount++
-              addToast('error', `Failed to backup ${vault.name}: ${result.error}`)
-            }
-          } catch (error) {
-            failCount++
-            log.error('[Backup]', `Backup failed for ${vault.name}`, { error: error })
-            addToast(
-              'error',
-              `Failed to backup ${vault.name}: ${error instanceof Error ? error.message : String(error)}`,
-            )
-          }
-        }
-      } finally {
-        cleanupProgress?.()
-        // Mark backup as complete
-        await markBackupComplete(orgId || '')
-        setIsRunningBackup(false)
-        setBackupRunningLocally(false)
-        setBackupProgress(null)
-        await loadStatus()
-
-        if (vaultsToBackup.length > 1) {
-          addToast('info', `Backup complete: ${successCount} succeeded, ${failCount} failed`)
-        }
-      }
-    },
-    [connectedVaults, selectedVaultIds, orgId, addToast, loadStatus],
-  )
-
-  // The service only ever calls the latest handler, so holding it in a ref keeps it out
-  // of the effect's dependencies. Otherwise every change to connectedVaults,
-  // selectedVaultIds or loadStatus tears the service down and restarts it.
-  const runBackupInternalRef = useRef(handleRunBackupInternal)
-  useEffect(() => {
-    runBackupInternalRef.current = handleRunBackupInternal
-  }, [handleRunBackupInternal])
-
-  // Start backup service if this is the designated machine
-  useEffect(() => {
-    if (!isThisDesignated || !orgId || !currentVaultId) return
-
-    log.info('[Backup]', 'This is the designated machine, starting backup service')
-
-    startBackupService(
-      orgId,
-      currentVaultId,
-      async (backupConfig) => {
-        // Backup request received - run the backup
-        await runBackupInternalRef.current(backupConfig)
-      },
-      async () => {
-        // Fetch fresh config from database each time
-        return await getBackupConfig(orgId)
-      },
-    )
-
-    return () => {
-      stopBackupService()
-    }
-  }, [isThisDesignated, orgId, currentVaultId])
-
   // Handle backup button click - either run locally or request remotely
   const handleRunBackup = useCallback(async () => {
     if (!config || !orgId) {
@@ -257,7 +117,9 @@ export function useBackupOperations(
         addToast('error', 'No vault connected')
         return
       }
-      await handleRunBackupInternal(config)
+      const vaults = connectedVaults.filter((v) => selectedVaultIds.includes(v.id))
+      await runDesktopBackup(config, vaults, addToast)
+      await loadStatus()
       return
     }
 
@@ -288,7 +150,8 @@ export function useBackupOperations(
     currentVaultId,
     isDesignatedOnline,
     userEmail,
-    handleRunBackupInternal,
+    connectedVaults,
+    selectedVaultIds,
     addToast,
     loadStatus,
   ])

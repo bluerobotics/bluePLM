@@ -99,7 +99,7 @@ function readCheckoutSnapshot(file: unknown): CheckoutSnapshotFields | undefined
  */
 export async function checkoutFile(
   fileId: string,
-  userId: string,
+  _userId: string, // Unused - the RPC takes the actor from the JWT (5.0)
   _userEmail: string, // Unused - RPC handles activity logging
   options?: {
     message?: string
@@ -120,9 +120,8 @@ export async function checkoutFile(
   }
 
   // Use atomic RPC to prevent race conditions
-  const { data, error } = await client.rpc('checkout_file', {
+  const { data, error } = await client.rpc('file_checkout', {
     p_file_id: fileId,
-    p_user_id: userId,
     p_machine_id: machineId,
     p_machine_name: machineName,
     p_lock_message: options?.message,
@@ -146,7 +145,7 @@ export async function checkoutFile(
 
 export async function checkinFile(
   fileId: string,
-  userId: string,
+  _userId: string, // Unused - the RPC takes the actor from the JWT (5.0)
   options?: {
     newContentHash?: string
     newFileSize?: number
@@ -195,7 +194,7 @@ export async function checkinFile(
   let machineMismatchWarning: string | null = null
   if (!options?.skipMachineMismatchCheck) {
     const { data: fileCheck, error: fetchError } = await client
-      .from('files')
+      .from('file')
       .select('checked_out_by_machine_id, checked_out_by_machine_name')
       .eq('id', fileId)
       .single()
@@ -230,9 +229,8 @@ export async function checkinFile(
 
   // Use atomic RPC for checkin - handles versioning, path updates, and activity logging
   // Path/name updates are now handled in the RPC (performance: eliminates separate UPDATE)
-  const { data, error } = await client.rpc('checkin_file', {
+  const { data, error } = await client.rpc('file_checkin', {
     p_file_id: fileId,
-    p_user_id: userId,
     p_new_content_hash: options?.newContentHash,
     p_new_file_size: options?.newFileSize,
     p_comment: options?.comment,
@@ -302,7 +300,7 @@ export async function syncSolidWorksFileMetadata(
 
   // Get current file data
   const { data: file, error: fetchError } = await client
-    .from('files')
+    .from('file')
     .select('*')
     .eq('id', fileId)
     .single()
@@ -364,7 +362,7 @@ export async function syncSolidWorksFileMetadata(
     // Create new version for this change
     // Use maybeSingle() since file might not have version history yet (first version)
     const { data: maxVersionData } = await client
-      .from('file_versions')
+      .from('file_version')
       .select('version')
       .eq('file_id', fileId)
       .order('version', { ascending: false })
@@ -376,7 +374,7 @@ export async function syncSolidWorksFileMetadata(
     updateData.version = newVersion
 
     // Create version record with proper error handling
-    const { error: versionError } = await client.from('file_versions').insert({
+    const { error: versionError } = await client.from('file_version').insert({
       file_id: fileId,
       version: newVersion,
       revision: updateData.revision || file.revision || '',
@@ -399,7 +397,7 @@ export async function syncSolidWorksFileMetadata(
 
   // Update the file
   const { data, error } = await client
-    .from('files')
+    .from('file')
     .update(updateData)
     .eq('id', fileId)
     .select()
@@ -449,7 +447,7 @@ export async function undoCheckout(fileId: string, userId: string) {
   // result to a single JSON object". The file may have been deleted server-side
   // (e.g. a ghost left in the cache), in which case the checkout is already gone.
   const { data: file, error: fetchError } = await client
-    .from('files')
+    .from('file')
     .select('*, org_id')
     .eq('id', fileId)
     .maybeSingle()
@@ -505,7 +503,7 @@ export async function undoCheckout(fileId: string, userId: string) {
   }
 
   const releaseCheckout = (update: ReleaseCheckoutUpdate) =>
-    client.from('files').update(update).eq('id', fileId).select().single()
+    client.from('file').update(update).eq('id', fileId).select().single()
 
   let { data, error } = await releaseCheckout(releaseUpdate)
 
@@ -551,7 +549,7 @@ export async function adminForceDiscardCheckout(
 
   // Verify admin
   const { data: adminUser, error: adminError } = await client
-    .from('users')
+    .from('app_user')
     .select('role, org_id')
     .eq('id', adminUserId)
     .single()
@@ -564,8 +562,8 @@ export async function adminForceDiscardCheckout(
   let isAdmin = isAdminUser(adminUser.role, null)
   if (!isAdmin) {
     const { data: memberships, error: teamError } = await client
-      .from('team_members')
-      .select('team:teams!inner(name)')
+      .from('team_member')
+      .select('team:team!inner(name)')
       .eq('user_id', adminUserId)
     if (!teamError) {
       isAdmin = isInAdministratorsTeam(
@@ -582,7 +580,7 @@ export async function adminForceDiscardCheckout(
 
   // Get the file info
   const { data: file, error: fetchError } = await client
-    .from('files')
+    .from('file')
     .select('*')
     .eq('id', fileId)
     .single()
@@ -598,7 +596,7 @@ export async function adminForceDiscardCheckout(
   // Get the checked out user info separately
   let checkedOutUser: { id: string; email: string; full_name: string | null } | null = null
   const { data: userData } = await client
-    .from('users')
+    .from('app_user')
     .select('id, email, full_name')
     .eq('id', file.checked_out_by)
     .single()
@@ -623,7 +621,7 @@ export async function adminForceDiscardCheckout(
   }
 
   const { data, error } = await client
-    .from('files')
+    .from('file')
     .update(releaseUpdate)
     .eq('id', fileId)
     .select()

@@ -3,7 +3,13 @@
 
 // First: in a render-performance boot it moves userData before any module reads it.
 import { isPerfBoot, isSoakBoot, PERF_BOOT_ARG, PERF_BLOCKED_URLS } from './perfBoot'
-import { app, BrowserWindow, shell, screen, nativeTheme, session, Menu, ipcMain } from 'electron'
+import {
+  installNavigationGuard,
+  isGoogleAuthUrl,
+  isGoogleDocumentUrl,
+  openExternalSafely,
+} from './navigationGuard'
+import { app, BrowserWindow, screen, nativeTheme, session, Menu, ipcMain } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import os from 'os'
@@ -1023,12 +1029,14 @@ function createWindow() {
     if (isSoakBoot) void import('./perfSoak').then((m) => m.installSoakMainProbe())
   }
 
-  // In production, intercept OAuth redirects
-  if (!isDev) {
-    mainWindow.webContents.on('will-navigate', (event, navUrl) => {
-      if (navUrl.startsWith('http://localhost') && navUrl.includes('access_token')) {
+  // Top-level navigation never leaves the app (security baseline I4). In production an OAuth redirect to
+  // localhost is reloaded as the app page instead.
+  installNavigationGuard(mainWindow.webContents, {
+    allowDevServer: isDev,
+    log,
+    intercept: (navUrl) => {
+      if (!isDev && navUrl.startsWith('http://localhost') && navUrl.includes('access_token')) {
         log('Intercepting OAuth redirect in main window')
-        event.preventDefault()
 
         const url = new URL(navUrl)
         const hashFragment = url.hash || ''
@@ -1039,9 +1047,11 @@ function createWindow() {
         const fileUrl = `file:///${normalizedPath}${queryString}${hashFragment}`
 
         mainWindow?.loadURL(fileUrl)
+        return true
       }
-    })
-  }
+      return false
+    },
+  })
 
   // Keep track of Google auth windows
   let googleAuthWindow: BrowserWindow | null = null
@@ -1050,12 +1060,7 @@ function createWindow() {
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     log('[Window] Popup requested: ' + url.substring(0, 100))
 
-    const isGoogleAuth =
-      url.includes('accounts.google.com') ||
-      url.includes('google.com/o/oauth2') ||
-      url.includes('google.com/signin')
-
-    if (isGoogleAuth) {
+    if (isGoogleAuthUrl(url)) {
       log('[Window] Opening Google auth in Electron window')
 
       if (googleAuthWindow && !googleAuthWindow.isDestroyed()) {
@@ -1080,14 +1085,7 @@ function createWindow() {
       googleAuthWindow.webContents.on('did-navigate', (_, navUrl) => {
         log('[Window] Auth window navigated to: ' + navUrl.substring(0, 80))
 
-        const isDocumentUrl =
-          navUrl.includes('docs.google.com/document/d/') ||
-          navUrl.includes('docs.google.com/spreadsheets/d/') ||
-          navUrl.includes('docs.google.com/presentation/d/') ||
-          navUrl.includes('docs.google.com/forms/d/') ||
-          navUrl.includes('drive.google.com/file/d/')
-
-        if (isDocumentUrl) {
+        if (isGoogleDocumentUrl(navUrl)) {
           log('[Window] Sign-in complete, closing auth window')
           if (googleAuthWindow && !googleAuthWindow.isDestroyed()) {
             googleAuthWindow.close()
@@ -1108,7 +1106,7 @@ function createWindow() {
     }
 
     log('[Window] Opening in external browser: ' + url.substring(0, 80))
-    shell.openExternal(url)
+    openExternalSafely(url, log)
     return { action: 'deny' }
   })
 

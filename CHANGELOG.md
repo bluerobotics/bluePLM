@@ -30,6 +30,136 @@ All notable changes to BluePLM will be documented in this file.
 - **Turning Google Drive off can be saved.** The Save button was hidden while the integration was
   switched off.
 
+## [5.1.1] - 2026-10-30
+
+Renderer only: no schema change (502), no API change (4.1.0). Update the app; nothing to apply or redeploy.
+
+### Changed
+
+- **The backup page is rebuilt.** The top says whether backups are healthy and why not (no computer
+  designated, the computer or the server worker offline, no schedule, or the last good backup over 36 hours
+  old), when the last backup was and when the next one is. Below it, "Where backups run" switches between the
+  BluePLM server and a designated computer in one click, with that runner's controls under it. Restore points
+  and the bucket settings follow. The buttons are ordinary-sized.
+
+### Fixed
+
+- **A desktop schedule only ran while the backup page was open.** The designated computer's backup service
+  started inside the page and stopped when you left it, while the heartbeat kept showing the computer online.
+  It now runs at app level, starts when this computer is designated and stops when it is released, from any
+  computer, without a restart.
+- **Designating or releasing a computer, or saving settings, did not show until the page was refreshed.** The
+  page reloaded only the snapshot list after a change. It now re-reads the configuration after every action,
+  on realtime changes and every 30 seconds, and the settings form keeps unsaved edits.
+- An admin can release the designated computer from any computer, not only from the designated one.
+
+## [5.1.0] - 2026-10-30
+
+Schemas 501 and 502 and API 4.1.0. An organization admin opens 5.1.0 and the app applies both migrations; every
+5.0 client is then asked to update (`client_min_version()` is 5.1.0, because 5.1.0 is the first client that
+reads deletes from realtime tombstones). Redeploy the API (4.1.0) at the same time.
+
+Server backups: schema 501 (`supabase/migrations/0501_server_backups.sql`, applied by the app like every
+migration) and API 4.1.0. Plan and decisions: `.cursor/plans/server-backups.plan.md`.
+
+### Added
+
+- **Security monitoring.** Schema 502 records security events (refused sign-ups, cross-organization
+  probes, backup health) and alerts the organization's admins through notifications, with per-organization
+  settings. Where `pg_cron` is available it runs on a schedule inside your own database.
+- **Sign-ups that have nowhere to belong are refused** by a Supabase "Before User Created" auth hook
+  (`auth_hook_before_user_created`), and new organizations are created with their founder through
+  `org_create_with_founder()` and an invitation (admin setup Step 5).
+- **Backups that run on the server, with no computer on.** Settings > Backup > Where backups run:
+  "BluePLM server" makes the API's backup worker run the schedule and the "Back up now" requests. It
+  backs up the whole vault from storage (every version, including files nobody has downloaded) and the
+  organization's database rows into an encrypted repository in the same bucket
+  (`blueplm-server-backup/`), keeps daily/weekly/monthly/yearly snapshots per the retention settings, and
+  is incremental: content already backed up is never read again.
+- **Test backup.** Quick check (every snapshot opens, every file present), sample restore (25 files
+  restored and re-hashed, plus a hash check of a sample of the live vault) and full restore test. Every
+  scheduled backup also runs a small sample test. Results, problems and the last good backup show in the
+  backup panel; a backup older than 36 hours is called out.
+- **Isolated backup sandbox and tools** (`npm run backup --prefix api -- ...`): `sandbox` rehearses
+  months of daily backups on local disk, damages the repository on purpose and checks every damage is
+  caught and every snapshot restores byte for byte; `dry-run`, `verify`, `list` and `restore` work
+  against the real bucket through a store that refuses every write.
+
+### Fixed
+
+- **Rate limits are per caller again on Railway.** API 4.0.0 saw every request as coming from Railway's
+  proxy, so all callers shared one limit. The API now takes the caller's address from `X-Real-IP` on
+  Railway (`CLIENT_IP_HEADER`, detected automatically there).
+- **Deletes no longer reach other organizations through realtime.** Realtime publishes inserts and updates
+  only; deletes arrive as tombstones that carry only what the receiving organization may see.
+- **Module access checks only answer for the caller's own organization**, email domains are unique across organizations
+  and must match the adding admin's verified address, and schema verification refuses a public function
+  missing from the release inventory.
+- **No third-party font requests.** Plus Jakarta Sans is bundled with the app; the web CSP no longer allows
+  Google Fonts.
+- The upgrade screen lists every pending migration when more than one is due.
+- **A scheduled backup missed while the designated computer was off was skipped for the day.** The
+  schedule only fired if the app happened to poll inside the scheduled minute. Both runners now run the
+  most recent missed slot once when they are back (`last_scheduled_slot`), and daylight-saving changes
+  no longer skip or double a day.
+- A vault object whose bytes no longer match its content hash is now reported by name instead of being
+  backed up as if it were good.
+## [5.0.0] - 2026-10-30
+
+Schema 500 and API 4.0.0. **Every client must update, and the database must be upgraded.** A 4.x client
+cannot use a 5.0 database and a 5.0 client cannot use a 4.x one. 5.0 upgrades the database itself: an
+organization admin opens BluePLM 5.0, gives the database connection string once, and the app applies the
+upgrade (a 4.10 database goes straight to 5.0; an older one is brought to 4.10 first). Everyone else sees
+a "waiting for your admin" screen until then. If your organization runs the private extension
+`blueplm.customers`, apply its 2.0.0 SQL after the upgrade. Redeploy the API (4.0.0) at the same time.
+
+### Changed
+
+- **One naming scheme for the whole database.** Every table, function, policy and index was renamed to
+  one rule: singular tables (`file`, `file_version`, `team_member`; `users` became `app_user`), functions
+  named `<entity>_<verb>` (`file_checkout`, `review_settle`), booleans `is_`/`has_`/`can_`, timestamps
+  `_at`. A test fails on any object that breaks the rule. The old-to-new list is
+  `supabase/rename-map-5.0.json`; your own SQL, reports or scripts that name tables need the new names.
+- **The schema is a clean baseline plus numbered migrations.** `supabase/core.sql` and the modules now
+  define each object once, without a year of compatibility code. Every later change is a numbered file in
+  `supabase/migrations/`, never edited once released.
+- **The app applies database changes itself.** New organizations no longer paste SQL: the app creates the
+  schema the first time an admin connects. Later releases that change the schema are applied the same way,
+  under a lock, each recorded with a checksum so nothing is applied twice or after being altered. "Remember
+  on this computer" lets future upgrades apply automatically for that admin. The connection string is
+  encrypted with the operating system's key store and never leaves the computer.
+- **Forced updates.** The database names the oldest client it accepts; an older client stops with an
+  "update required" screen and installs the update (on macOS, it opens the download page).
+- **File actions take the user from the sign-in.** Check out, check in, move, folder rename and the
+  workflow transition functions no longer accept a user id from the caller.
+- **API 4.0.0.** The REST routes the app never used are gone: `/files`, `/vaults`, `/trash`, `/parts`,
+  `/bom`, `/suppliers`, `/activity`, `/checkouts`, `/auth/login`, `/auth/refresh`, `/auth/me`. They had
+  drifted from the app (no read-only checks, an outdated file state). A future public API will sit on the
+  same database functions the app uses. `TRUST_PROXY` (a list of proxy addresses) replaces
+  `TRUST_PROXY_HOPS`.
+
+### Security
+
+- Every privileged database function pins its `search_path`, and the schema check refuses to stamp
+  a release otherwise.
+- Signed-out (`anon`) access to tables is gone, apart from reading the schema version.
+- Accepting an invitation checks that its teams and vaults belong to the inviting organization.
+- A file must belong to a vault, so a file can never fall outside vault access rules.
+- Leftover functions from older releases that did not check the caller's organization are removed by
+  the upgrade.
+- The Odoo integration keeps each request's data to that request.
+- External links open only `https:` addresses, and the app's windows refuse navigation away from the app.
+- Electron 39.8, electron-updater 6.8 and Fastify 5.12 close their published advisories.
+
+### Removed
+
+- The per-machine Extension Store. Extensions are installed for the whole organization from a `.bpx` in
+  Settings > Extensions.
+- The Slack settings page (its API routes never existed), the unused sandbox-extension tables and API,
+  and code kept only for databases older than 5.0.
+
+### Fixed
+
 - **Search hands off to navigation.** Opening a folder now leaves search, wherever it is opened from
   (double-click or Enter in the results, the breadcrumb, the sidebar tree, Back, a search result, a
   reveal-in-browser jump); before, the folder changed underneath while the pane kept showing results.

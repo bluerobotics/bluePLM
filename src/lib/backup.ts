@@ -1,6 +1,7 @@
 // Backup service - simplified to use restic directly for everything
 import { getSupabaseClient } from './supabase/client'
 import { log } from '@/lib/logger'
+import { dueSlot, nextSlot } from '../../api/src/backup/schedule'
 
 // ============================================
 // Types
@@ -16,14 +17,14 @@ export interface BackupConfig {
   access_key_encrypted: string | null
   secret_key_encrypted: string | null
   restic_password_encrypted: string | null
-  /** From get_backup_status() (non-admins): the secrets above are withheld and this says whether they are set. */
+  /** From backup_get_status() (non-admins): the secrets above are withheld and this says whether they are set. */
   credentials_set?: boolean
   retention_daily: number
   retention_weekly: number
   retention_monthly: number
   retention_yearly: number
   // Schedule
-  schedule_enabled: boolean
+  is_schedule_enabled: boolean
   schedule_hour: number
   schedule_minute: number
   schedule_timezone: string
@@ -32,14 +33,75 @@ export interface BackupConfig {
   designated_machine_name: string | null
   designated_machine_platform: string | null
   designated_machine_user_email: string | null
-  designated_machine_last_seen: string | null
+  designated_machine_last_seen_at: string | null
   // Backup request state
   backup_requested_at: string | null
   backup_requested_by: string | null
-  backup_running_since: string | null
+  backup_started_at: string | null
+  // schema 501: who runs backups, and the server worker's state. Optional until every
+  // database is on 501; read through these names, never the generated type.
+  /** 'desktop' (the designated machine, restic) or 'server' (the API's backup worker). */
+  run_location?: 'desktop' | 'server'
+  /** The scheduled slot last started, by whichever runner: a missed slot is caught up once. */
+  last_scheduled_slot_at?: string | null
+  verify_requested_at?: string | null
+  verify_requested_by?: string | null
+  verify_mode?: BackupTestMode | null
+  server_worker_seen_at?: string | null
+  server_worker_version?: string | null
   // Timestamps
   created_at: string
   updated_at: string
+}
+
+export type BackupTestMode = 'quick' | 'sample' | 'full'
+
+/** One row of backup_history: a server backup or test (schema 501). */
+export interface BackupRun {
+  id: string
+  started_at: string
+  completed_at: string | null
+  status: 'running' | 'completed' | 'warning' | 'failed' | string
+  kind: 'backup' | 'verify' | string
+  trigger: 'scheduled' | 'manual' | string | null
+  runner: string | null
+  files_total: number | null
+  files_added: number | null
+  bytes_added: number | null
+  bytes_total: number | null
+  duration_seconds: number | null
+  snapshot_id: string | null
+  error_message: string | null
+  report: {
+    verify?: { ok: boolean; blobsRead: number; problems: string[] }
+    problems?: Array<{ kind: string; name: string; detail: string }>
+    problemCount?: number
+  } | null
+}
+
+export function isServerRun(config: BackupConfig | null | undefined): boolean {
+  return config?.run_location === 'server'
+}
+
+/** A worker that stamped server_worker_seen_at within three minutes (it stamps every minute). */
+export function isServerWorkerOnline(config: BackupConfig | null | undefined, now = Date.now()): boolean {
+  const seen = config?.server_worker_seen_at ? Date.parse(config.server_worker_seen_at) : NaN
+  return !Number.isNaN(seen) && now - seen < 3 * 60 * 1000
+}
+
+function scheduleOf(config: BackupConfig) {
+  return {
+    enabled: !!config.is_schedule_enabled,
+    hour: config.schedule_hour ?? 0,
+    minute: config.schedule_minute ?? 0,
+    timezone: config.schedule_timezone || 'UTC',
+  }
+}
+
+/** When the next scheduled backup is due, or null when there is no schedule. */
+export function nextScheduledBackup(config: BackupConfig | null | undefined, now = Date.now()): Date | null {
+  if (!config?.is_schedule_enabled) return null
+  return new Date(nextSlot(scheduleOf(config), now))
 }
 
 // Snapshot info from restic directly
@@ -133,11 +195,11 @@ export async function getBackupConfig(orgId: string): Promise<BackupConfig | nul
 
   // Since schema 112 only admins read the row, because it holds the storage keys and the
   // restic password. Everyone else gets the status without them.
-  // get_backup_status is not in the generated Database type until gen:types runs against 112.
+  // backup_get_status is not in the generated Database type until gen:types runs against 112.
   const untyped = supabase as unknown as {
     rpc(fn: string): PromiseLike<{ data: unknown; error: { message: string } | null }>
   }
-  const { data: status, error: statusError } = await untyped.rpc('get_backup_status')
+  const { data: status, error: statusError } = await untyped.rpc('backup_get_status')
   if (statusError) {
     log.error('[Backup]', 'Error fetching backup status', { error: statusError.message })
     return null
@@ -205,7 +267,7 @@ export async function designateThisMachine(
       designated_machine_name: machineName,
       designated_machine_platform: platform,
       designated_machine_user_email: userEmail,
-      designated_machine_last_seen: new Date().toISOString(),
+      designated_machine_last_seen_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
     .eq('org_id', orgId)
@@ -232,7 +294,7 @@ export async function clearDesignatedMachine(
       designated_machine_name: null,
       designated_machine_platform: null,
       designated_machine_user_email: null,
-      designated_machine_last_seen: null,
+      designated_machine_last_seen_at: null,
       updated_at: new Date().toISOString(),
     })
     .eq('org_id', orgId)
@@ -254,7 +316,7 @@ export async function updateHeartbeat(orgId: string): Promise<boolean> {
   const { error } = await supabase
     .from('backup_config')
     .update({
-      designated_machine_last_seen: new Date().toISOString(),
+      designated_machine_last_seen_at: new Date().toISOString(),
     })
     .eq('org_id', orgId)
     .eq('designated_machine_id', machineId)
@@ -269,9 +331,9 @@ export async function updateHeartbeat(orgId: string): Promise<boolean> {
 
 // Check if designated machine is online (seen within last 2 minutes)
 export function isDesignatedMachineOnline(config: BackupConfig | null): boolean {
-  if (!config?.designated_machine_last_seen) return false
+  if (!config?.designated_machine_last_seen_at) return false
 
-  const lastSeen = new Date(config.designated_machine_last_seen).getTime()
+  const lastSeen = new Date(config.designated_machine_last_seen_at).getTime()
   const twoMinutesAgo = Date.now() - 2 * 60 * 1000
   return lastSeen > twoMinutesAgo
 }
@@ -290,14 +352,15 @@ export async function requestBackup(
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = getSupabaseClient()
 
-  // Check if there's a designated machine first
+  // A desktop-run backup needs a designated machine; the server worker needs nothing.
   const { data: config, error: configError } = await supabase
     .from('backup_config')
-    .select('designated_machine_id')
+    .select('*')
     .eq('org_id', orgId)
     .single()
+  const runConfig = config as unknown as BackupConfig | null
 
-  if (configError || !config?.designated_machine_id) {
+  if (configError || (!isServerRun(runConfig) && !runConfig?.designated_machine_id)) {
     return { success: false, error: 'No designated machine configured' }
   }
 
@@ -318,9 +381,77 @@ export async function requestBackup(
   return { success: true }
 }
 
+type UntypedUpdate = {
+  from(table: string): {
+    update(patch: Record<string, unknown>): {
+      eq(column: string, value: string): PromiseLike<{ error: { message: string } | null }>
+    }
+  }
+}
+
+/**
+ * Asks the server backup worker to test the backup (schema 501). Admins only: the
+ * request is a write to backup_config, which only admins may update.
+ */
+export async function requestBackupTest(
+  orgId: string,
+  userEmail: string,
+  mode: BackupTestMode,
+): Promise<{ success: boolean; error?: string }> {
+  // verify_* are not in the generated Database type until gen:types runs against 501.
+  const untyped = getSupabaseClient() as unknown as UntypedUpdate
+  const { error } = await untyped
+    .from('backup_config')
+    .update({ verify_requested_at: new Date().toISOString(), verify_requested_by: userEmail, verify_mode: mode })
+    .eq('org_id', orgId)
+  if (error) {
+    log.error('[Backup]', 'Error requesting a backup test', { error: error.message })
+    return { success: false, error: error.message }
+  }
+  return { success: true }
+}
+
+/**
+ * Chooses who runs the organization's backups (schema 501): the API's backup worker or the
+ * designated desktop. Admins only, like every backup_config write. Saved on its own, so the
+ * choice takes effect without re-entering the bucket credentials.
+ */
+export async function setRunLocation(
+  orgId: string,
+  location: 'desktop' | 'server',
+): Promise<{ success: boolean; error?: string }> {
+  // run_location is not in the generated Database type until gen:types runs against 501.
+  const untyped = getSupabaseClient() as unknown as UntypedUpdate
+  const { error } = await untyped
+    .from('backup_config')
+    .update({ run_location: location, updated_at: new Date().toISOString() })
+    .eq('org_id', orgId)
+  if (error) {
+    log.error('[Backup]', 'Error setting where backups run', { error: error.message })
+    return { success: false, error: error.message }
+  }
+  return { success: true }
+}
+
+/** The organization's most recent server backups and tests, newest first. */
+export async function getBackupRuns(orgId: string, limit = 10): Promise<BackupRun[]> {
+  const supabase = getSupabaseClient()
+  const { data, error } = await supabase
+    .from('backup_history')
+    .select('*')
+    .eq('org_id', orgId)
+    .order('started_at', { ascending: false })
+    .limit(limit)
+  if (error) {
+    log.error('[Backup]', 'Error loading backup runs', { error: error.message })
+    return []
+  }
+  return (data ?? []) as unknown as BackupRun[]
+}
+
 // Check if there's a pending backup request (called by designated machine)
 export function hasPendingBackupRequest(config: BackupConfig | null): boolean {
-  return !!config?.backup_requested_at && !config?.backup_running_since
+  return !!config?.backup_requested_at && !config?.backup_started_at
 }
 
 // Mark backup as started (called by designated machine)
@@ -332,7 +463,7 @@ export async function markBackupStarted(orgId: string): Promise<boolean> {
   const { error } = await supabase
     .from('backup_config')
     .update({
-      backup_running_since: new Date().toISOString(),
+      backup_started_at: new Date().toISOString(),
       backup_requested_at: null,
       backup_requested_by: null,
     })
@@ -356,7 +487,7 @@ export async function markBackupComplete(orgId: string): Promise<boolean> {
   const { error } = await supabase
     .from('backup_config')
     .update({
-      backup_running_since: null,
+      backup_started_at: null,
     })
     .eq('org_id', orgId)
     .eq('designated_machine_id', machineId)
@@ -375,7 +506,8 @@ export async function markBackupComplete(orgId: string): Promise<boolean> {
 
 let heartbeatInterval: ReturnType<typeof setInterval> | null = null
 let pollingInterval: ReturnType<typeof setInterval> | null = null
-let lastScheduledBackupDate: string | null = null
+// The slot this process last started, for a database without last_scheduled_slot_at (before 501).
+let lastScheduledSlotLocal: number | null = null
 
 // Module-level backup running state so it survives component unmount/remount
 let _isBackupRunning = false
@@ -394,49 +526,26 @@ export function setBackupRunningLocally(running: boolean): void {
   _backupStartedAt = running ? Date.now() : null
 }
 
-// Check if it's time for a scheduled backup
-function shouldRunScheduledBackup(config: BackupConfig): boolean {
-  if (!config.schedule_enabled) return false
+/**
+ * The scheduled slot due now, if any. Same rule as the server worker
+ * (api/src/backup/schedule.ts): the most recent slot runs if it is newer than
+ * backup_config.last_scheduled_slot_at, so a slot missed while this machine was off
+ * or asleep runs once when it is back, instead of being skipped (before schema 501
+ * the slot had to fall inside a 30-second poll of the exact minute).
+ */
+function dueScheduledSlot(config: BackupConfig): number | null {
+  return dueSlot(scheduleOf(config), Date.now(), config.last_scheduled_slot_at ?? lastScheduledSlotLocal)
+}
 
-  const now = new Date()
-
-  // Get current time in the configured timezone
-  let currentHour: number
-  let currentMinute: number
-  let today: string
-
-  try {
-    const formatter = new Intl.DateTimeFormat('en-US', {
-      timeZone: config.schedule_timezone || 'UTC',
-      hour: 'numeric',
-      minute: 'numeric',
-      hour12: false,
-    })
-    const parts = formatter.formatToParts(now)
-    currentHour = parseInt(parts.find((p) => p.type === 'hour')?.value || '0')
-    currentMinute = parseInt(parts.find((p) => p.type === 'minute')?.value || '0')
-
-    // Get today's date in the configured timezone
-    const dateFormatter = new Intl.DateTimeFormat('en-CA', {
-      timeZone: config.schedule_timezone || 'UTC',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    })
-    today = dateFormatter.format(now)
-  } catch {
-    // Fallback to UTC if timezone is invalid
-    currentHour = now.getUTCHours()
-    currentMinute = now.getUTCMinutes()
-    today = now.toISOString().split('T')[0]
-  }
-
-  if (currentHour === config.schedule_hour && currentMinute === config.schedule_minute) {
-    if (lastScheduledBackupDate === today) return false
-    lastScheduledBackupDate = today
-    return true
-  }
-  return false
+/** Records the slot as started, in the database when it has the column (501) and here. */
+async function recordScheduledSlot(orgId: string, slot: number): Promise<void> {
+  lastScheduledSlotLocal = slot
+  const untyped = getSupabaseClient() as unknown as UntypedUpdate
+  const { error } = await untyped
+    .from('backup_config')
+    .update({ last_scheduled_slot_at: new Date(slot).toISOString() })
+    .eq('org_id', orgId)
+  if (error) log.warn('[Backup]', 'Could not record the scheduled slot', { error: error.message })
 }
 
 // Start heartbeat and polling (called when app starts if this is designated machine)
@@ -464,6 +573,9 @@ export function startBackupService(
       const config = await getLatestConfig()
       if (!config) return
 
+      // The server worker runs this organization's backups; the desktop stands by.
+      if (isServerRun(config)) return
+
       // Check if we're still the designated machine
       const isDesignated = await isThisDesignatedMachine(config)
       if (!isDesignated) {
@@ -473,12 +585,12 @@ export function startBackupService(
       }
 
       // Skip if already running, but auto-clear if stuck for over 2 hours
-      if (config.backup_running_since) {
-        const runningSince = new Date(config.backup_running_since).getTime()
+      if (config.backup_started_at) {
+        const runningSince = new Date(config.backup_started_at).getTime()
         const TWO_HOURS_MS = 2 * 60 * 60 * 1000
         if (Date.now() - runningSince > TWO_HOURS_MS) {
-          log.warn('[Backup]', 'backup_running_since stuck for >2 hours, auto-clearing', {
-            runningSince: config.backup_running_since,
+          log.warn('[Backup]', 'backup_started_at stuck for >2 hours, auto-clearing', {
+            runningSince: config.backup_started_at,
             ageMinutes: Math.round((Date.now() - runningSince) / 60000),
           })
           await markBackupComplete(orgId)
@@ -494,7 +606,9 @@ export function startBackupService(
       }
 
       // Check for scheduled backup
-      if (shouldRunScheduledBackup(config)) {
+      const slot = dueScheduledSlot(config)
+      if (slot !== null) {
+        await recordScheduledSlot(orgId, slot)
         onBackupRequest(config)
       }
     } catch (error) {
@@ -506,6 +620,11 @@ export function startBackupService(
 }
 
 // Stop the service
+/** Whether this process is running the designated machine's heartbeat and request polling. */
+export function isBackupServiceRunning(): boolean {
+  return heartbeatInterval !== null || pollingInterval !== null
+}
+
 export function stopBackupService(): void {
   const wasRunning = heartbeatInterval !== null || pollingInterval !== null
 
@@ -1025,7 +1144,7 @@ export async function exportDatabaseMetadata(
 
   try {
     const { data: org, error: orgError } = await supabase
-      .from('organizations')
+      .from('organization')
       .select('id, name')
       .eq('id', orgId)
       .single()
@@ -1035,7 +1154,7 @@ export async function exportDatabaseMetadata(
     }
 
     const { data: vault, error: vaultError } = await supabase
-      .from('vaults')
+      .from('vault')
       .select('id, name')
       .eq('id', vaultId)
       .single()
@@ -1045,7 +1164,7 @@ export async function exportDatabaseMetadata(
     }
 
     const { data: files, error: filesError } = await supabase
-      .from('files')
+      .from('file')
       .select(
         'id, file_path, file_name, extension, file_type, content_hash, file_size, state, checked_out_by, checked_out_at, version, created_at, updated_at, deleted_at',
       )
@@ -1066,7 +1185,7 @@ export async function exportDatabaseMetadata(
       for (let i = 0; i < fileIds.length; i += BATCH_SIZE) {
         const batch = fileIds.slice(i, i + BATCH_SIZE)
         const { data: versions, error: versionsError } = await supabase
-          .from('file_versions')
+          .from('file_version')
           .select(
             'id, file_id, version, revision, content_hash, file_size, state, created_by, created_at',
           )
@@ -1099,7 +1218,7 @@ export async function exportDatabaseMetadata(
     const fileComments: unknown[] = []
 
     const { data: users } = await supabase
-      .from('users')
+      .from('app_user')
       .select('id, email, full_name, role')
       .eq('org_id', orgId)
 
@@ -1153,7 +1272,7 @@ export async function importDatabaseMetadata(
       }
 
       const { data: existing } = await supabase
-        .from('files')
+        .from('file')
         .select('id')
         .eq('id', file.id)
         .single()
@@ -1171,7 +1290,7 @@ export async function importDatabaseMetadata(
 
       // Use any to bypass type restrictions during restore
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase.from('files') as any).upsert( // TODO: type this
+      const { error } = await (supabase.from('file') as any).upsert( // TODO: type this
         {
           id: file.id,
           org_id: exportData._orgId,
@@ -1199,14 +1318,14 @@ export async function importDatabaseMetadata(
 
     for (const version of exportData.fileVersions) {
       const { data: existing } = await supabase
-        .from('file_versions')
+        .from('file_version')
         .select('id')
         .eq('id', version.id)
         .single()
 
       if (existing && !overwriteExisting) continue
 
-      const { error } = await supabase.from('file_versions').upsert(
+      const { error } = await supabase.from('file_version').upsert(
         {
           id: version.id,
           file_id: version.file_id,
@@ -1233,14 +1352,14 @@ export async function importDatabaseMetadata(
         created_at: string
       }
       const { data: existing } = await supabase
-        .from('file_comments')
+        .from('file_comment')
         .select('id')
         .eq('id', comment.id)
         .single()
 
       if (existing && !overwriteExisting) continue
 
-      await supabase.from('file_comments').upsert(
+      await supabase.from('file_comment').upsert(
         {
           id: comment.id,
           file_id: comment.file_id,

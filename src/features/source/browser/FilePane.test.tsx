@@ -222,7 +222,7 @@ describe('FilePane: file states', () => {
     renderPane()
     expect(within(row(PLAIN)).getByText('PN-PLAIN')).toBeTruthy()
 
-    h.db.updateAndEmit('files', h.serverRow(PLAIN).id, { part_number: 'PN-PLAIN-B', description: 'Rev B' })
+    h.db.updateAndEmit('file', h.serverRow(PLAIN).id, { part_number: 'PN-PLAIN-B', description: 'Rev B' })
     await act(() => h.reload())
 
     expect(within(row(PLAIN)).getByText('PN-PLAIN-B')).toBeTruthy()

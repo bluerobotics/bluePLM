@@ -25,7 +25,7 @@ export function createGetIntegrationCredential(
 ): ExtensionServerServices['getIntegrationCredential'] {
   return async (orgId, integration) => {
     const { data, error } = await admin
-      .from('organization_integrations')
+      .from('org_integration')
       .select('id')
       .eq('org_id', orgId)
       .eq('integration_type', integration)

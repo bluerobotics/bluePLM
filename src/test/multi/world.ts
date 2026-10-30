@@ -89,7 +89,7 @@ const extensionOf = (path: string) => {
   return dot <= 0 ? '' : name.slice(dot).toLowerCase()
 }
 
-function fileTypeOf(path: string): RowOf<'files'>['file_type'] {
+function fileTypeOf(path: string): RowOf<'file'>['file_type'] {
   switch (extensionOf(path)) {
     case '.sldprt':
       return 'part'
@@ -153,7 +153,7 @@ export class World {
   }
 
   /** A synced file: a server row and storage object, and the same bytes on each listed disk. */
-  seed(spec: SeedSpec): RowOf<'files'> {
+  seed(spec: SeedSpec): RowOf<'file'> {
     const db = this.server.db
     const body = spec.body ?? `bytes of ${spec.path}`
     const document = fileTypeOf(spec.path) === 'other' ? undefined : swDocument()
@@ -170,9 +170,9 @@ export class World {
     }
     const hash = hashText(bytes)
     db.storeObject(`vault/${ORG_ID}/${hash.slice(0, 2)}/${hash}`, new TextEncoder().encode(bytes))
-    let row!: RowOf<'files'>
+    let row!: RowOf<'file'>
     this.server.write((fake) => {
-      row = fake.seed('files', {
+      row = fake.seed('file', {
         org_id: ORG_ID,
         vault_id: VAULT_ID,
         file_path: spec.path,
@@ -185,13 +185,13 @@ export class World {
         revision: 'A',
         part_number: spec.partNumber ?? null,
         description: spec.description ?? null,
-        custom_properties: {} as RowOf<'files'>['custom_properties'],
+        custom_properties: {} as RowOf<'file'>['custom_properties'],
         checked_out_by: spec.checkedOutBy ?? null,
         checked_out_at: spec.checkedOutBy ? fake.isoNow() : null,
         created_by: USERS.A.id,
         updated_by: USERS.A.id,
       })
-      fake.seed('file_versions', { file_id: row.id, version: 1, revision: 'A', content_hash: hash, created_by: USERS.A.id })
+      fake.seed('file_version', { file_id: row.id, version: 1, revision: 'A', content_hash: hash, created_by: USERS.A.id })
     })
     return row
   }
@@ -278,7 +278,7 @@ export class World {
   }
 
   private recordFilled(): void {
-    for (const row of this.server.db.rows('files')) {
+    for (const row of this.server.db.rows('file')) {
       const seen = this.everFilled.get(String(row.id)) ?? { partNumber: false, description: false }
       if (typeof row.part_number === 'string' && row.part_number.trim()) seen.partNumber = true
       if (typeof row.description === 'string' && row.description.trim()) seen.description = true
@@ -405,7 +405,7 @@ export class World {
       const onServer =
         server.some((r) => r.path.toLowerCase().startsWith(`${lower}/`)) ||
         this.server.db
-          .rows('folders')
+          .rows('folder')
           .some((f) => f.deleted_at == null && String(f.folder_path).toLowerCase() === lower)
       expect(onDisk || onServer, label(`ghost folder ${folder}`)).toBe(true)
     }

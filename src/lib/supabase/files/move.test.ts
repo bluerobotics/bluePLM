@@ -59,9 +59,8 @@ describe('moveFilesOnServer', () => {
     const result = await moveFilesOnServer(moves('a', 'b', 'c'), 'user-me')
 
     expect(rpc).toHaveBeenCalledTimes(3)
-    expect(rpc).toHaveBeenCalledWith('move_file', {
+    expect(rpc).toHaveBeenCalledWith('file_move', {
       p_file_id: 'a',
-      p_user_id: 'user-me',
       p_new_file_path: 'new/a.sldprt',
       p_new_file_name: 'a.sldprt',
     })

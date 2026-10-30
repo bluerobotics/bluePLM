@@ -76,7 +76,7 @@ export async function createShareLink(
   const client = getSupabaseClient()
 
   const { data: fileData, error: fileError } = await client
-    .from('files')
+    .from('file')
     .select('content_hash, file_name, org_id')
     .eq('id', fileId)
     .single()
@@ -103,7 +103,7 @@ export async function createShareLink(
   // `org_id` to match the file's, and the two are equal today only because the select above was
   // RLS-scoped to the caller. Taking it from the row makes the agreement structural, and a caller
   // that passes the wrong organization gets a mismatch it can see rather than a silent refusal.
-  const { error: auditError } = await client.from('file_share_links').insert({
+  const { error: auditError } = await client.from('file_share_link').insert({
     org_id: fileData.org_id,
     file_id: fileId,
     token,

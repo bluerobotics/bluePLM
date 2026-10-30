@@ -76,7 +76,7 @@ describe('check out and check in', () => {
 
     await waitFor(() => expect(vault!.serverRow('bracket.sldprt').version).toBe(2), { timeout: 4000 })
     expect(vault.serverRow('bracket.sldprt').checked_out_by).toBeNull()
-    expect(vault.db.rows('file_versions').filter((r) => r.file_id === vault!.serverRow('bracket.sldprt').id)).toHaveLength(2)
+    expect(vault.db.rows('file_version').filter((r) => r.file_id === vault!.serverRow('bracket.sldprt').id)).toHaveLength(2)
     vault.expectConsistent()
     await vault.expectStableAcrossReload()
   })

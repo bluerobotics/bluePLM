@@ -47,12 +47,12 @@ export async function getFiles(
 ) {
   const client = getSupabaseClient()
   let query = client
-    .from('files')
+    .from('file')
     .select(
       `
       *,
-      checked_out_user:users!checked_out_by(id, email, full_name, avatar_url),
-      created_by_user:users!created_by(email, full_name)
+      checked_out_user:app_user!checked_out_by(id, email, full_name, avatar_url),
+      created_by_user:app_user!created_by(email, full_name)
     `,
     )
     .eq('org_id', orgId)
@@ -152,7 +152,7 @@ export async function getFilesLightweight(
 
   // Use RPC function for single-query fetch (no pagination overhead)
   // Type assertion needed because RPC function types are generated from DB schema
-  const { data, error } = await (client.rpc as any)('get_vault_files_fast', { // TODO: type this
+  const { data, error } = await (client.rpc as any)('vault_file_list', { // TODO: type this
     p_org_id: orgId,
     p_vault_id: vaultId || null,
   })
@@ -199,7 +199,7 @@ export async function getFilesDelta(
   const client = getSupabaseClient()
 
   // Use RPC function for delta queries
-  const { data, error } = await (client.rpc as any)('get_vault_files_delta', { // TODO: type this
+  const { data, error } = await (client.rpc as any)('vault_file_list_delta', { // TODO: type this
     p_org_id: orgId,
     p_vault_id: vaultId,
     p_since: since,
@@ -249,7 +249,7 @@ export async function getVaultFilesCount(
   // Use RPC function so the count shares get_vault_files_fast's predicate exactly
   const { data, error }: { data: unknown; error: { message: string } | null } = await (
     client.rpc as any // TODO: type this
-  )('get_vault_files_count', {
+  )('vault_file_count', {
     p_org_id: orgId,
     p_vault_id: vaultId,
   })
@@ -288,7 +288,7 @@ async function fetchCheckedOutUsers(
   for (let start = 0; start < ownerIds.length; start += CHECKOUT_PROFILE_OWNER_BATCH_SIZE) {
     const batch = ownerIds.slice(start, start + CHECKOUT_PROFILE_OWNER_BATCH_SIZE)
     const { data, error } = await client
-      .from('users')
+      .from('app_user')
       .select('id, email, full_name, avatar_url')
       .in('id', batch)
       .eq('org_id', scope.orgId)
@@ -354,7 +354,7 @@ export async function getUserBasicInfo(
 
   if (scope?.fileId) {
     let fileQuery = client
-      .from('files')
+      .from('file')
       .select('checked_out_by')
       .eq('id', scope.fileId)
       .eq('org_id', scope.orgId)
@@ -376,7 +376,7 @@ export async function getUserBasicInfo(
     }
   }
 
-  let userQuery = client.from('users').select('id, email, full_name, avatar_url').eq('id', userId)
+  let userQuery = client.from('app_user').select('id, email, full_name, avatar_url').eq('id', userId)
   if (scope) {
     userQuery = userQuery.eq('org_id', scope.orgId)
   }
@@ -403,13 +403,13 @@ export async function getUserBasicInfo(
 export async function getFile(fileId: string) {
   const client = getSupabaseClient()
   const { data, error } = await client
-    .from('files')
+    .from('file')
     .select(
       `
       *,
-      checked_out_user:users!checked_out_by(id, email, full_name, avatar_url),
-      created_by_user:users!created_by(email, full_name),
-      updated_by_user:users!updated_by(email, full_name)
+      checked_out_user:app_user!checked_out_by(id, email, full_name, avatar_url),
+      created_by_user:app_user!created_by(email, full_name),
+      updated_by_user:app_user!updated_by(email, full_name)
     `,
     )
     .eq('id', fileId)
@@ -425,7 +425,7 @@ export async function getFile(fileId: string) {
  * vault, with no case-insensitive fallback at all - a file stored as
  * `Parts/BRACKET.SLDPRT` was simply invisible to a lookup for
  * `Parts/Bracket.SLDPRT`. Now calls `get_active_file_by_path` (schema 100),
- * which matches the way `idx_files_vault_path_unique_active` matches:
+ * which matches the way `file_vault_id_file_path_idx` matches:
  * `(vault_id, LOWER(file_path)) WHERE deleted_at IS NULL`. Scoped to a vault
  * rather than an org because that is what the index (and syncFile's own
  * lookup) is scoped to, and because this function had no caller before this
@@ -438,7 +438,7 @@ export async function getFile(fileId: string) {
  */
 export async function getFileByPath(vaultId: string, filePath: string) {
   const client = getSupabaseClient()
-  const { data, error } = await (client.rpc as any)('get_active_file_by_path', {
+  const { data, error } = await (client.rpc as any)('file_get_active_by_path', {
     // TODO: type this
     p_vault_id: vaultId,
     p_file_path: filePath,
@@ -454,11 +454,11 @@ export async function getFileByPath(vaultId: string, filePath: string) {
 export async function getFileVersions(fileId: string) {
   const client = getSupabaseClient()
   const { data, error } = await client
-    .from('file_versions')
+    .from('file_version')
     .select(
       `
       *,
-      created_by_user:users!created_by(email, full_name)
+      created_by_user:app_user!created_by(email, full_name)
     `,
     )
     .eq('file_id', fileId)
@@ -474,11 +474,11 @@ export async function getFileVersions(fileId: string) {
 export async function getWhereUsed(fileId: string) {
   const client = getSupabaseClient()
   const { data, error } = await client
-    .from('file_references')
+    .from('file_reference')
     .select(
       `
       *,
-      parent:files!parent_file_id(
+      parent:file!parent_file_id(
         id, file_name, file_path, part_number, revision, state
       )
     `,
@@ -491,11 +491,11 @@ export async function getWhereUsed(fileId: string) {
 export async function getContains(fileId: string) {
   const client = getSupabaseClient()
   const { data, error } = await client
-    .from('file_references')
+    .from('file_reference')
     .select(
       `
       *,
-      child:files!child_file_id(
+      child:file!child_file_id(
         id, file_name, file_path, part_number, revision, state, description
       )
     `,
@@ -538,7 +538,7 @@ export async function getContainsByConfiguration(
   const client = getSupabaseClient()
 
   let query = client
-    .from('file_references')
+    .from('file_reference')
     .select(
       `
       id,
@@ -546,7 +546,7 @@ export async function getContainsByConfiguration(
       quantity,
       configuration,
       reference_type,
-      child:files!child_file_id(
+      child:file!child_file_id(
         id, file_name, file_path, file_type, part_number, revision, state, description
       )
     `,
@@ -644,13 +644,13 @@ export async function getDrawingsForFileConfig(
   const client = getSupabaseClient()
 
   const query = client
-    .from('file_references')
+    .from('file_reference')
     .select(
       `
       id,
       parent_file_id,
       configuration,
-      parent:files!parent_file_id(
+      parent:file!parent_file_id(
         id, file_name, file_path, file_type, part_number, revision, state, description
       )
     `,
@@ -723,11 +723,11 @@ export async function getReferencesForDrawing(
   const client = getSupabaseClient()
 
   const { data, error } = await client
-    .from('file_references')
+    .from('file_reference')
     .select(
       `
       configuration,
-      child:files!child_file_id(
+      child:file!child_file_id(
         file_path
       )
     `,
@@ -942,11 +942,11 @@ export async function getDrawingsForFiles(fileIds: string[]): Promise<{
   // Query file_references where child_file_id is in the given fileIds
   // We'll filter for drawings by checking the parent file's extension
   const { data, error } = await client
-    .from('file_references')
+    .from('file_reference')
     .select(
       `
       parent_file_id,
-      parent:files!parent_file_id(
+      parent:file!parent_file_id(
         id,
         file_path,
         file_name,
@@ -1041,7 +1041,7 @@ export async function getDrawingsForFiles(fileIds: string[]): Promise<{
 export async function getMyCheckedOutFiles(userId: string) {
   const client = getSupabaseClient()
   const { data, error } = await client
-    .from('files')
+    .from('file')
     .select('*')
     .eq('checked_out_by', userId)
     .order('checked_out_at', { ascending: false })
@@ -1052,11 +1052,11 @@ export async function getMyCheckedOutFiles(userId: string) {
 export async function getAllCheckedOutFiles(orgId: string) {
   const client = getSupabaseClient()
   const { data, error } = await client
-    .from('files')
+    .from('file')
     .select(
       `
       *,
-      checked_out_user:users!checked_out_by(id, email, full_name, avatar_url)
+      checked_out_user:app_user!checked_out_by(id, email, full_name, avatar_url)
     `,
     )
     .eq('org_id', orgId)
@@ -1113,7 +1113,7 @@ export async function getFileReferenceDiagnostics(parentFileId: string): Promise
   const client = getSupabaseClient()
 
   const { data, error } = await client
-    .from('file_references')
+    .from('file_reference')
     .select(
       `
       id,
@@ -1123,8 +1123,8 @@ export async function getFileReferenceDiagnostics(parentFileId: string): Promise
       quantity,
       configuration,
       created_at,
-      parent:files!parent_file_id(id, file_name, file_path, part_number),
-      child:files!child_file_id(id, file_name, file_path, part_number)
+      parent:file!parent_file_id(id, file_name, file_path, part_number),
+      child:file!child_file_id(id, file_name, file_path, part_number)
     `,
     )
     .eq('parent_file_id', parentFileId)
@@ -1154,7 +1154,7 @@ export async function getVaultFilesForDiagnostics(
   const client = getSupabaseClient()
 
   const { data, error } = await client
-    .from('files')
+    .from('file')
     .select('id, file_name, file_path, extension')
     .eq('org_id', orgId)
     .eq('vault_id', vaultId)

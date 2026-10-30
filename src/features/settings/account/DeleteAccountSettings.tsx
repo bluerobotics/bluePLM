@@ -43,7 +43,7 @@ export function DeleteAccountSettings() {
       const client = getSupabaseClient()
 
       // Call the RPC function to delete the user account
-      const { error } = await client.rpc('delete_user_account')
+      const { error } = await client.rpc('user_delete_account')
 
       if (error) {
         log.error('[Account]', 'Failed to delete account', { error })

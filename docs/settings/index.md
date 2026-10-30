@@ -29,7 +29,6 @@ Connect to external services:
 - **SolidWorks** - CAD integration (Windows only)
 - **Google Drive** - Cloud storage sync
 - **Odoo ERP** - Enterprise resource planning
-- **Slack** - Team notifications
 - **Webhooks** - Custom integrations
 - **REST API** - API access configuration
 

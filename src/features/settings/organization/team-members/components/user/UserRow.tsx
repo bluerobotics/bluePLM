@@ -105,11 +105,11 @@ export function UserRow({
           <div className="flex min-w-0 items-center gap-1.5 text-[12px] text-plm-fg-muted">
             <span className="truncate">{user.email}</span>
             {/* Last online */}
-            {!compact && formatLastOnline(user.last_online) && (
+            {!compact && formatLastOnline(user.last_online_at) && (
               <span className="flex flex-shrink-0 items-center gap-1 text-plm-fg-muted/80">
                 <span aria-hidden>·</span>
                 <Clock size={10} />
-                {formatLastOnline(user.last_online)}
+                {formatLastOnline(user.last_online_at)}
               </span>
             )}
           </div>

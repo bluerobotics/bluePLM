@@ -337,10 +337,10 @@ describe('loader', () => {
     expect(calls).toEqual([])
     await store.listNativeInstalls([ORG_ID])
     expect(calls).toEqual([
-      ['from', 'org_installed_extensions'],
+      ['from', 'org_installed_extension'],
       ['select', 'org_id, extension_id, package_sha256, package_path, installed_at, manifest'],
       ['in', 'org_id', [ORG_ID]],
-      ['eq', 'enabled', true],
+      ['eq', 'is_enabled', true],
       ['eq', 'category', 'native'],
       ['not', 'manifest->>serverMain', 'is', null],
     ])
@@ -568,7 +568,7 @@ describe('/ext dispatch', () => {
     const res = await app.inject({ method: 'POST', url: `/ext/${EXT_ID}/guarded`, headers: { authorization: 'Bearer ok' } })
     expect(res.statusCode).toBe(403)
     expect(res.json()).toEqual({ error: 'FORBIDDEN', message: "Requires 'edit' permission on 'module:test'" })
-    expect(permissionCalls).toEqual([{ fn: 'user_has_team_permission', p_resource: 'module:test', p_action: 'edit' }])
+    expect(permissionCalls).toEqual([{ fn: 'has_team_permission', p_resource: 'module:test', p_action: 'edit' }])
 
     permissionAnswer = true
     const allowed = await app.inject({ method: 'POST', url: `/ext/${EXT_ID}/guarded`, headers: { authorization: 'Bearer ok' } })

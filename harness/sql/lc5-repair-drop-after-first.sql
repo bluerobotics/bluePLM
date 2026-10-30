@@ -1,6 +1,6 @@
 -- LC5 - the mutant the repair proof suite could not tell from the real thing.
 --
--- repair_config_maps() takes an array of per-file repairs. Until case 24 the
+-- file_repair_config_maps() takes an array of per-file repairs. Until case 24 the
 -- suite sent exactly one file in every case except the malformed-request case,
 -- which requires the whole request to be refused - so a function that applied
 -- the first element and returned passed all 23 cases. The renderer batches:
@@ -16,9 +16,9 @@
 -- Reversed by lc5-restore.sql. ALTER FUNCTION ... RENAME leaves the ACL and the
 -- SECURITY DEFINER attribute on the function, so the rename and its undo are
 -- privilege-neutral.
-ALTER FUNCTION repair_config_maps(UUID, JSONB) RENAME TO repair_config_maps_genuine;
+ALTER FUNCTION file_repair_config_maps(UUID, JSONB) RENAME TO repair_config_maps_genuine;
 
-CREATE OR REPLACE FUNCTION repair_config_maps(p_org_id UUID, p_repairs JSONB)
+CREATE OR REPLACE FUNCTION file_repair_config_maps(p_org_id UUID, p_repairs JSONB)
 RETURNS JSONB
 LANGUAGE sql
 AS $$
@@ -28,5 +28,5 @@ $$;
 -- The genuine function is not anon-reachable and neither may its stand-in be,
 -- however briefly it exists: a control that opens a hole while testing a
 -- verifier would be found by the next verifier to run.
-REVOKE ALL ON FUNCTION repair_config_maps(UUID, JSONB) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION repair_config_maps(UUID, JSONB) TO authenticated;
+REVOKE ALL ON FUNCTION file_repair_config_maps(UUID, JSONB) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION file_repair_config_maps(UUID, JSONB) TO authenticated;

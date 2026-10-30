@@ -78,7 +78,7 @@ export interface IdentityProfile {
   avatar_url: string | null
   custom_avatar_url: string | null
   job_title?: string | null
-  last_sign_in?: string | null
+  last_sign_in_at?: string | null
 }
 
 export interface AuthProviders {

@@ -1,140 +1,20 @@
 /**
  * Authentication Routes
  *
- * Login, token refresh, and user invite endpoints.
+ * User invite endpoint. 5.0 (API 4.0.0) removed /auth/login, /auth/refresh and /auth/me:
+ * the app signs in with Supabase directly and never called them.
  */
 
 import { FastifyPluginAsync } from 'fastify'
 import { createClient } from '@supabase/supabase-js'
 
-import { createSupabaseClient } from '../src/infrastructure/supabase.js'
 import { env } from '../src/config/env.js'
-import { schemas } from '../schemas/index.js'
 import { sendError, ErrorCode } from '../utils/index.js'
 
 // Destructure for backwards compatibility
 const { SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_KEY } = env
 
 const authRoutes: FastifyPluginAsync = async (fastify) => {
-  // Get current user info
-  fastify.get(
-    '/auth/me',
-    {
-      schema: {
-        description: 'Get current user info',
-        tags: ['Auth'],
-        security: [{ bearerAuth: [] }],
-        response: {
-          200: {
-            type: 'object',
-            properties: {
-              user: schemas.user,
-              org_id: { type: 'string' },
-            },
-          },
-        },
-      },
-      preHandler: fastify.authenticate,
-    },
-    async (request) => ({
-      user: request.user,
-      org_id: request.user!.org_id,
-    }),
-  )
-
-  // Login with email and password
-  fastify.post(
-    '/auth/login',
-    {
-      config: {
-        rateLimit: { max: 10, timeWindow: 60000 },
-      },
-      schema: {
-        description: 'Login with email and password',
-        tags: ['Auth'],
-        body: {
-          type: 'object',
-          required: ['email', 'password'],
-          properties: {
-            email: { type: 'string', format: 'email' },
-            password: { type: 'string', minLength: 1 },
-          },
-        },
-        response: {
-          200: {
-            type: 'object',
-            properties: {
-              access_token: { type: 'string' },
-              refresh_token: { type: 'string' },
-              expires_at: { type: 'integer' },
-              user: schemas.user,
-            },
-          },
-        },
-      },
-    },
-    async (request, reply) => {
-      const { email, password } = request.body as { email: string; password: string }
-      const supabase = createSupabaseClient()
-
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-
-      if (error) {
-        return sendError(reply, 401, ErrorCode.UNAUTHORIZED, error.message)
-      }
-
-      const { data: profile } = await supabase
-        .from('users')
-        .select('id, email, role, org_id, full_name')
-        .eq('id', data.user.id)
-        .single()
-
-      return {
-        access_token: data.session.access_token,
-        refresh_token: data.session.refresh_token,
-        expires_at: data.session.expires_at,
-        user: profile,
-      }
-    },
-  )
-
-  // Refresh access token
-  fastify.post(
-    '/auth/refresh',
-    {
-      config: {
-        rateLimit: { max: 20, timeWindow: 60000 },
-      },
-      schema: {
-        description: 'Refresh access token',
-        tags: ['Auth'],
-        body: {
-          type: 'object',
-          required: ['refresh_token'],
-          properties: {
-            refresh_token: { type: 'string' },
-          },
-        },
-      },
-    },
-    async (request, reply) => {
-      const { refresh_token } = request.body as { refresh_token: string }
-      const supabase = createSupabaseClient()
-
-      const { data, error } = await supabase.auth.refreshSession({ refresh_token })
-
-      if (error) {
-        return sendError(reply, 401, ErrorCode.UNAUTHORIZED, error.message)
-      }
-
-      return {
-        access_token: data.session!.access_token,
-        refresh_token: data.session!.refresh_token,
-        expires_at: data.session!.expires_at,
-      }
-    },
-  )
-
   // Invite user by email (admin only)
   fastify.post(
     '/auth/invite',
@@ -211,7 +91,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
 
       // Check if user exists in our users table (fully registered)
       const { data: existingUsers } = await adminClient
-        .from('users')
+        .from('app_user')
         .select('id, org_id')
         .ilike('email', normalizedEmail)
 
@@ -241,7 +121,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       // If resending, verify pending member exists for this org
       if (resend) {
         const { data: existingPending, error: checkError } = await adminClient
-          .from('pending_org_members')
+          .from('pending_org_member')
           .select('id')
           .eq('org_id', user.org_id)
           .eq('email', normalizedEmail)
@@ -254,14 +134,14 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       } else {
         // Delete any existing pending record for this email/org
         await adminClient
-          .from('pending_org_members')
+          .from('pending_org_member')
           .delete()
           .eq('org_id', user.org_id)
           .ilike('email', normalizedEmail)
 
         // Create pending org member record
         const { data: pendingMember, error: pendingError } = await adminClient
-          .from('pending_org_members')
+          .from('pending_org_member')
           .insert({
             org_id: user.org_id,
             email: normalizedEmail,
@@ -292,7 +172,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
 
       // Get organization name and slug for invite email
       const { data: org } = await adminClient
-        .from('organizations')
+        .from('organization')
         .select('name, slug')
         .eq('id', user.org_id)
         .single()

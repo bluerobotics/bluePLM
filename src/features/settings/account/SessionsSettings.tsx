@@ -17,8 +17,8 @@ interface UserSession {
   os_version: string | null
   app_version: string | null
   platform: string | null
-  last_active: string | null
-  last_seen: string | null
+  last_active_at: string | null
+  last_seen_at: string | null
   is_active: boolean | null
   created_at: string | null
 }
@@ -59,12 +59,12 @@ export function SessionsSettings() {
         // Sessions active within the last 5 minutes
         const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
         const { data, error } = await getSupabaseClient()
-          .from('user_sessions')
+          .from('user_session')
           .select('*')
           .eq('user_id', user.id)
           .eq('is_active', true)
-          .gte('last_seen', fiveMinutesAgo)
-          .order('last_seen', { ascending: false })
+          .gte('last_seen_at', fiveMinutesAgo)
+          .order('last_seen_at', { ascending: false })
 
         if (!error && data) {
           // Cast to UserSession[] - Supabase types may be out of sync with actual schema
@@ -146,7 +146,7 @@ export function SessionsSettings() {
                       <span className="capitalize">{session.platform || 'Unknown'}</span>
                       {session.app_version && <> · v{session.app_version}</>}
                       {' · '}
-                      {formatLastSeen(session.last_seen)}
+                      {formatLastSeen(session.last_seen_at)}
                     </div>
                   </div>
                   <Button

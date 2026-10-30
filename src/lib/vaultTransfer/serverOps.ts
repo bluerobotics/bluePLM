@@ -61,7 +61,7 @@ export type DestinationIndexResult =
   | { ok: true; serverPaths: Set<string> }
   | { ok: false; error: string }
 
-/** Every active path in the destination vault, lower-cased: what `idx_files_vault_path_unique_active` compares. */
+/** Every active path in the destination vault, lower-cased: what `file_vault_id_file_path_idx` compares. */
 export async function loadDestinationIndex(
   orgId: string,
   vaultId: string,
@@ -87,7 +87,7 @@ export async function fetchSourceRowStates(ids: readonly string[]): Promise<Sour
 
   const outcomes = await mapChunks(chunk(ids, ID_CHUNK_SIZE), async (idChunk) => {
     const { data, error } = await client
-      .from('files')
+      .from('file')
       .select('id, version, content_hash, checked_out_by, deleted_at')
       .in('id', idChunk)
     return { data, error }
@@ -105,7 +105,7 @@ export async function fetchSourceRowStates(ids: readonly string[]): Promise<Sour
 // ============================================
 
 type ReferenceRow = Pick<
-  Database['public']['Tables']['file_references']['Row'],
+  Database['public']['Tables']['file_reference']['Row'],
   'id' | 'parent_file_id' | 'child_file_id' | 'reference_type' | 'quantity' | 'configuration'
 >
 
@@ -122,7 +122,7 @@ async function fetchReferences(
     const collected: ReferenceRow[] = []
     for (let from = 0; ; from += PAGE_SIZE) {
       const { data, error } = await client
-        .from('file_references')
+        .from('file_reference')
         .select('id, parent_file_id, child_file_id, reference_type, quantity, configuration')
         .in(column, idChunk)
         .order('id', { ascending: true })
@@ -178,7 +178,7 @@ export async function copyReferencesBetween(
   const client = getSupabaseClient()
   let copied = 0
   for (const batch of chunk(inserts, INSERT_BATCH_SIZE)) {
-    const { error } = await client.from('file_references').insert(batch)
+    const { error } = await client.from('file_reference').insert(batch)
     // A conflict means the row is already there, which is what was asked for.
     if (error && error.code !== '23505') return { copied, error: error.message }
     copied += batch.length
@@ -202,7 +202,7 @@ async function activePaths(
 
   const outcomes = await mapChunks(chunk(ids, ID_CHUNK_SIZE), async (idChunk) => {
     const { data, error } = await client
-      .from('files')
+      .from('file')
       .select('file_path')
       .in('id', idChunk)
       .is('deleted_at', null)

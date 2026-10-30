@@ -5,7 +5,7 @@
 -- 95 turns on a distinction the seed cannot express: a member who holds edit
 -- and not delete, a member who may decide a review and one who may not, a
 -- viewer who owns a share link. is_org_admin() short-circuits
--- user_has_permission() to true, so Alice and Bob can prove nothing about a
+-- has_user_permission() to true, so Alice and Bob can prove nothing about a
 -- permission term - which is why none of these fixtures has role = 'admin'.
 --
 -- IDEMPOTENT, AND AUTHORITATIVE
@@ -61,7 +61,7 @@ ON CONFLICT (id) DO NOTHING;
 
 -- org_id and role are restated on every run because they are what an A1a
 -- escalation rewrites. This is the line that undoes a successful attack.
-INSERT INTO users (id, email, full_name, org_id, role)
+INSERT INTO app_user (id, email, full_name, org_id, role)
 VALUES (:viewer,   'viewer@acme.test',   'Val Viewer',    :acme_org, 'viewer'),
        (:engineer, 'engineer@acme.test', 'Eng Engineer',  :acme_org, 'engineer'),
        (:member,   'member@acme.test',   'Mem Member',    :acme_org, 'engineer'),
@@ -72,23 +72,23 @@ ON CONFLICT (id) DO UPDATE
   SET org_id = EXCLUDED.org_id, role = EXCLUDED.role, full_name = EXCLUDED.full_name;
 
 -- ------------------------------------------------------------------- teams --
--- user_has_permission() matches a team_permissions row whose vault_id IS NULL
+-- has_user_permission() matches a team_permission row whose vault_id IS NULL
 -- when the caller passes no vault, which is how every policy under test calls
 -- it. A vault-scoped grant would silently never match.
-INSERT INTO teams (id, org_id, name, created_by)
+INSERT INTO team (id, org_id, name, created_by)
 VALUES ('eeeeeeee-7777-4000-8000-000000000001', :acme_org, 'PC Creators', :alice),
        ('eeeeeeee-7777-4000-8000-000000000002', :acme_org, 'PC Reviewers', :alice),
        ('eeeeeeee-7777-4000-8000-000000000003', :acme_org, 'PC Editors',   :alice),
        ('eeeeeeee-7777-4000-8000-000000000004', :acme_org, 'PC Deleters',  :alice)
 ON CONFLICT (id) DO NOTHING;
 
-DELETE FROM team_permissions
+DELETE FROM team_permission
  WHERE team_id IN ('eeeeeeee-7777-4000-8000-000000000001',
                    'eeeeeeee-7777-4000-8000-000000000002',
                    'eeeeeeee-7777-4000-8000-000000000003',
                    'eeeeeeee-7777-4000-8000-000000000004');
 
-INSERT INTO team_permissions (team_id, resource, vault_id, actions, granted_by)
+INSERT INTO team_permission (team_id, resource, vault_id, actions, granted_by)
 VALUES ('eeeeeeee-7777-4000-8000-000000000001', 'module:explorer', NULL,
         '{view,create,edit}'::permission_action[], :alice),
        ('eeeeeeee-7777-4000-8000-000000000002', 'module:reviews',  NULL,
@@ -99,7 +99,7 @@ VALUES ('eeeeeeee-7777-4000-8000-000000000001', 'module:explorer', NULL,
        ('eeeeeeee-7777-4000-8000-000000000004', 'module:explorer', NULL,
         '{view,edit,delete}'::permission_action[], :alice);
 
-INSERT INTO team_members (team_id, user_id, added_by)
+INSERT INTO team_member (team_id, user_id, added_by)
 VALUES ('eeeeeeee-7777-4000-8000-000000000001', :engineer, :alice),
        ('eeeeeeee-7777-4000-8000-000000000002', :reviewer, :alice),
        ('eeeeeeee-7777-4000-8000-000000000003', :editor,   :alice),
@@ -110,7 +110,7 @@ ON CONFLICT (team_id, user_id) DO NOTHING;
 -- negative side of every permission assertion.
 
 -- ------------------------------------------------------------------- files --
-INSERT INTO files (id, org_id, vault_id, file_path, file_name, extension,
+INSERT INTO file (id, org_id, vault_id, file_path, file_name, extension,
                    part_number, description, revision, version, state, created_by)
 VALUES (:f_trash, :acme_org, :acme_vault, 'Acme/PC/trash-me.sldprt', 'trash-me.sldprt',
         'sldprt', 'ACME-PC-0001', 'A7: the file 28 and 29 try to trash', 'A', 1, 'WIP', :alice),
@@ -124,21 +124,21 @@ ON CONFLICT (id) DO NOTHING;
 
 -- Restated every run: 29 trashes f_trash and 31 restores f_trashed, so both
 -- would be in the wrong state on a second pass.
-UPDATE files SET deleted_at = NULL, deleted_by = NULL, file_name = 'trash-me.sldprt'
+UPDATE file SET deleted_at = NULL, deleted_by = NULL, file_name = 'trash-me.sldprt'
  WHERE id = :f_trash;
-UPDATE files SET deleted_at = NULL, deleted_by = NULL, file_name = 'rename-me.sldprt'
+UPDATE file SET deleted_at = NULL, deleted_by = NULL, file_name = 'rename-me.sldprt'
  WHERE id = :f_live;
-UPDATE files SET deleted_at = NOW() - INTERVAL '1 hour', deleted_by = :alice
+UPDATE file SET deleted_at = NOW() - INTERVAL '1 hour', deleted_by = :alice
  WHERE id = :f_trashed;
 
 -- ------------------------------------------------------------- share links --
 -- Every link the controls touch is dropped and rebuilt, because assertion 12
 -- inserts one, 16 deactivates one, and a reverted-policy phase may have
 -- repointed one at Umbrella's file.
-DELETE FROM file_share_links WHERE token LIKE 'pc0%';
+DELETE FROM file_share_link WHERE token LIKE 'pc0%';
 
-INSERT INTO file_share_links (org_id, file_id, token, created_by, expires_at,
-                              max_downloads, download_count, require_auth, is_active)
+INSERT INTO file_share_link (org_id, file_id, token, created_by, expires_at,
+                              max_downloads, download_count, is_auth_required, is_active)
 VALUES
   -- 13, 15, 17: viewer's own live link, repointed / re-orged / revoked by another user.
   (:acme_org, :f_link, 'pc0000000000000000000000000a4own', :viewer,
@@ -153,19 +153,19 @@ VALUES
 -- ------------------------------------------------------- gates and reviews --
 -- Three gates on one Acme transition: one that names a reviewer, one that names
 -- nobody, and one whose only reviewer row is a 'group' - the label
--- may_review_gate() has never matched and which A's report calls out as having
+-- can_review_gate() has never matched and which A's report calls out as having
 -- changed direction rather than been fixed.
-INSERT INTO workflow_gates (id, transition_id, name, gate_type, required_approvals, is_blocking)
+INSERT INTO workflow_gate (id, transition_id, name, gate_type, required_approvals, is_blocking)
 VALUES (:gate_named, :acme_transition, 'PC Gate - names a reviewer', 'approval', 1, true),
        (:gate_open,  :acme_transition, 'PC Gate - names nobody',     'approval', 1, true),
        (:gate_group, :acme_transition, 'PC Gate - group only',       'approval', 1, true)
 ON CONFLICT (id) DO NOTHING;
 
-DELETE FROM workflow_gate_reviewers WHERE gate_id IN (:gate_named, :gate_open, :gate_group);
+DELETE FROM workflow_gate_reviewer WHERE gate_id IN (:gate_named, :gate_open, :gate_group);
 
-INSERT INTO workflow_gate_reviewers (gate_id, reviewer_type, user_id)
+INSERT INTO workflow_gate_reviewer (gate_id, reviewer_type, user_id)
 VALUES (:gate_named, 'user', :reviewer);
-INSERT INTO workflow_gate_reviewers (gate_id, reviewer_type, group_name)
+INSERT INTO workflow_gate_reviewer (gate_id, reviewer_type, group_name)
 VALUES (:gate_group, 'group', 'a group that joins to nothing');
 -- gate_open deliberately has no reviewer row.
 
@@ -173,17 +173,17 @@ VALUES (:gate_group, 'group', 'a group that joins to nothing');
 -- updating, because a decided review is refused by ALREADY_DECIDED before any
 -- authorization term is reached, and a control that reports ALREADY_DECIDED
 -- would be measuring the fixture rather than the fix.
-DELETE FROM pending_reviews WHERE id::text LIKE 'eeeeeeee-aaaa-%';
+DELETE FROM workflow_gate_review WHERE id::text LIKE 'eeeeeeee-aaaa-%';
 
-INSERT INTO pending_reviews (id, org_id, file_id, transition_id, gate_id,
-                             requested_by, status, assigned_to)
+INSERT INTO workflow_gate_review (id, org_id, file_id, transition_id, gate_id,
+                             requested_by, status, assignee_id)
 VALUES
   -- A5, over the table API.
   ('eeeeeeee-aaaa-4000-8000-000000000018', :acme_org, :f_live, :acme_transition, :gate_named, :alice, 'pending', NULL),
   ('eeeeeeee-aaaa-4000-8000-000000000019', :acme_org, :f_live, :acme_transition, :gate_named, :alice, 'pending', NULL),
   ('eeeeeeee-aaaa-4000-8000-000000000020', :acme_org, :f_live, :acme_transition, :gate_named, :alice, 'pending', NULL),
   ('eeeeeeee-aaaa-4000-8000-000000000021', :acme_org, :f_live, :acme_transition, :gate_named, :alice, 'pending', NULL),
-  -- A6, through complete_gate_review().
+  -- A6, through gate_review_complete().
   ('eeeeeeee-aaaa-4000-8000-000000000022', :acme_org, :f_live, :acme_transition, :gate_named, :alice, 'pending', NULL),
   ('eeeeeeee-aaaa-4000-8000-000000000023', :acme_org, :f_live, :acme_transition, :gate_named, :alice, 'pending', NULL),
   ('eeeeeeee-aaaa-4000-8000-000000000024', :acme_org, :f_live, :acme_transition, :gate_named, :alice, 'pending', NULL),
@@ -195,6 +195,6 @@ VALUES
 COMMIT;
 
 SELECT u.email, u.role, o.slug AS org
-  FROM users u LEFT JOIN organizations o ON o.id = u.org_id
+  FROM app_user u LEFT JOIN organization o ON o.id = u.org_id
  WHERE u.email LIKE '%@acme.test' OR u.email LIKE '%@umbrella.test'
  ORDER BY u.email;

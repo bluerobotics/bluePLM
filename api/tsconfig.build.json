@@ -18,5 +18,5 @@
     "inlineSources": true
   },
   "include": ["./**/*.ts"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "test", "test-api.ts"]
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "test", "test-api.ts", "scripts"]
 }

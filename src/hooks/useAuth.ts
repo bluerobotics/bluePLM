@@ -302,7 +302,7 @@ export function useAuth() {
             org_id: userProfile?.org_id || null,
             role: (userProfile?.role || 'engineer') as 'admin' | 'engineer' | 'viewer',
             created_at: session.user.created_at,
-            last_sign_in: userProfile?.last_sign_in || null,
+            last_sign_in_at: userProfile?.last_sign_in_at || null,
           })
           log.info('[Auth]', 'User signed in', {
             email: truncateEmail(session.user.email),

@@ -1,5 +1,6 @@
 // System handlers for Electron main process
 import { app, ipcMain, BrowserWindow, clipboard } from 'electron'
+import { installNavigationGuard, openExternalSafely } from '../navigationGuard'
 import fs from 'fs'
 import path from 'path'
 import crypto from 'crypto'
@@ -11,19 +12,6 @@ let log: (message: string, data?: unknown) => void = console.log
 // Analytics settings
 function getAnalyticsSettingsPath(): string {
   return path.join(app.getPath('userData'), 'analytics-settings.json')
-}
-
-function readAnalyticsEnabled(): boolean {
-  try {
-    const settingsPath = getAnalyticsSettingsPath()
-    if (fs.existsSync(settingsPath)) {
-      const data = JSON.parse(fs.readFileSync(settingsPath, 'utf8'))
-      return data?.enabled === true
-    }
-  } catch {
-    // Ignore errors
-  }
-  return false
 }
 
 function writeAnalyticsEnabled(enabled: boolean): void {
@@ -57,9 +45,6 @@ export function registerSystemHandlers(
     return { success: true }
   })
 
-  ipcMain.handle('analytics:get-enabled', () => {
-    return { enabled: readAnalyticsEnabled() }
-  })
 
   // Machine identification
   ipcMain.handle('app:get-machine-id', () => {
@@ -266,6 +251,11 @@ export function registerSystemHandlers(
     })
 
     const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
+    installNavigationGuard(perfWindow.webContents, { allowDevServer: isDev })
+    perfWindow.webContents.setWindowOpenHandler(({ url }) => {
+      openExternalSafely(url)
+      return { action: 'deny' }
+    })
     if (isDev) {
       perfWindow.loadURL('http://localhost:5173/#/performance')
     } else {
@@ -296,38 +286,6 @@ export function registerSystemHandlers(
     }
   })
 
-  // Tab window creation
-  ipcMain.handle(
-    'app:create-tab-window',
-    (_event, view: string, title: string, customData?: Record<string, unknown>) => {
-      const tabWindow = new BrowserWindow({
-        width: 1000,
-        height: 700,
-        title: title || 'BluePLM',
-        webPreferences: {
-          preload: path.join(__dirname, '..', 'preload.js'),
-          contextIsolation: true,
-          nodeIntegration: false,
-          sandbox: false,
-        },
-      })
-
-      const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
-      const queryParams = customData
-        ? `?data=${encodeURIComponent(JSON.stringify(customData))}`
-        : ''
-
-      if (isDev) {
-        tabWindow.loadURL(`http://localhost:5173/#/${view}${queryParams}`)
-      } else {
-        tabWindow.loadFile(path.join(__dirname, '..', '..', 'dist', 'index.html'), {
-          hash: `/${view}${queryParams}`,
-        })
-      }
-
-      return { success: true, windowId: tabWindow.id }
-    },
-  )
 
   // Zoom handlers
   ipcMain.handle('app:get-zoom-factor', () => {
@@ -364,18 +322,8 @@ export function registerSystemHandlers(
     return { success: true }
   })
 
-  // Window state handlers
-  ipcMain.handle('window:is-maximized', () => mainWindow?.isMaximized())
 
-  ipcMain.on('window:minimize', () => mainWindow?.minimize())
 
-  ipcMain.on('window:maximize', () => {
-    if (mainWindow?.isMaximized()) {
-      mainWindow.unmaximize()
-    } else {
-      mainWindow?.maximize()
-    }
-  })
 
   ipcMain.on('window:close', () => mainWindow?.close())
 }
@@ -386,7 +334,6 @@ export function unregisterSystemHandlers(): void {
     'app:get-platform',
     'app:get-app-version',
     'analytics:set-enabled',
-    'analytics:get-enabled',
     'app:get-machine-id',
     'app:get-machine-name',
     'clipboard:write-text',
@@ -398,20 +345,16 @@ export function unregisterSystemHandlers(): void {
     'app:request-focus',
     'app:open-performance-window',
     'diagnostics:clear-indexeddb',
-    'app:create-tab-window',
     'app:get-zoom-factor',
     'app:set-zoom-factor',
     'app:get-window-size',
     'app:set-window-size',
     'app:reset-window-size',
-    'window:is-maximized',
   ]
 
   for (const handler of handlers) {
     ipcMain.removeHandler(handler)
   }
 
-  ipcMain.removeAllListeners('window:minimize')
-  ipcMain.removeAllListeners('window:maximize')
   ipcMain.removeAllListeners('window:close')
 }

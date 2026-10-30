@@ -103,8 +103,6 @@ Publisher identifier. Must match the prefix of your extension `id`.
 "publisher": "mycompany"
 ```
 
-**Note:** Register as a publisher at [extensions.blueplm.io](https://extensions.blueplm.io) before publishing.
-
 ---
 
 ## Metadata Fields
@@ -114,7 +112,7 @@ Publisher identifier. Must match the prefix of your extension `id`.
 **Type:** `string`  
 **Max Length:** 500
 
-Short description shown in the extension store.
+Short description shown when the extension is installed.
 
 ```json
 "description": "Sync your engineering files with Google Drive. Supports automatic sync, conflict resolution, and shared drive access."
@@ -191,7 +189,7 @@ Keywords for store search.
 
 **Type:** `string[]`
 
-Store categories for filtering.
+Categories for filtering.
 
 ```json
 "categories": ["sync", "integration", "productivity"]

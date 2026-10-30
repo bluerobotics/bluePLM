@@ -62,12 +62,12 @@ export function SupplierPortalView() {
       try {
         // Load recent RFQs
         const { data: rfqs, error: rfqError } = await db
-          .from('rfqs')
+          .from('rfq')
           .select(
             `
             *,
-            items:rfq_items(count),
-            suppliers:rfq_suppliers(count)
+            items:rfq_item(count),
+            suppliers:rfq_supplier(count)
           `,
           )
           .eq('org_id', organization.id)
@@ -79,7 +79,7 @@ export function SupplierPortalView() {
 
         // Calculate stats
         const { data: allRfqs } = await db
-          .from('rfqs')
+          .from('rfq')
           .select('status')
           .eq('org_id', organization.id)
 

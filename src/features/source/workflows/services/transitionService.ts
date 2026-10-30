@@ -12,8 +12,8 @@ import type { EdgePosition } from '../types'
 
 import { anchorPatch } from './layoutService'
 
-type WorkflowTransitionRow = Database['public']['Tables']['workflow_transitions']['Row']
-type WorkflowGateRow = Database['public']['Tables']['workflow_gates']['Row']
+type WorkflowTransitionRow = Database['public']['Tables']['workflow_transition']['Row']
+type WorkflowGateRow = Database['public']['Tables']['workflow_gate']['Row']
 
 export interface TransitionServiceResult<T> {
   data: T | null
@@ -21,8 +21,8 @@ export interface TransitionServiceResult<T> {
 }
 
 // Type-safe access to workflow tables
-const workflowTransitions = () => supabase.from('workflow_transitions')
-const workflowGates = () => supabase.from('workflow_gates')
+const workflowTransitions = () => supabase.from('workflow_transition')
+const workflowGates = () => supabase.from('workflow_gate')
 
 export const transitionService = {
   /**

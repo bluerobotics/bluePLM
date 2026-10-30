@@ -27,16 +27,12 @@ import {
 } from '../test/routeHarness.js'
 
 /** Answer without a token. */
-const PUBLIC_ROUTES = new Set(['GET /', 'GET /health', 'POST /auth/login', 'POST /auth/refresh'])
+const PUBLIC_ROUTES = new Set(['GET /', 'GET /health'])
 
 /** Gated inline on `request.user.isAdmin`. */
 const ADMIN_ROUTES = new Set([
   'POST /auth/invite',
-  'POST /admin/extensions/install',
-  'DELETE /admin/extensions/:id',
-  'PATCH /admin/extensions/:id',
   'POST /admin/extensions/reload',
-  'DELETE /suppliers/:id',
   'POST /webhooks',
   'DELETE /webhooks/:id',
   'PATCH /webhooks/:id',
@@ -52,11 +48,6 @@ const ADMIN_ROUTES = new Set([
 
 /** Refused to a non-admin with the viewer role, on top of the admin routes. */
 const VIEWER_REFUSED_ROUTES = new Set([
-  'POST /suppliers',
-  'PATCH /suppliers/:id',
-  'POST /files/:id/suppliers',
-  'PATCH /files/:id/suppliers/:supplierId',
-  'DELETE /files/:id/suppliers/:supplierId',
   'POST /integrations/odoo/sync/suppliers',
 ])
 
@@ -92,7 +83,7 @@ describe('route listing', () => {
   it('finds the routes', () => {
     // A floor, not a count: a broken onRoute hook would otherwise pass every
     // check below vacuously.
-    expect(ROUTES.length).toBeGreaterThan(60)
+    expect(ROUTES.length).toBeGreaterThan(15)
   })
 
   it('lists only routes that exist', () => {

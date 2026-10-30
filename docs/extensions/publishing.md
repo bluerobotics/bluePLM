@@ -1,173 +1,62 @@
-# Publishing Guide
+# Distributing an Extension
 
-> **Status:** this page describes the designed sandboxed extension API, which does not run today. Only native extensions run. See [what actually runs](./index.md#status-what-actually-runs-october-2026).
+BluePLM 5.0 has no Extension Store and no per-machine install. The store at
+`extensions.blueplm.io`, its publisher accounts, review, verification badges and analytics, and
+sideloading from Settings are gone. An extension is distributed as a `.bpx` file built from its
+own repository, and an organization admin installs that file for the whole organization. Only
+native extensions run; see [what actually runs](./index.md#status-what-actually-runs-october-2026).
 
-This guide covers how to publish your extension to the BluePLM Extension Store at [extensions.blueplm.io](https://extensions.blueplm.io).
+## Before You Build
 
-## Prerequisites
+1. `extension.json` has `"category": "native"` and an `engines.blueplm` range that includes the
+   BluePLM version your organization runs (for example `"^5.0.0"`). Install refuses a package
+   whose range does not include the running app.
+2. `main` names the client entry (`client/index.js`); `serverMain`, if present, names the API
+   entry. Install refuses a package missing either file.
+3. Database changes, if any, go in `sql/*.sql` at the package root. They are applied in file-name
+   order.
+4. `README.md`, `LICENSE` and `CHANGELOG.md` are included (see [Package Format](./package-format.md)).
 
-Before publishing:
-
-1. ✅ Extension is fully tested
-2. ✅ Package builds successfully
-3. ✅ README.md with clear documentation
-4. ✅ Open source license included
-5. ✅ Repository URL in manifest
-6. ✅ Icon (128×128 PNG) included
-
----
-
-## Publishing Flow
-
-```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│ 1. Register as  │────▶│ 2. Submit       │────▶│ 3. Review       │
-│    Publisher    │     │    Extension    │     │    Process      │
-└─────────────────┘     └─────────────────┘     └────────┬────────┘
-                                                         │
-                        ┌─────────────────┐              │
-                        │ 4. Published!   │◀─────────────┘
-                        │    (Community)  │
-                        └─────────────────┘
-                                │
-                                │ Optional
-                                ▼
-                        ┌─────────────────┐
-                        │ 5. Verification │
-                        │    (Verified)   │
-                        └─────────────────┘
-```
-
----
-
-## Step 1: Register as Publisher
-
-### Create Publisher Account
-
-1. Go to [extensions.blueplm.io/submit](https://extensions.blueplm.io/submit)
-2. Click "Register as Publisher"
-3. Fill in publisher details:
-   - **Name**: Your company or individual name
-   - **Slug**: Unique identifier (lowercase, hyphens allowed)
-   - **Website**: Your website URL
-   - **Logo**: Publisher logo (optional)
-4. Verify your email
-5. Accept the Publisher Agreement
-
-### Publisher Slug
-
-Your publisher slug must:
-- Be unique across all publishers
-- Match the prefix of your extension IDs
-- Be lowercase with letters, numbers, and hyphens
-
-**Example:**
-- Publisher slug: `mycompany`
-- Extension ID: `mycompany.my-extension`
-
----
-
-## Step 2: Submit Extension
-
-### Via Web Interface
-
-1. Log in to [extensions.blueplm.io](https://extensions.blueplm.io)
-2. Go to Publisher Dashboard
-3. Click "Submit New Extension"
-4. Upload your `.bpx` file
-5. Fill in additional details:
-   - Description (shown in store)
-   - Categories
-   - Screenshots (optional)
-6. Review and submit
-
-### Via CLI (if available)
+## Build the Package
 
 ```bash
-# Login
-blueplm-ext login
-
-# Publish
-blueplm-ext publish my-extension-1.0.0.bpx
+npm ci
+npm run build
+npm run package   # writes <id>-<version>.bpx
 ```
 
-### Submission Requirements
+See [Package Format](./package-format.md) for the layout and the packaging script.
 
-| Requirement | Description |
-|-------------|-------------|
-| Valid manifest | Must pass schema validation |
-| License | OSI-approved open source license |
-| Repository | Public repository URL |
-| Unique ID | Not already taken |
-| Size | Under 10 MB |
-| Working code | Must not crash on load |
+## Install for the Organization
 
----
+1. An organization admin opens **Settings > Extensions > Install for organization** and picks
+   the `.bpx`.
+2. BluePLM checks the package, shows its name and version, and asks for confirmation. The package
+   goes to the organization's private `org-extensions` bucket, pinned by its SHA-256; every
+   desktop runs it only from those exact bytes.
+3. If the package ships SQL, BluePLM lists the files. Apply each one in the Supabase SQL Editor,
+   in order, after the core schema. BluePLM never runs an extension's SQL itself.
+4. For server code, the API operator adds the organization id to `NATIVE_EXTENSIONS_ORG_IDS`
+   (once) and the admin reloads the API's extensions (`POST /admin/extensions/reload`).
 
-## Step 3: Review Process
+::: warning Full trust
+A native extension runs with full access in BluePLM for every member, and in-process in the API.
+Install only packages you built or trust.
+:::
 
-### Community Extensions
+## Update an Extension
 
-Community extensions undergo basic automated checks:
+1. Bump `version` in `extension.json` (and `package.json`)
+2. Build the new `.bpx`
+3. Install it for the organization the same way; it replaces the installed version
+4. Apply any new SQL files the package lists
 
-1. **Schema validation** — Manifest is valid
-2. **Security scan** — No obvious malware patterns
-3. **Package integrity** — Files are complete
-4. **License check** — Valid OSI license
+When BluePLM itself moves to a new major version, check the extension against it and widen
+`engines.blueplm` only then. BluePLM 5.0 renamed every database table and function (for example
+`files` to `file`, `users` to `app_user`), so an extension written for 4.x needs a 5.0 release,
+SQL included.
 
-**Timeline:** Usually published within 24 hours.
-
-### What's Checked
-
-- Manifest validity
-- Required files present
-- License is open source
-- No obvious security issues
-- Package under size limit
-
-### Rejection Reasons
-
-Your extension may be rejected if:
-
-- ❌ Invalid or missing manifest
-- ❌ No LICENSE file
-- ❌ Non-open-source license
-- ❌ Malicious code detected
-- ❌ Publisher ID mismatch
-- ❌ Duplicate extension ID
-
-You'll receive an email with rejection details.
-
----
-
-## Step 4: After Publishing
-
-### Extension is Live
-
-Once published:
-
-1. Extension appears in the store
-2. Badge shows "Community" (yellow warning icon)
-3. Users can install with one click
-4. Analytics tracking begins
-
-### Update Your Extension
-
-To publish updates:
-
-1. Bump version in `extension.json`
-2. Build new `.bpx` file
-3. Submit via dashboard or CLI
-4. Previous version remains available for rollback
-
-```json
-// extension.json
-{
-  "version": "1.1.0"  // Bumped from 1.0.0
-}
-```
-
-### Version Semantics
+## Version Semantics
 
 | Change Type | Version Bump | Example |
 |-------------|--------------|---------|
@@ -175,7 +64,7 @@ To publish updates:
 | New feature | Minor | 1.0.0 → 1.1.0 |
 | Breaking change | Major | 1.0.0 → 2.0.0 |
 
-### Automated Releases with GitHub Actions
+## Automated Releases with GitHub Actions
 
 Automate your release process with GitHub Actions. When you push a tag, the workflow builds, packages, and creates a GitHub Release automatically.
 
@@ -278,192 +167,3 @@ jobs:
 5. GitHub Action creates the release automatically
 
 **Pre-releases:** Tags containing `-alpha`, `-beta`, or `-rc` are marked as pre-releases.
-
----
-
-## Step 5: Verification (Optional)
-
-Verified extensions have a blue checkmark and are trusted by Blue Robotics.
-
-### Benefits of Verification
-
-| Benefit | Description |
-|---------|-------------|
-| Trust badge | Blue checkmark in store |
-| Featured eligibility | Can be featured on homepage |
-| Native extensions | Required for native category |
-| Priority support | Direct support channel |
-
-### Verification Requirements
-
-1. **Code review** — Full code audit by Blue Robotics
-2. **Security audit** — No vulnerabilities
-3. **Quality standards** — Best practices followed
-4. **Documentation** — Complete user documentation
-5. **Maintenance** — Commitment to ongoing updates
-
-### Request Verification
-
-1. Email extensions@bluerobotics.com
-2. Include:
-   - Extension ID
-   - Repository URL
-   - Description of functionality
-   - Your contact information
-3. Wait for review (typically 1-2 weeks)
-
-### Verification Process
-
-1. **Initial review** — Blue Robotics reviews request
-2. **Code audit** — Security and quality review
-3. **Testing** — Full functionality testing
-4. **Signing** — Extension signed with Ed25519
-5. **Published** — Badge updated to Verified
-
----
-
-## Deprecating Extensions
-
-If you need to deprecate an extension:
-
-### Mark as Deprecated
-
-1. Go to Publisher Dashboard
-2. Select extension
-3. Click "Deprecate"
-4. Provide:
-   - Reason for deprecation
-   - Replacement extension (if any)
-   - Sunset date (when it will be removed)
-
-### What Happens
-
-- Warning badge shown in store
-- Existing users notified
-- New installs show warning
-- After sunset date: removed from store
-
-### Deprecation Notice
-
-```json
-{
-  "deprecated": true,
-  "deprecationReason": "Replaced by new-extension",
-  "replacementId": "mycompany.new-extension",
-  "sunsetDate": "2024-12-31"
-}
-```
-
----
-
-## Analytics
-
-### Available Metrics
-
-| Metric | Description |
-|--------|-------------|
-| Installs | Total installation count |
-| Active users | Users with extension enabled |
-| Uninstalls | Removal count |
-| Version distribution | Users per version |
-
-### Accessing Analytics
-
-1. Go to Publisher Dashboard
-2. Select extension
-3. View Analytics tab
-
-### Using Analytics
-
-- Track adoption over time
-- Identify popular versions
-- Monitor uninstall rate
-- Plan deprecation timing
-
----
-
-## Best Practices
-
-### Before Publishing
-
-1. **Test thoroughly** — Sideload and test all features
-2. **Write documentation** — Clear README with examples
-3. **Add screenshots** — Show your extension in action
-4. **Check permissions** — Only request what's needed
-5. **Review manifest** — Ensure all fields are complete
-
-### Maintaining Published Extensions
-
-1. **Monitor issues** — Watch GitHub issues
-2. **Respond to reports** — Handle abuse reports promptly
-3. **Update regularly** — Security and compatibility updates
-4. **Communicate changes** — Use CHANGELOG
-
-### Version Management
-
-1. **Semantic versioning** — Follow semver strictly
-2. **Keep changelog** — Document all changes
-3. **Breaking changes** — Major version + migration guide
-4. **Rollback support** — Previous versions available
-
----
-
-## Troubleshooting
-
-### Submission Rejected
-
-**"Invalid manifest"**
-- Run schema validation locally
-- Check all required fields
-- Ensure ID matches publisher
-
-**"License not valid"**
-- Use OSI-approved license
-- Include full LICENSE file
-- Match license field in manifest
-
-**"Repository required"**
-- Add public repository URL
-- Ensure repository is accessible
-
-### Upload Fails
-
-**"Package too large"**
-- Maximum 10 MB
-- Minify code
-- Exclude unnecessary files
-
-**"Invalid package format"**
-- Must be valid ZIP
-- extension.json at root
-- Check file structure
-
-### Extension Not Showing
-
-- Allow up to 24 hours for processing
-- Check email for rejection notice
-- Verify publisher account is active
-
----
-
-## Support
-
-### Getting Help
-
-- **Documentation**: You're reading it!
-- **GitHub Issues**: [bluerobotics/bluePLM](https://github.com/bluerobotics/bluePLM/issues)
-- **Email**: extensions@bluerobotics.com
-
-### Reporting Issues
-
-For store/publishing issues:
-1. Check this guide first
-2. Search existing GitHub issues
-3. Create new issue with:
-   - Extension ID
-   - Error message
-   - Steps to reproduce
-
----
-
-**[← Package Format](./package-format.md)** | **[Best Practices →](./best-practices.md)**

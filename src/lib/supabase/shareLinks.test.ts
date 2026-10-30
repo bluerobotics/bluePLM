@@ -20,7 +20,7 @@ const createSignedUrl = vi.fn()
 vi.mock('./client', () => ({
   getSupabaseClient: () => ({
     from: (table: string) => {
-      if (table === 'file_share_links') return { insert }
+      if (table === 'file_share_link') return { insert }
       return { select: () => ({ eq: () => ({ single }) }) }
     },
     storage: { from: () => ({ createSignedUrl }) },

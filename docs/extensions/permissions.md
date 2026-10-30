@@ -158,18 +158,6 @@ const response = await api.callOrgApi('/extensions/myext/sync', {
 
 ---
 
-#### network:storeApi
-
-Call the Extension Store API.
-
-```typescript
-const response = await api.callStoreApi('/store/extensions/myext')
-```
-
-**Use for:** Checking for updates, extension metadata.
-
----
-
 #### network:fetch
 
 Make HTTP requests to external URLs (client-side).

@@ -5,7 +5,7 @@
 -- negative-controls.ps1 proves each repair worked by running the whole
 -- verification again and requiring the stamp back. That is 18 of the 41
 -- verification runs in the suite, and each of them re-reads every function body
--- in the schema through strip_sql_noise().
+-- in the schema through sql_strip_noise().
 --
 -- negative-controls-fast.ps1 isolates each control in a transaction and rolls it
 -- back instead. A ROLLBACK restores the catalogue exactly, so the verification
@@ -34,7 +34,7 @@
 --                           grant on one column is invisible to relacl, which
 --                           is how a view with GRANT SELECT (part_number) was
 --                           read over HTTP while the sweep reported nothing
---   pg_policy               check_anon_reach via anon_admitting_policies
+--   pg_policy               check_anon_reach via anon_list_admitting_policies
 --   pg_default_acl          check_anon_reach's default_privilege rows
 --   check_release_residue() the data half. Its own output is used rather than
 --                           the tables it reads, because the tables are large

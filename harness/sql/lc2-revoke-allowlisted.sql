@@ -5,10 +5,10 @@
 --
 -- Three is the number the lockdown's PASS gate used to compare against, and the
 -- point of this control is that a database can arrive at three the wrong way
--- round without anybody doing anything strange. consume_share_link does not
+-- round without anybody doing anything strange. file_share_link_consume does not
 -- exist at all on the release before this one, so "two allowlisted routines
 -- plus one that should not be there" is the ordinary state of a database
 -- mid-upgrade - and it counted as a pass.
 --
 -- Restored by lc2-restore.sql.
-REVOKE EXECUTE ON FUNCTION consume_share_link(TEXT) FROM anon;
+REVOKE EXECUTE ON FUNCTION file_share_link_consume(TEXT) FROM anon;

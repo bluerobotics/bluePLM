@@ -60,7 +60,7 @@ describe('Supabase user-profile baseline', () => {
     })
     expect(fetchMock).toHaveBeenCalledOnce()
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://supabase.example.test/rest/v1/users?select=id,email,role,org_id,full_name,avatar_url,custom_avatar_url&id=eq.user-1',
+      'https://supabase.example.test/rest/v1/app_user?select=id,email,role,org_id,full_name,avatar_url,custom_avatar_url&id=eq.user-1',
       {
         headers: {
           apikey: 'anon-key',

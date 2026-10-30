@@ -39,7 +39,7 @@ const apiQuery = await globalThis.fetch(`https://api.supabase.com/v1/projects/${
   method: 'POST',
   headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
   body: JSON.stringify({
-    query: "select distinct settings->>'api_url' as url from organizations where coalesce(settings->>'api_url', '') <> ''",
+    query: "select distinct settings->>'api_url' as url from organization where coalesce(settings->>'api_url', '') <> ''",
   }),
 })
 if (!apiQuery.ok) throw new Error(`Supabase API URL query failed: ${apiQuery.status}`)

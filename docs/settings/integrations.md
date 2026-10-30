@@ -103,17 +103,6 @@ mirrored read-only from Odoo) are not part of core since 4.8.0. They come from t
 native extension `blueplm.customers`, which an org admin installs from Settings, Extensions,
 Install for organization. It reads the same Odoo connection configured here.
 
-## Slack
-
-Send notifications to Slack channels.
-
-**Features:**
-- Checkin/checkout notifications
-- File update alerts
-- Workflow notifications
-
-*Status: Coming soon*
-
 ## Webhooks
 
 Send events to custom endpoints.
@@ -133,10 +122,16 @@ Access BluePLM data via REST API.
 - API URL (default: localhost for development)
 - View API documentation at `/docs`
 
-**Features:**
-- File operations
-- User management
-- Integration endpoints
+**Features (API 4.0):**
+- Invite emails (`/auth/invite`)
+- Odoo integration endpoints (`/integrations/odoo/*`)
+- Webhooks (`/webhooks`)
+- Routes of organization-installed extensions (`/ext/<extensionId>/*`)
+- Health check (`/health`) and documentation (`/docs`)
+
+File, vault, trash, part, BOM, supplier, activity and checkout routes, and the `/auth/login`,
+`/auth/refresh` and `/auth/me` routes, were removed in API 4.0.0: the app never called them, and
+it reads and writes that data through the database directly.
 
 **Deployment:**
 The API server can be deployed to:

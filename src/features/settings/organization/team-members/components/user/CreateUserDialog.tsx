@@ -120,7 +120,7 @@ export function CreateUserDialog({
 
       // First check if user is already in the org
       const { data: existingUsers } = await supabase
-        .from('users')
+        .from('app_user')
         .select('id, org_id')
         .ilike('email', normalizedEmail)
 
@@ -133,14 +133,14 @@ export function CreateUserDialog({
 
       // Delete any existing pending record for this email (in case of re-invite)
       await supabase
-        .from('pending_org_members')
+        .from('pending_org_member')
         .delete()
         .eq('org_id', orgId)
         .ilike('email', normalizedEmail)
 
       // Supabase v2 type inference incomplete for pending_org_members table
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase as any).from('pending_org_members').insert({ // TODO: type this
+      const { error } = await (supabase as any).from('pending_org_member').insert({ // TODO: type this
         org_id: orgId,
         email: normalizedEmail,
         full_name: fullName.trim() || null,

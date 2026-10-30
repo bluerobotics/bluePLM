@@ -49,7 +49,7 @@ $$;
 GRANT EXECUTE ON FUNCTION auth.uid(), auth.role(), auth.email(), auth.jwt()
   TO anon, authenticated, service_role, postgres;
 
--- core.sql owns a trigger on auth.users (`on_auth_user_created`), and DROP
+-- core.sql owns a trigger on auth.users (`trg_auth_user_sync_app_user`), and DROP
 -- TRIGGER requires ownership of the table. Supabase granted postgres membership
 -- in supabase_auth_admin for exactly this reason in
 -- 20220609081115_grant-supabase-auth-admin-and-supabase-storage-admin-to-postgres.sql.
@@ -61,6 +61,11 @@ GRANT EXECUTE ON FUNCTION auth.uid(), auth.role(), auth.email(), auth.jwt()
 -- otherwise fail - all of those turn on `postgres` vs `supabase_admin` in schema
 -- public. 90-assert-harness.sql asserts that separation directly.
 GRANT supabase_auth_admin TO postgres;
+
+-- The same upstream migration grants supabase_storage_admin to postgres, which is
+-- what lets the SQL editor (and the BluePLM baseline) create policies on
+-- storage.objects, a table supabase_storage_admin owns.
+GRANT supabase_storage_admin TO postgres;
 
 -- On a real project the SQL editor connects as postgres and creates the whole
 -- BluePLM schema in public, so postgres must be able to. Supabase's bundled

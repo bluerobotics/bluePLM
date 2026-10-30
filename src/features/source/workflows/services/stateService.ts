@@ -12,7 +12,7 @@ import { supabase } from '@/lib/supabase'
 import type { Database } from '@/types/database'
 import type { WorkflowState } from '@/types/workflow'
 
-type WorkflowStateRow = Database['public']['Tables']['workflow_states']['Row']
+type WorkflowStateRow = Database['public']['Tables']['workflow_state']['Row']
 
 export interface StateServiceResult<T> {
   data: T | null
@@ -20,7 +20,7 @@ export interface StateServiceResult<T> {
 }
 
 // Type-safe access to workflow_states table
-const workflowStates = () => supabase.from('workflow_states')
+const workflowStates = () => supabase.from('workflow_state')
 
 export const stateService = {
   /**

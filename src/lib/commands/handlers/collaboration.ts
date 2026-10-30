@@ -235,7 +235,7 @@ export async function handleNotify(
 
   // Find the user by email
   const { data: targetUser, error: userError } = await supabase
-    .from('users')
+    .from('app_user')
     .select('id, email, full_name')
     .eq('email', email.toLowerCase())
     .single()
@@ -292,7 +292,7 @@ export async function handleRequestReview(
   const reviewerIds: string[] = []
   for (const email of reviewerEmails) {
     const { data: reviewer } = await supabase
-      .from('users')
+      .from('app_user')
       .select('id')
       .eq('email', email.toLowerCase())
       .single()

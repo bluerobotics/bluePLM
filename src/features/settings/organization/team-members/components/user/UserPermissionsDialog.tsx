@@ -61,7 +61,7 @@ export function UserPermissionsDialog({
       }
       try {
         const { data, error } = await supabase
-          .from('vaults')
+          .from('vault')
           .select('id, name, slug')
           .eq('org_id', organization.id)
           .order('name')
@@ -86,7 +86,7 @@ export function UserPermissionsDialog({
     setIsLoading(true)
     try {
       // Build query - filter by vault_id
-      let query = supabase.from('user_permissions').select('*').eq('user_id', user.id)
+      let query = supabase.from('user_permission').select('*').eq('user_id', user.id)
 
       if (selectedVaultId === null) {
         // "All Vaults" - only load global permissions
@@ -121,7 +121,7 @@ export function UserPermissionsDialog({
     setIsSaving(true)
     try {
       // Delete existing permissions for this vault scope
-      let deleteQuery = supabase.from('user_permissions').delete().eq('user_id', user.id)
+      let deleteQuery = supabase.from('user_permission').delete().eq('user_id', user.id)
 
       if (selectedVaultId === null) {
         deleteQuery = deleteQuery.is('vault_id', null)
@@ -145,7 +145,7 @@ export function UserPermissionsDialog({
       if (newPerms.length > 0) {
         // Supabase v2 type inference incomplete for user_permissions table
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error } = await (supabase as any).from('user_permissions').insert(newPerms) // TODO: type this
+        const { error } = await (supabase as any).from('user_permission').insert(newPerms) // TODO: type this
         if (error) throw error
       }
 

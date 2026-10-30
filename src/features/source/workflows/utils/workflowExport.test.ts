@@ -62,8 +62,35 @@ describe('parseWorkflowExport normalisation', () => {
     expect(state.shape).toBe('rectangle')
     expect(state.width).toBe(120)
     expect(state.height).toBe(60)
-    expect(state.requires_checkout).toBe(true)
+    expect(state.is_checkout_required).toBe(true)
     expect(result.payload.version).toBe('1.0')
+  })
+
+  it('reads the pre-5.0 key names of a file exported by 4.x', () => {
+    const result = parseWorkflowExport({
+      states: [
+        { name: 'Review', requires_checkout: false, auto_increment_revision: true, triggers_review: true },
+      ],
+    })
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    const [state] = result.payload.states
+    expect(state.is_checkout_required).toBe(false)
+    expect(state.is_revision_auto_incremented).toBe(true)
+    expect(state.is_review_stage).toBe(true)
+    expect(state).not.toHaveProperty('requires_checkout')
+  })
+
+  it('prefers the 5.0 key when a file carries both', () => {
+    const result = parseWorkflowExport({
+      states: [{ name: 'A', is_checkout_required: true, requires_checkout: false }],
+    })
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.payload.states[0].is_checkout_required).toBe(true)
   })
 
   it('keys version 1 transitions by state name', () => {

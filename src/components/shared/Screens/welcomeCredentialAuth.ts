@@ -1,3 +1,4 @@
+import { signupErrorText } from '@/lib/auth/signupRefusal'
 import { getBackend } from '@/lib/backend'
 import { log } from '@/lib/logger'
 import type { AuthProviders } from '@/types/backend'
@@ -79,7 +80,7 @@ export function createWelcomeCredentialAuthHandlers({
         )
 
         if (error) {
-          setAuthError(error.message)
+          setAuthError(signupErrorText(error.message))
           return
         }
 
@@ -97,7 +98,7 @@ export function createWelcomeCredentialAuthHandlers({
         const { error } = await getBackend().auth.signInWithEmail(authEmail, authPassword)
 
         if (error) {
-          setAuthError(error.message)
+          setAuthError(signupErrorText(error.message))
           return
         }
 

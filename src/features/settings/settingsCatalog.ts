@@ -22,6 +22,7 @@ import {
   Plug,
   Puzzle,
   ScrollText,
+  ShieldAlert,
   ShieldCheck,
   SlidersHorizontal,
   Tags,
@@ -160,6 +161,13 @@ export const settingsSections = (): SettingsSection[] => [
         keywords: ['login', 'sso', 'auth'],
       },
       {
+        id: 'security-monitoring',
+        label: 'Security Monitoring',
+        icon: ShieldAlert,
+        description: 'Alerts when deletions, sign-ins, joins or backups look unusual.',
+        keywords: ['security', 'alerts', 'audit', 'backup alerts'],
+      },
+      {
         id: 'recovery-codes',
         label: 'Recovery Codes',
         icon: LifeBuoy,
@@ -273,13 +281,13 @@ export const settingsSections = (): SettingsSection[] => [
         keywords: ['events', 'notifications'],
       },
       {
-        id: 'extension-store',
+        id: 'extensions',
         label: 'Extensions',
         icon: Puzzle,
-        description: 'Browse, install and manage extensions.',
+        description: 'Extensions installed for your organization.',
         layout: 'wide',
         desktopOnly: true,
-        keywords: ['plugins', 'install', 'extension store'],
+        keywords: ['plugins', 'install', 'bpx', 'organization'],
       },
     ],
   },
@@ -532,6 +540,15 @@ export const settingsCatalog: SettingsCatalog = {
     { label: 'Terms and Conditions', keywords: ['legal', 't&c'] },
     { label: 'Footer Text', keywords: ['footer'] },
   ],
+  'security-monitoring': [
+    { label: 'Monitor this organization', keywords: ['security', 'alerts'] },
+    { label: 'Files permanently deleted', keywords: ['purge', 'threshold'] },
+    { label: 'Stored file versions removed', keywords: ['storage', 'threshold'] },
+    { label: 'Password reset or repeated sign-up requests', keywords: ['sign-in', 'auth'] },
+    { label: 'Members who join through an email domain', keywords: ['domain', 'join'] },
+    { label: 'Backup alerts', keywords: ['backup', 'overdue'] },
+    { label: 'Daily summary', keywords: ['summary', 'digest'] },
+  ],
   'file-workflows': [
     { label: 'Use file workflows', keywords: ['enable workflows', 'states'] },
     { label: 'When a review approves files in a review stage', keywords: ['hold', 'advance', 'approve'] },
@@ -696,11 +713,6 @@ export const settingsCatalog: SettingsCatalog = {
     { label: 'Report Issues', keywords: ['bug', 'issue', 'feedback'] },
   ],
   'delete-account': [{ label: 'I want to delete my account', keywords: ['delete'] }],
-  'extension-store': [
-    { label: 'Browse Store', keywords: ['browse', 'discover', 'marketplace'] },
-    { label: 'Installed', keywords: ['installed extensions'] },
-    { label: 'Sideload', keywords: ['install from file', 'local extension'] },
-  ],
 }
 
 /** Whether a settings tab shows for this user on this host (admin-only and desktop-only gates). */

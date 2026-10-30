@@ -79,9 +79,8 @@ export function useAppStartup(): StartupState {
   // Track if startup has already run to prevent re-running on re-renders
   const startupRunRef = useRef(false)
 
-  const { loadInstalledExtensions, addToast } = usePDMStore(
+  const { addToast } = usePDMStore(
     useShallow((s) => ({
-      loadInstalledExtensions: s.loadInstalledExtensions,
       addToast: s.addToast,
     })),
   )
@@ -228,9 +227,7 @@ export function useAppStartup(): StartupState {
         recordMetric('Startup', 'Stage 4 started', {})
         setStage(4)
 
-        // List installed packages. They are not run: there is no desktop runtime.
-        setStatus('Discovering extensions...')
-        await loadInstalledExtensions()
+        // Org-installed native extensions activate on sign-in (useNativeExtensions); nothing to load here.
 
         const stage4Duration = performance.now() - stage4Start
         recordMetric('Startup', 'Stage 4 complete', { durationMs: Math.round(stage4Duration) })
@@ -244,7 +241,7 @@ export function useAppStartup(): StartupState {
     }
 
     runStartup()
-  }, [loadInstalledExtensions])
+  }, [])
 
   // The main process reloads the window when the renderer dies, so without a
   // word on screen the app appears to have reset itself for no reason. Held

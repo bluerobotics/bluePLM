@@ -40,22 +40,22 @@ export function createPerfBackend(vault: SyntheticVault, misses: Misses = new Ma
   db.actorEmail = PERF_USER_EMAIL
   db.now = Date.now()
 
-  db.seed('organizations', { id: PERF_ORG_ID, name: 'Perf Org', slug: 'perf-org' })
-  db.seed('users', {
+  db.seed('organization', { id: PERF_ORG_ID, name: 'Perf Org', slug: 'perf-org' })
+  db.seed('app_user', {
     id: PERF_USER_ID,
     email: PERF_USER_EMAIL,
     full_name: 'Perf User',
     role: 'admin',
     org_id: PERF_ORG_ID,
   })
-  db.seed('users', {
+  db.seed('app_user', {
     id: PERF_OTHER_USER_ID,
     email: 'olive@example.com',
     full_name: 'Olive Other',
     role: 'engineer',
     org_id: PERF_ORG_ID,
   })
-  db.seed('vaults', {
+  db.seed('vault', {
     id: PERF_VAULT_ID,
     org_id: PERF_ORG_ID,
     name: 'Perf Vault',
@@ -66,8 +66,8 @@ export function createPerfBackend(vault: SyntheticVault, misses: Misses = new Ma
 
   // The vault's rows are served by the RPC rather than seeded: 30k validated inserts would put the
   // fake's own cost into every boot. The RPC result is still deep-copied, like a response body.
-  db.defineRpc('get_vault_files_fast', () => vault.serverRows)
-  db.defineRpc('get_user_vault_access', () => [{ vault_id: PERF_VAULT_ID }])
+  db.defineRpc('vault_file_list', () => vault.serverRows)
+  db.defineRpc('user_vault_access_list', () => [{ vault_id: PERF_VAULT_ID }])
 
   const fileRow = (index: number): Row => {
     const row = vault.serverRows[index]

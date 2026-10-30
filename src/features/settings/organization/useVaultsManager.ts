@@ -205,7 +205,7 @@ export function useVaultsManager() {
 
     try {
       const { data: vault, error } = await supabase
-        .from('vaults')
+        .from('vault')
         .insert({
           org_id: organization.id,
           name,
@@ -262,7 +262,7 @@ export function useVaultsManager() {
     savingRef.current = true
     try {
       const { error } = await supabase
-        .from('vaults')
+        .from('vault')
         .update({ name: newName, slug: newSlug })
         .eq('id', vault.id)
 
@@ -296,9 +296,9 @@ export function useVaultsManager() {
 
     savingRef.current = true
     try {
-      await supabase.from('vaults').update({ is_default: false }).eq('org_id', organization.id)
+      await supabase.from('vault').update({ is_default: false }).eq('org_id', organization.id)
 
-      const { error } = await supabase.from('vaults').update({ is_default: true }).eq('id', vaultId)
+      const { error } = await supabase.from('vault').update({ is_default: true }).eq('id', vaultId)
 
       if (error) {
         addToast('error', t('vaultOperations.defaultError'))
@@ -347,7 +347,7 @@ export function useVaultsManager() {
         }
       }
 
-      const { error } = await supabase.from('vaults').delete().eq('id', deletingVault.id)
+      const { error } = await supabase.from('vault').delete().eq('id', deletingVault.id)
 
       if (error) {
         addToast('error', t('vaultOperations.deleteErrorDetails', { error: error.message }))
@@ -390,7 +390,7 @@ export function useVaultsManager() {
       // Delete all files from the vault in the database
       addToast('info', t('vaultOperations.clearingDb'))
       const { error: filesError } = await supabase
-        .from('files')
+        .from('file')
         .delete()
         .eq('vault_id', clearingVault.id)
 

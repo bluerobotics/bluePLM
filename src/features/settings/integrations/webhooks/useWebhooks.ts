@@ -66,7 +66,7 @@ export function useWebhooks() {
 
     try {
       const { data, error } = await supabase
-        .from('webhooks')
+        .from('webhook')
         .select('*')
         .eq('org_id', organization.id)
         .order('created_at', { ascending: false })
@@ -86,7 +86,7 @@ export function useWebhooks() {
 
     try {
       const { data, error } = await supabase
-        .from('users')
+        .from('app_user')
         .select('id, email, full_name, role')
         .eq('org_id', organization.id)
         .order('full_name')
@@ -105,7 +105,7 @@ export function useWebhooks() {
 
       try {
         const { data, error } = await supabase
-          .from('webhook_deliveries')
+          .from('webhook_delivery')
           .select('*')
           .eq('webhook_id', webhookId)
           .order('created_at', { ascending: false })
@@ -165,7 +165,7 @@ export function useWebhooks() {
       if (editingId) {
         // Update existing
         const { error } = await db
-          .from('webhooks')
+          .from('webhook')
           .update({
             name: formData.name.trim(),
             description: formData.description.trim() || null,
@@ -183,7 +183,7 @@ export function useWebhooks() {
         addToast('success', 'Webhook updated')
       } else {
         // Create new
-        const { error } = await db.from('webhooks').insert({
+        const { error } = await db.from('webhook').insert({
           org_id: organization.id,
           name: formData.name.trim(),
           description: formData.description.trim() || null,
@@ -236,7 +236,7 @@ export function useWebhooks() {
 
     setIsDeleting(true)
     try {
-      const { error } = await supabase.from('webhooks').delete().eq('id', deletingWebhook.id)
+      const { error } = await supabase.from('webhook').delete().eq('id', deletingWebhook.id)
 
       if (error) throw error
       addToast('success', 'Webhook deleted')
@@ -253,7 +253,7 @@ export function useWebhooks() {
   const handleToggleActive = async (webhook: Webhook) => {
     try {
       const { error } = await db
-        .from('webhooks')
+        .from('webhook')
         .update({ is_active: !webhook.is_active })
         .eq('id', webhook.id)
 

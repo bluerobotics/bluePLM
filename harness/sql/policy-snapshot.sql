@@ -116,7 +116,7 @@ $$;
 -- pg_get_functiondef carries the body, not the ACL. CREATE OR REPLACE preserves
 -- the privileges of a function that already exists, so as long as a mutant is
 -- installed with CREATE OR REPLACE rather than DROP + CREATE, the module's
--- `REVOKE ALL ON FUNCTION may_review_gate(...) FROM PUBLIC, anon, authenticated`
+-- `REVOKE ALL ON FUNCTION can_review_gate(...) FROM PUBLIC, anon, authenticated`
 -- survives both the mutation and the restore. policy-controls.ps1 asserts that
 -- rather than trusting it.
 CREATE OR REPLACE FUNCTION harness.restore_function(p_signature TEXT)

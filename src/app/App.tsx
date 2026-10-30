@@ -12,6 +12,7 @@ import { OnboardingScreen } from '@/components/shared/Screens'
 import { PerformanceWindow } from '@/features/dev-tools/performance'
 import { TabWindow, isTabWindowMode, parseTabWindowParams } from '@/components/layout'
 import { AppShell } from '@/components/layout'
+import { DbUpgradeGate } from '@/features/dbUpgrade'
 import { executeTerminalCommand } from '@/lib/commands/parser'
 import { logUserAction } from '@/lib/userActionLogger'
 import { checkSchemaCompatibility } from '@/lib/schemaVersion'
@@ -37,7 +38,6 @@ import {
   useVaultManagement,
   useIntegrationStatus,
   useAppStartup,
-  useDeepLinkInstall,
   useNativeExtensions,
 } from '@/hooks'
 
@@ -278,9 +278,6 @@ export function App() {
   useSolidWorksAutoStart(organization)
   useAutoUpdater()
   useKeyboardShortcuts({ onOpenVault: handleOpenVault, onRefresh: loadFiles })
-
-  // Deep link handling - listens for blueplm:// protocol links
-  useDeepLinkInstall()
 
   // Org-installed native extensions: activate on sign-in/org switch, deactivate on sign-out
   useNativeExtensions()
@@ -633,14 +630,17 @@ export function App() {
     )
   }
 
-  // A BluePLM Web join link (blueplm.io/join#<org code>) is confirmed before the app shows.
+  // A BluePLM Web join link (blueplm.io/join#<org code>) is confirmed before the app shows, and the
+  // backend it names is then checked for a schema this app can use.
   return (
     <JoinLinkGate onConfigured={handleSupabaseConfigured}>
-      <AppShell
-        showWelcome={showWelcome}
-        isSignInScreen={isSignInScreen}
-        handleChangeOrg={handleChangeOrg}
-      />
+      <DbUpgradeGate>
+        <AppShell
+          showWelcome={showWelcome}
+          isSignInScreen={isSignInScreen}
+          handleChangeOrg={handleChangeOrg}
+        />
+      </DbUpgradeGate>
     </JoinLinkGate>
   )
 }

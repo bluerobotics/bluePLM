@@ -60,7 +60,7 @@ const authPluginImpl: FastifyPluginAsync = async (fastify) => {
         }
 
         const { data: profile, error: profileError } = await supabase
-          .from('users')
+          .from('app_user')
           .select('id, email, role, org_id, full_name')
           .eq('id', user.id)
           .single()
@@ -147,7 +147,7 @@ export function requireTeamPermission(resource: string, action: PermissionAction
       throw new Error('Permission: unauthenticated')
     }
 
-    const { data, error } = await request.supabase.rpc('user_has_team_permission', {
+    const { data, error } = await request.supabase.rpc('has_team_permission', {
       p_resource: resource,
       p_action: action,
     })

@@ -55,7 +55,7 @@ export function TeamReviewersDialog({
 
   useEffect(() => {
     async function loadTeamMembers() {
-      const { data } = await supabase.from('team_members').select('user_id').eq('team_id', team.id)
+      const { data } = await supabase.from('team_member').select('user_id').eq('team_id', team.id)
       setTeamMemberIds((data || []).map((m: { user_id: string }) => m.user_id))
     }
     loadTeamMembers()

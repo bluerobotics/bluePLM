@@ -215,7 +215,6 @@ describe('read, write and hash', () => {
       hash: sha256(content),
       size: content.length,
     })
-    await expect(invoke('fs:get-hash', target)).resolves.toEqual({ success: true, hash: sha256(content) })
     await expect(invoke('fs:get-file-hash', target)).resolves.toMatchObject({
       success: true,
       hash: sha256(content),

@@ -1,338 +1,112 @@
-# BluePLM Database Schema
+# BluePLM Database Schema (5.0)
 
-This folder contains the modular database schema for BluePLM. The schema is organized into a core foundation, two modules that are always required (`10-source-files.sql` and `15-inspection.sql`), and optional feature modules.
+The database is defined in two parts:
 
-## Architecture
+- **The 5.0 baseline**: `core.sql`, then `modules/10-source-files.sql` through
+  `modules/50-extensions.sql`, applied in file-name order to an empty database. Every object
+  is defined once; nothing in the baseline upgrades an older database. The baseline is frozen
+  at schema 500 and is not edited again.
+- **Numbered migrations**: `migrations/NNNN_<name>.sql`. Every change after 5.0 is a new file
+  whose number is the schema version it stamps, and a released file is never edited.
+  `migrations/0500_from_4x.sql` upgrades a 4.x database (verified at 112) to 500.
 
-```
-supabase/
-├── core.sql                    # Foundation: orgs, users, teams, permissions
-├── modules/
-│   ├── 10-source-files.sql     # Files, vaults, workflows, backups
-│   ├── 15-inspection.sql       # Inspection characteristics + per-version snapshots
-│   ├── 20-change-control.sql   # ECOs, reviews, deviations, process templates
-│   ├── 30-supply-chain.sql     # Suppliers, RFQs, pricing
-│   ├── 40-integrations.sql     # Webhooks, Odoo, credential store
-│   ├── 50-extensions.sql       # Extension system, extension secret store
-│   └── README.md               # Module documentation
-├── tools/
-│   ├── reset.sql               # ⚠️ Nuclear reset (deletes all data)
-│   └── verify-schema.sql       # Required final step: verifies, then stamps the version
-└── email-templates/            # Auth email templates
-```
+`legacy-4.10/` is the SQL of tag v4.10.0. The migration runner applies it to a database below
+112 before `0500`, and the upgrade test uses it as its starting point.
 
-## Fresh Installation
+## Applying the SQL
 
-Run these SQL files in order in your Supabase SQL Editor:
+The desktop app applies it (Settings, database upgrade): an organization admin gives the
+database connection string once, and the runner, under an advisory lock, either applies the
+baseline to an empty database (and records the migrations up to 500 as applied) or applies
+the pending migrations, each in its own transaction, recording each with its checksum in
+`schema_migration`. A migration whose first line is `-- blueplm:no-transaction` runs outside
+a transaction; that is for statements Postgres refuses inside one (`ALTER TYPE ... ADD VALUE`
+before its use, `CREATE INDEX CONCURRENTLY`), and such a file holds nothing else.
 
-### 1. Core (Required)
+By hand, in the Supabase SQL editor, is for an operator recovering a database only; the app's
+runner is the normal path, and it is what records migrations in `schema_migration`. A new
+database gets `core.sql` and every module in order; a database below 112 gets `legacy-4.10/`
+first; a 112 database gets `migrations/0500_from_4x.sql`; then, in every case, any later
+migration in order, and finally `tools/verify-schema.sql`.
 
-```sql
--- Run core.sql first - this creates the foundation
-```
+Native extensions with their own SQL (the private extension `blueplm.customers`) apply theirs
+after the core migrations. `0500` drops every policy on a public table, extensions' included,
+because they call core functions by name; the extension's 5.0 SQL recreates them.
 
-### 2. Modules (Run in numeric order)
+## Schema version
 
-```sql
--- 10-source-files.sql   - Required: file management
--- 15-inspection.sql     - Required: inspection tables (see below - checkin_file needs them)
--- 20-change-control.sql - Optional: ECOs, reviews, deviations
--- 30-supply-chain.sql   - Optional: Suppliers, RFQs
--- 40-integrations.sql   - Optional: Webhooks, external integrations, credential store
--- 50-extensions.sql     - Optional: extension system and extension secret store
-```
+`schema_version.version` is what the app reads. It is written by one thing only,
+`verify_and_stamp_schema()` (run by `tools/verify-schema.sql`), and only when:
 
-Numeric order (`core → 10 → 15 → 20 → 30 → 40 → 50`) always works. Skipping a
-module is only safe if it is marked Optional above.
+- every object in the release manifest exists and its source still contains what the
+  manifest requires (`schema_manifest_entry`, read through `schema_get_release_manifest()`;
+  a migration registers what it adds with an `INSERT`, `since_version` = its number);
+- every org-scoped RPC refuses a foreign organization (`check_org_gates()`), membership tests
+  are NULL-safe, entity arguments are bound;
+- nothing in `public` is reachable by `anon` outside the allowlists (`check_anon_reach()`:
+  routines, views, row-level security, and since 5.0 any table privilege);
+- every `SECURITY DEFINER` function pins `search_path` (`check_definer_search_path()`);
+- nothing a closed hole produced is still live (`check_release_residue()`).
 
-Customers (the Odoo customer sync and sales analytics) is not part of core since 4.8.0. It
-is the private native extension `blueplm.customers`, and its schema ships in its package as
-`sql/customers.sql`; apply that file after the modules above when an organization installs
-the extension. Databases that ran the old `60-customers.sql` keep their tables and data.
+`schema_version` itself keeps its 4.x shape (`id`, `version`, `description`, `applied_at`,
+`applied_by`, one row, readable by anon) so a 4.x app reads 500, sees a newer database and
+asks to be updated. `client_min_version()` names the oldest 5.x app allowed to connect.
 
-### 3. Nothing — the last file records the version
-
-Every file above ends by asking to be verified, so the last one you apply prints
-`Schema verified and stamped at version 96` and the install is done. The earlier ones
-print `Schema version not stamped: N outstanding item(s)`, which is what a file applied
-before the rest of the release is supposed to say.
-
-Run `tools/verify-schema.sql` when that last line does *not* appear. It is the same
-check with the full object-by-object report, and it ends with an error rather than a
-notice, so it cannot scroll past unnoticed. The schema files themselves never raise —
-an exception in the Supabase SQL editor would roll back the file that had just been
-applied successfully. See [Schema Version](#schema-version).
-
-> **15-inspection.sql is not optional.** `checkin_file()` — the check-in RPC, defined in
-> `10-source-files.sql` — reads `inspection_characteristics` and writes
-> `inspection_characteristic_versions` on every call, unconditionally and for every file
-> type, not just drawings. Both tables live in `15-inspection.sql`. Leaving it out still
-> *installs* cleanly, because PostgreSQL does not resolve table names inside a `plpgsql`
-> body until the function runs; the database then accepts every check-in attempt and fails
-> with `relation "inspection_characteristics" does not exist`. Install `15` whenever you
-> install `10`.
-
-### What actually constrains the order
-
-Two different kinds of dependency are in play, and only one of them shows up as an
-install error:
-
-- **Install-time.** `15`, `20` and `30` declare foreign keys against `files`, so they
-  abort immediately with `relation "files" does not exist` if `10-source-files.sql` has
-  not been run. `40` and `50` have no such link and install on bare `core.sql`.
-- **Run-time.** Function bodies are only parsed for syntax at creation. A function that
-  queries a table from a module you skipped installs happily and fails on first call.
-  This is the `checkin_file` → `15-inspection.sql` case above, and it is the reason
-  "installed without errors" is not the same as "working".
-
-Beyond that, `20`, `30`, `40` and `50` do not depend on one another and may be
-installed in any relative order — verified by installing them in different orders and
-diffing the resulting schema. The only difference is the physical column order of
-`organizations`, which several modules extend with `ALTER TABLE ... ADD COLUMN`; that is
-cosmetic, but it does mean `INSERT` statements without an explicit column list are unsafe
-against this schema.
-
-## Schema Version
-
-The app reads `schema_version.version` on startup and warns if it does not match
-`EXPECTED_SCHEMA_VERSION` in `src/lib/schemaVersion.ts`.
-
-- Current schema version: **109** (keep in sync with `schema_release_version()` in `core.sql`)
-- The number is written by **verification only**: `verify_and_stamp_schema()` checks the
-  release manifest in `core.sql`, and every security check, and stamps the version only if
-  all of it holds.
-- Every schema file asks it to, via `try_stamp_schema()`, so the version is recorded by
-  whichever file you happen to apply last. No file can advance the version on its own
-  account.
-
-### Upgrading
-
-Apply `core.sql`, then the modules, in the usual order — the last one records the version.
-Order does not actually matter, because the answer is computed from the whole database
-rather than from the file that asked; what matters is that the file carrying your change
-is among the ones you apply. Applying a single module is enough to move the version, and
-only if the rest of the database is already at this release.
-
-### Why a file no longer stamps a version as a side effect
-
-Until 89, `core.sql` and each module stamped the head version as a side effect of being
-run. That could not be right, because the number is one global value while the files are
-per-module: nothing in `30-supply-chain.sql` can know what state `10-source-files.sql` is
-in. Three things followed from it, all reproduced in a container:
-
-- Applying **only** `30-supply-chain.sql` to a v86 database recorded 88 while module 10's
-  v87 work was absent. The app compared 88 against its own 88 and showed no warning at
-  all, so a known configuration-wipe bug kept running under a green light.
-- Re-running `core.sql` alone on a v86 database forced the record to 88 with neither v87
-  nor v88 present, because its `INSERT ... ON CONFLICT DO UPDATE` was neither monotonic
-  nor guarded.
-- Under the `psql \i` path in [modules/README.md](modules/README.md), a module that
-  errored partway through still reached its stamp at the end of the file. (The Supabase
-  SQL editor wraps each run in a transaction and rolls back, so this only ever affected
-  the CLI path.)
-
-The scheme now has one property, and it is the only one worth having: **the recorded
-version can only be reached by verification, so it never describes a database that does
-not exist.** A partial application leaves the old number in place, which shows up as
-"database out of date" — a warning you can act on rather than a false all-clear.
-
-Note what that property does *not* require. It says the number must be **earned**; it says
-nothing about which file may ask for it. A file asking to be verified at the end of its own
-run is safe for the same reason `tools/verify-schema.sql` is — the check reads the whole
-database, so the answer cannot depend on who asked, and a file applied before the rest of
-the release is simply told no. What was never safe was a file stamping *because it had been
-run*, which is a claim about seven files it cannot see.
-
-So the convenience is back and the defect is not. Applying the files advances the version
-with no separate step, exactly as before 89; the three failures listed above now all end in
-a refusal instead of a false all-clear, because in each case the database really was short
-of the release and the manifest says so.
-
-`check_schema_release()` is read-only and can be called on its own at any time to see
-what a database is missing without writing anything.
-
-When making schema changes:
-
-1. Update the appropriate file (`core.sql` or `modules/*.sql`)
-2. Bump `schema_release_version()` in `core.sql`
-3. Add anything new to `schema_release_manifest()` in `core.sql`, so verification can see
-   it. A body change with no new object can be pinned with the `requires` column, which
-   asserts a substring of the function source
-4. Update `src/lib/schemaVersion.ts` with the same number and a description
-
-## Regenerating TypeScript Types
-
-After making schema changes, regenerate the TypeScript types:
-
-```bash
-npm run gen:types
-```
-
-This requires `SUPABASE_ACCESS_TOKEN` in your `.env` file:
-
-```env
-SUPABASE_ACCESS_TOKEN=your-token-here
-```
-
-Get your token from: https://supabase.com/dashboard/account/tokens
+To change the schema: add `migrations/NNNN_<name>.sql`, raise `schema_release_version()` and
+`EXPECTED_SCHEMA_VERSION` (`src/lib/schemaVersion.ts`) to `NNNN`, register new objects in
+`schema_manifest_entry`, and regenerate `src/types/supabase.ts`. Names follow
+`.cursor/rules/database.mdc`.
 
 ## Tools
 
-### Reset Script
-
-⚠️ **WARNING: This will DELETE ALL DATA!**
-
-Use `tools/reset.sql` to completely wipe the database before a fresh install:
-
-```sql
--- Run tools/reset.sql to drop all tables, functions, types, etc.
--- Then run core.sql + modules in order
-```
-
-### Verification Script
-
-`tools/verify-schema.sql` is the last step of every install and upgrade, not an optional
-health check. It reports:
-
-- All expected tables exist
-- Key functions are present
-- RLS is enabled on all tables
-- Every `SECURITY DEFINER` RPC taking a `p_org_id` consults the caller's identity, and
-  none of them is executable by `PUBLIC` (see [Org-scoped RPCs](#org-scoped-rpcs))
-- The release manifest, object by object
-- …and then stamps the schema version if all of that holds
-
-On a complete, correct install every check passes and it prints `Schema verified and
-stamped at version 91`. If it refuses to stamp, it names the objects that are missing or
-stale and the module each belongs to; run those files and run it again.
-
-One kind of report is deliberately *not* a reason to withhold the stamp. On Supabase there
-is a default-privilege entry owned by `supabase_admin` that grants `EXECUTE` on new
-functions to `anon`, and no role available to a project can alter it. Version 90 treated
-that as fatal, which meant a database with every object correctly installed could never be
-stamped, and the failure told the operator to run the function that had just been unable to
-change it. It is now reported as advisory. It has no effect on anything that already
-exists — everything shipped is revoked by name — and its actual consequence, that a
-function created by some later migration is born reachable by `anon`, is caught by name in
-the same check.
-
-The `Missing functions: generate_rfq_number` report this script used to produce was real
-rather than stale — `30-supply-chain.sql` had not created that function since
-`schema.sql` was split into modules, so creating an RFQ failed on every correctly
-installed database. The function is back in that module as of schema version 88.
+- `tools/verify-schema.sql`: the verification above, with a report of each check.
+- `tools/emergency-lockdown.sql`: withdraws anon access in an incident.
+- `tools/test-merge-custom-properties.sql`: a self-checking script for
+  `custom_properties_merge()`.
 
 ## Org-scoped RPCs
 
 A `SECURITY DEFINER` function runs as the schema owner, so row-level security is not
 consulted inside it. When such a function also takes a `p_org_id`, that argument decides
-which organization it acts on — and PostgREST exposes it to whoever holds `EXECUTE`.
-A newly created function grants `EXECUTE` to `PUBLIC`, which includes `anon`, so a
-`GRANT EXECUTE ... TO authenticated` written beside a new function looks like a
-restriction and is not one. On Supabase it is worse than that: the bootstrap runs
+which organization it acts on, and PostgREST exposes it to whoever holds `EXECUTE`. A new
+function grants `EXECUTE` to `PUBLIC`, and Supabase's bootstrap adds an explicit `anon` grant
+on top (`ALTER DEFAULT PRIVILEGES ... GRANT ALL ON FUNCTIONS TO anon, ...`), so a
+`GRANT EXECUTE ... TO authenticated` beside a new function is not a restriction. The baseline
+and every migration therefore write each function's privileges out in full
+(`REVOKE ALL ... FROM PUBLIC, anon, authenticated, service_role`, then the grants it needs).
 
-```sql
-ALTER DEFAULT PRIVILEGES IN SCHEMA public
-  GRANT ALL ON FUNCTIONS TO postgres, anon, authenticated, service_role;
-```
-
-which *adds* an explicit `anon=X/postgres` on top of the built-in `PUBLIC` default. Version
-89 tried to close this with `REVOKE ... FROM PUBLIC`, which strips only the implicit entry
-and leaves the explicit grant to `anon` in place — so it removed nothing, on a platform
-where it needed to remove everything. Naming the role is the only thing that revokes it.
-`revoke_public_execute_on_org_rpcs()` was that attempt and is gone.
-
-Three things handle it now:
-
-- Every such function calls `require_org_member(p_org_id)` first, which raises unless
-  `auth.uid()` belongs to that organization. An unknown organization id gets the same
-  authorization error as one the caller is not a member of, so the function cannot be
-  used to find out which ids are real; `NULL` gets its own message.
-- `enforce_anon_execute_posture()` runs at the end of `core.sql` and every module. It
-  withdraws `EXECUTE` from `anon` **by name** on everything in `public` except a short
-  pre-login allowlist, and does the same for views and materialized views. It is applied
-  by class rather than function by function because these modules `DROP` and re-`CREATE`
-  functions, which resets the ACL on every install, and because the class keeps covering
-  objects added later.
-- `check_anon_reach()` then refuses to certify a database where anything outside that
-  allowlist is still reachable. This is the part that has to be structural, because the
-  sweep cannot be made permanent: `ALTER DEFAULT PRIVILEGES` cannot cancel the built-in
-  `PUBLIC EXECUTE` default at all, and the `supabase_admin` entry is beyond a project's
-  reach. A function created by a later ad-hoc migration therefore *is* born reachable by
-  `anon`. Nothing prevents that; verification catches it.
+- Every such function calls `org_require_member(p_org_id)` first, which raises unless
+  `auth.uid()` belongs to that organization (an unknown id gets the same error as a foreign
+  one).
+- `anon_enforce_execute_posture()` runs at the end of every file. It withdraws anon's
+  `EXECUTE` on everything in `public` outside `anon_get_execute_allowlist()`, anon's table and
+  view privileges outside `anon_get_read_allowlist()`, and the default privileges that would
+  grant them again.
+- `check_anon_reach()` refuses to certify a database where anything outside the allowlists
+  is still reachable.
 
 ### Gating the argument that selects the row
 
-`require_org_member(p_org_id)` only proves the caller belongs to the organization they
-named. If a second argument chooses the row, that argument needs checking too.
-`create_file_share_link` did not do this: it took `p_org_id` and `p_file_id`, verified the
-first and inserted the second, so a member of any organization could mint a share token for
-another tenant's file. Functions in this position either compare the entity's own `org_id`
-to `p_org_id`, or drop `p_org_id` as an authority altogether and derive the organization
-from the entity with `require_file_access()` / `require_vault_access()`.
-`check_unbound_entity_args()` reports a function that gates on `p_org_id` and then never
-uses it to constrain anything.
+`org_require_member(p_org_id)` only proves the caller belongs to the organization they named.
+If a second argument chooses the row, it needs checking too: compare the entity's own
+`org_id` to `p_org_id`, or derive the organization from the entity with
+`file_require_access()` / `vault_require_access()`. `check_unbound_entity_args()` reports a
+function that gates on `p_org_id` and never uses it to constrain anything.
 
 ### Membership tests must be NULL-safe
 
-An account that has signed up but not joined an organization has `users.org_id` set to
-`NULL`. That makes
-
-```sql
-IF p_org_id NOT IN (SELECT org_id FROM users WHERE id = auth.uid()) THEN
-```
-
-evaluate to `NULL` rather than true, so the `IF` is not taken and the body runs against
-whatever organization was named. Nine of these shipped in v90. Use
-`require_org_member(p_org_id)`, or `NOT is_org_member(p_org_id)` where the function returns
-a value instead of raising. `check_null_unsafe_org_gates()` scans for the shape and refuses
-to certify a database that contains it — including in a position where some other condition
-currently happens to cover it, because a gate whose correctness depends on a neighbouring
-check is not a gate.
+An account that has not joined an organization has `app_user.org_id` NULL, so
+`IF p_org_id NOT IN (SELECT org_id FROM app_user WHERE id = auth.uid())` is NULL, not true,
+and the body runs. Use `org_require_member(p_org_id)`, or `NOT is_org_member(p_org_id)` where
+the function returns a value. `check_null_unsafe_org_gates()` refuses the shape.
 
 ### Views
 
-A view has no row-level security of its own, and unless it is created
-`WITH (security_invoker = true)` it reads its underlying tables as its owner, so their
-policies do not apply either. `parts_with_pricing` was neither, and was readable by `anon`:
-every organization's part numbers, descriptions, revisions, preferred suppliers and unit
-prices, with no JWT. New views in `public` should be `security_invoker` and granted to
-`authenticated`/`service_role` only. Both `check_anon_reach()` and
-`tools/emergency-lockdown.sql` cover views and materialized views.
+A view has no row-level security of its own and, unless created
+`WITH (security_invoker = true)`, reads its tables as its owner. New views in `public` are
+`security_invoker` and granted to `authenticated`/`service_role` only.
 
-Two core functions are exempt from the membership check and named in `verify-schema.sql`:
-`create_default_job_titles` and `create_default_permission_teams` both run from `AFTER
-INSERT` triggers on `organizations`, when the new organization has no members and a
-membership check could only fail. They are not endpoints, and the verification script fails
-if either is reachable by `PUBLIC`. The Customers extension's `seed_customer_categories` has
-the same shape; where it is installed, `check_org_gates()` excuses it only from its ACL.
+## Regenerating TypeScript types
 
-## Module Summary
-
-Counts are the objects each file adds on top of the ones before it, measured on a fresh
-install.
-
-| Module | Required | Tables | Functions | Description |
-|--------|----------|--------|-----------|-------------|
-| core.sql | Yes | 18 | 73 | Organizations, users, teams, permissions |
-| 10-source-files.sql | Yes | 32 | 38 | File management, workflows, backups |
-| 15-inspection.sql | Yes | 3 | 0 | Inspection characteristics + per-version snapshots |
-| 20-change-control.sql | No | 12 | 6 | ECOs, reviews, deviations |
-| 30-supply-chain.sql | No | 11 + 1 view | 5 | Suppliers, RFQs, pricing |
-| 40-integrations.sql | No | 8 | 13 | Webhooks, Odoo, credential store |
-| 50-extensions.sql | No | 7 | 5 | Extension system, extension secret store |
-
-## Related Documentation
-
-- [Module Details](modules/README.md) - Detailed module documentation
-- [Email Templates](email-templates/) - Supabase Auth email templates
-
-## Migration from Monolithic Schema
-
-The previous monolithic `schema.sql` (8,500+ lines) has been replaced by this modular architecture. The migration:
-
-- Splits functionality into logical modules
-- Maintains full backward compatibility
-- Allows selective feature installation
-- Improves maintainability and code organization
-
-If you have an existing database, no migration is needed - the modular files produce the same schema as the original.
+`npm run gen:types` regenerates `src/types/supabase.ts` from a database that holds the
+schema; never edit that file by hand.

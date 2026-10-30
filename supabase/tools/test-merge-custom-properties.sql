@@ -1,5 +1,5 @@
 -- ===========================================
--- BEHAVIOUR TEST: merge_custom_properties(existing, incoming)
+-- BEHAVIOUR TEST: custom_properties_merge(existing, incoming)
 -- ===========================================
 --
 -- Read-only. Creates nothing outside the temp schema and touches no application table,
@@ -12,8 +12,8 @@
 --   3. Every row of the result table must read PASS. The final statement raises an
 --      exception if any case failed, so a clean run ends with "ALL CASES PASSED".
 --
---   As of schema 89 merge_custom_properties is REVOKEd from PUBLIC - it is a helper for
---   checkin_file, not an endpoint. The SQL editor connects as the schema owner, so this
+--   As of schema 89 custom_properties_merge is REVOKEd from PUBLIC - it is a helper for
+--   file_checkin, not an endpoint. The SQL editor connects as the schema owner, so this
 --   file still runs there; it will not run over PostgREST or as anon, which is the point.
 --
 -- WHAT IS BEING PROTECTED
@@ -25,7 +25,7 @@
 --
 -- ALREADY VERIFIED (schema 87, PostgreSQL 15)
 --   Run against a throwaway container with core.sql + 10-source-files.sql + 15-inspection.sql
---   installed: all 26 cases passed and the sentinel failed. Separately, the real checkin_file
+--   installed: all 26 cases passed and the sentinel failed. Separately, the real file_checkin
 --   RPC was driven end to end against a 68-configuration row - it kept all 68 and applied the
 --   one edit, while the same call with the old `||` merge restored left 1 of 68.
 
@@ -234,7 +234,7 @@ SELECT
   actual
 FROM merge_cp_cases c
 CROSS JOIN LATERAL (
-  SELECT merge_custom_properties(c.existing, c.incoming) AS actual
+  SELECT custom_properties_merge(c.existing, c.incoming) AS actual
 ) a
 CROSS JOIN LATERAL (
   SELECT a.actual IS NOT DISTINCT FROM c.expected AS matched
@@ -257,13 +257,13 @@ BEGIN
   SELECT count(*), string_agg(id || ': ' || name, E'\n  ')
     INTO v_failed, v_names
   FROM merge_cp_cases c
-  WHERE (c.id = 19) = (merge_custom_properties(c.existing, c.incoming) IS NOT DISTINCT FROM c.expected);
+  WHERE (c.id = 19) = (custom_properties_merge(c.existing, c.incoming) IS NOT DISTINCT FROM c.expected);
 
   IF v_failed > 0 THEN
-    RAISE EXCEPTION E'merge_custom_properties: % case(s) failed:\n  %', v_failed, v_names;
+    RAISE EXCEPTION E'custom_properties_merge: % case(s) failed:\n  %', v_failed, v_names;
   END IF;
 
-  RAISE NOTICE 'ALL CASES PASSED - merge_custom_properties behaves as specified (26 cases + 1 sentinel)';
+  RAISE NOTICE 'ALL CASES PASSED - custom_properties_merge behaves as specified (26 cases + 1 sentinel)';
 END $$;
 
 DROP TABLE IF EXISTS pg_temp.merge_cp_cases;

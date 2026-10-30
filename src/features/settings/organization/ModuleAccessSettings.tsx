@@ -70,17 +70,17 @@ export function ModuleAccessSettings() {
     try {
       const [teamsResult, membersResult, accessResult] = await Promise.all([
         supabase
-          .from('teams')
+          .from('team')
           .select('id, name, color')
           .eq('org_id', organization.id)
           .order('name'),
         supabase
-          .from('users')
+          .from('app_user')
           .select('id, full_name, email')
           .eq('org_id', organization.id)
           .order('full_name'),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (supabase.rpc as any)('get_module_access_config'), // TODO: type this
+        (supabase.rpc as any)('module_access_get_config'), // TODO: type this
       ])
 
       if (teamsResult.error) throw teamsResult.error
@@ -149,7 +149,7 @@ export function ModuleAccessSettings() {
     setSavingModuleId(moduleId)
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase.rpc as any)('set_module_access', {
+      const { data, error } = await (supabase.rpc as any)('module_access_set', {
         // TODO: type this
         p_module_id: moduleId,
         p_team_ids: draft.teamIds,

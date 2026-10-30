@@ -1,7 +1,7 @@
 -- NX1 repair: run the remediation the finding tells you to run.
 --
 -- check_release_residue() prints, for this branch, "Clear it: SELECT
--- remediate_cross_tenant_workflow_history();". Deleting the planted row would
+-- workflow_history_remediate_cross_tenant();". Deleting the planted row would
 -- also make the residue go away and would prove nothing except that DELETE
 -- works. Calling the advertised remediation asserts the thing that matters: the
 -- instruction in the report is correct, and following it restores the stamp.
@@ -19,7 +19,7 @@
 -- needs. So this repair leaves the database with one more row than the baseline
 -- and that row is torn down in nx1-drop.sql, not here.
 
-SELECT remediate_cross_tenant_workflow_history();
+SELECT workflow_history_remediate_cross_tenant();
 
 -- The repair really did what the control is about to give it credit for. If the
 -- redaction had matched no rows the residue would also be gone - because there
@@ -36,6 +36,6 @@ BEGIN
     RAISE EXCEPTION 'NX1 repair: the planted row is gone entirely. The remediation is documented as keeping the row and redacting it; deleting it loses the audit record that a foreign transition was applied.';
   END IF;
   IF v_workflow_id IS NOT NULL THEN
-    RAISE EXCEPTION 'NX1 repair: remediate_cross_tenant_workflow_history() ran but left workflow_id set on the planted row. The residue check will still fire and the control will report the repair as ineffective.';
+    RAISE EXCEPTION 'NX1 repair: workflow_history_remediate_cross_tenant() ran but left workflow_id set on the planted row. The residue check will still fire and the control will report the repair as ineffective.';
   END IF;
 END $$;

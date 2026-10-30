@@ -174,14 +174,28 @@ Configure request-for-quote workflow:
 
 ## Backups
 
-### Manual Backup
-Export your organization's data:
-- Files metadata
-- User data
-- Settings
+Settings → Backup. The top of the page says whether backups are healthy, and if not why (no computer
+designated, the computer or the server worker offline, no schedule, or no successful backup in 36 hours),
+when the last backup was and when the next one is.
 
-### Scheduled Backups
-Configure automatic backups (coming soon)
+### Where backups run
+
+An administrator chooses, in one click:
+
+- **BluePLM server (recommended).** The API backs up the whole vault, every version, and the organization's
+  database rows, encrypted, into your bucket on the schedule, with no computer on. Needs API 4.1.0 or later
+  with `SUPABASE_SERVICE_KEY` set. **Back up now** and **Test backup** (quick check, sample restore, or full
+  restore test) are on the page; every scheduled backup also test-restores a sample. Restoring a server
+  backup: `npm run backup --prefix api -- restore --org <org id> --to <folder>` (writes only to that folder).
+- **Designated computer.** One computer backs up its local copy of the vault with restic. It runs while that
+  computer is on and signed in to BluePLM (the settings page does not need to be open), and covers only the
+  files downloaded there. **Use this computer** designates it; **Release** clears it from any computer.
+
+### Bucket and schedule
+
+Under **Backup Configuration** (administrators): the storage provider, bucket and keys, the backup password,
+how many daily / weekly / monthly / yearly snapshots to keep, and the daily backup time. A backup missed
+while the runner was off runs once when it is back.
 
 ## Recovery Codes
 

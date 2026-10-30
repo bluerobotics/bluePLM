@@ -378,7 +378,7 @@ export const createSettingsSlice: StateCreator<
           }
 
       const { data, error } = await supabase
-        .from('color_swatches')
+        .from('color_swatch')
         .insert(insertData as never)
         .select('id, color, created_at')
         .single()
@@ -430,7 +430,7 @@ export const createSettingsSlice: StateCreator<
 
     // Sync to database
     try {
-      const { error } = await supabase.from('color_swatches').delete().eq('id', swatchId)
+      const { error } = await supabase.from('color_swatch').delete().eq('id', swatchId)
 
       if (error) {
         // Rollback on error
@@ -449,7 +449,7 @@ export const createSettingsSlice: StateCreator<
 
     try {
       const { data, error } = await supabase
-        .from('color_swatches')
+        .from('color_swatch')
         .select('id, color, created_at')
         .eq('org_id', organization.id)
         .order('created_at', { ascending: true })
@@ -475,7 +475,7 @@ export const createSettingsSlice: StateCreator<
     try {
       // Load user's personal swatches
       const { data: userSwatches, error: userError } = await supabase
-        .from('color_swatches')
+        .from('color_swatch')
         .select('id, color, created_at')
         .eq('user_id', user.id)
         .is('org_id', null)
@@ -500,7 +500,7 @@ export const createSettingsSlice: StateCreator<
       // Load org swatches
       if (organization?.id) {
         const { data: orgSwatches, error: orgError } = await supabase
-          .from('color_swatches')
+          .from('color_swatch')
           .select('id, color, created_at')
           .eq('org_id', organization.id)
           .order('created_at', { ascending: true })
@@ -556,7 +556,7 @@ export const createSettingsSlice: StateCreator<
         visible: c.visible,
       }))
 
-      const { error } = await (supabase.rpc as any)('set_org_column_defaults', { // TODO: type this
+      const { error } = await (supabase.rpc as any)('org_set_column_defaults', { // TODO: type this
         p_org_id: organization.id,
         p_column_defaults: columnDefaults,
       })
@@ -575,7 +575,7 @@ export const createSettingsSlice: StateCreator<
     }
 
     try {
-      const { data, error } = await (supabase.rpc as any)('get_org_column_defaults', { // TODO: type this
+      const { data, error } = await (supabase.rpc as any)('org_get_column_defaults', { // TODO: type this
         p_org_id: organization.id,
       })
 
@@ -630,7 +630,7 @@ export const createSettingsSlice: StateCreator<
         visible: c.visible,
       }))
 
-      const { error } = await (supabase.rpc as any)('force_org_column_defaults', { // TODO: type this
+      const { error } = await (supabase.rpc as any)('org_force_column_defaults', { // TODO: type this
         p_org_id: organization.id,
         p_column_defaults: columnDefaults,
       })
@@ -656,7 +656,7 @@ export const createSettingsSlice: StateCreator<
         visible: c.visible,
       }))
 
-      const { error } = await (supabase.rpc as any)('set_user_column_defaults', { // TODO: type this
+      const { error } = await (supabase.rpc as any)('user_set_column_defaults', { // TODO: type this
         p_column_defaults: columnDefaults,
       })
 
@@ -674,7 +674,7 @@ export const createSettingsSlice: StateCreator<
     }
 
     try {
-      const { data, error } = await (supabase.rpc as any)('get_user_column_defaults', {}) // TODO: type this
+      const { data, error } = await (supabase.rpc as any)('user_get_column_defaults', {}) // TODO: type this
 
       if (error) throw error
 

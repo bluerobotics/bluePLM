@@ -76,7 +76,7 @@ function Wait-RestReady {
 # that must be callable before this returns.
 function Invoke-RestSchemaReload {
   param(
-    # An RPC the reloaded cache must contain, e.g. 'consume_share_link'. It is
+    # An RPC the reloaded cache must contain, e.g. 'file_share_link_consume'. It is
     # POSTed with an empty body and any answer other than PGRST202 counts:
     # the question is whether PostgREST knows the function exists, not whether
     # the call succeeds.

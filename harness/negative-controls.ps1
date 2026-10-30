@@ -42,6 +42,10 @@ param(
 $ErrorActionPreference = 'Continue'
 Set-Location $PSScriptRoot
 
+# The 5.0 baseline is not idempotent, so repairs re-create only the objects a hole
+# touched, extracted from the release under test (see make-repairs.ps1).
+try { & "$PSScriptRoot\make-repairs.ps1" } catch { Write-Host ("ABORT: could not build the repair files: {0}" -f $_) -ForegroundColor Red; exit 2 }
+
 function Psql {
   param([string]$Sql, [string]$File, [string]$AsRole = 'postgres')
   if ($File) {
@@ -202,15 +206,15 @@ if ($stamped -ne $RELEASE) {
 }
 Write-Host "baseline verifies clean at $RELEASE (read from schema_release_version())" -ForegroundColor Green
 
-Test-Control -Id 'NC1' -What 'finding 2: parts_with_pricing as a plain view, readable by anon' `
+Test-Control -Id 'NC1' -What 'finding 2: part_with_pricing as a plain view, readable by anon' `
   -HoleFile '/sql/nc1-view-open.sql' -ExpectToken 'anon-reachable' `
-  -RepairFiles @('/blueplm/modules/30-supply-chain.sql')
+  -RepairFiles @('/sql/_generated/repair-nc1.sql')
 
-Test-Control -Id 'NC2' -What 'finding 3: create_file_share_link gating p_org_id, acting on p_file_id' `
+Test-Control -Id 'NC2' -What 'finding 3: file_share_link_create gating p_org_id, acting on p_file_id' `
   -HoleFile '/sql/nc2-unbound-file-arg.sql' -ExpectToken 'unbound-entity-arg' `
-  -RepairFiles @('/blueplm/modules/10-source-files.sql')
+  -RepairFiles @('/sql/_generated/repair-nc2.sql')
 
-Test-Control -Id 'NC3' -What 'finding 4: NOT IN (SELECT org_id FROM users ...)' `
+Test-Control -Id 'NC3' -What 'finding 4: NOT IN (SELECT org_id FROM app_user ...)' `
   -HoleFile '/sql/nc3-null-unsafe-gate.sql' -ExpectToken 'null-unsafe-gate' `
   -RepairFiles @('/sql/nc3-drop.sql')
 
@@ -280,10 +284,10 @@ Test-Control -Id 'NC16' -What 'a view anon can read one column of' `
   -ExpectToken @('anon-reachable', 'nc_column_grant_view') `
   -RepairFiles @('/sql/nc16-run-remedy.sql') -CleanupFiles @('/sql/nc16-drop.sql')
 
-Test-Control -Id 'NC17' -What 'consume_share_link restating validate_share_link''s conditions instead of calling it' `
+Test-Control -Id 'NC17' -What 'file_share_link_consume restating file_share_link_validate''s conditions instead of calling it' `
   -HoleFile '/sql/nc17-consume-restated.sql' `
-  -ExpectToken @('stale', 'consume_share_link') `
-  -RepairFiles @('/blueplm/modules/10-source-files.sql')
+  -ExpectToken @('stale', 'file_share_link_consume') `
+  -RepairFiles @('/sql/_generated/repair-nc17.sql')
 
 # NC18 is the control for the exclusion list, and it is a different kind of hole
 # from every one above it: nothing about the schema changes. The function is
@@ -296,22 +300,22 @@ Test-Control -Id 'NC17' -What 'consume_share_link restating validate_share_link'
 # reason it shipped is that check_org_gates() carried a list of three function
 # names it would not probe, with seed_customer_categories on it. That function
 # left core with the Customers extension (4.8.0), so the control now grants the
-# same exposure on create_default_job_titles, a core seeder of the same shape
+# same exposure on job_title_create_defaults, a core seeder of the same shape
 # (p_org_id, an insert the foreign key refuses for a synthesized org). So this control
 # is testing the removal of the list, not the REVOKE: with the list still in
 # place the grant below is invisible and the database stamps clean.
 #
 # 'unverifiable' rather than 'ungated' is the verdict, and that is the honest
-# one. Probed with a synthesized organization id that no organizations row
+# one. Probed with a synthesized organization id that no organization row
 # matches, the function does not get as far as writing anything - it fails on
 # the foreign key - so the probe cannot say it acted on a foreign organization.
 # What it can say is that a role a browser holds may execute it and nothing
 # established that it would refuse, which is the condition that must not be
 # stampable.
-Test-Control -Id 'NC18' -What 'create_default_job_titles granted back to authenticated, exactly as the default ACL had it' `
+Test-Control -Id 'NC18' -What 'job_title_create_defaults granted back to authenticated, exactly as the default ACL had it' `
   -HoleFile '/sql/nc18-regrant-seed.sql' `
-  -ExpectToken @('unverifiable', 'create_default_job_titles') `
-  -RepairFiles @('/blueplm/core.sql')
+  -ExpectToken @('unverifiable', 'job_title_create_defaults') `
+  -RepairFiles @('/sql/_generated/repair-nc18.sql')
 
 # NC19 is NC18's shape with the one difference that matters: this function takes
 # no organization argument, so check_org_gates() has nothing to probe and returns
@@ -324,16 +328,14 @@ Test-Control -Id 'NC18' -What 'create_default_job_titles granted back to authent
 # probe has grown to cover a function with no p_org_id, and this control is no
 # longer testing what it says it is.
 #
-# The hole here is more serious than NC18's. create_default_job_titles appends
-# constant rows; cleanup_extension_http_logs deletes audit evidence for
-# every tenant in one statement, and an org-less caller did exactly that on this
-# harness. It never reached a production database - the function does not exist
-# on schema 85 - so this control guards a hole applying release 95 would have
-# installed rather than one anybody ran.
-Test-Control -Id 'NC19' -What 'cleanup_extension_http_logs granted back to authenticated, exactly as the default ACL had it' `
-  -HoleFile '/sql/nc19-regrant-cleanup-logs.sql' `
-  -ExpectToken @('execute-not-withdrawn', 'cleanup_extension_http_logs') `
-  -RepairFiles @('/blueplm/modules/50-extensions.sql')
+# The hole here is more serious than NC18's. job_title_create_defaults appends
+# constant rows; review_notify_overdue() writes notifications for every tenant in
+# one statement. (Through 4.x this control used extension_http_log_cleanup, which
+# 5.0 dropped with the sandboxed extension tables.)
+Test-Control -Id 'NC19' -What 'review_notify_overdue granted back to authenticated, exactly as the default ACL had it' `
+  -HoleFile '/sql/nc19-regrant-notify-overdue.sql' `
+  -ExpectToken @('execute-not-withdrawn', 'review_notify_overdue') `
+  -RepairFiles @('/sql/_generated/repair-nc19.sql')
 
 # ---------------------------------------------------------------------------
 # NC7 is the other direction, and it needs its own test.

@@ -334,7 +334,7 @@ export function useSolidWorksSettings() {
       // Fetch current settings from database first to avoid overwriting other fields
       logInfo('Fetching current org settings...')
       const { data: currentOrg, error: fetchError } = await db
-        .from('organizations')
+        .from('organization')
         .select('settings')
         .eq('id', organization.id)
         .single()
@@ -353,7 +353,7 @@ export function useSolidWorksSettings() {
 
       logInfo('Updating organization settings in DB...')
       const { data: updateResult, error } = await db
-        .from('organizations')
+        .from('organization')
         .update({ settings: newSettings })
         .eq('id', organization.id)
         .select('settings')
@@ -425,7 +425,7 @@ export function useSolidWorksSettings() {
     try {
       // Fetch current settings from database first to avoid overwriting other fields
       const { data: currentOrg } = await db
-        .from('organizations')
+        .from('organization')
         .select('settings')
         .eq('id', organization.id)
         .single()
@@ -434,7 +434,7 @@ export function useSolidWorksSettings() {
       const newSettings = { ...currentSettings, solidworks_dm_license_key: null }
 
       const { data: updateResult, error } = await db
-        .from('organizations')
+        .from('organization')
         .update({ settings: newSettings })
         .eq('id', organization.id)
         .select('settings')
@@ -486,7 +486,7 @@ export function useSolidWorksSettings() {
       const newSettings = { ...currentSettings, solidworks_templates: newTemplates }
 
       const { data: updateResult, error } = await db
-        .from('organizations')
+        .from('organization')
         .update({ settings: newSettings })
         .eq('id', organization.id)
         .select('settings')
@@ -534,7 +534,7 @@ export function useSolidWorksSettings() {
       const newSettings = { ...currentSettings, solidworks_templates: newTemplates }
 
       const { data: updateResult, error } = await db
-        .from('organizations')
+        .from('organization')
         .update({ settings: newSettings })
         .eq('id', organization.id)
         .select('settings')
@@ -646,7 +646,7 @@ export function useSolidWorksSettings() {
       try {
         // Fetch current settings to avoid overwriting other fields
         const { data: currentOrg } = await db
-          .from('organizations')
+          .from('organization')
           .select('settings')
           .eq('id', organization.id)
           .single()
@@ -655,7 +655,7 @@ export function useSolidWorksSettings() {
         const newSettings = { ...currentSettings, allow_file_level_revision_for_models: enabled }
 
         const { data: updateResult, error } = await db
-          .from('organizations')
+          .from('organization')
           .update({ settings: newSettings })
           .eq('id', organization.id)
           .select('settings')
@@ -700,7 +700,7 @@ export function useSolidWorksSettings() {
       try {
         // Fetch current settings to avoid overwriting other fields
         const { data: currentOrg } = await db
-          .from('organizations')
+          .from('organization')
           .select('settings')
           .eq('id', organization.id)
           .single()
@@ -709,7 +709,7 @@ export function useSolidWorksSettings() {
         const newSettings = { ...currentSettings, solidworks_prewarm_full_app: enabled }
 
         const { data: updateResult, error } = await db
-          .from('organizations')
+          .from('organization')
           .update({ settings: newSettings })
           .eq('id', organization.id)
           .select('settings')

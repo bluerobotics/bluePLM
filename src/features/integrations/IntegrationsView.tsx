@@ -67,7 +67,7 @@ interface OdooSettings {
   last_sync_at: string | null
   last_sync_status: string | null
   last_sync_count: number | null
-  auto_sync: boolean
+  is_auto_sync: boolean
 }
 
 interface IntegrationCardProps {
@@ -635,7 +635,7 @@ export function IntegrationsView() {
           setOdooConnected(true)
         } else if (data.configured) {
           // Main integration says configured but not connected - check saved configs
-          // for last_test_success which is what shows the green indicator in OdooSettings
+          // for is_last_test_successful, which is what shows the green indicator in OdooSettings
           try {
             const configsResponse = await fetch(`${apiUrl}/integrations/odoo/configs`, {
               headers: { Authorization: `Bearer ${token}` },
@@ -643,7 +643,7 @@ export function IntegrationsView() {
             if (configsResponse.ok) {
               const configsData = await configsResponse.json()
               const hasSuccessfulConfig = configsData.configs?.some(
-                (c: { last_test_success: boolean | null }) => c.last_test_success === true,
+                (c: { is_last_test_successful: boolean | null }) => c.is_last_test_successful === true,
               )
               setOdooConnected(hasSuccessfulConfig)
             }

@@ -76,8 +76,8 @@ Google Sign-In provides the smoothest authentication experience. Skip this step 
 
 ## Step 3: Create Storage Bucket
 
-::: warning Do This Before Running Schema
-The storage bucket must exist before running the schema SQL, or the storage policies will fail.
+::: warning Do This Before Step 4
+BluePLM stores file content in this bucket. Create it before BluePLM creates the schema in Step 4.
 :::
 
 1. Go to **Storage** in Supabase Dashboard
@@ -90,51 +90,67 @@ The schema (module `10-source-files.sql`) installs the bucket's access policies 
 other policy that names the `vault` bucket. File content is readable only by members who can see a
 file or version that uses it (vault access), by whoever uploaded it, and by organization admins.
 
-## Step 4: Run Database Schema
+## Step 4: Connect BluePLM and Create the Schema
 
-The schema creates all required tables, functions, Row Level Security policies, and storage policies.
+BluePLM creates the database schema itself (tables, functions, Row Level Security and storage policies),
+and applies every later schema update the same way. There is no SQL to paste.
 
-1. Go to **SQL Editor** in Supabase Dashboard
-2. Click **New query**
-3. Open [`supabase/schema.sql`](https://github.com/bluerobotics/bluePLM/blob/main/supabase/schema.sql) from the BluePLM repository
-4. Copy the entire contents
-5. Paste into the SQL Editor
-6. Click **Run**
-
-Verify there are no errors. Warnings about "already exists" are OK if you're re-running.
-
-## Step 5: Create Your Organization
-
-Run this SQL in the SQL Editor (customize the values):
-
-```sql
-INSERT INTO organizations (name, slug, email_domains)
-VALUES (
-  'Your Company Name',           -- Display name
-  'your-company',                -- URL-safe slug (lowercase, no spaces)
-  ARRAY['yourcompany.com']       -- Email domains for your team
-);
-```
-
-This automatically creates:
-- Default teams: **Viewers**, **Engineers**, **Administrators**
-- Default job titles (Design Engineer, Quality Engineer, etc.)
-
-::: tip Email Domains
-The `email_domains` array enables auto-detection. When users with matching email domains sign in, BluePLM can automatically associate them with your organization.
-:::
-
-## Step 6: Connect BluePLM
-
-1. Download and open BluePLM
+1. Download and open BluePLM (the desktop app; BluePLM Web cannot create a schema)
 2. Complete the language/analytics setup if this is your first launch
 3. On the Setup screen, click **"I'm setting up BluePLM for my organization"**
 4. Enter:
    - **Supabase URL**: `https://xxxxx.supabase.co`
    - **Anon Key**: starts with `eyJ...`
    - **Organization Slug** (optional): e.g., `your-company`
-5. Click **Connect to Supabase**
-6. Copy the generated **Organization Code** (save this for team members!)
+5. Click **Connect to Supabase**, then sign in
+6. BluePLM shows **Set up the BluePLM database**. Paste the database connection string: in the Supabase Dashboard,
+   **Connect** > **Session pooler** (port 5432), with your database password filled in
+7. Click **Check database** to see what will be installed, then **Apply upgrade**. BluePLM creates the
+   schema, verifies it, and records what it applied
+
+::: tip Remember on this computer
+Tick **Remember on this computer** to let BluePLM apply future schema updates automatically when you
+open a new version. The connection string is encrypted with the operating system's key store and never
+leaves this computer. Without it, BluePLM asks for the string again when an update needs one.
+:::
+
+::: warning The connection string is a database password
+Anyone with it can change your database. Never share it with team members; they only need the
+Organization Code (Step 6).
+:::
+
+## Step 5: Create Your Organization
+
+This needs the schema from Step 4 at version 502 or later. Run this in the Supabase SQL Editor (customize the values):
+
+```sql
+SELECT org_create_with_founder(
+  'Your Company Name',              -- display name
+  'your-company',                   -- URL-safe slug: lower case, digits, hyphens
+  'you@yourcompany.com',            -- the address you signed in with in Step 4 (any provider, gmail.com too)
+  ARRAY['yourcompany.com']          -- your team's email domains (optional; public mail domains are refused)
+);
+```
+
+One call does all of it:
+- creates the organization, with its default teams (**Administrators**, **New Users**) and job titles
+- sets its email domains: anyone who signs in with an address at one of them joins the **New Users** team
+- invites you as the organization's administrator, in the **Administrators** team
+
+The invitation is why your own address can be a personal one: it names you, and a domain names everyone at it.
+
+Then turn on the sign-up hook, so only people who belong to your organization can create an account:
+
+1. In your Supabase Dashboard, go to **Authentication → Hooks**
+2. Add a **Before User Created** hook of type **Postgres**
+3. Schema `public`, function `auth_hook_before_user_created`
+4. Save
+
+Until the organization exists the hook refuses everyone with "this BluePLM database has no organization yet", so do Step 5 first. See [Only Invited People Can Sign Up](#only-invited-people-can-sign-up-recommended) for what it admits.
+
+## Step 6: Copy the Organization Code
+
+1. In BluePLM, copy the generated **Organization Code** (save this for team members!)
 
 ::: warning Keep the Code Secure
 The Organization Code contains your Supabase anon key encoded. Share it only with trusted team members.
@@ -190,35 +206,18 @@ If you use antivirus software other than Windows Defender (Norton, McAfee, Bitde
 Excluding folders from antivirus scanning reduces protection for those files. Only exclude trusted vault folders that contain your organization's CAD files.
 :::
 
-## Step 7: Sign In and Configure Admin
+## Step 7: Sign In Again
 
-1. Click **Continue** and sign in with Google (or email/phone)
-2. After signing in, you need to link yourself to the organization and grant admin privileges
+Sign out of BluePLM and sign in again with the address you gave in Step 5. Your invitation is applied at that sign-in: you become a member of the organization, with the admin role, in the **Administrators** team. There is no SQL to run.
 
-Run this SQL in the SQL Editor (replace the values):
+If BluePLM still shows no organization, you signed in with a different address than the one in Step 5. Sign in with that one, or invite the address you use as an administrator too:
 
 ```sql
--- 1. Link yourself to the org and set as admin
-UPDATE users 
-SET org_id = (SELECT id FROM organizations WHERE slug = 'your-company'),
-    role = 'admin'
-WHERE email = 'your.email@yourcompany.com';
-
--- 2. Add yourself to the Administrators team
-INSERT INTO team_members (team_id, user_id, is_team_admin, added_by)
-SELECT 
-  t.id,
-  u.id,
-  TRUE,
-  u.id
-FROM teams t, users u
-WHERE t.org_id = (SELECT id FROM organizations WHERE slug = 'your-company')
-  AND t.name = 'Administrators'
-  AND u.email = 'your.email@yourcompany.com'
-ON CONFLICT (team_id, user_id) DO NOTHING;
+INSERT INTO pending_org_member (org_id, email, role, team_ids, notes)
+SELECT o.id, lower('you@example.com'), 'admin', ARRAY[t.id], 'Founding administrator'
+FROM organization o JOIN team t ON t.org_id = o.id AND t.name = 'Administrators'
+WHERE o.slug = 'your-company';
 ```
-
-**Sign out and back in** to BluePLM for the changes to take effect.
 
 ## Step 8: Create Your First Vault
 
@@ -227,13 +226,13 @@ Vaults are containers for files. Create at least one to start working.
 First, get your organization ID:
 
 ```sql
-SELECT id FROM organizations WHERE slug = 'your-company';
+SELECT id FROM organization WHERE slug = 'your-company';
 ```
 
 Then create the vault (replace the UUID):
 
 ```sql
-INSERT INTO vaults (org_id, name, slug, storage_bucket, is_default)
+INSERT INTO vault (org_id, name, slug, storage_bucket, is_default)
 VALUES (
   'ORG-UUID-HERE',   -- Your organization ID from above
   'Main Vault',      -- Display name
@@ -247,18 +246,9 @@ VALUES (
 
 Files need a workflow to track their lifecycle states (WIP → In Review → Released → Obsolete).
 
-Get your organization and user IDs:
-
-```sql
-SELECT id FROM organizations WHERE slug = 'your-company';
-SELECT id FROM users WHERE email = 'your.email@yourcompany.com';
-```
-
-Create the default workflow (replace UUIDs):
-
-```sql
-SELECT create_default_workflow_v2('ORG-UUID', 'USER-UUID');
-```
+Create it in BluePLM, signed in as the admin from Step 7: open **Workflows** and create a new workflow
+(**Create new workflow**). The database function behind it, `workflow_create_default()`, checks that
+the caller is an organization admin, so it cannot be run from the SQL Editor.
 
 This creates the standard release workflow with:
 - **WIP** (Work In Progress) - Initial state
@@ -312,6 +302,8 @@ settings — so that changing your mind later is a variable edit and a restart.
 |----------|---------|--------------|
 | `ENABLE_DOCS` | `true` | Serves browsable API documentation at `<your-api-url>/docs`. Set to `false` to keep your API's shape off the public internet. It affects nothing but the documentation page. |
 | `CORS_ORIGINS` | *(empty)* | Extra **browser** origins allowed to call the API, comma-separated. You almost certainly do not need this: Odoo, scripts and other server-to-server callers are not subject to CORS, and BluePLM is always allowed. |
+| `TRUST_PROXY` | `loopback,linklocal,uniquelocal,100.64.0.0/10` | The reverse proxies trusted for the caller's address, as a comma-separated list of addresses, CIDR ranges or the names `loopback`, `linklocal`, `uniquelocal`; `off` trusts none. The default suits Render; Railway's edge connects from a public address, so on Railway the client address comes from `CLIENT_IP_HEADER` instead. It replaces API 3.x's `TRUST_PROXY_HOPS`, which is no longer read. |
+| `CLIENT_IP_HEADER` | `x-real-ip` on Railway, unset elsewhere | A header the hosting edge overwrites with the caller's address on every request, used for the per-client rate limit and the request log (first entry, and only when it is an IP; otherwise the TRUST_PROXY address). Railway is detected by `RAILWAY_ENVIRONMENT_NAME` or `RAILWAY_PROJECT_ID`. Set it only to a header your edge always overwrites, since a caller can send any header; `off` turns it off. |
 | `NODE_ENV` | `production` | Leave it alone unless you are developing BluePLM itself. |
 
 ### Configure in BluePLM
@@ -452,10 +444,54 @@ The code contains your Supabase connection info encoded — team members don't n
 
 See [User Setup Guide](/user-setup) for detailed team member instructions.
 
+## Upgrading the Database
+
+BluePLM upgrades the database itself. When a new version needs a newer schema, an org admin opening
+the desktop app sees **Database upgrade required**; everyone else sees **Database upgrade needed**
+and waits. The admin pastes the database connection string (as in Step 4), clicks **Check database**
+to see what will run, then **Apply upgrade**. With **Remember on this computer** ticked, the upgrade
+runs on its own the next time that admin starts the new version.
+
+Upgrading from 4.x to 5.0 works the same way. BluePLM brings a database older than 4.10 up to 4.10
+first, then applies the 5.0 upgrade (`supabase/migrations/0500_from_4x.sql`), which renames every
+table and function to its 5.0 name. After 5.0, each schema change is a numbered migration in
+`supabase/migrations/`, applied in order. Each step runs in its own transaction: a failing step is
+rolled back, and the steps before it stay applied.
+
+::: warning Everyone moves to 5.0
+A 4.x app cannot use a 5.0 database, and a 5.0 app below the organization's minimum version
+(`client_min_version()`) shows **Update required** and installs the update on its own. Have everyone
+check in their work before you upgrade.
+:::
+
+::: tip Extensions with their own SQL
+The 5.0 upgrade removes every access policy, including an extension's, because policies call core
+functions by name. An extension that ships SQL (such as the private extension `blueplm.customers`)
+must have its 5.0 SQL applied after the upgrade, in the Supabase SQL Editor.
+:::
+
+## Only Invited People Can Sign Up (Recommended)
+
+From schema 502, BluePLM ships a Supabase Auth hook that refuses to create an account for an address that belongs nowhere. An account is created only for:
+
+- an open invitation (Members & Teams → Invite, or Step 5 for the founding admin),
+- an address at one of your organization's email domains (set in Members & Teams; public mail providers such as gmail.com cannot be added),
+- a supplier contact,
+
+Anyone else sees "You haven't been invited to an organization. Ask your administrator for an invite." Without the hook, they get an account with no organization and can see nothing.
+
+It is turned on in Step 5. On a database that was set up before schema 502, turn it on the same way once the database is on 502 (Authentication → Hooks → Before User Created, Postgres, `public.auth_hook_before_user_created`). Through the Management API: `hook_before_user_created_enabled = true`, `hook_before_user_created_uri = pg-functions://postgres/public/auth_hook_before_user_created`.
+
+Invite people before they sign in. An invitation sent after someone was refused works; they sign in again.
+
+## Security Monitoring
+
+From schema 502, the database checks itself every 10 minutes and notifies your administrators in BluePLM's notifications: new administrators, members who joined through an email domain, mass file or storage deletes, bursts of password-reset requests, accounts left without an organization, failed or overdue server backups, and schema drift. Thresholds are in **Settings → Security Monitoring**. It runs in your own database through `pg_cron` (enabled on Supabase by default). If your Postgres has no `pg_cron`, schedule `SELECT public.security_monitor_run();` every 10 minutes yourself. Nothing is sent outside your database.
+
 ## Troubleshooting
 
-### Schema SQL fails with "bucket not found"
-Create the `vault` storage bucket (Step 3) before running the schema.
+### Uploads fail with "Bucket not found"
+Create the `vault` storage bucket (Step 3). Its name must be exactly `vault`.
 
 ### Google Sign-In shows "Access blocked: org_internal"
 Your Google OAuth app is set to "Internal". Go to Google Cloud Console → **APIs & Services** → **OAuth consent screen** and change the user type to **External**. This allows any Google account to sign in, not just your Google Workspace users.
@@ -472,8 +508,11 @@ Grant vault access via **Settings → Members & Teams**. Non-admin users don't s
 ### Organization Code doesn't work
 Regenerate the code by disconnecting and reconnecting to Supabase in BluePLM.
 
-### Can't sign in after running admin SQL
-Make sure you signed out and back in after running the admin setup SQL.
+### "You haven't been invited to an organization"
+The sign-up hook found no invitation, organization email domain or supplier contact for that address. Invite the person (Members & Teams), or add their company domain to the organization. The founding admin signs in with the exact address given in Step 5.
+
+### "This BluePLM database has no organization yet"
+The sign-up hook is on but Step 5 has not run. Run it, then sign in again.
 
 ### Invite emails going to spam
 Configure custom SMTP (Step 11). Supabase's default email domain (`noreply@mail.app.supabase.io`) is often flagged as spam.

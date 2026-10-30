@@ -7,29 +7,17 @@
 
 import type { OdooSupplier, OdooFetchResult, OdooConnectionResult } from '../types.js'
 
-// Store last XML responses for debugging
-let lastXmlResponses: string[] = []
-
-/**
- * Get recent XML responses for debugging
- */
-export function getLastXmlResponses(): string[] {
-  return lastXmlResponses
-}
-
-/**
- * Clear stored XML responses
- */
-export function clearLastXmlResponses(): void {
-  lastXmlResponses = []
-}
-
 /**
  * Options for a single XML-RPC call.
  */
 export interface OdooXmlRpcOptions {
   /** Override the fetch implementation (used by tests). */
   fetch?: typeof globalThis.fetch
+  /**
+   * Collects a truncated copy of each raw response for the caller's own debug output. It belongs to one request:
+   * a module-wide buffer once returned one organization's Odoo responses to another (5.0 audit O2).
+   */
+  xmlLog?: string[]
 }
 
 /**
@@ -60,9 +48,11 @@ export async function odooXmlRpc(
 
   const xmlResponse = await response.text()
 
-  // Store for debugging (keep last 5, truncate to 300 chars each)
-  lastXmlResponses.push(`${service}.${method}: ${xmlResponse.substring(0, 300)}...`)
-  if (lastXmlResponses.length > 5) lastXmlResponses.shift()
+  // Keep the last 5, truncated to 300 chars each, for this request's debug output only
+  if (options?.xmlLog) {
+    options.xmlLog.push(`${service}.${method}: ${xmlResponse.substring(0, 300)}...`)
+    if (options.xmlLog.length > 5) options.xmlLog.shift()
+  }
 
   return parseXmlRpcResponse(xmlResponse)
 }
@@ -364,10 +354,13 @@ export async function fetchOdooSuppliers(
     suppliers_count: 0,
     timing_ms: 0,
   }
+  const xmlLog: string[] = []
+  const rpc = (service: string, method: string, params: unknown[]) =>
+    odooXmlRpc(normalizedUrl, service, method, params, { xmlLog })
 
   try {
     // Authenticate first
-    const uid = await odooXmlRpc(normalizedUrl, 'common', 'authenticate', [
+    const uid = await rpc('common', 'authenticate', [
       database,
       username,
       apiKey,
@@ -395,7 +388,7 @@ export async function fetchOdooSuppliers(
 
     // Strategy 1: supplier_rank > 0 (partners with purchase history in Odoo 13+)
     try {
-      supplierIds = await odooXmlRpc(normalizedUrl, 'object', 'execute_kw', [
+      supplierIds = await rpc('object', 'execute_kw', [
         database,
         uid,
         apiKey,
@@ -412,7 +405,7 @@ export async function fetchOdooSuppliers(
     // Strategy 2: Partners with vendor payment terms (indicates vendor setup)
     if (!isValidIdArray(supplierIds)) {
       try {
-        supplierIds = await odooXmlRpc(normalizedUrl, 'object', 'execute_kw', [
+        supplierIds = await rpc('object', 'execute_kw', [
           database,
           uid,
           apiKey,
@@ -430,7 +423,7 @@ export async function fetchOdooSuppliers(
     // Strategy 3: All companies (broad - will include customers too)
     if (!isValidIdArray(supplierIds)) {
       try {
-        supplierIds = await odooXmlRpc(normalizedUrl, 'object', 'execute_kw', [
+        supplierIds = await rpc('object', 'execute_kw', [
           database,
           uid,
           apiKey,
@@ -453,7 +446,7 @@ export async function fetchOdooSuppliers(
     // Strategy 4: Last resort - ALL active partners
     if (!isValidIdArray(supplierIds)) {
       try {
-        supplierIds = await odooXmlRpc(normalizedUrl, 'object', 'execute_kw', [
+        supplierIds = await rpc('object', 'execute_kw', [
           database,
           uid,
           apiKey,
@@ -474,12 +467,12 @@ export async function fetchOdooSuppliers(
 
     if (ids.length === 0) {
       debug.timing_ms = Date.now() - startTime
-      const debugWithXml = { ...debug, raw_xml_samples: getLastXmlResponses() }
+      const debugWithXml = { ...debug, raw_xml_samples: [...xmlLog] }
       return { success: true, suppliers: [], debug: debugWithXml }
     }
 
     // Read supplier details
-    const suppliersResult = await odooXmlRpc(normalizedUrl, 'object', 'execute_kw', [
+    const suppliersResult = await rpc('object', 'execute_kw', [
       database,
       uid,
       apiKey,
@@ -515,14 +508,14 @@ export async function fetchOdooSuppliers(
     debug.timing_ms = Date.now() - startTime
 
     // Include raw XML samples for debugging
-    const debugWithXml = { ...debug, raw_xml_samples: getLastXmlResponses() }
+    const debugWithXml = { ...debug, raw_xml_samples: [...xmlLog] }
 
     return { success: true, suppliers, debug: debugWithXml }
   } catch (error) {
     const debugWithXml = {
       ...debug,
       timing_ms: Date.now() - startTime,
-      raw_xml_samples: getLastXmlResponses(),
+      raw_xml_samples: [...xmlLog],
     }
     return {
       success: false,

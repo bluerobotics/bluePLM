@@ -12,7 +12,7 @@
 --                             argument produces no row - "correctly and
 --                             uselessly", as core.sql puts it.
 --   check_withdrawn_execute() asserts the ACL of five routines, named in
---                             withdrawn_execute_manifest(), which core.sql
+--                             schema_get_withdrawn_execute_manifest(), which core.sql
 --                             describes as "small and hand-maintained on
 --                             purpose" and adds: "the cost of leaving one out
 --                             is what release 95 nearly shipped".
@@ -20,7 +20,7 @@
 -- So a SECURITY DEFINER routine in public, with no p_org_id, that
 -- `authenticated` may execute and that is not on the hand-maintained list of
 -- five, is examined by nothing. That is exactly what
--- cleanup_extension_http_logs(integer) was until somebody added it to the list -
+-- extension_http_log_cleanup(integer) was until somebody added it to the list -
 -- and it is exactly why attack.ps1 reported 0 of 20 attacks succeeding against a
 -- schema that still had two real tenancy holes in it. attack.ps1's twenty cases
 -- are a hand-written list too. Neither the attack suite nor the verifier
@@ -37,7 +37,7 @@
 -- What it does is produce the census, so that the list can be triaged once and
 -- then held still. negative-controls-fast.ps1 compares it against
 -- sql/fast/census-baseline.txt and fails when it GROWS. The next
--- cleanup_extension_http_logs then arrives as a line in a diff, at the moment it
+-- extension_http_log_cleanup then arrives as a line in a diff, at the moment it
 -- is created, instead of as a finding two releases later.
 --
 -- Read-only.
@@ -64,11 +64,11 @@ SELECT '@@NC|census_row|' || sig FROM (
     AND pg_get_function_identity_arguments(p.oid) !~ '\mp_org_id\M'
     -- check_withdrawn_execute() asserts its ACL, so it is covered.
     AND NOT EXISTS (
-      SELECT 1 FROM withdrawn_execute_manifest() w
+      SELECT 1 FROM schema_get_withdrawn_execute_manifest() w
       WHERE to_regprocedure(w.signature) = p.oid)
     -- Deliberately reachable without authentication, with a reason recorded.
     AND NOT EXISTS (
-      SELECT 1 FROM anon_execute_allowlist() a
+      SELECT 1 FROM anon_get_execute_allowlist() a
       WHERE a.signature = p.oid::regprocedure::TEXT
          OR a.signature = p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')')
   ORDER BY 1
@@ -84,10 +84,10 @@ WHERE n.nspname = 'public'
        OR has_function_privilege('anon', p.oid, 'EXECUTE'))
   AND pg_get_function_identity_arguments(p.oid) !~ '\mp_org_id\M'
   AND NOT EXISTS (
-    SELECT 1 FROM withdrawn_execute_manifest() w
+    SELECT 1 FROM schema_get_withdrawn_execute_manifest() w
     WHERE to_regprocedure(w.signature) = p.oid)
   AND NOT EXISTS (
-    SELECT 1 FROM anon_execute_allowlist() a
+    SELECT 1 FROM anon_get_execute_allowlist() a
     WHERE a.signature = p.oid::regprocedure::TEXT
        OR a.signature = p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')');
 

@@ -1,5 +1,6 @@
 // OAuth handlers for Electron main process
-import { ipcMain, BrowserWindow, shell } from 'electron'
+import { ipcMain, BrowserWindow } from 'electron'
+import { openExternalSafely } from '../navigationGuard'
 import http from 'http'
 import type { AddressInfo } from 'net'
 
@@ -164,7 +165,11 @@ export function registerOAuthHandlers(window: BrowserWindow, deps: OAuthHandlerD
           const finalUrl = oauthUrl.toString()
           log('[OAuth] Opening system browser with OAuth URL')
 
-          shell.openExternal(finalUrl)
+          if (!openExternalSafely(finalUrl, log)) {
+            cleanupOAuthServer()
+            safeResolve({ success: false, error: 'Sign-in URL must use https.' })
+            return
+          }
 
           oauthTimeout = setTimeout(
             () => {
@@ -318,7 +323,7 @@ export function registerOAuthHandlers(window: BrowserWindow, deps: OAuthHandlerD
           authUrl.searchParams.set('prompt', 'consent')
 
           log('[GoogleDrive] Opening auth URL in browser')
-          shell.openExternal(authUrl.toString())
+          openExternalSafely(authUrl.toString(), log)
         })
 
         gdAuthServer.on('error', (error) => {
@@ -336,7 +341,6 @@ function getSuccessHtml(): string {
 <html>
 <head><title>Sign In Successful</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600&display=swap');
 * { box-sizing: border-box; }
 body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #181818; color: #cccccc; }
 .container { text-align: center; padding: 48px 56px; background: #1f1f1f; border: 1px solid #2b2b2b; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
@@ -369,7 +373,6 @@ function getErrorHtml(message: string): string {
 <html>
 <head><title>Sign In Failed</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600&display=swap');
 * { box-sizing: border-box; }
 body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #181818; color: #cccccc; }
 .container { text-align: center; padding: 48px 56px; background: #1f1f1f; border: 1px solid #2b2b2b; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); max-width: 420px; }
@@ -404,7 +407,6 @@ function getHashExtractHtml(): string {
 <html>
 <head><title>Completing Sign In...</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600&display=swap');
 * { box-sizing: border-box; }
 body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #181818; color: #cccccc; }
 .container { text-align: center; padding: 48px 56px; background: #1f1f1f; border: 1px solid #2b2b2b; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); max-width: 420px; }
@@ -477,7 +479,6 @@ function getGoogleSuccessHtml(): string {
 <html>
 <head><title>Google Drive Connected</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600&display=swap');
 * { box-sizing: border-box; }
 body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #181818; color: #cccccc; }
 .container { text-align: center; padding: 48px 56px; background: #1f1f1f; border: 1px solid #2b2b2b; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
@@ -510,7 +511,6 @@ function getGoogleErrorHtml(error: string): string {
 <html>
 <head><title>Google Drive - Error</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600&display=swap');
 * { box-sizing: border-box; }
 body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #181818; color: #cccccc; }
 .container { text-align: center; padding: 48px 56px; background: #1f1f1f; border: 1px solid #2b2b2b; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); max-width: 420px; }

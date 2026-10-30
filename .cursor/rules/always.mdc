@@ -55,23 +55,17 @@ git diff HEAD -- path/to/file.ts
 
 ## Schema Versioning (BOTH files, every time)
 
-1. `supabase/core.sql` → bump `schema_release_version()`, and add any new object to
-   `schema_release_manifest()` in the same file
+1. `supabase/migrations/NNNN_<name>.sql` → a new migration that raises `schema_release_version()`
+   to NNNN and inserts its new objects into `schema_manifest_entry`; the 5.0 baseline files are
+   never edited (`database.mdc`, "Baseline and Migrations")
 2. `src/lib/schemaVersion.ts` → bump EXPECTED_SCHEMA_VERSION and add a VERSION_DESCRIPTIONS entry
 
-Mismatch = users see "database newer/older than app" warnings.
+Mismatch = an admin sees the database upgrade screen, everyone else waits for it.
 
 Never write `schema_version` directly, and never stamp it as a side effect of a file
 having been run. `verify_and_stamp_schema()` is the only writer, and it writes only
-after the manifest and the security checks hold.
-
-Every schema file ends by *asking* — `core.sql` and each module call
-`try_stamp_schema()`, so whichever file is applied last records the version and there
-is no separate step. Asking is safe because the answer is computed from the whole
-release; claiming was not. Two rules for that call: it must never raise (the Supabase
-SQL editor would roll back the file that just installed), and in a module it must be
-guarded by `to_regprocedure('public.try_stamp_schema()')`, since the module may be
-applied over an older `core.sql`.
+after the manifest and the security checks hold. The in-app migration runner calls it
+after the last pending migration.
 
 ## API Versioning (BOTH files, every time)
 

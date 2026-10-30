@@ -20,7 +20,6 @@ export async function activate(
   api.telemetry   // Analytics
   api.context     // Read-only context
   api.callOrgApi  // Org API calls
-  api.callStoreApi // Store API calls
   api.fetch       // External HTTP
 }
 ```
@@ -668,24 +667,6 @@ if (response.ok) {
 } else {
   console.error('Error:', response.data)
 }
-```
-
----
-
-### callStoreApi
-
-Call the Extension Store API.
-
-```typescript
-api.callStoreApi<T>(endpoint: string): Promise<FetchResponse<T>>
-```
-
-**Permission:** `network:storeApi`
-
-**Example:**
-```typescript
-const response = await api.callStoreApi<Extension>('/store/extensions/blueplm.my-extension')
-console.log('Latest version:', response.data.latestVersion)
 ```
 
 ---

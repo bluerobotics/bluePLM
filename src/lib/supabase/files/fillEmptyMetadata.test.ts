@@ -71,7 +71,7 @@ vi.mock('../client', () => ({
           },
         }
       }
-      if (table === 'file_versions') {
+      if (table === 'file_version') {
         versionWrites += 1
         return {}
       }

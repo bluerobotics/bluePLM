@@ -198,7 +198,7 @@ export function CommentSidebar({
           {
             event: '*',
             schema: 'public',
-            table: 'file_comments',
+            table: 'file_comment',
             filter: `file_id=eq.${fileId}`,
           },
           (payload) => {

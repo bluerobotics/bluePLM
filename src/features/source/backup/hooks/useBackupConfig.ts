@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { saveBackupConfig, type BackupConfig } from '@/lib/backup'
 import { DEFAULT_RETENTION } from '../constants'
 
@@ -95,9 +95,12 @@ export function useBackupConfig(
   // Saving state
   const [isSaving, setIsSaving] = useState(false)
 
-  // Populate form with existing config
+  // Populate the form once per organization. The panel now re-reads backup_config every 30 s and
+  // on realtime events, so following every change would wipe edits an admin has not saved yet.
+  const populatedFor = useRef<string | null>(null)
   useEffect(() => {
-    if (initialConfig) {
+    if (initialConfig && populatedFor.current !== initialConfig.org_id) {
+      populatedFor.current = initialConfig.org_id
       setProvider(initialConfig.provider)
       setBucket(initialConfig.bucket || '')
       setRegion(initialConfig.region || '')
@@ -109,7 +112,7 @@ export function useBackupConfig(
       setRetentionWeekly(initialConfig.retention_weekly ?? DEFAULT_RETENTION.weekly)
       setRetentionMonthly(initialConfig.retention_monthly ?? DEFAULT_RETENTION.monthly)
       setRetentionYearly(initialConfig.retention_yearly ?? DEFAULT_RETENTION.yearly)
-      setScheduleEnabled(initialConfig.schedule_enabled ?? false)
+      setScheduleEnabled(initialConfig.is_schedule_enabled ?? false)
       setScheduleHour(initialConfig.schedule_hour ?? 0)
       setScheduleMinute(initialConfig.schedule_minute ?? 0)
       setScheduleTimezone(initialConfig.schedule_timezone || 'UTC')
@@ -147,7 +150,7 @@ export function useBackupConfig(
           retention_weekly: retentionWeekly,
           retention_monthly: retentionMonthly,
           retention_yearly: retentionYearly,
-          schedule_enabled: scheduleEnabled,
+          is_schedule_enabled: scheduleEnabled,
           schedule_hour: scheduleHour,
           schedule_minute: scheduleMinute,
           schedule_timezone: scheduleTimezone,

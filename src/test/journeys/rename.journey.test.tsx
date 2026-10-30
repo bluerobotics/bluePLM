@@ -41,9 +41,9 @@ describe('rename a file', () => {
     expect(vault.row(to)).toBeTruthy()
     expect(diskPaths(vault)).toContain(to)
     expect(diskPaths(vault)).not.toContain(from)
-    await waitFor(() => expect(vault!.db.row('files', id).file_path).toBe(to))
+    await waitFor(() => expect(vault!.db.row('file', id).file_path).toBe(to))
     // Same row, same version: a rename is not a new revision and never a new row.
-    expect(vault.db.row('files', id).version).toBe(1)
+    expect(vault.db.row('file', id).version).toBe(1)
     expect(vault.state().server).toHaveLength(3)
     vault.expectConsistent()
     await vault.expectStableAcrossReload()
@@ -56,8 +56,8 @@ describe('rename a file', () => {
     const part = vault.serverRow('Parts/bracket.sldprt')
     const asm = vault.serverRow('top.sldasm')
     const drw = vault.serverRow('Drawings/bracket.slddrw')
-    vault.db.seed('file_references', { org_id: part.org_id, parent_file_id: asm.id, child_file_id: part.id })
-    vault.db.seed('file_references', {
+    vault.db.seed('file_reference', { org_id: part.org_id, parent_file_id: asm.id, child_file_id: part.id })
+    vault.db.seed('file_reference', {
       org_id: part.org_id,
       parent_file_id: drw.id,
       child_file_id: part.id,
@@ -67,8 +67,8 @@ describe('rename a file', () => {
 
     await vault.renameInline(vault.row('Parts/bracket.sldprt'), 'bracket-renamed')
 
-    await waitFor(() => expect(vault!.db.row('files', part.id).file_path).toBe('Parts/bracket-renamed.sldprt'))
-    const refs = vault.db.rows('file_references')
+    await waitFor(() => expect(vault!.db.row('file', part.id).file_path).toBe('Parts/bracket-renamed.sldprt'))
+    const refs = vault.db.rows('file_reference')
     expect(refs.map((r) => [r.parent_file_id, r.child_file_id])).toEqual([
       [asm.id, part.id],
       [drw.id, part.id],
@@ -85,8 +85,8 @@ describe('rename a file', () => {
 
     await vault.renameInline(vault.row('mine.sldprt'), 'mine-renamed')
 
-    await waitFor(() => expect(vault!.db.row('files', id).file_path).toBe('mine-renamed.sldprt'))
-    expect(vault.db.row('files', id).checked_out_by).toBe(USER_ID)
+    await waitFor(() => expect(vault!.db.row('file', id).file_path).toBe('mine-renamed.sldprt'))
+    expect(vault.db.row('file', id).checked_out_by).toBe(USER_ID)
     expect(vault.electron.disk.require(vault.absolute('mine-renamed.sldprt')).readonly).toBe(false)
     await vault.expectStableAcrossReload()
   })
@@ -121,7 +121,7 @@ describe('rename a file', () => {
     await vault.renameInline(vault.row('Parts/bracket.sldprt'), 'Bracket')
 
     expect(diskPaths(vault)).toEqual(['Parts/Bracket.sldprt'])
-    await waitFor(() => expect(vault!.db.row('files', id).file_path).toBe('Parts/Bracket.sldprt'))
+    await waitFor(() => expect(vault!.db.row('file', id).file_path).toBe('Parts/Bracket.sldprt'))
     expect(vault.state().store.map((f) => f.path)).toEqual(['Parts/Bracket.sldprt'])
     await vault.expectStableAcrossReload()
   })
@@ -158,14 +158,14 @@ describe('rename a folder', () => {
     ])
     expect(vault.state().diskFolders).toContain('Project/Empty')
     await waitFor(() =>
-      expect(ids.map((id) => vault!.db.row('files', id).file_path)).toEqual([
+      expect(ids.map((id) => vault!.db.row('file', id).file_path)).toEqual([
         'Project/a.sldprt',
         'Project/Sub/b.sldprt',
         'Project/Sub/Deep/c.slddrw',
         'Project/mine.sldasm',
       ]),
     )
-    expect(vault.db.row('files', ids[3]).checked_out_by).toBe(USER_ID)
+    expect(vault.db.row('file', ids[3]).checked_out_by).toBe(USER_ID)
     expect(vault.state().storeFolders).not.toContain('Proj')
     expect(vault.state().storeFolders).toContain('Project/Sub/Deep')
     vault.expectConsistent()
@@ -174,12 +174,12 @@ describe('rename a folder', () => {
 
   it('renames a folder that has a folders row: the row and the files under it move', async () => {
     vault = await openVault({ ...nested, serverFolders: ['Proj', 'Proj/Sub'] })
-    const folderId = vault.db.rows('folders').find((r) => r.folder_path === 'Proj')!.id as string
+    const folderId = vault.db.rows('folder').find((r) => r.folder_path === 'Proj')!.id as string
 
     await vault.renameInline(vault.row('Proj'), 'Project')
 
-    await waitFor(() => expect(vault!.db.row('folders', folderId).folder_path).toBe('Project'))
-    expect(vault.db.rows('folders').map((r) => r.folder_path).sort()).toEqual(['Project', 'Project/Sub'])
+    await waitFor(() => expect(vault!.db.row('folder', folderId).folder_path).toBe('Project'))
+    expect(vault.db.rows('folder').map((r) => r.folder_path).sort()).toEqual(['Project', 'Project/Sub'])
     await waitFor(() => expect(livePaths(vault!).filter((p) => p.startsWith('Proj/'))).toEqual([]))
     await vault.expectStableAcrossReload()
   })

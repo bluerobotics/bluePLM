@@ -101,14 +101,14 @@ export function installSoak(
   for (let i = 0; i < CHECKOUT_POOL; i++) {
     const row = backend.fileRow((i * 997) % total)
     try {
-      db.seed('files', { ...row, checked_out_by: null, checked_out_at: null })
+      db.seed('file', { ...row, checked_out_by: null, checked_out_at: null })
     } catch {
       // A row the schema refuses is left out of the pool; its checkouts count as failed.
     }
   }
   void import('@/test/fakeSupabaseRpcs').then(({ checkoutFile, checkinFile }) => {
-    db.defineRpc('checkout_file', checkoutFile)
-    db.defineRpc('checkin_file', checkinFile)
+    db.defineRpc('file_checkout', checkoutFile)
+    db.defineRpc('file_checkin', checkinFile)
   })
 
   const folderOf = (n: number) => {
@@ -134,7 +134,7 @@ export function installSoak(
 
   const insertAndDelete = (count: number) => {
     let delivered = 0
-    for (const row of inserted) delivered += db.emitRealtime('files', 'DELETE', {}, row)
+    for (const row of inserted) delivered += db.emitDelete('file', row)
     inserted = []
     for (let i = 0; i < count; i++) {
       const base = backend.fileRow((insertSerial * 31) % total)
@@ -149,7 +149,7 @@ export function installSoak(
         updated_at: new Date().toISOString(),
       }
       inserted.push(row)
-      delivered += db.emitRealtime('files', 'INSERT', row)
+      delivered += db.emitRealtime('file', 'INSERT', row)
     }
     return delivered
   }
@@ -189,7 +189,7 @@ export function installSoak(
     const result = { ok: 0, failed: 0 }
     const { executeCommand } = await import('@/lib/commands')
     for (let i = 0; i < count; i++) {
-      const id = String(db.rows('files')[(cursor + i) % CHECKOUT_POOL]?.id ?? '')
+      const id = String(db.rows('file')[(cursor + i) % CHECKOUT_POOL]?.id ?? '')
       const file = store.getState().files.find((f) => f.pdmData?.id === id)
       if (!file) {
         result.failed++
@@ -199,8 +199,8 @@ export function installSoak(
       if (out?.success) result.ok++
       else result.failed++
       // Released again from the server side, as a check-in elsewhere would.
-      const row = db.rows('files').find((r) => r.id === id)
-      if (row) db.updateAndEmit('files', id, { checked_out_by: null, checked_out_at: null, version: Number(row.version) + 1 })
+      const row = db.rows('file').find((r) => r.id === id)
+      if (row) db.updateAndEmit('file', id, { checked_out_by: null, checked_out_at: null, version: Number(row.version) + 1 })
     }
     return result
   }

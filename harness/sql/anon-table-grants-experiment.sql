@@ -22,7 +22,7 @@
 --     comes from;
 --   * schema_version, which the app reads with the publishable key before
 --     anybody has signed in, to tell the user their database is out of date.
---     It is the one relation on anon_read_allowlist() and the reason that list
+--     It is the one relation on anon_get_read_allowlist() and the reason that list
 --     exists.
 
 \set ON_ERROR_STOP on
@@ -44,7 +44,7 @@ BEGIN
     WHERE n.nspname = 'public'
       AND c.relkind IN ('r', 'p')
       AND NOT c.relispartition
-      AND NOT EXISTS (SELECT 1 FROM anon_read_allowlist() a WHERE a.relname = c.relname)
+      AND NOT EXISTS (SELECT 1 FROM anon_get_read_allowlist() a WHERE a.relname = c.relname)
   LOOP
     EXECUTE format('REVOKE ALL ON TABLE %s FROM anon', r.rel);
     v_n := v_n + 1;

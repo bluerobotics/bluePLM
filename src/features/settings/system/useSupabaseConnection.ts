@@ -105,7 +105,7 @@ export function useSupabaseConnection() {
 
     try {
       // Simple query to test connection
-      const { error } = await supabase.from('organizations').select('id').limit(1)
+      const { error } = await supabase.from('organization').select('id').limit(1)
       const duration = Date.now() - start
       setLatency(duration)
 
@@ -150,19 +150,19 @@ export function useSupabaseConnection() {
       // Get stats in parallel
       const [filesResult, vaultsResult, usersResult, checkoutsResult] = await Promise.all([
         supabase
-          .from('files')
+          .from('file')
           .select('id', { count: 'exact', head: true })
           .eq('org_id', organization.id),
         supabase
-          .from('vaults')
+          .from('vault')
           .select('id', { count: 'exact', head: true })
           .eq('org_id', organization.id),
         supabase
-          .from('users')
+          .from('app_user')
           .select('id', { count: 'exact', head: true })
           .eq('org_id', organization.id),
         supabase
-          .from('files')
+          .from('file')
           .select('id', { count: 'exact', head: true })
           .eq('org_id', organization.id)
           .not('checked_out_by', 'is', null),
@@ -214,7 +214,7 @@ export function useSupabaseConnection() {
       }
 
       // Build versions query
-      let versionsQuery = db.from('file_versions').select('file_size, created_at, version')
+      let versionsQuery = db.from('file_version').select('file_size, created_at, version')
 
       if (startDate) {
         versionsQuery = versionsQuery.gte('created_at', startDate.toISOString())

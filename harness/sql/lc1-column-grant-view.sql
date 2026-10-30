@@ -9,7 +9,7 @@
 -- relation and answers false for a column-level grant. PostgREST serves
 -- ?select=part_number from this view to an unauthenticated caller perfectly
 -- happily, so the grant below is a live cross-tenant read: the view has no
--- organization term and files.part_number spans every tenant.
+-- organization term and file.part_number spans every tenant.
 --
 -- security_invoker is set deliberately. Without it the view would also be
 -- caught by the not-security_invoker rule, and the control would pass for a
@@ -19,7 +19,7 @@ DROP VIEW IF EXISTS lc_column_grant_view;
 
 CREATE VIEW lc_column_grant_view WITH (security_invoker = true) AS
   SELECT f.id, f.org_id, f.part_number, f.description
-  FROM files f;
+  FROM file f;
 
 REVOKE ALL ON lc_column_grant_view FROM anon;
 GRANT SELECT (part_number) ON lc_column_grant_view TO anon;

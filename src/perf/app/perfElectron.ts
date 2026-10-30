@@ -20,10 +20,7 @@ const REAL_PASSTHROUGH = new Set([
   'log',
   'getVersion',
   'getPlatform',
-  'minimize',
-  'maximize',
   'close',
-  'isMaximized',
   'getZoomFactor',
   'setZoomFactor',
   'onZoomChanged',
@@ -101,9 +98,6 @@ export function createPerfElectron(
   const scan = () => ({ success: true, files: copy(vault.localEntries) })
 
   const own: Record<string, unknown> = {
-    async getWorkingDir() {
-      return root
-    },
     async setWorkingDir(path: string) {
       return { success: true, path }
     },
@@ -135,7 +129,7 @@ export function createPerfElectron(
       return vault.localEntries.some((e) => e.relativePath === rel)
     },
     extensions: new Proxy(
-      { getAll: async () => [], fetchStore: async () => [] } as Record<string, unknown>,
+      {} as Record<string, unknown>,
       {
         get(obj, prop) {
           if (typeof prop === 'symbol') return undefined

@@ -104,7 +104,7 @@ export function SerializationSettings() {
       setLoading(true)
       try {
         const { data, error } = await supabase
-          .from('organizations')
+          .from('organization')
           .select('serialization_settings')
           .eq('id', organization.id)
           .single()
@@ -158,7 +158,7 @@ export function SerializationSettings() {
 
     setLoadingPreview(true)
     try {
-      const { data, error } = await (supabase.rpc as any)('preview_next_serial_number', {
+      const { data, error } = await (supabase.rpc as any)('serial_number_preview_next', {
         // TODO: type this
         p_org_id: organization.id,
       })
@@ -185,7 +185,7 @@ export function SerializationSettings() {
     try {
       // Use safe RPC that preserves the current_counter from the database
       // This prevents accidentally overwriting a counter incremented by another user
-      const { error } = await (supabase.rpc as any)('update_serialization_settings_safe', {
+      const { error } = await (supabase.rpc as any)('org_update_serialization_settings', {
         // TODO: type this
         p_org_id: organization.id,
         p_settings: JSON.parse(JSON.stringify(settings)),

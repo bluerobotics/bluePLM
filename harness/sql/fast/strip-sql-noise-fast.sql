@@ -1,6 +1,6 @@
 -- OPTIONAL. Read this whole header before running it.
 --
--- This file replaces public.strip_sql_noise() with an implementation that scans
+-- This file replaces public.sql_strip_noise() with an implementation that scans
 -- between interesting characters instead of one character at a time. It refuses
 -- to do so unless a differential test proves the two agree, character for
 -- character, on every function body installed in this database and on a set of
@@ -11,7 +11,7 @@
 -- tools/verify-schema.sql calls check_null_unsafe_org_gates() three times and
 -- check_unbound_entity_args() three times - twice each in its own report blocks
 -- and once more inside verify_and_stamp_schema(). Both scan every function body
--- in public through strip_sql_noise(). That is six full passes over roughly a
+-- in public through sql_strip_noise(). That is six full passes over roughly a
 -- quarter of a million characters of PL/pgSQL per verification, and
 -- negative-controls.ps1 runs the verification forty times.
 --
@@ -36,7 +36,7 @@
 --
 -- WHY THIS IS NOT PART OF THE FAST SUITE AND MUST NOT BE USED FOR A RELEASE
 --
--- strip_sql_noise() is part of the artefact under test. Everything the verifier
+-- sql_strip_noise() is part of the artefact under test. Everything the verifier
 -- concludes about missing authorization checks is filtered through it, and a
 -- release signed off on a database whose copy of it came from the harness is a
 -- release verified by code that is not in the release. The equivalence proof
@@ -50,12 +50,12 @@
 --
 -- Three things had to be true and were checked in the source rather than
 -- assumed:
---   - strip_sql_noise() is not an object in schema_release_manifest(). The
+--   - sql_strip_noise() is not an object in schema_get_release_manifest(). The
 --     manifest mentions the NAME, as a substring that must appear inside
 --     check_null_unsafe_org_gates()'s body; it does not hash this function.
 --     Replacing the body therefore produces no 'stale' row.
 --   - check_null_unsafe_org_gates() excludes proname IN
---     ('check_null_unsafe_org_gates', 'strip_sql_noise') from its own scan, so
+--     ('check_null_unsafe_org_gates', 'sql_strip_noise') from its own scan, so
 --     the quotes and dashes in the new body cannot make it report itself.
 --   - CREATE OR REPLACE keeps the owner and the ACL, so nothing about
 --     reachability changes and check_anon_reach() sees what it saw.
@@ -255,8 +255,8 @@ DECLARE
     'x - - y',
     'x / / y',
     -- The shape that actually matters: an authorization call next to prose
-    E'-- this used to call require_org_member(p_org_id)\n  PERFORM require_org_member(p_org_id);',
-    E'RAISE NOTICE ''require_org_member'';\n  PERFORM require_org_member(p_org_id);',
+    E'-- this used to call org_require_member(p_org_id)\n  PERFORM org_require_member(p_org_id);',
+    E'RAISE NOTICE ''org_require_member'';\n  PERFORM org_require_member(p_org_id);',
     -- Dollar quoting is deliberately NOT special-cased by the original
     'AS $$ SELECT ''x'' $$',
     -- Degenerate
@@ -271,7 +271,7 @@ DECLARE
 BEGIN
   FOREACH v_case IN ARRAY v_cases LOOP
     v_checked := v_checked + 1;
-    v_slow := public.strip_sql_noise(v_case);
+    v_slow := public.sql_strip_noise(v_case);
     v_fast := harness_fast.strip_sql_noise_fast(v_case);
     IF v_slow IS DISTINCT FROM v_fast THEN
       v_bad := v_bad + 1;
@@ -284,10 +284,10 @@ BEGIN
   -- behaviour is worth stating out loud, because neither function is STRICT and
   -- both return the empty string rather than NULL.
   v_checked := v_checked + 1;
-  IF public.strip_sql_noise(NULL) IS DISTINCT FROM harness_fast.strip_sql_noise_fast(NULL) THEN
+  IF public.sql_strip_noise(NULL) IS DISTINCT FROM harness_fast.strip_sql_noise_fast(NULL) THEN
     v_bad := v_bad + 1;
     RAISE WARNING 'DIFFERENCE on NULL input: shipped produced %, fast produced %',
-      quote_literal(COALESCE(public.strip_sql_noise(NULL), '<NULL>')),
+      quote_literal(COALESCE(public.sql_strip_noise(NULL), '<NULL>')),
       quote_literal(COALESCE(harness_fast.strip_sql_noise_fast(NULL), '<NULL>'));
   END IF;
 
@@ -301,7 +301,7 @@ BEGIN
     WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
   LOOP
     v_checked := v_checked + 1;
-    v_slow := public.strip_sql_noise(r.src);
+    v_slow := public.sql_strip_noise(r.src);
     v_fast := harness_fast.strip_sql_noise_fast(r.src);
     IF v_slow IS DISTINCT FROM v_fast THEN
       v_bad := v_bad + 1;
@@ -329,7 +329,7 @@ $test$;
 -- thing that was proved equivalent has to be the thing that gets installed.
 -- Keep them identical if either is edited.
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.strip_sql_noise(p_src TEXT)
+CREATE OR REPLACE FUNCTION public.sql_strip_noise(p_src TEXT)
 RETURNS TEXT
 LANGUAGE plpgsql IMMUTABLE AS $fn$
 DECLARE
@@ -427,9 +427,9 @@ BEGIN
 END;
 $fn$;
 
-REVOKE ALL ON FUNCTION public.strip_sql_noise(TEXT) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.sql_strip_noise(TEXT) FROM PUBLIC, anon;
 
 DO $$
 BEGIN
-  RAISE NOTICE 'public.strip_sql_noise() replaced with the scanning implementation. This database is no longer running the shipped function - do not sign a release off on it. Re-apply /blueplm/core.sql or run reset.ps1 to revert.';
+  RAISE NOTICE 'public.sql_strip_noise() replaced with the scanning implementation. This database is no longer running the shipped function - do not sign a release off on it. Re-apply /blueplm/core.sql or run reset.ps1 to revert.';
 END $$;

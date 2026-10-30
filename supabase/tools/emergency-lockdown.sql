@@ -42,7 +42,7 @@
 --      skipped.
 --   3. Revokes every privilege on every view and materialized view in public
 --      from anon and from PUBLIC. This is new, and it is here because the
---      previous release did not have it: parts_with_pricing was readable with
+--      previous release did not have it: part_with_pricing was readable with
 --      nothing but the publishable anon key and returned every organization's
 --      part numbers, descriptions, revisions, suppliers and unit prices. A view
 --      has no row-level security of its own, and unless it is declared
@@ -75,20 +75,20 @@
 --
 -- WHAT STAYS REACHABLE WITHOUT LOGGING IN, AND WHY
 --
---   get_org_auth_providers(text)
+--   org_get_auth_providers(text)
 --       The sign-in screen calls this before anyone has signed in, to decide
 --       which sign-in buttons to show. src/lib/supabase/organizations.ts sends
 --       the anon key as the bearer token here and nothing else. Revoking it
 --       would break the login screen. It takes an org slug, not an org id, and
 --       returns only which auth methods are enabled.
 --
---   validate_share_link(text)
+--   file_share_link_validate(text)
 --       File share links are opened by recipients who are not BluePLM users.
 --       The unguessable token in the link is the credential, and the function
 --       checks it is active, unexpired and under its download limit.
 --
---   consume_share_link(text)
---       The download itself, split out of validate_share_link() in this release.
+--   file_share_link_consume(text)
+--       The download itself, split out of file_share_link_validate() in this release.
 --       Asking whether a link is still good used to spend one of its downloads,
 --       so an anon caller holding a token could exhaust a ten-download link in
 --       twelve calls without ever fetching the file. Only this one now counts.
@@ -101,7 +101,7 @@
 --       Handled by Supabase Auth in the auth schema, which this file does not
 --       touch. No function in public is involved.
 --
---   join_org_by_slug(text)
+--   org_join_by_slug(text)
 --       Runs after the user has signed in, and is already granted to
 --       authenticated only. The renderer calls it with the user's access token
 --       as the bearer, not the anon key.
@@ -127,9 +127,9 @@ DO $$
 DECLARE
   -- Signatures exactly as regprocedure renders them.
   c_anon_allowlist TEXT[] := ARRAY[
-    'get_org_auth_providers(text)',
-    'validate_share_link(text)',
-    'consume_share_link(text)'
+    'org_get_auth_providers(text)',
+    'file_share_link_validate(text)',
+    'file_share_link_consume(text)'
   ];
   -- Every role that an ACL can actually constrain. Superusers ignore ACLs and
   -- pg_* are built-in; anon is the role we are withdrawing.
@@ -202,16 +202,16 @@ BEGIN
 
     -- Who granted anon its EXECUTE on this routine, directly or through PUBLIC.
     --
-    -- SPELLED OUT HERE RATHER THAN CALLING anon_revoke_grantors(oid)
+    -- SPELLED OUT HERE RATHER THAN CALLING anon_list_revoke_grantors(oid)
     --
-    -- This is a verbatim copy of core.sql's anon_revoke_grantors(), and the two
+    -- This is a verbatim copy of core.sql's anon_list_revoke_grantors(), and the two
     -- must move together - core.sql says the same thing from its side, because
     -- check_anon_reach() and this script have to draw the "cannot revoke" line
     -- in the same place. Duplicating it is nonetheless correct: the helper was
     -- introduced by the release this script exists to buy time for, so a
     -- database that still needs an emergency lockdown is exactly a database that
     -- does not have it. Calling it aborted the whole DO block with
-    -- `42883 function anon_revoke_grantors(oid) does not exist` and revoked
+    -- `42883 function anon_list_revoke_grantors(oid) does not exist` and revoked
     -- nothing at all - on a production database still on the previous release,
     -- which is the only kind this file is ever run against.
     --
@@ -285,7 +285,7 @@ BEGIN
   -- over a column-granted view serving both organizations' part numbers and
   -- descriptions, and the check at the bottom of this file then printed
   -- "no view is [readable by anon]". core.sql's check_anon_reach() and
-  -- enforce_anon_execute_posture() were widened for this in the same release
+  -- anon_enforce_execute_posture() were widened for this in the same release
   -- and this script was not, which is the one place the two disagreed.
   -- has_any_column_privilege answers true for a table-level grant as well, so
   -- it is a strict superset: nothing that used to be swept stops being swept.
@@ -498,15 +498,15 @@ ORDER BY 1;
 -- IDENTITY, NOT ARITHMETIC
 --
 -- This gate used to be `v_funcs <= 3`, against a constant whose comment named
--- get_org_auth_providers, validate_share_link and consume_share_link - and it
+-- org_get_auth_providers, file_share_link_validate and file_share_link_consume - and it
 -- never asked whether the routines it was counting were those three. It printed
 -- PASS three lines below a query that had just named an exposed routine. Three
 -- is also a number a database can reach the wrong way round without trying:
--- consume_share_link does not exist on the previous release, so two allowlisted
+-- file_share_link_consume does not exist on the previous release, so two allowlisted
 -- routines plus one that should not be there is a passing count.
 --
 -- The allowlist is not *required*, only *matched*: a database that predates
--- consume_share_link is missing it legitimately, and that is reported as
+-- file_share_link_consume is missing it legitimately, and that is reported as
 -- information rather than treated as a failure. What fails is a routine anon
 -- can execute that nobody put on the list.
 DO $$
@@ -529,7 +529,7 @@ BEGIN
 
   -- Phrased as NOT EXISTS over pg_proc rather than to_regprocedure() so that a
   -- signature naming no routine at all - which is the ordinary case on a
-  -- database predating consume_share_link - is answered by the catalogue rather
+  -- database predating file_share_link_consume - is answered by the catalogue rather
   -- than by a cast that has to be guarded against NULL.
   SELECT ARRAY(
     SELECT a.signature FROM _lockdown_allowlist a

@@ -15,7 +15,7 @@ export interface OdooSettingsData {
   last_sync_at: string | null
   last_sync_status: string | null
   last_sync_count: number | null
-  auto_sync: boolean
+  is_auto_sync: boolean
 }
 
 export interface SavedConfig {
@@ -28,7 +28,7 @@ export interface SavedConfig {
   color: string | null
   is_active: boolean
   last_tested_at: string | null
-  last_test_success: boolean | null
+  is_last_test_successful: boolean | null
   created_at: string
 }
 

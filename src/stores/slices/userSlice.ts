@@ -204,7 +204,7 @@ export const createUserSlice: StateCreator<
 
         // Load team permissions
         const { data: permsData } = await supabase
-          .from('team_permissions')
+          .from('team_permission')
           .select('resource, actions')
           .in('team_id', teamIds)
 
@@ -222,7 +222,7 @@ export const createUserSlice: StateCreator<
 
         // Load team module defaults and merge (union of enabled modules)
         const { data: teamsData } = await (supabase as any) // TODO: type this
-          .from('teams')
+          .from('team')
           .select('id, module_defaults')
           .in('id', teamIds)
 
@@ -405,7 +405,7 @@ export const createUserSlice: StateCreator<
     try {
       const { supabase } = await import('../../lib/supabase')
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase.rpc as any)('get_denied_modules') // TODO: type this
+      const { data, error } = await (supabase.rpc as any)('module_list_denied') // TODO: type this
       if (error) throw error
       if (get().user?.id !== userId || get().organization?.id !== organizationId) return
       set({ deniedModules: (data || []) as ModuleId[] })

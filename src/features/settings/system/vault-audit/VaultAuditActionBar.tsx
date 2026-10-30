@@ -26,7 +26,6 @@
 import {
   AlertTriangle,
   Check,
-  Database,
   FileUp,
   Loader2,
   Lock,
@@ -96,15 +95,6 @@ function Receipt({ outcome }: { outcome: VaultAuditRepairOutcome }) {
 }
 
 function WriteToVaultBar({ repair }: { repair: UseVaultAuditRepairResult }) {
-  if (repair.notInstalled) {
-    return (
-      <div className="flex items-start gap-2 p-3 rounded-md border border-plm-border bg-plm-bg-lighter">
-        <Database size={14} className="text-plm-fg-muted mt-0.5 flex-shrink-0" />
-        <p className="text-sm text-plm-fg-muted">{t('vaultAudit.repair.notInstalled')}</p>
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-3">
       <VaultAuditNote

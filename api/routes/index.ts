@@ -2,55 +2,32 @@
  * Routes Index
  *
  * Central registration of all API routes.
+ *
+ * 5.0 (API 4.0.0) removed the REST duplicates of what the app does through Supabase RPCs
+ * (`/files/*`, `/vaults`, `/trash`, `/parts`, `/bom`, `/suppliers`, `/activity`, `/checkouts`,
+ * `/auth/login|refresh|me`) and the sandbox extension system (`/extensions/*`, `/admin/extensions`).
+ * A future public API is a thin layer over the same RPCs the app calls, so it cannot drift.
  */
 
 import { FastifyPluginAsync } from 'fastify'
 import healthRoutes from './health.js'
 import authRoutes from './auth.js'
-import vaultRoutes from './vaults.js'
-import fileRoutes from './files.js'
-import trashRoutes from './trash.js'
-import activityRoutes from './activity.js'
-import partsRoutes from './parts.js'
-import supplierRoutes from './suppliers.js'
 import integrationRoutes from './integrations/index.js'
 import webhookRoutes from './webhooks.js'
-import extensionRoutes from './extensions.js'
 import { getNativeExtensionRuntime, nativeExtensionRoutes } from '../src/native-extensions/index.js'
 
 const routes: FastifyPluginAsync = async (fastify) => {
   // Health & Info (no prefix)
   await fastify.register(healthRoutes)
 
-  // Auth routes
+  // Auth routes (invite only)
   await fastify.register(authRoutes)
-
-  // Vault routes
-  await fastify.register(vaultRoutes)
-
-  // File routes (includes checkout/checkin, download, versions, metadata)
-  await fastify.register(fileRoutes)
-
-  // Trash routes
-  await fastify.register(trashRoutes)
-
-  // Activity routes (includes checkouts list)
-  await fastify.register(activityRoutes)
-
-  // Parts & BOM routes
-  await fastify.register(partsRoutes)
-
-  // Supplier routes (includes part-supplier linking and costing)
-  await fastify.register(supplierRoutes)
 
   // Integration routes (Odoo)
   await fastify.register(integrationRoutes)
 
   // Webhook routes
   await fastify.register(webhookRoutes)
-
-  // Extension routes (sandbox handlers + admin endpoints)
-  await fastify.register(extensionRoutes)
 
   // Native extension routes (/ext/<id>/...) and POST /admin/extensions/reload
   await fastify.register(nativeExtensionRoutes, {

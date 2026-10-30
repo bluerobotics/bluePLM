@@ -43,7 +43,7 @@ export async function getUserProfile(
       authLog('debug', 'Fetching profile...', { attempt: attempt + 1 })
 
       const response = await fetch(
-        `${url}/rest/v1/users?select=id,email,role,org_id,full_name,avatar_url,custom_avatar_url&id=eq.${userId}`,
+        `${url}/rest/v1/app_user?select=id,email,role,org_id,full_name,avatar_url,custom_avatar_url&id=eq.${userId}`,
         {
           headers: {
             apikey: key,
@@ -93,7 +93,7 @@ export async function getOrganization(orgId: string) {
     const key = config?.anonKey || import.meta.env.VITE_SUPABASE_ANON_KEY
     const accessToken = getCurrentAccessToken() || key
 
-    const response = await fetch(`${url}/rest/v1/organizations?select=*&id=eq.${orgId}`, {
+    const response = await fetch(`${url}/rest/v1/organization?select=*&id=eq.${orgId}`, {
       headers: {
         apikey: key,
         Authorization: `Bearer ${accessToken}`,
@@ -128,7 +128,7 @@ export async function getOrgAuthProviders(orgSlug?: string): Promise<AuthProvide
 
     // If we have an org slug, use the RPC function
     if (orgSlug) {
-      const response = await fetch(`${url}/rest/v1/rpc/get_org_auth_providers`, {
+      const response = await fetch(`${url}/rest/v1/rpc/org_get_auth_providers`, {
         method: 'POST',
         headers: {
           apikey: key,
@@ -150,7 +150,7 @@ export async function getOrgAuthProviders(orgSlug?: string): Promise<AuthProvide
 
     // Fallback: Query all organizations and get the first one's auth_providers
     // This works because each org has their own Supabase database (single-tenant model)
-    const orgResponse = await fetch(`${url}/rest/v1/organizations?select=auth_providers&limit=1`, {
+    const orgResponse = await fetch(`${url}/rest/v1/organization?select=auth_providers&limit=1`, {
       headers: {
         apikey: key,
         Authorization: `Bearer ${key}`,
@@ -222,7 +222,7 @@ function restHeaders(api: RestApi): Record<string, string> {
 async function joinOrgBySlug(api: RestApi, slug: string, context: string): Promise<string | null> {
   for (let attempt = 1; attempt <= JOIN_ORG_MAX_RETRIES; attempt++) {
     try {
-      const response = await fetch(`${api.url}/rest/v1/rpc/join_org_by_slug`, {
+      const response = await fetch(`${api.url}/rest/v1/rpc/org_join_by_slug`, {
         method: 'POST',
         headers: restHeaders(api),
         body: JSON.stringify({ p_org_slug: slug }),
@@ -275,7 +275,7 @@ async function joinOrgBySlug(api: RestApi, slug: string, context: string): Promi
  */
 async function ensureUserOrgIdRpc(api: RestApi): Promise<string | null> {
   try {
-    const response = await fetch(`${api.url}/rest/v1/rpc/ensure_user_org_id`, {
+    const response = await fetch(`${api.url}/rest/v1/rpc/user_ensure_org_id`, {
       method: 'POST',
       headers: restHeaders(api),
       body: '{}',
@@ -292,7 +292,7 @@ async function ensureUserOrgIdRpc(api: RestApi): Promise<string | null> {
 
 async function fetchOrgById(api: RestApi, orgId: string): Promise<Organization | null> {
   try {
-    const response = await fetch(`${api.url}/rest/v1/organizations?select=*&id=eq.${orgId}`, {
+    const response = await fetch(`${api.url}/rest/v1/organization?select=*&id=eq.${orgId}`, {
       headers: restHeaders(api),
     })
     const data = await response.json()
@@ -315,7 +315,7 @@ async function fetchOrgById(api: RestApi, orgId: string): Promise<Organization |
  */
 async function confirmMembership(api: RestApi, userId: string, orgId: string): Promise<boolean> {
   try {
-    const response = await fetch(`${api.url}/rest/v1/users?select=org_id&id=eq.${userId}`, {
+    const response = await fetch(`${api.url}/rest/v1/app_user?select=org_id&id=eq.${userId}`, {
       headers: restHeaders(api),
     })
     const data = await response.json()
@@ -364,7 +364,7 @@ export async function linkUserToOrganization(
     if (cachedOrgId === undefined) {
       // First, check if user already has an org_id (with retry for new users)
       for (let attempt = 0; attempt < 3; attempt++) {
-        const userResponse = await fetch(`${url}/rest/v1/users?select=org_id&id=eq.${userId}`, {
+        const userResponse = await fetch(`${url}/rest/v1/app_user?select=org_id&id=eq.${userId}`, {
           headers: {
             apikey: key,
             Authorization: `Bearer ${accessToken}`,
@@ -388,7 +388,7 @@ export async function linkUserToOrganization(
       if (!userProfile) {
         authLog('info', 'User record not found after retries, calling ensure_user_org_id RPC')
         try {
-          const ensureResponse = await fetch(`${url}/rest/v1/rpc/ensure_user_org_id`, {
+          const ensureResponse = await fetch(`${url}/rest/v1/rpc/user_ensure_org_id`, {
             method: 'POST',
             headers: {
               apikey: key,
@@ -402,7 +402,7 @@ export async function linkUserToOrganization(
 
           if (ensureResult?.created_user) {
             // Re-fetch user profile now that it exists
-            const userResponse = await fetch(`${url}/rest/v1/users?select=org_id&id=eq.${userId}`, {
+            const userResponse = await fetch(`${url}/rest/v1/app_user?select=org_id&id=eq.${userId}`, {
               headers: {
                 apikey: key,
                 Authorization: `Bearer ${accessToken}`,
@@ -434,7 +434,7 @@ export async function linkUserToOrganization(
       authLog('info', 'User has org_id, fetching org details (fast path)')
       const orgFetchStart = performance.now()
       const orgResponse = await fetch(
-        `${url}/rest/v1/organizations?select=*&id=eq.${userProfile.org_id}`,
+        `${url}/rest/v1/organization?select=*&id=eq.${userProfile.org_id}`,
         {
           headers: {
             apikey: key,
@@ -467,7 +467,7 @@ export async function linkUserToOrganization(
     authLog('info', 'Looking up org by email domain', { domain })
 
     // Fetch all orgs and filter by domain (contains filter is complex with REST API)
-    const allOrgsResponse = await fetch(`${url}/rest/v1/organizations?select=*`, {
+    const allOrgsResponse = await fetch(`${url}/rest/v1/organization?select=*`, {
       headers: {
         apikey: key,
         Authorization: `Bearer ${accessToken}`,
@@ -628,7 +628,7 @@ export async function getOrgUsers(orgId: string): Promise<{ users: any[]; error?
   const client = getSupabaseClient()
 
   const { data, error } = await client
-    .from('users')
+    .from('app_user')
     .select('id, email, full_name, avatar_url, role')
     .eq('org_id', orgId)
     .order('full_name', { ascending: true })

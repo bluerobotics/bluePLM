@@ -5,6 +5,6 @@
 -- becomes: the holder of a link can repoint file_id at another tenant's file,
 -- and anyone who created a link can re-activate one a remediation had just
 -- deactivated.
-DROP POLICY IF EXISTS "Users can update own share links" ON file_share_links;
-CREATE POLICY "Users can update own share links"
-  ON file_share_links FOR UPDATE USING (created_by = auth.uid());
+DROP POLICY IF EXISTS "file_share_link: users update own" ON file_share_link;
+CREATE POLICY "file_share_link: users update own"
+  ON file_share_link FOR UPDATE USING (created_by = auth.uid());

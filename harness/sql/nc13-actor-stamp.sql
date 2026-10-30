@@ -18,7 +18,7 @@
 -- anything, it does not mention p_org_id, and it is true for every account that
 -- exists - which, since signing up is free, is everybody.
 --
--- The repair is nc13-fix.sql: the identical function with require_org_member()
+-- The repair is nc13-fix.sql: the identical function with org_require_member()
 -- added. That must restore the stamp, or the check is reacting to the
 -- function's existence rather than to the absence of a gate.
 CREATE OR REPLACE FUNCTION nc_actor_stamp_only(p_org_id UUID, p_limit INTEGER DEFAULT 10)
@@ -32,7 +32,7 @@ BEGIN
   END IF;
 
   RETURN QUERY
-  SELECT f.part_number, f.description FROM files f WHERE f.org_id = p_org_id;
+  SELECT f.part_number, f.description FROM file f WHERE f.org_id = p_org_id;
 END;
 $$;
 

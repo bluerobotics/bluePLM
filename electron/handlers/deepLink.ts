@@ -2,14 +2,14 @@
  * Deep Link Protocol Handler
  *
  * Handles the blueplm:// protocol for deep linking from external sources
- * (e.g., "Install in BluePLM" button on extensions.blueplm.io)
+ * (Store links such as blueplm://install/<id> only bring the app forward since 5.0.)
  *
  * Supported URL formats:
  * - blueplm://install/{extension-id} - Install extension from store
  * - blueplm://install/{extension-id}?version={version} - Install specific version
  */
 
-import { BrowserWindow, ipcMain } from 'electron'
+import { BrowserWindow } from 'electron'
 
 import { isValidExtensionId, isValidExtensionVersion } from './extensions/validation'
 
@@ -175,21 +175,16 @@ async function handleInstallDeepLink(
     }
   }
 
-  // Focus the window
+  // 5.0 removed the per-machine Extension Store, so a store link only brings the app forward.
+  // Extensions are installed for the organization by an admin (Settings > Extensions).
   focusMainWindow()
-
-  // Send IPC to renderer to trigger installation
-  // The renderer will handle showing UI, confirmation dialogs, etc.
-  mainWindow.webContents.send('deep-link:install-extension', {
-    extensionId,
-    version,
-    timestamp: Date.now(),
-  })
+  deps?.log(`Deep link install ignored: per-machine installs were removed in 5.0 (${extensionId})`)
 
   return {
-    success: true,
+    success: false,
     action: 'install',
     extensionId,
+    error: 'Per-machine extension installs were removed in BluePLM 5.0',
   }
 }
 
@@ -245,19 +240,6 @@ export function registerDeepLinkHandlers(
   deps = dependencies
   mainWindow = window
 
-  // Handler for renderer to acknowledge deep link processing
-  ipcMain.handle(
-    'deep-link:acknowledge',
-    (_event, extensionId: string, success: boolean, error?: string) => {
-      if (success) {
-        deps?.log(`Deep link install acknowledged: ${extensionId}`)
-      } else {
-        deps?.logError(`Deep link install failed: ${extensionId}`, { error })
-      }
-      return { success: true }
-    },
-  )
-
   deps.log('Deep link handlers registered')
 
   // Process any pending deep link now that window is ready
@@ -268,7 +250,6 @@ export function registerDeepLinkHandlers(
 }
 
 export function unregisterDeepLinkHandlers(): void {
-  ipcMain.removeHandler('deep-link:acknowledge')
   mainWindow = null
 }
 

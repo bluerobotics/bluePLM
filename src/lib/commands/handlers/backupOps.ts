@@ -98,9 +98,9 @@ export async function handleBackupStatus(addOutput: OutputFn): Promise<void> {
       lines.push(`   Bucket: ${status.config?.bucket || 'Unknown'}`)
       lines.push(`   Designated Machine: ${status.config?.designated_machine_name || 'None'}`)
 
-      if (status.config?.backup_running_since) {
+      if (status.config?.backup_started_at) {
         lines.push(
-          `   Backup in progress since ${new Date(status.config.backup_running_since).toLocaleString()}`,
+          `   Backup in progress since ${new Date(status.config.backup_started_at).toLocaleString()}`,
         )
       } else if (status.config?.backup_requested_at) {
         lines.push(

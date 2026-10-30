@@ -54,8 +54,8 @@ beforeEach(async () => {
   h = await createHarness()
   // The vault exists on the server and this user is granted it; otherwise App's vault
   // validation disconnects it as stale.
-  h.db.seed('vaults', { id: VAULT_ID, org_id: ORG_ID, name: 'Test Vault', slug: 'test-vault' })
-  h.db.defineRpc('get_user_vault_access', (args) =>
+  h.db.seed('vault', { id: VAULT_ID, org_id: ORG_ID, name: 'Test Vault', slug: 'test-vault' })
+  h.db.defineRpc('user_vault_access_list', (args) =>
     args.p_user_id === USER_ID ? [{ vault_id: VAULT_ID }] : [],
   )
   // The vault folder exists: useVaultManagement disconnects a vault whose folder it cannot open.

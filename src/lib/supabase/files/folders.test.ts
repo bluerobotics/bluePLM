@@ -171,7 +171,7 @@ class InsertQuery {
 
 const fakeClient = {
   from(name: string) {
-    expect(name).toBe('folders')
+    expect(name).toBe('folder')
     return {
       select: () => new SelectQuery(),
       insert: (values: FolderValues) => new InsertQuery(values),

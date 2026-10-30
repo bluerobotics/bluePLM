@@ -12,7 +12,7 @@ export async function getCheckedOutByUser(
   const client = getSupabaseClient()
 
   const { data: file, error: fileError } = await client
-    .from('files')
+    .from('file')
     .select('checked_out_by')
     .eq('id', fileId)
     .single()
@@ -26,7 +26,7 @@ export async function getCheckedOutByUser(
   }
 
   const { data: user, error: userError } = await client
-    .from('users')
+    .from('app_user')
     .select('id, email, full_name, avatar_url')
     .eq('id', file.checked_out_by)
     .single()
@@ -54,15 +54,15 @@ export async function watchFile(
 ): Promise<{ success: boolean; error?: string }> {
   const client = getSupabaseClient()
 
-  const { error } = await client.from('file_watchers').upsert(
+  const { error } = await client.from('file_watcher').upsert(
     {
       org_id: orgId,
       file_id: fileId,
       user_id: userId,
-      notify_on_checkin: options?.notifyOnCheckin ?? true,
-      notify_on_checkout: options?.notifyOnCheckout ?? false,
-      notify_on_state_change: options?.notifyOnStateChange ?? true,
-      notify_on_review: options?.notifyOnReview ?? true,
+      is_notified_on_checkin: options?.notifyOnCheckin ?? true,
+      is_notified_on_checkout: options?.notifyOnCheckout ?? false,
+      is_notified_on_state_change: options?.notifyOnStateChange ?? true,
+      is_notified_on_review: options?.notifyOnReview ?? true,
     },
     {
       onConflict: 'file_id,user_id',
@@ -86,7 +86,7 @@ export async function unwatchFile(
   const client = getSupabaseClient()
 
   const { error } = await client
-    .from('file_watchers')
+    .from('file_watcher')
     .delete()
     .eq('file_id', fileId)
     .eq('user_id', userId)
@@ -108,7 +108,7 @@ export async function isWatchingFile(
   const client = getSupabaseClient()
 
   const { data, error } = await client
-    .from('file_watchers')
+    .from('file_watcher')
     .select('id')
     .eq('file_id', fileId)
     .eq('user_id', userId)
@@ -128,11 +128,11 @@ export async function getWatchedFiles(userId: string): Promise<{ files: any[]; e
   const client = getSupabaseClient()
 
   const { data, error } = await client
-    .from('file_watchers')
+    .from('file_watcher')
     .select(
       `
       *,
-      file:files(id, file_name, file_path, state, version)
+      file:file(id, file_name, file_path, state, version)
     `,
     )
     .eq('user_id', userId)

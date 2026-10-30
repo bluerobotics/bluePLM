@@ -71,17 +71,6 @@ export interface InspectionRowInput extends InspectionRowValues {
 }
 
 /**
- * Detect the PostgREST error returned when the inspection tables don't exist yet
- * (i.e. the `15-inspection.sql` module hasn't been run against the database).
- * PGRST205 = "Could not find the table ... in the schema cache"; 42P01 = undefined_table.
- */
-function isTableMissingError(error: { code?: string; message?: string } | null): boolean {
-  if (!error) return false
-  if (error.code === 'PGRST205' || error.code === '42P01') return true
-  return /schema cache|does not exist/i.test(error.message ?? '')
-}
-
-/**
  * Fetch the live inspection rows for a file, ordered by sort_order.
  */
 export async function getInspectionRows(
@@ -90,20 +79,16 @@ export async function getInspectionRows(
   success: boolean
   rows?: InspectionCharacteristic[]
   error?: string
-  notInstalled?: boolean
 }> {
   const client = getSupabaseClient()
 
   const { data, error } = await client
-    .from('inspection_characteristics')
+    .from('inspection_characteristic')
     .select('*')
     .eq('file_id', fileId)
     .order('sort_order', { ascending: true })
 
   if (error) {
-    if (isTableMissingError(error)) {
-      return { success: false, notInstalled: true, error: error.message }
-    }
     return { success: false, error: error.message }
   }
 
@@ -120,20 +105,16 @@ export async function getInspectionRowsForVersion(
   success: boolean
   rows?: InspectionCharacteristicVersion[]
   error?: string
-  notInstalled?: boolean
 }> {
   const client = getSupabaseClient()
 
   const { data, error } = await client
-    .from('inspection_characteristic_versions')
+    .from('inspection_characteristic_version')
     .select('*')
     .eq('file_version_id', fileVersionId)
     .order('sort_order', { ascending: true })
 
   if (error) {
-    if (isTableMissingError(error)) {
-      return { success: false, notInstalled: true, error: error.message }
-    }
     return { success: false, error: error.message }
   }
 
@@ -167,18 +148,15 @@ const BALLOON_PAGE_SIZE = 1000
  */
 export async function getHighestUsedBalloonNumber(
   fileId: string,
-): Promise<{ success: boolean; highest?: number; error?: string; notInstalled?: boolean }> {
+): Promise<{ success: boolean; highest?: number; error?: string }> {
   const client = getSupabaseClient()
 
   const { data: live, error: liveError } = await client
-    .from('inspection_characteristics')
+    .from('inspection_characteristic')
     .select('balloon_number')
     .eq('file_id', fileId)
 
   if (liveError) {
-    if (isTableMissingError(liveError)) {
-      return { success: false, notInstalled: true, error: liveError.message }
-    }
     return { success: false, error: liveError.message }
   }
 
@@ -186,16 +164,13 @@ export async function getHighestUsedBalloonNumber(
 
   for (let offset = 0; ; offset += BALLOON_PAGE_SIZE) {
     const { data: page, error } = await client
-      .from('inspection_characteristic_versions')
-      .select('id, balloon_number, file_versions!inner(file_id)')
-      .eq('file_versions.file_id', fileId)
+      .from('inspection_characteristic_version')
+      .select('id, balloon_number, file_version!inner(file_id)')
+      .eq('file_version.file_id', fileId)
       .order('id', { ascending: true })
       .range(offset, offset + BALLOON_PAGE_SIZE - 1)
 
     if (error) {
-      if (isTableMissingError(error)) {
-        return { success: false, notInstalled: true, error: error.message }
-      }
       return { success: false, error: error.message }
     }
 
@@ -224,7 +199,7 @@ export async function saveInspectionRows(
 
   // Verify checkout ownership (defense-in-depth; UI also gates this)
   const { data: file, error: fileError } = await client
-    .from('files')
+    .from('file')
     .select('checked_out_by')
     .eq('id', fileId)
     .single()
@@ -238,7 +213,7 @@ export async function saveInspectionRows(
 
   // Delete rows that the user removed
   const keepIds = rows.map((r) => r.id)
-  let deleteQuery = client.from('inspection_characteristics').delete().eq('file_id', fileId)
+  let deleteQuery = client.from('inspection_characteristic').delete().eq('file_id', fileId)
   if (keepIds.length > 0) {
     deleteQuery = deleteQuery.not('id', 'in', `(${keepIds.join(',')})`)
   }
@@ -264,7 +239,7 @@ export async function saveInspectionRows(
   }))
 
   const { error: upsertError } = await client
-    .from('inspection_characteristics')
+    .from('inspection_characteristic')
     .upsert(payload, { onConflict: 'id' })
 
   if (upsertError) {
@@ -290,13 +265,12 @@ export async function getInspectionMethods(
   const client = getSupabaseClient()
 
   const { data, error } = await client
-    .from('inspection_methods')
+    .from('inspection_method')
     .select('id, name')
     .eq('org_id', orgId)
     .order('name', { ascending: true })
 
   if (error) {
-    if (isTableMissingError(error)) return { success: true, methods: [] }
     return { success: false, error: error.message }
   }
 
@@ -323,7 +297,7 @@ export async function addInspectionMethod(
   const client = getSupabaseClient()
 
   const { data, error } = await client
-    .from('inspection_methods')
+    .from('inspection_method')
     .upsert({ org_id: orgId, name: trimmed, created_by: userId }, { onConflict: 'org_id,name' })
     .select('id, name')
     .single()
@@ -348,7 +322,7 @@ export async function updateInspectionMethod(
   const client = getSupabaseClient()
 
   const { error } = await client
-    .from('inspection_methods')
+    .from('inspection_method')
     .update({ name: trimmed })
     .eq('id', id)
     .eq('org_id', orgId)
@@ -368,7 +342,7 @@ export async function deleteInspectionMethod(
   const client = getSupabaseClient()
 
   const { error } = await client
-    .from('inspection_methods')
+    .from('inspection_method')
     .delete()
     .eq('id', id)
     .eq('org_id', orgId)

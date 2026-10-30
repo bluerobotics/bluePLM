@@ -11,7 +11,7 @@ export async function getRecentActivity(orgId: string, limit = 50) {
     .select(
       `
       *,
-      file:files(file_name, file_path)
+      file:file(file_name, file_path)
     `,
     )
     .eq('org_id', orgId)

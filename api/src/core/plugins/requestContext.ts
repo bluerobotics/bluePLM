@@ -2,6 +2,8 @@ import { FastifyInstance, FastifyRequest } from 'fastify'
 import fp from 'fastify-plugin'
 import { randomUUID } from 'crypto'
 
+import { clientIp } from '../clientIp.js'
+
 declare module 'fastify' {
   interface FastifyRequest {
     requestId: string
@@ -49,7 +51,13 @@ export function resolveRequestId(supplied: unknown): { id: string; accepted: boo
   return { id: randomUUID(), accepted: false }
 }
 
-async function requestContextPlugin(fastify: FastifyInstance) {
+async function requestContextPlugin(
+  fastify: FastifyInstance,
+  options: { clientIpHeader?: string | null } = {},
+) {
+  const clientIpHeader = options.clientIpHeader ?? null
+
+
   fastify.decorateRequest('requestId', '')
   fastify.decorateRequest('startTime', 0)
 
@@ -61,7 +69,12 @@ async function requestContextPlugin(fastify: FastifyInstance) {
     request.startTime = Date.now()
 
     // Add to log context
-    request.log = request.log.child({ requestId: request.requestId })
+    // clientIp is the address rate limits count against (src/core/clientIp.ts), which differs
+    // from Fastify's remoteAddress behind an edge that is not a trusted proxy.
+    request.log = request.log.child({
+      requestId: request.requestId,
+      clientIp: clientIp(request, clientIpHeader),
+    })
 
     // The rejected value is deliberately not logged - writing it out is the thing the
     // shape check exists to prevent. Its length is enough to tell a truncating proxy

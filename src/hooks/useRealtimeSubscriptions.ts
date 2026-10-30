@@ -1091,7 +1091,7 @@ export function useRealtimeSubscriptions(
         // All admin-modifiable fields directly on the organization table
         const orgAdminFields = [
           // Google Drive integration
-          'google_drive_enabled',
+          'is_google_drive_enabled',
           'google_drive_client_id',
           'google_drive_client_secret',
           // Company profile
@@ -1318,7 +1318,7 @@ export function useRealtimeSubscriptions(
           await loadUserPermissions()
 
           // Also reload workflow roles when they change
-          if (changeType === 'workflow_roles') {
+          if (changeType === 'workflow_role') {
             await loadUserWorkflowRoles()
           }
 

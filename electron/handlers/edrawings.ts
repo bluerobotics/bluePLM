@@ -810,10 +810,6 @@ export function registerEDrawingsHandlers(
     return openMode === 'fallback' ? { success: true, fallback: true } : { success: true }
   })
 
-  ipcMain.handle('edrawings:get-window-handle', (event) => {
-    if (!isApplicationWindowSender(event.sender)) return null
-    return Array.from(window.getNativeWindowHandle())
-  })
 
   ipcMain.handle(
     'edrawings:create-preview',
@@ -899,7 +895,6 @@ export function unregisterEDrawingsHandlers(): void {
     'edrawings:check-installed',
     'edrawings:native-available',
     'edrawings:open-file',
-    'edrawings:get-window-handle',
     'edrawings:create-preview',
     'edrawings:attach-preview',
     'edrawings:load-file',

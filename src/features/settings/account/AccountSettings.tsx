@@ -40,8 +40,8 @@ interface UserSession {
   os_version: string | null
   app_version: string | null
   platform: string | null
-  last_active: string | null
-  last_seen: string | null
+  last_active_at: string | null
+  last_seen_at: string | null
   is_active: boolean | null
   created_at: string | null
 }
@@ -183,12 +183,12 @@ export function AccountSettings() {
         const client = getSupabaseClient()
 
         const { data, error } = await client
-          .from('user_sessions')
+          .from('user_session')
           .select('*')
           .eq('user_id', user.id)
           .eq('is_active', true)
-          .gte('last_seen', fiveMinutesAgo)
-          .order('last_seen', { ascending: false })
+          .gte('last_seen_at', fiveMinutesAgo)
+          .order('last_seen_at', { ascending: false })
 
         if (!error && data) {
           // Cast to UserSession[] - Supabase types may be out of sync with actual schema
@@ -405,7 +405,7 @@ export function AccountSettings() {
                           <span
                             className={`w-1.5 h-1.5 rounded-full bg-plm-success ${isCurrentDevice ? 'animate-pulse' : ''}`}
                           />
-                          {formatLastSeen(session.last_seen)}
+                          {formatLastSeen(session.last_seen_at)}
                         </div>
                         <button
                           onClick={() =>

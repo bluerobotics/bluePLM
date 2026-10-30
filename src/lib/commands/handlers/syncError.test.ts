@@ -2,7 +2,7 @@
  * The sentence a failed first check-in puts in front of the user.
  *
  * `syncFile` hands back the path collision exactly as Postgres phrased it — `duplicate key value
- * violates unique constraint "idx_files_vault_path_unique_active"` — which names an index the user
+ * violates unique constraint "file_vault_id_file_path_idx"` — which names an index the user
  * has never heard of and suggests nothing to do about it. The collision is on letter case, so the
  * file being synced and the row already on the server look identical in every listing, and a retry
  * cannot help: the file only stops being offered for sync once the colliding row has been read into
@@ -38,7 +38,7 @@ const FILE_NAME = 'Bracket.SLDPRT'
 
 /** What the server actually returns when the case-differing path is already taken. */
 const UNIQUE_VIOLATION =
-  'duplicate key value violates unique constraint "idx_files_vault_path_unique_active"'
+  'duplicate key value violates unique constraint "file_vault_id_file_path_idx"'
 
 describe('translateSyncError', () => {
   it('restates the unique-constraint violation as something the user can act on', () => {
@@ -47,7 +47,7 @@ describe('translateSyncError', () => {
     expect(message).toContain(FILE_NAME)
     expect(message).toContain('letter case')
     expect(message).toContain('Refresh the file list')
-    expect(message).not.toContain('idx_files_vault_path_unique_active')
+    expect(message).not.toContain('file_vault_id_file_path_idx')
     expect(message).not.toContain('duplicate key')
   })
 
@@ -58,7 +58,7 @@ describe('translateSyncError', () => {
   })
 
   it('recognises the collision from the index name alone', () => {
-    expect(translateSyncError('conflict on idx_files_vault_path_unique_active', FILE_NAME)).toBe(
+    expect(translateSyncError('conflict on file_vault_id_file_path_idx', FILE_NAME)).toBe(
       translateSyncError(UNIQUE_VIOLATION, FILE_NAME),
     )
   })

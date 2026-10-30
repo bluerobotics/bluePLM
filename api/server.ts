@@ -36,9 +36,11 @@ import { fileURLToPath } from 'url'
 import { env } from './src/config/env.js'
 import { createLoggerOptions } from './src/infrastructure/logging.js'
 import { errorHandlerPlugin, requestContextPlugin } from './src/core/plugins/index.js'
+import { clientIp, resolveClientIpHeader } from './src/core/clientIp.js'
 import { authPlugin } from './middleware/index.js'
 import { sendError } from './utils/index.js'
 import routes from './routes/index.js'
+import { startBackupWorker, type BackupWorker } from './src/backup/index.js'
 
 // Import types to ensure Fastify extensions are available
 import './types.js'
@@ -222,8 +224,9 @@ export async function buildServer(): Promise<FastifyInstance> {
     requestTimeout: REQUEST_TIMEOUT_MS,
     keepAliveTimeout: KEEP_ALIVE_TIMEOUT_MS,
     pluginTimeout: PLUGIN_TIMEOUT_MS,
-    // request.ip (and so every per-IP rate limit) is the address the nearest trusted proxy saw.
-    trustProxy: env.TRUST_PROXY_HOPS > 0 ? env.TRUST_PROXY_HOPS : false,
+    // request.ip (and so every per-IP rate limit) is the address the nearest trusted proxy saw. Proxies are
+    // trusted by address, never by hop count (Fastify >= 5.12 refuses a count).
+    trustProxy: env.TRUST_PROXY.trim() === 'off' ? false : env.TRUST_PROXY,
   })
 
   // Security headers
@@ -251,15 +254,21 @@ export async function buildServer(): Promise<FastifyInstance> {
   // reconstructed from the environment after someone reports a blank screen.
   fastify.log.info({ corsOrigins: CORS_ORIGINS }, 'CORS allowlist')
 
+  // The client address for rate limits and logs: request.ip, or the edge's header where request.ip
+  // is the edge itself (Railway). See src/core/clientIp.ts.
+  const clientIpHeader = resolveClientIpHeader(env.CLIENT_IP_HEADER, process.env)
+  fastify.log.info({ clientIpHeader }, 'Client address source')
+
   // Register Rate Limiting
   await fastify.register(rateLimit, {
     max: env.RATE_LIMIT_MAX,
     timeWindow: env.RATE_LIMIT_WINDOW,
     errorResponseBuilder: buildRateLimitError,
+    keyGenerator: (request) => clientIp(request, clientIpHeader),
   })
 
   // Register core plugins
-  await fastify.register(requestContextPlugin)
+  await fastify.register(requestContextPlugin, { clientIpHeader })
   await fastify.register(errorHandlerPlugin)
 
   // Register OpenAPI/Swagger
@@ -283,16 +292,9 @@ export async function buildServer(): Promise<FastifyInstance> {
       tags: [
         { name: 'Info', description: 'API info and health' },
         { name: 'Auth', description: 'Authentication endpoints' },
-        { name: 'Vaults', description: 'Vault management' },
-        { name: 'Files', description: 'File operations' },
         { name: 'ERP', description: 'ERP integration endpoints (Odoo, SAP, etc.)' },
-        { name: 'Suppliers', description: 'Supplier/vendor management and costing' },
-        { name: 'Versions', description: 'Version history' },
-        { name: 'Trash', description: 'Deleted files' },
-        { name: 'Activity', description: 'Activity feed' },
         { name: 'Integrations', description: 'External integrations (Odoo)' },
         { name: 'Webhooks', description: 'Webhook management' },
-        { name: 'Extensions', description: 'Extension system - sandbox handlers and admin' },
       ],
     },
   })
@@ -340,10 +342,15 @@ export async function buildServer(): Promise<FastifyInstance> {
 }
 
 // Graceful shutdown handler
+let backupWorker: BackupWorker | null = null
+
 function setupGracefulShutdown(fastify: FastifyInstance): void {
   const shutdown = async (signal: string) => {
     fastify.log.info({ signal }, 'Shutdown signal received')
     try {
+      // A backup in flight is not awaited: the platform's kill timer is shorter than a
+      // backup. On the next start the worker closes its history row and resumes it.
+      backupWorker?.halt()
       await fastify.close()
       fastify.log.info('Server closed gracefully')
       process.exit(0)
@@ -368,6 +375,7 @@ buildServer()
         process.exit(1)
       }
       fastify.log.info(`\n🚀 BluePLM API v${API_VERSION} running at ${address}`)
+      backupWorker = startBackupWorker(env, fastify.log, API_VERSION)
       fastify.log.info(
         env.ENABLE_DOCS
           ? `📚 API Documentation: ${address}/docs\n`

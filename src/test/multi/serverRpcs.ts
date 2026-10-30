@@ -37,7 +37,7 @@ const after = (value: unknown, since: string) => typeof value === 'string' && Da
 export function getVaultFilesDelta(args: Row, db: FakeSupabase): unknown {
   const since = String(args.p_since)
   return db
-    .rows('files')
+    .rows('file')
     .filter(
       (row) =>
         row.org_id === args.p_org_id &&
@@ -54,7 +54,7 @@ export function getVaultFilesDelta(args: Row, db: FakeSupabase): unknown {
 /** `get_vault_files_count`: the live rows `get_vault_files_fast` would return. */
 export function getVaultFilesCount(args: Row, db: FakeSupabase): unknown {
   return db
-    .rows('files')
+    .rows('file')
     .filter(
       (row) =>
         row.org_id === args.p_org_id &&
@@ -64,6 +64,6 @@ export function getVaultFilesCount(args: Row, db: FakeSupabase): unknown {
 }
 
 export function defineMultiMachineRpcs(db: FakeSupabase): void {
-  db.defineRpc('get_vault_files_delta', getVaultFilesDelta)
-  db.defineRpc('get_vault_files_count', getVaultFilesCount)
+  db.defineRpc('vault_file_list_delta', getVaultFilesDelta)
+  db.defineRpc('vault_file_count', getVaultFilesCount)
 }

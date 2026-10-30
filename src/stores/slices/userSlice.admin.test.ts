@@ -23,7 +23,7 @@ function makeUser(role: User['role']): User {
     org_id: 'org-1',
     role,
     created_at: '2026-01-01T00:00:00Z',
-    last_sign_in: null,
+    last_sign_in_at: null,
   }
 }
 

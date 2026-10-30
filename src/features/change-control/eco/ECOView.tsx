@@ -138,7 +138,7 @@ export function ECOView() {
 
         // Fetch ECOs with file count
         const { data, error } = await client
-          .from('ecos')
+          .from('eco')
           .select(
             `
             id,
@@ -148,7 +148,7 @@ export function ECOView() {
             status,
             created_at,
             created_by,
-            created_by_user:users!created_by(full_name, email)
+            created_by_user:app_user!created_by(full_name, email)
           `,
           )
           .eq('org_id', organization.id)
@@ -156,10 +156,7 @@ export function ECOView() {
 
         if (error) {
           log.error('[ECO]', 'Failed to load ECOs', { error })
-          // Don't show error if table doesn't exist yet
-          if (!error.message?.includes('ecos')) {
-            addToast('error', 'Failed to load ECOs')
-          }
+          addToast('error', 'Failed to load ECOs')
           return
         }
 
@@ -169,7 +166,7 @@ export function ECOView() {
 
         if (ecoIds.length > 0) {
           const { data: countData } = await client
-            .from('file_ecos')
+            .from('file_eco')
             .select('eco_id')
             .in('eco_id', ecoIds)
 
@@ -219,7 +216,7 @@ export function ECOView() {
     try {
       const client = getSupabaseClient()
       const { data, error } = await client
-        .from('file_ecos')
+        .from('file_eco')
         .select(
           `
           id,
@@ -227,7 +224,7 @@ export function ECOView() {
           eco_id,
           created_at,
           notes,
-          file:files!file_id(
+          file:file!file_id(
             id,
             file_name,
             file_path,
@@ -296,7 +293,7 @@ export function ECOView() {
     try {
       const client = getSupabaseClient()
       const { data, error } = await client
-        .from('ecos')
+        .from('eco')
         .insert({
           org_id: organization.id,
           eco_number: newEcoNumber.trim().toUpperCase(),
@@ -374,7 +371,7 @@ export function ECOView() {
       }))
 
       const { error } = await client
-        .from('file_ecos')
+        .from('file_eco')
         .upsert(insertData, { onConflict: 'file_id,eco_id' })
 
       if (error) {
@@ -411,7 +408,7 @@ export function ECOView() {
   const handleRemoveFileFromECO = async (fileEcoId: string, ecoId: string) => {
     try {
       const client = getSupabaseClient()
-      const { error } = await client.from('file_ecos').delete().eq('id', fileEcoId)
+      const { error } = await client.from('file_eco').delete().eq('id', fileEcoId)
 
       if (error) {
         log.error('[ECO]', 'Failed to remove file from ECO', { error })
@@ -444,7 +441,7 @@ export function ECOView() {
     try {
       const client = getSupabaseClient()
       const { error } = await client
-        .from('ecos')
+        .from('eco')
         .update({
           status: newStatus,
           updated_at: new Date().toISOString(),

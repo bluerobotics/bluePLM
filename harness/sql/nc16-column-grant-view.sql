@@ -14,13 +14,13 @@
 -- The revoke that clears it is a table-level REVOKE ALL, which does remove
 -- column grants - so the sweep that the verifier points at can clear what this
 -- check reports. A check whose remedy does not reach the condition is the v90
--- defect, and enforce_anon_execute_posture() was widened to has_any_column_
+-- defect, and anon_enforce_execute_posture() was widened to has_any_column_
 -- privilege in the same change for that reason.
 DROP VIEW IF EXISTS nc_column_grant_view;
 
 CREATE VIEW nc_column_grant_view WITH (security_invoker = true) AS
   SELECT f.id, f.org_id, f.part_number, f.description
-  FROM files f;
+  FROM file f;
 
 REVOKE ALL ON nc_column_grant_view FROM anon;
 GRANT SELECT (part_number) ON nc_column_grant_view TO anon;

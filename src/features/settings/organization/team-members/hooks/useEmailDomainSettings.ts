@@ -43,7 +43,7 @@ export function useEmailDomainSettings() {
 
     try {
       const { error } = await supabase
-        .from('organizations')
+        .from('organization')
         .update({ email_domains: newDomains })
         .eq('id', organization.id)
 
@@ -72,7 +72,7 @@ export function useEmailDomainSettings() {
 
     try {
       const { error } = await supabase
-        .from('organizations')
+        .from('organization')
         .update({ email_domains: newDomains })
         .eq('id', organization.id)
 
@@ -99,7 +99,7 @@ export function useEmailDomainSettings() {
     try {
       // Fetch current settings from database first to avoid overwriting other fields
       const { data: currentOrg } = await supabase
-        .from('organizations')
+        .from('organization')
         .select('settings')
         .eq('id', organization.id)
         .single()
@@ -111,7 +111,7 @@ export function useEmailDomainSettings() {
       const newSettings: Json = { ...currentSettings, enforce_email_domain: newValue }
 
       const { error } = await supabase
-        .from('organizations')
+        .from('organization')
         .update({ settings: newSettings })
         .eq('id', organization.id)
 
@@ -139,7 +139,7 @@ export function useEmailDomainSettings() {
       setLoadingEmailSettings(true)
       try {
         const { data, error } = await supabase
-          .from('organizations')
+          .from('organization')
           .select('email_domains, settings')
           .eq('id', organization.id)
           .single()

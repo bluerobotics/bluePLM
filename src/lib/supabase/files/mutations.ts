@@ -1,4 +1,3 @@
-import { escapeLikePattern, folderPrefixLikePattern } from '@/lib/utils/likePattern'
 import type { Json } from '@/types/supabase'
 
 import { getSupabaseClient } from '../client'
@@ -9,9 +8,6 @@ import { nonEmptyText } from './metadataValue'
 
 /** Postgres unique-constraint violation (SQLSTATE 23505). */
 const UNIQUE_VIOLATION = '23505'
-
-/** PostgREST: the RPC's target function does not exist in this schema. */
-const RPC_FUNCTION_NOT_FOUND = 'PGRST202'
 
 // ============================================
 // Private Helper Functions
@@ -187,18 +183,14 @@ interface ActiveFileRow {
  * already missed. It used to be a client-side `.ilike()` scan - `.ilike()`
  * cannot use `idx_files_file_path`, a plain btree on `file_path` - and now
  * calls `get_active_file_by_path`, which matches the way
- * `idx_files_vault_path_unique_active` matches: `(vault_id, LOWER(file_path))
+ * `file_vault_id_file_path_idx` matches: `(vault_id, LOWER(file_path))
  * WHERE deleted_at IS NULL`, all three predicates provably index-backed
  * rather than merely usually fast. syncFile's own lookup stays byte-exact for
  * speed - it runs once per file at CONCURRENT_OPERATIONS concurrency during a
  * first check-in of a whole vault - and pays for this only on a collision.
  *
- * A 4.3.1 client can reach a database still on schema 99, where this function
- * does not exist. PostgREST answers that with `PGRST202`, not a Postgres
- * error code the RPC itself could raise, so it has to be matched on `code`
- * rather than inferred from the message. Falling through to `error` in that
- * case would turn a same-case-collision that 4.3.0 recovered from into a
- * failed check-in, so it degrades to `findActiveFileByPathLegacy` instead.
+ * 5.0 removed the `.ilike()` fallback for databases without the RPC: every
+ * 5.0 database has it, and a fallback would hide a missing or misnamed RPC.
  *
  * `// TODO: type this` - `get_active_file_by_path` is not yet in the
  * generated `src/types/supabase.ts`; it will be once schema 100 is applied
@@ -208,56 +200,13 @@ interface ActiveFileRow {
 async function findActiveFileByPath(
   client: ReturnType<typeof getSupabaseClient>,
   vaultId: string,
-  orgId: string,
   filePath: string,
 ) {
-  const { data, error } = await (client.rpc as any)('get_active_file_by_path', {
+  const { data, error } = await (client.rpc as any)('file_get_active_by_path', {
     // TODO: type this
     p_vault_id: vaultId,
     p_file_path: filePath,
   })
-
-  if (error?.code === RPC_FUNCTION_NOT_FOUND) {
-    return findActiveFileByPathLegacy(client, vaultId, orgId, filePath)
-  }
-
-  return { file: (data?.[0] as ActiveFileRow | undefined) ?? null, error }
-}
-
-/**
- * The schema-99 recovery path `findActiveFileByPath` used before this release,
- * kept only for the window before `get_active_file_by_path` exists on the
- * server. `.ilike()` cannot use `idx_files_file_path`, a plain btree on
- * `file_path`, so this is a scan - the same cost every collision paid before
- * schema 100.
- *
- * The pattern carries no wildcards of its own, so `Part_Files.sldprt` cannot
- * match `PartXFiles.sldprt`.
- *
- * Deliberately neither `.single()` nor `.maybeSingle()`, for the same reason
- * `findActiveFolderByPath` in `folders.ts` avoids them: postgrest-js reports
- * "more than one row" with the same `PGRST116` code it uses for no rows at
- * all, so a caller reading `PGRST116` as "absent" would take two rows for
- * zero. Ordering plus a limit answers with one row whatever the table holds,
- * and the order is stable so two machines looking at one collision agree on
- * which row they mean.
- */
-async function findActiveFileByPathLegacy(
-  client: ReturnType<typeof getSupabaseClient>,
-  vaultId: string,
-  orgId: string,
-  filePath: string,
-) {
-  const { data, error } = await client
-    .from('files')
-    .select('id, version, deleted_at, org_id')
-    .eq('vault_id', vaultId)
-    .eq('org_id', orgId)
-    .ilike('file_path', escapeLikePattern(filePath))
-    .is('deleted_at', null)
-    .order('created_at', { ascending: true })
-    .order('id', { ascending: true })
-    .limit(1)
 
   return { file: (data?.[0] as ActiveFileRow | undefined) ?? null, error }
 }
@@ -454,7 +403,7 @@ export async function syncFile(
     // Check for an active (non-deleted) file with matching org
     const dbCheckStart = performance.now()
     const { data: activeFile, error: activeError } = await client
-      .from('files')
+      .from('file')
       .select('id, version, deleted_at, org_id')
       .eq('vault_id', vaultId)
       .eq('file_path', filePath)
@@ -516,7 +465,7 @@ export async function syncFile(
       const dbWriteStart = performance.now()
       const { data: updatedFile, error } = await dbWithRetry(
         () =>
-          client.from('files').update(updatePayload).eq('id', existingFile.id).select().single(),
+          client.from('file').update(updatePayload).eq('id', existingFile.id).select().single(),
         'File update',
         logFn,
       )
@@ -543,7 +492,7 @@ export async function syncFile(
       // Create version record
       await dbWithRetry(
         () =>
-          client.from('file_versions').insert({
+          client.from('file_version').insert({
             file_id: existingFile.id,
             version: existingFile.version + 1,
             revision: fileData.revision,
@@ -603,7 +552,7 @@ export async function syncFile(
     const { data, error } = await dbWithRetry(
       () =>
         client
-          .from('files')
+          .from('file')
           .insert({
             org_id: orgId,
             vault_id: vaultId,
@@ -637,7 +586,7 @@ export async function syncFile(
         durationMs: dbWriteMs,
       })
 
-      // idx_files_vault_path_unique_active is unique on (vault_id,
+      // file_vault_id_file_path_idx is unique on (vault_id,
       // LOWER(file_path)), so an active row stored as `Parts/BRACKET.SLDPRT`
       // refuses the insert of `Parts/Bracket.SLDPRT` that the byte-exact check
       // above could not see. The row is there; this is the update it always
@@ -651,12 +600,7 @@ export async function syncFile(
       // catching it here costs nothing on the vastly more common non-colliding
       // path.
       if (error?.code === UNIQUE_VIOLATION) {
-        const { file: collidingFile, error: refetchError } = await findActiveFileByPath(
-          client,
-          vaultId,
-          orgId,
-          filePath,
-        )
+        const { file: collidingFile, error: refetchError } = await findActiveFileByPath(client, vaultId, filePath)
 
         if (collidingFile) {
           if (options?.insertOnly) {
@@ -714,7 +658,7 @@ export async function syncFile(
         // Fetch source file's version history
         const versionFetchStart = performance.now()
         const { data: sourceVersions, error: versionsError } = await client
-          .from('file_versions')
+          .from('file_version')
           .select(
             'version, revision, content_hash, file_size, workflow_state_id, state, comment, part_number, description, created_by',
           )
@@ -758,7 +702,7 @@ export async function syncFile(
 
           if (historicalVersions.length > 0) {
             await dbWithRetry(
-              () => client.from('file_versions').insert(historicalVersions),
+              () => client.from('file_version').insert(historicalVersions),
               'Historical versions insert',
               logFn,
             )
@@ -767,7 +711,7 @@ export async function syncFile(
           // Create version N with the actual uploaded content (may differ from source if modified)
           await dbWithRetry(
             () =>
-              client.from('file_versions').insert({
+              client.from('file_version').insert({
                 file_id: insertedFile.id,
                 version: maxSourceVersion,
                 revision: metadata?.revision || '',
@@ -783,7 +727,7 @@ export async function syncFile(
           // Update the file record version to match the source
           await dbWithRetry(
             () =>
-              client.from('files').update({ version: maxSourceVersion }).eq('id', insertedFile.id),
+              client.from('file').update({ version: maxSourceVersion }).eq('id', insertedFile.id),
             'File version update',
             logFn,
           )
@@ -807,7 +751,7 @@ export async function syncFile(
           })
           await dbWithRetry(
             () =>
-              client.from('file_versions').insert({
+              client.from('file_version').insert({
                 file_id: insertedFile.id,
                 version: 1,
                 revision: metadata?.revision || '',
@@ -831,7 +775,7 @@ export async function syncFile(
         versionHistoryMs = Math.round(performance.now() - versionHistoryStart)
         await dbWithRetry(
           () =>
-            client.from('file_versions').insert({
+            client.from('file_version').insert({
               file_id: insertedFile.id,
               version: 1,
               revision: metadata?.revision || '',
@@ -848,7 +792,7 @@ export async function syncFile(
       // No copy source - create initial version record (version 1)
       await dbWithRetry(
         () =>
-          client.from('file_versions').insert({
+          client.from('file_version').insert({
             file_id: insertedFile.id,
             version: 1,
             revision: metadata?.revision || '',
@@ -903,7 +847,7 @@ async function executeLegacyStateChange(
 ): Promise<LegacyStateChange> {
   const client = getSupabaseClient()
 
-  const { data, error } = await client.rpc('execute_transition_to_legacy_state', {
+  const { data, error } = await client.rpc('workflow_transition_execute_to_legacy_state', {
     p_file_id: fileId,
     p_target_state: targetState,
   })
@@ -931,7 +875,7 @@ async function executeLegacyStateChange(
     return { success: false, error: result.error_message ?? 'Failed to change state' }
   }
 
-  const { data: file } = await client.from('files').select('*').eq('id', fileId).single()
+  const { data: file } = await client.from('file').select('*').eq('id', fileId).single()
   return { success: true, file, error: null }
 }
 
@@ -947,7 +891,7 @@ export async function updateFileMetadata(
 
   // Get current file to validate and log changes
   const { data: file, error: fetchError } = await client
-    .from('files')
+    .from('file')
     .select('*, org_id')
     .eq('id', fileId)
     .single()
@@ -964,7 +908,7 @@ export async function updateFileMetadata(
 
     // The file was never assigned to a workflow, so there is no graph to walk.
     const { data, error } = await client
-      .from('files')
+      .from('file')
       .update({
         state: updates.state,
         state_changed_at: new Date().toISOString(),
@@ -999,7 +943,7 @@ export async function updateFileMetadata(
 
   // Update the file
   const { data, error } = await client
-    .from('files')
+    .from('file')
     .update(updateData)
     .eq('id', fileId)
     .select()
@@ -1045,7 +989,7 @@ export async function updateFilePath(
   const { user } = await getCurrentUser()
 
   const { data, error } = await client
-    .from('files')
+    .from('file')
     .update({
       file_path: newPath,
       file_name: newFileName,
@@ -1063,74 +1007,6 @@ export async function updateFilePath(
   return { success: true, file: data }
 }
 
-async function updateFolderPathLegacy(
-  oldFolderPath: string,
-  newFolderPath: string,
-  vaultId?: string,
-): Promise<{ success: boolean; updated: number; total: number; errors: string[] }> {
-  const client = getSupabaseClient()
-
-  let query = client
-    .from('files')
-    .select('id, file_path, file_name')
-    // Escaped, or `Part_Files/%` also matches `PartXFiles/Sub/a.sldprt` and this
-    // rename walks into a folder the caller never named.
-    .ilike('file_path', folderPrefixLikePattern(oldFolderPath))
-    .is('deleted_at', null)
-
-  if (vaultId) {
-    query = query.eq('vault_id', vaultId)
-  }
-
-  const { data: files, error: fetchError } = await query
-
-  if (fetchError) {
-    return { success: false, updated: 0, total: 0, errors: [fetchError.message] }
-  }
-
-  if (!files || files.length === 0) {
-    return { success: true, updated: 0, total: 0, errors: [] }
-  }
-
-  const errors: string[] = []
-  const escapedOldPath = oldFolderPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const oldPathPattern = new RegExp(escapedOldPath, 'i')
-
-  const CONCURRENCY = 10
-  let updated = 0
-
-  // Matches the rename_folder_files RPC, which sets updated_by so realtime can
-  // tell the acting user's own changes apart from other users' changes.
-  const { user } = await getCurrentUser()
-
-  const updateOne = async (file: { id: string; file_path: string; file_name: string }) => {
-    const newFilePath = file.file_path.replace(oldPathPattern, newFolderPath)
-    const { error } = await client
-      .from('files')
-      .update({
-        file_path: newFilePath,
-        updated_at: new Date().toISOString(),
-        ...(user ? { updated_by: user.id } : {}),
-      })
-      .eq('id', file.id)
-
-    if (error) {
-      errors.push(`Failed to update file ${file.id} (${file.file_path}): ${error.message}`)
-    } else {
-      updated++
-    }
-  }
-
-  for (let i = 0; i < files.length; i += CONCURRENCY) {
-    const batch = files.slice(i, i + CONCURRENCY)
-    await Promise.allSettled(batch.map(updateOne))
-  }
-
-  return { success: errors.length === 0, updated, total: files.length, errors }
-}
-
-const RPC_NOT_FOUND_CODE = '42883'
-
 export async function updateFolderPath(
   oldFolderPath: string,
   newFolderPath: string,
@@ -1146,17 +1022,13 @@ export async function updateFolderPath(
     return { success: false, updated: 0, total: 0, errors: ['Not authenticated'] }
   }
 
-  const { data, error } = await client.rpc('rename_folder_files', {
+  const { data, error } = await client.rpc('folder_rename', {
     p_old_folder_path: oldFolderPath,
     p_new_folder_path: newFolderPath,
-    p_user_id: user.id,
     p_vault_id: vaultId,
   })
 
   if (error) {
-    if (error.code === RPC_NOT_FOUND_CODE || error.message?.includes('function')) {
-      return updateFolderPathLegacy(oldFolderPath, newFolderPath, vaultId)
-    }
     return { success: false, updated: 0, total: 0, errors: [error.message], error: error.message }
   }
 
@@ -1310,7 +1182,7 @@ export async function upsertFileReferences(
     // Step 1: Get all files in the vault to build a path -> ID lookup
     // We need to match local file paths to database records
     const { data: vaultFiles, error: filesError } = await client
-      .from('files')
+      .from('file')
       .select('id, file_path, file_name')
       .eq('vault_id', vaultId)
       .eq('org_id', orgId)
@@ -1394,7 +1266,7 @@ export async function upsertFileReferences(
 
     // Step 2: Get existing references for this parent file
     const { data: existingRefs, error: refsError } = await client
-      .from('file_references')
+      .from('file_reference')
       .select('id, child_file_id, configuration')
       .eq('parent_file_id', parentFileId)
       .eq('org_id', orgId)
@@ -1642,7 +1514,7 @@ export async function upsertFileReferences(
         count: staleRefIds.length,
       })
       const { error: deleteError } = await client
-        .from('file_references')
+        .from('file_reference')
         .delete()
         .in('id', staleRefIds)
 
@@ -1658,7 +1530,7 @@ export async function upsertFileReferences(
     // Step 5: Batch insert new references
     if (toInsert.length > 0) {
       logFn('debug', '[upsertFileReferences] Inserting new references', { count: toInsert.length })
-      const { error: insertError } = await client.from('file_references').insert(toInsert)
+      const { error: insertError } = await client.from('file_reference').insert(toInsert)
 
       if (insertError) {
         // Handle unique constraint violations (might happen in race conditions)
@@ -1689,7 +1561,7 @@ export async function upsertFileReferences(
       })
       for (const upd of toUpdate) {
         const { error: updateError } = await client
-          .from('file_references')
+          .from('file_reference')
           .update({
             quantity: upd.quantity,
             reference_type: upd.reference_type,
@@ -1770,7 +1642,7 @@ export async function updateConfigurationRevision(
   try {
     // First, get the current configuration_revisions for the file
     const { data: file, error: fetchError } = await client
-      .from('files')
+      .from('file')
       .select('id, file_name, configuration_revisions')
       .eq('id', referencedFileId)
       .single()
@@ -1792,7 +1664,7 @@ export async function updateConfigurationRevision(
 
     // Update the file with the new configuration_revisions
     const { error: updateError } = await client
-      .from('files')
+      .from('file')
       .update({
         configuration_revisions: updatedRevisions,
         updated_at: new Date().toISOString(),
@@ -1859,14 +1731,14 @@ export async function propagateDrawingRevisionToConfigurations(
 
     // Get all references from this drawing to parts/assemblies
     const { data: references, error: refsError } = await client
-      .from('file_references')
+      .from('file_reference')
       .select(
         `
         id,
         child_file_id,
         configuration,
         reference_type,
-        child_file:files!file_references_child_file_id_fkey (
+        child_file:file!file_reference_child_file_id_fkey (
           id,
           file_name,
           extension,

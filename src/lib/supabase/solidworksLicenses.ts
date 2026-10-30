@@ -17,7 +17,7 @@ export async function getMyAssignedSolidWorksLicenses(
 ): Promise<MyAssignedSolidWorksLicense[]> {
   const client = getSupabaseClient()
   const { data: assignments, error: assignmentsError } = await client
-    .from('solidworks_license_assignments')
+    .from('solidworks_license_assignment')
     .select('license_id')
     .eq('user_id', userId)
   if (assignmentsError) throw assignmentsError
@@ -26,7 +26,7 @@ export async function getMyAssignedSolidWorksLicenses(
   if (ids.length === 0) return []
 
   const { data: licenses, error: licensesError } = await client
-    .from('solidworks_licenses')
+    .from('solidworks_license')
     .select('serial_number, nickname')
     .in('id', ids)
   if (licensesError) throw licensesError

@@ -2,7 +2,6 @@ import { lazy, Suspense, useEffect, useRef } from 'react'
 import { Loader2 } from 'lucide-react'
 import type { SettingsTab } from '@/types/settings'
 import { usePDMStore } from '@/stores/pdmStore'
-import { ExtensionStoreView } from '@/features/extensions'
 import { SettingsSearchResults } from './SettingsSearchResults'
 import { findSettingElement, flashSettingElement } from '../revealSetting'
 import { findSettingsItem, isDesktopOnlySettingsTab } from '../settingsCatalog'
@@ -10,6 +9,9 @@ import { hasDesktop } from '@/lib/platform'
 
 // Lazy loaded settings panels - only loaded when the tab is selected
 // This saves memory by not loading all settings components upfront
+const OrgExtensionsPanel = lazy(() =>
+  import('@/features/nativeExtensions/OrgExtensionsPanel').then((m) => ({ default: m.OrgExtensionsPanel })),
+)
 const ProfileSettings = lazy(() =>
   import('../account/ProfileSettings').then((m) => ({ default: m.ProfileSettings })),
 )
@@ -61,6 +63,11 @@ const FileWorkflowsSettings = lazy(() =>
     default: m.FileWorkflowsSettings,
   })),
 )
+const SecurityMonitoringSettings = lazy(() =>
+  import('../organization/SecurityMonitoringSettings').then((m) => ({
+    default: m.SecurityMonitoringSettings,
+  })),
+)
 const MetadataColumnsSettings = lazy(() =>
   import('../organization/MetadataColumnsSettings').then((m) => ({
     default: m.MetadataColumnsSettings,
@@ -82,9 +89,6 @@ const GoogleDriveSettings = lazy(() =>
 )
 const OdooSettings = lazy(() =>
   import('../integrations/odoo').then((m) => ({ default: m.OdooSettings })),
-)
-const SlackSettings = lazy(() =>
-  import('../integrations/slack').then((m) => ({ default: m.SlackSettings })),
 )
 const WebhooksSettings = lazy(() =>
   import('../integrations/WebhooksSettings').then((m) => ({ default: m.WebhooksSettings })),
@@ -209,6 +213,8 @@ export function SettingsContent({ activeTab }: SettingsContentProps) {
         return <MetadataColumnsSettings />
       case 'file-workflows':
         return <FileWorkflowsSettings />
+      case 'security-monitoring':
+        return <SecurityMonitoringSettings />
       case 'item-designations':
         return <ItemDesignationsSettings />
       case 'backup':
@@ -219,8 +225,6 @@ export function SettingsContent({ activeTab }: SettingsContentProps) {
         return <GoogleDriveSettings />
       case 'odoo':
         return <OdooSettings />
-      case 'slack':
-        return <SlackSettings />
       case 'webhooks':
         return <WebhooksSettings />
       case 'api':
@@ -239,8 +243,8 @@ export function SettingsContent({ activeTab }: SettingsContentProps) {
         return <AboutSettings />
       case 'delete-account':
         return <DeleteAccountSettings />
-      case 'extension-store':
-        return <ExtensionStoreView />
+      case 'extensions':
+        return <OrgExtensionsPanel />
       default:
         return <ProfileSettings />
     }

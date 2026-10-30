@@ -540,10 +540,6 @@ export function registerLoggingHandlers(
     return logBuffer.slice(-100)
   })
 
-  // Get current log file path
-  ipcMain.handle('logs:get-path', (): string | null => {
-    return logFilePath
-  })
 
   // Export logs
   ipcMain.handle('logs:export', async (): Promise<ExportLogsResponse> => {
@@ -603,10 +599,6 @@ export function registerLoggingHandlers(
     },
   )
 
-  // Get crashes directory
-  ipcMain.handle('logs:get-crashes-dir', (): string => {
-    return getCrashReportsDirectory()
-  })
 
   // List crash files
   ipcMain.handle('logs:list-crashes', async (): Promise<CrashFilesResponse> => {
@@ -877,10 +869,8 @@ export function registerLoggingHandlers(
 export function unregisterLoggingHandlers(): void {
   const handlers = [
     'logs:get-entries',
-    'logs:get-path',
     'logs:export',
     'logs:get-dir',
-    'logs:get-crashes-dir',
     'logs:list-crashes',
     'logs:read-crash',
     'logs:open-crashes-dir',

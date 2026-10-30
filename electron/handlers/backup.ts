@@ -293,30 +293,6 @@ export function registerBackupHandlers(
   logError = deps.logError
   getWorkingDirectory = deps.getWorkingDirectory
 
-  // Check if restic is available
-  ipcMain.handle('backup:check-restic', async () => {
-    const bundledPath = getResticPath()
-    if (fs.existsSync(bundledPath)) {
-      try {
-        const version = execSync(`"${bundledPath}" version`, { encoding: 'utf8' })
-        const match = version.match(/restic\s+([\d.]+)/)
-        return { installed: true, version: match ? match[1] : 'unknown', path: bundledPath }
-      } catch (error) {
-        log('Bundled restic failed: ' + String(error))
-      }
-    }
-
-    try {
-      const version = execSync('restic version', { encoding: 'utf8' })
-      const match = version.match(/restic\s+([\d.]+)/)
-      return { installed: true, version: match ? match[1] : 'unknown', path: 'restic' }
-    } catch {
-      return {
-        installed: false,
-        error: 'restic not found. Run "npm run download-restic" to bundle it with the app.',
-      }
-    }
-  })
 
   // Check if a backup is currently running in the main process
   ipcMain.handle('backup:is-running', async () => {
@@ -1449,7 +1425,6 @@ export function registerBackupHandlers(
 
 export function unregisterBackupHandlers(): void {
   const handlers = [
-    'backup:check-restic',
     'backup:is-running',
     'backup:run',
     'backup:list-snapshots',

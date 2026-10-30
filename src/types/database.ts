@@ -47,60 +47,60 @@ export type Enums<T extends keyof Database['public']['Enums']> = Database['publi
 // ===========================================
 
 // Core entities
-export type Organization = Tables<'organizations'>
-export type UserProfile = Tables<'users'>
-export type Team = Tables<'teams'>
-export type TeamMember = Tables<'team_members'>
+export type Organization = Tables<'organization'>
+export type UserProfile = Tables<'app_user'>
+export type Team = Tables<'team'>
+export type TeamMember = Tables<'team_member'>
 
 // Files and vaults
-export type FileRecord = Tables<'files'>
-export type Vault = Tables<'vaults'>
-export type FileVersion = Tables<'file_versions'>
+export type FileRecord = Tables<'file'>
+export type Vault = Tables<'vault'>
+export type FileVersion = Tables<'file_version'>
 
 // Inspection
-export type InspectionCharacteristic = Tables<'inspection_characteristics'>
-export type InspectionCharacteristicInsert = TablesInsert<'inspection_characteristics'>
-export type InspectionCharacteristicUpdate = TablesUpdate<'inspection_characteristics'>
-export type InspectionCharacteristicVersion = Tables<'inspection_characteristic_versions'>
-export type InspectionMethod = Tables<'inspection_methods'>
-export type InspectionMethodInsert = TablesInsert<'inspection_methods'>
+export type InspectionCharacteristic = Tables<'inspection_characteristic'>
+export type InspectionCharacteristicInsert = TablesInsert<'inspection_characteristic'>
+export type InspectionCharacteristicUpdate = TablesUpdate<'inspection_characteristic'>
+export type InspectionCharacteristicVersion = Tables<'inspection_characteristic_version'>
+export type InspectionMethod = Tables<'inspection_method'>
+export type InspectionMethodInsert = TablesInsert<'inspection_method'>
 
 // Workflows
-export type WorkflowTemplate = Tables<'workflow_templates'>
-export type WorkflowState = Tables<'workflow_states'>
-export type WorkflowTransition = Tables<'workflow_transitions'>
-export type WorkflowGate = Tables<'workflow_gates'>
-export type WorkflowRole = Tables<'workflow_roles'>
+export type WorkflowTemplate = Tables<'workflow_template'>
+export type WorkflowState = Tables<'workflow_state'>
+export type WorkflowTransition = Tables<'workflow_transition'>
+export type WorkflowGate = Tables<'workflow_gate'>
+export type WorkflowRole = Tables<'workflow_role'>
 
 // Reviews
-export type Review = Tables<'reviews'>
-export type ReviewResponse = Tables<'review_responses'>
+export type Review = Tables<'review'>
+export type ReviewResponse = Tables<'review_response'>
 
 // Notifications
-export type Notification = Tables<'notifications'>
+export type Notification = Tables<'notification'>
 
 // ECO/Change Management
-export type ECORow = Tables<'ecos'>
-export type FileEco = Tables<'file_ecos'>
-export type EcoChecklistItem = Tables<'eco_checklist_items'>
-export type EcoGateApproval = Tables<'eco_gate_approvals'>
+export type ECORow = Tables<'eco'>
+export type FileEco = Tables<'file_eco'>
+export type EcoChecklistItem = Tables<'eco_checklist_item'>
+export type EcoGateApproval = Tables<'eco_gate_approval'>
 export type EcoChecklistActivity = Tables<'eco_checklist_activity'>
 
 // Process Templates
-export type ProcessTemplate = Tables<'process_templates'>
-export type ProcessTemplatePhase = Tables<'process_template_phases'>
-export type ProcessTemplateItem = Tables<'process_template_items'>
+export type ProcessTemplate = Tables<'process_template'>
+export type ProcessTemplatePhase = Tables<'process_template_phase'>
+export type ProcessTemplateItem = Tables<'process_template_item'>
 
 // Webhooks
-export type Webhook = Tables<'webhooks'>
-export type WebhookDelivery = Tables<'webhook_deliveries'>
+export type Webhook = Tables<'webhook'>
+export type WebhookDelivery = Tables<'webhook_delivery'>
 
 // Metadata
-export type FileMetadataColumn = Tables<'file_metadata_columns'>
+export type FileMetadataColumn = Tables<'file_metadata_column'>
 
 // Suppliers
-export type SupplierRow = Tables<'suppliers'>
-export type SupplierContact = Tables<'supplier_contacts'>
+export type SupplierRow = Tables<'supplier'>
+export type SupplierContact = Tables<'supplier_contact'>
 
 // ===========================================
 // Custom Type Unions (not in database)
@@ -109,6 +109,9 @@ export type SupplierContact = Tables<'supplier_contacts'>
 export type ReviewStatus = 'pending' | 'approved' | 'rejected' | 'cancelled' | 'kicked_back'
 
 export type NotificationType =
+  // Security monitoring (schema 502, security_monitor_run)
+  | 'security_alert'
+  | 'security_summary'
   // File Reviews
   | 'review_request'
   | 'review_approved'
@@ -315,7 +318,7 @@ export interface PartSupplier {
   is_qualified: boolean | null
   qualified_at: string | null
   notes: string | null
-  last_price_update: string | null
+  price_updated_at: string | null
   created_at: string | null
   updated_at: string | null
 }

@@ -81,8 +81,6 @@ export interface VaultAuditRepairState {
   /** The receipt from the last apply, kept so the admin can read it after it finishes. */
   outcome: VaultAuditRepairOutcome | null
   error: string | null
-  /** The database predates the release the repair function ships in. */
-  notInstalled: boolean
 }
 
 export const EMPTY_VAULT_AUDIT_REPAIR: VaultAuditRepairState = {
@@ -92,7 +90,6 @@ export const EMPTY_VAULT_AUDIT_REPAIR: VaultAuditRepairState = {
   applying: false,
   outcome: null,
   error: null,
-  notInstalled: false,
 }
 
 /**
@@ -235,7 +232,6 @@ export interface VaultAuditSlice {
   finishVaultAuditRepair: (result: {
     outcome?: VaultAuditRepairOutcome | null
     error?: string | null
-    notInstalled?: boolean
     /** Candidates the receipt accounted for, to be added to what earlier applies settled. */
     settledIds?: readonly string[]
   }) => void
@@ -385,7 +381,6 @@ export const createVaultAuditSlice: StateCreator<
         applying: true,
         outcome: null,
         error: null,
-        notInstalled: false,
       },
     })),
 
@@ -396,7 +391,6 @@ export const createVaultAuditSlice: StateCreator<
         applying: false,
         outcome: result.outcome ?? null,
         error: result.error ?? null,
-        notInstalled: result.notInstalled === true,
         // Applied entries are no longer proposals. Emptying the selection stops a second click
         // re-sending a request whose entries the row now holds - which the merge would refuse
         // anyway, but which would read as a repair that did nothing.

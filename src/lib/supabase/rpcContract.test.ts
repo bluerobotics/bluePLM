@@ -17,12 +17,20 @@ import { describe, expect, it } from 'vitest'
 // used before a session exists.
 
 const REPO = resolve(__dirname, '../../..')
+// The 5.0 baseline, then every numbered migration after it, in order: the
+// functions a database holds once the runner is done. 0500_from_4x.sql is left
+// out because it recreates exactly the baseline's functions (schemaUpgrade.test.ts
+// proves the two agree), so reading it would only repeat them.
 const SQL_FILES = [
   resolve(REPO, 'supabase/core.sql'),
   ...readdirSync(resolve(REPO, 'supabase/modules'))
     .filter((f) => f.endsWith('.sql'))
     .sort()
     .map((f) => resolve(REPO, 'supabase/modules', f)),
+  ...readdirSync(resolve(REPO, 'supabase/migrations'))
+    .filter((f) => /^\d{4}_.*\.sql$/.test(f) && Number(f.slice(0, 4)) > 500)
+    .sort()
+    .map((f) => resolve(REPO, 'supabase/migrations', f)),
 ]
 
 // ---------------------------------------------------------------------------

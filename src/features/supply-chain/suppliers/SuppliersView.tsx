@@ -59,7 +59,7 @@ export function SuppliersView() {
 
     try {
       const query = supabase
-        .from('suppliers')
+        .from('supplier')
         .select('*')
         .eq('org_id', organization.id)
         .eq('is_active', true)

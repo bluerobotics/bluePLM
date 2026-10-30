@@ -19,6 +19,11 @@ run_as postgres -f /supabase-init/00000000000000-initial-schema.sql
 # As supabase_admin: the auth schema is AUTHORIZATION supabase_admin.
 run_as supabase_admin -f /supabase-init/00000000000001-auth-schema.sql
 
+# Storage: the schema and its admin role (upstream), then the tables the Storage
+# service would create on first start, as the role that owns them on a project.
+run_as supabase_admin -f /supabase-init/00000000000002-storage-schema.sql
+run_as supabase_storage_admin -f /supabase-init/00000000000004-storage-tables.sql
+
 # The demotion. Now that supabase_admin is the bootstrap superuser rather than
 # postgres, this actually takes effect; 90-assert-harness.sql proves it did.
 run_as supabase_admin -f /supabase-init/10000000000000_demote-postgres.sql

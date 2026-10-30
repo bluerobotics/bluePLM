@@ -22,7 +22,7 @@ export async function updateUserRole(
 
   // Verify target user is in same org
   const { data: targetUser, error: fetchError } = await client
-    .from('users')
+    .from('app_user')
     .select('id, org_id, role')
     .eq('id', targetUserId)
     .single()
@@ -36,7 +36,7 @@ export async function updateUserRole(
   }
 
   // Update the role
-  const { error } = await client.from('users').update({ role: newRole }).eq('id', targetUserId)
+  const { error } = await client.from('app_user').update({ role: newRole }).eq('id', targetUserId)
 
   if (error) {
     return { success: false, error: error.message }
@@ -57,7 +57,7 @@ export async function removeUserFromOrg(
 
   // Get target user's email for the RPC call
   const { data: targetUser, error: fetchError } = await client
-    .from('users')
+    .from('app_user')
     .select('email')
     .eq('id', targetUserId)
     .single()
@@ -68,7 +68,7 @@ export async function removeUserFromOrg(
 
   // Call admin_remove_user RPC which fully removes the user from org AND auth.users
   // This allows them to be cleanly re-invited later
-  const { data, error } = await client.rpc('admin_remove_user', {
+  const { data, error } = await client.rpc('org_remove_user', {
     p_user_email: targetUser.email,
   })
 
@@ -98,7 +98,7 @@ export async function addUserToOrg(
 
   // Find user by email
   const { data: existingUser, error: fetchError } = await client
-    .from('users')
+    .from('app_user')
     .select('id, email, org_id, full_name')
     .eq('email', email.toLowerCase().trim())
     .single()
@@ -120,7 +120,7 @@ export async function addUserToOrg(
 
   // Add user to org
   const { data, error } = await client
-    .from('users')
+    .from('app_user')
     .update({ org_id: orgId, role })
     .eq('id', existingUser.id)
     .select()
@@ -149,10 +149,10 @@ export async function getUserTeams(
   const client = getSupabaseClient()
 
   const { data, error } = await client
-    .from('team_members')
+    .from('team_member')
     .select(
       `
-      team:teams(id, name, color, icon)
+      team:team(id, name, color, icon)
     `,
     )
     .eq('user_id', userId)
@@ -181,7 +181,7 @@ export async function getUserWorkflowRoles(
   const client = getSupabaseClient()
 
   const { data, error } = await client
-    .from('user_workflow_roles')
+    .from('user_workflow_role')
     .select('workflow_role_id')
     .eq('user_id', userId)
 
@@ -210,14 +210,14 @@ export async function getUserPermissions(
 
   // Get all team memberships and their permissions
   const { data, error } = await client
-    .from('team_members')
+    .from('team_member')
     .select(
       `
       team_id,
-      team:teams!inner(
+      team:team!inner(
         id,
         name,
-        team_permissions(resource, actions)
+        team_permission(resource, actions)
       )
     `,
     )
@@ -241,7 +241,7 @@ export async function getUserPermissions(
 
   for (const membership of data || []) {
     const team = membership.team as any // TODO: type this
-    const perms = team?.team_permissions || []
+    const perms = team?.team_permission || []
 
     for (const perm of perms) {
       if (!mergedPermissions[perm.resource]) {
@@ -284,7 +284,7 @@ export async function loadImpersonatedUserContext(targetUserId: string): Promise
 
   // 1. Get the target user's basic info
   const { data: userData, error: userError } = await client
-    .from('users')
+    .from('app_user')
     .select('id, email, full_name, avatar_url, role')
     .eq('id', targetUserId)
     .single()
@@ -311,7 +311,7 @@ export async function loadImpersonatedUserContext(targetUserId: string): Promise
 
   try {
     const { data: moduleData, error: moduleError } = await (client.rpc as any)( // TODO: type this
-      'get_user_module_defaults',
+      'user_get_module_defaults',
       {
         p_user_id: targetUserId,
       },
@@ -366,13 +366,13 @@ export async function checkPermission(
 
   // Check if user has this permission through any of their teams
   const { data, error } = await client
-    .from('team_members')
+    .from('team_member')
     .select(
       `
       team_id,
-      team:teams!inner(
+      team:team!inner(
         name,
-        team_permissions(resource, actions)
+        team_permission(resource, actions)
       )
     `,
     )
@@ -393,7 +393,7 @@ export async function checkPermission(
   // Check if any team has the required permission
   for (const membership of data || []) {
     const team = membership.team as any // TODO: type this
-    const perms = team?.team_permissions || []
+    const perms = team?.team_permission || []
 
     for (const perm of perms) {
       if (perm.resource === resource) {
@@ -471,7 +471,7 @@ export async function getTeamReviewers(
 ): Promise<{ reviewers: TeamReviewerRow[]; error?: string }> {
   const client = getSupabaseClient()
 
-  const { data, error } = await (client.from as any)('team_reviewers') // TODO: type this
+  const { data, error } = await (client.from as any)('team_reviewer') // TODO: type this
     .select(
       `
       id,
@@ -480,7 +480,7 @@ export async function getTeamReviewers(
       user_id,
       workflow_role_id,
       added_at,
-      user:users!team_reviewers_user_id_fkey(id, email, full_name, avatar_url)
+      user:app_user!team_reviewer_user_id_fkey(id, email, full_name, avatar_url)
     `,
     )
     .eq('team_id', teamId)
@@ -514,7 +514,7 @@ export async function addTeamReviewer(
 ): Promise<{ id: string | null; error?: string }> {
   const client = getSupabaseClient()
 
-  const { data, error } = await (client.from as any)('team_reviewers') // TODO: type this
+  const { data, error } = await (client.from as any)('team_reviewer') // TODO: type this
     .insert({
       team_id: teamId,
       reviewer_type: reviewerType,
@@ -540,7 +540,7 @@ export async function removeTeamReviewer(
 ): Promise<{ success: boolean; error?: string }> {
   const client = getSupabaseClient()
 
-  const { error } = await (client.from as any)('team_reviewers').delete().eq('id', reviewerId) // TODO: type this
+  const { error } = await (client.from as any)('team_reviewer').delete().eq('id', reviewerId) // TODO: type this
 
   if (error) {
     return { success: false, error: error.message }
@@ -556,12 +556,12 @@ export async function getOrgTeams(orgId: string): Promise<{ teams: any[] | null;
   const client = getSupabaseClient()
 
   const { data, error } = await client
-    .from('teams')
+    .from('team')
     .select(
       `
       *,
-      team_members(count),
-      team_permissions(count)
+      team_member(count),
+      team_permission(count)
     `,
     )
     .eq('org_id', orgId)
@@ -574,8 +574,8 @@ export async function getOrgTeams(orgId: string): Promise<{ teams: any[] | null;
   // Transform to include counts
   const teams = (data || []).map((team) => ({
     ...team,
-    member_count: team.team_members?.[0]?.count || 0,
-    permissions_count: team.team_permissions?.[0]?.count || 0,
+    member_count: team.team_member?.[0]?.count || 0,
+    permissions_count: team.team_permission?.[0]?.count || 0,
   }))
 
   return { teams }

@@ -21,7 +21,7 @@
 --
 -- One history row, in Acme's organization, whose workflow_id, state ids and
 -- transition id all belong to Umbrella's workflow - which is exactly what
--- apply_workflow_transition produced before release 95 bound the transition to
+-- workflow_transition_apply produced before release 95 bound the transition to
 -- the file's organization, and exactly what attack.ps1's F6a/F6b pair
 -- demonstrated over HTTP. The names are copied in as columns, so Umbrella's
 -- private naming becomes readable by every Acme member through Acme's own RLS.
@@ -64,7 +64,7 @@ DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM workflow_history h
-    JOIN workflow_templates t ON t.id = h.workflow_id
+    JOIN workflow_template t ON t.id = h.workflow_id
     WHERE h.id = 'dddddddd-9991-4000-8000-000000000001'
       AND t.org_id <> h.org_id
   ) THEN

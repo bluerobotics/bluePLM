@@ -18,40 +18,40 @@ import type { Database } from '@/types/database'
 type Tables = Database['public']['Tables']
 
 // Teams
-export type TeamRow = Tables['teams']['Row']
-export type TeamInsert = Tables['teams']['Insert']
-export type TeamUpdate = Tables['teams']['Update']
+export type TeamRow = Tables['team']['Row']
+export type TeamInsert = Tables['team']['Insert']
+export type TeamUpdate = Tables['team']['Update']
 
 // Team Members
-export type TeamMemberRow = Tables['team_members']['Row']
-export type TeamMemberInsert = Tables['team_members']['Insert']
+export type TeamMemberRow = Tables['team_member']['Row']
+export type TeamMemberInsert = Tables['team_member']['Insert']
 
 // Team Permissions
-export type TeamPermissionRow = Tables['team_permissions']['Row']
-export type TeamPermissionInsert = Tables['team_permissions']['Insert']
+export type TeamPermissionRow = Tables['team_permission']['Row']
+export type TeamPermissionInsert = Tables['team_permission']['Insert']
 
 // Users
-export type UserRow = Tables['users']['Row']
+export type UserRow = Tables['app_user']['Row']
 
 // Workflow Roles
-export type WorkflowRoleRow = Tables['workflow_roles']['Row']
-export type WorkflowRoleInsert = Tables['workflow_roles']['Insert']
-export type WorkflowRoleUpdate = Tables['workflow_roles']['Update']
+export type WorkflowRoleRow = Tables['workflow_role']['Row']
+export type WorkflowRoleInsert = Tables['workflow_role']['Insert']
+export type WorkflowRoleUpdate = Tables['workflow_role']['Update']
 
 // User Workflow Roles
-export type UserWorkflowRoleRow = Tables['user_workflow_roles']['Row']
-export type UserWorkflowRoleInsert = Tables['user_workflow_roles']['Insert']
+export type UserWorkflowRoleRow = Tables['user_workflow_role']['Row']
+export type UserWorkflowRoleInsert = Tables['user_workflow_role']['Insert']
 
 // Vaults
-export type VaultRow = Tables['vaults']['Row']
+export type VaultRow = Tables['vault']['Row']
 
 // Vault Access
 export type VaultAccessRow = Tables['vault_access']['Row']
 export type VaultAccessInsert = Tables['vault_access']['Insert']
 
 // Organizations
-export type OrganizationRow = Tables['organizations']['Row']
-export type OrganizationUpdate = Tables['organizations']['Update']
+export type OrganizationRow = Tables['organization']['Row']
+export type OrganizationUpdate = Tables['organization']['Update']
 
 // ============================================
 // Types Not in Main Database Definition
@@ -160,8 +160,8 @@ export interface PendingOrgMemberUpdate {
 
 /** Team with member and permission counts from aggregate query */
 export interface TeamWithCounts extends TeamRow {
-  team_members: { count: number }[]
-  team_permissions: { count: number }[]
+  team_member: { count: number }[]
+  team_permission: { count: number }[]
 }
 
 /** User with selected fields for member list */
@@ -173,8 +173,8 @@ export interface UserBasic {
   custom_avatar_url: string | null
   job_title: string | null
   role: string
-  last_sign_in: string | null
-  last_online: string | null
+  last_sign_in_at: string | null
+  last_online_at: string | null
 }
 
 /** Team membership join result */
@@ -203,7 +203,7 @@ export interface UserJobTitleJoin {
 export interface UserWorkflowRoleJoin {
   user_id: string
   workflow_role_id: string
-  workflow_roles: {
+  workflow_role: {
     org_id: string
   }
 }
@@ -248,7 +248,7 @@ const db = supabase as any // TODO: type this
  * Insert into teams table with proper typing
  */
 export async function insertTeam(data: TeamInsert) {
-  return db.from('teams').insert(data).select().single() as Promise<{
+  return db.from('team').insert(data).select().single() as Promise<{
     data: TeamRow | null
     error: Error | null
   }>
@@ -258,7 +258,7 @@ export async function insertTeam(data: TeamInsert) {
  * Update teams table with proper typing
  */
 export async function updateTeam(teamId: string, data: Partial<TeamUpdate>) {
-  return db.from('teams').update(data).eq('id', teamId) as Promise<{
+  return db.from('team').update(data).eq('id', teamId) as Promise<{
     data: null
     error: Error | null
   }>
@@ -268,7 +268,7 @@ export async function updateTeam(teamId: string, data: Partial<TeamUpdate>) {
  * Insert team permissions with proper typing
  */
 export async function insertTeamPermissions(data: TeamPermissionInsert[]) {
-  return db.from('team_permissions').insert(data) as Promise<{
+  return db.from('team_permission').insert(data) as Promise<{
     data: null
     error: Error | null
   }>
@@ -288,7 +288,7 @@ export async function insertTeamVaultAccess(data: TeamVaultAccessInsert[]) {
  * Insert team member with proper typing
  */
 export async function insertTeamMember(data: TeamMemberInsert) {
-  return db.from('team_members').insert(data) as Promise<{
+  return db.from('team_member').insert(data) as Promise<{
     data: null
     error: Error | null
   }>
@@ -299,7 +299,7 @@ export async function insertTeamMember(data: TeamMemberInsert) {
  * Note: Uses Record type since organizations table has many optional fields
  */
 export async function updateOrganization(orgId: string, data: Record<string, unknown>) {
-  return db.from('organizations').update(data).eq('id', orgId) as Promise<{
+  return db.from('organization').update(data).eq('id', orgId) as Promise<{
     data: null
     error: Error | null
   }>
@@ -309,7 +309,7 @@ export async function updateOrganization(orgId: string, data: Record<string, unk
  * Insert workflow role with proper typing
  */
 export async function insertWorkflowRole(data: WorkflowRoleInsert) {
-  return db.from('workflow_roles').insert(data) as Promise<{
+  return db.from('workflow_role').insert(data) as Promise<{
     data: null
     error: Error | null
   }>
@@ -319,7 +319,7 @@ export async function insertWorkflowRole(data: WorkflowRoleInsert) {
  * Update workflow role with proper typing
  */
 export async function updateWorkflowRole(roleId: string, data: Partial<WorkflowRoleUpdate>) {
-  return db.from('workflow_roles').update(data).eq('id', roleId) as Promise<{
+  return db.from('workflow_role').update(data).eq('id', roleId) as Promise<{
     data: null
     error: Error | null
   }>
@@ -329,7 +329,7 @@ export async function updateWorkflowRole(roleId: string, data: Partial<WorkflowR
  * Insert user workflow role with proper typing
  */
 export async function insertUserWorkflowRole(data: UserWorkflowRoleInsert) {
-  return db.from('user_workflow_roles').insert(data) as Promise<{
+  return db.from('user_workflow_role').insert(data) as Promise<{
     data: null
     error: Error | null
   }>
@@ -339,7 +339,7 @@ export async function insertUserWorkflowRole(data: UserWorkflowRoleInsert) {
  * Insert multiple user workflow roles with proper typing
  */
 export async function insertUserWorkflowRoles(data: UserWorkflowRoleInsert[]) {
-  return db.from('user_workflow_roles').insert(data) as Promise<{
+  return db.from('user_workflow_role').insert(data) as Promise<{
     data: null
     error: Error | null
   }>
@@ -349,7 +349,7 @@ export async function insertUserWorkflowRoles(data: UserWorkflowRoleInsert[]) {
  * Insert job title with proper typing
  */
 export async function insertJobTitle(data: JobTitleInsert) {
-  return db.from('job_titles').insert(data).select().single() as Promise<{
+  return db.from('job_title').insert(data).select().single() as Promise<{
     data: JobTitleRow | null
     error: Error | null
   }>
@@ -359,7 +359,7 @@ export async function insertJobTitle(data: JobTitleInsert) {
  * Update job title with proper typing
  */
 export async function updateJobTitle(titleId: string, data: Partial<JobTitleUpdate>) {
-  return db.from('job_titles').update(data).eq('id', titleId) as Promise<{
+  return db.from('job_title').update(data).eq('id', titleId) as Promise<{
     data: null
     error: Error | null
   }>
@@ -369,7 +369,7 @@ export async function updateJobTitle(titleId: string, data: Partial<JobTitleUpda
  * Upsert user job title with proper typing
  */
 export async function upsertUserJobTitle(data: UserJobTitleInsert) {
-  return db.from('user_job_titles').upsert(data, { onConflict: 'user_id' }) as Promise<{
+  return db.from('user_job_title').upsert(data, { onConflict: 'user_id' }) as Promise<{
     data: null
     error: Error | null
   }>
@@ -382,7 +382,7 @@ export async function updatePendingOrgMember(
   memberId: string,
   data: Partial<PendingOrgMemberUpdate>,
 ) {
-  return db.from('pending_org_members').update(data).eq('id', memberId) as Promise<{
+  return db.from('pending_org_member').update(data).eq('id', memberId) as Promise<{
     data: null
     error: Error | null
   }>

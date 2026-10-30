@@ -1,6 +1,8 @@
 import type { TranslationDict } from '../types'
 import { reviewsUiStrings } from './reviewsUi'
 import { reviewPackageStrings } from './reviewPackage'
+import { dbUpgradeStrings } from './dbUpgrade'
+import { securityMonitoringStrings } from './securityMonitoring'
 
 // English translations (default/fallback)
 export const en: TranslationDict = {
@@ -36,6 +38,8 @@ export const en: TranslationDict = {
   },
   ...reviewsUiStrings.en,
   reviewPackage: reviewPackageStrings.en,
+  dbUpgrade: dbUpgradeStrings.en,
+  securityMonitoring: securityMonitoringStrings.en,
   app: {
     recoveredFromCrash: 'BluePLM stopped responding and reloaded. Your vault is being re-read.',
   },
@@ -226,7 +230,7 @@ export const en: TranslationDict = {
     adminSetup: 'Admin Setup',
     enterCredentials: "Enter your Supabase credentials from your project's API settings",
     projectId: 'Project ID',
-    projectIdHelp: 'Found at the top of your Supabase Dashboard (e.g., vvyhpdzqdizvorrhjhvq)',
+    projectIdHelp: 'Found at the top of your Supabase Dashboard (e.g., abcdefghijklmnopqrst)',
     anonKey: 'Anon (Public) Key',
     orgSlug: 'Organization Slug',
     orgSlugHelp: 'This helps identify your organization in the generated code',
@@ -701,9 +705,6 @@ export const en: TranslationDict = {
     inspection: {
       title: 'Inspection Table',
       notSynced: 'Sync this drawing to bluePLM to manage its inspection table.',
-      notInstalledTitle: 'Inspection tables not set up',
-      notInstalledBody:
-        'Your database does not have the inspection module yet. Ask your admin to run the latest schema (modules/15-inspection.sql) to enable inspection tables.',
       version: 'Version',
       current: 'Current',
       saving: 'Saving…',
@@ -1866,8 +1867,6 @@ export const en: TranslationDict = {
     repair: {
       guarantee:
         'This can only add entries your record is missing. Every value BluePLM already holds wins over the one proposed here, including entries added since the scan, and entries for configurations that no longer exist are left alone. That is enforced by the database, not by this screen — the merge puts your record on the winning side, so an overwrite or a deletion cannot be expressed.',
-      notInstalled:
-        'Your database does not have the repair function yet. It ships in schema 94; ask your admin to apply the latest schema (core.sql, then the modules, then tools/verify-schema.sql) and the repair appears here. The audit above works either way.',
       noOrganization: 'No organization is loaded, so there is nothing to repair against.',
 
       includeDerived: 'Also reconstruct tabs from each configuration’s Number',
@@ -2316,13 +2315,6 @@ export const en: TranslationDict = {
     none: "No organization extensions installed.",
     error: "Error: {{message}}",
   },
-  extensionRuntime: {
-    notice:
-      "Extensions from the store or a file are kept on this computer but not run: the sandboxed runtime is not available. Organization extensions, installed by an administrator above, do run.",
-    installedNotRunning: 'Installed (not running)',
-    adminOnly: 'Only administrators can install or remove extensions.',
-    notAdminError: 'Only administrators can install extensions.',
-  },
   strandedEdits: {
     checkoutLost:
       'Your checkout of {{name}} was released while it had unsaved metadata edits. They can no longer be checked in. Checking the file out again will ask before discarding them — note them down if you need them.',
@@ -2355,5 +2347,96 @@ export const en: TranslationDict = {
     unknown: 'Could not read which license SOLIDWORKS uses on this computer.',
     askAdmin: 'Ask an administrator to check your license assignment.',
     warningBadge: 'License warning',
+  },
+  serverBackup: {
+    runLocationLabel: 'Where backups run',
+    runLocationServer: 'BluePLM server (recommended)',
+    runLocationServerHint:
+      'The API backs up the whole vault, every version and the database on schedule, with no computer on. Needs API 4.1.0 or later with the service key set.',
+    runLocationDesktop: 'Designated computer',
+    runLocationDesktopHint:
+      'One computer backs up its local copy of the vault with restic. Only runs while that computer is on and signed in, and only covers files downloaded there.',
+    title: 'Server backups',
+    workerOnline: 'Server backup worker online (last seen {{ago}})',
+    workerOffline: 'No server backup worker has checked in. Deploy API 4.1.0 or later with SUPABASE_SERVICE_KEY set.',
+    workerStale: 'The server backup worker was last seen {{ago}}.',
+    nextRun: 'Next scheduled backup: {{when}}',
+    scheduleOff: 'No schedule: backups run only when requested.',
+    running: 'Running since {{when}}',
+    backupRequested: 'Backup requested, waiting for the server',
+    testRequested: 'Test requested, waiting for the server',
+    backupNow: 'Back up now',
+    testBackup: 'Test backup',
+    testQuick: 'Quick check',
+    testQuickHint: 'Every snapshot opens and every file is present. Downloads almost nothing.',
+    testSample: 'Sample restore',
+    testSampleHint: 'Quick check, plus restores 25 random files and a sample of the live vault and checks their hashes.',
+    testFull: 'Full restore test',
+    testFullHint: 'Restores every file in every kept snapshot and checks each one. Slow, and downloads the whole backup.',
+    requestFailed: 'Could not send the request: {{error}}',
+    backupRequestSent: 'Backup requested. The server starts it within a minute.',
+    testRequestSent: 'Test requested. The server starts it within a minute.',
+    recentRuns: 'Recent runs',
+    noRuns: 'No server backup has run yet.',
+    kindBackup: 'Backup',
+    kindVerify: 'Test',
+    triggerScheduled: 'scheduled',
+    triggerManual: 'requested',
+    statusCompleted: 'OK',
+    statusWarning: 'Warning',
+    statusFailed: 'Failed',
+    statusRunning: 'Running',
+    backupSummary: '{{files}} files, {{uploaded}} new ({{size}} uploaded)',
+    verifySummary: '{{blobs}} files restored and checked, {{problems}} problem(s)',
+    lastGood: 'Last successful backup: {{when}}',
+    lastGoodNever: 'No successful server backup yet.',
+    staleWarning: 'The last successful backup is more than {{hours}} hours old.',
+    lastTest: 'Last test: {{when}}, {{result}}',
+    lastTestPassed: 'passed',
+    lastTestFailed: 'failed',
+    restoreHint:
+      'To restore from a server backup, run: npm run backup --prefix api -- restore --org {{orgId}} --to <folder>. It writes only to that folder.',
+    adminOnly: 'Only administrators can start backups and tests.',
+  },
+  backupPanel: {
+    title: "Backup & Restore",
+    refresh: "Refresh",
+    notConfigured: "Backups are not set up",
+    notConfiguredAdmin: "Connect a bucket in Backup settings below to start.",
+    notConfiguredMember: "An administrator needs to set up backups.",
+    openSettings: "Open settings",
+    healthy: "Backups are healthy",
+    attention: "Backups need attention",
+    runsOnServer: "Run on the BluePLM server",
+    runsOnComputer: "Run on {{name}}",
+    runsOnNobody: "No computer is set to run backups",
+    thisComputer: "this computer",
+    lastBackup: "Last backup",
+    nextBackup: "Next backup",
+    never: "Never",
+    notScheduled: "Not scheduled",
+    reasonWorkerOffline: "The server backup worker has not checked in. Deploy the API with SUPABASE_SERVICE_KEY set.",
+    reasonNoComputer: "No computer is designated to run backups.",
+    reasonComputerOffline: "{{name}} is offline, so its backups do not run.",
+    reasonNeverBackedUp: "No backup has completed yet.",
+    reasonStale: "The last successful backup is more than {{hours}} hours old.",
+    reasonNoSchedule: "No schedule is set: backups run only when someone starts one.",
+    adminChooses: "An administrator chooses where backups run.",
+    online: "Online",
+    offline: "Offline",
+    lastSeen: "last seen {{ago}}",
+    noComputer: "No computer is designated.",
+    takeOver: "Use this computer instead",
+    useThisComputer: "Use this computer",
+    release: "Release",
+    noVaultsSelected: "Select at least one vault",
+    computerOffline: "The designated computer is offline",
+    requestBackup: "Request backup",
+    backupRunning: "Backup running",
+    backupRequestedBy: "Backup requested by {{who}}",
+    nowServer: "Backups now run on the BluePLM server.",
+    nowDesktop: "Backups now run on the designated computer.",
+    restoreHintServer: "Restore points below are the designated computer's snapshots. Server backups are restored with the command shown in Server backups.",
+    rateLimited: "The backup bucket is rate limiting requests. Retry in {{seconds}} s.",
   },
 }

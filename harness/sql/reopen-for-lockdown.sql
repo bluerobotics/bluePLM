@@ -21,7 +21,7 @@
 --      it. It is the condition the lockdown was written for and the one
 --      production is in today.
 --   2. A view anon can read one column of. The plain-view leak is what the
---      script's own header cites (parts_with_pricing), and the column-level
+--      script's own header cites (part_with_pricing), and the column-level
 --      form is the one has_table_privilege could not see. Both are the same
 --      exposure to PostgREST.
 --
@@ -32,7 +32,7 @@ DROP VIEW IF EXISTS evidence_open_view;
 
 CREATE VIEW evidence_open_view WITH (security_invoker = true) AS
   SELECT f.id, f.org_id, f.part_number, f.description
-  FROM files f;
+  FROM file f;
 
 REVOKE ALL ON evidence_open_view FROM anon;
 GRANT SELECT (part_number) ON evidence_open_view TO anon;

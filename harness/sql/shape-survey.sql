@@ -6,7 +6,7 @@
 SELECT p.oid::regprocedure AS sig,
        (SELECT string_agg(a, ',') FROM unnest(coalesce(p.proargnames,'{}')) a
          WHERE a ~ '_id$' AND a <> 'p_org_id') AS other_id_args,
-       (p.prosrc ~ 'require_org_member\s*\(\s*p_org_id'
+       (p.prosrc ~ 'org_require_member\s*\(\s*p_org_id'
         OR p.prosrc ~ 'is_org_member\s*\(\s*p_org_id') AS gates_on_org_arg
 FROM pg_proc p
 JOIN pg_namespace n ON n.oid = p.pronamespace

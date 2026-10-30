@@ -19,9 +19,9 @@ export function EditStateDialog({ state, onClose, onSave }: EditStateDialogProps
   const [icon, setIcon] = useState(state.icon)
   const [isEditable, setIsEditable] = useState(state.is_editable)
   // requires_checkout is now auto-set to match is_editable (simplified UX)
-  const [autoRev, setAutoRev] = useState(state.auto_increment_revision)
+  const [autoRev, setAutoRev] = useState(state.is_revision_auto_incremented)
   const [requiredRoles, setRequiredRoles] = useState<string[]>(state.required_workflow_roles || [])
-  const [isReviewStage, setIsReviewStage] = useState(state.triggers_review === true)
+  const [isReviewStage, setIsReviewStage] = useState(state.is_review_stage === true)
   const [approvedStateId, setApprovedStateId] = useState<string | null>(
     state.review_approved_state_id ?? null,
   )
@@ -34,12 +34,12 @@ export function EditStateDialog({ state, onClose, onSave }: EditStateDialogProps
     setColor(state.color)
     setIcon(state.icon)
     setIsEditable(state.is_editable)
-    setAutoRev(state.auto_increment_revision)
+    setAutoRev(state.is_revision_auto_incremented)
     setRequiredRoles(state.required_workflow_roles || [])
-    setIsReviewStage(state.triggers_review === true)
+    setIsReviewStage(state.is_review_stage === true)
     setApprovedStateId(state.review_approved_state_id ?? null)
   }, [
-    state.triggers_review,
+    state.is_review_stage,
     state.review_approved_state_id,
     state.id,
     state.name,
@@ -48,7 +48,7 @@ export function EditStateDialog({ state, onClose, onSave }: EditStateDialogProps
     state.color,
     state.icon,
     state.is_editable,
-    state.auto_increment_revision,
+    state.is_revision_auto_incremented,
     state.required_workflow_roles,
   ])
 
@@ -61,7 +61,7 @@ export function EditStateDialog({ state, onClose, onSave }: EditStateDialogProps
       if (!organization) return
       try {
         const { data, error } = await supabase
-          .from('workflow_roles')
+          .from('workflow_role')
           .select('id, name, color, icon')
           .eq('org_id', organization.id)
           .eq('is_active', true)
@@ -86,8 +86,8 @@ export function EditStateDialog({ state, onClose, onSave }: EditStateDialogProps
     let cancelled = false
     const loadExits = async () => {
       const { data, error } = await supabase
-        .from('workflow_transitions')
-        .select('to_state_id, to_state:workflow_states!workflow_transitions_to_state_id_fkey(name)')
+        .from('workflow_transition')
+        .select('to_state_id, to_state:workflow_state!workflow_transition_to_state_id_fkey(name)')
         .eq('from_state_id', state.id)
       if (cancelled) return
       if (error) {
@@ -315,10 +315,10 @@ export function EditStateDialog({ state, onClose, onSave }: EditStateDialogProps
                 color,
                 icon,
                 is_editable: isEditable,
-                requires_checkout: isEditable, // Auto-set: editable states require checkout
-                auto_increment_revision: autoRev,
+                is_checkout_required: isEditable, // Auto-set: editable states require checkout
+                is_revision_auto_incremented: autoRev,
                 required_workflow_roles: requiredRoles,
-                triggers_review: isReviewStage,
+                is_review_stage: isReviewStage,
                 review_approved_state_id: isReviewStage ? approvedStateId : null,
               })
             }

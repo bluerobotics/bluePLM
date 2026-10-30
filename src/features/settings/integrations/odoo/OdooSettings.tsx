@@ -205,10 +205,10 @@ export function OdooSettings() {
                           {config.name}
                         </span>
                         {config.is_active && <Badge tone="success">Active</Badge>}
-                        {config.last_test_success === true && (
+                        {config.is_last_test_successful === true && (
                           <Check size={12} className="text-plm-success flex-shrink-0" />
                         )}
-                        {config.last_test_success === false && (
+                        {config.is_last_test_successful === false && (
                           <AlertCircle size={12} className="text-plm-error flex-shrink-0" />
                         )}
                       </div>

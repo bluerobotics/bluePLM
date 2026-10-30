@@ -36,8 +36,8 @@ interface Deviation {
   description: string | null
   status: DeviationStatus | null
   deviation_type: string | null
-  effective_date: string | null
-  expiration_date: string | null
+  effective_at: string | null
+  expires_at: string | null
   approved_by: string | null
   approved_at: string | null
   rejection_reason: string | null
@@ -203,7 +203,7 @@ export function DeviationsView() {
 
         // Fetch deviations
         const { data, error } = await client
-          .from('deviations')
+          .from('deviation')
           .select(
             `
             id,
@@ -212,16 +212,16 @@ export function DeviationsView() {
             description,
             status,
             deviation_type,
-            effective_date,
-            expiration_date,
+            effective_at,
+            expires_at,
             approved_by,
             approved_at,
             rejection_reason,
             affected_part_numbers,
             created_at,
             created_by,
-            created_by_user:users!created_by(full_name, email),
-            approved_by_user:users!approved_by(full_name)
+            created_by_user:app_user!created_by(full_name, email),
+            approved_by_user:app_user!approved_by(full_name)
           `,
           )
           .eq('org_id', organization.id)
@@ -242,7 +242,7 @@ export function DeviationsView() {
 
         if (deviationIds.length > 0) {
           const { data: countData } = await client
-            .from('file_deviations')
+            .from('file_deviation')
             .select('deviation_id')
             .in('deviation_id', deviationIds)
 
@@ -289,7 +289,7 @@ export function DeviationsView() {
     try {
       const client = getSupabaseClient()
       const { data, error } = await client
-        .from('file_deviations')
+        .from('file_deviation')
         .select(
           `
           id,
@@ -299,7 +299,7 @@ export function DeviationsView() {
           file_revision,
           created_at,
           notes,
-          file:files!file_id(
+          file:file!file_id(
             id,
             file_name,
             file_path,
@@ -371,14 +371,14 @@ export function DeviationsView() {
     try {
       const client = getSupabaseClient()
       const { data, error } = await client
-        .from('deviations')
+        .from('deviation')
         .insert({
           org_id: organization.id,
           deviation_number: newDeviationNumber.trim().toUpperCase(),
           title: newDeviationTitle.trim(),
           description: newDeviationDescription.trim() || null,
           deviation_type: newDeviationType || null,
-          expiration_date: newExpirationDate || null,
+          expires_at: newExpirationDate || null,
           status: 'draft',
           created_by: user.id,
         })
@@ -473,7 +473,7 @@ export function DeviationsView() {
       }))
 
       const { error } = await client
-        .from('file_deviations')
+        .from('file_deviation')
         .upsert(insertData, { onConflict: 'file_id,deviation_id' })
 
       if (error) {
@@ -489,7 +489,7 @@ export function DeviationsView() {
         const allParts = [...new Set([...existingParts, ...partNumbers])]
 
         await client
-          .from('deviations')
+          .from('deviation')
           .update({ affected_part_numbers: allParts })
           .eq('id', tagDeviationId)
       }
@@ -536,7 +536,7 @@ export function DeviationsView() {
   const handleRemoveFileFromDeviation = async (fileDeviationId: string, deviationId: string) => {
     try {
       const client = getSupabaseClient()
-      const { error } = await client.from('file_deviations').delete().eq('id', fileDeviationId)
+      const { error } = await client.from('file_deviation').delete().eq('id', fileDeviationId)
 
       if (error) {
         log.error('[Deviations]', 'Failed to remove file from deviation', { error })
@@ -684,7 +684,7 @@ export function DeviationsView() {
       })
 
       const { error } = await client
-        .from('file_deviations')
+        .from('file_deviation')
         .upsert(insertData, { onConflict: 'file_id,deviation_id' })
 
       if (error) {
@@ -700,7 +700,7 @@ export function DeviationsView() {
         const allParts = [...new Set([...existingParts, ...partNumbers])]
 
         await client
-          .from('deviations')
+          .from('deviation')
           .update({ affected_part_numbers: allParts })
           .eq('id', dropDeviationId)
       }
@@ -761,7 +761,7 @@ export function DeviationsView() {
         updateData.approved_at = new Date().toISOString()
       }
 
-      const { error } = await client.from('deviations').update(updateData).eq('id', deviationId)
+      const { error } = await client.from('deviation').update(updateData).eq('id', deviationId)
 
       if (error) {
         log.error('[Deviations]', 'Failed to update deviation status', { error })
@@ -899,9 +899,9 @@ export function DeviationsView() {
               const filesForDev = deviationFiles[dev.id] || []
               const isLoadingDevFiles = loadingFiles === dev.id
               const isExpiringSoon =
-                dev.expiration_date &&
-                new Date(dev.expiration_date) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) &&
-                new Date(dev.expiration_date) > new Date()
+                dev.expires_at &&
+                new Date(dev.expires_at) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) &&
+                new Date(dev.expires_at) > new Date()
 
               const isDragOver = dragOverDeviationId === dev.id
 
@@ -985,17 +985,17 @@ export function DeviationsView() {
 
                       {/* Metadata */}
                       <div className="p-2 border-b border-plm-border text-xs space-y-1">
-                        {dev.effective_date && (
+                        {dev.effective_at && (
                           <div className="flex items-center gap-2">
                             <span className="text-plm-fg-muted">Effective:</span>
-                            <span>{format(new Date(dev.effective_date), 'MMM d, yyyy')}</span>
+                            <span>{format(new Date(dev.effective_at), 'MMM d, yyyy')}</span>
                           </div>
                         )}
-                        {dev.expiration_date && (
+                        {dev.expires_at && (
                           <div className="flex items-center gap-2">
                             <span className="text-plm-fg-muted">Expires:</span>
                             <span className={isExpiringSoon ? 'text-plm-warning' : ''}>
-                              {format(new Date(dev.expiration_date), 'MMM d, yyyy')}
+                              {format(new Date(dev.expires_at), 'MMM d, yyyy')}
                             </span>
                           </div>
                         )}

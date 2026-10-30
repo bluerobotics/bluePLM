@@ -82,6 +82,7 @@ import {
   createItemBrowserSlice,
   createVaultAuditSlice,
   createReviewsSlice,
+  createDbUpgradeSlice,
 } from './slices'
 import { defaultCardViewFields } from './slices/settingsSlice'
 
@@ -218,6 +219,7 @@ export const usePDMStore = create<PDMStoreState>()(
       ...createItemBrowserSlice(...a),
       ...createVaultAuditSlice(...a),
       ...createReviewsSlice(...a),
+      ...createDbUpgradeSlice(...a),
     })),
     {
       name: PERSIST_STORAGE_NAME,

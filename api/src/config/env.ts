@@ -73,14 +73,29 @@ const envSchema = z.object({
   RATE_LIMIT_WINDOW: z.coerce.number().default(60000),
 
   /**
-   * How many reverse-proxy hops in front of the API to trust for the client
-   * address (`X-Forwarded-For`). Railway and Render put one proxy in front, so
-   * the default is 1. Without it every caller has the proxy's address and the
-   * per-IP rate limits become one limit shared by everyone. Trusting every hop
-   * (`true`) would instead let a caller choose its own address and dodge the
-   * limits, so this is a count; 0 turns it off for a directly exposed API.
+   * The reverse proxies trusted for the client address (`X-Forwarded-For`), as a
+   * comma-separated list of IPs, CIDRs or the names `loopback`, `linklocal` and
+   * `uniquelocal`. Render reaches the container from a private address, so the
+   * default trusts private ranges only: without it every caller has the proxy's
+   * address and the per-IP rate limits become one limit shared by everyone.
+   * Railway's edge connects from a public address: see CLIENT_IP_HEADER. A hop count (API 3.0.1's `TRUST_PROXY_HOPS`) is gone: Fastify 5.12
+   * refuses it because it trusts whoever connects, so a caller reaching the API
+   * directly could pick its own address. `off` turns proxy trust off.
    */
-  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(10).default(1),
+  TRUST_PROXY: z.string().default('loopback,linklocal,uniquelocal,100.64.0.0/10'),
+
+  /**
+   * A header that carries the client address set by the hosting edge, used for
+   * the per-client rate limit and the request log instead of `request.ip`
+   * (first entry, trimmed, and only when it is an IP; otherwise `request.ip`).
+   * Railway's edge reaches the container from a public address no published
+   * range covers, so TRUST_PROXY cannot match it; it overwrites `X-Real-IP` on
+   * every public request, and on Railway (RAILWAY_ENVIRONMENT_NAME or
+   * RAILWAY_PROJECT_ID set) this defaults to `x-real-ip`. Unset elsewhere; set
+   * it only to a header the edge always overwrites, since a caller can send any
+   * header. `off` turns it off. See src/core/clientIp.ts.
+   */
+  CLIENT_IP_HEADER: z.string().optional(),
 
   /**
    * Extra browser origins allowed to call this API, comma-separated.
@@ -102,6 +117,17 @@ const envSchema = z.object({
    * control, so it is one switch of its own and not a rider on another.
    */
   ENABLE_DOCS: booleanEnv(true),
+
+  /**
+   * Whether this API runs the backup worker (api/src/backup/worker.ts): the
+   * scheduled and requested backups, and backup tests, of every organization
+   * whose backup_config.run_location is 'server'. It needs SUPABASE_SERVICE_KEY
+   * and does nothing for an organization that has not chosen server backups,
+   * so it is on by default. Turn it off on all but one API when several share a
+   * database and only one should spend the bandwidth; the per-organization lock
+   * keeps two from running the same backup either way.
+   */
+  BACKUP_WORKER: booleanEnv(true),
 
   // Extension system encryption key for secrets
   EXTENSION_ENCRYPTION_KEY: z.string().min(32).optional(),

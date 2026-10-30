@@ -49,7 +49,7 @@ export function useInvites(orgId: string | null) {
     setPendingMembersLoading(true)
     try {
       const { data, error } = await supabase
-        .from('pending_org_members')
+        .from('pending_org_member')
         .select('*')
         .eq('org_id', orgId)
         .is('claimed_at', null)
@@ -101,7 +101,7 @@ export function useInvites(orgId: string | null) {
       if (!member) return false
 
       try {
-        const { error } = await supabase.from('pending_org_members').delete().eq('id', memberId)
+        const { error } = await supabase.from('pending_org_member').delete().eq('id', memberId)
 
         if (error) throw error
 

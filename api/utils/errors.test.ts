@@ -21,11 +21,6 @@ const ALLOWED_INLINE_ERROR_REPLIES: Readonly<Record<string, string>> = {
   'src/core/plugins/errorHandler.ts':
     'is the other half of the same contract - it turns a thrown error into a reply, ' +
     'and its 5xx branch deliberately withholds the message and substitutes the request id',
-  'src/extensions/router.ts':
-    "forwards an extension handler's own response verbatim, status and body alike. The " +
-    'status is not a literal because the extension chose it; the body is the extension ' +
-    "contract, not the API's, and no API internals reach it. The router's own failures " +
-    'do go through sendError.',
 }
 
 const LOWEST_ERROR_STATUS = 400
@@ -128,7 +123,7 @@ describe('error replies go through sendError', () => {
     // numbers are lower bounds well under what the tree holds today, so ordinary
     // growth does not touch them and a scan pointed at an empty directory fails here
     // rather than passing the assertion below for the wrong reason.
-    expect(files).toBeGreaterThan(50)
+    expect(files).toBeGreaterThan(30)
     expect(sends.length).toBeGreaterThan(0)
   })
 

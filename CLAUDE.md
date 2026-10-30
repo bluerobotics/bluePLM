@@ -212,18 +212,22 @@ automatically:
 
 The points that most often get violated:
 
-- **Schema changes require two files.** Bump `schema_release_version()` in `supabase/core.sql`
-  *and* `EXPECTED_SCHEMA_VERSION` in `src/lib/schemaVersion.ts`, and register new objects in
-  `schema_release_manifest()`. There are no migration files — `supabase/core.sql` and
-  `supabase/modules/*.sql` are edited in place and must stay idempotent. Never write
-  `schema_version` directly and never push SQL from a terminal command; the user applies it in
-  the Supabase SQL editor.
-  Apply order is always `core.sql` first, then modules `10` through `50` in order (then any
-  installed native extension's own SQL, such as Customers' `sql/customers.sql`): applying core after
-  module 40 once left production with core's drifted `claim_pending_membership`
-  (`.cursor/plans/schema-103-production-apply.md`). A nightly cloud routine (08:00 UTC) may apply a
-  finished schema release from `main` behind an independent review, so land a schema bump on `main`
-  only when it is ready for production.
+- **Schema changes are numbered migrations (5.0 onwards).** `supabase/core.sql` and
+  `supabase/modules/*.sql` are the 5.0 baseline and are never edited for a later change. A change is a
+  new file `supabase/migrations/NNNN_<name>.sql` whose number is the schema version it stamps: it
+  raises `schema_release_version()` to NNNN, inserts its new objects into `schema_manifest_entry`,
+  and has no `BEGIN`/`COMMIT` (the runner wraps it; `-- blueplm:no-transaction` on line 1 opts out
+  and the file must then be idempotent). Bump `EXPECTED_SCHEMA_VERSION` and `VERSION_DESCRIPTIONS`
+  in `src/lib/schemaVersion.ts` with it. A released migration is never edited: the runner refuses a
+  database whose applied checksum differs. Never write `schema_version` directly; the runner stamps
+  through `verify_and_stamp_schema()`.
+  The app applies migrations itself (`electron/handlers/dbMigrations*.ts`): an org admin gives the
+  database connection string once, and pending files run in order under an advisory lock, each
+  recorded in `schema_migration`. A fresh database gets the baseline (`core.sql`, then modules in name
+  order); a 4.x database gets `legacy-4.10/` if below 112, then `0500_from_4x.sql`. An installed
+  native extension's own SQL (such as `blueplm.customers`) is applied after core. Never push SQL to
+  production from a terminal command. A nightly cloud routine (08:00 UTC) may apply a finished schema
+  release from `main`, so land a migration on `main` only when it is ready for production.
 - **API changes require two files.** Bump `version` in `api/package.json` and
   `EXPECTED_API_VERSION` in `src/lib/apiVersion.ts`, with an `API_VERSION_DESCRIPTIONS` entry.
 - **State goes in `usePDMStore` slices.** Never create a new Zustand store.

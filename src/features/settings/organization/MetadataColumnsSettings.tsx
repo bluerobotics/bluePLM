@@ -155,7 +155,7 @@ export function MetadataColumnsSettings() {
     setIsLoading(true)
     try {
       const { data, error } = await supabase
-        .from('file_metadata_columns')
+        .from('file_metadata_column')
         .select('*')
         .eq('org_id', organization.id)
         .order('sort_order')
@@ -202,16 +202,16 @@ export function MetadataColumnsSettings() {
       if (editingColumn.id) {
         // Update existing column
         const { error } = await db
-          .from('file_metadata_columns')
+          .from('file_metadata_column')
           .update({
             name: editingColumn.name.toLowerCase(),
             label: editingColumn.label,
             data_type: editingColumn.data_type,
             select_options: editingColumn.select_options,
             width: editingColumn.width,
-            visible: editingColumn.visible,
-            sortable: editingColumn.sortable,
-            required: editingColumn.required,
+            is_visible: editingColumn.visible,
+            is_sortable: editingColumn.sortable,
+            is_required: editingColumn.required,
             default_value: editingColumn.default_value || null,
             updated_at: new Date().toISOString(),
             updated_by: user.id,
@@ -224,16 +224,16 @@ export function MetadataColumnsSettings() {
         // Create new column
         const maxSortOrder = columns.length > 0 ? Math.max(...columns.map((c) => c.sort_order)) : -1
 
-        const { error } = await db.from('file_metadata_columns').insert({
+        const { error } = await db.from('file_metadata_column').insert({
           org_id: organization.id,
           name: editingColumn.name.toLowerCase(),
           label: editingColumn.label,
           data_type: editingColumn.data_type,
           select_options: editingColumn.select_options,
           width: editingColumn.width,
-          visible: editingColumn.visible,
-          sortable: editingColumn.sortable,
-          required: editingColumn.required,
+          is_visible: editingColumn.visible,
+          is_sortable: editingColumn.sortable,
+          is_required: editingColumn.required,
           default_value: editingColumn.default_value || null,
           sort_order: maxSortOrder + 1,
           created_by: user.id,
@@ -265,7 +265,7 @@ export function MetadataColumnsSettings() {
     setIsDeleting(true)
     try {
       const { error } = await supabase
-        .from('file_metadata_columns')
+        .from('file_metadata_column')
         .delete()
         .eq('id', deletingColumn.id)
 
@@ -285,13 +285,13 @@ export function MetadataColumnsSettings() {
   const handleToggleVisibility = async (column: FileMetadataColumn) => {
     try {
       const { error } = await db
-        .from('file_metadata_columns')
-        .update({ visible: !column.visible, updated_at: new Date().toISOString() })
+        .from('file_metadata_column')
+        .update({ is_visible: !column.is_visible, updated_at: new Date().toISOString() })
         .eq('id', column.id)
 
       if (error) throw error
 
-      setColumns(columns.map((c) => (c.id === column.id ? { ...c, visible: !c.visible } : c)))
+      setColumns(columns.map((c) => (c.id === column.id ? { ...c, is_visible: !c.is_visible } : c)))
     } catch (error) {
       log.error('[MetadataColumns]', 'Failed to toggle visibility', { error: error })
       addToast('error', 'Failed to update column')
@@ -310,11 +310,11 @@ export function MetadataColumnsSettings() {
       // Swap sort orders
       await Promise.all([
         db
-          .from('file_metadata_columns')
+          .from('file_metadata_column')
           .update({ sort_order: otherColumn.sort_order })
           .eq('id', column.id),
         db
-          .from('file_metadata_columns')
+          .from('file_metadata_column')
           .update({ sort_order: column.sort_order })
           .eq('id', otherColumn.id),
       ])
@@ -512,11 +512,11 @@ export function MetadataColumnsSettings() {
                     </div>
                   )}
                   <span
-                    className={`truncate text-[13px] ${column.visible ? 'text-plm-fg' : 'text-plm-fg-muted'}`}
+                    className={`truncate text-[13px] ${column.is_visible ? 'text-plm-fg' : 'text-plm-fg-muted'}`}
                   >
                     {column.label}
                   </span>
-                  {column.required && <Badge tone="warning">Required</Badge>}
+                  {column.is_required && <Badge tone="warning">Required</Badge>}
                 </div>
                 <span className="text-center text-[12px] text-plm-fg-muted">
                   {TYPE_LABELS[column.data_type]}
@@ -525,10 +525,10 @@ export function MetadataColumnsSettings() {
                 <div className="flex justify-center">
                   <Switch
                     size="sm"
-                    checked={column.visible}
+                    checked={column.is_visible}
                     onChange={() => handleToggleVisibility(column)}
-                    title={column.visible ? 'Hide column' : 'Show column'}
-                    aria-label={column.visible ? 'Hide column' : 'Show column'}
+                    title={column.is_visible ? 'Hide column' : 'Show column'}
+                    aria-label={column.is_visible ? 'Hide column' : 'Show column'}
                   />
                 </div>
                 {isAdmin && (
@@ -545,9 +545,9 @@ export function MetadataColumnsSettings() {
                           data_type: column.data_type,
                           select_options: column.select_options || [],
                           width: column.width,
-                          visible: column.visible,
-                          sortable: column.sortable,
-                          required: column.required,
+                          visible: column.is_visible,
+                          sortable: column.is_sortable,
+                          required: column.is_required,
                           default_value: column.default_value || '',
                         })
                         setIsCreating(false)

@@ -144,7 +144,7 @@ Write-Host ("lockdown script under test: {0}" -f $LockdownScript) -ForegroundCol
 # The allowlist, restated here rather than parsed out of the SQL. If the two
 # ever disagree that is itself worth knowing, and a control that read its
 # expectation from the file it is checking would agree with it by construction.
-$ALLOWLIST = @('get_org_auth_providers(text)', 'validate_share_link(text)', 'consume_share_link(text)')
+$ALLOWLIST = @('org_get_auth_providers(text)', 'file_share_link_validate(text)', 'file_share_link_consume(text)')
 
 function Get-AnonRoutineCount {
   return [int](Get-Scalar "SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND has_function_privilege('anon', p.oid, 'EXECUTE')")
@@ -164,8 +164,8 @@ function Test-AllowlistIntact {
 #
 # Everything below asks the lockdown to refuse something. Without this, a script
 # that revoked EXECUTE from anon on every routine in public would satisfy all of
-# them and take the sign-in screen down with it. get_org_auth_providers is
-# called before anybody has signed in; validate_share_link and consume_share_link
+# them and take the sign-in screen down with it. org_get_auth_providers is
+# called before anybody has signed in; file_share_link_validate and file_share_link_consume
 # are how a recipient who is not a BluePLM user opens a shared file.
 # ---------------------------------------------------------------------------
 if (Test-Wanted 'LC0') {
@@ -274,8 +274,8 @@ if (Test-Wanted 'LC4') {
   $applied = Invoke-Setup -File '/sql/lc4-census-scratch.sql'
   if ($applied -cmatch 'ERROR:') {
     Skip-Control -Why "uuid-ossp is not installable in this container, so there is nothing for a migration to move. Setup output: $($applied.Trim())"
-  } elseif ((Get-Scalar "SELECT to_regprocedure('migrate_uuid_defaults()') IS NOT NULL") -ne 't') {
-    Skip-Control -Why 'migrate_uuid_defaults() does not exist on this database'
+  } elseif ((Get-Scalar "SELECT to_regprocedure('schema_migrate_uuid_defaults()') IS NOT NULL") -ne 't') {
+    Skip-Control -Why 'schema_migrate_uuid_defaults() does not exist on this database'
     Invoke-Setup -File '/sql/lc4-drop.sql' | Out-Null
   } else {
     $countSql = "SELECT count(*) FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid JOIN pg_namespace n ON n.oid = c.relnamespace JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum WHERE n.nspname = 'public' AND NOT a.attisdropped AND pg_get_expr(d.adbin, d.adrelid) ~ 'uuid_generate_v4'"

@@ -58,7 +58,7 @@ Common licenses:
 
 ### README.md
 
-Documentation for users. Displayed in the Extension Store.
+Documentation for users.
 
 ```markdown
 # My Extension
@@ -72,7 +72,7 @@ Brief description of what this extension does.
 
 ## Setup
 
-1. Install from Extension Store
+1. An organization admin installs the `.bpx` (Settings > Extensions > Install for organization)
 2. Configure in Settings → Extensions → My Extension
 3. ...
 
@@ -298,13 +298,8 @@ npm run build
 
 ### 3. Test Locally
 
-Sideload the extension before packaging:
-
-1. Build the code
-2. Open BluePLM → Settings → Extensions
-3. Click "Sideload Extension"
-4. Select your `extension.json` file (from source directory)
-5. Test all functionality
+BluePLM 5.0 has no sideloading. Build the package (step 4) and install it for a test
+organization (Settings > Extensions > Install for organization), then test all functionality.
 
 ### 4. Create Package
 
@@ -359,15 +354,6 @@ Signature: base64-encoded-ed25519-signature
 2. Verify hash matches expected
 3. Verify Ed25519 signature with Blue Robotics public key
 4. Check key ID against revocation list
-
-### Getting Verified
-
-To get your extension verified:
-
-1. Submit to Extension Store
-2. Request verification review
-3. Blue Robotics reviews code
-4. If approved, extension is signed and marked verified
 
 ---
 
@@ -427,7 +413,7 @@ Use semantic versioning:
 
 ### 4. Test Before Publishing
 
-1. Sideload and test all features
+1. Install for a test organization and test all features
 2. Test on different platforms (if cross-platform)
 3. Test with different BluePLM versions
 4. Check performance (startup time < 200ms)

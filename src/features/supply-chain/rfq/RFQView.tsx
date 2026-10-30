@@ -64,12 +64,12 @@ function RFQListView({
       setLoading(true)
       try {
         const { data, error } = await db
-          .from('rfqs')
+          .from('rfq')
           .select(
             `
             *,
-            items:rfq_items(count),
-            suppliers:rfq_suppliers(count)
+            items:rfq_item(count),
+            suppliers:rfq_supplier(count)
           `,
           )
           .eq('org_id', organization.id)
@@ -352,11 +352,11 @@ function RFQDetailView({
       try {
         // Load items
         const { data: itemsData, error: itemsError } = await db
-          .from('rfq_items')
+          .from('rfq_item')
           .select(
             `
             *,
-            file:files(id, file_name, file_path, part_number, description, revision, version, file_type, extension)
+            file:file(id, file_name, file_path, part_number, description, revision, version, file_type, extension)
           `,
           )
           .eq('rfq_id', rfq.id)
@@ -367,11 +367,11 @@ function RFQDetailView({
 
         // Load suppliers
         const { data: suppliersData, error: suppliersError } = await db
-          .from('rfq_suppliers')
+          .from('rfq_supplier')
           .select(
             `
             *,
-            supplier:suppliers(id, name, code, contact_email, contact_name)
+            supplier:supplier(id, name, code, contact_email, contact_name)
           `,
           )
           .eq('rfq_id', rfq.id)
@@ -396,7 +396,7 @@ function RFQDetailView({
     const loadAddresses = async () => {
       try {
         const { data, error } = await supabase
-          .from('organization_addresses')
+          .from('org_address')
           .select('*')
           .eq('org_id', organization.id)
           .order('is_default', { ascending: false })
@@ -446,7 +446,7 @@ function RFQDetailView({
 
     try {
       const { data, error } = await db
-        .from('rfq_items')
+        .from('rfq_item')
         .insert({
           rfq_id: rfq.id,
           line_number: nextLineNumber,
@@ -459,7 +459,7 @@ function RFQDetailView({
         .select(
           `
           *,
-          file:files(id, file_name, file_path, part_number, description, revision, version, file_type, extension)
+          file:file(id, file_name, file_path, part_number, description, revision, version, file_type, extension)
         `,
         )
         .single()
@@ -484,7 +484,7 @@ function RFQDetailView({
     if (quantity < 1) return
 
     try {
-      const { error } = await db.from('rfq_items').update({ quantity }).eq('id', itemId)
+      const { error } = await db.from('rfq_item').update({ quantity }).eq('id', itemId)
 
       if (error) throw error
       setItems(items.map((i) => (i.id === itemId ? { ...i, quantity } : i)))
@@ -497,7 +497,7 @@ function RFQDetailView({
   // Remove item
   const handleRemoveItem = async (itemId: string) => {
     try {
-      const { error } = await db.from('rfq_items').delete().eq('id', itemId)
+      const { error } = await db.from('rfq_item').delete().eq('id', itemId)
 
       if (error) throw error
       setItems(items.filter((i) => i.id !== itemId))
@@ -516,7 +516,7 @@ function RFQDetailView({
   ) => {
     try {
       const { error } = await db
-        .from('rfq_items')
+        .from('rfq_item')
         .update({ [field]: value || null })
         .eq('id', itemId)
 
@@ -558,7 +558,7 @@ function RFQDetailView({
   const handleUpdateItemConfig = async (itemId: string, config: string | null) => {
     try {
       const { error } = await db
-        .from('rfq_items')
+        .from('rfq_item')
         .update({ sw_configuration: config })
         .eq('id', itemId)
 
@@ -578,7 +578,7 @@ function RFQDetailView({
     try {
       // Get all suppliers for this org
       const { data: allSuppliers, error } = await db
-        .from('suppliers')
+        .from('supplier')
         .select('id, name, code')
         .eq('org_id', organization.id)
         .eq('is_active', true)
@@ -604,7 +604,7 @@ function RFQDetailView({
   const handleAddSupplier = async (supplierId: string) => {
     try {
       const { data, error } = await db
-        .from('rfq_suppliers')
+        .from('rfq_supplier')
         .insert({
           rfq_id: rfq.id,
           supplier_id: supplierId,
@@ -612,7 +612,7 @@ function RFQDetailView({
         .select(
           `
           *,
-          supplier:suppliers(id, name, code, contact_email, contact_name)
+          supplier:supplier(id, name, code, contact_email, contact_name)
         `,
         )
         .single()
@@ -629,8 +629,8 @@ function RFQDetailView({
       addToast('success', 'Supplier added to RFQ')
 
       // Update RFQ status if files are generated and this is the first supplier
-      if (rfq.release_files_generated && suppliers.length === 0) {
-        await db.from('rfqs').update({ status: 'ready' }).eq('id', rfq.id)
+      if (rfq.is_release_files_generated && suppliers.length === 0) {
+        await db.from('rfq').update({ status: 'ready' }).eq('id', rfq.id)
         onUpdate({ ...rfq, status: 'ready' })
       }
     } catch (error) {
@@ -642,7 +642,7 @@ function RFQDetailView({
   // Remove supplier from RFQ
   const handleRemoveSupplier = async (rfqSupplierId: string, _supplierId: string) => {
     try {
-      const { error } = await db.from('rfq_suppliers').delete().eq('id', rfqSupplierId)
+      const { error } = await db.from('rfq_supplier').delete().eq('id', rfqSupplierId)
 
       if (error) throw error
 
@@ -678,7 +678,7 @@ function RFQDetailView({
     try {
       // Get org branding info (use db wrapper for new columns)
       const { data: orgData } = await db
-        .from('organizations')
+        .from('organization')
         .select(
           'name, logo_url, logo_storage_path, address_line1, address_line2, city, state, postal_code, country, phone, website, contact_email, rfq_settings',
         )
@@ -790,7 +790,7 @@ function RFQDetailView({
 
     try {
       // Update RFQ status to generating
-      await db.from('rfqs').update({ status: 'generating' }).eq('id', rfq.id)
+      await db.from('rfq').update({ status: 'generating' }).eq('id', rfq.id)
 
       for (const item of items) {
         if (!item.file_id || !item.file) continue
@@ -814,7 +814,7 @@ function RFQDetailView({
             if (result?.success) {
               // Update RFQ item
               await db
-                .from('rfq_items')
+                .from('rfq_item')
                 .update({
                   step_file_generated: true,
                   step_file_path: result.outputPath,
@@ -823,7 +823,7 @@ function RFQDetailView({
                 .eq('id', item.id)
 
               // Also save to release_files table for version tracking
-              await db.from('release_files').insert({
+              await db.from('release_file').insert({
                 file_id: item.file_id,
                 version: item.file?.version || 1,
                 revision: item.file?.revision || item.revision,
@@ -864,7 +864,7 @@ function RFQDetailView({
             if (result?.success) {
               // Update RFQ item
               await db
-                .from('rfq_items')
+                .from('rfq_item')
                 .update({
                   pdf_file_generated: true,
                   pdf_file_path: result.outputPath,
@@ -873,7 +873,7 @@ function RFQDetailView({
                 .eq('id', item.id)
 
               // Also save to release_files table for version tracking
-              await db.from('release_files').insert({
+              await db.from('release_file').insert({
                 file_id: item.file_id,
                 version: item.file?.version || 1,
                 revision: item.file?.revision || item.revision,
@@ -912,21 +912,21 @@ function RFQDetailView({
         : 'pending_files'
 
       await db
-        .from('rfqs')
+        .from('rfq')
         .update({
           status: newStatus,
-          release_files_generated: allGenerated,
+          is_release_files_generated: allGenerated,
           release_files_generated_at: allGenerated ? new Date().toISOString() : null,
         })
         .eq('id', rfq.id)
 
       // Reload items to get updated paths
       const { data: updatedItems } = await db
-        .from('rfq_items')
+        .from('rfq_item')
         .select(
           `
           *,
-          file:files(id, file_name, file_path, part_number, description, revision, version, file_type, extension)
+          file:file(id, file_name, file_path, part_number, description, revision, version, file_type, extension)
         `,
         )
         .eq('rfq_id', rfq.id)
@@ -943,7 +943,7 @@ function RFQDetailView({
             `Generated ${successCount} release files. Add suppliers to mark RFQ as ready.`,
           )
         }
-        onUpdate({ ...rfq, status: newStatus as RFQStatus, release_files_generated: true })
+        onUpdate({ ...rfq, status: newStatus as RFQStatus, is_release_files_generated: true })
       } else {
         addToast('warning', `Generated ${successCount} files, ${failCount} failed`)
         onUpdate({ ...rfq, status: 'pending_files' })
@@ -1002,7 +1002,7 @@ function RFQDetailView({
 
         // Get org branding info
         const { data: orgData } = await db
-          .from('organizations')
+          .from('organization')
           .select(
             'name, logo_url, logo_storage_path, address_line1, address_line2, city, state, postal_code, country, phone, website, contact_email, rfq_settings',
           )
@@ -1677,7 +1677,7 @@ function RFQDetailView({
               <div className="text-center py-6 text-plm-fg-muted">
                 <Building2 size={28} className="mx-auto mb-2 opacity-50" />
                 <p className="text-sm">{t('rfq.noSuppliersAssigned')}</p>
-                {rfq.release_files_generated && (
+                {rfq.is_release_files_generated && (
                   <div className="mt-3 p-2 bg-plm-warning/10 border border-plm-warning/30 rounded text-plm-warning text-xs">
                     <AlertCircle size={12} className="inline mr-1" />
                     {t('rfq.addSuppliersToMarkReady')}
@@ -1751,7 +1751,7 @@ function RFQDetailView({
                     setSelectedBillingId(newId)
                     setSavingAddresses(true)
                     try {
-                      await db.from('rfqs').update({ billing_address_id: newId }).eq('id', rfq.id)
+                      await db.from('rfq').update({ billing_address_id: newId }).eq('id', rfq.id)
                       onUpdate({ ...rfq, billing_address_id: newId })
                     } catch (error) {
                       log.error('[RFQ]', 'Failed to update billing address', { error: error })
@@ -1803,7 +1803,7 @@ function RFQDetailView({
                     setSelectedShippingId(newId)
                     setSavingAddresses(true)
                     try {
-                      await db.from('rfqs').update({ shipping_address_id: newId }).eq('id', rfq.id)
+                      await db.from('rfq').update({ shipping_address_id: newId }).eq('id', rfq.id)
                       onUpdate({ ...rfq, shipping_address_id: newId })
                     } catch (error) {
                       log.error('[RFQ]', 'Failed to update shipping address', { error: error })
@@ -1878,14 +1878,14 @@ function RFQDetailView({
               <label className="flex items-center gap-2 cursor-pointer hover:bg-plm-highlight/30 p-1.5 rounded -mx-1.5 transition-colors">
                 <input
                   type="checkbox"
-                  checked={rfq.requires_samples}
+                  checked={rfq.is_samples_required}
                   onChange={async (e) => {
                     try {
                       await db
-                        .from('rfqs')
-                        .update({ requires_samples: e.target.checked })
+                        .from('rfq')
+                        .update({ is_samples_required: e.target.checked })
                         .eq('id', rfq.id)
-                      onUpdate({ ...rfq, requires_samples: e.target.checked })
+                      onUpdate({ ...rfq, is_samples_required: e.target.checked })
                     } catch (error) {
                       log.error('[RFQ]', 'Failed to update', { error: error })
                     }
@@ -1897,14 +1897,14 @@ function RFQDetailView({
               <label className="flex items-center gap-2 cursor-pointer hover:bg-plm-highlight/30 p-1.5 rounded -mx-1.5 transition-colors">
                 <input
                   type="checkbox"
-                  checked={rfq.requires_first_article}
+                  checked={rfq.is_first_article_required}
                   onChange={async (e) => {
                     try {
                       await db
-                        .from('rfqs')
-                        .update({ requires_first_article: e.target.checked })
+                        .from('rfq')
+                        .update({ is_first_article_required: e.target.checked })
                         .eq('id', rfq.id)
-                      onUpdate({ ...rfq, requires_first_article: e.target.checked })
+                      onUpdate({ ...rfq, is_first_article_required: e.target.checked })
                     } catch (error) {
                       log.error('[RFQ]', 'Failed to update', { error: error })
                     }
@@ -1916,14 +1916,14 @@ function RFQDetailView({
               <label className="flex items-center gap-2 cursor-pointer hover:bg-plm-highlight/30 p-1.5 rounded -mx-1.5 transition-colors">
                 <input
                   type="checkbox"
-                  checked={rfq.requires_quality_report ?? false}
+                  checked={rfq.is_quality_report_required ?? false}
                   onChange={async (e) => {
                     try {
                       await db
-                        .from('rfqs')
-                        .update({ requires_quality_report: e.target.checked })
+                        .from('rfq')
+                        .update({ is_quality_report_required: e.target.checked })
                         .eq('id', rfq.id)
-                      onUpdate({ ...rfq, requires_quality_report: e.target.checked })
+                      onUpdate({ ...rfq, is_quality_report_required: e.target.checked })
                     } catch (error) {
                       log.error('[RFQ]', 'Failed to update', { error: error })
                     }
@@ -2010,7 +2010,7 @@ function NewRFQDialog({
     setLoading(true)
     try {
       // Generate RFQ number
-      const { data: rfqNumber, error: numError } = await supabase.rpc('generate_rfq_number', {
+      const { data: rfqNumber, error: numError } = await supabase.rpc('rfq_generate_number', {
         p_org_id: organization.id,
       })
 
@@ -2018,7 +2018,7 @@ function NewRFQDialog({
 
       // Create RFQ
       const { data, error } = await db
-        .from('rfqs')
+        .from('rfq')
         .insert({
           org_id: organization.id,
           rfq_number: rfqNumber,

@@ -49,6 +49,7 @@ import {
   cleanupUpdater,
   UpdaterHandlerDependencies,
 } from './updater'
+import { registerDbMigrationsHandlers, unregisterDbMigrationsHandlers } from './dbMigrations'
 import {
   registerOAuthHandlers,
   unregisterOAuthHandlers,
@@ -252,6 +253,7 @@ export function registerAllHandlers(mainWindow: BrowserWindow, deps: AllHandlerD
   registerArchiveHandlers(mainWindow, archiveHandlerDeps)
   registerRfqHandlers(mainWindow, { log, logError })
   registerReviewPackageHandlers({ log, logError })
+  registerDbMigrationsHandlers(mainWindow, { log, logError })
 
   // Thumbnails are served over a custom scheme rather than IPC, so they are set
   // up here alongside the handlers but do not register any ipcMain channels.
@@ -282,6 +284,7 @@ export function unregisterAllHandlers(): void {
   unregisterSystemHandlers()
   unregisterLoggingHandlers()
   unregisterUpdaterHandlers()
+  unregisterDbMigrationsHandlers()
   unregisterOAuthHandlers()
   unregisterCliHandlers()
   unregisterExtensionHandlers()

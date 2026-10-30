@@ -69,7 +69,7 @@ async function findActiveFolderByPath(
   folderPath: string,
 ) {
   const { data, error } = await client
-    .from('folders')
+    .from('folder')
     .select('*')
     .eq('vault_id', vaultId)
     .ilike('folder_path', escapeLikePattern(folderPath))
@@ -159,7 +159,7 @@ async function syncSingleFolder(
 
   // Create new folder record
   const { data: newFolder, error: insertError } = await client
-    .from('folders')
+    .from('folder')
     .insert({
       org_id: orgId,
       vault_id: vaultId,
@@ -229,7 +229,7 @@ export async function getVaultFolders(
   logFn('debug', '[getVaultFolders] Fetching folders', { vaultId })
 
   try {
-    let query = client.from('folders').select('*').eq('vault_id', vaultId)
+    let query = client.from('folder').select('*').eq('vault_id', vaultId)
     if (!options.includeDeleted) query = query.is('deleted_at', null)
     const { data, error } = await query.order('folder_path', { ascending: true })
 
@@ -281,7 +281,7 @@ export async function updateFolderServerPath(
   try {
     // Get the current folder to find its old path
     const { data: currentFolder, error: fetchError } = await client
-      .from('folders')
+      .from('folder')
       .select('folder_path, vault_id')
       .eq('id', folderId)
       .single()
@@ -298,7 +298,7 @@ export async function updateFolderServerPath(
 
     // Update the folder itself
     const { error: updateError } = await client
-      .from('folders')
+      .from('folder')
       .update({ folder_path: normalizedPath })
       .eq('id', folderId)
 
@@ -312,7 +312,7 @@ export async function updateFolderServerPath(
 
     // Update all child folders' paths (folders that start with oldPath/)
     const { data: childFolders, error: childFetchError } = await client
-      .from('folders')
+      .from('folder')
       .select('id, folder_path')
       .eq('vault_id', currentFolder.vault_id)
       .ilike('folder_path', folderPrefixLikePattern(oldPath))
@@ -332,7 +332,7 @@ export async function updateFolderServerPath(
       // whatever case they are stored in.
       for (const child of childFolders) {
         const newChildPath = normalizedPath + child.folder_path.slice(oldPath.length)
-        await client.from('folders').update({ folder_path: newChildPath }).eq('id', child.id)
+        await client.from('folder').update({ folder_path: newChildPath }).eq('id', child.id)
       }
       logFn('debug', '[updateFolderServerPath] Updated child folders', {
         count: childFolders.length,
@@ -375,7 +375,7 @@ export async function deleteFolderOnServer(
   try {
     // Get the folder to find its path for child deletion
     const { data: folder, error: fetchError } = await client
-      .from('folders')
+      .from('folder')
       .select('folder_path, vault_id')
       .eq('id', folderId)
       .single()
@@ -392,7 +392,7 @@ export async function deleteFolderOnServer(
 
     // Soft delete the folder
     const { error: deleteError } = await client
-      .from('folders')
+      .from('folder')
       .update({
         deleted_at: now,
         deleted_by: userId,
@@ -409,7 +409,7 @@ export async function deleteFolderOnServer(
 
     // Soft delete all child folders
     const { error: childDeleteError } = await client
-      .from('folders')
+      .from('folder')
       .update({
         deleted_at: now,
         deleted_by: userId,
@@ -465,7 +465,7 @@ export async function deleteFolderByPath(
 
     // Soft delete the exact folder
     const { error: deleteError, count: exactCount } = await client
-      .from('folders')
+      .from('folder')
       .update(
         {
           deleted_at: now,
@@ -487,7 +487,7 @@ export async function deleteFolderByPath(
 
     // Soft delete all child folders (paths that start with normalizedPath/)
     const { error: childError, count: childCount } = await client
-      .from('folders')
+      .from('folder')
       .update(
         {
           deleted_at: now,

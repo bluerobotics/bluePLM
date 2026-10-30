@@ -24,13 +24,14 @@ import { FakeSupabase, FakeSupabaseMisuse, type Row, type RowOf, type TableName 
 import { defineFileRpcs } from '../fakeSupabaseRpcs'
 import type { MachineLink } from './network'
 import { RealtimeNetwork } from './network'
+import { TOMBSTONE_TABLES } from '@/lib/realtimeTombstones'
 import { defineMultiMachineRpcs } from './serverRpcs'
 
 export const ORG_ID = 'org-1'
 export const VAULT_ID = 'vault-1'
 
 /** Tables in the `supabase_realtime` publication that the app subscribes to. */
-const PUBLISHED: TableName[] = ['files', 'folders', 'activity', 'organizations', 'vaults']
+const PUBLISHED: TableName[] = ['file', 'folder', 'activity', 'organization', 'vault']
 
 export interface SimUser {
   id: string
@@ -53,22 +54,22 @@ export class SharedServer {
     Object.defineProperty(this.db, 'now', { get: () => Date.now(), set: () => {}, configurable: true })
     defineFileRpcs(this.db)
     defineMultiMachineRpcs(this.db)
-    this.db.defineRpc('get_user_vault_access', (_args, fake) =>
-      fake.rows('vaults').map((v) => ({ vault_id: v.id })),
+    this.db.defineRpc('user_vault_access_list', (_args, fake) =>
+      fake.rows('vault').map((v) => ({ vault_id: v.id })),
     )
-    this.db.seed('organizations', {
+    this.db.seed('organization', {
       id: ORG_ID,
       name: 'Test Org',
       slug: 'test-org',
-      serialization_settings: {} as RowOf<'organizations'>['serialization_settings'],
+      serialization_settings: {} as RowOf<'organization'>['serialization_settings'],
     })
-    this.db.seed('vaults', { id: VAULT_ID, org_id: ORG_ID, name: 'Main', slug: 'main' } as RowOf<'vaults'>)
+    this.db.seed('vault', { id: VAULT_ID, org_id: ORG_ID, name: 'Main', slug: 'main' } as RowOf<'vault'>)
     this.takeSnapshot()
   }
 
   addUser(user: SimUser): void {
-    if (this.db.rows('users').some((u) => u.id === user.id)) return
-    this.db.seed('users', { ...user, org_id: ORG_ID, role: 'engineer' } as RowOf<'users'>)
+    if (this.db.rows('app_user').some((u) => u.id === user.id)) return
+    this.db.seed('app_user', { ...user, org_id: ORG_ID, role: 'engineer' } as RowOf<'app_user'>)
     this.takeSnapshot()
   }
 
@@ -81,6 +82,8 @@ export class SharedServer {
       this.snapshot.set(table, rows)
     }
   }
+
+  private tombstoneSeq = 0
 
   /** Publish every change since the last call: what Postgres would have sent, row by row. */
   publishChanges(): void {
@@ -100,7 +103,26 @@ export class SharedServer {
         }
       }
       for (const [id, previous] of before) {
-        if (!seen.has(id)) events.push({ table, eventType: 'DELETE', new: {}, old: previous.row, commit_timestamp })
+        // Schema 502: the publication sends no DELETE; a deleted row of a tombstone table arrives
+        // as a realtime_tombstone insert, as it does from Supabase.
+        if (!seen.has(id) && (TOMBSTONE_TABLES as readonly string[]).includes(table)) {
+          const old = previous.row
+          events.push({
+            table: 'realtime_tombstone',
+            eventType: 'INSERT',
+            new: {
+              id: ++this.tombstoneSeq,
+              org_id: old.org_id ?? null,
+              table_name: table,
+              row_id: id,
+              vault_id: old.vault_id ?? null,
+              subject_user_id: old.user_id ?? null,
+              created_at: commit_timestamp,
+            },
+            old: {},
+            commit_timestamp,
+          })
+        }
       }
     }
     this.takeSnapshot()
@@ -191,13 +213,13 @@ export class SharedServer {
   }
 
   /** Live (not soft-deleted) file rows of the vault. */
-  liveFiles(): Array<RowOf<'files'>> {
+  liveFiles(): Array<RowOf<'file'>> {
     return this.db
-      .rows('files')
-      .filter((r) => r.vault_id === VAULT_ID && r.deleted_at == null) as unknown as Array<RowOf<'files'>>
+      .rows('file')
+      .filter((r) => r.vault_id === VAULT_ID && r.deleted_at == null) as unknown as Array<RowOf<'file'>>
   }
 
-  fileAt(path: string): RowOf<'files'> | undefined {
+  fileAt(path: string): RowOf<'file'> | undefined {
     return this.liveFiles().find((r) => r.file_path.toLowerCase() === path.toLowerCase())
   }
 }

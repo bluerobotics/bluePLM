@@ -38,33 +38,19 @@ import { usePDMStore } from '../stores/pdmStore'
 
 // The API version this app version expects
 // Uses semver: MAJOR.MINOR.PATCH
-export const EXPECTED_API_VERSION = '3.0.1'
+export const EXPECTED_API_VERSION = '4.1.0'
 
 // Minimum API version that will still work (for soft warnings vs hard errors)
 // Breaking changes should bump the major version and update this
 //
 // This is a hard refusal, not a warning: raising it takes the app offline for every user whose
-// API is below the floor, until that API is redeployed. It should be raised only to exclude a
-// version that is unsafe to talk to, and only once the deployed image is known to be at or above
-// the new floor.
+// API is below the floor, until that API is redeployed.
 //
-// The value it should become is 2.6.0, and it is deliberately not set yet:
-//
-// - **Why 2.6.0.** A floor should exclude the versions that are unsafe to talk to and nothing
-//   newer. Two entries in the history above are safety boundaries: 2.5.0 made extension endpoints
-//   require a token, and 2.6.0 stopped 5xx responses returning the server's error message and
-//   stack trace. 2.6.0 is the later of the two, so a floor there excludes both defects in one
-//   step - every version below it leaks stack traces on a 500, every version at or above it
-//   does not.
-// - **Why not 2.7.0 or 2.8.0.** 2.7.0's changes harden the server (request-id validation,
-//   extension audit fix); 2.8.0 fixes undo-checkout leaving stale machine and path-snapshot
-//   columns behind. An API on 2.6.0 is entirely safe for a client to talk to, and refusing it
-//   would cost a user their app over server-side observability and correctness fixes that do not
-//   expose anything. A compatibility floor is about safety, not currency.
-// - **Why it is still 2.0.0.** The deployed API image predates 2.6.0. Raising the floor before the
-//   deployment is known to be at or above it would take every user offline. Raise this only after
-//   confirming the running image, and treat it as a major bump when it happens.
-export const MINIMUM_COMPATIBLE_API_VERSION = '2.0.0'
+// 5.0 sets it to 4.0.0, equal to the expected version: API 4.0.0 is the first that speaks the 5.0
+// schema names (organization, app_user, file, ...), and any 3.x API fails every query against a
+// 5.0 database (its auth middleware turns that into 401 "User profile does not exist"). The
+// runbook redeploys the API right after the database upgrade and checks /health.
+export const MINIMUM_COMPATIBLE_API_VERSION = '4.0.0'
 
 // Human-readable descriptions for each version
 export const API_VERSION_DESCRIPTIONS: Record<string, string> = {
@@ -96,6 +82,10 @@ export const API_VERSION_DESCRIPTIONS: Record<string, string> = {
     "Native extension runtime, and Customers leaves the API core. At startup the API loads every enabled native extension that has a serverMain, for the organizations named in NATIVE_EXTENSIONS_ORG_IDS: per extension id it takes the install with the latest installed_at, downloads the package from the org-extensions storage bucket with the service-role client, refuses it unless its sha256 matches the install row, extracts it safely and calls register(app) from its server module; a failing extension is logged and skipped. Its routes are served under /ext/<extensionId>/..., authenticated and rate limited like every other route, and answer 404 when the extension is not loaded or not enabled for the caller's org, 409 EXTENSION_VERSION_MISMATCH when the org's installed sha256 differs from the loaded one, and 504 EXTENSION_TIMEOUT when a handler runs past its timeout. POST /admin/extensions/reload (admin only) reloads them without a restart, and POST /admin/extensions/install refuses native manifests. The sandbox extension storage, secrets, secret-access log and HTTP log use the service-role client, filtered by org and extension. POST /customers/sync, GET /customers/sync/status and POST /customers/sync/cancel are removed, with the customers sync code and the read-only Odoo call guard only it used; the Odoo supplier sync and connection test are unchanged. The blueplm.customers extension serves the same three routes at /ext/blueplm.customers/sync, /sync/status and /sync/cancel. Removing routes is a breaking change, hence the major version",
   '3.0.1':
     'Rate limits count per client again. Behind the Railway or Render proxy every request arrived from the proxy address, so the global limit and the /auth/login limit were one bucket shared by every caller and one client could exhaust it for all. The API now trusts TRUST_PROXY_HOPS proxy hops (default 1) for the client address in X-Forwarded-For. It trusts a count, not every hop, so a caller cannot pick its own address; 0 turns it off for an API exposed directly',
+  '4.0.0':
+    'BluePLM 5.0. Every query uses the 5.0 schema names (organization, app_user, file, org_integration, ...), so 4.0.0 needs a 5.0 database and a 5.0 database needs 4.0.0; it is also the minimum version. Removed: the REST duplicates of what the app does through Supabase RPCs (/files/*, /vaults, /trash, /parts, /bom, /suppliers, /activity, /checkouts, /auth/login, /auth/refresh, /auth/me) and the sandbox extension system (/extensions/*, GET/POST/PATCH/DELETE /admin/extensions); kept: /health, /docs, /auth/invite, /integrations/odoo/*, /webhooks, /ext/* and POST /admin/extensions/reload. The Odoo connection settings take and return is_auto_sync, and the dropped always-NULL credential columns are no longer written. The Odoo supplier sync returns only its own raw XML samples (a module-wide buffer could hand one organization the responses of another). /health no longer reads a table with the anon key. Fastify 5.12 and @fastify/static 10.1: proxies are trusted by address (TRUST_PROXY, default the private ranges) instead of a hop count (TRUST_PROXY_HOPS is gone)',
+  '4.1.0':
+    'Server backups: a backup worker runs scheduled and requested backups and backup tests for organizations that choose server backups (backup_config.run_location, schema 501), with no desktop on. Needs SUPABASE_SERVICE_KEY; BACKUP_WORKER=false turns it off. Per-client rate limits on Railway: its edge reaches the API from a public address that TRUST_PROXY cannot match, so every caller shared one bucket; the rate limiter and the request log now take the client address from CLIENT_IP_HEADER (default x-real-ip on Railway, which its edge overwrites on every public request; first entry, validated as an IP, else request.ip; off turns it off). TRUST_PROXY is unchanged for other hosts.',
 }
 
 export interface ApiVersionCheckResult {

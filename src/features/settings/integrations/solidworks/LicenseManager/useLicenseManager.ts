@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
+import { onRowDeleted } from '@/lib/realtimeTombstones'
 import { usePDMStore } from '@/stores/pdmStore'
 import { useShallow } from 'zustand/react/shallow'
 import { log } from '@/lib/logger'
@@ -49,7 +50,7 @@ export function useLicenseManager() {
     try {
       // Fetch licenses
       const { data: licensesData, error: licensesError } = await db
-        .from('solidworks_licenses')
+        .from('solidworks_license')
         .select('*')
         .eq('org_id', organization.id)
         .order('created_at', { ascending: false })
@@ -64,11 +65,11 @@ export function useLicenseManager() {
       // Fetch assignments with user info
       // Must specify the FK because there are two relationships to users (user_id and assigned_by)
       const { data: assignmentsData, error: assignmentsError } = await db
-        .from('solidworks_license_assignments')
+        .from('solidworks_license_assignment')
         .select(
           `
           *,
-          user:users!solidworks_license_assignments_user_id_fkey(id, email, full_name, avatar_url)
+          user:app_user!solidworks_license_assignment_user_id_fkey(id, email, full_name, avatar_url)
         `,
         )
         .in('license_id', licensesData?.map((l: SolidWorksLicense) => l.id) || [])
@@ -82,7 +83,7 @@ export function useLicenseManager() {
 
       // Fetch pending org members with license pre-assignments
       const { data: pendingMembers, error: pendingError } = await db
-        .from('pending_org_members')
+        .from('pending_org_member')
         .select('id, email, full_name, solidworks_license_ids')
         .eq('org_id', organization.id)
         .is('claimed_at', null)
@@ -144,7 +145,7 @@ export function useLicenseManager() {
     try {
       // Fetch active users
       const { data: usersData, error: usersErr } = await db
-        .from('users')
+        .from('app_user')
         .select('id, email, full_name, avatar_url')
         .eq('org_id', organization.id)
         .order('full_name', { ascending: true })
@@ -153,7 +154,7 @@ export function useLicenseManager() {
 
       // Fetch pending org members (invites)
       const { data: pendingData, error: pendingErr } = await db
-        .from('pending_org_members')
+        .from('pending_org_member')
         .select('id, email, full_name')
         .eq('org_id', organization.id)
         .is('claimed_at', null)
@@ -215,14 +216,16 @@ export function useLicenseManager() {
         {
           event: '*',
           schema: 'public',
-          table: 'solidworks_licenses',
+          table: 'solidworks_license',
           filter: `org_id=eq.${organization.id}`,
         },
         () => {
           fetchLicenses()
         },
       )
-      .subscribe()
+    // Deletes arrive as tombstones (schema 502).
+    onRowDeleted(licensesChannel, 'solidworks_license', () => fetchLicenses())
+    licensesChannel.subscribe()
 
     const assignmentsChannel = supabase
       .channel('solidworks_license_assignments_changes')
@@ -231,13 +234,14 @@ export function useLicenseManager() {
         {
           event: '*',
           schema: 'public',
-          table: 'solidworks_license_assignments',
+          table: 'solidworks_license_assignment',
         },
         () => {
           fetchLicenses()
         },
       )
-      .subscribe()
+    onRowDeleted(assignmentsChannel, 'solidworks_license_assignment', () => fetchLicenses())
+    assignmentsChannel.subscribe()
 
     return () => {
       licensesChannel.unsubscribe()
@@ -264,7 +268,7 @@ export function useLicenseManager() {
 
       try {
         const { data, error: error } = await db
-          .from('solidworks_licenses')
+          .from('solidworks_license')
           .insert({
             ...license,
             org_id: organization.id,
@@ -299,7 +303,7 @@ export function useLicenseManager() {
     async (licenseId: string, updates: SolidWorksLicenseUpdate) => {
       try {
         const { error: error } = await db
-          .from('solidworks_licenses')
+          .from('solidworks_license')
           .update({ ...updates, updated_at: new Date().toISOString() })
           .eq('id', licenseId)
 
@@ -320,7 +324,7 @@ export function useLicenseManager() {
   const deleteLicense = useCallback(
     async (licenseId: string) => {
       try {
-        const { error: error } = await db.from('solidworks_licenses').delete().eq('id', licenseId)
+        const { error: error } = await db.from('solidworks_license').delete().eq('id', licenseId)
 
         if (error) throw error
 
@@ -344,7 +348,7 @@ export function useLicenseManager() {
       try {
         if (isPending) {
           // For pending users, add to their pending license list
-          const { data, error: error } = await db.rpc('add_pending_license_assignment', {
+          const { data, error: error } = await db.rpc('pending_license_assignment_add', {
             p_pending_member_id: recipientId,
             p_license_id: licenseId,
           })
@@ -369,7 +373,7 @@ export function useLicenseManager() {
           return { success: true }
         } else {
           // For active users, create actual assignment
-          const { data, error: error } = await db.rpc('assign_solidworks_license', {
+          const { data, error: error } = await db.rpc('solidworks_license_assign', {
             p_license_id: licenseId,
             p_user_id: recipientId,
           })
@@ -405,7 +409,7 @@ export function useLicenseManager() {
   const unassignLicense = useCallback(
     async (assignmentId: string) => {
       try {
-        const { data, error: error } = await db.rpc('unassign_solidworks_license', {
+        const { data, error: error } = await db.rpc('solidworks_license_unassign', {
           p_assignment_id: assignmentId,
         })
 
@@ -432,7 +436,7 @@ export function useLicenseManager() {
       })
 
       try {
-        const { data, error: error } = await db.rpc('remove_pending_license_assignment', {
+        const { data, error: error } = await db.rpc('pending_license_assignment_remove', {
           p_pending_member_id: pendingMemberId,
           p_license_id: licenseId,
         })
@@ -521,7 +525,7 @@ export function useLicenseManager() {
   const activateLicense = useCallback(
     async (assignmentId: string, machineId: string, machineName: string) => {
       try {
-        const { data, error: error } = await db.rpc('activate_solidworks_license', {
+        const { data, error: error } = await db.rpc('solidworks_license_activate', {
           p_assignment_id: assignmentId,
           p_machine_id: machineId,
           p_machine_name: machineName,
@@ -544,7 +548,7 @@ export function useLicenseManager() {
   const deactivateLicense = useCallback(
     async (assignmentId: string) => {
       try {
-        const { data, error: error } = await db.rpc('deactivate_solidworks_license', {
+        const { data, error: error } = await db.rpc('solidworks_license_deactivate', {
           p_assignment_id: assignmentId,
         })
 
