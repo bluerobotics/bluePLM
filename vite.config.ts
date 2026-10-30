@@ -32,7 +32,10 @@ export default defineConfig({
               formats: ['cjs'],
             },
             rollupOptions: {
-              external: ['electron'],
+              // pg (database upgrades) is bundled. Its optional native binding and its Cloudflare
+              // Workers socket are only required on paths Node never takes, so they stay external
+              // instead of failing the build when they are not installed.
+              external: ['electron', 'pg-native', 'pg-cloudflare', 'cloudflare:sockets'],
               output: {
                 entryFileNames: '[name].js',
               },
