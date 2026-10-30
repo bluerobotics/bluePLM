@@ -89,12 +89,13 @@ beforeAll(async () => {
   await db.exec('BEGIN')
   for (const sql of AFTER_BASELINE) await db.exec(sql)
   await db.exec('COMMIT')
-}, 120_000)
+  // The baseline boot and a full stamp check take minutes on a 2-core CI runner under coverage.
+}, 600_000)
 
 describe('a new organization, end to end', () => {
   it('0502 adds no stamp finding to the baseline', async () => {
     expect(await problems()).toEqual(problemsBefore)
-  }, 120_000)
+  }, 300_000)
 
   it('Step 4: the founder signs in before any organization exists, and has none', async () => {
     // The hook is not on yet in Step 4, so Auth creates the account without asking it.
