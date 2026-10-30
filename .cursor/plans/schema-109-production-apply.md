@@ -9,7 +9,7 @@ SOLIDWORKS licence privacy, 107 server-owned reviews, 108 review upkeep, 109 swa
 ## Scope and audit
 
 - `git diff v4.7.6 fcad6822 -- supabase`: core, modules 10, 20, 40, 50 changed; 60-customers.sql
-  deleted (Customers moved to the private extension `eldinmiller/blueplm-ext-customers`).
+  deleted (Customers moved to a private native extension).
 - Read-only production facts first: 1 org, 31 users, 36,982 files, 45,613 versions; reviews 11,
   review_responses 11 (0 null status, 0 duplicate review/reviewer), every priority normalizes,
   `reviews.due_date` timestamptz; color_swatches 0, pending_reviews 0; customers 50,712,
