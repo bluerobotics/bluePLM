@@ -6396,19 +6396,27 @@ REVOKE ALL ON FUNCTION remediate_cross_tenant_workflow_history() FROM PUBLIC, an
 --             the caller may see names, or an inspection preview of such a file
 --             (may_read_vault_object()).
 --   upload  - into the caller's organization.
---   update  - the caller's organization, and the caller is an admin, uploaded
---             it, or it is an organization asset (upserted avatars and logo).
---   delete  - the caller's organization, and the caller is an admin or uploaded it.
+--   update  - only the mutable areas (_assets/, inspection-previews/), in the
+--             caller's organization, by an admin or the uploader (upserted
+--             avatars, logo, item images, previews). Content-addressed objects are
+--             never updated: overwriting one would change a file for everyone
+--             whose version names that hash.
+--   delete  - an admin, anywhere in the organization (vault deletion purges
+--             content); the uploader, in the mutable areas only.
 --
 -- "The caller uploaded it" is what lets check-in verify the bytes it just wrote,
 -- before any version row names the hash. Content is deduplicated across vaults,
 -- so a user can be told an upload "already exists" for an object they cannot
 -- list; the renderer treats that answer as success (checkin.ts).
 --
--- Any other policy on storage.objects that names the vault bucket is dropped, by
--- whatever name it was installed under, because policies are OR-ed and one
--- permissive leftover undoes all of this. Each one dropped is printed with its
--- definition. check_release_residue() refuses to stamp while one remains.
+-- Every other policy on storage.objects is dropped, by whatever name it was
+-- installed under, because policies are OR-ed and one permissive leftover undoes
+-- all of this. Production carried four dashboard-made policies ("Allow
+-- authenticated access 1uo56a_0..3") granting every signed-in account SELECT,
+-- INSERT, UPDATE and DELETE with `true` on every bucket. The application uses two
+-- buckets: vault (these policies) and org-extensions (module 50's four, kept by
+-- name). Each policy dropped is printed with its definition, and
+-- check_release_residue() refuses to stamp while any other remains.
 CREATE INDEX IF NOT EXISTS idx_drawing_pdf_renders_storage_hash ON drawing_pdf_renders(storage_hash);
 
 -- Whether the caller may read one object of the vault bucket by what it holds:
@@ -6482,9 +6490,12 @@ BEGIN
     SELECT p.policyname, p.cmd, p.qual, p.with_check
       FROM pg_policies p
      WHERE p.schemaname = 'storage' AND p.tablename = 'objects'
-       AND (COALESCE(p.qual, '') || ' ' || COALESCE(p.with_check, '')) LIKE '%''vault''%'
        AND p.policyname NOT IN ('Vault: read readable objects', 'Vault: upload to own organization',
-                                'Vault: update own or org assets', 'Vault: delete own or as admin')
+                                'Vault: update own or org assets', 'Vault: delete own or as admin',
+                                'Org members read their org extension packages',
+                                'Org admins upload extension packages',
+                                'Org admins update extension packages',
+                                'Org admins delete extension packages')
   LOOP
     RAISE NOTICE 'Dropping storage policy "%" (% USING % WITH CHECK %)', r.policyname, r.cmd, r.qual, r.with_check;
     EXECUTE format('DROP POLICY %I ON storage.objects', r.policyname);
@@ -6522,9 +6533,13 @@ BEGIN
       TO authenticated
       USING (
         bucket_id = 'vault' AND %1$s
-        AND (public.is_org_admin() OR %2$s OR split_part(name, '/', 2) = '_assets')
+        AND split_part(name, '/', 2) IN ('_assets', 'inspection-previews')
+        AND (public.is_org_admin() OR %2$s)
       )
-      WITH CHECK (bucket_id = 'vault' AND %1$s)
+      WITH CHECK (
+        bucket_id = 'vault' AND %1$s
+        AND split_part(name, '/', 2) IN ('_assets', 'inspection-previews')
+      )
   $p$, v_org, v_owner);
 
   EXECUTE 'DROP POLICY IF EXISTS "Vault: delete own or as admin" ON storage.objects';
@@ -6534,7 +6549,10 @@ BEGIN
       TO authenticated
       USING (
         bucket_id = 'vault' AND %1$s
-        AND (public.is_org_admin() OR %2$s)
+        AND (
+          public.is_org_admin()
+          OR (%2$s AND split_part(name, '/', 2) IN ('_assets', 'inspection-previews'))
+        )
       )
   $p$, v_org, v_owner);
 END $$;

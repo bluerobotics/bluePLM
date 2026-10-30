@@ -1152,7 +1152,10 @@ BEGIN
   -- Find the pending member record for this user
   SELECT * INTO v_pending
   FROM pending_org_members
-  WHERE LOWER(email) = LOWER((SELECT email FROM users WHERE id = p_user_id))
+  -- Schema 111: verified address and the account's own organization, as in
+  -- apply_pending_team_memberships() (core.sql).
+  WHERE LOWER(email) = verified_auth_email(p_user_id)
+    AND org_id = (SELECT org_id FROM users WHERE id = p_user_id)
     AND claimed_at IS NULL
   LIMIT 1;
   

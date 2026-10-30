@@ -121,6 +121,11 @@ ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
 -- The policy cbe3997 committed, which a deployment may still carry.
 CREATE POLICY "Authenticated users can read from vault"
   ON storage.objects FOR SELECT TO authenticated USING (bucket_id = 'vault');
+-- The dashboard-made kind production carried: every bucket, no condition.
+CREATE POLICY "Allow authenticated access 1uo56a_0"
+  ON storage.objects FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Allow authenticated access 1uo56a_2"
+  ON storage.objects FOR UPDATE TO authenticated USING (true);
 `
 
 /** One CREATE FUNCTION statement, from its header to the `$$ ...;` line that closes it. */
@@ -358,7 +363,7 @@ describe('entity gates and vault load RPCs (schema 111)', () => {
 })
 
 describe('vault storage bucket (schema 111)', () => {
-  it('drops a legacy policy naming the bucket, and leaves only the four managed ones', async () => {
+  it('drops every unmanaged storage policy, and leaves only the four managed ones', async () => {
     await db.exec('RESET ROLE')
     const r = await db.query<{ policyname: string }>(
       `SELECT policyname FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects' ORDER BY policyname`,
@@ -400,6 +405,24 @@ describe('vault storage bucket (schema 111)', () => {
     await as(CAROL)
     const del = await db.query(`DELETE FROM storage.objects WHERE name = $1`, [`${ORG_A}/11/${H1}`])
     expect(del.affectedRows ?? 0).toBe(0)
+  })
+
+  it('content is never overwritten or deleted by its uploader; assets are', async () => {
+    await as(CAROL)
+    const content = `${ORG_A}/cc/${H_NEW}`
+    const upd = await db.query(`UPDATE storage.objects SET owner = owner WHERE name = $1`, [content])
+    expect(upd.affectedRows ?? 0).toBe(0)
+    const del = await db.query(`DELETE FROM storage.objects WHERE name = $1`, [content])
+    expect(del.affectedRows ?? 0).toBe(0)
+    const avatar = `${ORG_A}/_assets/avatars/${CAROL}.png`
+    await db.query(`INSERT INTO storage.objects (bucket_id, name, owner_id) VALUES ('vault', $1, $2)`, [avatar, CAROL])
+    const own = await db.query(`UPDATE storage.objects SET owner = owner WHERE name = $1`, [avatar])
+    expect(own.affectedRows).toBe(1)
+    const gone = await db.query(`DELETE FROM storage.objects WHERE name = $1`, [avatar])
+    expect(gone.affectedRows).toBe(1)
+    await as(ALICE)
+    const logo = await db.query(`UPDATE storage.objects SET owner = owner WHERE name = $1`, [`${ORG_A}/_assets/logo.png`])
+    expect(logo.affectedRows ?? 0).toBe(0)
   })
 })
 

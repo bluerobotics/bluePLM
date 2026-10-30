@@ -129,7 +129,10 @@ LANGUAGE sql IMMUTABLE AS $$ SELECT
   'require_file_access(), require_vault_access() and the vault load RPCs refuse a vault the caller '
   'may not see. vaults are readable by their own organization only. The vault storage bucket gets '
   'versioned policies: content is readable only through a readable file, version or drawing PDF, '
-  'by its uploader, or by an admin; any other policy naming the bucket is dropped.'
+  'by its uploader, or by an admin; content is never overwritten; every other storage policy is dropped. '
+  'organizations and users are readable inside the caller''s organization only. users.email is not '
+  'client-writable, and invitations, domain joins and blocks use the verified auth.users address; '
+  'join_org_by_slug needs an invitation or an email_domains match.'
 $$;
 
 -- One row per object this release requires, scoped to the module that creates it.
@@ -174,7 +177,14 @@ LANGUAGE sql IMMUTABLE AS $$
     -- but stops short of the UPDATE - which is exactly what every release
     -- through 96 did - names both tables and resolves nothing. The variable
     -- exists only in the version that reaches a decision and writes it.
-    ('core', NULL, 'function', 'ensure_user_org_id()', 'resolved_org_id'),
+    ('core', NULL, 'function', 'ensure_user_org_id()', 'resolved_org_id && verified_auth_email'),
+    -- Schema 111: membership is decided by the address Supabase Auth verified,
+    -- never public.users.email, and knowing a slug is not an invitation.
+    ('core', NULL, 'function', 'verified_auth_email(uuid)', 'email_confirmed_at'),
+    ('core', NULL, 'function', 'my_verified_email()', 'verified_auth_email'),
+    ('core', NULL, 'function', 'join_org_by_slug(text)', 'verified_auth_email && pending_org_members'),
+    ('core', NULL, 'function', 'apply_pending_team_memberships(uuid)', 'verified_auth_email'),
+    ('core', NULL, 'function', 'handle_new_user()', 'email_confirmed_at'),
     -- The checks themselves are release content. A database carrying v90's
     -- copy of check_anon_reach() would look at no views at all and report a
     -- clean schema over the parts_with_pricing leak, so the manifest pins the
@@ -550,7 +560,7 @@ LANGUAGE sql IMMUTABLE AS $$
     -- 40-integrations.sql
     ('40-integrations', 'webhooks', 'table', 'integration_credentials', NULL),
     -- Trigger-only; its protection is its ACL, which verify-schema.sql checks.
-    ('40-integrations', 'webhooks', 'function', 'apply_pending_license_assignments(uuid)', NULL),
+    ('40-integrations', 'webhooks', 'function', 'apply_pending_license_assignments(uuid)', 'verified_auth_email'),
     -- The assignee arm of the solidworks_licenses SELECT policy (schema 106).
     -- SECURITY DEFINER so that policy can read the assignments without the
     -- assignment policies, which read solidworks_licenses, recursing.
@@ -2631,27 +2641,54 @@ BEGIN
     RETURN NEXT;
   END LOOP;
 
-  -- The vault storage bucket (schema 111). Module 10 drops every policy naming
-  -- the bucket except its own four; one that remains, or a policy on
-  -- storage.objects that names no bucket at all, can hand out any object.
+  -- Cross-tenant reads and the email forge (schema 111). organizations, users and
+  -- vaults are readable inside the caller's organization only, and no client
+  -- UPDATE on users may change email, which invitations, domain joins and blocks
+  -- used to trust.
+  FOR vault_policy IN
+    SELECT p.tablename, p.policyname, p.cmd
+      FROM pg_policies p
+     WHERE p.schemaname = 'public'
+       AND p.permissive = 'PERMISSIVE'
+       AND (
+         (p.tablename IN ('organizations', 'users', 'vaults')
+           AND p.cmd IN ('SELECT', 'ALL')
+           AND btrim(COALESCE(p.qual, 'true')) IN ('true', '(true)'))
+         OR
+         (p.tablename = 'users'
+           AND p.cmd IN ('UPDATE', 'ALL')
+           AND COALESCE(p.with_check, p.qual, '') NOT LIKE '%email%')
+       )
+  LOOP
+    residue := 'org_or_user_policy_too_broad';
+    identity := 'public.' || vault_policy.tablename || ' / ' || vault_policy.policyname;
+    detail := 'This ' || vault_policy.cmd || ' policy lets an account read another organization''s '
+           || 'rows or rewrite its own email address. Re-run supabase/core.sql and '
+           || 'modules/10-source-files.sql, which replace it.';
+    RETURN NEXT;
+  END LOOP;
+
+  -- Storage (schema 111). The application's buckets are vault (module 10's four
+  -- policies) and org-extensions (module 50's four). Module 10 drops every other
+  -- policy on storage.objects; one that remains - such as the dashboard-made
+  -- "Allow authenticated access" policies granting `true` on every bucket - can
+  -- hand any account any organization's files.
   IF to_regclass('storage.objects') IS NOT NULL THEN
     FOR vault_policy IN
       SELECT p.tablename, p.policyname
         FROM pg_policies p
        WHERE p.schemaname = 'storage' AND p.tablename = 'objects'
-         AND p.permissive = 'PERMISSIVE'
          AND p.policyname NOT IN ('Vault: read readable objects', 'Vault: upload to own organization',
-                                  'Vault: update own or org assets', 'Vault: delete own or as admin')
-         AND (
-           (COALESCE(p.qual, '') || ' ' || COALESCE(p.with_check, '')) LIKE '%''vault''%'
-           OR (COALESCE(p.qual, '') || ' ' || COALESCE(p.with_check, '')) NOT LIKE '%bucket_id%'
-         )
+                                  'Vault: update own or org assets', 'Vault: delete own or as admin',
+                                  'Org members read their org extension packages',
+                                  'Org admins upload extension packages',
+                                  'Org admins update extension packages',
+                                  'Org admins delete extension packages')
     LOOP
-      residue := 'vault_storage_policy_unmanaged';
+      residue := 'storage_policy_unmanaged';
       identity := 'storage.objects / ' || vault_policy.policyname;
-      detail := 'This storage policy can admit reads or writes of vault file content outside the '
-             || 'vault-access rule. Re-run supabase/modules/10-source-files.sql, which drops a '
-             || 'policy naming the vault bucket; a policy naming no bucket must be dropped by hand.';
+      detail := 'A storage policy outside the managed set can admit reads or writes of any '
+             || 'organization''s files. Re-run supabase/modules/10-source-files.sql, which drops it.';
       RETURN NEXT;
     END LOOP;
   END IF;
@@ -3661,12 +3698,51 @@ CREATE INDEX IF NOT EXISTS idx_pending_org_members_email ON pending_org_members(
 
 ALTER TABLE pending_org_members ENABLE ROW LEVEL SECURITY;
 
+-- THE ONLY EMAIL THAT DECIDES MEMBERSHIP (schema 111)
+--
+-- An invitation, an email_domains match and a block all name an address, so the
+-- address has to be one the account has proven it owns. public.users.email was
+-- what every one of them read, and until 111 the self-update policy left it
+-- writable: PATCH your own email to an invitee's address, call
+-- ensure_user_org_id(), and the invitation's organization, role, teams and vaults
+-- were yours. auth.users.email with email_confirmed_at set is the address Supabase
+-- Auth has verified; NULL when the account has not confirmed one.
+--
+-- Internal: it takes a user id, and which address another account has is not a
+-- question a client gets to ask.
+CREATE OR REPLACE FUNCTION verified_auth_email(p_user_id UUID)
+RETURNS TEXT
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT LOWER(au.email)
+    FROM auth.users au
+   WHERE au.id = p_user_id
+     AND au.email_confirmed_at IS NOT NULL
+     AND au.email IS NOT NULL;
+$$;
+
+REVOKE ALL ON FUNCTION verified_auth_email(UUID) FROM PUBLIC, anon, authenticated;
+
+-- The caller's own verified address, for policies.
+CREATE OR REPLACE FUNCTION my_verified_email()
+RETURNS TEXT
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT verified_auth_email(auth.uid());
+$$;
+
+REVOKE ALL ON FUNCTION my_verified_email() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION my_verified_email() TO authenticated;
+
 DROP POLICY IF EXISTS "Admins can view pending members" ON pending_org_members;
 CREATE POLICY "Admins can view pending members"
   ON pending_org_members FOR SELECT
   USING (
     org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin()
-    OR LOWER(email) = LOWER((SELECT email FROM users WHERE id = auth.uid()))
+    -- Schema 111: an invitee sees their own invitation by verified address only.
+    OR LOWER(email) = my_verified_email()
   );
 
 DROP POLICY IF EXISTS "Admins can manage pending members" ON pending_org_members;
@@ -4663,12 +4739,13 @@ BEGIN
       RETURN json_build_object('success', false, 'error', 'Auth user not found');
     END IF;
     
+    -- Schema 111: only a confirmed address claims an invitation.
     SELECT * INTO pending
     FROM pending_org_members
-    WHERE LOWER(email) = LOWER(auth_user.email)
+    WHERE LOWER(email) = verified_auth_email(current_user_id)
       AND claimed_at IS NULL
     LIMIT 1;
-    
+
     INSERT INTO public.users (id, email, full_name, avatar_url, org_id, role)
     VALUES (
       auth_user.id,
@@ -4722,9 +4799,22 @@ BEGIN
   --
   -- Order matters. An invitation is an explicit decision about one person and carries a role,
   -- teams and vaults; a domain match is a standing rule about an address. The invitation wins.
+  --
+  -- Schema 111: the address is the one Supabase Auth verified (verified_auth_email()), never
+  -- public.users.email, which a client could once rewrite. An unconfirmed account resolves
+  -- nothing until it confirms.
+  user_email := verified_auth_email(current_user_id);
+  IF user_email IS NULL THEN
+    RETURN json_build_object(
+      'success', true,
+      'has_org', false,
+      'message', 'Confirm your email address to join an organization'
+    );
+  END IF;
+
   SELECT * INTO pending
   FROM pending_org_members
-  WHERE LOWER(email) = LOWER(user_email)
+  WHERE LOWER(email) = user_email
     AND claimed_at IS NULL
   LIMIT 1;
   
@@ -4866,7 +4956,13 @@ BEGIN
   IF current_org_id IS NOT NULL THEN
     RETURN json_build_object('success', false, 'error', 'You are already a member of an organization');
   END IF;
-  
+
+  -- Schema 111: the verified address decides, as in ensure_user_org_id().
+  user_email := verified_auth_email(current_user_id);
+  IF user_email IS NULL THEN
+    RETURN json_build_object('success', false, 'error', 'Confirm your email address to join an organization');
+  END IF;
+
   SELECT id, name, email_domains, default_new_user_team_id,
          COALESCE((settings->>'enforce_email_domain')::boolean, false)
   INTO target_org_id, target_org_name, allowed_domains, default_team_id, enforce_domain
@@ -4880,13 +4976,21 @@ BEGIN
     RETURN json_build_object('success', false, 'error', 'You have been blocked from this organization');
   END IF;
   
-  IF enforce_domain AND array_length(allowed_domains, 1) > 0 THEN
-    email_domain := split_part(user_email, '@', 2);
-    IF NOT (email_domain = ANY(allowed_domains)) THEN
-      RETURN json_build_object('success', false, 'error', 'Your email domain is not allowed');
-    END IF;
+  -- Schema 111: knowing an organization's slug is not an invitation. Slugs are not secret, and
+  -- the only gate here was enforce_email_domain, off by default, so any account could join any
+  -- organization. Joining now needs an open invitation for this address to this organization, or
+  -- an address in one of its email_domains. enforce_email_domain is subsumed: a domain outside the
+  -- list was already refused when it was on, and now is whenever no invitation names the address.
+  email_domain := split_part(user_email, '@', 2);
+  IF NOT EXISTS (
+       SELECT 1 FROM pending_org_members pom
+        WHERE pom.org_id = target_org_id AND LOWER(pom.email) = user_email AND pom.claimed_at IS NULL)
+     AND NOT (email_domain = ANY(COALESCE(allowed_domains, '{}'::TEXT[]))) THEN
+    RETURN json_build_object('success', false, 'error',
+      CASE WHEN enforce_domain THEN 'Your email domain is not allowed'
+           ELSE 'You need an invitation to join this organization' END);
   END IF;
-  
+
   UPDATE users SET org_id = target_org_id WHERE id = current_user_id;
   
   IF default_team_id IS NOT NULL THEN
@@ -5162,9 +5266,13 @@ DECLARE
   v_org_id UUID;
   v_default_team_id UUID;
 BEGIN
+  -- Schema 111: the invitation must name the account's verified address and the organization the
+  -- account is joining. It read public.users.email (client-writable until 111) and any
+  -- organization, so an account joining one organization could claim another's invitation.
   SELECT * INTO v_pending
   FROM pending_org_members
-  WHERE LOWER(email) = LOWER((SELECT email FROM users WHERE id = p_user_id))
+  WHERE LOWER(email) = verified_auth_email(p_user_id)
+    AND org_id = (SELECT org_id FROM users WHERE id = p_user_id)
     AND claimed_at IS NULL
   LIMIT 1;
   
@@ -5245,12 +5353,17 @@ DECLARE
   pending_org UUID;
   pending_role TEXT;
 BEGIN
+  -- Schema 111: an unconfirmed address claims nothing. Sign-up with somebody else's address
+  -- used to land in their invited organization before any email was confirmed. The trigger
+  -- also fires on UPDATE, so the confirmation itself (an accepted invite link, a confirmed
+  -- sign-up) is what binds the invitation; OAuth accounts arrive confirmed.
   SELECT * INTO pending
   FROM pending_org_members
-  WHERE LOWER(email) = LOWER(NEW.email)
+  WHERE NEW.email_confirmed_at IS NOT NULL
+    AND LOWER(email) = LOWER(NEW.email)
     AND claimed_at IS NULL
   LIMIT 1;
-  
+
   IF FOUND THEN
     pending_org := pending.org_id;
     pending_role := pending.role::TEXT;
@@ -5502,10 +5615,15 @@ ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Users can view their organization" ON organizations;
 DROP POLICY IF EXISTS "Authenticated users can view organizations" ON organizations;
+-- Schema 111: the caller's own organization only. USING (true) let any account
+-- read every organization's row - slugs, email_domains, settings and the Google
+-- Drive client secret. Before joining, nothing here is needed: sign-in reads
+-- auth providers through get_org_auth_providers() and joining goes through
+-- ensure_user_org_id() / join_org_by_slug(), all SECURITY DEFINER.
 CREATE POLICY "Authenticated users can view organizations"
   ON organizations FOR SELECT
   TO authenticated
-  USING (true);
+  USING (is_org_member(id));
 
 DROP POLICY IF EXISTS "Admins can update their organization" ON organizations;
 CREATE POLICY "Admins can update their organization"
@@ -5516,10 +5634,13 @@ CREATE POLICY "Admins can update their organization"
 
 DROP POLICY IF EXISTS "Users can view org members" ON users;
 DROP POLICY IF EXISTS "Authenticated users can view users" ON users;
+-- Schema 111: your own row, and the members of your organization. USING (true)
+-- listed every account of every organization (email, role, org). is_org_member()
+-- is SECURITY DEFINER, so the policy does not recurse into itself.
 CREATE POLICY "Authenticated users can view users"
   ON users FOR SELECT
   TO authenticated
-  USING (true);
+  USING (id = auth.uid() OR is_org_member(org_id));
 
 -- THE ANCHOR EVERY OTHER GATE IN THIS SCHEMA RESTS ON
 --
@@ -5570,6 +5691,9 @@ CREATE POLICY "Users can update their own profile"
     id = auth.uid()
     AND role   IS NOT DISTINCT FROM (SELECT u.role   FROM users u WHERE u.id = auth.uid())
     AND org_id IS NOT DISTINCT FROM (SELECT u.org_id FROM users u WHERE u.id = auth.uid())
+    -- Schema 111: and email. Membership, blocks and admin_remove_user() target an
+    -- address; only handle_new_user() (from auth.users) writes it.
+    AND email  IS NOT DISTINCT FROM (SELECT u.email  FROM users u WHERE u.id = auth.uid())
   );
 
 -- EXAMINED AND SOUND - DO NOT WRITE A STRICTER CHECK HERE
@@ -5611,7 +5735,12 @@ CREATE POLICY "Admins can update org users"
   ON users FOR UPDATE
   TO authenticated
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin())
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
+  WITH CHECK (
+    org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin()
+    -- Schema 111: an admin cannot rewrite an address either (their own included,
+    -- which this policy also admits).
+    AND email IS NOT DISTINCT FROM (SELECT u.email FROM users u WHERE u.id = users.id)
+  );
 
 -- ===========================================
 -- MODULE DEFAULTS FUNCTIONS
