@@ -105,7 +105,6 @@ export const createSettingsSlice: StateCreator<
   listRowSize: 16,
   treeRowSize: 18,
   theme: 'dark',
-  autoApplySeasonalThemes: true,
   language: 'en',
   keybindings: defaultKeybindings,
 
@@ -198,7 +197,6 @@ export const createSettingsSlice: StateCreator<
   setListRowSize: (listRowSize) => set({ listRowSize: Math.max(16, Math.min(64, listRowSize)) }),
   setTreeRowSize: (treeRowSize) => set({ treeRowSize: Math.max(16, Math.min(64, treeRowSize)) }),
   setTheme: (theme: ThemeMode) => set({ theme }),
-  setAutoApplySeasonalThemes: (autoApplySeasonalThemes) => set({ autoApplySeasonalThemes }),
   setLanguage: (language: Language) => set({ language }),
   setKeybinding: (action: KeybindingAction, keybinding: Keybinding) =>
     set((state) => ({

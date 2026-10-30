@@ -11,63 +11,18 @@ const titleBarOverlayColors: Record<string, { color: string; symbolColor: string
   weather: { color: '#1c1916', symbolColor: '#fef3c7' }, // Default sunny, WeatherEffects will override
 }
 
-// Check if we should auto-apply a seasonal theme
-// Returns the seasonal theme if applicable, or null if no override
-function getSeasonalThemeOverride(): 'halloween' | 'christmas' | null {
-  const now = new Date()
-  const month = now.getMonth() // 0-indexed: 0 = Jan, 9 = Oct, 10 = Nov, 11 = Dec
-
-  // Halloween: October 1-31 (month 9)
-  if (month === 9) {
-    return 'halloween'
-  }
-
-  // Christmas: December 1-31 (month 11)
-  if (month === 11) {
-    return 'christmas'
-  }
-
-  return null
-}
-
 /**
  * Apply theme to document and update titlebar overlay
  * - Sign-in screen: always use system theme
- * - Logged in: auto-applies seasonal themes (Halloween in October, Christmas in December) if setting is enabled
+ * - Logged in: use the stored theme (seasonal themes are never applied by date)
  */
 export function useTheme() {
   const theme = usePDMStore((s) => s.theme)
-  const autoApplySeasonalThemes = usePDMStore((s) => s.autoApplySeasonalThemes)
-  const setTheme = usePDMStore((s) => s.setTheme)
   const user = usePDMStore((s) => s.user)
   const isOfflineMode = usePDMStore((s) => s.isOfflineMode)
 
   // Determine if user is signed in
   const isSignedIn = !!user || isOfflineMode
-
-  // Auto-apply seasonal theme when user signs in (if setting is enabled)
-  useEffect(() => {
-    // Only apply seasonal themes when signed in
-    if (!isSignedIn) return
-
-    // Don't auto-apply if setting is disabled
-    if (!autoApplySeasonalThemes) return
-
-    const seasonalTheme = getSeasonalThemeOverride()
-
-    // If we're in a seasonal period and user's theme is NOT already the seasonal theme
-    if (seasonalTheme && theme !== seasonalTheme) {
-      // Check if we've already auto-switched this season (stored in localStorage to persist across restarts)
-      const storageKey = `seasonal-theme-applied-${seasonalTheme}`
-      const alreadyApplied = localStorage.getItem(storageKey)
-
-      if (!alreadyApplied) {
-        // Auto-switch to seasonal theme
-        setTheme(seasonalTheme)
-        localStorage.setItem(storageKey, 'true')
-      }
-    }
-  }, [isSignedIn, autoApplySeasonalThemes]) // Re-run when sign-in status or setting changes
 
   useEffect(() => {
     // Determine the actual theme to apply

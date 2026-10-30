@@ -80,7 +80,6 @@ export function handleSettings(addOutput: OutputFn): void {
     'Theme & Appearance:',
     `   theme: ${state.theme}`,
     `   language: ${state.language}`,
-    `   autoApplySeasonalThemes: ${state.autoApplySeasonalThemes}`,
     `   activityBarMode: ${state.activityBarMode}`,
     '',
     'Layout:',
@@ -214,9 +213,6 @@ export function handleSet(parsed: ParsedCommand, addOutput: OutputFn): void {
         return
       }
       store.setLanguage(value as any) // TODO: type this
-      break
-    case 'autoApplySeasonalThemes':
-      store.setAutoApplySeasonalThemes(value === 'true')
       break
     case 'activityBarMode':
       if (value !== 'expanded' && value !== 'collapsed' && value !== 'hover') {

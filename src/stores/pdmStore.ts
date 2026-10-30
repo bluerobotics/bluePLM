@@ -99,6 +99,25 @@ const persistStorage = createPersistStorage({ getStorage: getLocalStorage })
 flushPersistStorageOnPageHide(persistStorage)
 
 /**
+ * The persisted theme, or dark. Up to 4.10.0 a date check switched the theme to Halloween in
+ * October and Christmas in December and left a `seasonal-theme-applied-<theme>` marker; a theme
+ * that still carries its marker was never picked by the user, so it goes back to dark (once).
+ */
+function restoreTheme(persisted: ThemeMode | undefined): ThemeMode {
+  if (!persisted) return 'dark'
+  if (persisted !== 'halloween' && persisted !== 'christmas') return persisted
+  const storage = getLocalStorage()
+  const marker = `seasonal-theme-applied-${persisted}`
+  try {
+    if (!storage?.getItem(marker)) return persisted
+    storage.removeItem(marker)
+  } catch {
+    return persisted
+  }
+  return 'dark'
+}
+
+/**
  * Remove the persisted store and stop it being written again until the page reloads. Use this
  * instead of `localStorage.removeItem` - a write still waiting in the debounce would put the old
  * state back.
@@ -268,7 +287,6 @@ export const usePDMStore = create<PDMStoreState>()(
         // Theme & Appearance
         // ═══════════════════════════════════════════════════════════════
         theme: state.theme,
-        autoApplySeasonalThemes: state.autoApplySeasonalThemes,
         language: state.language,
 
         // ═══════════════════════════════════════════════════════════════
@@ -508,13 +526,8 @@ export const usePDMStore = create<PDMStoreState>()(
           // Ensure listRowSize has a default
           listRowSize: (persisted.listRowSize as number) || 24,
           treeRowSize: (persisted.treeRowSize as number) || 24,
-          // Ensure theme has a default
-          theme: (persisted.theme as ThemeMode) || 'dark',
-          // Restore autoApplySeasonalThemes (default to true)
-          autoApplySeasonalThemes:
-            persisted.autoApplySeasonalThemes !== undefined
-              ? (persisted.autoApplySeasonalThemes as boolean)
-              : true,
+          // Ensure theme has a default; undo a seasonal theme the removed date-based auto-switch picked
+          theme: restoreTheme(persisted.theme as ThemeMode | undefined),
           // Ensure language has a default
           language: (persisted.language as Language) || 'en',
           // Restore hideCloudOnlyFolders (default to false - show all folders)

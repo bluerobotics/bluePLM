@@ -746,7 +746,6 @@ export interface SettingsSlice {
   listRowSize: number
   treeRowSize: number
   theme: ThemeMode
-  autoApplySeasonalThemes: boolean
   language: Language
   keybindings: KeybindingsConfig
 
@@ -837,7 +836,6 @@ export interface SettingsSlice {
   setListRowSize: (size: number) => void
   setTreeRowSize: (size: number) => void
   setTheme: (theme: ThemeMode) => void
-  setAutoApplySeasonalThemes: (enabled: boolean) => void
   setLanguage: (language: Language) => void
   setKeybinding: (action: KeybindingAction, keybinding: Keybinding) => void
   resetKeybindings: () => void
