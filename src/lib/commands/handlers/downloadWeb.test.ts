@@ -16,6 +16,13 @@ const getDownloadUrl = vi.fn()
 vi.mock('../../storage', () => ({
   getDownloadUrl: (...args: unknown[]) => getDownloadUrl(...args),
 }))
+// Content checks (schema 503): the stubbed storage answers each signed URL with the content hash as
+// the body, so "hashing" the body (identity here) gives back the hash unless a test changes the body.
+const blocked = new Set<string>()
+vi.mock('@/lib/vaultObjectIssues', () => ({
+  blockedContentHashes: async (hashes: string[]) => new Set(hashes.filter((h) => blocked.has(h))),
+  sha256Hex: async (bytes: ArrayBuffer) => new TextDecoder().decode(bytes),
+}))
 const saveUrlAs = vi.fn()
 const saveBlobAs = vi.fn()
 vi.mock('../../browserDownload', () => ({
@@ -30,9 +37,13 @@ vi.mock('../../../stores/pdmStore', () => ({
   usePDMStore: { getState: () => ({}) },
 }))
 
-// No bridge: the web. Storage answers each signed URL with the URL as the body.
+// No bridge: the web. Storage answers each signed URL with its content hash as the body, except a
+// hash containing 'damaged', whose stored bytes do not match it.
 vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() })
-vi.stubGlobal('fetch', async (url: string) => new Response(`bytes of ${url}`))
+vi.stubGlobal('fetch', async (url: string) => {
+  const hash = url.slice('https://signed/'.length)
+  return new Response(hash.includes('damaged') ? 'other bytes' : hash)
+})
 
 const { downloadCommand } = await import('./download')
 
@@ -111,11 +122,10 @@ describe('downloadCommand.execute on the web', () => {
     const result = await downloadCommand.execute({ files: [a] }, ctx)
 
     expect(result).toMatchObject({ success: true, total: 1, succeeded: 1, failed: 0 })
-    expect(getDownloadUrl).toHaveBeenCalledWith('org-1', 'hash-Parts/a.sldprt', 300, {
-      downloadName: 'a.sldprt',
-    })
-    expect(saveUrlAs.mock.calls).toEqual([['https://signed/hash-Parts/a.sldprt', 'a.sldprt']])
-    expect(saveBlobAs).not.toHaveBeenCalled()
+    expect(getDownloadUrl).toHaveBeenCalledWith('org-1', 'hash-Parts/a.sldprt', 300)
+    // Fetched, checked against its hash, then saved: never handed to the browser unchecked.
+    expect(saveUrlAs).not.toHaveBeenCalled()
+    expect(saveBlobAs.mock.calls.map((c) => c[0])).toEqual(['a.sldprt'])
   })
 
   it('saves the files of a selected folder as one zip named after the folder', async () => {
@@ -177,6 +187,25 @@ describe('downloadCommand.execute on the web', () => {
     expect(result.errors).toEqual(['bad.pdf: missing'])
     // The good file is still zipped and saved.
     expect(saveBlobAs).toHaveBeenCalledTimes(1)
+  })
+
+  it('refuses content whose bytes do not match its hash, and content marked unrecoverable', async () => {
+    const good = cloudFile('good.pdf')
+    const damaged = cloudFile('damaged.pdf')
+    const lost = cloudFile('lost.pdf')
+    blocked.add('hash-lost.pdf')
+    try {
+      const ctx = makeContext([good, damaged, lost])
+      const result = await downloadCommand.execute({ files: [good, damaged, lost] }, ctx)
+      expect(result).toMatchObject({ success: false, succeeded: 1, failed: 2 })
+      expect(result.errors).toEqual([
+        expect.stringMatching(/^lost\.pdf: .*unrecoverable/),
+        expect.stringMatching(/^damaged\.pdf: .*damaged/),
+      ])
+      expect(saveBlobAs).toHaveBeenCalledTimes(1)
+    } finally {
+      blocked.clear()
+    }
   })
 
   it('refuses a selection over the browser limit without saving anything', async () => {

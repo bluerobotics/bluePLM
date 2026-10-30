@@ -292,6 +292,9 @@ export function defineFileRpcs(db: FakeSupabase): void {
   db.defineRpc('file_checkin', checkinFile)
   db.defineRpc('file_move', moveFile)
   db.defineRpc('folder_rename', renameFolderFiles)
+  // Downloads ask which content an admin marked unrecoverable (schema 503); nothing is, here.
+  // Untyped: not in the generated types until gen:types runs against 503.
+  db.defineRpc('vault_object_blocked', () => [], { untyped: true })
   // Both are called through `(client.rpc as any)`: missing from the generated types.
   db.defineRpc('vault_file_list', getVaultFilesFast, { untyped: !db.schema.functions.has('vault_file_list') })
   db.defineRpc('file_get_active_by_path', getActiveFileByPath, {

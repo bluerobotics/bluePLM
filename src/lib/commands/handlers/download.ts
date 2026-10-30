@@ -20,6 +20,7 @@ import { t } from '@/lib/i18n'
 import { withExpectedParentFolders } from '../expectedFileChanges'
 import { hasDesktop } from '@/lib/platform'
 import { executeWebDownload } from './downloadWeb'
+import { blockedContentHashes } from '@/lib/vaultObjectIssues'
 
 function toastSkippedNoHash(ctx: CommandContext, count: number): void {
   if (count <= 0) return
@@ -374,6 +375,10 @@ export const downloadCommand: Command<DownloadParams> = {
     })
     const downloadPhaseStart = Date.now()
 
+    // Content an admin marked unrecoverable (schema 503) is refused with a clear message; asked
+    // once for the whole run.
+    const blockedHashes = blockedContentHashes(cloudFiles.map((f) => f.pdmData?.content_hash ?? ''))
+
     // Helper function to download a single file with retry logic
     const downloadWithRetry = async (
       file: LocalFile,
@@ -398,6 +403,10 @@ export const downloadCommand: Command<DownloadParams> = {
           success: false,
           error: `${file.name}: No content hash - file metadata may be corrupted or incomplete`,
         }
+      }
+
+      if ((await blockedHashes).has(file.pdmData.content_hash)) {
+        return { success: false, error: `${file.name}: ${t('damagedFiles.downloadRefused')}` }
       }
 
       const fullPath = buildFullPath(vaultPath, file.relativePath)
@@ -485,8 +494,11 @@ export const downloadCommand: Command<DownloadParams> = {
             return downloadWithRetry(file, attempt + 1)
           }
 
-          // Use user-friendly message for network errors
-          const userMessage = getNetworkErrorMessage(errorMsg)
+          // Use user-friendly message for network errors; a hash mismatch is damaged content on
+          // the server, which retrying does not fix and an admin can.
+          const userMessage = /hash mismatch/i.test(errorMsg)
+            ? t('damagedFiles.downloadDamaged')
+            : getNetworkErrorMessage(errorMsg)
 
           logDownload('error', 'File download failed', {
             operationId,

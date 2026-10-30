@@ -11,6 +11,8 @@
 
 import { getDownloadUrl } from './storage'
 import { saveBlobAs, saveUrlAs } from './browserDownload'
+import { t } from '@/lib/i18n'
+import { blockedContentHashes, sha256Hex } from '@/lib/vaultObjectIssues'
 
 /** Signed URLs for a browser download live this long. The browser starts at once. */
 export const WEB_DOWNLOAD_URL_TTL_SECONDS = 300
@@ -111,7 +113,8 @@ export function zipLayout(items: readonly Pick<WebDownloadItem, 'relativePath'>[
   let common = dirs[0] ?? []
   for (const dir of dirs.slice(1)) {
     let i = 0
-    while (i < common.length && i < dir.length && common[i].toLowerCase() === dir[i].toLowerCase()) i++
+    while (i < common.length && i < dir.length && common[i].toLowerCase() === dir[i].toLowerCase())
+      i++
     common = common.slice(0, i)
   }
   const prefix = common.length
@@ -120,13 +123,22 @@ export function zipLayout(items: readonly Pick<WebDownloadItem, 'relativePath'>[
   return { zipName, entries }
 }
 
-/** Fetch one stored file's bytes through a short-lived signed URL. */
+/** Above this a single file is saved straight from its URL, unhashed: hashing needs it in memory. */
+const WEB_VERIFY_MAX_BYTES = 512 * 1024 * 1024
+
+/**
+ * Fetch one stored file's bytes through a short-lived signed URL, and refuse them unless they
+ * hash to the name they are stored under (schema 503: damaged content is not handed out).
+ */
 async function fetchStoredFile(orgId: string, contentHash: string): Promise<Blob> {
   const { url, error } = await getDownloadUrl(orgId, contentHash, WEB_DOWNLOAD_URL_TTL_SECONDS)
   if (error || !url) throw new Error(error || 'No download URL')
   const response = await fetch(url)
   if (!response.ok) throw new Error(`Storage answered ${response.status}`)
-  return response.blob()
+  const blob = await response.blob()
+  if ((await sha256Hex(await blob.arrayBuffer())) !== contentHash)
+    throw new Error(t('damagedFiles.downloadDamaged'))
+  return blob
 }
 
 /**
@@ -138,36 +150,67 @@ export async function saveItemsInBrowser(
   items: readonly WebDownloadItem[],
   onProgress?: (done: number) => void,
   isCancelled: () => boolean = () => false,
-): Promise<{ succeeded: number; failures: Array<{ name: string; error: string }>; cancelled: boolean }> {
-  if (items.length === 1) {
-    const result = await saveStoredFileInBrowser(orgId, items[0].contentHash, items[0].name)
-    onProgress?.(1)
+): Promise<{
+  succeeded: number
+  failures: Array<{ name: string; error: string }>
+  cancelled: boolean
+}> {
+  const blocked = await blockedContentHashes(items.map((item) => item.contentHash))
+  const refused = items.filter((item) => blocked.has(item.contentHash))
+  const allowed = items.filter((item) => !blocked.has(item.contentHash))
+  const refusals = refused.map((item) => ({
+    name: item.name,
+    error: t('damagedFiles.downloadRefused'),
+  }))
+  if (allowed.length === 0) return { succeeded: 0, failures: refusals, cancelled: false }
+
+  if (allowed.length === 1) {
+    const item = allowed[0]
+    let result: { success: true } | { success: false; error: string }
+    if (item.size > WEB_VERIFY_MAX_BYTES) {
+      result = await saveStoredFileInBrowser(orgId, item.contentHash, item.name)
+    } else {
+      try {
+        saveBlobAs(item.name, await fetchStoredFile(orgId, item.contentHash))
+        result = { success: true }
+      } catch (error) {
+        result = { success: false, error: error instanceof Error ? error.message : String(error) }
+      }
+    }
+    onProgress?.(items.length)
     return result.success
-      ? { succeeded: 1, failures: [], cancelled: false }
-      : { succeeded: 0, failures: [{ name: items[0].name, error: result.error }], cancelled: false }
+      ? { succeeded: 1, failures: refusals, cancelled: false }
+      : {
+          succeeded: 0,
+          failures: [...refusals, { name: item.name, error: result.error }],
+          cancelled: false,
+        }
   }
 
   const { default: JSZip } = await import('jszip')
   const zip = new JSZip()
-  const { zipName, entries } = zipLayout(items)
-  const failures: Array<{ name: string; error: string }> = []
+  const { zipName, entries } = zipLayout(allowed)
+  const failures: Array<{ name: string; error: string }> = [...refusals]
   let succeeded = 0
-  let done = 0
+  let done = refused.length
   let next = 0
   const worker = async () => {
-    while (next < items.length && !isCancelled()) {
+    while (next < allowed.length && !isCancelled()) {
       const index = next++
-      const item = items[index]
+      const item = allowed[index]
       try {
         zip.file(entries[index], await fetchStoredFile(orgId, item.contentHash))
         succeeded++
       } catch (error) {
-        failures.push({ name: item.name, error: error instanceof Error ? error.message : String(error) })
+        failures.push({
+          name: item.name,
+          error: error instanceof Error ? error.message : String(error),
+        })
       }
       onProgress?.(++done)
     }
   }
-  await Promise.all(Array.from({ length: Math.min(WEB_ZIP_CONCURRENCY, items.length) }, worker))
+  await Promise.all(Array.from({ length: Math.min(WEB_ZIP_CONCURRENCY, allowed.length) }, worker))
   if (isCancelled()) return { succeeded: 0, failures, cancelled: true }
   if (succeeded > 0) {
     // CAD files barely compress, so store them: the zip builds fast and peaks at one copy in memory.

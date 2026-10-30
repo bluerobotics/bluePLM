@@ -16,6 +16,7 @@ import { BackupRepository } from '../src/backup/repository.js'
 import { RepairError, readBackupCopy, repairFromUpload, restoreFromBackup, snapshotsHolding } from '../src/backup/repair.js'
 import type { ServerBackupConfig } from '../src/backup/worker.js'
 import { createSupabaseAdminClient } from '../src/infrastructure/supabase.js'
+import { sendError } from '../utils/index.js'
 
 /** Largest desktop copy accepted in one request. */
 const MAX_UPLOAD_BYTES = 1024 * 1024 * 1024
@@ -53,9 +54,7 @@ async function openRepository(orgId: string): Promise<BackupRepository> {
 }
 
 function sendRepairError(reply: FastifyReply, err: unknown) {
-  if (err instanceof RepairError) {
-    return reply.status(err.statusCode).send({ error: err.code, message: err.message })
-  }
+  if (err instanceof RepairError) return sendError(reply, err.statusCode, err.code, err.message)
   throw err
 }
 
@@ -130,7 +129,7 @@ export default async function backupIssueRoutes(fastify: FastifyInstance) {
       const { orgId, hash } = requireAdmin(request)
       const body = request.body
       if (!Buffer.isBuffer(body) || body.length === 0) {
-        return reply.status(400).send({ error: 'NO_CONTENT', message: 'Send the file as an application/octet-stream body.' })
+        return sendError(reply, 400, 'NO_CONTENT', 'Send the file as an application/octet-stream body.')
       }
       try {
         const written = await repairFromUpload(createSupabaseAdminClient(), orgId, hash, body, request.user!.id)

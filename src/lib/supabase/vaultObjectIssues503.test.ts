@@ -92,6 +92,33 @@ describe('supabase/migrations/0503_vault_object_issues.sql', () => {
     expect(events.rows.map((e) => e.action)).toEqual(['found'])
   })
 
+  it('alerts admins once per object through the security monitor, with a title of its own', async () => {
+    await actAsOwner(db)
+    const events = await db.query<{ kind: string; summary: string; dedup_key: string }>(
+      `SELECT kind, summary, dedup_key FROM security_event WHERE kind = 'backup_damaged_object'`,
+    )
+    expect(events.rows).toHaveLength(1)
+    expect(events.rows[0].summary).toMatch(/Damaged in storage: Parts\/bracket\.sldprt v2/)
+    expect(events.rows[0].dedup_key).toBe(`backup_damaged_object:${ORG_A}:${BAD}:found`)
+
+    await db.query('SELECT security_monitor_run()')
+    const notes = await db.query<{ title: string; user_id: string }>(
+      `SELECT title, user_id FROM notification WHERE title = 'Backups: damaged file found'`,
+    )
+    expect(notes.rows.map((n) => n.user_id)).toEqual([ADMIN])
+  }, 120_000)
+
+  it('records no alert for an organization that turned backup alerts off', async () => {
+    await actAsOwner(db)
+    await db.exec(`INSERT INTO org_security_setting (org_id, is_backup_alert_enabled) VALUES ('${ORG_B}', false)
+                   ON CONFLICT (org_id) DO UPDATE SET is_backup_alert_enabled = false`)
+    await asService()
+    await db.query(`SELECT backup_issue_record('${ORG_B}', '${'b'.repeat(64)}', 'missing', NULL, NULL, NULL, 'backup', NULL)`)
+    await actAsOwner(db)
+    const events = await db.query<{ n: number }>(`SELECT count(*)::int AS n FROM security_event WHERE org_id = '${ORG_B}'`)
+    expect(events.rows[0].n).toBe(0)
+  })
+
   it('lets admins of the organization read it, with the file versions that name the hash', async () => {
     await actAs(db, ADMIN)
     const r = await db.query<{ l: Array<Record<string, unknown>> }>('SELECT vault_object_issue_list() AS l')
@@ -109,8 +136,9 @@ describe('supabase/migrations/0503_vault_object_issues.sql', () => {
     expect(await error('SELECT vault_object_issue_list()')).toMatch(/Only administrators/)
     expect((await db.query<{ n: number }>('SELECT count(*)::int AS n FROM vault_object_issue')).rows[0].n).toBe(0)
     await actAs(db, OTHER_ADMIN)
-    expect((await db.query<{ l: unknown[] }>('SELECT vault_object_issue_list() AS l')).rows[0].l).toEqual([])
-    expect((await db.query<{ n: number }>('SELECT count(*)::int AS n FROM vault_object_issue_event')).rows[0].n).toBe(0)
+    const theirs = (await db.query<{ l: Array<{ content_hash: string }> }>('SELECT vault_object_issue_list() AS l')).rows[0].l
+    expect(theirs.map((i) => i.content_hash)).not.toContain(BAD)
+    expect((await db.query<{ n: number }>(`SELECT count(*)::int AS n FROM vault_object_issue_event e JOIN vault_object_issue i ON i.id = e.issue_id WHERE i.content_hash = '${BAD}'`)).rows[0].n).toBe(0)
   })
 
   it('keeps the worker functions to service_role and allows no client write', async () => {
@@ -139,6 +167,19 @@ describe('supabase/migrations/0503_vault_object_issues.sql', () => {
 
     await actAs(db, OTHER_ADMIN)
     expect(await error(`SELECT vault_object_issue_resolve('${id}', 'open', NULL)`)).toMatch(/not found/)
+  })
+
+  it('records a roll back as a resolution of its own, with its note', async () => {
+    await asService()
+    await db.query(`SELECT backup_issue_record('${ORG_A}', '${LATEST}', 'damaged', 'x', 'f', 1, 'backup', NULL)`)
+    await actAs(db, ADMIN)
+    const id = (await db.query<{ id: string }>(`SELECT id FROM vault_object_issue WHERE content_hash = '${LATEST}'`)).rows[0].id
+    expect(await error(`SELECT vault_object_issue_resolve('${id}', 'rolled_back', '')`)).toMatch(/needs a note/)
+    await db.query(`SELECT vault_object_issue_resolve('${id}', 'rolled_back', 'Rolled back to version 1')`)
+    const issue = (await db.query<{ status: string; resolution: string; note: string }>(
+      `SELECT status, resolution, note FROM vault_object_issue WHERE id = '${id}'`,
+    )).rows[0]
+    expect(issue).toEqual({ status: 'accepted', resolution: 'rolled_back', note: 'Rolled back to version 1' })
   })
 
   it('tells any member which content is unrecoverable, in their own organization only', async () => {

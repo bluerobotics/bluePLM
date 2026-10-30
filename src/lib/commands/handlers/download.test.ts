@@ -52,6 +52,12 @@ vi.mock('../../fileOperationTracker', () => ({
   },
 }))
 
+// Content an admin marked unrecoverable (schema 503); empty unless a test adds to it.
+const blocked = new Set<string>()
+vi.mock('@/lib/vaultObjectIssues', () => ({
+  blockedContentHashes: async (hashes: string[]) => new Set(hashes.filter((h) => blocked.has(h))),
+}))
+
 const { downloadCommand } = await import('./download')
 
 const VAULT = 'C:/vault'
@@ -234,6 +240,33 @@ describe('downloadCommand.execute - cloud folder stays in the store', () => {
     expect(updates.some((u) => u.path === parent.path)).toBe(true)
     expect(updates.some((u) => u.path === ok.path)).toBe(true)
     expect(updates.some((u) => u.path === fail.path)).toBe(false)
+  })
+
+  it('refuses content marked unrecoverable without fetching it, and names damaged content', async () => {
+    const parent = folder('Celsius')
+    const lost = cloudFile('Celsius/lost.slddrw')
+    const damaged = cloudFile('Celsius/damaged.slddrw')
+    blocked.add(String(lost.pdmData?.content_hash))
+    downloadUrl.mockImplementation((...args: unknown[]) =>
+      Promise.resolve(
+        String(args[1] ?? '').includes('damaged')
+          ? { success: false, error: 'Download corrupted: hash mismatch (expected aa, got bb)', size: 0, hash: '' }
+          : { success: true, size: 100, hash: 'hash-downloaded' },
+      ),
+    )
+    try {
+      const result = await downloadCommand.execute({ files: [parent] }, makeContext([parent, lost, damaged]))
+      expect(result.failed).toBe(2)
+      expect(result.errors).toEqual(
+        expect.arrayContaining([
+          expect.stringMatching(/^lost\.slddrw: .*unrecoverable/),
+          expect.stringMatching(/^damaged\.slddrw: .*damaged/),
+        ]),
+      )
+      expect(downloadUrl.mock.calls.some((c) => String(c[1]).includes('lost'))).toBe(false)
+    } finally {
+      blocked.clear()
+    }
   })
 
   it('updates an empty cloud folder in place instead of removing it', async () => {

@@ -5,6 +5,13 @@ vi.mock('./storage', () => ({
   getDownloadUrl: (...args: unknown[]) => getDownloadUrl(...args),
 }))
 const saveUrlAs = vi.fn()
+// Content checks (schema 503): the stubbed storage answers each signed URL with the content hash as
+// the body, so "hashing" the body (identity here) gives back the hash unless a test changes the body.
+const blocked = new Set<string>()
+vi.mock('@/lib/vaultObjectIssues', () => ({
+  blockedContentHashes: async (hashes: string[]) => new Set(hashes.filter((h) => blocked.has(h))),
+  sha256Hex: async (bytes: ArrayBuffer) => new TextDecoder().decode(bytes),
+}))
 const saveBlobAs = vi.fn()
 vi.mock('./browserDownload', () => ({
   saveUrlAs: (...args: unknown[]) => saveUrlAs(...args),
@@ -128,14 +135,38 @@ describe('saveStoredFileInBrowser', () => {
     expect(saveUrlAs).not.toHaveBeenCalled()
   })
 
-  it('saves one file directly, without a zip', async () => {
-    getDownloadUrl.mockResolvedValue({ url: 'https://signed/1' })
-    const result = await saveItemsInBrowser('org-1', [
-      { name: 'a.pdf', contentHash: 'h1', relativePath: 'Docs/a.pdf', size: 3 },
-    ])
-    expect(result).toEqual({ succeeded: 1, failures: [], cancelled: false })
-    expect(saveUrlAs).toHaveBeenCalledWith('https://signed/1', 'a.pdf')
-    expect(saveBlobAs).not.toHaveBeenCalled()
+  it('saves one file without a zip, after checking its bytes against its hash', async () => {
+    saveBlobAs.mockReset()
+    getDownloadUrl.mockResolvedValue({ url: 'https://signed/h1' })
+    vi.stubGlobal('fetch', async (url: string) => new Response(url.slice('https://signed/'.length)))
+    try {
+      const result = await saveItemsInBrowser('org-1', [
+        { name: 'a.pdf', contentHash: 'h1', relativePath: 'Docs/a.pdf', size: 3 },
+      ])
+      expect(result).toEqual({ succeeded: 1, failures: [], cancelled: false })
+      expect(saveUrlAs).not.toHaveBeenCalled()
+      expect(saveBlobAs.mock.calls.map((c) => c[0])).toEqual(['a.pdf'])
+
+      // Bytes that do not hash to the name are refused, not saved.
+      saveBlobAs.mockReset()
+      vi.stubGlobal('fetch', async () => new Response('something else'))
+      const damaged = await saveItemsInBrowser('org-1', [
+        { name: 'a.pdf', contentHash: 'h1', relativePath: 'Docs/a.pdf', size: 3 },
+      ])
+      expect(damaged.succeeded).toBe(0)
+      expect(damaged.failures[0].error).toMatch(/damaged/)
+      expect(saveBlobAs).not.toHaveBeenCalled()
+
+      // Content an admin marked unrecoverable is not fetched at all.
+      blocked.add('h1')
+      const refused = await saveItemsInBrowser('org-1', [
+        { name: 'a.pdf', contentHash: 'h1', relativePath: 'Docs/a.pdf', size: 3 },
+      ])
+      expect(refused.failures[0].error).toMatch(/unrecoverable/)
+    } finally {
+      blocked.clear()
+      vi.unstubAllGlobals()
+    }
   })
 
   it('zips several files under their folder paths and lists the failures by name', async () => {
@@ -143,7 +174,7 @@ describe('saveStoredFileInBrowser', () => {
     getDownloadUrl.mockImplementation(async (_org: string, hash: string) =>
       hash === 'h3' ? { url: null, error: 'gone' } : { url: `https://signed/${hash}` },
     )
-    vi.stubGlobal('fetch', async (url: string) => new Response(`bytes of ${url}`))
+    vi.stubGlobal('fetch', async (url: string) => new Response(url.slice('https://signed/'.length)))
     try {
       const result = await saveItemsInBrowser('org-1', [
         { name: 'a.pdf', contentHash: 'h1', relativePath: 'Proj/Docs/a.pdf', size: 1 },
@@ -156,7 +187,7 @@ describe('saveStoredFileInBrowser', () => {
       expect(zipName).toBe('Docs.zip')
       const zip = await JSZip.loadAsync(await blob.arrayBuffer())
       expect(Object.keys(zip.files).filter((name) => !zip.files[name].dir).sort()).toEqual(['Sub/b.pdf', 'a.pdf'])
-      expect(await zip.file('a.pdf')!.async('string')).toBe('bytes of https://signed/h1')
+      expect(await zip.file('a.pdf')!.async('string')).toBe('h1')
     } finally {
       vi.unstubAllGlobals()
     }

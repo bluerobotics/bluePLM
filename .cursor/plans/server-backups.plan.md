@@ -96,3 +96,34 @@ admins on backups and reads: `backup_config.run_location`, `server_worker_seen_a
 `updated_at`, `created_at`; `backup_history.kind`, `runner`, `status`, `started_at`, `completed_at`,
 `error_message`. Status values it relies on: `failed`, `warning`, `completed`; kind `backup`. Backup
 notifications therefore live in 0502, not here.
+
+## Scheduled full test (API 4.1.2)
+
+Every 30 days, in a window that opens 4 h after the nightly backup slot and lasts 12 h, the worker runs a full
+test (kind verify, trigger scheduled), so a blob that rots in the bucket is found without a restore. The 30 days
+count from the last full test that ran to the end. An interrupted test resumes in the same mode (mode recorded on
+the history row from the start), at most 3 times a day, like a backup.
+
+## Damaged files (schema 503, API 4.2.0; owner request 2026-10-30)
+
+First real case: the first production backup found version 2 of
+`CELSIUS/DEVELOPMENT/CELSIUS-2/TSYS01 Design/THIN_DIE_CAST_BULKHEAD.SLDDRW` stored with version 3's bytes (a
+January check-in hashed the file, then uploaded it after it changed; check-in uses the uploaded bytes' hash since
+2026-03-14). Its real bytes never reached the server, so only accept or unrecoverable apply.
+
+- `vault_object_issue` (one row per org + content hash; damaged | missing; open | repaired | unrecoverable |
+  accepted) and `vault_object_issue_event` (append-only log). Admin-only SELECT, no client writes.
+- The worker records findings (`backup_issue_record`, service_role): damaged from backups and live audits, missing
+  (a version names content storage lacks) from backups; closes findings a later backup reads back intact (healed).
+- Repairs that write storage go through admin-only API routes (only the service role may replace a vault object):
+  restore from the server backup, or a desktop's copy. Bytes are hashed to the name before writing and after; a
+  damaged object's bytes are first kept under their own hash. `backup_issue_record_repair` closes the finding.
+- Roll back = the app checks the file out and checks in the last good version's hash with a comment, then
+  `vault_object_issue_resolve(id, 'rolled_back', note)`. Accept needs a note; unrecoverable makes downloads refuse
+  the content (`vault_object_blocked`, any member).
+- Downloads: desktop refuses blocked content before fetching and names a hash mismatch as server damage; BluePLM
+  Web fetches every file, hashes it with crypto.subtle and refuses a mismatch (above 512 MB a single file is saved
+  from its URL unhashed, because hashing needs it in memory).
+- Referencing versions are computed when read (`vault_object_issue_list()`), not stored, so they cannot go stale.
+- Not yet: the security-monitor notification for a new finding needs a new `security_event` kind and a title in
+  `security_monitor_run()`, both in 0502's code; agreed with the security session before it lands.

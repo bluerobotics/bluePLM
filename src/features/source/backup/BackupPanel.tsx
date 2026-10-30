@@ -15,6 +15,7 @@ import { useServerBackupRuns } from './hooks/useServerBackupRuns'
 import { BackupOverview } from './BackupOverview'
 import { RunLocationPicker } from './RunLocationPicker'
 import { ServerBackupSection } from './ServerBackupSection'
+import { DamagedFilesSection } from './DamagedFilesSection'
 import { DesktopBackupSection } from './DesktopBackupSection'
 import { BackupHistory } from './BackupHistory'
 import { RestoreActionBar } from './RestoreActionBar'
@@ -251,6 +252,9 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
           />
         </section>
       )}
+
+      {/* Damaged or missing vault content the server backup found (schema 503), admins only */}
+      {isConfigured && isAdmin && serverRun && <DamagedFilesSection />}
 
       {/* Restore points (restic snapshots made by the designated computer). With server-run
           backups they are older history, folded away and loaded only when opened. */}

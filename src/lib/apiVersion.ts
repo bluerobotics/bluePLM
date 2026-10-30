@@ -38,7 +38,7 @@ import { usePDMStore } from '../stores/pdmStore'
 
 // The API version this app version expects
 // Uses semver: MAJOR.MINOR.PATCH
-export const EXPECTED_API_VERSION = '4.1.2'
+export const EXPECTED_API_VERSION = '4.2.0'
 
 // Minimum API version that will still work (for soft warnings vs hard errors)
 // Breaking changes should bump the major version and update this
@@ -90,6 +90,8 @@ export const API_VERSION_DESCRIPTIONS: Record<string, string> = {
     'A server backup or test in progress records how far it is (backup_history.report.progress: phase, done, total, bytes uploaded) every 30 s, so the backup page can show it.',
   '4.1.2':
     'Scheduled full test: every 30 days, 4 hours after the nightly backup slot, the backup worker reads every blob back and checks it (kind verify, trigger scheduled). A test a restart cut short is resumed in the same mode, like a backup.',
+  '4.2.0':
+    'Damaged-file tools (schema 503). The backup worker records damaged and missing vault content in vault_object_issue and closes findings a later backup reads back intact. New admin-only routes repair it, because only the service role may write a vault object: GET /backup/issues/:hash/copies, POST /backup/issues/:hash/restore (from the server backup) and POST /backup/issues/:hash/upload (a desktop copy, octet-stream); bytes are hashed against the name before writing and after, and a damaged object is kept under its own hash first.',
 }
 
 export interface ApiVersionCheckResult {
