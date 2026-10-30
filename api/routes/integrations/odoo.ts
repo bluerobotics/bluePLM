@@ -41,7 +41,7 @@ export { CredentialStoreUnavailableError, credentialSetupProblem }
  * in a response.
  */
 const SAVED_CONFIG_COLUMNS =
-  'id, name, description, url, database, username, color, is_active, last_tested_at, last_test_success, created_at'
+  'id, name, description, url, database, username, color, is_active, last_tested_at, is_last_test_successful, created_at'
 
 /** Credentials are stored per organization, so a user without one has nowhere to put them. */
 const NO_ORGANIZATION = 'Your account is not linked to an organization'

@@ -42,7 +42,9 @@ export function openExternalSafely(url: string, log?: (message: string) => void)
 export function isAppNavigation(url: string, allowDevServer: boolean): boolean {
   const u = parse(url)
   if (!u) return false
-  if (u.protocol === 'file:') return true
+  // A local file only: `file://server/share/...` (UNC) has a host and is a network location.
+  // `file:////server/share` reaches the same share through an empty host and a // path.
+  if (u.protocol === 'file:') return u.host === '' && !u.pathname.startsWith('//')
   return allowDevServer && u.origin === DEV_SERVER_ORIGIN
 }
 

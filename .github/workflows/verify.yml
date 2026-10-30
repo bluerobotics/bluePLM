@@ -366,15 +366,15 @@ jobs:
   # because two earlier security efforts passed against a container where postgres was still a
   # superuser, which makes every grant check meaningless.
   #
-  # Order: the 5.0 baseline (core.sql and every module, one transaction), then the same install
-  # twice more (idempotency); then tools/verify-schema.sql, which withholds the stamp and errors
+  # Order: the 5.0 baseline (core.sql and every module, one transaction; it is not idempotent and
+  # is installed once, since later changes are numbered migrations); then tools/verify-schema.sql, which withholds the stamp and errors
   # when an object schema_release_manifest() names is missing; then the fast negative controls,
   # which break the schema on purpose and require the verifier to notice. The harness mounts all of
   # supabase/ at /blueplm, so the checkout must carry supabase/legacy-4.10 (the 4.10 snapshot a
   # pre-112 database is brought to first) and supabase/migrations (0500_from_4x.sql); a plain
   # full checkout does, and nothing here may narrow it with sparse-checkout.
   sql:
-    name: SQL schema (install, idempotency, verifier)
+    name: SQL schema (install, verifier)
     runs-on: ubuntu-latest
     # Tags and manual runs take the standard tier of negative controls (~34 min at schema 103),
     # after a ~12 min install at schema 109: 45 minutes cancelled v4.8.0's first release run.
@@ -399,12 +399,6 @@ jobs:
 
       - name: Start harness and install the 5.0 baseline
         run: ./reset.ps1 -NoSeed
-
-      - name: Re-apply the baseline (idempotency)
-        run: ./install.ps1
-
-      - name: Re-apply the baseline again
-        run: ./install.ps1
 
       - name: Verify schema against the release manifest
         run: |
@@ -436,6 +430,31 @@ jobs:
       - name: Endpoint census (non-blocking until the baseline is reviewed)
         continue-on-error: true
         run: ./negative-controls-fast.ps1 -Tier smoke -Only CENSUS
+
+      - name: Database log on failure
+        if: failure()
+        run: docker compose logs db | Select-Object -Last 200
+
+  # The upgrade lane: a seeded 4.10 database (schema 112) upgraded by
+  # supabase/migrations/0500_from_4x.sql the way the in-app runner applies it, then verified. Every
+  # table's row count must be unchanged. The automated twin of the staging rehearsal: a release has
+  # to pass both installed from nothing (the sql job) and applied over the previous release's data.
+  sql-upgrade:
+    name: SQL upgrade (4.10 -> 5.0)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: harness
+    env:
+      COMPOSE_FILE: docker-compose.yml:docker-compose.fast.yml
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Upgrade a seeded 4.10 database to 5.0
+        run: ./upgrade.ps1
 
       - name: Database log on failure
         if: failure()

@@ -18,6 +18,13 @@ const RELOAD_AFTER_SUCCESS_MS = 2000
 
 let checkInFlight: Promise<void> | null = null
 
+let reloadPage: () => void = () => window.location.reload()
+
+/** Test hook: observe the reload after a successful upgrade. */
+export function setReloadForTests(reload: () => void): void {
+  reloadPage = reload
+}
+
 export function dbUpgradeContext(): DbUpgradeContext | null {
   // Only offered to a signed-in user the gate sent to the admin screen.
   if (!usePDMStore.getState().dbGate.userId) return null
@@ -77,12 +84,26 @@ export function runDbGateCheck(userId: string, userEmail: string | null): Promis
   return checkInFlight
 }
 
-/** With a connection remembered on this computer for this admin, upgrade without asking. */
+/** Set once an automatic run has started in this app session; it never retries on its own. */
+let autoApplyStarted = false
+
+/** Test hook: forget that an automatic run happened. */
+export function resetAutoApplyForTests(): void {
+  autoApplyStarted = false
+}
+
+/**
+ * With a connection remembered on this computer, upgrade without asking, at most once per app
+ * session. A failed run (a verify that withheld the stamp, a broken migration) stays on screen
+ * with its error until the admin presses Apply; it is never retried in a loop.
+ */
 async function maybeAutoApply(): Promise<void> {
   const api = window.electronAPI?.dbUpgrade
   const ctx = dbUpgradeContext()
   if (!api || !ctx) return
+  if (autoApplyStarted) return
   if (usePDMStore.getState().dbUpgradeRun.phase !== 'idle') return
+  autoApplyStarted = true
   try {
     const status = await api.getCredentialStatus(ctx)
     if (status.remembered) await applyDbUpgrade(true)
@@ -142,14 +163,37 @@ export async function applyDbUpgrade(automatic: boolean): Promise<void> {
       automatic,
     })
     const result = response.result ?? null
-    if (response.success && result?.success) {
+    // Reload only onto a database the gate will let through; anything else would come straight
+    // back here and, with a remembered connection, retry in a loop.
+    const reachedRequired = (result?.finalVersion ?? 0) >= REQUIRED_SCHEMA_VERSION
+    if (response.success && result?.success && reachedRequired) {
       setDbUpgradeRun({ phase: 'succeeded', result, plan: result.plan })
-      setTimeout(() => window.location.reload(), RELOAD_AFTER_SUCCESS_MS)
+      setTimeout(() => reloadPage(), RELOAD_AFTER_SUCCESS_MS)
       return
     }
+    // A run that reported success yet left the database below what this app needs is a failure
+    // the admin has to see, with the version it stopped at.
+    const shown =
+      result && result.success && !reachedRequired
+        ? {
+            ...result,
+            success: false,
+            error: {
+              step: null,
+              file: null,
+              message: `The database records schema ${result.finalVersion ?? 'none'}; this app needs ${REQUIRED_SCHEMA_VERSION}.`,
+              code: null,
+              detail: null,
+              hint: null,
+              where: null,
+              line: null,
+              statement: null,
+            },
+          }
+        : result
     setDbUpgradeRun({
       phase: 'failed',
-      result,
+      result: shown,
       plan: result?.plan ?? usePDMStore.getState().dbUpgradeRun.plan,
       errorCode: result ? null : (response.error ?? 'connect'),
       errorMessage: response.message ?? null,

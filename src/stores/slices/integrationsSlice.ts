@@ -462,7 +462,7 @@ async function checkOdooStatus(
       if (odooData.is_connected) {
         setStatus('odoo', 'online')
       } else if (odooData.configured) {
-        // Check saved configs for last_test_success
+        // Check saved configs for is_last_test_successful
         try {
           const configsResponse = await fetch(`${apiUrl}/integrations/odoo/configs`, {
             headers: { Authorization: `Bearer ${token}` },

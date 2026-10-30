@@ -335,6 +335,37 @@ describe('re-runs and refusals', () => {
     expect(await version(client)).toBe(0)
   })
 
+  it('every migration applied but the stamp withheld: the plan is verify alone, and it stamps', async () => {
+    const { client } = await newDb()
+    const good = bundleOf()
+    await install112(client, good)
+
+    // 0500 and 0501 commit, then verification refuses: the stamp stays at 112.
+    const refusing = bundleOf({
+      'tools/verify-schema.sql': "DO $$ BEGIN RAISE EXCEPTION 'verification refused'; END $$;\n",
+    })
+    const first = await applyMigrations(client, refusing, opts)
+    expect(first.success).toBe(false)
+    expect(first.error?.step?.kind).toBe('verify')
+    expect((await tracked(client)).map((r) => r.version)).toEqual([500, 501])
+    expect(await version(client)).toBe(112)
+
+    const plan = await planMigrations(client, good)
+    expect(plan.upToDate).toBe(false)
+    expect(plan.refusal).toBeNull()
+    expect(plan.targetVersion).toBe(501)
+    expect(plan.steps.map((s) => s.kind)).toEqual(['verify'])
+
+    // Still refusing: it fails again rather than reporting success over an unstamped database.
+    expect((await applyMigrations(client, refusing, opts)).success).toBe(false)
+
+    const fixed = await applyMigrations(client, good, opts)
+    expect(fixed.error).toBeNull()
+    expect(fixed.appliedSteps.map((s) => s.kind)).toEqual(['verify'])
+    expect(await version(client)).toBe(501)
+    expect((await planMigrations(client, good)).upToDate).toBe(true)
+  })
+
   it('redacts secrets from error messages', async () => {
     const { client } = await newDb()
     const result = await applyMigrations(

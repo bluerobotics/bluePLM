@@ -69,7 +69,7 @@ export function parseOrgNativeRow(raw: unknown): { row: OrgNativeExtensionRow } 
 }
 
 const ROW_COLUMNS =
-  'org_id, extension_id, version, enabled, manifest, installed_at, package_sha256, package_path, category'
+  'org_id, extension_id, version, is_enabled, manifest, installed_at, package_sha256, package_path, category'
 
 /** Every native row of the organization, enabled or not. Rows that fail parsing are returned as errors. */
 export async function fetchOrgNativeExtensions(

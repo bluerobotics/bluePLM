@@ -105,7 +105,9 @@ creates. See `supabase/README.md`.
 ## Schema Change Workflow
 
 When making schema changes:
-- **Only** update the schema files (`supabase/core.sql`, `supabase/modules/*.sql`)
-- **Never** provide migration SQL in code blocks — user runs the full schema file
-- **Never** run terminal commands to push SQL to Supabase
-- Just update the files and confirm it's done
+- **Add** a numbered migration in `supabase/migrations/` (see "Baseline and Migrations"); never edit
+  the 5.0 baseline (`supabase/core.sql`, `supabase/modules/*.sql`) or a released migration
+- **Never** run terminal commands to push SQL to Supabase: the app's runner applies migrations when
+  an org admin opens the release that ships them
+- Prove it on PGlite (a fresh baseline plus the migration, and an upgraded database plus the
+  migration, must match) before the migration lands on `main`

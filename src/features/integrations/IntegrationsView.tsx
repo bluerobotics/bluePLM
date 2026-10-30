@@ -635,7 +635,7 @@ export function IntegrationsView() {
           setOdooConnected(true)
         } else if (data.configured) {
           // Main integration says configured but not connected - check saved configs
-          // for last_test_success which is what shows the green indicator in OdooSettings
+          // for is_last_test_successful, which is what shows the green indicator in OdooSettings
           try {
             const configsResponse = await fetch(`${apiUrl}/integrations/odoo/configs`, {
               headers: { Authorization: `Bearer ${token}` },

@@ -44,6 +44,13 @@ describe('top-level navigation stays in the app', () => {
     expect(isAppNavigation('https://evil.example/', true)).toBe(false)
   })
 
+  it('refuses a file URL that points at a network share (UNC)', () => {
+    expect(isAppNavigation('file://server/share/index.html', false)).toBe(false)
+    expect(isAppNavigation('file://192.168.1.5/c$/x.html', false)).toBe(false)
+    expect(isAppNavigation('file:////server/share/index.html', false)).toBe(false)
+    expect(isAppNavigation('file:///C:/Program%20Files/BluePLM/resources/app/dist/index.html', false)).toBe(true)
+  })
+
   it('prevents a remote navigation and lets an intercepted one through the intercept', () => {
     let handler: ((e: { preventDefault: () => void }, url: string) => void) | undefined
     const contents = { on: (_: string, h: typeof handler) => (handler = h) }

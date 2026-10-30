@@ -221,9 +221,13 @@ function finish(
   recordedVersion: number | null,
   steps: PlanStep[],
   bundle: SqlBundle,
+  /** Newest migration already recorded as applied: the database must be stamped at least there. */
+  appliedVersion = 0,
 ): MigrationPlan {
   const versions = steps.map((s) => s.version ?? 0)
-  const targetVersion = Math.max(recordedVersion ?? 0, ...versions, 0)
+  // With every migration applied but the stamp behind (a verify that failed after its migration
+  // committed), the plan is verify alone; never "up to date" over an unstamped database.
+  const targetVersion = Math.max(recordedVersion ?? 0, ...versions, appliedVersion, 0)
   if (steps.length === 0 && recordedVersion === targetVersion) {
     return { start, recordedVersion, targetVersion, steps, upToDate: true, refusal: null }
   }
@@ -284,7 +288,7 @@ export async function planMigrations(client: SqlClient, bundle: SqlBundle): Prom
           .join(', ')}. Nothing was run.`,
       )
     }
-    return finish('tracked', recorded, pending.map(migrationStep), bundle)
+    return finish('tracked', recorded, pending.map(migrationStep), bundle, newest)
   }
 
   // Installed at 5.0 or later without the runner (SQL editor): adopt what it already has.
