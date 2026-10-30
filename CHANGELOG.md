@@ -6,6 +6,10 @@ All notable changes to BluePLM will be documented in this file.
 
 ## [Unreleased]
 
+## [5.1.2] - 2026-10-30
+
+API 4.1.1 (server backups report their progress); no schema change. Update the app; the API redeploys itself.
+
 ### Changed
 
 - **Settings is a modal.** Settings opens over whatever you are doing instead of replacing the
@@ -23,12 +27,27 @@ All notable changes to BluePLM will be documented in this file.
   (`bg-plm-accent/20` and the like compiled to nothing), so about 1,300 intended tints across the app
   never showed. They do now, which subtly changes highlights, badges and hover states everywhere.
 
+- **The backup page no longer looks alarming while things are fine.** A first server backup in progress shows as
+  "First backup in progress" (blue), not "Backups need attention"; a run a server restart cut short shows as
+  "Interrupted, resumed", not a red failure; the selected "Where backups run" option is highlighted and marked
+  Selected (it looked disabled); a running backup or test shows its progress (files and GB so far); the restore
+  command and the old desktop snapshot list are folded away, and that list loads only when opened.
+
 ### Fixed
 
 - **Company contact details can be cleared.** Emptying the phone, website or contact email on the
   Company page and saving now clears it; before, an empty field kept the old value.
 - **Turning Google Drive off can be saved.** The Save button was hidden while the integration was
   switched off.
+
+- **Server backups now include files not named by their content, such as the organization logo** (the first
+  production backup skipped `_assets/logo.png`).
+- **A damaged vault object is reported once, not every night.** The first production backup found one: version 2
+  of `CELSIUS/DEVELOPMENT/CELSIUS-2/TSYS01 Design/THIN_DIE_CAST_BULKHEAD.SLDDRW` (checked in 2026-01-09) was
+  stored with version 3's bytes, because the file changed between hashing and upload; check-in has used the
+  uploaded bytes' hash since 2026-03-14. Every other object in the vault matched. A problem the previous backup
+  already reported stays listed but no longer makes the run a warning (or an admin notification).
+
 
 ## [5.1.1] - 2026-10-30
 
