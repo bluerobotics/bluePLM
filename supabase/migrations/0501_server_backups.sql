@@ -166,5 +166,12 @@ LANGUAGE sql IMMUTABLE AS $$ SELECT 501 $$;
 -- Must equal VERSION_DESCRIPTIONS[501] in src/lib/schemaVersion.ts.
 CREATE OR REPLACE FUNCTION schema_release_description() RETURNS TEXT
 LANGUAGE sql IMMUTABLE AS $$ SELECT
-  'Server-run backups. backup_config.run_location chooses who runs scheduled and requested backups: the designated desktop machine (restic over its local vault copy, as before) or the API backup worker, which backs up the whole vault bucket and the organization''s rows with no computer on. last_scheduled_slot_at lets a missed slot be caught up once; verify_requested_at and verify_mode request a test of the backup; server_worker_seen_at shows the worker is alive. backup_history gains kind (backup or verify), trigger, runner and report. backup_list_org_rows() and backup_list_vault_objects() are callable by service_role only.'::text
+  'Server-run backups. backup_config.run_location chooses who runs scheduled and requested '
+  'backups: the designated desktop machine (restic over its local vault copy, as before) or '
+  'the API backup worker, which backs up the whole vault bucket and the organization''s rows '
+  'with no computer on. last_scheduled_slot_at lets a missed slot be caught up once; '
+  'verify_requested_at and verify_mode request a test of the backup; server_worker_seen_at '
+  'shows the worker is alive. backup_history gains kind (backup or verify), trigger, runner '
+  'and report. backup_list_org_rows() and backup_list_vault_objects() are callable by '
+  'service_role only.'
 $$;
