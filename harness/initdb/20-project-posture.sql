@@ -62,6 +62,11 @@ GRANT EXECUTE ON FUNCTION auth.uid(), auth.role(), auth.email(), auth.jwt()
 -- public. 90-assert-harness.sql asserts that separation directly.
 GRANT supabase_auth_admin TO postgres;
 
+-- The same upstream migration grants supabase_storage_admin to postgres, which is
+-- what lets the SQL editor (and the BluePLM baseline) create policies on
+-- storage.objects, a table supabase_storage_admin owns.
+GRANT supabase_storage_admin TO postgres;
+
 -- On a real project the SQL editor connects as postgres and creates the whole
 -- BluePLM schema in public, so postgres must be able to. Supabase's bundled
 -- initial-schema.sql grants only USAGE, because on projects predating Postgres
