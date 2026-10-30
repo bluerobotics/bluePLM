@@ -182,8 +182,9 @@ LANGUAGE sql IMMUTABLE AS $$
     ('core', NULL, 'function', 'join_org_by_slug(text)', 'verified_auth_email && pending_org_members'),
     ('core', NULL, 'function', 'apply_pending_team_memberships(uuid)', 'verified_auth_email'),
     ('core', NULL, 'function', 'handle_new_user()', 'email_confirmed_at'),
-    -- Schema 112: members read backup status without the backup secrets.
-    ('10-source-files', NULL, 'function', 'get_backup_status()', 'credentials_set'),
+    -- Schema 112: members read backup status without the backup secrets. The marker is code,
+    -- not the 'credentials_set' key: strip_sql_noise() removes string literals before matching.
+    ('10-source-files', NULL, 'function', 'get_backup_status()', 'bc.restic_password_encrypted IS NOT NULL'),
     -- The checks themselves are release content. A database carrying v90's
     -- copy of check_anon_reach() would look at no views at all and report a
     -- clean schema over the parts_with_pricing leak, so the manifest pins the

@@ -6,16 +6,43 @@ All notable changes to BluePLM will be documented in this file.
 
 ## [Unreleased]
 
+## [4.10.0] - 2026-10-30
+
+Schemas 111 and 112 and API 3.0.1. Schemas 111 and 112 are applied to production (2026-10-30);
+another database applies `supabase/core.sql`, then modules 10 to 50 in order. Released 4.9.0
+keeps working against 112, except that members (not admins) no longer see the backup snapshot list.
+
 ### Added
 
-- **BluePLM Web.** A browser client of the same backend, built from `web/` (`npm run build:web`)
-  for Cloudflare Pages at blueplm.io. Sign in with email or Google, browse vaults and folders,
-  search, open a file's details, versions and references, download any version, take part in
-  drawing and gate reviews (with the drawing PDF), request a review, run ECOs and deviations, and
-  administer users, invites, teams and vault access. Checking files in and out and anything that
-  touches SOLIDWORKS or the local vault stays in the desktop app. The backend is fixed at build
-  time, sign-in uses PKCE, and the build writes a strict CSP with Trusted Types. Deploy steps:
-  `web/DEPLOY.md`. Desktop behaviour is unchanged.
+- **BluePLM Web at https://blueplm.io.** The same app in a browser: the desktop renderer itself, built
+  for the web, so both evolve together from one code base. Sign in with Google; your vaults connect
+  automatically and load from the server; Download saves through the browser. Everything that needs
+  this computer is hidden on the web: check out and check in, SOLIDWORKS, eDrawings and CAD previews,
+  adding files from disk, backups, the terminal, updates, native extensions. The site sends a strict
+  Content-Security-Policy with Trusted Types. Deploy: `npm run deploy:web` (`web/DEPLOY.md`).
+
+### Security
+
+- **Independent security audit before blueplm.io** (`.cursor/plans/blueplm-web-security-audit.md`).
+  Fixed in schema 111: an account could change its own email and so take over an invitation or join
+  through an email domain; any signed-in account could read, overwrite or delete every organization's
+  files in storage; `join_org_by_slug` let anyone join any organization; every organization, user and
+  vault was readable by any account. Membership now uses the confirmed sign-in address, storage is
+  scoped to your organization (content is never overwritten; only admins delete), and organizations,
+  users and vaults are readable inside your own organization only.
+- Fixed in schema 112: backup credentials and webhook secrets are admin-only (members read a status
+  without secrets); eight functions in production with no source and no caller checks are removed;
+  audit, activity and notification rows must name their real author; check out, check in, move and
+  folder rename need Explorer edit; ECO gate approval checks the organization and ECO edit; workflow,
+  serialization and item-definition changes need admin; share-link deletes stay in your organization.
+- Sign-in hardening: the Site URL is https://blueplm.io instead of localhost, the desktop sign-in
+  callback is listed explicitly, changing a password asks you to sign in again, passwords need 10
+  characters, you get an email when your password, email or MFA changes, and sessions idle for 14
+  days end.
+- API 3.0.1: rate limits count per client again (`TRUST_PROXY_HOPS`); behind the hosting proxy every
+  caller had shared one limit.
+- Rotate the backup storage keys, the restic password and the Google Drive client secret: they were
+  readable by members before schema 112.
 
 ## [4.9.0] - 2026-10-29
 
