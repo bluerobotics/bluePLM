@@ -26,8 +26,8 @@ See the [User Setup Guide](https://docs.blueplm.io/user-setup) for details.
 ### For Admins
 
 1. Create a [Supabase](https://supabase.com) project
-2. Run the database schema
-3. Connect BluePLM and generate an Organization Code
+2. Connect BluePLM and give it the database connection string once; BluePLM creates the schema and applies later schema updates itself
+3. Generate an Organization Code
 4. Share the code with your team
 
 See the [Admin Setup Guide](https://docs.blueplm.io/admin-setup) for step-by-step instructions.

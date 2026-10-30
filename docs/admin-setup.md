@@ -76,8 +76,8 @@ Google Sign-In provides the smoothest authentication experience. Skip this step 
 
 ## Step 3: Create Storage Bucket
 
-::: warning Do This Before Running Schema
-The storage bucket must exist before running the schema SQL, or the storage policies will fail.
+::: warning Do This Before Step 4
+BluePLM stores file content in this bucket. Create it before BluePLM creates the schema in Step 4.
 :::
 
 1. Go to **Storage** in Supabase Dashboard
@@ -90,25 +90,41 @@ The schema (module `10-source-files.sql`) installs the bucket's access policies 
 other policy that names the `vault` bucket. File content is readable only by members who can see a
 file or version that uses it (vault access), by whoever uploaded it, and by organization admins.
 
-## Step 4: Run Database Schema
+## Step 4: Connect BluePLM and Create the Schema
 
-The schema creates all required tables, functions, Row Level Security policies, and storage policies.
+BluePLM creates the database schema itself (tables, functions, Row Level Security and storage policies),
+and applies every later schema update the same way. There is no SQL to paste.
 
-1. Go to **SQL Editor** in Supabase Dashboard
-2. Click **New query**
-3. Open [`supabase/schema.sql`](https://github.com/bluerobotics/bluePLM/blob/main/supabase/schema.sql) from the BluePLM repository
-4. Copy the entire contents
-5. Paste into the SQL Editor
-6. Click **Run**
+1. Download and open BluePLM (the desktop app; BluePLM Web cannot create a schema)
+2. Complete the language/analytics setup if this is your first launch
+3. On the Setup screen, click **"I'm setting up BluePLM for my organization"**
+4. Enter:
+   - **Supabase URL**: `https://xxxxx.supabase.co`
+   - **Anon Key**: starts with `eyJ...`
+   - **Organization Slug** (optional): e.g., `your-company`
+5. Click **Connect to Supabase**, then sign in
+6. BluePLM shows **Set up the BluePLM database**. Paste the database connection string: in the Supabase Dashboard,
+   **Connect** > **Session pooler** (port 5432), with your database password filled in
+7. Click **Check database** to see what will be installed, then **Apply upgrade**. BluePLM creates the
+   schema, verifies it, and records what it applied
 
-Verify there are no errors. Warnings about "already exists" are OK if you're re-running.
+::: tip Remember on this computer
+Tick **Remember on this computer** to let BluePLM apply future schema updates automatically when you
+open a new version. The connection string is encrypted with the operating system's key store and never
+leaves this computer. Without it, BluePLM asks for the string again when an update needs one.
+:::
+
+::: warning The connection string is a database password
+Anyone with it can change your database. Never share it with team members; they only need the
+Organization Code (Step 6).
+:::
 
 ## Step 5: Create Your Organization
 
-Run this SQL in the SQL Editor (customize the values):
+Run this SQL in the Supabase SQL Editor (customize the values):
 
 ```sql
-INSERT INTO organizations (name, slug, email_domains)
+INSERT INTO organization (name, slug, email_domains)
 VALUES (
   'Your Company Name',           -- Display name
   'your-company',                -- URL-safe slug (lowercase, no spaces)
@@ -124,17 +140,9 @@ This automatically creates:
 The `email_domains` array enables auto-detection. When users with matching email domains sign in, BluePLM can automatically associate them with your organization.
 :::
 
-## Step 6: Connect BluePLM
+## Step 6: Copy the Organization Code
 
-1. Download and open BluePLM
-2. Complete the language/analytics setup if this is your first launch
-3. On the Setup screen, click **"I'm setting up BluePLM for my organization"**
-4. Enter:
-   - **Supabase URL**: `https://xxxxx.supabase.co`
-   - **Anon Key**: starts with `eyJ...`
-   - **Organization Slug** (optional): e.g., `your-company`
-5. Click **Connect to Supabase**
-6. Copy the generated **Organization Code** (save this for team members!)
+1. In BluePLM, copy the generated **Organization Code** (save this for team members!)
 
 ::: warning Keep the Code Secure
 The Organization Code contains your Supabase anon key encoded. Share it only with trusted team members.
@@ -187,20 +195,20 @@ Run this SQL in the SQL Editor (replace the values):
 
 ```sql
 -- 1. Link yourself to the org and set as admin
-UPDATE users 
-SET org_id = (SELECT id FROM organizations WHERE slug = 'your-company'),
+UPDATE app_user
+SET org_id = (SELECT id FROM organization WHERE slug = 'your-company'),
     role = 'admin'
 WHERE email = 'your.email@yourcompany.com';
 
 -- 2. Add yourself to the Administrators team
-INSERT INTO team_members (team_id, user_id, is_team_admin, added_by)
+INSERT INTO team_member (team_id, user_id, is_team_admin, added_by)
 SELECT 
   t.id,
   u.id,
   TRUE,
   u.id
-FROM teams t, users u
-WHERE t.org_id = (SELECT id FROM organizations WHERE slug = 'your-company')
+FROM team t, app_user u
+WHERE t.org_id = (SELECT id FROM organization WHERE slug = 'your-company')
   AND t.name = 'Administrators'
   AND u.email = 'your.email@yourcompany.com'
 ON CONFLICT (team_id, user_id) DO NOTHING;
@@ -215,13 +223,13 @@ Vaults are containers for files. Create at least one to start working.
 First, get your organization ID:
 
 ```sql
-SELECT id FROM organizations WHERE slug = 'your-company';
+SELECT id FROM organization WHERE slug = 'your-company';
 ```
 
 Then create the vault (replace the UUID):
 
 ```sql
-INSERT INTO vaults (org_id, name, slug, storage_bucket, is_default)
+INSERT INTO vault (org_id, name, slug, storage_bucket, is_default)
 VALUES (
   'ORG-UUID-HERE',   -- Your organization ID from above
   'Main Vault',      -- Display name
@@ -235,18 +243,9 @@ VALUES (
 
 Files need a workflow to track their lifecycle states (WIP → In Review → Released → Obsolete).
 
-Get your organization and user IDs:
-
-```sql
-SELECT id FROM organizations WHERE slug = 'your-company';
-SELECT id FROM users WHERE email = 'your.email@yourcompany.com';
-```
-
-Create the default workflow (replace UUIDs):
-
-```sql
-SELECT create_default_workflow_v2('ORG-UUID', 'USER-UUID');
-```
+Create it in BluePLM, signed in as the admin from Step 7: open **Workflows** and create a new workflow
+(**Create new workflow**). The database function behind it, `workflow_create_default()`, checks that
+the caller is an organization admin, so it cannot be run from the SQL Editor.
 
 This creates the standard release workflow with:
 - **WIP** (Work In Progress) - Initial state
@@ -300,6 +299,7 @@ settings — so that changing your mind later is a variable edit and a restart.
 |----------|---------|--------------|
 | `ENABLE_DOCS` | `true` | Serves browsable API documentation at `<your-api-url>/docs`. Set to `false` to keep your API's shape off the public internet. It affects nothing but the documentation page. |
 | `CORS_ORIGINS` | *(empty)* | Extra **browser** origins allowed to call the API, comma-separated. You almost certainly do not need this: Odoo, scripts and other server-to-server callers are not subject to CORS, and BluePLM is always allowed. |
+| `TRUST_PROXY` | `loopback,linklocal,uniquelocal,100.64.0.0/10` | The reverse proxies trusted for the caller's address, as a comma-separated list of addresses, CIDR ranges or the names `loopback`, `linklocal`, `uniquelocal`; `off` trusts none. The default suits Railway and Render. It replaces API 3.x's `TRUST_PROXY_HOPS`, which is no longer read. |
 | `NODE_ENV` | `production` | Leave it alone unless you are developing BluePLM itself. |
 
 ### Configure in BluePLM
@@ -440,10 +440,36 @@ The code contains your Supabase connection info encoded — team members don't n
 
 See [User Setup Guide](/user-setup) for detailed team member instructions.
 
+## Upgrading the Database
+
+BluePLM upgrades the database itself. When a new version needs a newer schema, an org admin opening
+the desktop app sees **Database upgrade required**; everyone else sees **Database upgrade needed**
+and waits. The admin pastes the database connection string (as in Step 4), clicks **Check database**
+to see what will run, then **Apply upgrade**. With **Remember on this computer** ticked, the upgrade
+runs on its own the next time that admin starts the new version.
+
+Upgrading from 4.x to 5.0 works the same way. BluePLM brings a database older than 4.10 up to 4.10
+first, then applies the 5.0 upgrade (`supabase/migrations/0500_from_4x.sql`), which renames every
+table and function to its 5.0 name. After 5.0, each schema change is a numbered migration in
+`supabase/migrations/`, applied in order. Each step runs in its own transaction: a failing step is
+rolled back, and the steps before it stay applied.
+
+::: warning Everyone moves to 5.0
+A 4.x app cannot use a 5.0 database, and a 5.0 app below the organization's minimum version
+(`client_min_version()`) shows **Update required** and installs the update on its own. Have everyone
+check in their work before you upgrade.
+:::
+
+::: tip Extensions with their own SQL
+The 5.0 upgrade removes every access policy, including an extension's, because policies call core
+functions by name. An extension that ships SQL (such as the private extension `blueplm.customers`)
+must have its 5.0 SQL applied after the upgrade, in the Supabase SQL Editor.
+:::
+
 ## Troubleshooting
 
-### Schema SQL fails with "bucket not found"
-Create the `vault` storage bucket (Step 3) before running the schema.
+### Uploads fail with "Bucket not found"
+Create the `vault` storage bucket (Step 3). Its name must be exactly `vault`.
 
 ### Google Sign-In shows "Access blocked: org_internal"
 Your Google OAuth app is set to "Internal". Go to Google Cloud Console → **APIs & Services** → **OAuth consent screen** and change the user type to **External**. This allows any Google account to sign in, not just your Google Workspace users.

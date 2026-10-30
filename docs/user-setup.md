@@ -96,6 +96,16 @@ In offline mode you can:
 - Your admin needs to grant you vault access
 - Go to Settings → Members & Teams (admin only)
 
+### "Update required"
+Your organization requires a newer BluePLM than the one you have. BluePLM downloads and installs
+the update on its own and restarts. If it cannot, download the new version from
+[blueplm.io/downloads](https://blueplm.io/downloads) and install it.
+
+### "Database upgrade needed"
+Your organization's database must be upgraded before this version of BluePLM can use it. Only an
+organization admin can do that, from the BluePLM desktop app. Ask your admin, then click
+**Check again**.
+
 ## Next Steps
 
 - [Learn the Explorer interface](/source-files/explorer)

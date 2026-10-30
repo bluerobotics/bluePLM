@@ -46,10 +46,16 @@ flowchart TB
 
 ## Database Schema
 
-The schema is organized into modular SQL files:
+The 5.0 baseline is organized into modular SQL files, applied in this order to an empty
+database. It is frozen at schema 500: every later change is a numbered migration in
+`supabase/migrations/`, and 4.x databases are upgraded by `supabase/migrations/0500_from_4x.sql`.
+The desktop app applies all of it (see [Schema Versioning](#schema-versioning)). Names follow
+the 5.0 rules: singular tables (`organization`, `app_user`, `file`), `org_` for org-owned tables,
+and functions named `<entity>_<verb>` (`file_checkout`, `vault_file_list`).
 
 - `supabase/core.sql` - Organizations, users, teams, permissions
 - `supabase/modules/10-source-files.sql` - Files, vaults, workflows
+- `supabase/modules/15-inspection.sql` - Inspection characteristics
 - `supabase/modules/20-change-control.sql` - ECOs, reviews
 - `supabase/modules/30-supply-chain.sql` - Suppliers, RFQs
 - `supabase/modules/40-integrations.sql` - External system integrations
@@ -57,46 +63,49 @@ The schema is organized into modular SQL files:
 
 Customers (Odoo customer sync, the `customer_*` and `customers` tables) is not a core module
 since 4.8.0. Its schema ships with the native extension `blueplm.customers` as
-`sql/customers.sql`; databases that ran the old `60-customers.sql` keep the tables. Its RLS
-depends on core's `user_can_access_module('customers')`, `user_has_team_permission()` and the
+`sql/customers.sql`; databases that ran the old `60-customers.sql` keep the tables. The 5.0
+upgrade drops the extension's policies (they call core functions by name), so its 5.0 SQL is
+applied after the upgrade. Its RLS
+depends on core's `can_access_module('customers')`, `has_team_permission()` and the
 progress columns of `integration_sync_log`.
 
 ### Entity Relationship Diagram
 
 ```mermaid
 erDiagram
-    organizations ||--o{ users : has
-    organizations ||--o{ vaults : has
-    organizations ||--o{ teams : has
+    organization ||--o{ app_user : has
+    organization ||--o{ vault : has
+    organization ||--o{ team : has
     
-    vaults ||--o{ files : contains
-    files ||--o{ file_versions : has
-    files ||--o{ file_references : parent
-    files ||--o{ file_references : child
+    vault ||--o{ file : contains
+    file ||--o{ file_version : has
+    file ||--o{ file_reference : parent
+    file ||--o{ file_reference : child
     
-    teams ||--o{ team_members : has
-    teams ||--o{ team_permissions : has
-    teams ||--o{ team_vault_access : has
+    team ||--o{ team_member : has
+    team ||--o{ team_permission : has
+    team ||--o{ team_vault_access : has
     
-    users ||--o{ team_members : belongs_to
-    users ||--o{ vault_access : has
-    users ||--o{ notifications : receives
-    users ||--o{ sessions : has
+    app_user ||--o{ team_member : belongs_to
+    app_user ||--o{ vault_access : has
+    app_user ||--o{ notification : receives
+    app_user ||--o{ user_session : has
     
-    files ||--o{ reviews : has
-    reviews ||--o{ review_responses : has
+    file ||--o{ review : has
+    review ||--o{ review_response : has
 ```
 
 ### Tables by Module (Summary)
 
 | Module | Tables | Purpose |
 |--------|--------|---------|
-| `core.sql` | 17 | Organizations, users, teams, permissions |
-| `10-source-files.sql` | 35 | Files, vaults, workflows, reviews |
-| `20-change-control.sql` | 12 | ECOs, reviews, deviations, process templates |
-| `30-supply-chain.sql` | 10 | Suppliers, RFQs, quotes |
-| `40-integrations.sql` | 10 | Webhooks, ERP sync, SOLIDWORKS licenses |
-| `50-extensions.sql` | 7 | Extension system, secrets, storage |
+| `core.sql` | 20 | Organizations, users, teams, permissions |
+| `10-source-files.sql` | 34 | Files, vaults, workflows, reviews |
+| `15-inspection.sql` | 3 | Inspection characteristics and methods |
+| `20-change-control.sql` | 16 | ECOs, reviews, deviations, process templates |
+| `30-supply-chain.sql` | 11 | Suppliers, RFQs, quotes |
+| `40-integrations.sql` | 8 | Webhooks, ERP sync, SOLIDWORKS licenses, integration credentials |
+| `50-extensions.sql` | 1 | Organization-installed extensions |
 
 ---
 
@@ -124,7 +133,7 @@ Single-row table tracking database version for app compatibility.
 | `applied_at` | `TIMESTAMPTZ` | When last updated |
 | `applied_by` | `TEXT` | Migration author |
 
-#### `organizations`
+#### `organization`
 Multi-tenant organization data with settings and branding.
 
 | Column | Type | Description |
@@ -143,7 +152,7 @@ Multi-tenant organization data with settings and branding.
 | `auth_providers` | `JSONB` | Enabled auth methods (Google, email, phone) |
 | `default_new_user_team_id` | `UUID` | Team for org code signups |
 
-#### `users`
+#### `app_user`
 User profiles linked to Supabase Auth.
 
 | Column | Type | Description |
@@ -156,10 +165,10 @@ User profiles linked to Supabase Auth.
 | `job_title` | `TEXT` | Legacy job title field |
 | `org_id` | `UUID` | FK to organizations |
 | `role` | `user_role` | Permission level |
-| `last_sign_in` | `TIMESTAMPTZ` | Last login |
-| `last_online` | `TIMESTAMPTZ` | Last activity |
+| `last_sign_in_at` | `TIMESTAMPTZ` | Last login |
+| `last_online_at` | `TIMESTAMPTZ` | Last activity |
 
-#### `blocked_users`
+#### `blocked_user`
 Email blocklist per organization.
 
 | Column | Type | Description |
@@ -170,7 +179,7 @@ Email blocklist per organization.
 | `blocked_at` | `TIMESTAMPTZ` | When blocked |
 | `reason` | `TEXT` | Block reason |
 
-#### `teams`
+#### `team`
 Team/group definitions for permission management.
 
 | Column | Type | Description |
@@ -186,7 +195,7 @@ Team/group definitions for permission management.
 | `is_system` | `BOOLEAN` | Cannot be deleted |
 | `module_defaults` | `JSONB` | Team-specific sidebar config |
 
-#### `team_members`
+#### `team_member`
 User membership in teams.
 
 | Column | Type | Description |
@@ -196,7 +205,7 @@ User membership in teams.
 | `is_team_admin` | `BOOLEAN` | Can manage team members |
 | `added_by` | `UUID` | Who added them |
 
-#### `team_permissions`
+#### `team_permission`
 Resource/action permissions per team.
 
 | Column | Type | Description |
@@ -207,7 +216,7 @@ Resource/action permissions per team.
 | `actions` | `permission_action[]` | Allowed actions |
 | `granted_by` | `UUID` | Who granted |
 
-#### `permission_presets`
+#### `permission_preset`
 Reusable permission templates.
 
 | Column | Type | Description |
@@ -217,7 +226,7 @@ Reusable permission templates.
 | `permissions` | `JSONB` | Permission configuration |
 | `is_system` | `BOOLEAN` | Built-in preset |
 
-#### `user_permissions`
+#### `user_permission`
 Individual user permission overrides.
 
 | Column | Type | Description |
@@ -227,7 +236,7 @@ Individual user permission overrides.
 | `vault_id` | `UUID` | Optional vault scope |
 | `actions` | `permission_action[]` | Allowed actions |
 
-#### `job_titles`
+#### `job_title`
 Organization job title definitions.
 
 | Column | Type | Description |
@@ -238,7 +247,7 @@ Organization job title definitions.
 | `icon` | `TEXT` | Icon name |
 | `is_system` | `BOOLEAN` | Built-in title |
 
-#### `user_job_titles`
+#### `user_job_title`
 Job title assignments to users.
 
 | Column | Type | Description |
@@ -247,7 +256,7 @@ Job title assignments to users.
 | `title_id` | `UUID` | Job title |
 | `assigned_by` | `UUID` | Who assigned |
 
-#### `pending_org_members`
+#### `pending_org_member`
 Invited users not yet signed up.
 
 | Column | Type | Description |
@@ -263,7 +272,7 @@ Invited users not yet signed up.
 | `expires_at` | `TIMESTAMPTZ` | Invitation expiry |
 | `claimed_at` | `TIMESTAMPTZ` | When user signed up |
 
-#### `admin_recovery_codes`
+#### `admin_recovery_code`
 Emergency admin access codes.
 
 | Column | Type | Description |
@@ -275,7 +284,7 @@ Emergency admin access codes.
 | `used_by` | `UUID` | Who used it |
 | `is_revoked` | `BOOLEAN` | Manually revoked |
 
-#### `user_sessions`
+#### `user_session`
 Active device sessions per user.
 
 | Column | Type | Description |
@@ -287,9 +296,9 @@ Active device sessions per user.
 | `os_version` | `TEXT` | OS version |
 | `app_version` | `TEXT` | App version |
 | `is_active` | `BOOLEAN` | Session active |
-| `last_seen` | `TIMESTAMPTZ` | Last heartbeat |
+| `last_seen_at` | `TIMESTAMPTZ` | Last heartbeat |
 
-#### `notifications`
+#### `notification`
 In-app notification system.
 
 | Column | Type | Description |
@@ -304,10 +313,10 @@ In-app notification system.
 | `entity_type` | `TEXT` | Referenced entity type |
 | `entity_id` | `UUID` | Referenced entity ID |
 | `from_user_id` | `UUID` | Sender |
-| `read` | `BOOLEAN` | Read status |
+| `is_read` | `BOOLEAN` | Read status |
 | `action_url` | `TEXT` | Click action URL |
 
-#### `color_swatches`
+#### `color_swatch`
 Personal and organization color palettes. Each swatch belongs to exactly one scope.
 
 | Column | Type | Description |
@@ -344,7 +353,7 @@ File management, vaults, workflows, and activity tracking.
 
 ### Core File Tables
 
-#### `vaults`
+#### `vault`
 File storage containers per organization.
 
 | Column | Type | Description |
@@ -378,7 +387,7 @@ Team-level vault permissions.
 | `vault_id` | `UUID` | Vault |
 | `granted_by` | `UUID` | Who granted |
 
-#### `files`
+#### `file`
 Main file metadata table (30+ columns).
 
 | Column | Type | Description |
@@ -416,7 +425,7 @@ Main file metadata table (30+ columns).
 
 **Indexes:** Unique on `(vault_id, file_path)` where not deleted, full-text search on name/part_number/description/eco_tags.
 
-#### `file_versions`
+#### `file_version`
 Version history for files.
 
 | Column | Type | Description |
@@ -433,7 +442,7 @@ Version history for files.
 | `description` | `TEXT` | Description snapshot |
 | `created_by` | `UUID` | Who created version |
 
-#### `release_files`
+#### `release_file`
 Generated export files (STEP, PDF, etc.).
 
 | Column | Type | Description |
@@ -448,7 +457,7 @@ Generated export files (STEP, PDF, etc.).
 | `storage_hash` | `TEXT` | Content hash |
 | `rfq_id` | `UUID` | Associated RFQ |
 
-#### `file_references`
+#### `file_reference`
 BOM/assembly parent-child relationships.
 
 | Column | Type | Description |
@@ -474,7 +483,7 @@ Audit log of all file operations.
 
 ### Workflow Tables
 
-#### `workflow_templates`
+#### `workflow_template`
 Workflow definitions.
 
 | Column | Type | Description |
@@ -486,7 +495,7 @@ Workflow definitions.
 | `is_active` | `BOOLEAN` | Can be assigned |
 | `canvas_config` | `JSONB` | Editor zoom/pan state |
 
-#### `workflow_states`
+#### `workflow_state`
 States within a workflow.
 
 | Column | Type | Description |
@@ -501,12 +510,12 @@ States within a workflow.
 | `position_x`, `position_y` | `INTEGER` | Canvas position |
 | `width`, `height` | `INTEGER` | Canvas node size |
 | `is_editable` | `BOOLEAN` | Files can be edited |
-| `requires_checkout` | `BOOLEAN` | Checkout required to edit |
-| `auto_increment_revision` | `BOOLEAN` | Bump revision on entry |
+| `is_checkout_required` | `BOOLEAN` | Checkout required to edit |
+| `is_revision_auto_incremented` | `BOOLEAN` | Bump revision on entry |
 | `gate_config` | `JSONB` | Gate-specific settings |
 | `required_workflow_roles` | `UUID[]` | Required roles |
 
-#### `workflow_transitions`
+#### `workflow_transition`
 Allowed state-to-state transitions.
 
 | Column | Type | Description |
@@ -526,7 +535,7 @@ Allowed state-to-state transitions.
 | `waypoints` | `JSONB` | Routing control points |
 | `label_offset`, `label_pinned` | `JSONB` | Label placement |
 
-#### `workflow_gates`
+#### `workflow_gate`
 Gate/approval requirements on transitions.
 
 | Column | Type | Description |
@@ -540,7 +549,7 @@ Gate/approval requirements on transitions.
 | `is_blocking` | `BOOLEAN` | Blocks transition |
 | `can_be_skipped_by` | `user_role[]` | Skip permissions |
 
-#### `workflow_roles`
+#### `workflow_role`
 Custom roles for workflow permissions.
 
 | Column | Type | Description |
@@ -551,7 +560,7 @@ Custom roles for workflow permissions.
 | `icon` | `TEXT` | Icon |
 | `is_active` | `BOOLEAN` | Active |
 
-#### `user_workflow_roles`
+#### `user_workflow_role`
 User assignments to workflow roles.
 
 | Column | Type | Description |
@@ -564,19 +573,19 @@ User assignments to workflow roles.
 
 | Table | Purpose |
 |-------|---------|
-| `file_workflow_assignments` | Which workflow is assigned to each file |
-| `pending_reviews` | Active review requests |
+| `file_workflow_assignment` | Which workflow is assigned to each file |
+| `workflow_gate_review` | Active review requests |
 | `workflow_review_history` | Completed review audit log |
 | `workflow_history` | Transition audit log |
-| `file_state_entries` | Time tracking in each state |
-| `file_watchers` | File subscription list |
-| `file_share_links` | Shareable download links |
-| `file_comments` | File comments |
-| `file_metadata_columns` | Custom metadata field definitions |
+| `file_state_entry` | Time tracking in each state |
+| `file_watcher` | File subscription list |
+| `file_share_link` | Shareable download links |
+| `file_comment` | File comments |
+| `file_metadata_column` | Custom metadata field definitions |
 | `backup_config` | Backup configuration per org |
 | `backup_history` | Backup run history |
-| `backup_machines` | Registered backup machines |
-| `backup_locks` | Backup coordination locks |
+| `backup_machine` | Registered backup machines |
+| `backup_lock` | Backup coordination locks |
 
 ---
 
@@ -594,7 +603,7 @@ ECOs, reviews, deviations, and phase-gate processes.
 
 ### Tables
 
-#### `ecos`
+#### `eco`
 Engineering Change Orders.
 
 | Column | Type | Description |
@@ -609,7 +618,7 @@ Engineering Change Orders.
 | `completed_at` | `TIMESTAMPTZ` | Completion date |
 | `custom_properties` | `JSONB` | Custom fields |
 
-#### `file_ecos`
+#### `file_eco`
 Files associated with ECOs.
 
 | Column | Type | Description |
@@ -619,7 +628,7 @@ Files associated with ECOs.
 | `created_by` | `UUID` | Who linked |
 | `notes` | `TEXT` | Association notes |
 
-#### `reviews`
+#### `review`
 File review requests.
 
 | Column | Type | Description |
@@ -635,7 +644,7 @@ File review requests.
 | `due_date` | `TIMESTAMPTZ` | Deadline |
 | `priority` | `TEXT` | Priority level |
 
-#### `review_responses`
+#### `review_response`
 Individual reviewer responses.
 
 | Column | Type | Description |
@@ -646,7 +655,7 @@ Individual reviewer responses.
 | `comment` | `TEXT` | Review comment |
 | `responded_at` | `TIMESTAMPTZ` | Response time |
 
-#### `deviations`
+#### `deviation`
 Approved departures from specifications.
 
 | Column | Type | Description |
@@ -657,12 +666,12 @@ Approved departures from specifications.
 | `description` | `TEXT` | Description |
 | `status` | `deviation_status` | Current status |
 | `approved_by` | `UUID` | Approver |
-| `effective_date` | `TIMESTAMPTZ` | Start date |
-| `expiration_date` | `TIMESTAMPTZ` | End date |
+| `effective_at` | `TIMESTAMPTZ` | Start date |
+| `expires_at` | `TIMESTAMPTZ` | End date |
 | `affected_part_numbers` | `TEXT[]` | Affected parts |
 | `deviation_type` | `TEXT` | Type classification |
 
-#### `file_deviations`
+#### `file_deviation`
 Files associated with deviations.
 
 | Column | Type | Description |
@@ -672,7 +681,7 @@ Files associated with deviations.
 | `file_version` | `INTEGER` | Specific version |
 | `file_revision` | `TEXT` | Specific revision |
 
-#### `process_templates`
+#### `process_template`
 Phase-gate process templates for ECOs.
 
 | Column | Type | Description |
@@ -683,7 +692,7 @@ Phase-gate process templates for ECOs.
 | `is_default` | `BOOLEAN` | Default template |
 | `is_active` | `BOOLEAN` | Can be used |
 
-#### `process_template_phases`
+#### `process_template_phase`
 Phases within a process template.
 
 | Column | Type | Description |
@@ -694,7 +703,7 @@ Phases within a process template.
 | `gate_description` | `TEXT` | Gate description |
 | `sort_order` | `INTEGER` | Display order |
 
-#### `process_template_items`
+#### `process_template_item`
 Deliverables/checklist items within phases.
 
 | Column | Type | Description |
@@ -703,11 +712,11 @@ Deliverables/checklist items within phases.
 | `uid` | `TEXT` | Item identifier |
 | `doc_number` | `TEXT` | Document number |
 | `name` | `TEXT` | Item name |
-| `required_for_gate` | `BOOLEAN` | Required for gate |
+| `is_required_for_gate` | `BOOLEAN` | Required for gate |
 | `default_accountable` | `TEXT` | Default RACI |
 | `default_duration_days` | `INTEGER` | Expected duration |
 
-#### `eco_checklist_items`
+#### `eco_checklist_item`
 Instantiated checklist for specific ECOs.
 
 | Column | Type | Description |
@@ -722,7 +731,7 @@ Instantiated checklist for specific ECOs.
 | `completed_at` | `TIMESTAMPTZ` | Completion time |
 | `link_file_id` | `UUID` | Linked file |
 
-#### `eco_gate_approvals`
+#### `eco_gate_approval`
 Gate approval tracking for ECOs.
 
 | Column | Type | Description |
@@ -761,7 +770,7 @@ Supplier management, RFQs, and quoting.
 
 ### Tables
 
-#### `organization_addresses`
+#### `org_address`
 Billing/shipping addresses for RFQs.
 
 | Column | Type | Description |
@@ -775,7 +784,7 @@ Billing/shipping addresses for RFQs.
 | `address_line1/2`, `city`, `state`, `postal_code`, `country` | `TEXT` | Address fields |
 | `attention_to` | `TEXT` | Shipping attention line |
 
-#### `suppliers`
+#### `supplier`
 Supplier/vendor companies.
 
 | Column | Type | Description |
@@ -794,7 +803,7 @@ Supplier/vendor companies.
 | `is_approved` | `BOOLEAN` | Approved vendor |
 | `erp_id` | `TEXT` | ERP system ID |
 
-#### `supplier_contacts`
+#### `supplier_contact`
 Portal users at supplier companies.
 
 | Column | Type | Description |
@@ -808,7 +817,7 @@ Portal users at supplier companies.
 | `is_primary` | `BOOLEAN` | Primary contact |
 | `can_view_rfqs`, `can_submit_quotes`, etc. | `BOOLEAN` | Portal permissions |
 
-#### `supplier_invitations`
+#### `supplier_invitation`
 Invitations to supplier portal.
 
 | Column | Type | Description |
@@ -820,7 +829,7 @@ Invitations to supplier portal.
 | `expires_at` | `TIMESTAMPTZ` | Expiration |
 | `accepted_at` | `TIMESTAMPTZ` | Acceptance time |
 
-#### `part_suppliers`
+#### `part_supplier`
 Part-supplier relationships with pricing.
 
 | Column | Type | Description |
@@ -837,7 +846,7 @@ Part-supplier relationships with pricing.
 | `is_preferred` | `BOOLEAN` | Preferred supplier |
 | `is_qualified` | `BOOLEAN` | Quality approved |
 
-#### `rfqs`
+#### `rfq`
 Request for Quote documents.
 
 | Column | Type | Description |
@@ -849,13 +858,13 @@ Request for Quote documents.
 | `status` | `rfq_status` | Current status |
 | `due_date` | `DATE` | Quote deadline |
 | `required_date` | `DATE` | Need-by date |
-| `requires_samples` | `BOOLEAN` | Sample requirement |
-| `release_files_generated` | `BOOLEAN` | Exports ready |
+| `is_samples_required` | `BOOLEAN` | Sample requirement |
+| `is_release_files_generated` | `BOOLEAN` | Exports ready |
 | `billing_address_id`, `shipping_address_id` | `UUID` | Addresses |
 | `awarded_supplier_id` | `UUID` | Winning supplier |
 | `pdf_url` | `TEXT` | Generated PDF |
 
-#### `rfq_items`
+#### `rfq_item`
 Line items within an RFQ.
 
 | Column | Type | Description |
@@ -871,7 +880,7 @@ Line items within an RFQ.
 | `finish` | `TEXT` | Finish spec |
 | `release_files_status` | `TEXT` | Export status |
 
-#### `rfq_suppliers`
+#### `rfq_supplier`
 Suppliers associated with an RFQ.
 
 | Column | Type | Description |
@@ -884,7 +893,7 @@ Suppliers associated with an RFQ.
 | `responded_at` | `TIMESTAMPTZ` | Response time |
 | `response_status` | `TEXT` | Response status |
 
-#### `rfq_quotes`
+#### `rfq_quote`
 Supplier quotes for RFQ items.
 
 | Column | Type | Description |
@@ -925,7 +934,7 @@ External system integrations, webhooks, and SOLIDWORKS licenses.
 
 ### Tables
 
-#### `organization_integrations`
+#### `org_integration`
 Generic integration settings.
 
 | Column | Type | Description |
@@ -933,9 +942,8 @@ Generic integration settings.
 | `org_id` | `UUID` | Organization |
 | `integration_type` | `TEXT` | Type (odoo, slack, etc.) |
 | `settings` | `JSONB` | Configuration |
-| `credentials_encrypted` | `TEXT` | Encrypted credentials |
 | `is_active`, `is_connected` | `BOOLEAN` | Status |
-| `auto_sync` | `BOOLEAN` | Auto-sync enabled |
+| `is_auto_sync` | `BOOLEAN` | Auto-sync enabled |
 | `sync_interval_minutes` | `INTEGER` | Sync frequency |
 | `last_sync_at`, `last_sync_status`, `last_sync_count` | | Sync tracking |
 
@@ -952,7 +960,7 @@ Sync operation history.
 | `records_processed`, `records_created`, `records_updated`, `records_errored` | `INTEGER` | Counts |
 | `error_message`, `error_details` | | Error info |
 
-#### `odoo_saved_configs`
+#### `odoo_saved_config`
 Saved Odoo ERP configurations.
 
 | Column | Type | Description |
@@ -962,36 +970,20 @@ Saved Odoo ERP configurations.
 | `url` | `TEXT` | Odoo URL |
 | `database` | `TEXT` | Database name |
 | `username` | `TEXT` | Username |
-| `api_key_encrypted` | `TEXT` | Encrypted API key |
 | `is_active` | `BOOLEAN` | Active |
-| `last_tested_at`, `last_test_success` | | Connection test |
+| `last_tested_at`, `is_last_test_successful` | | Connection test |
 
-#### `woocommerce_saved_configs`
-Saved WooCommerce configurations.
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `org_id` | `UUID` | Organization |
-| `name` | `TEXT` | Config name |
-| `store_url` | `TEXT` | Store URL |
-| `consumer_key_encrypted`, `consumer_secret_encrypted` | `TEXT` | API credentials |
-| `sync_settings` | `JSONB` | Sync options |
-| `wc_version` | `TEXT` | WooCommerce version |
-
-#### `woocommerce_product_mappings`
-BluePLM file to WooCommerce product mapping.
+#### `integration_credential`
+Secrets of Odoo configurations and integrations, kept out of the rows members can read.
 
 | Column | Type | Description |
 |--------|------|-------------|
 | `org_id` | `UUID` | Organization |
-| `config_id` | `UUID` | WooCommerce config |
-| `file_id` | `UUID` | BluePLM file |
-| `wc_product_id` | `INTEGER` | WooCommerce product ID |
-| `wc_product_sku` | `TEXT` | Product SKU |
-| `last_synced_at`, `last_synced_version` | | Sync tracking |
-| `sync_status`, `sync_error` | | Sync status |
+| `owner_type` | `TEXT` | `odoo_saved_config` or `organization_integration` |
+| `owner_id` | `UUID` | The owning row |
+| `secret` | `TEXT` | Ciphertext written by the API (`EXTENSION_ENCRYPTION_KEY`) |
 
-#### `webhooks`
+#### `webhook`
 Webhook configurations.
 
 | Column | Type | Description |
@@ -1008,7 +1000,7 @@ Webhook configurations.
 | `max_retries`, `retry_delay_seconds`, `timeout_seconds` | `INTEGER` | Retry config |
 | `success_count`, `failure_count` | `INTEGER` | Stats |
 
-#### `webhook_deliveries`
+#### `webhook_delivery`
 Webhook delivery attempts.
 
 | Column | Type | Description |
@@ -1023,7 +1015,7 @@ Webhook delivery attempts.
 | `next_retry_at` | `TIMESTAMPTZ` | Next retry time |
 | `last_error` | `TEXT` | Error message |
 
-#### `solidworks_licenses`
+#### `solidworks_license`
 Organization SOLIDWORKS license keys.
 
 | Column | Type | Description |
@@ -1037,7 +1029,7 @@ Organization SOLIDWORKS license keys.
 | `purchase_date`, `expiry_date` | `DATE` | Dates |
 | `notes` | `TEXT` | Notes |
 
-#### `solidworks_license_assignments`
+#### `solidworks_license_assignment`
 User license assignments.
 
 | Column | Type | Description |
@@ -1054,11 +1046,14 @@ User license assignments.
 
 ## Extensions Module (`50-extensions.sql`)
 
-Extension system for third-party integrations.
+Organization-installed native extensions. The sandbox tables of 4.x (`org_extension_config`,
+`extension_storage`, `extension_secrets`, `extension_secret_versions`, `extension_secret_access`,
+`extension_http_log`) are gone in 5.0. The module also creates the private `org-extensions`
+storage bucket that holds installed packages.
 
 ### Tables
 
-#### `org_installed_extensions`
+#### `org_installed_extension`
 Extensions installed per organization.
 
 | Column | Type | Description |
@@ -1066,74 +1061,12 @@ Extensions installed per organization.
 | `org_id` | `UUID` | Organization |
 | `extension_id` | `TEXT` | Extension identifier |
 | `version` | `TEXT` | Installed version |
-| `installed_by` | `UUID` | Installer |
-| `pinned_version` | `TEXT` | Version lock |
-| `enabled` | `BOOLEAN` | Extension enabled |
+| `installed_at`, `installed_by` | | Who installed it, and when |
+| `is_enabled` | `BOOLEAN` | Extension enabled |
 | `manifest` | `JSONB` | Full extension.json |
-| `handlers` | `JSONB` | Handler code map |
-| `allowed_domains` | `TEXT[]` | HTTP allowlist |
-
-#### `org_extension_config`
-Extension configuration per organization.
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `org_id` | `UUID` | Organization |
-| `extension_id` | `TEXT` | Extension |
-| `config` | `JSONB` | Configuration values |
-| `updated_by` | `UUID` | Last updater |
-
-#### `extension_storage`
-Extension key-value storage.
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `org_id` | `UUID` | Organization |
-| `extension_id` | `TEXT` | Extension |
-| `key` | `TEXT` | Storage key |
-| `value` | `JSONB` | Stored value |
-
-#### `extension_secrets`
-Encrypted secrets for extensions.
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `org_id` | `UUID` | Organization |
-| `extension_id` | `TEXT` | Extension |
-| `name` | `TEXT` | Secret name |
-| `encrypted_value` | `TEXT` | AES-256-GCM encrypted |
-
-#### `extension_secret_versions`
-Secret version history for rollback.
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `org_id`, `extension_id`, `name` | | Secret identifier |
-| `encrypted_value` | `TEXT` | Previous value |
-| `archived_at` | `TIMESTAMPTZ` | Archive time |
-
-#### `extension_secret_access`
-Secret access audit log.
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `org_id`, `extension_id` | | Context |
-| `secret_name` | `TEXT` | Secret accessed |
-| `action` | `TEXT` | `read`, `write`, `delete` |
-| `accessed_by` | `TEXT` | User ID or `system` |
-
-#### `extension_http_log`
-HTTP request log for extensions.
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `org_id`, `extension_id` | | Context |
-| `method` | `TEXT` | HTTP method |
-| `url` | `TEXT` | Request URL |
-| `status` | `INTEGER` | Response status |
-| `duration_ms` | `INTEGER` | Request duration |
-| `request_size`, `response_size` | `INTEGER` | Sizes |
-| `error` | `TEXT` | Error message |
+| `category` | `TEXT` | `native` for packages that run |
+| `package_sha256` | `TEXT` | SHA-256 the desktop and the API require before running the package |
+| `package_path` | `TEXT` | Path of the `.bpx` in the `org-extensions` bucket |
 
 ---
 
@@ -1258,37 +1191,36 @@ Server-side PostgreSQL functions called via `client.rpc()`:
 
 | Function | Purpose |
 |----------|---------|
-| `checkout_file(p_file_id, p_user_id, ...)` | Atomic checkout with race prevention |
-| `checkin_file(p_file_id, p_user_id, ...)` | Atomic checkin with versioning |
-| `get_vault_files_fast(p_org_id, p_vault_id)` | Bulk fetch (no pagination) |
-| `get_vault_files_delta(p_org_id, p_vault_id, p_since)` | Incremental sync |
-| `get_vault_files_count(p_org_id, p_vault_id)` | True row count, for the client cache to reconcile against |
-| `move_file(p_file_id, p_new_path, ...)` | Atomic move with validation |
+| `file_checkout(p_file_id, p_machine_id, ...)` | Atomic checkout with race prevention |
+| `file_checkin(p_file_id, p_new_content_hash, ...)` | Atomic checkin with versioning |
+| `vault_file_list(p_org_id, p_vault_id)` | Bulk fetch (no pagination) |
+| `vault_file_list_delta(p_org_id, p_vault_id, p_since)` | Incremental sync |
+| `vault_file_count(p_org_id, p_vault_id)` | True row count, for the client cache to reconcile against |
+| `file_move(p_file_id, p_new_file_path, p_new_file_name)` | Atomic move with validation |
 
 ### Workflow Engine
 
-All state changes go through these; nothing writes `files.state` or
-`file_workflow_assignments` directly.
+All state changes go through these; nothing writes `file.state` or
+`file_workflow_assignment` directly.
 
 | Function | Purpose |
 |----------|---------|
-| `get_available_transitions(p_file_id, p_user_id)` | Transitions out of the file's current state, with the user's permission resolved |
-| `execute_workflow_transition(p_file_id, p_transition_id, p_comment)` | Validates state, role and checkout, opens gate reviews or advances the file, bumps the revision and writes history - all in one transaction |
-| `execute_transition_to_legacy_state(p_file_id, p_target_state, p_comment)` | Same engine, addressed by legacy state name (`released`, `obsolete`, ...) for the REST endpoints |
-| `complete_gate_review(p_pending_review_id, p_decision, p_comment, p_checklist_responses)` | Records one reviewer's decision and advances the file when the last blocking gate clears |
-| `get_my_pending_reviews()` | Gate reviews waiting on the signed-in user |
-| `user_can_run_transition(p_user_id, p_transition_id)` | Role check used by the engine and the transition list |
-| `import_workflow_graph(p_workflow_id, p_payload)` | Atomically replaces a workflow's states, transitions and gates |
+| `workflow_transition_list_available(p_file_id)` | Transitions out of the file's current state, with the user's permission resolved |
+| `workflow_transition_execute(p_file_id, p_transition_id, p_comment)` | Validates state, role and checkout, opens gate reviews or advances the file, bumps the revision and writes history - all in one transaction |
+| `workflow_transition_execute_to_legacy_state(p_file_id, p_target_state, p_comment)` | Same engine, addressed by legacy state name (`released`, `obsolete`, ...) |
+| `gate_review_complete(p_pending_review_id, p_decision, p_comment, p_checklist_responses)` | Records one reviewer's decision and advances the file when the last blocking gate clears |
+| `gate_review_list_mine()` | Gate reviews waiting on the signed-in user |
+| `can_run_transition(p_user_id, p_transition_id)` | Role check used by the engine and the transition list |
+| `workflow_import_graph(p_workflow_id, p_payload)` | Atomically replaces a workflow's states, transitions and gates |
 
 ### User/Organization
 
 | Function | Purpose |
 |----------|---------|
-| `join_org_by_slug(p_org_slug)` | Join org via org code |
-| `ensure_user_org_id()` | Create the user record if missing, and resolve `org_id` for an account that still has none — pending invitation first, email-domain match second |
-| `apply_pending_team_memberships(p_user_id)` | Apply invite permissions |
-| `is_supplier_account(p_identifier)` | Check if email/phone is supplier |
-| `get_org_auth_providers(p_org_slug)` | Get enabled auth methods |
+| `org_join_by_slug(p_org_slug)` | Join org via org code |
+| `user_ensure_org_id()` | Create the user record if missing, and resolve `org_id` for an account that still has none — pending invitation first, email-domain match second |
+| `team_member_apply_pending(p_user_id)` | Apply invite permissions |
+| `org_get_auth_providers(p_org_slug)` | Get enabled auth methods |
 
 ### Permissions
 
@@ -1296,19 +1228,19 @@ All state changes go through these; nothing writes `files.state` or
 |----------|---------|
 | `is_org_admin()` | Check if current user is admin |
 | `is_org_admin(p_user_id)` | Check if specific user is admin |
-| `user_has_team_permission(p_resource, p_action, p_vault_id)` | Check permission |
-| `get_user_vault_access(p_user_id)` | Effective vault permissions |
+| `has_team_permission(p_resource, p_action, p_vault_id)` | Check permission |
+| `user_vault_access_list(p_user_id)` | Effective vault permissions |
 
 ### Module Defaults
 
 | Function | Purpose |
 |----------|---------|
-| `get_org_module_defaults(p_org_id)` | Org-level UI defaults |
-| `set_org_module_defaults(...)` | Set org defaults |
-| `force_org_module_defaults(...)` | Force defaults to all users |
-| `get_team_module_defaults(p_team_id)` | Team-level defaults |
-| `set_team_module_defaults(...)` | Set team defaults |
-| `get_user_module_defaults()` | Get effective defaults |
+| `org_get_module_defaults(p_org_id)` | Org-level UI defaults |
+| `org_set_module_defaults(...)` | Set org defaults |
+| `org_force_module_defaults(...)` | Force defaults to all users |
+| `team_get_module_defaults(p_team_id)` | Team-level defaults |
+| `team_set_module_defaults(...)` | Set team defaults |
+| `user_get_module_defaults(p_user_id)` | Get effective defaults |
 
 ---
 
@@ -1346,7 +1278,7 @@ sequenceDiagram
 
 Users are auto-linked to organizations via:
 1. **Email domain match** - `email_domains` array in organizations
-2. **Pending membership** - `pending_org_members` table (invites)
+2. **Pending membership** - `pending_org_member` table (invites)
 3. **Org code** - Encoded Supabase URL in org code slug
 
 ---
@@ -1366,8 +1298,8 @@ sequenceDiagram
     alt Hash not found
         App->>Storage: Upload to vault/orgId/hash
     end
-    App->>DB: Upsert files record
-    App->>DB: Create file_versions record
+    App->>DB: Upsert file record
+    App->>DB: Create file_version record
     DB-->>App: Return file record
 ```
 
@@ -1383,7 +1315,7 @@ sequenceDiagram
     participant DB as PostgreSQL
     participant RT as Realtime
     
-    UserA->>RPC: checkout_file(file_id)
+    UserA->>RPC: file_checkout(file_id)
     RPC->>DB: Atomic lock acquisition
     DB-->>RPC: Success + file data
     RPC-->>UserA: Checkout confirmed
@@ -1392,7 +1324,7 @@ sequenceDiagram
     
     Note over UserA: Edit file locally
     
-    UserA->>RPC: checkin_file(file_id, hash)
+    UserA->>RPC: file_checkin(file_id, hash)
     RPC->>DB: Release lock + increment version
     DB-->>RPC: Success + new version
     DB->>RT: Broadcast change
@@ -1420,13 +1352,13 @@ flowchart LR
     end
     
     subgraph Tables
-        Files[(files)]
+        Files[(file)]
         Activity[(activity)]
-        Orgs[(organizations)]
-        Vaults[(vaults)]
+        Orgs[(organization)]
+        Vaults[(vault)]
         VA[(vault_access)]
-        TM[(team_members)]
-        Notif[(notifications)]
+        TM[(team_member)]
+        Notif[(notification)]
     end
     
     Files -->|INSERT/UPDATE/DELETE| FC
@@ -1457,8 +1389,8 @@ flowchart LR
 Tables must have `REPLICA IDENTITY FULL` and be added to `supabase_realtime` publication:
 
 ```sql
-ALTER TABLE files REPLICA IDENTITY FULL;
-ALTER PUBLICATION supabase_realtime ADD TABLE files;
+ALTER TABLE file REPLICA IDENTITY FULL;
+ALTER PUBLICATION supabase_realtime ADD TABLE file;
 ```
 
 ---
@@ -1511,18 +1443,21 @@ Storage operations include automatic retry for network errors:
 
 All tables have RLS enabled. Key policies:
 
-```sql
--- Users can only see files in their organization
-CREATE POLICY "Users can view org files"
-  ON files FOR SELECT
-  USING (org_id = (SELECT org_id FROM users WHERE id = auth.uid()));
+Policies are named `"<table>: <who> <action>"` (5.0).
 
--- Only file owner or admin can delete
-CREATE POLICY "Owner or admin can delete"
-  ON files FOR DELETE
-  USING (
-    created_by = auth.uid() OR is_org_admin()
-  );
+```sql
+-- Members see the files of their organization in the vaults they can access
+CREATE POLICY "file: users read"
+  ON file FOR SELECT
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid())
+         AND vault_id IN (SELECT my_accessible_vault_ids()));
+
+-- Deleting a row needs the explorer delete permission
+CREATE POLICY "file: admins delete"
+  ON file FOR DELETE
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid())
+         AND vault_id IN (SELECT my_accessible_vault_ids())
+         AND has_team_permission('module:explorer', 'delete'));
 ```
 
 ### Permission Hierarchy
@@ -1549,8 +1484,8 @@ flowchart TD
 is_org_admin() RETURNS BOOLEAN
 
 -- Check if user has team permission
-user_has_team_permission(
-  p_resource TEXT,      -- 'files', 'vaults', 'teams', etc.
+has_team_permission(
+  p_resource TEXT,      -- e.g. 'module:explorer'
   p_action permission_action,  -- 'view', 'create', 'edit', 'delete', 'admin'
   p_vault_id UUID DEFAULT NULL
 ) RETURNS BOOLEAN
@@ -1558,10 +1493,12 @@ user_has_team_permission(
 
 ### Vault Access Control
 
-1. **No restrictions** - If no `vault_access` records exist for a vault, everyone can access
+`my_accessible_vault_ids()` is the rule, and every file-data policy names it:
+
+1. **Admin bypass** - Org admins (`is_org_admin()`) read every vault of the organization
 2. **Individual grants** - `vault_access` table for user-level access
 3. **Team grants** - `team_vault_access` for team-level access
-4. **Admin bypass** - Admins always have access to all vaults
+4. **No grant, no vault** - A member with neither grant sees no vault
 
 ---
 
@@ -1618,24 +1555,49 @@ sequenceDiagram
 
 ## Schema Versioning
 
-Database and app versions must match to prevent compatibility issues.
+The app and the database must agree on the schema. Since 5.0 the desktop app also applies the
+schema itself.
 
 ### Version Tracking
 
 ```sql
--- Database version
-SELECT version FROM schema_version;  -- e.g., 100
+-- Database version, written only by verify_and_stamp_schema()
+SELECT version FROM schema_version;  -- e.g., 500
+
+-- Oldest app allowed to connect
+SELECT client_min_version();         -- e.g., '5.0.0'
 
 -- App expected version
-EXPECTED_SCHEMA_VERSION = 105  -- src/lib/schemaVersion.ts
+EXPECTED_SCHEMA_VERSION = 500  -- src/lib/schemaVersion.ts
 ```
+
+`schema_version` keeps its 4.x shape so a 4.x app reads 500, sees a newer database and asks to be
+updated. Every applied migration is recorded with its checksum in `schema_migration`.
+
+### Applying the Schema
+
+An org admin gives the desktop app the database connection string once (Supabase **Connect** >
+**Session pooler**, port 5432; optionally remembered on that computer, encrypted). The app's
+migration runner (`electron/handlers/dbMigrations*.ts`) takes an advisory lock and:
+
+- on an empty database, applies the 5.0 baseline (`core.sql`, then the modules in name order) and
+  records the migrations up to 500 as applied;
+- on a 4.x database, applies `supabase/legacy-4.10/` if it is below 4.10 (schema 112), then
+  `supabase/migrations/0500_from_4x.sql`;
+- then applies any later numbered migration in `supabase/migrations/`, each in its own
+  transaction, and stamps the version through `verify_and_stamp_schema()`.
+
+Running the same files by hand in the SQL Editor is a recovery path for an operator only; see
+`supabase/README.md`.
 
 ### Version Mismatch Handling
 
-| Scenario | User Message |
-|----------|--------------|
-| DB newer than app | "Database is newer than app - please update" |
-| App newer than DB | "Database needs migration - contact admin" |
+| Scenario | What the user sees |
+|----------|--------------------|
+| App older than `client_min_version()` | **Update required**; the app downloads and installs the update |
+| 4.x app against a 5.0 database | Its "database is newer, update" message |
+| Database older than the app, org admin (desktop) | **Database upgrade required**, with the connection string prompt |
+| Database older than the app, anyone else or the web | **Database upgrade needed**, waiting for an admin |
 
 ---
 
@@ -1649,6 +1611,9 @@ EXPECTED_SCHEMA_VERSION = 105  -- src/lib/schemaVersion.ts
 | `supabase/modules/30-supply-chain.sql` | Suppliers, RFQs |
 | `supabase/modules/40-integrations.sql` | External integrations |
 | `supabase/modules/50-extensions.sql` | Extension framework |
+| `supabase/migrations/` | Numbered migrations after the 5.0 baseline, including `0500_from_4x.sql` |
+| `supabase/legacy-4.10/` | 4.10 schema, applied to a database below 4.10 before `0500` |
+| `electron/handlers/dbMigrations*.ts` | The app's migration runner |
 | `src/lib/supabase/client.ts` | Supabase client setup |
 | `src/lib/supabase/auth.ts` | Authentication helpers |
 | `src/lib/supabase/files/` | File CRUD operations |

@@ -555,7 +555,7 @@ Sync your engineering files with your custom service.
 
 ## Setup
 
-1. Install from the BluePLM Extension Store
+1. Ask your organization admin to install the `.bpx` (Settings > Extensions > Install for organization)
 2. Open Settings → Extensions → File Sync
 3. Enter your API endpoint and key
 4. Enable automatic sync (optional)
@@ -599,25 +599,19 @@ npm run package
 
 This creates `file-sync-1.0.0.bpx` ready for installation.
 
-## Step 8: Test Locally (Sideload)
+## Step 8: Install and Test
 
-1. Open BluePLM
-2. Go to Settings → Extensions → Extension Store
-3. Click "Sideload Extension"
-4. Select your `.bpx` file
-5. Accept the warning (sideloaded extensions show a warning)
-6. Test your extension!
+BluePLM 5.0 has no sideloading and no Extension Store. To try a package, install it for a test
+organization:
 
-## Step 9: Publish (Optional)
+1. Open BluePLM as an organization admin
+2. Go to Settings > Extensions > Install for organization
+3. Select your `.bpx` file and confirm
+4. Test your extension!
 
-To publish to the Extension Store:
-
-1. Create a GitHub repository for your extension
-2. Ensure `repository` field in manifest points to it
-3. Go to [extensions.blueplm.io/submit](https://extensions.blueplm.io/submit)
-4. Register as a publisher
-5. Upload your `.bpx` file
-6. Wait for review (community) or contact Blue Robotics for verification
+Only native extensions (`"category": "native"`) run; see
+[what actually runs](./index.md#status-what-actually-runs-october-2026). To ship it, see
+[Distributing an Extension](./publishing.md).
 
 ## Next Steps
 

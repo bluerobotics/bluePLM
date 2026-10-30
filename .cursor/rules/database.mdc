@@ -10,22 +10,64 @@ globs:
 
 ## Change Protocol (All 3 Steps Required)
 
-1. `supabase/core.sql` ← source of truth, bump version
-2. `src/lib/schemaVersion.ts` ← sync EXPECTED_SCHEMA_VERSION
-3. `src/types/supabase.ts` ← regenerate with `npm run gen:types`
+1. `supabase/migrations/NNNN_<name>.sql` ← a new file; NNNN is the schema version it stamps
+2. `src/lib/schemaVersion.ts` ← sync EXPECTED_SCHEMA_VERSION and add a VERSION_DESCRIPTIONS entry
+3. `src/types/supabase.ts` ← regenerate with `npm run gen:types` (`--staging` for the staging project)
+
+## Naming
+
+Every object in `supabase/core.sql` and `supabase/modules/*.sql` follows these rules (5.0; decided in
+`.cursor/plans/release-5.0.plan.md`). `src/lib/supabase/schemaNaming.test.ts` checks them over the SQL
+and fails on any object that breaks one; the only exceptions are the `EXCEPTIONS` in
+`scripts/rename-5.0/namingRules.mjs`, each with its reason.
+
+- **Tables and views**: singular snake_case (`file`, `file_version`, `team_member`). Never a Postgres
+  reserved word and never a quoted name: `users` is `app_user`. A name may end in `s` when the word is
+  singular (`vault_access`, `org_address`).
+- **Organization**: the table is `organization`; tables owned by an org that are named after it use
+  `org_` (`org_address`, `org_integration`), never `organization_`. The column is always `org_id`.
+- **Join tables**: `<owner>_<other>`, singular (`team_member`, `file_eco`, `team_vault_access`).
+- **Columns**: foreign keys end in `_id` (`<entity>_id`, or `<role>_id` such as `parent_id`,
+  `item_id`), or in `_by` when they name the acting user (`created_by`, `checked_out_by`). Booleans
+  start with `is_`, `has_` or `can_`. Timestamps (`timestamptz`) end in `_at`. Rename a column only
+  where it breaks one of these or disagrees with its siblings.
+- **Functions** that act or return data: `<entity>_<verb>[_<qualifier>]` (`file_checkout`,
+  `vault_file_list`, `review_settle`, `org_get_module_defaults`). Verbs: get, list, count, create,
+  update, delete, set, add, remove, plus domain verbs (checkout, checkin, move, rename, approve,
+  settle, advance, assign, request, ...; the list is `VERBS` in `namingRules.mjs`). Kept prefixes
+  instead of an entity: predicates `is_`/`has_`/`can_` (`is_org_admin`), caller-scoped helpers `my_`
+  (`my_accessible_vault_ids`), invariant checks `check_` (`check_release_residue`). Guards that raise
+  are `<entity>_require_<what>` (`file_require_access`). Overloads share one name.
+- **Trigger functions and triggers**: `trg_<table>_<what>` (`trg_file_log_activity`; on `auth.users`,
+  `trg_auth_user_<what>`). A trigger function shared by several tables is `trg_<what>`
+  (`trg_set_updated_at`); each trigger that calls it is still `trg_<table>_<what>`.
+- **Policies**: `"<table>: <who> <action>"` with action read, insert, update, delete or manage (FOR
+  ALL), plus `own` when the policy is limited to the caller's rows (`"notification: users read own"`).
+  Policies of ours on `storage.objects` keep their names; `check_release_residue()` matches them.
+- **Indexes, keys, foreign keys, checks**: the Postgres default shapes with the table's name:
+  `<table>_<cols>_idx`, `<table>_<cols>_key`, `<table>_<cols>_fkey`, `<table>_pkey`,
+  `<table>_<col>_check`. Name an index explicitly only when the default would be an expression or
+  longer than 63 bytes (`file_search_idx`).
+- **Enum types**: snake_case, and never a table's name (every table defines a row type of its name).
+- **Unchanged on purpose**: `schema_version` (4.x clients read it to learn the database is newer),
+  `auth.*`, `storage.*`, bucket names and object paths, and JSON keys built in SQL
+  (`jsonb_build_object('files', ...)`), which are API shapes rather than schema names.
+
+The 4.x -> 5.0 renames are listed once, in `supabase/rename-map-5.0.json` (built by
+`scripts/rename-5.0/build-map.mjs`); `scripts/rename-5.0/rename.mjs` applies it to SQL and TS.
 
 ## Supabase Query Patterns
 
 ```typescript
 // GOOD: explicit columns, error handling
 const { data, error } = await supabase
-  .from('files')
+  .from('file')
   .select('id, name, status')
   .range(0, 49);
 if (error) throw error;
 
 // BAD: select(*), no error check
-const { data } = await supabase.from('files').select('*');
+const { data } = await supabase.from('file').select('*');
 ```
 
 ## Storage
@@ -33,28 +75,32 @@ const { data } = await supabase.from('files').select('*');
 - Private files: signed URLs only
 - Public assets: direct URLs OK
 
-## No Migration Files
+## Baseline and Migrations (5.0 onwards)
 
-This project has no `migrations/` directory and no dated migration files. Do not create
-either, and do not follow a `YYYYMMDD-description.sql` convention — nothing in this repo
-reads one.
+`supabase/core.sql` and `supabase/modules/*.sql` are the 5.0 baseline: one definition per
+object, no `DROP ... IF EXISTS` compatibility code, no backfills. They are never edited for a
+later change. Every change after 5.0 is a forward migration in `supabase/migrations/`:
 
-`supabase/core.sql` and `supabase/modules/*.sql` are the source of truth and are edited in
-place. Every file is idempotent (`CREATE TABLE IF NOT EXISTS`, `DROP POLICY IF EXISTS`
-before `CREATE POLICY`, enum creation and FK additions wrapped in exception-handling `DO`
-blocks), so a fresh install and an upgrade are the same operation: run the whole edited
-file in the Supabase SQL editor. There is no delta to write, which is why the workflow
-below says to run the full schema file.
+- Named `NNNN_<name>.sql`; NNNN equals the schema version the file stamps, and the file raises
+  `schema_release_version()` to NNNN. Numbers only go up; the runner refuses a pending file
+  numbered below the newest applied one.
+- New objects are registered by inserting rows into `schema_manifest_entry` (`since_version` =
+  NNNN); `schema_get_release_manifest()` reads that table.
+- No `BEGIN`/`COMMIT`: the runner runs each file in its own transaction. A file that must run
+  outside one (`ALTER TYPE ... ADD VALUE`, `CREATE INDEX CONCURRENTLY`) starts with the line
+  `-- blueplm:no-transaction` and must be idempotent, because it is recorded only after every
+  statement succeeds.
+- Released files are immutable. The runner stores each file's checksum in `schema_migration` and
+  refuses to touch a database whose applied file has changed.
 
-`schema_version` and `EXPECTED_SCHEMA_VERSION` do the job a migration ledger would
-otherwise do — they are how the app decides whether a database is current, so bumping both
-is not optional (see Change Protocol above).
-
-Building a database from nothing means running `core.sql`, then `10-source-files.sql`,
-`15-inspection.sql`, `20-change-control.sql`, `30-supply-chain.sql`,
-`40-integrations.sql`, `50-extensions.sql`. Modules `10` and `15` are
-both required despite `15` being numbered like an optional one — `checkin_file()` in
-module 10 queries tables that module 15 creates. See `supabase/README.md`.
+The app applies migrations itself (`electron/handlers/dbMigrations*.ts`): an org admin pastes the
+database connection string once (optionally remembered on that machine), and the runner takes an
+advisory lock, applies the pending files in order, then stamps through `verify_and_stamp_schema()`
+(`supabase/tools/verify-schema.sql`). A fresh database gets the baseline (`core.sql`, then modules
+in name order) and the migrations up to 500 are recorded as applied. A 4.x database gets
+`supabase/legacy-4.10/` first if it is below 112, then `0500_from_4x.sql`. TLS is verified against
+`supabase/certs/`. Modules `10` and `15` are both required; module 10 queries tables module 15
+creates. See `supabase/README.md`.
 
 ## Schema Change Workflow
 
