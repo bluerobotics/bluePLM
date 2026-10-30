@@ -121,24 +121,32 @@ Organization Code (Step 6).
 
 ## Step 5: Create Your Organization
 
-Run this SQL in the Supabase SQL Editor (customize the values):
+Run this in the Supabase SQL Editor (customize the values):
 
 ```sql
-INSERT INTO organization (name, slug, email_domains)
-VALUES (
-  'Your Company Name',           -- Display name
-  'your-company',                -- URL-safe slug (lowercase, no spaces)
-  ARRAY['yourcompany.com']       -- Email domains for your team
+SELECT org_create_with_founder(
+  'Your Company Name',              -- display name
+  'your-company',                   -- URL-safe slug: lower case, digits, hyphens
+  'you@yourcompany.com',            -- the address you signed in with in Step 4 (any provider, gmail.com too)
+  ARRAY['yourcompany.com']          -- your team's email domains (optional; public mail domains are refused)
 );
 ```
 
-This automatically creates:
-- Default teams: **Viewers**, **Engineers**, **Administrators**
-- Default job titles (Design Engineer, Quality Engineer, etc.)
+One call does all of it:
+- creates the organization, with its default teams (**Administrators**, **New Users**) and job titles
+- sets its email domains: anyone who signs in with an address at one of them joins the **New Users** team
+- invites you as the organization's administrator, in the **Administrators** team
 
-::: tip Email Domains
-The `email_domains` array enables auto-detection. When users with matching email domains sign in, BluePLM can automatically associate them with your organization.
-:::
+The invitation is why your own address can be a personal one: it names you, and a domain names everyone at it.
+
+Then turn on the sign-up hook, so only people who belong to your organization can create an account:
+
+1. In your Supabase Dashboard, go to **Authentication → Hooks**
+2. Add a **Before User Created** hook of type **Postgres**
+3. Schema `public`, function `auth_hook_before_user_created`
+4. Save
+
+Until the organization exists the hook refuses everyone with "this BluePLM database has no organization yet", so do Step 5 first. See [Only Invited People Can Sign Up](#only-invited-people-can-sign-up-recommended) for what it admits.
 
 ## Step 6: Copy the Organization Code
 
@@ -198,35 +206,18 @@ If you use antivirus software other than Windows Defender (Norton, McAfee, Bitde
 Excluding folders from antivirus scanning reduces protection for those files. Only exclude trusted vault folders that contain your organization's CAD files.
 :::
 
-## Step 7: Sign In and Configure Admin
+## Step 7: Sign In Again
 
-1. Click **Continue** and sign in with Google (or email/phone)
-2. After signing in, you need to link yourself to the organization and grant admin privileges
+Sign out of BluePLM and sign in again with the address you gave in Step 5. Your invitation is applied at that sign-in: you become a member of the organization, with the admin role, in the **Administrators** team. There is no SQL to run.
 
-Run this SQL in the SQL Editor (replace the values):
+If BluePLM still shows no organization, you signed in with a different address than the one in Step 5. Sign in with that one, or invite the address you use as an administrator too:
 
 ```sql
--- 1. Link yourself to the org and set as admin
-UPDATE app_user
-SET org_id = (SELECT id FROM organization WHERE slug = 'your-company'),
-    role = 'admin'
-WHERE email = 'your.email@yourcompany.com';
-
--- 2. Add yourself to the Administrators team
-INSERT INTO team_member (team_id, user_id, is_team_admin, added_by)
-SELECT 
-  t.id,
-  u.id,
-  TRUE,
-  u.id
-FROM team t, app_user u
-WHERE t.org_id = (SELECT id FROM organization WHERE slug = 'your-company')
-  AND t.name = 'Administrators'
-  AND u.email = 'your.email@yourcompany.com'
-ON CONFLICT (team_id, user_id) DO NOTHING;
+INSERT INTO pending_org_member (org_id, email, role, team_ids, notes)
+SELECT o.id, lower('you@example.com'), 'admin', ARRAY[t.id], 'Founding administrator'
+FROM organization o JOIN team t ON t.org_id = o.id AND t.name = 'Administrators'
+WHERE o.slug = 'your-company';
 ```
-
-**Sign out and back in** to BluePLM for the changes to take effect.
 
 ## Step 8: Create Your First Vault
 
@@ -483,21 +474,13 @@ must have its 5.0 SQL applied after the upgrade, in the Supabase SQL Editor.
 
 From schema 502, BluePLM ships a Supabase Auth hook that refuses to create an account for an address that belongs nowhere. An account is created only for:
 
-- an open invitation (Members & Teams → Invite),
+- an open invitation (Members & Teams → Invite, or Step 5 for the founding admin),
 - an address at one of your organization's email domains (set in Members & Teams; public mail providers such as gmail.com cannot be added),
 - a supplier contact,
-- or the first account in a database with no organization yet, so you can set yours up.
 
 Anyone else sees "You haven't been invited to an organization. Ask your administrator for an invite." Without the hook, they get an account with no organization and can see nothing.
 
-Turn it on once, after the database is on schema 502:
-
-1. In your Supabase Dashboard, go to **Authentication → Hooks**
-2. Add a **Before User Created** hook of type **Postgres**
-3. Schema `public`, function `auth_hook_before_user_created`
-4. Save
-
-The same setting through the Management API: `hook_before_user_created_enabled = true`, `hook_before_user_created_uri = pg-functions://postgres/public/auth_hook_before_user_created`.
+It is turned on in Step 5. On a database that was set up before schema 502, turn it on the same way once the database is on 502 (Authentication → Hooks → Before User Created, Postgres, `public.auth_hook_before_user_created`). Through the Management API: `hook_before_user_created_enabled = true`, `hook_before_user_created_uri = pg-functions://postgres/public/auth_hook_before_user_created`.
 
 Invite people before they sign in. An invitation sent after someone was refused works; they sign in again.
 
@@ -525,8 +508,11 @@ Grant vault access via **Settings → Members & Teams**. Non-admin users don't s
 ### Organization Code doesn't work
 Regenerate the code by disconnecting and reconnecting to Supabase in BluePLM.
 
-### Can't sign in after running admin SQL
-Make sure you signed out and back in after running the admin setup SQL.
+### "You haven't been invited to an organization"
+The sign-up hook found no invitation, organization email domain or supplier contact for that address. Invite the person (Members & Teams), or add their company domain to the organization. The founding admin signs in with the exact address given in Step 5.
+
+### "This BluePLM database has no organization yet"
+The sign-up hook is on but Step 5 has not run. Run it, then sign in again.
 
 ### Invite emails going to spam
 Configure custom SMTP (Step 11). Supabase's default email domain (`noreply@mail.app.supabase.io`) is often flagged as spam.
