@@ -208,7 +208,7 @@ export interface CommandResult {
    * candidates that *were* offered and refused on disk: this one is never a disk
    * refusal, and retrying the discard changes nothing about it. Surfaced separately so
    * a caller can tell the user why the folder is not going away, instead of it just
-   * silently staying - see `.cursor/plans/barxt-move-download-incident-report.md`.
+   * silently staying - see `.cursor/plans/move-download-incident-report.md`.
    */
   directoriesTrackedByServer?: number
 

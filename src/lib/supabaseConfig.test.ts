@@ -3,7 +3,7 @@ import { isHostedSupabaseUrl } from './supabaseConfig'
 
 describe('isHostedSupabaseUrl', () => {
   it('accepts hosted Supabase projects, which BluePLM Web can reach', () => {
-    expect(isHostedSupabaseUrl('https://vvyhpdzqdizvorrhjhvq.supabase.co')).toBe(true)
+    expect(isHostedSupabaseUrl('https://abcdefghijklmnopqrst.supabase.co')).toBe(true)
     expect(isHostedSupabaseUrl('https://abc.supabase.co/')).toBe(true)
   })
 

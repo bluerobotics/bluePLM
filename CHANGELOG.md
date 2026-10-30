@@ -112,7 +112,7 @@ keeps working against schema 110.
 ### Fixed
 
 - **Metadata Audit accepts a full folder path.** A folder scope pasted from the browser's Copy Path
-  (for example `C:\BluePLM\br-vault\POWERMODULE\development\`) matched nothing and came back blank
+  (for example `C:\BluePLM\<vault>\<project>\development\`) matched nothing and came back blank
   (user report, 2026-10-29). The scan knows the vault root, so a path inside it is now cut back to its
   vault-relative part; a path outside the vault still matches nothing and says so. Also applies to
   `scan-divergence --path` and `restore-metadata-from-files --path`.
@@ -597,7 +597,7 @@ Renderer only - no schema change, no API change, SolidWorks service unchanged.
   to look up the people holding checkouts. The lookup sent one request listing every checked-out
   file ID (about 750 IDs, a 29 KB URL), and the gateway rejected it with a bare `400 Bad Request`.
   Rows held by someone else then showed no avatar and no checkout or check-in button, so they
-  looked checked in while refusing every checkout (Blake and David). The lookup now asks for the
+  looked checked in while refusing every checkout (two users). The lookup now asks for the
   few distinct owners (11 in that vault, batched at 100) using the `checked_out_by` the load
   already has, and maps each profile back to its files. It works for every role, since any
   signed-in user can read their organization's user list. A batch that fails no longer discards
@@ -622,7 +622,7 @@ Renderer and Electron main only - no schema change, no API change, SolidWorks se
   batches the rest (500 ms) and flushes on window hide and close. Saved slices that were rebuilt
   on every write are now referentially stable. A hard crash can lose up to 500 ms of changes.
   The cause of that user's lag is not yet proven; the diagnostics below are there to confirm it.
-- **A broken IndexedDB repairs itself.** Blake's vault cache stopped working at 20:07 with
+- **A broken IndexedDB repairs itself.** One user's vault cache stopped working at 20:07 with
   `Internal error opening backing store for indexedDB.open`, and every load after that was a full
   fetch: the failed open was remembered for the life of the window and never retried. A failed open
   is now forgotten so the next call tries again, and on a corrupt-store error the app deletes the
@@ -631,7 +631,7 @@ Renderer and Electron main only - no schema change, no API change, SolidWorks se
   and disk). The load that hits the error still falls back to a full fetch without waiting.
 - **Every load no longer re-reads the whole vault cache.** After each load the checkout-profile
   update read the entire ~27,000-row cache entry back out of IndexedDB even when it had no profiles
-  to write (`profileCount: 0`, 7-20 s in Blake's log). It now returns before touching the database.
+  to write (`profileCount: 0`, 7-20 s in a user's log). It now returns before touching the database.
   A delta of 25 rows or fewer no longer rewrites the full entry either (350-500 ms and a large
   allocation for one changed row); it is written once the entry is ten minutes old or the delta
   grows. A skipped write only means the next load fetches the same few rows again.
@@ -641,7 +641,7 @@ Renderer and Electron main only - no schema change, no API change, SolidWorks se
   in one store update. An event for a file that is still waiting applies the batch first, so the
   order for any one file is unchanged.
 - **Navigating between folders no longer rescans the vault.** `getFilesInFolder` split and
-  lowercased the path of all ~29,000 rows on every call (~240 ms in Blake's log). The explorer now
+  lowercased the path of every row on every call (~240 ms in a user's log). The explorer now
   builds a parent-folder index the second time it is asked about the same file list, so moving
   between folders is a map lookup (about 0.05 ms in the harness against 55-185 ms), with the same
   rows in the same order. The first lookup after the file list changes is still the plain scan, so
@@ -651,7 +651,7 @@ Renderer and Electron main only - no schema change, no API change, SolidWorks se
   auto-download exclusions (about 8,000 in one vault). Each is now a single update. Exclusions for
   files that are on disk again are dropped, so the saved list stops growing without bound.
 - **The causes of failures are logged.** The vault cache open failure was logged as `{}`, and the
-  `Checkout profile lookup failed` warning (133 in Blake's log) as `"[object Object]"`. Both now
+  `Checkout profile lookup failed` warning (133 in a user's log) as `"[object Object]"`. Both now
   carry name, message, code, details, hint and status.
 
 ### Added
@@ -1288,7 +1288,7 @@ cannot discard a checkout at all.
 - **The holder of a share link could repoint it at another organization's file, or re-activate a link that had been revoked**, because the update policy constrained only who owned the row and not what the row became — a weaker rule than the insert path it imitates, reachable by a viewer. The only update a share link now admits is its own revocation. Nothing in BluePLM updates this table, so no user-facing flow changes; this closes a route that was open to anyone holding the publishable key.
 - **Any member of an organization could approve a pending review and record someone else as the reviewer.** The update policy checked organization membership only, while the insert policy directly above it correctly required `module:reviews:create`. Deciding a review now requires `module:reviews:edit`, and `reviewed_by` can only name the caller.
 - **API: a caller-supplied `X-Request-Id` is validated before it is used.** The header was copied verbatim onto every log line for the request and returned in 5xx bodies, so a caller could put newlines into the log stream to forge log entries, or an arbitrarily long payload onto every line of it. The header is now accepted only when it is at most 128 characters of `[A-Za-z0-9._-]`; anything else is replaced with a server-generated id and a warning that records only the rejected value's length. API version 2.7.0.
-- **SOLIDWORKS service: the regression fixture guard no longer authorizes the production vault.** `BLUEPLM_FIXTURE_ROOT=C:\BluePLM\br-vault` satisfied every rule the guard applied and authorized a write to every document in the vault. The minimum root depth is raised, and the vault is now named explicitly so that no folder inside it except the regression fixture root can be a fixture root at all — a depth floor cannot express that, because a production folder in the vault is exactly as deep as a legitimate throwaway sandbox.
+- **SOLIDWORKS service: the regression fixture guard no longer authorizes the production vault.** `BLUEPLM_FIXTURE_ROOT` set to the production vault root satisfied every rule the guard applied and authorized a write to every document in the vault. The minimum root depth is raised, and the vault is now named explicitly so that no folder inside it except the regression fixture root can be a fixture root at all — a depth floor cannot express that, because a production folder in the vault is exactly as deep as a legitimate throwaway sandbox.
 - **SOLIDWORKS service: the fixture guard now refuses a hard link.** A hard link sets no reparse point and reads back as an ordinary file, so a link planted inside the fixture root passed every check while the bytes behind it were a production document with a second directory entry elsewhere on the volume. The guard now asks the volume how many names a file has and refuses anything above one. This is the fourth bypass of this guard; the previous three were closed in `afbd8b8`.
 - **Every release until this one was tested only on a database with no history, and on the upgrade path a fix left the hole's output working** — installing schema 90, attacking it, and then applying 92 over the same database is what the owner's database actually does, and nobody had ever done it. Doing it leaves a share link that one organization's member minted against another organization's file still answering `is_valid: true` to an unauthenticated caller, still returning the victim's file id and organization id, and still spending downloads — and `verify_and_stamp_schema()` reports the schema clean over it. It survives _because_ of the fix: v92 made `validate_share_link` resolve the organization from the file instead of trusting the link, and the file genuinely is in that organization, so the link now reads as a correct one. A fresh install cannot show this, because a fresh install has no history for a fix to fail to undo. **Two things changed.** Applying the schema now revokes what the closed holes produced, in the same file that closes them: cross-tenant share links are deactivated, `workflow_history` rows naming another tenant's workflow are redacted, both are idempotent, both print the rows they acted on by name, and both copy every row verbatim into `schema_remediation_log` before touching it, so nothing an audit might want is destroyed. The history rows are _redacted rather than deleted_ deliberately — the disclosure already happened and deleting the evidence undoes none of it, while leaving the names in place lets it keep happening every time the page is opened. `check_release_residue()` withholds the stamp while any such row is live, which is the durable half: a release that closes a hole and forgets its output can no longer be stamped. And the harness gained a second lane, `harness/upgrade.ps1`, which installs the previous release, runs the full attack suite so the database carries real damage, applies the release under test in place with no teardown, and re-runs everything. A release now has to pass both lanes. Measured on this one, from a schema 81 baseline: **14 of 20 attacks succeed before the upgrade; after it, 0 of 20 succeed and none of the 13 enforced positive controls broke** — which is the half that matters, because a database that refuses everything would also score 0. The residue report is empty, the 103 columns still defaulting to `uuid_generate_v4()` are moved to `gen_random_uuid()`, and verification stamps 95.
 - **`consume_share_link` spent a download on a file `validate_share_link` refused** — with `require_auth = false` and the file soft-deleted after the link was minted, validation answered `is_valid: false, "Link not found"` while consumption answered `true` and incremented the counter. The `deleted_at IS NULL` test existed in only one of the two functions and, in that one, only inside the `require_auth` branch. **Both functions now call a single `share_link_admission()` and neither restates a condition**, because two hand-written lists of conditions that must agree will not stay in agreement — the previous release tried to hold them together by requiring the same words in both and that is exactly what passed while they disagreed. The posture check that was supposed to catch it compared the two on `require_auth` alone; it now walks a matrix of link states (good, expired, deactivated, allowance exhausted, file deleted, token unknown) against each class of caller (anonymous, another organization's member, the owner) and requires the two answers to be identical in all 27, which they are. Nothing in the app calls any share-link function, but all three are reachable over PostgREST by anyone holding the publishable key.

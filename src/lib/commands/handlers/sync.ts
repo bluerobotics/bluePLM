@@ -65,7 +65,7 @@ function logSync(
  * (`src/lib/supabase/files/mutations.ts`), so uploading one of these inserts a brand
  * new server row and leaves the file at `existingServerPath` completely untouched -
  * a genuine duplicate, not a completed move. See
- * `.cursor/plans/barxt-move-download-incident-report.md`.
+ * `.cursor/plans/move-download-incident-report.md`.
  *
  * Matching is name + size only, never a content hash: hashing cannot tell a stale row
  * from an intentional duplicate in a CAD vault (`.cursor/plans/orphaned-file-rows-report.md`),

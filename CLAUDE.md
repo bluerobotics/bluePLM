@@ -164,7 +164,7 @@ check, not a change to what that check does or costs.
 
 **Closed, do not reopen without new evidence:** cleaning up "orphaned" `files` rows from the
 pre-4.3.0 move handling. The diagnosis was finally run against production and the premise did
-not survive it — the 1,324 rows its `superseded_high_confidence` bucket flagged in the production vault
+not survive it — the rows its `superseded_high_confidence` bucket flagged in the production vault
 are archive snapshots, revision branches, design variants, release copies, RFQ packages and
 vendored firmware trees, all backed by files really on disk, and its survivor rule would have
 kept `_ARCHIVE` over live `DEVELOPMENT`. Content hashing cannot distinguish a stale row from

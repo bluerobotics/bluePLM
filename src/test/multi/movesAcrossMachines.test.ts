@@ -216,7 +216,7 @@ describe('moves and renames across machines', { timeout: MULTI_TEST_TIMEOUT_MS }
     expectPendingMove(w, w.B, 'dev/New folder/bearing.sldasm', 'dev/bearing.sldasm')
   })
 
-  it('barxt600: B moves a folder in Explorer and uploads from it: one row per file, the move stays pending', async () => {
+  it('move-then-upload: B moves a folder in Explorer and uploads from it: one row per file, the move stays pending', async () => {
     const w = (world = await World.create(['A', 'B']))
     w.seed({ path: 'Old/x.sldprt' })
     await w.boot()

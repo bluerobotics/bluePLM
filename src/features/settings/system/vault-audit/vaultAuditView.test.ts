@@ -407,7 +407,7 @@ describe('buildVaultAuditView - categories', () => {
   })
 })
 
-/** Wilson's file: BluePLM's columns empty, the part still holding both under BluePLM's keys. */
+/** The reported file: BluePLM's columns empty, the part still holding both under BluePLM's keys. */
 function emptiedColumns(fileType: ComparedFileType = 'part'): FileDivergence {
   return compare(
     'FATHOM-X-ELEC-PCB-R1.SLDPRT',

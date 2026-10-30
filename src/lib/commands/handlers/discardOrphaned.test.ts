@@ -724,7 +724,7 @@ describe('discard-orphaned directory cleanup', () => {
   // left behind under it) is never offered to trashEmptyDirs and never becomes
   // `directoriesKept` either - both drop it in total silence, which is exactly what
   // left an empty-looking folder on disk with no explanation. See
-  // `.cursor/plans/barxt-move-download-incident-report.md`, claim 5.
+  // `.cursor/plans/move-download-incident-report.md`, claim 5.
   it('reports a server-tracked candidate as directoriesTrackedByServer, not as kept or removed', async () => {
     const files = [orphan('folder/gone.sldprt')]
     storeState.serverFolderPaths = new Set(['folder'])

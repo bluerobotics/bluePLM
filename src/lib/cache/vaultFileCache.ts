@@ -70,7 +70,7 @@ const COUNT_RECONCILE_COOLDOWN_MS = 60_000
 const countReconcileForcedAt = new Map<string, number>()
 
 // Rewriting the entry means structured-cloning every cached row (about 27,000 of them), 350-500 ms
-// and a large allocation, and Blake's logs show it after every load with a one-row delta. The
+// and a large allocation, and a user's logs show it after every load with a one-row delta. The
 // watermark is not advanced by a skipped write, so the next load fetches the same few rows again
 // and merges them again: slightly more network, never a stale or wrong cache. A delta this small
 // is therefore only persisted once the entry has gone this long without a write; a bigger delta,
@@ -140,7 +140,7 @@ function isCacheContextCurrent(context?: CacheWriteContext): boolean {
 }
 
 /**
- * Self-repair for a broken IndexedDB. One Blake session logged `Internal error opening backing
+ * Self-repair for a broken IndexedDB. One user session logged `Internal error opening backing
  * store for indexedDB.open` from 20:07 until the app was closed: every load afterwards was a
  * full fetch, because the rejected open promise was cached for the life of the page and the
  * failure was never retried or repaired.
@@ -694,7 +694,7 @@ export function updateCachedUserInfo(
   if (!userInfoMap) return Promise.resolve()
 
   // Nothing to merge. Every load used to land here with an empty map, and the call still read the
-  // whole ~27k-row entry back out of IndexedDB (7-20 s in Blake's log, `profileCount: 0`) only to
+  // whole entry back out of IndexedDB (7-20 s in a user's log, `profileCount: 0`) only to
   // find that no row changed.
   if (Object.keys(userInfoMap).length === 0) return Promise.resolve()
 

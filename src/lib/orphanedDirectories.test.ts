@@ -167,7 +167,7 @@ describe('getOrphanedDirectoryCandidates', () => {
 // This incident: a folder move that duplicated server rows left the old path's
 // broken/stale rows active forever, so `serverFolderPaths` never stops asserting the
 // old directory exists and it never gets recycled - see
-// `.cursor/plans/barxt-move-download-incident-report.md` (claim 5). Nobody was ever
+// `.cursor/plans/move-download-incident-report.md` (claim 5). Nobody was ever
 // told why, because `getOrphanedDirectoryCandidates` drops that case in total silence.
 // `getServerTrackedEmptyAncestors` is the other half of the same derivation, kept in
 // sync with it by sharing `computeEmptiedAncestors` internally.
