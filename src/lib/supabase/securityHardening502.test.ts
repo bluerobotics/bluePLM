@@ -70,6 +70,10 @@ CREATE TABLE notification (
 );
 CREATE TABLE schema_version (id int PRIMARY KEY, version int, description text, applied_at timestamptz, applied_by text);
 INSERT INTO schema_version VALUES (1, 500, '5.0', now(), 'test');
+CREATE TABLE schema_manifest_entry (
+  kind text, name text, module text, probe text, requires text, since_version int, PRIMARY KEY (kind, name)
+);
+INSERT INTO schema_manifest_entry VALUES ('function', 'verify_and_stamp_schema()', 'core', NULL, 'check_release_residue', 500);
 CREATE TABLE schema_remediation_log (remediation text, rows_acted_on int, subjects jsonb, detail text);
 
 CREATE TABLE backup_config (
@@ -395,6 +399,29 @@ describe('4. every exposed function is registered', () => {
     expect(stamped.r.problems).toEqual([])
     expect(stamped.r.stamped).toBe(true)
     expect((await one<{ version: number }>(`SELECT version FROM schema_version WHERE id = 1`)).version).toBe(502)
+  })
+})
+
+describe('release manifest', () => {
+  it('registers every 0502 table and every function it defines, with code markers that are in the bodies', async () => {
+    await as(null)
+    const entries = await rows<{ kind: string; name: string; requires: string | null; since_version: number }>(
+      `SELECT kind, name, requires, since_version FROM schema_manifest_entry WHERE since_version = 502`,
+    )
+    // The release number and description are 5.0's own entries; 0502 only changes their values.
+    const defined = [...MIGRATION.matchAll(/CREATE OR REPLACE FUNCTION ([a-z_]+)\(/g)]
+      .map((m) => m[1])
+      .filter((name) => name !== 'schema_release_version' && name !== 'schema_release_description')
+    const fnNames = new Set(entries.filter((e) => e.kind === 'function').map((e) => e.name.replace(/\(.*$/, '')))
+    for (const name of defined) expect(fnNames, name).toContain(name)
+    const tables = [...MIGRATION.matchAll(/CREATE TABLE IF NOT EXISTS ([a-z_]+)/g)].map((m) => m[1])
+    expect(entries.filter((e) => e.kind === 'table').map((e) => e.name).sort()).toEqual(tables.sort())
+    // The redefined 5.0 function takes 0502's marker.
+    expect(entries.find((e) => e.name === 'verify_and_stamp_schema()')?.requires).toBe('schema_list_problems')
+    for (const e of entries.filter((x) => x.kind === 'function' && x.requires)) {
+      const src = (await one<{ src: string }>(`SELECT prosrc AS src FROM pg_proc WHERE oid = $1::regprocedure`, [e.name])).src
+      for (const token of (e.requires ?? '').split(' && ')) expect(src, `${e.name}: ${token}`).toContain(token)
+    }
   })
 })
 

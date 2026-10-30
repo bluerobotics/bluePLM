@@ -1427,6 +1427,43 @@ BEGIN
 END $$;
 
 -- ===========================================
+-- Release manifest
+-- ===========================================
+-- What a database must hold to claim 502. `requires` names code each body must contain (matched
+-- with comments and string literals removed), so a copy that lost its check fails the stamp.
+-- The two 5.0 functions this file redefines get their new markers.
+INSERT INTO schema_manifest_entry (kind, name, module, probe, requires, since_version) VALUES
+  ('table', 'realtime_tombstone', 'core', NULL, NULL, 502),
+  ('table', 'org_email_domain', 'core', NULL, NULL, 502),
+  ('table', 'schema_function_inventory', 'core', NULL, NULL, 502),
+  ('table', 'org_security_setting', 'core', NULL, NULL, 502),
+  ('table', 'security_platform_operator', 'core', NULL, NULL, 502),
+  ('table', 'security_platform_setting', 'core', NULL, NULL, 502),
+  ('table', 'security_event', 'core', NULL, NULL, 502),
+  ('table', 'security_monitor_state', 'core', NULL, NULL, 502),
+  ('table', 'security_platform_state', 'core', NULL, NULL, 502),
+  ('function', 'can_access_module(text,uuid)', 'core', NULL, 'p_user_id <> auth.uid()', 502),
+  ('function', 'trg_realtime_tombstone_write()', 'core', NULL, 'realtime_tombstone && old_rows', 502),
+  ('function', 'check_realtime_publication()', 'core', NULL, 'pubdelete && pubtruncate', 502),
+  ('function', 'is_public_email_domain(text)', 'core', NULL, NULL, 502),
+  ('function', 'trg_organization_email_domains_check()', 'core', NULL, 'is_public_email_domain && user_get_verified_email && org_email_domain', 502),
+  ('function', 'trg_organization_email_domains_sync()', 'core', NULL, 'org_email_domain', 502),
+  ('function', 'check_function_inventory()', 'core', NULL, 'schema_function_inventory && prosecdef', 502),
+  ('function', 'schema_list_problems()', 'core', NULL, 'check_function_inventory && check_realtime_publication && check_definer_search_path && check_release_residue', 502),
+  ('function', 'verify_and_stamp_schema()', 'core', NULL, 'schema_list_problems', 502),
+  ('function', 'is_security_operator()', 'core', NULL, 'security_operator_user_ids', 502),
+  ('function', 'security_operator_user_ids()', 'core', NULL, 'security_platform_operator', 502),
+  ('function', 'org_admin_user_ids(uuid)', 'core', NULL, 'Administrators', 502),
+  ('function', 'security_event_record(uuid,text,text,text,jsonb)', 'core', NULL, 'security_event', 502),
+  ('function', 'trg_app_user_security_watch()', 'core', NULL, 'security_event_record', 502),
+  ('function', 'trg_team_member_security_watch()', 'core', NULL, 'new_rows', 502),
+  ('function', 'trg_team_security_watch()', 'core', NULL, 'security_event', 502),
+  ('function', 'security_monitor_run()', 'core', NULL, 'org_admin_user_ids && security_operator_user_ids && schema_list_problems', 502)
+ON CONFLICT (kind, name) DO UPDATE
+  SET module = EXCLUDED.module, probe = EXCLUDED.probe, requires = EXCLUDED.requires,
+      since_version = EXCLUDED.since_version;
+
+-- ===========================================
 -- Release
 -- ===========================================
 CREATE OR REPLACE FUNCTION schema_release_version() RETURNS INTEGER
