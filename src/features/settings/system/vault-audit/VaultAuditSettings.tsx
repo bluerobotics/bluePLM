@@ -79,7 +79,7 @@ export function VaultAuditSettings() {
         <Callout>{t('vaultAudit.adminOnly')}</Callout>
       ) : (
         <div className="space-y-6">
-          <p className="text-[12px] text-plm-fg-muted">{t('vaultAudit.readOnlyNote')}</p>
+          <p className="text-[13px] text-ui-fg-secondary">{t('vaultAudit.readOnlyNote')}</p>
 
           {audit.serviceCheck && (
             <SwServiceVersionNotice
@@ -113,7 +113,7 @@ export function VaultAuditSettings() {
           )}
 
           {audit.view && (
-            <div className="space-y-6 pt-4 border-t border-plm-border">
+            <div className="space-y-6 pt-4 border-t border-ui-divider">
               <VaultAuditOverview view={audit.view} artifactPath={audit.artifactPath} />
 
               {/*
@@ -150,10 +150,10 @@ export function VaultAuditSettings() {
                       {selectedCategory && (
                         <>
                           <div>
-                            <h4 className="text-[13px] font-semibold text-plm-fg">
+                            <h4 className="text-[14px] font-semibold text-ui-fg">
                               {categoryLabel(selectedCategory)}
                             </h4>
-                            <p className="text-[12px] text-plm-fg-muted">
+                            <p className="text-[13px] text-ui-fg-secondary">
                               {categoryDescription(selectedCategory)}
                             </p>
                           </div>
@@ -167,8 +167,8 @@ export function VaultAuditSettings() {
                   </div>
 
                   {/* Context for the numbers, not something to act on, so it stays folded. */}
-                  <details className="group rounded-lg border border-plm-border bg-plm-bg-light/60">
-                    <summary className="flex cursor-pointer select-none list-none items-center gap-1.5 px-4 py-2.5 text-[13px] text-plm-fg-muted hover:text-plm-fg">
+                  <details className="group rounded-lg border border-ui-divider bg-ui-field/60">
+                    <summary className="flex cursor-pointer select-none list-none items-center gap-1.5 px-4 py-2.5 text-[14px] text-ui-fg-secondary hover:text-ui-fg">
                       <ChevronRight
                         size={14}
                         className="transition-transform group-open:rotate-90"
@@ -183,8 +183,8 @@ export function VaultAuditSettings() {
                 </>
               )}
 
-              <div className="flex items-center justify-between pt-2 border-t border-plm-border">
-                <p className="max-w-2xl text-[12px] text-plm-fg-muted">
+              <div className="flex items-center justify-between pt-2 border-t border-ui-divider">
+                <p className="max-w-2xl text-[13px] text-ui-fg-secondary">
                   {t('vaultAudit.result.notStored')}
                 </p>
                 <Button

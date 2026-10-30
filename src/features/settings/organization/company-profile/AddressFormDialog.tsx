@@ -19,7 +19,7 @@ interface AddressFormDialogProps {
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-[12px] text-plm-fg-muted">{label}</span>
+      <span className="mb-1 block text-[13px] text-ui-fg-secondary">{label}</span>
       {children}
     </label>
   )
@@ -41,9 +41,9 @@ export function AddressFormDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg border border-plm-border bg-plm-bg-elevated">
-        <div className="flex items-center justify-between border-b border-plm-border px-4 py-3">
-          <h3 className="text-[14px] font-semibold text-plm-fg">
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg border border-ui-divider bg-ui-field">
+        <div className="flex items-center justify-between border-b border-ui-divider px-4 py-3">
+          <h3 className="text-[14px] font-semibold text-ui-fg">
             {editing
               ? 'Edit Address'
               : `New ${form.address_type === 'billing' ? 'Billing' : 'Shipping'} Address`}
@@ -60,8 +60,8 @@ export function AddressFormDialog({
 
         <div className="space-y-3 p-4">
           {copySources.length > 0 && (
-            <div className="rounded-lg border border-plm-border bg-plm-bg-light/60 p-3">
-              <div className="mb-2 flex items-center gap-2 text-[12px] text-plm-fg-muted">
+            <div className="rounded-lg border border-ui-divider bg-ui-field/60 p-3">
+              <div className="mb-2 flex items-center gap-2 text-[13px] text-ui-fg-secondary">
                 <Copy size={13} />
                 Copy from {form.address_type === 'billing' ? 'shipping' : 'billing'} address
               </div>
@@ -70,7 +70,7 @@ export function AddressFormDialog({
                   <Button
                     key={addr.id}
                     size="sm"
-                    icon={addr.is_default ? <Star size={11} className="text-plm-accent" /> : undefined}
+                    icon={addr.is_default ? <Star size={11} className="text-ui-accent" /> : undefined}
                     onClick={() => onCopyFrom(addr)}
                   >
                     {addr.label}
@@ -175,7 +175,7 @@ export function AddressFormDialog({
           </Field>
 
           <div className="flex items-center justify-between gap-4 pt-1">
-            <span id="address-default-label" className="text-[13px] text-plm-fg">
+            <span id="address-default-label" className="text-[14px] text-ui-fg">
               Set as default {form.address_type} address
             </span>
             <Switch
@@ -186,7 +186,7 @@ export function AddressFormDialog({
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 border-t border-plm-border px-4 py-3">
+        <div className="flex justify-end gap-2 border-t border-ui-divider px-4 py-3">
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>

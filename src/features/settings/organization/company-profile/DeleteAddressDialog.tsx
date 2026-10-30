@@ -24,22 +24,22 @@ export function DeleteAddressDialog({
       onClick={onCancel}
     >
       <div
-        className="mx-4 w-full max-w-md rounded-lg border border-plm-border bg-plm-bg-light p-5 shadow-2xl"
+        className="mx-4 w-full max-w-md rounded-lg border border-ui-divider bg-ui-field p-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-start gap-3">
-          <div className="rounded-full bg-plm-error/15 p-2">
-            <AlertTriangle className="h-4 w-4 text-plm-error" />
+          <div className="rounded-full bg-ui-danger/15 p-2">
+            <AlertTriangle className="h-4 w-4 text-ui-danger" />
           </div>
           <div>
-            <h3 className="text-[14px] font-semibold text-plm-fg">Delete Address?</h3>
-            <p className="mt-0.5 text-[12px] text-plm-fg-muted">
+            <h3 className="text-[14px] font-semibold text-ui-fg">Delete Address?</h3>
+            <p className="mt-0.5 text-[13px] text-ui-fg-secondary">
               "{address.label}" ({address.address_type})
             </p>
           </div>
         </div>
 
-        <p className="mb-4 text-[13px] text-plm-fg-muted">
+        <p className="mb-4 text-[14px] text-ui-fg-secondary">
           This will permanently delete this address. This action cannot be undone.
         </p>
 

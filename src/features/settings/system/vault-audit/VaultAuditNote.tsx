@@ -22,19 +22,19 @@ interface VaultAuditNoteProps {
 
 export function VaultAuditNote({
   icon: Icon,
-  iconClassName = 'text-plm-fg-muted',
+  iconClassName = 'text-ui-fg-secondary',
   label,
   children,
 }: VaultAuditNoteProps) {
   const [open, setOpen] = useState(false)
 
   return (
-    <div className="rounded-md border border-plm-border bg-plm-bg-lighter">
+    <div className="rounded-md border border-ui-divider bg-ui-field">
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
         aria-expanded={open}
-        className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs text-plm-fg-muted hover:text-plm-fg transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-[12px] text-ui-fg-secondary hover:text-ui-fg transition-colors"
       >
         <Icon size={13} className={`flex-shrink-0 ${iconClassName}`} />
         <span className="flex-1">{label}</span>
@@ -43,7 +43,7 @@ export function VaultAuditNote({
           {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         </span>
       </button>
-      {open && <div className="px-3 pb-2 text-xs text-plm-fg-muted space-y-2">{children}</div>}
+      {open && <div className="px-3 pb-2 text-[12px] text-ui-fg-secondary space-y-2">{children}</div>}
     </div>
   )
 }

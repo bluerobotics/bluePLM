@@ -111,7 +111,7 @@ export function TitlesTab({ searchQuery = '', onShowCreateTitleDialog }: TitlesT
     return (
       <SettingsGroup>
         <div className="flex items-center justify-between gap-4 px-4 py-4">
-          <span className="text-[12px] text-plm-fg-muted">
+          <span className="text-[13px] text-ui-fg-secondary">
             {searchQuery ? 'No matching job titles' : 'No job titles yet'}
           </span>
           {isAdmin && !searchQuery && onShowCreateTitleDialog && (
@@ -143,7 +143,7 @@ export function TitlesTab({ searchQuery = '', onShowCreateTitleDialog }: TitlesT
             return (
               <div
                 key={title.id}
-                className="group flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-plm-highlight/40"
+                className="group flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-ui-hover/40"
               >
                 {/* Title icon */}
                 <div
@@ -155,8 +155,8 @@ export function TitlesTab({ searchQuery = '', onShowCreateTitleDialog }: TitlesT
 
                 {/* Title info */}
                 <div className="flex-1 min-w-0">
-                  <div className="truncate text-[13px] font-medium text-plm-fg">{title.name}</div>
-                  <div className="text-[12px] text-plm-fg-muted">
+                  <div className="truncate text-[14px] font-medium text-ui-fg">{title.name}</div>
+                  <div className="text-[13px] text-ui-fg-secondary">
                     {usersWithTitle.length} user{usersWithTitle.length !== 1 ? 's' : ''}
                   </div>
                 </div>
@@ -170,14 +170,14 @@ export function TitlesTab({ searchQuery = '', onShowCreateTitleDialog }: TitlesT
                           key={u.id}
                           src={getEffectiveAvatarUrl(u)!}
                           alt={u.full_name || u.email}
-                          className="h-6 w-6 rounded-full border-2 border-plm-bg-light object-cover"
+                          className="h-6 w-6 rounded-full border-2 border-ui-field object-cover"
                           title={u.full_name || u.email}
                           referrerPolicy="no-referrer"
                         />
                       ) : (
                         <div
                           key={u.id}
-                          className="h-6 w-6 rounded-full bg-plm-fg-muted/20 flex items-center justify-center text-[10px] font-medium border-2 border-plm-bg-light"
+                          className="h-6 w-6 rounded-full bg-ui-fg-secondary/20 flex items-center justify-center text-[12px] font-medium border-2 border-ui-field"
                           title={u.full_name || u.email}
                         >
                           {getInitials(u.full_name || u.email)}
@@ -185,7 +185,7 @@ export function TitlesTab({ searchQuery = '', onShowCreateTitleDialog }: TitlesT
                       ),
                     )}
                     {usersWithTitle.length > 4 && (
-                      <div className="h-6 w-6 rounded-full bg-plm-fg-muted/20 flex items-center justify-center text-[10px] font-medium border-2 border-plm-bg-light">
+                      <div className="h-6 w-6 rounded-full bg-ui-fg-secondary/20 flex items-center justify-center text-[12px] font-medium border-2 border-ui-field">
                         +{usersWithTitle.length - 4}
                       </div>
                     )}
@@ -198,7 +198,7 @@ export function TitlesTab({ searchQuery = '', onShowCreateTitleDialog }: TitlesT
                     <button
                       type="button"
                       onClick={() => openEditTitleDialog(title)}
-                      className="rounded-md p-1.5 text-plm-fg-muted transition-colors hover:bg-plm-highlight hover:text-plm-fg"
+                      className="rounded-md p-1.5 text-ui-fg-secondary transition-colors hover:bg-ui-hover hover:text-ui-fg"
                       title="Edit title"
                       aria-label="Edit title"
                     >
@@ -207,7 +207,7 @@ export function TitlesTab({ searchQuery = '', onShowCreateTitleDialog }: TitlesT
                     <button
                       type="button"
                       onClick={() => setDeletingTitle(title)}
-                      className="rounded-md p-1.5 text-plm-fg-muted transition-colors hover:bg-plm-error/10 hover:text-plm-error"
+                      className="rounded-md p-1.5 text-ui-fg-secondary transition-colors hover:bg-ui-danger/10 hover:text-ui-danger"
                       title="Delete title"
                       aria-label="Delete title"
                     >
@@ -222,7 +222,7 @@ export function TitlesTab({ searchQuery = '', onShowCreateTitleDialog }: TitlesT
       </SettingsGroup>
 
       {/* Info footer */}
-      <p className="text-[12px] text-plm-fg-muted">
+      <p className="text-[13px] text-ui-fg-secondary">
         Job titles are display-only labels. Editing a title updates it for all users who have it
         assigned. All permissions come from teams.
       </p>

@@ -113,7 +113,7 @@ export function DevToolsSettings() {
             description={
               <>
                 Current size:{' '}
-                <span className="font-mono text-plm-fg">
+                <span className="font-mono text-ui-fg">
                   {currentSize ? `${currentSize.width}×${currentSize.height}` : '—'}
                 </span>
               </>
@@ -151,7 +151,7 @@ export function DevToolsSettings() {
             <div className="h-[600px]">
               <Suspense
                 fallback={
-                  <div className="flex h-full items-center justify-center text-plm-fg-muted">
+                  <div className="flex h-full items-center justify-center text-ui-fg-secondary">
                     <Loader2 size={20} className="animate-spin" />
                   </div>
                 }

@@ -151,7 +151,7 @@ export function GoogleDriveSettings() {
             htmlFor="google-drive-enabled"
             badge={
               isLoading ? (
-                <Loader2 size={12} className="animate-spin text-plm-fg-muted" />
+                <Loader2 size={12} className="animate-spin text-ui-fg-secondary" />
               ) : configured ? (
                 <Badge tone="success">Configured</Badge>
               ) : enabled ? (
@@ -200,7 +200,7 @@ export function GoogleDriveSettings() {
                   type="button"
                   onClick={() => setShowSecret(!showSecret)}
                   aria-label={showSecret ? 'Hide secret' : 'Show secret'}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-plm-fg-muted hover:text-plm-fg"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ui-fg-secondary hover:text-ui-fg"
                 >
                   {showSecret ? <EyeOff size={14} /> : <Eye size={14} />}
                 </button>
@@ -239,7 +239,7 @@ export function GoogleDriveSettings() {
                   href="https://console.cloud.google.com/apis/credentials"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-plm-accent hover:underline"
+                  className="text-ui-accent hover:underline"
                 >
                   Google Cloud Console
                 </a>

@@ -307,12 +307,12 @@ export function ApiSettings() {
 
   const statusDot =
     apiStatus === 'online'
-      ? 'bg-plm-success'
+      ? 'bg-ui-success'
       : apiStatus === 'offline'
-        ? 'bg-plm-error'
+        ? 'bg-ui-danger'
         : apiStatus === 'checking'
-          ? 'bg-plm-warning animate-pulse'
-          : 'bg-plm-fg-muted'
+          ? 'bg-ui-warning animate-pulse'
+          : 'bg-ui-fg-secondary'
 
   const startEditingUrl = () => {
     setApiUrlInput(apiUrl.replace(/^https?:\/\//, ''))
@@ -361,9 +361,9 @@ export function ApiSettings() {
               apiUrl ? (
                 <span className="flex flex-wrap items-center gap-2">
                   {versionCheck && versionCheck.status !== 'current' && (
-                    <span className="text-plm-warning">(expected v{EXPECTED_API_VERSION})</span>
+                    <span className="text-ui-warning">(expected v{EXPECTED_API_VERSION})</span>
                   )}
-                  {apiBuild && <code className="font-mono text-plm-fg-dim">{apiBuild}</code>}
+                  {apiBuild && <code className="font-mono text-ui-fg">{apiBuild}</code>}
                   {lastChecked && <span>Checked {lastChecked.toLocaleTimeString()}</span>}
                 </span>
               ) : undefined
@@ -374,7 +374,7 @@ export function ApiSettings() {
                 href={`${apiUrl}/docs`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-[12px] text-plm-accent hover:underline"
+                className="inline-flex items-center gap-1.5 text-[13px] text-ui-accent hover:underline"
               >
                 <ExternalLink size={14} />
                 Open API Documentation (Swagger)
@@ -417,7 +417,7 @@ export function ApiSettings() {
               </div>
             ) : apiUrl ? (
               <>
-                <code className="max-w-[320px] truncate font-mono text-[12px] text-plm-fg-dim">
+                <code className="max-w-[320px] truncate font-mono text-[13px] text-ui-fg">
                   {apiUrl}
                 </code>
                 {isAdmin && (
@@ -443,7 +443,7 @@ export function ApiSettings() {
                 Set API Server URL
               </Button>
             ) : (
-              <span className="text-[12px] text-plm-fg-muted">No API server configured</span>
+              <span className="text-[13px] text-ui-fg-secondary">No API server configured</span>
             )}
           </SettingRow>
         </SettingsGroup>
@@ -468,7 +468,7 @@ export function ApiSettings() {
                 href="https://railway.app/new"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-plm-accent hover:underline"
+                className="text-ui-accent hover:underline"
               >
                 Railway
               </a>
@@ -476,7 +476,7 @@ export function ApiSettings() {
                 href="https://render.com/deploy"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-plm-accent hover:underline"
+                className="text-ui-accent hover:underline"
               >
                 Render
               </a>
@@ -484,7 +484,7 @@ export function ApiSettings() {
                 href="https://github.com/bluerobotics/bluePLM/blob/main/api/README.md#deployment"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-plm-accent hover:underline"
+                className="text-ui-accent hover:underline"
               >
                 Guide
               </a>
@@ -498,7 +498,7 @@ export function ApiSettings() {
           {apiToken ? (
             <>
               <div className="flex items-center gap-2 px-4 py-3">
-                <code className="min-w-0 flex-1 truncate font-mono text-[12px] text-plm-fg-muted">
+                <code className="min-w-0 flex-1 truncate font-mono text-[13px] text-ui-fg-secondary">
                   {showToken ? apiToken : `${apiToken.substring(0, 20)}${'•'.repeat(30)}`}
                 </code>
                 <Button
@@ -515,20 +515,20 @@ export function ApiSettings() {
                   onClick={handleCopyToken}
                   title="Copy token"
                   aria-label="Copy token"
-                  className={tokenCopied ? 'text-plm-success' : ''}
+                  className={tokenCopied ? 'text-ui-success' : ''}
                   icon={tokenCopied ? <Check size={14} /> : <Copy size={14} />}
                 />
               </div>
               {apiUrl && (
                 <div className="px-4 py-3">
-                  <code className="block rounded bg-plm-bg px-2 py-1.5 font-mono text-[12px] text-plm-fg-dim">
+                  <code className="block rounded bg-ui-bg px-2 py-1.5 font-mono text-[13px] text-ui-fg">
                     curl -H "Authorization: Bearer $TOKEN" {apiUrl}/files
                   </code>
                 </div>
               )}
             </>
           ) : (
-            <div className="px-4 py-3 text-[13px] text-plm-fg-muted">
+            <div className="px-4 py-3 text-[14px] text-ui-fg-secondary">
               Sign in to get an API token
             </div>
           )}
@@ -564,11 +564,11 @@ export function ApiSettings() {
       >
         <SettingsGroup>
           {apiHistory.length === 0 ? (
-            <div className="px-4 py-3 text-[13px] text-plm-fg-muted">No API calls recorded</div>
+            <div className="px-4 py-3 text-[14px] text-ui-fg-secondary">No API calls recorded</div>
           ) : (
-            <div className="max-h-48 divide-y divide-plm-border overflow-y-auto">
+            <div className="max-h-48 divide-y divide-ui-divider overflow-y-auto">
               {apiHistory.slice(0, 20).map((call) => (
-                <div key={call.id} className="flex items-center gap-2 px-4 py-2 text-[12px]">
+                <div key={call.id} className="flex items-center gap-2 px-4 py-2 text-[13px]">
                   <Badge
                     tone={
                       call.status >= 200 && call.status < 300
@@ -580,11 +580,11 @@ export function ApiSettings() {
                   >
                     {call.status || 'error'}
                   </Badge>
-                  <span className="text-plm-fg-muted">{call.method}</span>
-                  <span className="min-w-0 flex-1 truncate font-mono text-plm-fg">
+                  <span className="text-ui-fg-secondary">{call.method}</span>
+                  <span className="min-w-0 flex-1 truncate font-mono text-ui-fg">
                     {call.endpoint}
                   </span>
-                  <span className="flex items-center gap-1 text-plm-fg-muted">
+                  <span className="flex items-center gap-1 text-ui-fg-secondary">
                     <Clock size={10} />
                     {call.duration}ms
                   </span>

@@ -10,7 +10,7 @@ import { SettingRow, SettingsGroup, SettingsPage, SettingsSection } from '../com
 import { StatCard, StatGrid } from './StatCard'
 
 const RANGE_CLASS =
-  'h-1.5 w-28 cursor-pointer appearance-none rounded-full bg-plm-border accent-plm-accent'
+  'h-1.5 w-28 cursor-pointer appearance-none rounded-full bg-ui-divider accent-ui-accent'
 
 export function PerformanceSettings() {
   const [config, setConfig] = useState<TelemetryConfig>(telemetry.getConfig())
@@ -96,7 +96,7 @@ export function PerformanceSettings() {
               }}
               className={RANGE_CLASS}
             />
-            <span className="w-12 text-right text-[12px] tabular-nums text-plm-fg-muted">
+            <span className="w-12 text-right text-[13px] tabular-nums text-ui-fg-secondary">
               {config.sampleRateHz}Hz
             </span>
           </SettingRow>
@@ -119,7 +119,7 @@ export function PerformanceSettings() {
               }}
               className={RANGE_CLASS}
             />
-            <span className="w-12 text-right text-[12px] tabular-nums text-plm-fg-muted">
+            <span className="w-12 text-right text-[13px] tabular-nums text-ui-fg-secondary">
               {config.retentionSeconds}s
             </span>
           </SettingRow>

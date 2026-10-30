@@ -107,7 +107,7 @@ export function SessionsSettings() {
   }
 
   if (!user) {
-    return <div className="py-12 text-center text-[13px] text-plm-fg-muted">Not signed in</div>
+    return <div className="py-12 text-center text-[14px] text-ui-fg-secondary">Not signed in</div>
   }
 
   // Current device first
@@ -122,27 +122,27 @@ export function SessionsSettings() {
       <SettingsSection title="Signed-in devices">
         <SettingsGroup>
           {isLoading && sortedSessions.length === 0 ? (
-            <div className="flex items-center gap-2 px-4 py-3.5 text-[13px] text-plm-fg-muted">
+            <div className="flex items-center gap-2 px-4 py-3.5 text-[14px] text-ui-fg-secondary">
               <Loader2 size={14} className="animate-spin" />
               Loading sessions...
             </div>
           ) : sortedSessions.length === 0 ? (
-            <div className="px-4 py-3.5 text-[13px] text-plm-fg-muted">No active sessions</div>
+            <div className="px-4 py-3.5 text-[14px] text-ui-fg-secondary">No active sessions</div>
           ) : (
             sortedSessions.map((session) => {
               const isCurrentDevice = session.machine_id === currentMachineId
               const PlatformIcon = session.platform === 'darwin' ? Laptop : Monitor
               return (
                 <div key={session.id} className="flex items-center gap-3 px-4 py-3">
-                  <PlatformIcon size={16} className="flex-shrink-0 text-plm-fg-muted" />
+                  <PlatformIcon size={16} className="flex-shrink-0 text-ui-fg-secondary" />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="truncate text-[13px] font-medium text-plm-fg">
+                      <span className="truncate text-[14px] font-medium text-ui-fg">
                         {session.machine_name}
                       </span>
                       {isCurrentDevice && <Badge tone="accent">This device</Badge>}
                     </div>
-                    <div className="text-[12px] text-plm-fg-muted">
+                    <div className="text-[13px] text-ui-fg-secondary">
                       <span className="capitalize">{session.platform || 'Unknown'}</span>
                       {session.app_version && <> · v{session.app_version}</>}
                       {' · '}

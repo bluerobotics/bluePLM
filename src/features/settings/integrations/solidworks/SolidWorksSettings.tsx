@@ -31,7 +31,7 @@ const tabs = (): Tab[] => [
 
 function TabLoading() {
   return (
-    <div className="flex items-center justify-center h-32 text-plm-fg-muted">
+    <div className="flex items-center justify-center h-32 text-ui-fg-secondary">
       <Loader2 size={20} className="animate-spin" />
     </div>
   )
@@ -73,7 +73,7 @@ export function SolidWorksSettings() {
     <div className={`space-y-6 ${width}`}>
       {/* Tab Navigation */}
       <nav
-        className="flex gap-5 border-b border-plm-border"
+        className="flex gap-5 border-b border-ui-divider"
         role="tablist"
         aria-label="SolidWorks Settings Tabs"
       >
@@ -87,13 +87,13 @@ export function SolidWorksSettings() {
               role="tab"
               aria-selected={isActive}
               onClick={() => setActiveTab(tab.id)}
-              className={`-mb-px flex items-center gap-1.5 border-b-2 pb-2.5 pt-1 text-[13px] font-medium transition-colors outline-none focus-visible:text-plm-fg ${
+              className={`-mb-px flex items-center gap-1.5 border-b-2 pb-2.5 pt-1 text-[14px] font-medium transition-colors outline-none focus-visible:text-ui-fg ${
                 isActive
-                  ? 'border-plm-accent text-plm-fg'
-                  : 'border-transparent text-plm-fg-muted hover:text-plm-fg'
+                  ? 'border-ui-accent text-ui-fg'
+                  : 'border-transparent text-ui-fg-secondary hover:text-ui-fg'
               }`}
             >
-              <Icon size={14} className={isActive ? 'text-plm-accent' : ''} />
+              <Icon size={14} className={isActive ? 'text-ui-accent' : ''} />
               {tab.label}
             </button>
           )

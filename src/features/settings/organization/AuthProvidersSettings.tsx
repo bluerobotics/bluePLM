@@ -163,12 +163,12 @@ export function AuthProvidersSettings() {
   }
 
   if (!organization) {
-    return <div className="text-center py-12 text-plm-fg-muted">No organization connected</div>
+    return <div className="text-center py-12 text-ui-fg-secondary">No organization connected</div>
   }
 
   if (!isAdmin) {
     return (
-      <div className="text-center py-12 text-plm-fg-muted">
+      <div className="text-center py-12 text-ui-fg-secondary">
         Only administrators can manage authentication settings
       </div>
     )
@@ -177,7 +177,7 @@ export function AuthProvidersSettings() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="animate-spin text-plm-fg-muted" size={20} />
+        <Loader2 className="animate-spin text-ui-fg-secondary" size={20} />
       </div>
     )
   }
@@ -198,7 +198,7 @@ export function AuthProvidersSettings() {
             htmlFor={id}
             label={
               <span className="flex items-center gap-2.5">
-                <span className="text-plm-fg-muted">{provider.icon}</span>
+                <span className="text-ui-fg-secondary">{provider.icon}</span>
                 {provider.label}
               </span>
             }

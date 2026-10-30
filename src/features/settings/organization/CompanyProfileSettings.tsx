@@ -13,12 +13,12 @@ export function CompanyProfileSettings() {
   const { profile } = p
 
   if (!p.organization) {
-    return <div className="py-12 text-center text-plm-fg-muted">No organization connected</div>
+    return <div className="py-12 text-center text-ui-fg-secondary">No organization connected</div>
   }
 
   if (!p.isAdmin) {
     return (
-      <div className="py-12 text-center text-plm-fg-muted">
+      <div className="py-12 text-center text-ui-fg-secondary">
         Only administrators can manage company profile
       </div>
     )
@@ -27,7 +27,7 @@ export function CompanyProfileSettings() {
   if (p.loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="animate-spin text-plm-fg-muted" size={20} />
+        <Loader2 className="animate-spin text-ui-fg-secondary" size={20} />
       </div>
     )
   }
@@ -43,14 +43,14 @@ export function CompanyProfileSettings() {
                   <img
                     src={profile.logo_url}
                     alt="Company logo"
-                    className="h-12 max-w-48 rounded border border-plm-border bg-plm-bg object-contain p-1.5"
+                    className="h-12 max-w-48 rounded border border-ui-divider bg-ui-bg object-contain p-1.5"
                   />
                 ) : (
-                  <span className="flex h-12 w-24 items-center justify-center rounded border border-dashed border-plm-border text-plm-fg-muted">
+                  <span className="flex h-12 w-24 items-center justify-center rounded border border-dashed border-ui-divider text-ui-fg-secondary">
                     <ImageIcon size={18} />
                   </span>
                 )}
-                <span className="text-[12px] font-normal text-plm-fg-muted">
+                <span className="text-[13px] font-normal text-ui-fg-secondary">
                   PNG, JPG, or SVG. Max 2MB. Appears on RFQ documents.
                 </span>
               </span>
@@ -67,7 +67,7 @@ export function CompanyProfileSettings() {
               </Button>
             )}
             <label
-              className={`inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md border border-plm-border bg-plm-bg-light px-2.5 text-[12px] font-medium text-plm-fg transition-colors hover:border-plm-border-light hover:bg-plm-highlight ${
+              className={`inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md border border-ui-divider bg-ui-field px-2.5 text-[13px] font-medium text-ui-fg transition-colors hover:border-ui-field-border hover:bg-ui-hover ${
                 p.uploadingLogo ? 'pointer-events-none opacity-50' : ''
               }`}
             >
@@ -151,7 +151,7 @@ export function CompanyProfileSettings() {
             <div className="relative w-72">
               <Globe
                 size={14}
-                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-plm-fg-muted"
+                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ui-fg-secondary"
               />
               <TextInput
                 id="company-website"

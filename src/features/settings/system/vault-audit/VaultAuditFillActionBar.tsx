@@ -29,23 +29,23 @@ interface VaultAuditFillActionBarProps {
 
 function Receipt({ outcome }: { outcome: VaultAuditFillOutcome }) {
   return (
-    <div className="p-3 rounded-md border border-plm-border bg-plm-bg-lighter space-y-1.5">
-      <p className="text-sm text-plm-fg flex items-center gap-1.5">
-        <Check size={14} className="text-plm-success flex-shrink-0" />
+    <div className="p-3 rounded-md border border-ui-divider bg-ui-field space-y-1.5">
+      <p className="text-[13px] text-ui-fg flex items-center gap-1.5">
+        <Check size={14} className="text-ui-success flex-shrink-0" />
         {t('vaultAudit.fill.receiptFilled', { count: outcome.filled })}
       </p>
       {outcome.alreadySet > 0 && (
-        <p className="text-xs text-plm-fg-muted">
+        <p className="text-[12px] text-ui-fg-secondary">
           {t('vaultAudit.fill.receiptAlreadySet', { count: outcome.alreadySet })}
         </p>
       )}
       {outcome.heldByOther > 0 && (
-        <p className="text-xs text-plm-fg-muted">
+        <p className="text-[12px] text-ui-fg-secondary">
           {t('vaultAudit.fill.receiptHeld', { count: outcome.heldByOther })}
         </p>
       )}
       {(outcome.refused > 0 || outcome.failed > 0) && (
-        <p className="text-xs text-plm-warning flex items-start gap-1.5">
+        <p className="text-[12px] text-ui-warning flex items-start gap-1.5">
           <AlertTriangle size={13} className="mt-0.5 flex-shrink-0" />
           {t('vaultAudit.fill.receiptRefused', {
             refused: outcome.refused,
@@ -70,16 +70,16 @@ function Preview({ fill, onCancel }: { fill: UseVaultAuditFillResult; onCancel: 
   )
 
   return (
-    <div className="p-3 rounded-md border border-plm-accent/50 bg-plm-bg-lighter space-y-2">
-      <p className="text-sm text-plm-fg">
+    <div className="p-3 rounded-md border border-ui-accent/50 bg-ui-field space-y-2">
+      <p className="text-[13px] text-ui-fg">
         {t('vaultAudit.fill.previewHeading', {
           values: fill.plan.valueCount,
           files: fill.plan.requests.length,
         })}
       </p>
-      <ul className="max-h-60 overflow-y-auto text-xs font-mono space-y-0.5">
+      <ul className="max-h-60 overflow-y-auto text-[12px] font-mono space-y-0.5">
         {rows.slice(0, MAX_PREVIEW_ROWS).map((row) => (
-          <li key={row.key} className="text-plm-fg-muted break-words">
+          <li key={row.key} className="text-ui-fg-secondary break-words">
             {t('vaultAudit.fill.previewLine', {
               path: row.path,
               field: fieldLabel(row.field),
@@ -89,7 +89,7 @@ function Preview({ fill, onCancel }: { fill: UseVaultAuditFillResult; onCancel: 
         ))}
       </ul>
       {rows.length > MAX_PREVIEW_ROWS && (
-        <p className="text-xs text-plm-fg-muted">
+        <p className="text-[12px] text-ui-fg-secondary">
           {t('vaultAudit.fill.previewMore', { count: rows.length - MAX_PREVIEW_ROWS })}
         </p>
       )}
@@ -120,21 +120,21 @@ export function VaultAuditFillActionBar({ fill }: VaultAuditFillActionBarProps) 
     <div className="space-y-3">
       <VaultAuditNote
         icon={ShieldCheck}
-        iconClassName="text-plm-success"
+        iconClassName="text-ui-success"
         label={t('vaultAudit.actions.guaranteeLabel')}
       >
         <p>{t('vaultAudit.fill.guarantee')}</p>
       </VaultAuditNote>
 
       {!fill.isAdmin && (
-        <p className="text-xs text-plm-fg-muted flex items-start gap-1.5">
+        <p className="text-[12px] text-ui-fg-secondary flex items-start gap-1.5">
           <Lock size={13} className="mt-0.5 flex-shrink-0" />
           {t('vaultAudit.fill.adminOnly')}
         </p>
       )}
 
       {fill.error && (
-        <p className="text-sm text-plm-error flex items-start gap-1.5">
+        <p className="text-[13px] text-ui-danger flex items-start gap-1.5">
           <AlertTriangle size={14} className="mt-0.5 flex-shrink-0" />
           {fill.error}
         </p>
@@ -146,7 +146,7 @@ export function VaultAuditFillActionBar({ fill }: VaultAuditFillActionBarProps) 
         <Preview fill={fill} onCancel={() => setPreviewing(false)} />
       ) : (
         <div className="flex items-center justify-between gap-3">
-          <p className="text-xs text-plm-fg-muted">
+          <p className="text-[12px] text-ui-fg-secondary">
             {fill.plan.valueCount === 0
               ? t('vaultAudit.fill.selectPrompt')
               : t('vaultAudit.fill.selectedSummary', {

@@ -13,11 +13,11 @@ export function VaultAuditFieldTable({ tallies }: VaultAuditFieldTableProps) {
 
   return (
     <section className="space-y-2">
-      <h3 className="text-sm font-medium text-plm-fg">{t('vaultAudit.fields.heading')}</h3>
+      <h3 className="text-[13px] font-medium text-ui-fg">{t('vaultAudit.fields.heading')}</h3>
 
-      <div className="border border-plm-border rounded-md overflow-hidden">
-        <table className="w-full text-xs">
-          <thead className="bg-plm-bg-lighter text-plm-fg-muted">
+      <div className="border border-ui-divider rounded-md overflow-hidden">
+        <table className="w-full text-[12px]">
+          <thead className="bg-ui-field text-ui-fg-secondary">
             <tr>
               <th className="text-left font-normal px-2 py-1.5">
                 {t('vaultAudit.fields.columnField')}
@@ -41,22 +41,22 @@ export function VaultAuditFieldTable({ tallies }: VaultAuditFieldTableProps) {
           </thead>
           <tbody>
             {tallies.map((tally) => (
-              <tr key={`${tally.scope}:${tally.field}`} className="border-t border-plm-border/60">
-                <td className="px-2 py-1.5 text-plm-fg">
+              <tr key={`${tally.scope}:${tally.field}`} className="border-t border-ui-divider/60">
+                <td className="px-2 py-1.5 text-ui-fg">
                   {fieldLabel(tally.field)}
-                  <span className="text-plm-fg-muted/70 ml-1.5">
+                  <span className="text-ui-fg-secondary/70 ml-1.5">
                     {tally.scope === 'file'
                       ? t('divergence.scope.file')
                       : t('divergence.scope.configuration')}
                   </span>
                 </td>
-                <td className="px-2 py-1.5 text-right text-plm-fg-muted">{tally.compared}</td>
-                <td className="px-2 py-1.5 text-right text-plm-fg-muted">{tally.agrees}</td>
-                <td className="px-2 py-1.5 text-right text-plm-fg-muted">{tally.fileEmpty}</td>
-                <td className="px-2 py-1.5 text-right text-plm-fg-muted">{tally.databaseEmpty}</td>
+                <td className="px-2 py-1.5 text-right text-ui-fg-secondary">{tally.compared}</td>
+                <td className="px-2 py-1.5 text-right text-ui-fg-secondary">{tally.agrees}</td>
+                <td className="px-2 py-1.5 text-right text-ui-fg-secondary">{tally.fileEmpty}</td>
+                <td className="px-2 py-1.5 text-right text-ui-fg-secondary">{tally.databaseEmpty}</td>
                 <td
                   className={`px-2 py-1.5 text-right ${
-                    tally.bothSetDiffer > 0 ? 'text-plm-warning' : 'text-plm-fg-muted'
+                    tally.bothSetDiffer > 0 ? 'text-ui-warning' : 'text-ui-fg-secondary'
                   }`}
                 >
                   {tally.bothSetDiffer}

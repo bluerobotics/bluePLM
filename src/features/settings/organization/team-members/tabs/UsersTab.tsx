@@ -171,7 +171,7 @@ export function UsersTab({ searchQuery = '', onShowCreateUserDialog }: UsersTabP
       {filteredAllUsers.length === 0 ? (
         <SettingsGroup>
           <div className="flex items-center justify-between gap-4 px-4 py-4">
-            <span className="text-[12px] text-plm-fg-muted">
+            <span className="text-[13px] text-ui-fg-secondary">
               {orgUsers.length === 0 ? 'No users yet' : 'No users match your search'}
             </span>
             {isAdmin && orgUsers.length === 0 && onShowCreateUserDialog && (
@@ -201,33 +201,33 @@ export function UsersTab({ searchQuery = '', onShowCreateUserDialog }: UsersTabP
             type="button"
             onClick={() => setShowPendingMembers(!showPendingMembers)}
             aria-expanded={showPendingMembers}
-            className="flex items-center gap-1.5 text-[13px] font-medium text-plm-fg-muted transition-colors hover:text-plm-fg"
+            className="flex items-center gap-1.5 text-[14px] font-medium text-ui-fg-secondary transition-colors hover:text-ui-fg"
           >
             {showPendingMembers ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
             Pending Members
-            <span className="text-[11px] font-normal tabular-nums">{pendingMembers.length}</span>
+            <span className="text-[12px] font-normal tabular-nums">{pendingMembers.length}</span>
           </button>
 
           {showPendingMembers && (
             <SettingsGroup>
-              <div className="px-4 py-2.5 text-[12px] text-plm-fg-muted">
+              <div className="px-4 py-2.5 text-[13px] text-ui-fg-secondary">
                 Pre-created accounts awaiting user sign-in. These users can sign in with the
                 organization code.
               </div>
               {pendingMembers.map((pm) => (
                 <div
                   key={pm.id}
-                  className="group flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-plm-highlight/40"
+                  className="group flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-ui-hover/40"
                 >
-                  <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-plm-fg-muted/10">
-                    <Clock size={14} className="text-plm-fg-muted" />
+                  <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-ui-fg-secondary/10">
+                    <Clock size={14} className="text-ui-fg-secondary" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 text-[13px] font-medium text-plm-fg">
+                    <div className="flex items-center gap-2 text-[14px] font-medium text-ui-fg">
                       <span className="truncate">{pm.full_name || pm.email}</span>
                       <Badge tone="warning">Pending</Badge>
                     </div>
-                    <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[12px] text-plm-fg-muted">
+                    <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[13px] text-ui-fg-secondary">
                       <span className="truncate">{pm.email}</span>
                       {pm.workflow_role_ids && pm.workflow_role_ids.length > 0 && (
                         <span className="flex items-center gap-1">
@@ -244,7 +244,7 @@ export function UsersTab({ searchQuery = '', onShowCreateUserDialog }: UsersTabP
                             return (
                               <span
                                 key={roleId}
-                                className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium"
+                                className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[12px] font-medium"
                                 style={{ backgroundColor: `${role.color}20`, color: role.color }}
                                 title={role.name}
                               >
@@ -254,7 +254,7 @@ export function UsersTab({ searchQuery = '', onShowCreateUserDialog }: UsersTabP
                             )
                           })}
                           {pm.workflow_role_ids.length > 2 && (
-                            <span className="text-[11px] text-plm-fg-muted">
+                            <span className="text-[12px] text-ui-fg-secondary">
                               +{pm.workflow_role_ids.length - 2}
                             </span>
                           )}
@@ -273,7 +273,7 @@ export function UsersTab({ searchQuery = '', onShowCreateUserDialog }: UsersTabP
                         type="button"
                         onClick={() => handleResendInvite(pm)}
                         disabled={resendingInviteId === pm.id}
-                        className="rounded-md p-1.5 text-plm-fg-muted hover:bg-plm-highlight hover:text-plm-fg disabled:opacity-50"
+                        className="rounded-md p-1.5 text-ui-fg-secondary hover:bg-ui-hover hover:text-ui-fg disabled:opacity-50"
                         title="Resend invite email"
                         aria-label="Resend invite email"
                       >
@@ -287,7 +287,7 @@ export function UsersTab({ searchQuery = '', onShowCreateUserDialog }: UsersTabP
                     <button
                       type="button"
                       onClick={() => openEditPendingMember(pm)}
-                      className="rounded-md p-1.5 text-plm-fg-muted hover:bg-plm-highlight hover:text-plm-fg"
+                      className="rounded-md p-1.5 text-ui-fg-secondary hover:bg-ui-hover hover:text-ui-fg"
                       title="Edit pending member"
                       aria-label="Edit pending member"
                     >
@@ -296,7 +296,7 @@ export function UsersTab({ searchQuery = '', onShowCreateUserDialog }: UsersTabP
                     <button
                       type="button"
                       onClick={() => deletePendingMember(pm.id)}
-                      className="rounded-md p-1.5 text-plm-fg-muted hover:bg-plm-error/10 hover:text-plm-error"
+                      className="rounded-md p-1.5 text-ui-fg-secondary hover:bg-ui-danger/10 hover:text-ui-danger"
                       title="Remove pending member"
                       aria-label="Remove pending member"
                     >
@@ -312,7 +312,7 @@ export function UsersTab({ searchQuery = '', onShowCreateUserDialog }: UsersTabP
                             pendingMemberDropdownOpen === pm.id ? null : pm.id,
                           )
                         }
-                        className="rounded-md p-1.5 text-plm-fg-muted hover:bg-plm-highlight hover:text-plm-fg"
+                        className="rounded-md p-1.5 text-ui-fg-secondary hover:bg-ui-hover hover:text-ui-fg"
                         title="More actions"
                         aria-label="More actions"
                       >
@@ -326,7 +326,7 @@ export function UsersTab({ searchQuery = '', onShowCreateUserDialog }: UsersTabP
                             onClick={() => setPendingMemberDropdownOpen(null)}
                           />
                           <div
-                            className="fixed z-[101] min-w-[180px] rounded-lg border border-plm-border bg-plm-bg-light py-1 shadow-xl"
+                            className="fixed z-[101] min-w-[180px] rounded-lg border border-ui-divider bg-ui-field py-1 shadow-xl"
                             ref={(el) => {
                               if (el) {
                                 const btn = el.previousElementSibling
@@ -354,7 +354,7 @@ export function UsersTab({ searchQuery = '', onShowCreateUserDialog }: UsersTabP
                                 setViewingPendingMemberPermissions(pm)
                                 setPendingMemberDropdownOpen(null)
                               }}
-                              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] text-plm-fg transition-colors hover:bg-plm-highlight"
+                              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[14px] text-ui-fg transition-colors hover:bg-ui-hover"
                             >
                               <Eye size={14} />
                               View Net Permissions
@@ -366,7 +366,7 @@ export function UsersTab({ searchQuery = '', onShowCreateUserDialog }: UsersTabP
                                 startUserImpersonation(fakeUser.id, fakeUser)
                                 setPendingMemberDropdownOpen(null)
                               }}
-                              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] text-plm-fg transition-colors hover:bg-plm-highlight"
+                              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[14px] text-ui-fg transition-colors hover:bg-ui-hover"
                             >
                               <UserCog size={14} />
                               Simulate Permissions

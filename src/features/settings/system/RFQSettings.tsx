@@ -143,13 +143,13 @@ export function RFQSettings() {
   }
 
   if (!organization) {
-    return <div className="text-center py-12 text-plm-fg-muted">No organization connected</div>
+    return <div className="text-center py-12 text-ui-fg-secondary">No organization connected</div>
   }
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="animate-spin text-plm-accent" size={24} />
+        <Loader2 className="animate-spin text-ui-accent" size={24} />
       </div>
     )
   }

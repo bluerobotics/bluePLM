@@ -77,11 +77,11 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
       onClick={onClose}
     >
       <div
-        className="bg-plm-bg-light border border-plm-border rounded-xl w-full max-w-6xl h-[90vh] mx-4 flex flex-col shadow-2xl overflow-hidden"
+        className="bg-ui-field border border-ui-divider rounded-xl w-full max-w-6xl h-[90vh] mx-4 flex flex-col shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="p-4 border-b border-plm-border flex items-center gap-4 flex-shrink-0">
+        <div className="p-4 border-b border-ui-divider flex items-center gap-4 flex-shrink-0">
           <div
             className="p-2.5 rounded-lg"
             style={{ backgroundColor: `${team.color}20`, color: team.color }}
@@ -89,11 +89,11 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
             <IconComponent size={22} />
           </div>
           <div className="flex-1">
-            <h2 className="text-lg font-semibold text-plm-fg flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-ui-fg flex items-center gap-2">
               {team.name}
-              <span className="text-sm font-normal text-plm-fg-muted">— Permissions</span>
+              <span className="text-[13px] font-normal text-ui-fg-secondary">— Permissions</span>
             </h2>
-            <p className="text-sm text-plm-fg-muted">Configure what this team can access and do</p>
+            <p className="text-[13px] text-ui-fg-secondary">Configure what this team can access and do</p>
           </div>
 
           {/* Action buttons */}
@@ -132,7 +132,7 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
 
             <button
               onClick={onClose}
-              className="p-2 text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight rounded-lg transition-colors"
+              className="p-2 text-ui-fg-secondary hover:text-ui-fg hover:bg-ui-hover rounded-lg transition-colors"
             >
               <X size={18} />
             </button>
@@ -141,22 +141,22 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
 
         {/* Presets dropdown */}
         {showPresets && isAdmin && (
-          <div className="border-b border-plm-border p-4 bg-gradient-to-r from-plm-accent/5 to-transparent">
+          <div className="border-b border-ui-divider p-4 bg-gradient-to-r from-ui-accent/5 to-transparent">
             <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2 text-sm font-medium text-plm-fg">
-                <Sparkles size={16} className="text-plm-accent" />
+              <div className="flex items-center gap-2 text-[13px] font-medium text-ui-fg">
+                <Sparkles size={16} className="text-ui-accent" />
                 Quick Apply Preset
               </div>
               <div className="flex items-center gap-2">
                 <button
                   onClick={clearAll}
-                  className="text-xs text-plm-fg-muted hover:text-plm-fg px-2 py-1 rounded hover:bg-plm-highlight"
+                  className="text-[12px] text-ui-fg-secondary hover:text-ui-fg px-2 py-1 rounded hover:bg-ui-hover"
                 >
                   Clear All
                 </button>
                 <button
                   onClick={grantAll}
-                  className="text-xs text-plm-accent hover:text-plm-accent/80 px-2 py-1 rounded hover:bg-plm-accent/10"
+                  className="text-[12px] text-ui-accent hover:text-ui-accent/80 px-2 py-1 rounded hover:bg-ui-accent/10"
                 >
                   Grant All
                 </button>
@@ -169,7 +169,7 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
                   <button
                     key={preset.name}
                     onClick={() => applyPreset(preset as PermissionPreset)}
-                    className="flex items-center gap-2 px-3 py-2 bg-plm-bg border border-plm-border rounded-lg hover:border-plm-accent/50 hover:bg-plm-highlight transition-all group"
+                    className="flex items-center gap-2 px-3 py-2 bg-ui-bg border border-ui-divider rounded-lg hover:border-ui-accent/50 hover:bg-ui-hover transition-all group"
                   >
                     <div
                       className="p-1 rounded"
@@ -177,7 +177,7 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
                     >
                       <PresetIcon size={14} />
                     </div>
-                    <span className="text-sm text-plm-fg">{preset.name}</span>
+                    <span className="text-[13px] text-ui-fg">{preset.name}</span>
                   </button>
                 )
               })}
@@ -186,25 +186,25 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
         )}
 
         {/* Toolbar */}
-        <div className="p-3 border-b border-plm-border flex items-center gap-3 flex-shrink-0 bg-plm-bg/50">
+        <div className="p-3 border-b border-ui-divider flex items-center gap-3 flex-shrink-0 bg-ui-bg/50">
           <div className="relative flex-1 max-w-xs">
             <Search
               size={14}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-ui-fg-secondary"
             />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search resources..."
-              className="w-full pl-9 pr-3 py-1.5 text-sm bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-dim focus:outline-none focus:border-plm-accent"
+              className="w-full pl-9 pr-3 py-1.5 text-[13px] bg-ui-bg border border-ui-divider rounded-lg text-ui-fg placeholder:text-ui-fg focus:outline-none focus:border-ui-accent"
             />
           </div>
 
           {/* Quick column toggles */}
           {isAdmin && (
             <div className="flex items-center gap-1">
-              <span className="text-xs text-plm-fg-muted mr-1">Toggle All:</span>
+              <span className="text-[12px] text-ui-fg-secondary mr-1">Toggle All:</span>
               {PERMISSION_ACTIONS.map((action) => {
                 const allHave = allHaveAction(action)
                 const someHave = someHaveAction(action)
@@ -265,10 +265,10 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
               })}
 
               {/* Select All / Clear All button */}
-              <div className="ml-2 flex items-center gap-1 border-l border-plm-border pl-2">
+              <div className="ml-2 flex items-center gap-1 border-l border-ui-divider pl-2">
                 <button
                   onClick={grantAll}
-                  className="px-2 py-1.5 text-xs rounded-lg border border-plm-accent/30 bg-plm-accent/10 text-plm-accent hover:bg-plm-accent/20 transition-colors flex items-center gap-1"
+                  className="px-2 py-1.5 text-[12px] rounded-lg border border-ui-accent/30 bg-ui-accent/10 text-ui-accent hover:bg-ui-accent/20 transition-colors flex items-center gap-1"
                   title="Grant all permissions to all resources"
                 >
                   <Check size={12} />
@@ -276,7 +276,7 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
                 </button>
                 <button
                   onClick={clearAll}
-                  className="px-2 py-1.5 text-xs rounded-lg border border-plm-border bg-plm-bg text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight transition-colors flex items-center gap-1"
+                  className="px-2 py-1.5 text-[12px] rounded-lg border border-ui-divider bg-ui-bg text-ui-fg-secondary hover:text-ui-fg hover:bg-ui-hover transition-colors flex items-center gap-1"
                   title="Clear all permissions"
                 >
                   <X size={12} />
@@ -287,7 +287,7 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
           )}
 
           {/* Action legend */}
-          <div className="flex items-center gap-4 ml-auto text-xs text-plm-fg-muted">
+          <div className="flex items-center gap-4 ml-auto text-[12px] text-ui-fg-secondary">
             {PERMISSION_ACTIONS.map((action) => (
               <div key={action} className="flex items-center gap-1.5">
                 <div
@@ -313,7 +313,7 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
         <div className="flex-1 overflow-y-auto">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="animate-spin text-plm-fg-muted" size={32} />
+              <Loader2 className="animate-spin text-ui-fg-secondary" size={32} />
             </div>
           ) : (
             <div className="p-4 space-y-2">
@@ -328,10 +328,10 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
                 return (
                   <div
                     key={group.id}
-                    className="border border-plm-border rounded-xl overflow-hidden bg-plm-bg/30"
+                    className="border border-ui-divider rounded-xl overflow-hidden bg-ui-bg/30"
                   >
                     {/* Group header */}
-                    <div className="flex items-center gap-3 px-4 py-3 hover:bg-plm-highlight/50 transition-colors">
+                    <div className="flex items-center gap-3 px-4 py-3 hover:bg-ui-hover/50 transition-colors">
                       {/* Icon - same width as child icons */}
                       <button
                         onClick={() => toggleGroup(group.id)}
@@ -347,17 +347,17 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
                         className="flex-1 min-w-0 text-left flex items-center gap-2"
                       >
                         <div className="flex-1 min-w-0">
-                          <div className="font-medium text-plm-fg">{group.name}</div>
-                          <div className="text-xs text-plm-fg-muted">
+                          <div className="font-medium text-ui-fg">{group.name}</div>
+                          <div className="text-[12px] text-ui-fg-secondary">
                             {group.id === 'source-files'
                               ? `${vaults.length} vault${vaults.length !== 1 ? 's' : ''} • ${stats.withPerms} of ${stats.total} configured`
                               : `${stats.withPerms} of ${stats.total} resources configured`}
                           </div>
                         </div>
                         {isExpanded ? (
-                          <ChevronDown size={18} className="text-plm-fg-muted flex-shrink-0" />
+                          <ChevronDown size={18} className="text-ui-fg-secondary flex-shrink-0" />
                         ) : (
-                          <ChevronRight size={18} className="text-plm-fg-muted flex-shrink-0" />
+                          <ChevronRight size={18} className="text-ui-fg-secondary flex-shrink-0" />
                         )}
                       </button>
 
@@ -420,7 +420,7 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
                                 ) : someHave ? (
                                   <Minus size={14} />
                                 ) : (
-                                  <span className="text-[10px] font-medium">
+                                  <span className="text-[12px] font-medium">
                                     {action.charAt(0).toUpperCase()}
                                   </span>
                                 )}
@@ -435,17 +435,17 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
 
                     {/* Group resources */}
                     {isExpanded && (
-                      <div className="border-t border-plm-border">
+                      <div className="border-t border-ui-divider">
                         {/* Vault tabs for source-files group */}
                         {group.id === 'source-files' && vaults.length > 0 && (
-                          <div className="px-4 py-2 border-b border-plm-border bg-plm-bg/50 flex items-center gap-1 flex-wrap">
-                            <span className="text-xs text-plm-fg-muted mr-1">Vault:</span>
+                          <div className="px-4 py-2 border-b border-ui-divider bg-ui-bg/50 flex items-center gap-1 flex-wrap">
+                            <span className="text-[12px] text-ui-fg-secondary mr-1">Vault:</span>
                             <button
                               onClick={() => setSelectedSourceFilesVaultId(null)}
-                              className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors ${
+                              className={`flex items-center gap-1.5 px-2 py-1 rounded text-[12px] transition-colors ${
                                 selectedSourceFilesVaultId === null
-                                  ? 'bg-plm-accent text-white'
-                                  : 'bg-plm-bg-light text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight border border-plm-border'
+                                  ? 'bg-ui-accent text-white'
+                                  : 'bg-ui-field text-ui-fg-secondary hover:text-ui-fg hover:bg-ui-hover border border-ui-divider'
                               }`}
                             >
                               <Database size={11} />
@@ -455,10 +455,10 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
                               <button
                                 key={vault.id}
                                 onClick={() => setSelectedSourceFilesVaultId(vault.id)}
-                                className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors ${
+                                className={`flex items-center gap-1.5 px-2 py-1 rounded text-[12px] transition-colors ${
                                   selectedSourceFilesVaultId === vault.id
-                                    ? 'bg-plm-accent text-white'
-                                    : 'bg-plm-bg-light text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight border border-plm-border'
+                                    ? 'bg-ui-accent text-white'
+                                    : 'bg-ui-field text-ui-fg-secondary hover:text-ui-fg hover:bg-ui-hover border border-ui-divider'
                                 }`}
                               >
                                 <Folder size={11} />
@@ -478,23 +478,23 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
                           return (
                             <div
                               key={resourceId}
-                              className={`flex items-center gap-3 px-4 py-2.5 hover:bg-plm-highlight/30 transition-colors ${
+                              className={`flex items-center gap-3 px-4 py-2.5 hover:bg-ui-hover/30 transition-colors ${
                                 idx !== filteredResources.length - 1
-                                  ? 'border-b border-plm-border/20'
+                                  ? 'border-b border-ui-divider/20'
                                   : ''
                               }`}
                             >
                               {/* Resource icon */}
-                              <div className="w-8 h-8 rounded-lg bg-plm-bg-secondary flex items-center justify-center text-plm-fg-muted">
+                              <div className="w-8 h-8 rounded-lg bg-ui-field flex items-center justify-center text-ui-fg-secondary">
                                 <ResourceIcon size={16} />
                               </div>
 
                               {/* Resource info */}
                               <div className="flex-1 min-w-0">
-                                <div className="text-sm text-plm-fg font-medium truncate">
+                                <div className="text-[13px] text-ui-fg font-medium truncate">
                                   {resource.name}
                                 </div>
-                                <div className="text-xs text-plm-fg-muted truncate">
+                                <div className="text-[12px] text-ui-fg-secondary truncate">
                                   {resource.description}
                                 </div>
                               </div>
@@ -512,7 +512,7 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
                                         className="w-9 h-9 rounded-lg flex items-center justify-center opacity-20"
                                         title={`${PERMISSION_ACTION_LABELS[action]} not applicable`}
                                       >
-                                        <Minus size={12} className="text-plm-fg-dim" />
+                                        <Minus size={12} className="text-ui-fg" />
                                       </div>
                                     )
                                   }
@@ -557,7 +557,7 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
                                       {isGranted ? (
                                         <Check size={14} />
                                       ) : (
-                                        <span className="text-[10px] font-medium">
+                                        <span className="text-[12px] font-medium">
                                           {actionLetter}
                                         </span>
                                       )}
@@ -570,7 +570,7 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
                                   <div className="ml-2 flex items-center gap-1 opacity-0 group-hover:opacity-100">
                                     <button
                                       onClick={() => setAllActions(resourceId, [])}
-                                      className="p-1.5 text-plm-fg-dim hover:text-plm-fg hover:bg-plm-highlight rounded transition-colors"
+                                      className="p-1.5 text-ui-fg hover:text-ui-fg hover:bg-ui-hover rounded transition-colors"
                                       title="Clear all"
                                     >
                                       <X size={12} />
@@ -579,7 +579,7 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
                                       onClick={() =>
                                         setAllActions(resourceId, [...resource.applicableActions])
                                       }
-                                      className="p-1.5 text-plm-fg-dim hover:text-plm-accent hover:bg-plm-accent/10 rounded transition-colors"
+                                      className="p-1.5 text-ui-fg hover:text-ui-accent hover:bg-ui-accent/10 rounded transition-colors"
                                       title="Grant all"
                                     >
                                       <Check size={12} />
@@ -600,8 +600,8 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
         </div>
 
         {/* Footer with summary */}
-        <div className="p-4 border-t border-plm-border flex items-center justify-between bg-plm-bg/50 flex-shrink-0">
-          <div className="flex items-center gap-4 text-sm text-plm-fg-muted">
+        <div className="p-4 border-t border-ui-divider flex items-center justify-between bg-ui-bg/50 flex-shrink-0">
+          <div className="flex items-center gap-4 text-[13px] text-ui-fg-secondary">
             <div className="flex items-center gap-1.5">
               <Shield size={14} />
               <span>
@@ -615,7 +615,7 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
               </span>
             </div>
             {hasChanges && (
-              <div className="flex items-center gap-1.5 text-plm-warning">
+              <div className="flex items-center gap-1.5 text-ui-warning">
                 <AlertTriangle size={14} />
                 <span>Unsaved changes</span>
               </div>

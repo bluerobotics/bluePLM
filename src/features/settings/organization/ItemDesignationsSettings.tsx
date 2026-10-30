@@ -81,11 +81,11 @@ export function ItemDesignationsSettings() {
       <SettingsSection title="Designations" description={t('itemBrowser.designationsDescription')}>
         <SettingsGroup>
           {loading ? (
-            <div className="flex h-24 items-center justify-center text-plm-fg-muted">
+            <div className="flex h-24 items-center justify-center text-ui-fg-secondary">
               <Loader2 size={20} className="animate-spin" />
             </div>
           ) : designations.length === 0 ? (
-            <p className="px-4 py-3 text-[13px] text-plm-fg-muted">
+            <p className="px-4 py-3 text-[14px] text-ui-fg-secondary">
               {t('itemBrowser.noDesignations')}
             </p>
           ) : (
@@ -93,10 +93,10 @@ export function ItemDesignationsSettings() {
               <div
                 key={designation.id}
                 className={`flex items-center justify-between gap-2 px-4 py-2 ${
-                  editingId === designation.id ? 'bg-plm-accent/5' : ''
+                  editingId === designation.id ? 'bg-ui-accent/5' : ''
                 }`}
               >
-                <span className="truncate text-[13px] text-plm-fg">{designation.name}</span>
+                <span className="truncate text-[14px] text-ui-fg">{designation.name}</span>
                 {canManage && (
                   <div className="flex items-center gap-0.5">
                     <Button
@@ -115,7 +115,7 @@ export function ItemDesignationsSettings() {
                       size="sm"
                       icon={<Trash2 size={14} />}
                       onClick={() => handleDelete(designation.id)}
-                      className="hover:!text-plm-error"
+                      className="hover:!text-ui-danger"
                       title={t('common.delete')}
                       aria-label={t('common.delete')}
                     />

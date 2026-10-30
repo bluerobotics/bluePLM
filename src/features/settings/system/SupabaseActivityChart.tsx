@@ -31,10 +31,10 @@ function bucketTitle(timeRange: ActivityTimeRange, date: string): string {
 function SummaryStat({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
     <div className="flex items-center gap-2.5">
-      <span className="text-plm-fg-muted">{icon}</span>
+      <span className="text-ui-fg-secondary">{icon}</span>
       <div className="min-w-0">
-        <div className="text-[12px] text-plm-fg-muted">{label}</div>
-        <div className="text-[13px] font-medium tabular-nums text-plm-fg">{value}</div>
+        <div className="text-[13px] text-ui-fg-secondary">{label}</div>
+        <div className="text-[14px] font-medium tabular-nums text-ui-fg">{value}</div>
       </div>
     </div>
   )
@@ -84,7 +84,7 @@ export function SupabaseActivityChart({
       <div className="space-y-3 px-4 py-4">
         {loading ? (
           <div className="flex h-32 items-center justify-center">
-            <Loader2 size={20} className="animate-spin text-plm-fg-muted" />
+            <Loader2 size={20} className="animate-spin text-ui-fg-secondary" />
           </div>
         ) : (
           <div className="flex h-32 items-end gap-1">
@@ -126,11 +126,11 @@ export function SupabaseActivityChart({
                     />
                   </div>
 
-                  <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md border border-plm-border bg-plm-bg-secondary p-2 text-[12px] opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
-                    <div className="mb-1 font-medium text-plm-fg">
+                  <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md border border-ui-divider bg-ui-field p-2 text-[13px] opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+                    <div className="mb-1 font-medium text-ui-fg">
                       {bucketTitle(timeRange, day.date)}
                     </div>
-                    <div className="space-y-0.5 text-plm-fg-muted">
+                    <div className="space-y-0.5 text-ui-fg-secondary">
                       <div className="flex items-center gap-2">
                         <span className="h-2 w-2 rounded-sm bg-emerald-500" />
                         Check-ins: {day.checkins}
@@ -147,7 +147,7 @@ export function SupabaseActivityChart({
                         <span className="h-2 w-2 rounded-sm bg-orange-500" />
                         Other: {other}
                       </div>
-                      <div className="mt-1 border-t border-plm-border pt-1">
+                      <div className="mt-1 border-t border-ui-divider pt-1">
                         <div>Data in: {formatBytes(day.bytesIn)}</div>
                         <div>Users: {day.uniqueUsers}</div>
                       </div>
@@ -155,7 +155,7 @@ export function SupabaseActivityChart({
                   </div>
 
                   <span
-                    className={`text-[10px] ${isLast ? 'font-medium text-plm-accent' : 'text-plm-fg-muted'}`}
+                    className={`text-[12px] ${isLast ? 'font-medium text-ui-accent' : 'text-ui-fg-secondary'}`}
                   >
                     {day.dayLabel.substring(0, 3)}
                   </span>
@@ -165,7 +165,7 @@ export function SupabaseActivityChart({
           </div>
         )}
 
-        <div className="flex flex-wrap items-center justify-between gap-3 text-[12px] text-plm-fg-muted">
+        <div className="flex flex-wrap items-center justify-between gap-3 text-[13px] text-ui-fg-secondary">
           <div className="flex flex-wrap items-center gap-4">
             {SERIES.map((series) => (
               <span key={series.key} className="flex items-center gap-1.5">
@@ -176,8 +176,8 @@ export function SupabaseActivityChart({
           </div>
           {!loading && networkStats.peakEvents > 0 && (
             <span className="flex items-center gap-1.5">
-              <TrendingUp size={12} className="text-plm-accent" />
-              Peak: <strong className="font-medium text-plm-fg">
+              <TrendingUp size={12} className="text-ui-accent" />
+              Peak: <strong className="font-medium text-ui-fg">
                 {networkStats.peakEvents}
               </strong>{' '}
               events {timeRange === '24h' ? 'at' : 'on'} {networkStats.peakDay}

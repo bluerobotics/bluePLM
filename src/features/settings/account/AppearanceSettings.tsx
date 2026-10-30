@@ -92,7 +92,7 @@ export function AppearanceSettings() {
     ]
 
   if (!user) {
-    return <div className="py-12 text-center text-[13px] text-plm-fg-muted">Not signed in</div>
+    return <div className="py-12 text-center text-[14px] text-ui-fg-secondary">Not signed in</div>
   }
 
   return (
@@ -108,26 +108,26 @@ export function AppearanceSettings() {
                 role="radio"
                 aria-checked={isSelected}
                 onClick={() => !isSelected && setTheme(option.value)}
-                className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-plm-accent/60 ${
+                className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ui-accent/60 ${
                   isSelected
-                    ? 'cursor-default border-plm-accent bg-plm-accent/10'
-                    : 'border-plm-border bg-plm-bg-light/60 hover:border-plm-border-light hover:bg-plm-highlight'
+                    ? 'cursor-default border-ui-accent bg-ui-accent/10'
+                    : 'border-ui-divider bg-ui-field/60 hover:border-ui-field-border hover:bg-ui-hover'
                 }`}
               >
                 <span
                   className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md ${
-                    isSelected ? 'bg-plm-accent text-white' : 'bg-plm-highlight text-plm-fg-muted'
+                    isSelected ? 'bg-ui-accent text-white' : 'bg-ui-hover text-ui-fg-secondary'
                   }`}
                 >
                   {option.icon}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[13px] font-medium text-plm-fg">{option.label}</span>
-                  <span className="block truncate text-[12px] text-plm-fg-muted">
+                  <span className="block text-[14px] font-medium text-ui-fg">{option.label}</span>
+                  <span className="block truncate text-[13px] text-ui-fg-secondary">
                     {option.description}
                   </span>
                 </span>
-                {isSelected && <Check size={16} className="flex-shrink-0 text-plm-accent" />}
+                {isSelected && <Check size={16} className="flex-shrink-0 text-ui-accent" />}
               </button>
             )
           })}

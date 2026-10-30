@@ -42,7 +42,7 @@ function Choice<T extends string>({ name, value, options, disabled, onChange }: 
         <label
           key={option.value}
           className={`flex items-start gap-3 px-4 py-3 ${
-            disabled ? 'opacity-60' : 'cursor-pointer hover:bg-plm-highlight/40'
+            disabled ? 'opacity-60' : 'cursor-pointer hover:bg-ui-hover/40'
           }`}
         >
           <input
@@ -51,11 +51,11 @@ function Choice<T extends string>({ name, value, options, disabled, onChange }: 
             checked={value === option.value}
             disabled={disabled}
             onChange={() => onChange(option.value)}
-            className="mt-0.5 accent-plm-accent"
+            className="mt-0.5 accent-ui-accent"
           />
           <span className="min-w-0">
-            <span className="block text-[13px] font-medium text-plm-fg">{option.label}</span>
-            <span className="mt-0.5 block text-[12px] leading-relaxed text-plm-fg-muted">
+            <span className="block text-[14px] font-medium text-ui-fg">{option.label}</span>
+            <span className="mt-0.5 block text-[13px] leading-relaxed text-ui-fg-secondary">
               {option.hint}
             </span>
           </span>
@@ -129,7 +129,7 @@ export function FileWorkflowsSettings() {
         // while a change saves.
         actions={
           <span className="inline-flex h-4 w-4 items-center" aria-live="polite">
-            {saving && <Loader2 size={14} className="animate-spin text-plm-fg-muted" />}
+            {saving && <Loader2 size={14} className="animate-spin text-ui-fg-secondary" />}
           </span>
         }
       >

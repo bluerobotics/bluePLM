@@ -41,21 +41,21 @@ export function AddressList({
       <SettingsGroup>
         {loading ? (
           <div className="flex items-center justify-center py-6">
-            <Loader2 className="animate-spin text-plm-fg-muted" size={16} />
+            <Loader2 className="animate-spin text-ui-fg-secondary" size={16} />
           </div>
         ) : addresses.length === 0 ? (
-          <div className="px-4 py-4 text-[12px] text-plm-fg-muted">{emptyText}</div>
+          <div className="px-4 py-4 text-[13px] text-ui-fg-secondary">{emptyText}</div>
         ) : (
           addresses.map((address) => (
             <div key={address.id} className="group flex items-start gap-4 px-4 py-3">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="truncate text-[13px] font-medium text-plm-fg">
+                  <span className="truncate text-[14px] font-medium text-ui-fg">
                     {address.label}
                   </span>
                   {address.is_default && <Badge tone="accent">Default</Badge>}
                 </div>
-                <div className="mt-0.5 space-y-0.5 text-[12px] leading-relaxed text-plm-fg-muted">
+                <div className="mt-0.5 space-y-0.5 text-[13px] leading-relaxed text-ui-fg-secondary">
                   {address.company_name && <div>{address.company_name}</div>}
                   {address.contact_name && <div>{address.contact_name}</div>}
                   {address.attention_to && <div>ATTN: {address.attention_to}</div>}
@@ -96,7 +96,7 @@ export function AddressList({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="!px-1.5 hover:!text-plm-error"
+                  className="!px-1.5 hover:!text-ui-danger"
                   icon={
                     deletingAddressId === address.id ? (
                       <Loader2 size={14} className="animate-spin" />

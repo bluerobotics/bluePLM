@@ -87,12 +87,12 @@ export function LicenseManagerSection() {
       {!error && (
         <SettingsGroup>
           {isLoading ? (
-            <div className="flex items-center justify-center gap-2 py-8 text-[13px] text-plm-fg-muted">
+            <div className="flex items-center justify-center gap-2 py-8 text-[14px] text-ui-fg-secondary">
               <Loader2 size={16} className="animate-spin" />
               Loading licenses...
             </div>
           ) : visibleLicenses.length === 0 ? (
-            <div className="px-4 py-3 text-[13px] text-plm-fg-muted">
+            <div className="px-4 py-3 text-[14px] text-ui-fg-secondary">
               {isAdmin
                 ? 'No licenses added yet. Click "Add License" to get started.'
                 : 'No licenses assigned to you.'}

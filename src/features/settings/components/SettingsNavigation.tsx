@@ -87,7 +87,7 @@ export function SettingsNavigation({ activeTab, onTabChange }: SettingsNavigatio
       >
         {sections.map((section) => (
           <div key={section.category} className="pt-5">
-            <div className="pb-1.5 text-[13px] leading-5 text-ui-fg-tertiary">{section.category}</div>
+            <div className="pb-1.5 text-[14px] leading-5 text-ui-fg-tertiary">{section.category}</div>
             <ul>
               {section.items.map((item) => {
                 const selected = activeTab === item.id && !query

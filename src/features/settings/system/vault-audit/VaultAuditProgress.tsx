@@ -20,18 +20,18 @@ export function VaultAuditProgress({ progress }: VaultAuditProgressProps) {
 
   return (
     <div className="space-y-1.5">
-      <div className="h-1.5 w-full rounded-full bg-plm-border overflow-hidden">
+      <div className="h-1.5 w-full rounded-full bg-ui-divider overflow-hidden">
         {known ? (
           <div
-            className="h-full bg-plm-accent transition-[width] duration-200"
+            className="h-full bg-ui-accent transition-[width] duration-200"
             style={{ width: `${percent}%` }}
           />
         ) : (
-          <div className="h-full w-1/3 bg-plm-accent animate-pulse" />
+          <div className="h-full w-1/3 bg-ui-accent animate-pulse" />
         )}
       </div>
 
-      <div className="flex items-center justify-between text-xs text-plm-fg-muted">
+      <div className="flex items-center justify-between text-[12px] text-ui-fg-secondary">
         <span>
           {known
             ? t('vaultAudit.progressFiles', {

@@ -60,24 +60,24 @@ const ACTION_ICONS: Record<string, React.ReactNode> = {
 
 const ACTION_COLORS: Record<string, string> = {
   checkout: 'text-amber-400',
-  checkin: 'text-plm-success',
+  checkin: 'text-ui-success',
   create: 'text-sky-400',
-  delete: 'text-plm-error',
+  delete: 'text-ui-danger',
   state_change: 'text-violet-400',
   revision_change: 'text-indigo-400',
   rename: 'text-orange-400',
   move: 'text-orange-400',
   rollback: 'text-rose-400',
   roll_forward: 'text-emerald-400',
-  review_approved: 'text-plm-success',
-  review_rejected: 'text-plm-error',
-  review_kicked_back: 'text-plm-warning',
-  review_requested: 'text-plm-accent',
+  review_approved: 'text-ui-success',
+  review_rejected: 'text-ui-danger',
+  review_kicked_back: 'text-ui-warning',
+  review_requested: 'text-ui-accent',
 }
 
 // Heatmap cell colour per intensity level (0 = no activity, 4 = most)
 const INTENSITY_CLASSES = [
-  'bg-plm-bg-lighter',
+  'bg-ui-field',
   'bg-emerald-900/50',
   'bg-emerald-700/70',
   'bg-emerald-500/80',
@@ -472,14 +472,14 @@ export function ContributionHistory() {
 
   const renderActivityRow = (activity: ActivityRecord, key: string, time: string) => (
     <div key={key} className="flex items-center gap-3 px-4 py-2">
-      <span className={`flex-shrink-0 ${ACTION_COLORS[activity.action] || 'text-plm-fg-muted'}`}>
+      <span className={`flex-shrink-0 ${ACTION_COLORS[activity.action] || 'text-ui-fg-secondary'}`}>
         {ACTION_ICONS[activity.action] || <Activity size={14} />}
       </span>
-      <div className="min-w-0 flex-1 truncate text-[13px] text-plm-fg">
+      <div className="min-w-0 flex-1 truncate text-[14px] text-ui-fg">
         <span className="font-medium">{getActionLabel(activity.action)}</span>
-        {activity.file_name && <span className="text-plm-fg-muted"> · {activity.file_name}</span>}
+        {activity.file_name && <span className="text-ui-fg-secondary"> · {activity.file_name}</span>}
       </div>
-      <span className="flex-shrink-0 text-[12px] text-plm-fg-muted">{time}</span>
+      <span className="flex-shrink-0 text-[13px] text-ui-fg-secondary">{time}</span>
     </div>
   )
 
@@ -501,7 +501,7 @@ export function ContributionHistory() {
 
             {/* Contribution grid */}
             {isLoading ? (
-              <div className="flex items-center gap-2 py-6 text-[13px] text-plm-fg-muted">
+              <div className="flex items-center gap-2 py-6 text-[14px] text-ui-fg-secondary">
                 <Loader2 size={14} className="animate-spin" />
                 Loading contribution data...
               </div>
@@ -518,7 +518,7 @@ export function ContributionHistory() {
                       return (
                         <div key={weekIndex} className="min-w-0 flex-1">
                           {monthLabel && (
-                            <span className="text-[10px] text-plm-fg-muted">
+                            <span className="text-[12px] text-ui-fg-secondary">
                               {monthLabel.month}
                             </span>
                           )}
@@ -535,7 +535,7 @@ export function ContributionHistory() {
                     {dayLabels.map((day, i) => (
                       <div
                         key={day}
-                        className={`flex h-0 items-center text-[10px] leading-none text-plm-fg-muted ${
+                        className={`flex h-0 items-center text-[12px] leading-none text-ui-fg-secondary ${
                           i % 2 === 1 ? '' : 'invisible'
                         }`}
                       >
@@ -569,7 +569,7 @@ export function ContributionHistory() {
                               onClick={() => handleCellClick(cell.date)}
                               onMouseEnter={(e) => handleCellHover(e, cell.date, count)}
                               onMouseLeave={() => setHoveredDay(null)}
-                              className={`aspect-square cursor-pointer rounded-sm transition-all hover:ring-1 hover:ring-plm-fg-muted ${INTENSITY_CLASSES[level]}`}
+                              className={`aspect-square cursor-pointer rounded-sm transition-all hover:ring-1 hover:ring-ui-fg-secondary ${INTENSITY_CLASSES[level]}`}
                               title={`${formatDate(cell.date)}: ${count} contribution${count !== 1 ? 's' : ''}`}
                             />
                           )
@@ -580,7 +580,7 @@ export function ContributionHistory() {
                 </div>
 
                 {/* Legend */}
-                <div className="flex items-center justify-end gap-2 text-[12px] text-plm-fg-muted">
+                <div className="flex items-center justify-end gap-2 text-[13px] text-ui-fg-secondary">
                   <span>Less</span>
                   <div className="flex gap-[2px]">
                     {INTENSITY_CLASSES.map((colorClass) => (
@@ -597,10 +597,10 @@ export function ContributionHistory() {
           {selectedDay && (
             <div>
               <div className="flex items-center justify-between px-4 py-2.5">
-                <span className="text-[13px] font-medium text-plm-fg">
+                <span className="text-[14px] font-medium text-ui-fg">
                   {formatDate(new Date(selectedDay.date))}
                 </span>
-                <span className="text-[12px] text-plm-fg-muted">
+                <span className="text-[13px] text-ui-fg-secondary">
                   {selectedDay.count} contribution{selectedDay.count !== 1 ? 's' : ''}
                 </span>
               </div>
@@ -623,7 +623,7 @@ export function ContributionHistory() {
         {/* Tooltip */}
         {hoveredDay && (
           <div
-            className="pointer-events-none fixed z-50 -translate-x-1/2 rounded border border-plm-border bg-plm-bg-secondary px-2 py-1 text-[12px] shadow-lg"
+            className="pointer-events-none fixed z-50 -translate-x-1/2 rounded border border-ui-divider bg-ui-field px-2 py-1 text-[13px] shadow-lg"
             style={{ left: hoveredDay.x, top: hoveredDay.y - 30 }}
           >
             <strong>{hoveredDay.count}</strong> contribution{hoveredDay.count !== 1 ? 's' : ''} on{' '}
@@ -635,12 +635,12 @@ export function ContributionHistory() {
       <SettingsSection title="Recent Activity">
         <SettingsGroup>
           {isLoading ? (
-            <div className="flex items-center gap-2 px-4 py-3.5 text-[13px] text-plm-fg-muted">
+            <div className="flex items-center gap-2 px-4 py-3.5 text-[14px] text-ui-fg-secondary">
               <Loader2 size={14} className="animate-spin" />
               Loading...
             </div>
           ) : recentActivity.length === 0 ? (
-            <div className="px-4 py-3.5 text-[13px] text-plm-fg-muted">No recent activity</div>
+            <div className="px-4 py-3.5 text-[14px] text-ui-fg-secondary">No recent activity</div>
           ) : (
             <div className="max-h-80 overflow-y-auto py-1">
               {recentActivity.map((activity, index) =>

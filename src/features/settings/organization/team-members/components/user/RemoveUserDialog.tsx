@@ -29,24 +29,24 @@ export function RemoveUserDialog({
       onClick={onClose}
     >
       <div
-        className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4"
+        className="bg-ui-field border border-ui-divider rounded-xl p-6 max-w-md w-full mx-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start gap-3 mb-4">
-          <div className="p-2 rounded-full bg-plm-error/20">
-            <AlertTriangle className="w-5 h-5 text-plm-error" />
+          <div className="p-2 rounded-full bg-ui-danger/20">
+            <AlertTriangle className="w-5 h-5 text-ui-danger" />
           </div>
           <div>
-            <h3 className="text-lg font-medium text-plm-fg">
+            <h3 className="text-lg font-medium text-ui-fg">
               {isSelf ? 'Leave Organization' : 'Remove User from Organization'}
             </h3>
-            <p className="text-sm text-plm-fg-muted mt-1">This action cannot be undone</p>
+            <p className="text-[13px] text-ui-fg-secondary mt-1">This action cannot be undone</p>
           </div>
         </div>
 
         <div className="space-y-4 mb-6">
-          <div className="p-3 bg-plm-error/10 border border-plm-error/30 rounded-lg">
-            <p className="text-sm text-plm-fg">
+          <div className="p-3 bg-ui-danger/10 border border-ui-danger/30 rounded-lg">
+            <p className="text-[13px] text-ui-fg">
               {isSelf ? (
                 <>
                   You are about to <strong>leave this organization</strong>. You will:
@@ -58,7 +58,7 @@ export function RemoveUserDialog({
                 </>
               )}
             </p>
-            <ul className="text-sm text-plm-fg-muted list-disc list-inside mt-2 space-y-1">
+            <ul className="text-[13px] text-ui-fg-secondary list-disc list-inside mt-2 space-y-1">
               <li>Lose access to all vaults and files</li>
               <li>Be removed from all teams</li>
               <li>Need to be re-invited to rejoin</li>
@@ -66,15 +66,15 @@ export function RemoveUserDialog({
           </div>
 
           <div>
-            <p className="text-sm text-plm-fg-muted mb-2">
-              To confirm, type <strong className="text-plm-fg">{confirmPhrase}</strong> below:
+            <p className="text-[13px] text-ui-fg-secondary mb-2">
+              To confirm, type <strong className="text-ui-fg">{confirmPhrase}</strong> below:
             </p>
             <input
               type="text"
               value={confirmText}
               onChange={(e) => setConfirmText(e.target.value)}
               placeholder={confirmPhrase}
-              className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-error"
+              className="w-full px-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-ui-fg placeholder:text-ui-fg-secondary/50 focus:outline-none focus:border-ui-danger"
               autoFocus
             />
           </div>
@@ -89,8 +89,8 @@ export function RemoveUserDialog({
             disabled={!isConfirmed || isRemoving}
             className={`btn flex items-center gap-2 ${
               isConfirmed
-                ? 'bg-plm-error hover:bg-plm-error/90 text-white'
-                : 'bg-plm-fg-muted/20 text-plm-fg-muted cursor-not-allowed'
+                ? 'bg-ui-danger hover:bg-ui-danger/90 text-white'
+                : 'bg-ui-fg-secondary/20 text-ui-fg-secondary cursor-not-allowed'
             }`}
           >
             {isRemoving ? <Loader2 size={16} className="animate-spin" /> : <UserMinus size={16} />}

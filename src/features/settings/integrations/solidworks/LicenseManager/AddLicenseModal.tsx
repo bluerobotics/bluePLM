@@ -147,12 +147,12 @@ export function AddLicenseModal({ users, onClose, onSave }: AddLicenseModalProps
         key={user.id}
         type="button"
         onClick={() => setSelectedUserId(isSelected ? '' : user.id)}
-        className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-b border-plm-border/50 last:border-b-0 ${
-          isSelected ? 'bg-plm-accent/10' : 'hover:bg-plm-bg'
+        className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-b border-ui-divider/50 last:border-b-0 ${
+          isSelected ? 'bg-ui-accent/10' : 'hover:bg-ui-bg'
         }`}
       >
         <div
-          className={`w-7 h-7 rounded-full overflow-hidden flex-shrink-0 ${user.is_pending ? 'bg-yellow-500/20' : 'bg-plm-bg-secondary'}`}
+          className={`w-7 h-7 rounded-full overflow-hidden flex-shrink-0 ${user.is_pending ? 'bg-yellow-500/20' : 'bg-ui-field'}`}
         >
           {user.avatar_url ? (
             <img
@@ -163,7 +163,7 @@ export function AddLicenseModal({ users, onClose, onSave }: AddLicenseModalProps
             />
           ) : (
             <div
-              className={`w-full h-full flex items-center justify-center text-xs font-medium ${user.is_pending ? 'text-yellow-400' : 'text-plm-fg'}`}
+              className={`w-full h-full flex items-center justify-center text-[12px] font-medium ${user.is_pending ? 'text-yellow-400' : 'text-ui-fg'}`}
             >
               {getInitials(user.full_name || user.email)}
             </div>
@@ -171,33 +171,33 @@ export function AddLicenseModal({ users, onClose, onSave }: AddLicenseModalProps
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="text-sm text-plm-fg truncate">{user.full_name || user.email}</span>
+            <span className="text-[13px] text-ui-fg truncate">{user.full_name || user.email}</span>
             {user.is_pending && (
-              <span className="flex items-center gap-1 px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded">
+              <span className="flex items-center gap-1 px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 text-[12px] rounded">
                 <Clock size={10} />
                 Pending
               </span>
             )}
           </div>
-          {user.full_name && <div className="text-xs text-plm-fg-muted truncate">{user.email}</div>}
+          {user.full_name && <div className="text-[12px] text-ui-fg-secondary truncate">{user.email}</div>}
         </div>
-        {isSelected && <Check size={16} className="text-plm-accent flex-shrink-0" />}
+        {isSelected && <Check size={16} className="text-ui-accent flex-shrink-0" />}
       </button>
     )
   }
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-plm-bg-secondary border border-plm-border rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col">
+      <div className="bg-ui-field border border-ui-divider rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-plm-border">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-ui-divider">
           <div className="flex items-center gap-3">
-            <Key size={20} className="text-plm-accent" />
-            <h2 className="text-lg font-semibold text-plm-fg">Add SOLIDWORKS License</h2>
+            <Key size={20} className="text-ui-accent" />
+            <h2 className="text-lg font-semibold text-ui-fg">Add SOLIDWORKS License</h2>
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-plm-fg-muted hover:text-plm-fg rounded-lg hover:bg-plm-bg transition-colors"
+            className="p-2 text-ui-fg-secondary hover:text-ui-fg rounded-lg hover:bg-ui-bg transition-colors"
           >
             <X size={20} />
           </button>
@@ -207,7 +207,7 @@ export function AddLicenseModal({ users, onClose, onSave }: AddLicenseModalProps
         <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
           {/* Serial Number */}
           <div className="space-y-1">
-            <label className="text-sm font-medium text-plm-fg">
+            <label className="text-[13px] font-medium text-ui-fg">
               Serial Number <span className="text-red-400">*</span>
             </label>
             <input
@@ -216,36 +216,36 @@ export function AddLicenseModal({ users, onClose, onSave }: AddLicenseModalProps
               onChange={handleSerialChange}
               onPaste={handleSerialPaste}
               placeholder="XXXX XXXX XXXX XXXX XXXX XXXX"
-              className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-sm text-plm-fg placeholder-plm-fg-dim focus:outline-none focus:border-plm-accent font-mono tracking-wider"
+              className="w-full px-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-[13px] text-ui-fg placeholder-ui-fg focus:outline-none focus:border-ui-accent font-mono tracking-wider"
               required
             />
-            <p className="text-xs text-plm-fg-dim">
+            <p className="text-[12px] text-ui-fg">
               Paste or type your serial number — it will be formatted automatically
             </p>
           </div>
 
           {/* Nickname */}
           <div className="space-y-1">
-            <label className="text-sm font-medium text-plm-fg">Nickname</label>
+            <label className="text-[13px] font-medium text-ui-fg">Nickname</label>
             <input
               type="text"
               value={formData.nickname}
               onChange={(e) => updateField('nickname', e.target.value)}
               placeholder="e.g., Design Team License 1"
-              className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-sm text-plm-fg placeholder-plm-fg-dim focus:outline-none focus:border-plm-accent"
+              className="w-full px-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-[13px] text-ui-fg placeholder-ui-fg focus:outline-none focus:border-ui-accent"
             />
           </div>
 
           {/* License Type and Product row */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="text-sm font-medium text-plm-fg">License Type</label>
+              <label className="text-[13px] font-medium text-ui-fg">License Type</label>
               <select
                 value={formData.license_type}
                 onChange={(e) =>
                   updateField('license_type', e.target.value as 'standalone' | 'network')
                 }
-                className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-sm text-plm-fg focus:outline-none focus:border-plm-accent"
+                className="w-full px-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-[13px] text-ui-fg focus:outline-none focus:border-ui-accent"
               >
                 <option value="standalone">Standalone</option>
                 <option value="network">Network</option>
@@ -254,22 +254,22 @@ export function AddLicenseModal({ users, onClose, onSave }: AddLicenseModalProps
 
             {formData.license_type === 'network' ? (
               <div className="space-y-1">
-                <label className="text-sm font-medium text-plm-fg">Seats</label>
+                <label className="text-[13px] font-medium text-ui-fg">Seats</label>
                 <input
                   type="number"
                   min={1}
                   value={formData.seats}
                   onChange={(e) => updateField('seats', parseInt(e.target.value) || 1)}
-                  className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-sm text-plm-fg focus:outline-none focus:border-plm-accent"
+                  className="w-full px-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-[13px] text-ui-fg focus:outline-none focus:border-ui-accent"
                 />
               </div>
             ) : (
               <div className="space-y-1">
-                <label className="text-sm font-medium text-plm-fg">Product</label>
+                <label className="text-[13px] font-medium text-ui-fg">Product</label>
                 <select
                   value={formData.product_name}
                   onChange={(e) => updateField('product_name', e.target.value)}
-                  className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-sm text-plm-fg focus:outline-none focus:border-plm-accent"
+                  className="w-full px-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-[13px] text-ui-fg focus:outline-none focus:border-ui-accent"
                 >
                   <option value="">Select...</option>
                   {PRODUCT_OPTIONS.map((product) => (
@@ -285,11 +285,11 @@ export function AddLicenseModal({ users, onClose, onSave }: AddLicenseModalProps
           {/* Product for network (separate row) */}
           {formData.license_type === 'network' && (
             <div className="space-y-1">
-              <label className="text-sm font-medium text-plm-fg">Product</label>
+              <label className="text-[13px] font-medium text-ui-fg">Product</label>
               <select
                 value={formData.product_name}
                 onChange={(e) => updateField('product_name', e.target.value)}
-                className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-sm text-plm-fg focus:outline-none focus:border-plm-accent"
+                className="w-full px-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-[13px] text-ui-fg focus:outline-none focus:border-ui-accent"
               >
                 <option value="">Select a product...</option>
                 {PRODUCT_OPTIONS.map((product) => (
@@ -303,32 +303,32 @@ export function AddLicenseModal({ users, onClose, onSave }: AddLicenseModalProps
 
           {/* Assign to User */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-plm-fg">Assign To (Optional)</label>
+            <label className="text-[13px] font-medium text-ui-fg">Assign To (Optional)</label>
 
             {/* Search bar */}
             <div className="relative">
               <Search
                 size={14}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted"
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-ui-fg-secondary"
               />
               <input
                 type="text"
                 value={userSearchQuery}
                 onChange={(e) => setUserSearchQuery(e.target.value)}
                 placeholder="Search users..."
-                className="w-full pl-9 pr-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-sm text-plm-fg placeholder-plm-fg-dim focus:outline-none focus:border-plm-accent"
+                className="w-full pl-9 pr-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-[13px] text-ui-fg placeholder-ui-fg focus:outline-none focus:border-ui-accent"
               />
             </div>
 
             {/* Scrollable user list */}
-            <div className="border border-plm-border rounded-lg bg-plm-bg overflow-hidden">
+            <div className="border border-ui-divider rounded-lg bg-ui-bg overflow-hidden">
               <div className="max-h-40 overflow-y-auto">
                 {users.length === 0 ? (
-                  <div className="px-3 py-4 text-center text-sm text-plm-fg-muted">
+                  <div className="px-3 py-4 text-center text-[13px] text-ui-fg-secondary">
                     No users in organization
                   </div>
                 ) : filteredUsers.length === 0 ? (
-                  <div className="px-3 py-4 text-center text-sm text-plm-fg-muted">
+                  <div className="px-3 py-4 text-center text-[13px] text-ui-fg-secondary">
                     No users found matching "{userSearchQuery}"
                   </div>
                 ) : (
@@ -337,7 +337,7 @@ export function AddLicenseModal({ users, onClose, onSave }: AddLicenseModalProps
                     {activeUsers.length > 0 && (
                       <>
                         {pendingUsers.length > 0 && (
-                          <div className="px-3 py-1.5 text-xs font-medium text-plm-fg-muted uppercase tracking-wide bg-plm-bg-secondary border-b border-plm-border">
+                          <div className="px-3 py-1.5 text-[12px] font-medium text-ui-fg-secondary uppercase tracking-wide bg-ui-field border-b border-ui-divider">
                             Active Members
                           </div>
                         )}
@@ -348,7 +348,7 @@ export function AddLicenseModal({ users, onClose, onSave }: AddLicenseModalProps
                     {/* Pending users */}
                     {pendingUsers.length > 0 && (
                       <>
-                        <div className="px-3 py-1.5 text-xs font-medium text-plm-fg-muted uppercase tracking-wide bg-plm-bg-secondary border-y border-plm-border flex items-center gap-1">
+                        <div className="px-3 py-1.5 text-[12px] font-medium text-ui-fg-secondary uppercase tracking-wide bg-ui-field border-y border-ui-divider flex items-center gap-1">
                           <Clock size={10} />
                           Pending Invites
                         </div>
@@ -361,7 +361,7 @@ export function AddLicenseModal({ users, onClose, onSave }: AddLicenseModalProps
             </div>
 
             {selectedUser && (
-              <p className="text-xs text-plm-accent">
+              <p className="text-[12px] text-ui-accent">
                 Will assign to {selectedUser.full_name || selectedUser.email}
                 {selectedUser.is_pending && ' when they sign up'}
               </p>
@@ -370,14 +370,14 @@ export function AddLicenseModal({ users, onClose, onSave }: AddLicenseModalProps
 
           {/* Error message */}
           {error && (
-            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-[13px]">
               {error}
             </div>
           )}
         </form>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-plm-border">
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-ui-divider">
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>

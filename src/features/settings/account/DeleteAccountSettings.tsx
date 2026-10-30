@@ -23,7 +23,7 @@ export function DeleteAccountSettings() {
   const [showConfirmation, setShowConfirmation] = useState(false)
 
   if (!user) {
-    return <div className="py-12 text-center text-[13px] text-plm-fg-muted">Not signed in</div>
+    return <div className="py-12 text-center text-[14px] text-ui-fg-secondary">Not signed in</div>
   }
 
   // The text user must type to confirm deletion

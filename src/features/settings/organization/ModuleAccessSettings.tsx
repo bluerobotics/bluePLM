@@ -178,10 +178,10 @@ export function ModuleAccessSettings() {
   }
 
   const chipClass = (selected: boolean) =>
-    `inline-flex h-6 items-center gap-1.5 rounded-full border px-2 text-[12px] transition-colors ${
+    `inline-flex h-6 items-center gap-1.5 rounded-full border px-2 text-[13px] transition-colors ${
       selected
-        ? 'border-plm-accent/60 bg-plm-accent/15 text-plm-fg'
-        : 'border-plm-border text-plm-fg-muted hover:bg-plm-highlight/50 hover:text-plm-fg'
+        ? 'border-ui-accent/60 bg-ui-accent/15 text-ui-fg'
+        : 'border-ui-divider text-ui-fg-secondary hover:bg-ui-hover/50 hover:text-ui-fg'
     }`
 
   return (
@@ -192,7 +192,7 @@ export function ModuleAccessSettings() {
       </Callout>
 
       {loading ? (
-        <div className="flex h-32 items-center justify-center text-plm-fg-muted">
+        <div className="flex h-32 items-center justify-center text-ui-fg-secondary">
           <Loader2 size={20} className="animate-spin" />
         </div>
       ) : (
@@ -216,15 +216,15 @@ export function ModuleAccessSettings() {
                         type="button"
                         aria-expanded={isExpanded}
                         onClick={() => setExpandedModuleId(isExpanded ? null : module.id)}
-                        className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-plm-highlight/40"
+                        className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-ui-hover/40"
                       >
                         {isExpanded ? (
-                          <ChevronDown size={14} className="flex-shrink-0 text-plm-fg-muted" />
+                          <ChevronDown size={14} className="flex-shrink-0 text-ui-fg-secondary" />
                         ) : (
-                          <ChevronRight size={14} className="flex-shrink-0 text-plm-fg-muted" />
+                          <ChevronRight size={14} className="flex-shrink-0 text-ui-fg-secondary" />
                         )}
 
-                        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-plm-fg">
+                        <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-ui-fg">
                           {module.name}
                         </span>
 
@@ -242,14 +242,14 @@ export function ModuleAccessSettings() {
                       </button>
 
                       {isExpanded && (
-                        <div className="space-y-4 border-t border-plm-border bg-plm-bg/40 px-4 py-3 pl-11">
+                        <div className="space-y-4 border-t border-ui-divider bg-ui-bg/40 px-4 py-3 pl-11">
                           <div>
-                            <div className="mb-1.5 flex items-center gap-1.5 text-[12px] font-medium text-plm-fg-muted">
+                            <div className="mb-1.5 flex items-center gap-1.5 text-[13px] font-medium text-ui-fg-secondary">
                               <Users size={12} />
                               Teams
                             </div>
                             {teams.length === 0 ? (
-                              <p className="text-[12px] text-plm-fg-muted">No teams yet.</p>
+                              <p className="text-[13px] text-ui-fg-secondary">No teams yet.</p>
                             ) : (
                               <div className="flex flex-wrap gap-1.5">
                                 {teams.map((team) => {
@@ -275,7 +275,7 @@ export function ModuleAccessSettings() {
                           </div>
 
                           <div>
-                            <div className="mb-1.5 text-[12px] font-medium text-plm-fg-muted">
+                            <div className="mb-1.5 text-[13px] font-medium text-ui-fg-secondary">
                               Individual people
                             </div>
                             <div className="flex max-h-40 flex-wrap gap-1.5 overflow-y-auto">
@@ -319,7 +319,7 @@ export function ModuleAccessSettings() {
                               </Button>
                             )}
 
-                            <p className="text-[12px] text-plm-fg-muted">
+                            <p className="text-[13px] text-ui-fg-secondary">
                               {draft.teamIds.length === 0 && draft.userIds.length === 0
                                 ? 'Visible to the whole organization.'
                                 : 'Everyone else sees this module greyed out in their sidebar settings.'}

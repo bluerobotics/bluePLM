@@ -221,8 +221,8 @@ function KeybindingRow({
   return (
     <div className="group flex items-center justify-between gap-4 px-4 py-2.5">
       <div className="min-w-0 flex-1">
-        <div className="text-[13px] font-medium text-plm-fg">{label}</div>
-        <div className="truncate text-[12px] text-plm-fg-muted">{description}</div>
+        <div className="text-[14px] font-medium text-ui-fg">{label}</div>
+        <div className="truncate text-[13px] text-ui-fg-secondary">{description}</div>
       </div>
 
       <div className="flex items-center gap-1.5">
@@ -231,14 +231,14 @@ function KeybindingRow({
             <button
               ref={inputRef}
               type="button"
-              className="h-7 min-w-[120px] rounded-md border border-plm-accent bg-plm-accent/10 px-3 text-center font-mono text-[12px] text-plm-accent outline-none focus-visible:ring-2 focus-visible:ring-plm-accent/60"
+              className="h-7 min-w-[120px] rounded-md border border-ui-accent bg-ui-accent/10 px-3 text-center font-mono text-[13px] text-ui-accent outline-none focus-visible:ring-2 focus-visible:ring-ui-accent/60"
             >
               {pendingKeybinding ? formatKeybinding(pendingKeybinding) : 'Press keys...'}
             </button>
             <Button
               variant="ghost"
               size="sm"
-              icon={<Check size={14} className="text-plm-success" />}
+              icon={<Check size={14} className="text-ui-success" />}
               onClick={handleSave}
               disabled={!pendingKeybinding}
               title="Save"
@@ -255,7 +255,7 @@ function KeybindingRow({
           </>
         ) : (
           <>
-            <kbd className="flex h-7 min-w-[120px] items-center justify-center rounded-md border border-plm-border bg-plm-bg px-3 font-mono text-[12px] text-plm-fg-dim">
+            <kbd className="flex h-7 min-w-[120px] items-center justify-center rounded-md border border-ui-divider bg-ui-bg px-3 font-mono text-[13px] text-ui-fg">
               {formatKeybinding(keybinding)}
             </kbd>
             <Button

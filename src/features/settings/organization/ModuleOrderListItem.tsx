@@ -75,7 +75,7 @@ const moduleIcons: Record<string, React.ReactNode> = {
 function DropLine({ edge }: { edge: 'top' | 'bottom' }) {
   return (
     <div
-      className={`pointer-events-none absolute left-0 right-0 z-10 h-0.5 bg-plm-accent ${
+      className={`pointer-events-none absolute left-0 right-0 z-10 h-0.5 bg-ui-accent ${
         edge === 'top' ? 'top-0' : 'bottom-0'
       }`}
     />
@@ -240,13 +240,13 @@ export function ModuleOrderListItem({
         <div
           {...handleDragEvents}
           className={`flex cursor-move items-center gap-3 px-3 py-2 transition-colors ${
-            isDragging ? 'bg-plm-accent/10 opacity-50' : ''
+            isDragging ? 'bg-ui-accent/10 opacity-50' : ''
           }`}
         >
-          <GripVertical size={14} className="text-plm-fg-muted flex-shrink-0 pointer-events-none" />
+          <GripVertical size={14} className="text-ui-fg-secondary flex-shrink-0 pointer-events-none" />
           <div className="flex items-center gap-2 flex-1 pointer-events-none">
-            <Minus size={16} className="text-plm-fg-muted" />
-            <span className="text-[12px] text-plm-fg-muted">Divider</span>
+            <Minus size={16} className="text-ui-fg-secondary" />
+            <span className="text-[13px] text-ui-fg-secondary">Divider</span>
           </div>
           <Button
             variant="ghost"
@@ -281,10 +281,10 @@ export function ModuleOrderListItem({
         <div
           {...handleDragEvents}
           className={`flex cursor-move items-center gap-3 px-3 py-2 transition-colors ${
-            isDragging ? 'bg-plm-accent/10 opacity-50' : isGroupEnabled ? '' : 'opacity-60'
+            isDragging ? 'bg-ui-accent/10 opacity-50' : isGroupEnabled ? '' : 'opacity-60'
           }`}
         >
-          <GripVertical size={14} className="text-plm-fg-muted flex-shrink-0 pointer-events-none" />
+          <GripVertical size={14} className="text-ui-fg-secondary flex-shrink-0 pointer-events-none" />
           <div
             className={`p-1.5 rounded-md pointer-events-none ${!isGroupEnabled ? 'opacity-50' : ''}`}
             style={{ color: group.iconColor || 'var(--plm-accent)' }}
@@ -294,13 +294,13 @@ export function ModuleOrderListItem({
           <div className="flex-1 min-w-0 pointer-events-none">
             <div className="flex items-center gap-2">
               <span
-                className={`text-[13px] font-medium ${isGroupEnabled ? 'text-plm-fg' : 'text-plm-fg-muted'}`}
+                className={`text-[14px] font-medium ${isGroupEnabled ? 'text-ui-fg' : 'text-ui-fg-secondary'}`}
               >
                 {group.name}
               </span>
               <Badge tone="accent">Group</Badge>
               {childCount > 0 && (
-                <span className="text-[12px] text-plm-fg-muted">{childCount} items</span>
+                <span className="text-[13px] text-ui-fg-secondary">{childCount} items</span>
               )}
             </div>
           </div>
@@ -386,24 +386,24 @@ export function ModuleOrderListItem({
           isLockedToGroup ? 'cursor-default' : 'cursor-move'
         } ${
           isDragging
-            ? 'bg-plm-accent/10 opacity-50'
+            ? 'bg-ui-accent/10 opacity-50'
             : !module.implemented || isDenied
               ? 'opacity-50'
-              : 'hover:bg-plm-highlight/40'
+              : 'hover:bg-ui-hover/40'
         } ${currentParentId ? 'pl-9' : 'pl-3'}`}
       >
         {/* Only show drag handle if not locked to a group */}
         {isLockedToGroup ? (
           <div className="w-[14px] flex-shrink-0" />
         ) : (
-          <GripVertical size={14} className="text-plm-fg-muted flex-shrink-0 pointer-events-none" />
+          <GripVertical size={14} className="text-ui-fg-secondary flex-shrink-0 pointer-events-none" />
         )}
 
         {/* Icon with custom color support */}
         <div
           className={`pointer-events-none rounded-md p-1.5 ${
             !customIconColor &&
-            (isEnabled && isVisible ? 'text-plm-accent' : 'text-plm-fg-muted')
+            (isEnabled && isVisible ? 'text-ui-accent' : 'text-ui-fg-secondary')
           }`}
           style={
             customIconColor
@@ -419,7 +419,7 @@ export function ModuleOrderListItem({
 
         <div className="flex-1 min-w-0 pointer-events-none">
           <div className="flex items-center gap-2">
-            <span className={`text-[13px] ${isVisible ? 'text-plm-fg' : 'text-plm-fg-muted'}`}>
+            <span className={`text-[14px] ${isVisible ? 'text-ui-fg' : 'text-ui-fg-secondary'}`}>
               {module.name}
             </span>
             {!module.implemented && <Badge tone="warning">In Development</Badge>}
@@ -433,7 +433,7 @@ export function ModuleOrderListItem({
             )}
             {module.required && (
               <span title="Required when group enabled">
-                <Lock size={10} className="text-plm-fg-dim" />
+                <Lock size={10} className="text-ui-fg" />
               </span>
             )}
             {childCount > 0 && (
@@ -447,7 +447,7 @@ export function ModuleOrderListItem({
             )}
             {/* Show dependencies inline */}
             {module.dependencies && module.dependencies.length > 0 && (
-              <span className="text-[12px] text-plm-fg-muted">
+              <span className="text-[13px] text-ui-fg-secondary">
                 (requires{' '}
                 {module.dependencies
                   .map((depId, i) => {
@@ -462,7 +462,7 @@ export function ModuleOrderListItem({
             )}
           </div>
           {currentParent && (
-            <div className="text-[12px] text-plm-fg-muted">
+            <div className="text-[13px] text-ui-fg-secondary">
               Sub-item of: {currentParent.name}
             </div>
           )}
@@ -478,8 +478,8 @@ export function ModuleOrderListItem({
             }}
             className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${
               customIconColor
-                ? 'hover:bg-plm-highlight'
-                : 'text-plm-fg-muted hover:bg-plm-highlight hover:text-plm-fg'
+                ? 'hover:bg-ui-hover'
+                : 'text-ui-fg-secondary hover:bg-ui-hover hover:text-ui-fg'
             }`}
             title="Set icon color"
           >
@@ -514,8 +514,8 @@ export function ModuleOrderListItem({
             }}
             className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${
               currentParentId
-                ? 'bg-plm-accent/10 text-plm-accent hover:bg-plm-accent/20'
-                : 'text-plm-fg-muted hover:bg-plm-highlight hover:text-plm-fg'
+                ? 'bg-ui-accent/10 text-ui-accent hover:bg-ui-accent/20'
+                : 'text-ui-fg-secondary hover:bg-ui-hover hover:text-ui-fg'
             }`}
             title="Set parent module (create sub-group)"
           >
@@ -525,10 +525,10 @@ export function ModuleOrderListItem({
           {/* Parent selection dropdown */}
           {showParentSelect && (
             <div
-              className="absolute right-0 top-full mt-1 w-48 bg-plm-bg border border-plm-border rounded-lg shadow-xl z-50 py-1 max-h-60 overflow-y-auto"
+              className="absolute right-0 top-full mt-1 w-48 bg-ui-bg border border-ui-divider rounded-lg shadow-xl z-50 py-1 max-h-60 overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="border-b border-plm-border px-3 py-1.5 text-[12px] font-medium text-plm-fg-muted">
+              <div className="border-b border-ui-divider px-3 py-1.5 text-[13px] font-medium text-ui-fg-secondary">
                 Set Parent
               </div>
               <button
@@ -536,19 +536,19 @@ export function ModuleOrderListItem({
                   setModuleParent(moduleId, null)
                   setShowParentSelect(false)
                 }}
-                className={`w-full px-3 py-2 text-left text-sm hover:bg-plm-highlight transition-colors flex items-center gap-2 ${
-                  !currentParentId ? 'text-plm-accent' : 'text-plm-fg'
+                className={`w-full px-3 py-2 text-left text-[13px] hover:bg-ui-hover transition-colors flex items-center gap-2 ${
+                  !currentParentId ? 'text-ui-accent' : 'text-ui-fg'
                 }`}
               >
                 <div
-                  className={`w-2 h-2 rounded-full ${!currentParentId ? 'bg-plm-accent' : 'bg-transparent border border-plm-border'}`}
+                  className={`w-2 h-2 rounded-full ${!currentParentId ? 'bg-ui-accent' : 'bg-transparent border border-ui-divider'}`}
                 />
                 None (Top-level)
               </button>
               {/* Custom Groups section */}
               {(config.customGroups || []).length > 0 && (
                 <>
-                  <div className="border-y border-plm-border bg-plm-bg-secondary px-3 py-1 text-[11px] text-plm-fg-muted">
+                  <div className="border-y border-ui-divider bg-ui-field px-3 py-1 text-[12px] text-ui-fg-secondary">
                     Groups
                   </div>
                   {(config.customGroups || []).map((group) => {
@@ -562,12 +562,12 @@ export function ModuleOrderListItem({
                           setModuleParent(moduleId, group.id)
                           setShowParentSelect(false)
                         }}
-                        className={`w-full px-3 py-2 text-left text-sm hover:bg-plm-highlight transition-colors flex items-center gap-2 ${
-                          currentParentId === group.id ? 'text-plm-accent' : 'text-plm-fg'
+                        className={`w-full px-3 py-2 text-left text-[13px] hover:bg-ui-hover transition-colors flex items-center gap-2 ${
+                          currentParentId === group.id ? 'text-ui-accent' : 'text-ui-fg'
                         }`}
                       >
                         <div
-                          className={`w-2 h-2 rounded-full ${currentParentId === group.id ? 'bg-plm-accent' : 'bg-transparent border border-plm-border'}`}
+                          className={`w-2 h-2 rounded-full ${currentParentId === group.id ? 'bg-ui-accent' : 'bg-transparent border border-ui-divider'}`}
                         />
                         <span style={{ color: group.iconColor || 'var(--plm-accent)' }}>
                           {GroupIcon ? <GroupIcon size={12} /> : <Package size={12} />}
@@ -582,7 +582,7 @@ export function ModuleOrderListItem({
               {/* Modules section */}
               {availableParents.length > 0 && (
                 <>
-                  <div className="border-y border-plm-border bg-plm-bg-secondary px-3 py-1 text-[11px] text-plm-fg-muted">
+                  <div className="border-y border-ui-divider bg-ui-field px-3 py-1 text-[12px] text-ui-fg-secondary">
                     Modules
                   </div>
                   {availableParents.map((parent) => (
@@ -592,14 +592,14 @@ export function ModuleOrderListItem({
                         setModuleParent(moduleId, parent.id)
                         setShowParentSelect(false)
                       }}
-                      className={`w-full px-3 py-2 text-left text-sm hover:bg-plm-highlight transition-colors flex items-center gap-2 ${
-                        currentParentId === parent.id ? 'text-plm-accent' : 'text-plm-fg'
+                      className={`w-full px-3 py-2 text-left text-[13px] hover:bg-ui-hover transition-colors flex items-center gap-2 ${
+                        currentParentId === parent.id ? 'text-ui-accent' : 'text-ui-fg'
                       }`}
                     >
                       <div
-                        className={`w-2 h-2 rounded-full ${currentParentId === parent.id ? 'bg-plm-accent' : 'bg-transparent border border-plm-border'}`}
+                        className={`w-2 h-2 rounded-full ${currentParentId === parent.id ? 'bg-ui-accent' : 'bg-transparent border border-ui-divider'}`}
                       />
-                      <span className="text-plm-fg-muted mr-1">
+                      <span className="text-ui-fg-secondary mr-1">
                         {moduleIcons[parent.icon] || <Package size={12} />}
                       </span>
                       {parent.name}

@@ -22,9 +22,9 @@ export function GroupEditorModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
-      <div className="bg-plm-bg border border-plm-border rounded-lg shadow-xl w-[400px] max-h-[80vh] overflow-hidden">
-        <div className="p-4 border-b border-plm-border">
-          <h3 className="text-lg font-semibold text-plm-fg">
+      <div className="bg-ui-bg border border-ui-divider rounded-lg shadow-xl w-[400px] max-h-[80vh] overflow-hidden">
+        <div className="p-4 border-b border-ui-divider">
+          <h3 className="text-lg font-semibold text-ui-fg">
             {group ? 'Edit Group' : 'Add Group'}
           </h3>
         </div>
@@ -32,7 +32,7 @@ export function GroupEditorModal({
         <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
           {/* Name input */}
           <div>
-            <label className="mb-1 block text-[12px] font-medium text-plm-fg-muted">Name</label>
+            <label className="mb-1 block text-[13px] font-medium text-ui-fg-secondary">Name</label>
             <TextInput
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -43,20 +43,20 @@ export function GroupEditorModal({
 
           {/* Icon picker */}
           <div>
-            <label className="mb-1 block text-[12px] font-medium text-plm-fg-muted">Icon</label>
+            <label className="mb-1 block text-[13px] font-medium text-ui-fg-secondary">Icon</label>
             <IconGridPicker value={icon} onChange={setIcon} maxHeight="160px" columns={8} />
           </div>
 
           {/* Color picker */}
           <div>
-            <label className="mb-1 block text-[12px] font-medium text-plm-fg-muted">Color (optional)</label>
+            <label className="mb-1 block text-[13px] font-medium text-ui-fg-secondary">Color (optional)</label>
             <ColorSwatchRow color={iconColor} onChange={setIconColor} showReset size="lg" />
           </div>
 
           {/* Preview */}
           <div>
-            <label className="mb-1 block text-[12px] font-medium text-plm-fg-muted">Preview</label>
-            <div className="flex items-center gap-3 p-3 bg-plm-bg-secondary rounded border border-plm-border">
+            <label className="mb-1 block text-[13px] font-medium text-ui-fg-secondary">Preview</label>
+            <div className="flex items-center gap-3 p-3 bg-ui-field rounded border border-ui-divider">
               <div style={{ color: iconColor || 'var(--plm-accent)' }}>
                 {(() => {
                   // Dynamic Lucide icon lookup requires any cast
@@ -65,12 +65,12 @@ export function GroupEditorModal({
                   return IconComponent ? <IconComponent size={22} /> : <Package size={22} />
                 })()}
               </div>
-              <span className="text-plm-fg">{name || 'Group Name'}</span>
+              <span className="text-ui-fg">{name || 'Group Name'}</span>
             </div>
           </div>
         </div>
 
-        <div className="p-4 border-t border-plm-border flex justify-end gap-2">
+        <div className="p-4 border-t border-ui-divider flex justify-end gap-2">
           <Button variant="ghost" onClick={onCancel}>
             Cancel
           </Button>

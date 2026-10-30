@@ -66,11 +66,11 @@ export function UserRow({
 
   return (
     <div
-      className={`group flex items-center gap-3 ${compact ? 'px-1 py-2' : 'px-4 py-2.5'} transition-colors hover:bg-plm-highlight/40`}
+      className={`group flex items-center gap-3 ${compact ? 'px-1 py-2' : 'px-4 py-2.5'} transition-colors hover:bg-ui-hover/40`}
     >
       <button
         onClick={onViewProfile}
-        className="flex min-w-0 flex-1 items-center gap-3 rounded text-left outline-none focus-visible:ring-2 focus-visible:ring-plm-accent/60"
+        className="flex min-w-0 flex-1 items-center gap-3 rounded text-left outline-none focus-visible:ring-2 focus-visible:ring-ui-accent/60"
       >
         {(() => {
           const avatarColors = getAvatarColor(user.email || user.full_name)
@@ -83,17 +83,17 @@ export function UserRow({
             />
           ) : (
             <div
-              className={`${compact ? 'h-7 w-7 text-[11px]' : 'h-8 w-8 text-[12px]'} flex flex-shrink-0 items-center justify-center rounded-full font-medium ${avatarColors.bg} ${avatarColors.text}`}
+              className={`${compact ? 'h-7 w-7 text-[12px]' : 'h-8 w-8 text-[13px]'} flex flex-shrink-0 items-center justify-center rounded-full font-medium ${avatarColors.bg} ${avatarColors.text}`}
             >
               {getInitials(user.full_name || user.email)}
             </div>
           )
         })()}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 text-[13px] font-medium text-plm-fg">
+          <div className="flex items-center gap-2 text-[14px] font-medium text-ui-fg">
             <span className="truncate">{user.full_name || user.email}</span>
             {isCurrentUser && (
-              <span className="text-[12px] font-normal text-plm-fg-muted">(you)</span>
+              <span className="text-[13px] font-normal text-ui-fg-secondary">(you)</span>
             )}
             {/* Vault access badge */}
             {!isAdminUser(user.role, user.teams) && vaultAccessCount > 0 && (
@@ -102,11 +102,11 @@ export function UserRow({
               </Badge>
             )}
           </div>
-          <div className="flex min-w-0 items-center gap-1.5 text-[12px] text-plm-fg-muted">
+          <div className="flex min-w-0 items-center gap-1.5 text-[13px] text-ui-fg-secondary">
             <span className="truncate">{user.email}</span>
             {/* Last online */}
             {!compact && formatLastOnline(user.last_online_at) && (
-              <span className="flex flex-shrink-0 items-center gap-1 text-plm-fg-muted/80">
+              <span className="flex flex-shrink-0 items-center gap-1 text-ui-fg-secondary/80">
                 <span aria-hidden>·</span>
                 <Clock size={10} />
                 {formatLastOnline(user.last_online_at)}
@@ -126,10 +126,10 @@ export function UserRow({
               setTeamsDropdownOpen(false)
               setRolesDropdownOpen(false)
             }}
-            className={`inline-flex h-6 items-center gap-1 whitespace-nowrap rounded px-1.5 text-[11px] font-medium transition-colors cursor-pointer ${
+            className={`inline-flex h-6 items-center gap-1 whitespace-nowrap rounded px-1.5 text-[12px] font-medium transition-colors cursor-pointer ${
               user.job_title
                 ? 'hover:brightness-110'
-                : 'border border-dashed border-plm-border text-plm-fg-muted hover:text-plm-fg'
+                : 'border border-dashed border-ui-divider text-ui-fg-secondary hover:text-ui-fg'
             }`}
             style={
               user.job_title
@@ -155,7 +155,7 @@ export function UserRow({
                 }}
               />
               <div
-                className="fixed z-[101] bg-plm-bg-light border border-plm-border rounded-lg shadow-xl py-1 min-w-[220px] max-h-[350px] flex flex-col"
+                className="fixed z-[101] bg-ui-field border border-ui-divider rounded-lg shadow-xl py-1 min-w-[220px] max-h-[350px] flex flex-col"
                 style={{
                   top: 'auto',
                   left: 'auto',
@@ -174,7 +174,7 @@ export function UserRow({
                 {/* View-only mode for non-admins */}
                 {!canManage || !onToggleJobTitle ? (
                   <div className="p-3">
-                    <div className="mb-2 text-[12px] font-medium text-plm-fg-muted">
+                    <div className="mb-2 text-[13px] font-medium text-ui-fg-secondary">
                       Job Title
                     </div>
                     {user.job_title ? (
@@ -191,27 +191,27 @@ export function UserRow({
                             return <TitleIcon size={14} />
                           })()}
                         </div>
-                        <span className="text-sm text-plm-fg">{user.job_title.name}</span>
+                        <span className="text-[13px] text-ui-fg">{user.job_title.name}</span>
                       </div>
                     ) : (
-                      <div className="text-sm text-plm-fg-muted">No title assigned</div>
+                      <div className="text-[13px] text-ui-fg-secondary">No title assigned</div>
                     )}
                   </div>
                 ) : (
                   /* Edit mode for admins */
                   <>
-                    <div className="px-2 py-1.5 border-b border-plm-border">
+                    <div className="px-2 py-1.5 border-b border-ui-divider">
                       <div className="relative">
                         <Search
                           size={14}
-                          className="absolute left-2 top-1/2 -translate-y-1/2 text-plm-fg-muted"
+                          className="absolute left-2 top-1/2 -translate-y-1/2 text-ui-fg-secondary"
                         />
                         <input
                           type="text"
                           placeholder="Search titles..."
                           value={titleSearch}
                           onChange={(e) => setTitleSearch(e.target.value)}
-                          className="w-full pl-7 pr-2 py-1 text-sm bg-plm-bg border border-plm-border rounded focus:outline-none focus:border-plm-accent"
+                          className="w-full pl-7 pr-2 py-1 text-[13px] bg-ui-bg border border-ui-divider rounded focus:outline-none focus:border-ui-accent"
                           autoFocus
                         />
                       </div>
@@ -229,16 +229,16 @@ export function UserRow({
                             setTitleSearch('')
                           }}
                           disabled={togglingTitle}
-                          className={`w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-left transition-colors hover:bg-plm-highlight ${
-                            !user.job_title ? 'text-plm-fg' : 'text-plm-fg-muted'
+                          className={`w-full flex items-center gap-2 px-3 py-1.5 text-[14px] text-left transition-colors hover:bg-ui-hover ${
+                            !user.job_title ? 'text-ui-fg' : 'text-ui-fg-secondary'
                           }`}
                         >
-                          <div className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0 bg-plm-fg-muted/20">
-                            <X size={12} className="text-plm-fg-muted" />
+                          <div className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0 bg-ui-fg-secondary/20">
+                            <X size={12} className="text-ui-fg-secondary" />
                           </div>
                           <span className="flex-1 truncate">No title</span>
                           {!user.job_title && (
-                            <Check size={14} className="text-plm-success flex-shrink-0" />
+                            <Check size={14} className="text-ui-success flex-shrink-0" />
                           )}
                         </button>
                       )}
@@ -263,7 +263,7 @@ export function UserRow({
                                 setTitleSearch('')
                               }}
                               disabled={togglingTitle}
-                              className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-left transition-colors hover:bg-plm-highlight"
+                              className="w-full flex items-center gap-2 px-3 py-1.5 text-[14px] text-left transition-colors hover:bg-ui-hover"
                             >
                               <div
                                 className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
@@ -275,9 +275,9 @@ export function UserRow({
                                   <TitleIcon size={12} />
                                 )}
                               </div>
-                              <span className="flex-1 text-plm-fg truncate">{title.name}</span>
+                              <span className="flex-1 text-ui-fg truncate">{title.name}</span>
                               {isSelected && (
-                                <Check size={14} className="text-plm-success flex-shrink-0" />
+                                <Check size={14} className="text-ui-success flex-shrink-0" />
                               )}
                             </button>
                           )
@@ -304,10 +304,10 @@ export function UserRow({
                   setRolesDropdownOpen(false)
                   setTitleDropdownOpen(false)
                 }}
-                className={`inline-flex h-6 items-center gap-1 whitespace-nowrap rounded px-1.5 text-[11px] font-medium transition-colors cursor-pointer ${
+                className={`inline-flex h-6 items-center gap-1 whitespace-nowrap rounded px-1.5 text-[12px] font-medium transition-colors cursor-pointer ${
                   (user.teams || []).length > 0
-                    ? 'bg-plm-fg-muted/15 text-plm-fg-dim hover:text-plm-fg'
-                    : 'border border-dashed border-plm-warning/40 bg-plm-warning/10 text-plm-warning'
+                    ? 'bg-ui-fg-secondary/15 text-ui-fg hover:text-ui-fg'
+                    : 'border border-dashed border-ui-warning/40 bg-ui-warning/10 text-ui-warning'
                 }`}
                 title={(user.teams || []).map((t) => t.name).join(', ') || 'No teams assigned'}
               >
@@ -337,7 +337,7 @@ export function UserRow({
                     }}
                   />
                   <div
-                    className="fixed z-[101] bg-plm-bg-light border border-plm-border rounded-lg shadow-xl py-1 min-w-[220px] max-h-[350px] flex flex-col"
+                    className="fixed z-[101] bg-ui-field border border-ui-divider rounded-lg shadow-xl py-1 min-w-[220px] max-h-[350px] flex flex-col"
                     ref={(el) => {
                       if (el) {
                         const btn = el.previousElementSibling?.previousElementSibling as HTMLElement
@@ -352,7 +352,7 @@ export function UserRow({
                     {/* View-only mode for non-admins */}
                     {!canManage || !onToggleTeam ? (
                       <div className="p-3">
-                        <div className="mb-2 text-[12px] font-medium text-plm-fg-muted">
+                        <div className="mb-2 text-[13px] font-medium text-ui-fg-secondary">
                           Teams
                         </div>
                         {(user.teams || []).length > 0 ? (
@@ -370,30 +370,30 @@ export function UserRow({
                                   >
                                     <TeamIcon size={14} />
                                   </div>
-                                  <span className="text-sm text-plm-fg">{team.name}</span>
+                                  <span className="text-[13px] text-ui-fg">{team.name}</span>
                                 </div>
                               )
                             })}
                           </div>
                         ) : (
-                          <div className="text-sm text-plm-fg-muted">No teams assigned</div>
+                          <div className="text-[13px] text-ui-fg-secondary">No teams assigned</div>
                         )}
                       </div>
                     ) : (
                       /* Edit mode for admins */
                       <>
-                        <div className="px-2 py-1.5 border-b border-plm-border">
+                        <div className="px-2 py-1.5 border-b border-ui-divider">
                           <div className="relative">
                             <Search
                               size={14}
-                              className="absolute left-2 top-1/2 -translate-y-1/2 text-plm-fg-muted"
+                              className="absolute left-2 top-1/2 -translate-y-1/2 text-ui-fg-secondary"
                             />
                             <input
                               type="text"
                               placeholder="Search teams..."
                               value={teamSearch}
                               onChange={(e) => setTeamSearch(e.target.value)}
-                              className="w-full pl-7 pr-2 py-1 text-sm bg-plm-bg border border-plm-border rounded focus:outline-none focus:border-plm-accent"
+                              className="w-full pl-7 pr-2 py-1 text-[13px] bg-ui-bg border border-ui-divider rounded focus:outline-none focus:border-ui-accent"
                               autoFocus
                             />
                           </div>
@@ -419,7 +419,7 @@ export function UserRow({
                                     setTogglingTeam(null)
                                   }}
                                   disabled={isToggling}
-                                  className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-left transition-colors hover:bg-plm-highlight"
+                                  className="w-full flex items-center gap-2 px-3 py-1.5 text-[14px] text-left transition-colors hover:bg-ui-hover"
                                 >
                                   <div
                                     className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
@@ -434,9 +434,9 @@ export function UserRow({
                                       <TeamIcon size={12} />
                                     )}
                                   </div>
-                                  <span className="flex-1 text-plm-fg truncate">{team.name}</span>
+                                  <span className="flex-1 text-ui-fg truncate">{team.name}</span>
                                   {isInTeam && (
-                                    <Check size={14} className="text-plm-success flex-shrink-0" />
+                                    <Check size={14} className="text-ui-success flex-shrink-0" />
                                   )}
                                 </button>
                               )
@@ -460,10 +460,10 @@ export function UserRow({
                   setTeamsDropdownOpen(false)
                   setTitleDropdownOpen(false)
                 }}
-                className={`inline-flex h-6 items-center gap-1 whitespace-nowrap rounded px-1.5 text-[11px] font-medium transition-colors cursor-pointer ${
+                className={`inline-flex h-6 items-center gap-1 whitespace-nowrap rounded px-1.5 text-[12px] font-medium transition-colors cursor-pointer ${
                   (userWorkflowRoleIds || []).length > 0
-                    ? 'bg-plm-accent/15 text-plm-accent hover:bg-plm-accent/20'
-                    : 'border border-dashed border-plm-border text-plm-fg-muted hover:text-plm-fg'
+                    ? 'bg-ui-accent/15 text-ui-accent hover:bg-ui-accent/20'
+                    : 'border border-dashed border-ui-divider text-ui-fg-secondary hover:text-ui-fg'
                 }`}
                 title={
                   (userWorkflowRoleIds || [])
@@ -491,7 +491,7 @@ export function UserRow({
                     }}
                   />
                   <div
-                    className="fixed z-[101] bg-plm-bg-light border border-plm-border rounded-lg shadow-xl py-1 min-w-[220px] max-h-[350px] flex flex-col"
+                    className="fixed z-[101] bg-ui-field border border-ui-divider rounded-lg shadow-xl py-1 min-w-[220px] max-h-[350px] flex flex-col"
                     ref={(el) => {
                       if (el) {
                         const btn = el.previousElementSibling?.previousElementSibling as HTMLElement
@@ -506,7 +506,7 @@ export function UserRow({
                     {/* View-only mode for non-admins */}
                     {!canManage || !onToggleWorkflowRole ? (
                       <div className="p-3">
-                        <div className="mb-2 text-[12px] font-medium text-plm-fg-muted">
+                        <div className="mb-2 text-[13px] font-medium text-ui-fg-secondary">
                           Workflow Roles
                         </div>
                         {(userWorkflowRoleIds || []).length > 0 ? (
@@ -526,30 +526,30 @@ export function UserRow({
                                   >
                                     <RoleIcon size={14} />
                                   </div>
-                                  <span className="text-sm text-plm-fg">{role.name}</span>
+                                  <span className="text-[13px] text-ui-fg">{role.name}</span>
                                 </div>
                               )
                             })}
                           </div>
                         ) : (
-                          <div className="text-sm text-plm-fg-muted">No roles assigned</div>
+                          <div className="text-[13px] text-ui-fg-secondary">No roles assigned</div>
                         )}
                       </div>
                     ) : (
                       /* Edit mode for admins */
                       <>
-                        <div className="px-2 py-1.5 border-b border-plm-border">
+                        <div className="px-2 py-1.5 border-b border-ui-divider">
                           <div className="relative">
                             <Search
                               size={14}
-                              className="absolute left-2 top-1/2 -translate-y-1/2 text-plm-fg-muted"
+                              className="absolute left-2 top-1/2 -translate-y-1/2 text-ui-fg-secondary"
                             />
                             <input
                               type="text"
                               placeholder="Search roles..."
                               value={roleSearch}
                               onChange={(e) => setRoleSearch(e.target.value)}
-                              className="w-full pl-7 pr-2 py-1 text-sm bg-plm-bg border border-plm-border rounded focus:outline-none focus:border-plm-accent"
+                              className="w-full pl-7 pr-2 py-1 text-[13px] bg-ui-bg border border-ui-divider rounded focus:outline-none focus:border-ui-accent"
                               autoFocus
                             />
                           </div>
@@ -575,7 +575,7 @@ export function UserRow({
                                     setTogglingRole(null)
                                   }}
                                   disabled={isToggling}
-                                  className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-left transition-colors hover:bg-plm-highlight"
+                                  className="w-full flex items-center gap-2 px-3 py-1.5 text-[14px] text-left transition-colors hover:bg-ui-hover"
                                 >
                                   <div
                                     className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
@@ -590,9 +590,9 @@ export function UserRow({
                                       <RoleIcon size={12} />
                                     )}
                                   </div>
-                                  <span className="flex-1 text-plm-fg truncate">{role.name}</span>
+                                  <span className="flex-1 text-ui-fg truncate">{role.name}</span>
                                   {hasRole && (
-                                    <Check size={14} className="text-plm-success flex-shrink-0" />
+                                    <Check size={14} className="text-ui-success flex-shrink-0" />
                                   )}
                                 </button>
                               )
@@ -616,10 +616,10 @@ export function UserRow({
               // Always allow opening to view - admins can edit, others can just view
               setRolesDropdownOpen(!rolesDropdownOpen)
             }}
-            className={`inline-flex h-6 items-center gap-1 whitespace-nowrap rounded px-1.5 text-[11px] font-medium transition-colors cursor-pointer ${
+            className={`inline-flex h-6 items-center gap-1 whitespace-nowrap rounded px-1.5 text-[12px] font-medium transition-colors cursor-pointer ${
               (userWorkflowRoleIds || []).length > 0
-                ? 'bg-plm-accent/15 text-plm-accent hover:bg-plm-accent/20'
-                : 'border border-dashed border-plm-border text-plm-fg-muted hover:text-plm-fg'
+                ? 'bg-ui-accent/15 text-ui-accent hover:bg-ui-accent/20'
+                : 'border border-dashed border-ui-divider text-ui-fg-secondary hover:text-ui-fg'
             }`}
             title={
               (userWorkflowRoleIds || [])
@@ -647,7 +647,7 @@ export function UserRow({
                 }}
               />
               <div
-                className="fixed z-[101] bg-plm-bg-light border border-plm-border rounded-lg shadow-xl py-1 min-w-[220px] max-h-[350px] flex flex-col"
+                className="fixed z-[101] bg-ui-field border border-ui-divider rounded-lg shadow-xl py-1 min-w-[220px] max-h-[350px] flex flex-col"
                 ref={(el) => {
                   if (el) {
                     const btn = el.previousElementSibling?.previousElementSibling as HTMLElement
@@ -662,7 +662,7 @@ export function UserRow({
                 {/* View-only mode for non-admins */}
                 {!canManage || !onToggleWorkflowRole ? (
                   <div className="p-3">
-                    <div className="mb-2 text-[12px] font-medium text-plm-fg-muted">
+                    <div className="mb-2 text-[13px] font-medium text-ui-fg-secondary">
                       Workflow Roles
                     </div>
                     {(userWorkflowRoleIds || []).length > 0 ? (
@@ -679,30 +679,30 @@ export function UserRow({
                               >
                                 <RoleIcon size={14} />
                               </div>
-                              <span className="text-sm text-plm-fg">{role.name}</span>
+                              <span className="text-[13px] text-ui-fg">{role.name}</span>
                             </div>
                           )
                         })}
                       </div>
                     ) : (
-                      <div className="text-sm text-plm-fg-muted">No roles assigned</div>
+                      <div className="text-[13px] text-ui-fg-secondary">No roles assigned</div>
                     )}
                   </div>
                 ) : (
                   /* Edit mode for admins */
                   <>
-                    <div className="px-2 py-1.5 border-b border-plm-border">
+                    <div className="px-2 py-1.5 border-b border-ui-divider">
                       <div className="relative">
                         <Search
                           size={14}
-                          className="absolute left-2 top-1/2 -translate-y-1/2 text-plm-fg-muted"
+                          className="absolute left-2 top-1/2 -translate-y-1/2 text-ui-fg-secondary"
                         />
                         <input
                           type="text"
                           placeholder="Search roles..."
                           value={roleSearch}
                           onChange={(e) => setRoleSearch(e.target.value)}
-                          className="w-full pl-7 pr-2 py-1 text-sm bg-plm-bg border border-plm-border rounded focus:outline-none focus:border-plm-accent"
+                          className="w-full pl-7 pr-2 py-1 text-[13px] bg-ui-bg border border-ui-divider rounded focus:outline-none focus:border-ui-accent"
                           autoFocus
                         />
                       </div>
@@ -727,7 +727,7 @@ export function UserRow({
                                 setTogglingRole(null)
                               }}
                               disabled={isToggling}
-                              className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-left transition-colors hover:bg-plm-highlight"
+                              className="w-full flex items-center gap-2 px-3 py-1.5 text-[14px] text-left transition-colors hover:bg-ui-hover"
                             >
                               <div
                                 className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
@@ -739,9 +739,9 @@ export function UserRow({
                                   <RoleIcon size={12} />
                                 )}
                               </div>
-                              <span className="flex-1 text-plm-fg truncate">{role.name}</span>
+                              <span className="flex-1 text-ui-fg truncate">{role.name}</span>
                               {hasRole && (
-                                <Check size={14} className="text-plm-success flex-shrink-0" />
+                                <Check size={14} className="text-ui-success flex-shrink-0" />
                               )}
                             </button>
                           )
@@ -760,7 +760,7 @@ export function UserRow({
         <div className="relative">
           <button
             onClick={() => setActionDropdownOpen(!actionDropdownOpen)}
-            className={`rounded-md p-1.5 text-plm-fg-muted transition-all hover:bg-plm-highlight hover:text-plm-fg focus-visible:opacity-100 ${
+            className={`rounded-md p-1.5 text-ui-fg-secondary transition-all hover:bg-ui-hover hover:text-ui-fg focus-visible:opacity-100 ${
               actionDropdownOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
             }`}
             title="More actions"
@@ -775,7 +775,7 @@ export function UserRow({
               <div className="fixed inset-0 z-[100]" onClick={() => setActionDropdownOpen(false)} />
 
               <div
-                className="fixed z-[101] bg-plm-bg-light border border-plm-border rounded-lg shadow-xl py-1 min-w-[200px]"
+                className="fixed z-[101] bg-ui-field border border-ui-divider rounded-lg shadow-xl py-1 min-w-[200px]"
                 ref={(el) => {
                   if (el) {
                     const btn = el.previousElementSibling?.previousElementSibling as HTMLElement
@@ -806,7 +806,7 @@ export function UserRow({
                     onViewProfile()
                     setActionDropdownOpen(false)
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-left text-plm-fg hover:bg-plm-highlight transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-[14px] text-left text-ui-fg hover:bg-ui-hover transition-colors"
                 >
                   <User size={14} />
                   View Profile
@@ -819,7 +819,7 @@ export function UserRow({
                       onViewNetPermissions()
                       setActionDropdownOpen(false)
                     }}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-left text-plm-fg hover:bg-plm-highlight transition-colors"
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-[14px] text-left text-ui-fg hover:bg-ui-hover transition-colors"
                   >
                     <FileKey size={14} />
                     View Net Permissions
@@ -834,10 +834,10 @@ export function UserRow({
                       setActionDropdownOpen(false)
                     }}
                     disabled={isSimulating}
-                    className={`w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-left transition-colors ${
+                    className={`w-full flex items-center gap-2 px-3 py-1.5 text-[14px] text-left transition-colors ${
                       isSimulating
                         ? 'text-cyan-400 bg-cyan-400/10'
-                        : 'text-plm-fg hover:bg-plm-highlight'
+                        : 'text-ui-fg hover:bg-ui-hover'
                     }`}
                   >
                     <UserCog size={14} />
@@ -846,7 +846,7 @@ export function UserRow({
                 )}
 
                 {/* Divider */}
-                {canManage && <div className="my-1 border-t border-plm-border" />}
+                {canManage && <div className="my-1 border-t border-ui-divider" />}
 
                 {/* Individual permissions */}
                 {onPermissions && canManage && (
@@ -855,7 +855,7 @@ export function UserRow({
                       onPermissions()
                       setActionDropdownOpen(false)
                     }}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-left text-plm-fg hover:bg-plm-highlight transition-colors"
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-[14px] text-left text-ui-fg hover:bg-ui-hover transition-colors"
                   >
                     <Shield size={14} />
                     Individual Permissions
@@ -869,7 +869,7 @@ export function UserRow({
                       onVaultAccess()
                       setActionDropdownOpen(false)
                     }}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-left text-plm-fg hover:bg-plm-highlight transition-colors"
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-[14px] text-left text-ui-fg hover:bg-ui-hover transition-colors"
                   >
                     <Database size={14} />
                     Manage Vault Access
@@ -879,13 +879,13 @@ export function UserRow({
                 {/* Remove from team */}
                 {canManage && onRemoveFromTeam && (
                   <>
-                    <div className="my-1 border-t border-plm-border" />
+                    <div className="my-1 border-t border-ui-divider" />
                     <button
                       onClick={() => {
                         onRemoveFromTeam()
                         setActionDropdownOpen(false)
                       }}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-left text-plm-warning hover:bg-plm-warning/10 transition-colors"
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-[14px] text-left text-ui-warning hover:bg-ui-warning/10 transition-colors"
                     >
                       <X size={14} />
                       Remove from Team
@@ -896,13 +896,13 @@ export function UserRow({
                 {/* Remove from organization */}
                 {canManage && !isCurrentUser && (
                   <>
-                    {!onRemoveFromTeam && <div className="my-1 border-t border-plm-border" />}
+                    {!onRemoveFromTeam && <div className="my-1 border-t border-ui-divider" />}
                     <button
                       onClick={() => {
                         onRemove()
                         setActionDropdownOpen(false)
                       }}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-left text-plm-error hover:bg-plm-error/10 transition-colors"
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-[14px] text-left text-ui-danger hover:bg-ui-danger/10 transition-colors"
                     >
                       <UserMinus size={14} />
                       Remove from Organization

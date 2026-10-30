@@ -115,7 +115,7 @@ export function RolesTab({ searchQuery = '', onShowCreateRoleDialog }: RolesTabP
     return (
       <SettingsGroup>
         <div className="flex items-center justify-between gap-4 px-4 py-4">
-          <span className="text-[12px] text-plm-fg-muted">
+          <span className="text-[13px] text-ui-fg-secondary">
             {searchQuery ? 'No matching workflow roles' : 'No workflow roles yet'}
           </span>
           {isAdmin && !searchQuery && onShowCreateRoleDialog && (
@@ -149,7 +149,7 @@ export function RolesTab({ searchQuery = '', onShowCreateRoleDialog }: RolesTabP
             return (
               <div
                 key={role.id}
-                className="group flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-plm-highlight/40"
+                className="group flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-ui-hover/40"
               >
                 {/* Role icon */}
                 <div
@@ -161,8 +161,8 @@ export function RolesTab({ searchQuery = '', onShowCreateRoleDialog }: RolesTabP
 
                 {/* Role info */}
                 <div className="flex-1 min-w-0">
-                  <div className="truncate text-[13px] font-medium text-plm-fg">{role.name}</div>
-                  <div className="truncate text-[12px] text-plm-fg-muted">
+                  <div className="truncate text-[14px] font-medium text-ui-fg">{role.name}</div>
+                  <div className="truncate text-[13px] text-ui-fg-secondary">
                     {usersWithRole.length} user{usersWithRole.length !== 1 ? 's' : ''}
                     {role.description && ` · ${role.description}`}
                   </div>
@@ -177,14 +177,14 @@ export function RolesTab({ searchQuery = '', onShowCreateRoleDialog }: RolesTabP
                           key={u.id}
                           src={getEffectiveAvatarUrl(u)!}
                           alt={u.full_name || u.email}
-                          className="h-6 w-6 rounded-full border-2 border-plm-bg-light object-cover"
+                          className="h-6 w-6 rounded-full border-2 border-ui-field object-cover"
                           title={u.full_name || u.email}
                           referrerPolicy="no-referrer"
                         />
                       ) : (
                         <div
                           key={u.id}
-                          className="h-6 w-6 rounded-full bg-plm-fg-muted/20 flex items-center justify-center text-[10px] font-medium border-2 border-plm-bg-light"
+                          className="h-6 w-6 rounded-full bg-ui-fg-secondary/20 flex items-center justify-center text-[12px] font-medium border-2 border-ui-field"
                           title={u.full_name || u.email}
                         >
                           {getInitials(u.full_name || u.email)}
@@ -192,7 +192,7 @@ export function RolesTab({ searchQuery = '', onShowCreateRoleDialog }: RolesTabP
                       ),
                     )}
                     {usersWithRole.length > 4 && (
-                      <div className="h-6 w-6 rounded-full bg-plm-fg-muted/20 flex items-center justify-center text-[10px] font-medium border-2 border-plm-bg-light">
+                      <div className="h-6 w-6 rounded-full bg-ui-fg-secondary/20 flex items-center justify-center text-[12px] font-medium border-2 border-ui-field">
                         +{usersWithRole.length - 4}
                       </div>
                     )}
@@ -205,7 +205,7 @@ export function RolesTab({ searchQuery = '', onShowCreateRoleDialog }: RolesTabP
                     <button
                       type="button"
                       onClick={() => openEditRoleDialog(role)}
-                      className="rounded-md p-1.5 text-plm-fg-muted transition-colors hover:bg-plm-highlight hover:text-plm-fg"
+                      className="rounded-md p-1.5 text-ui-fg-secondary transition-colors hover:bg-ui-hover hover:text-ui-fg"
                       title="Edit role"
                       aria-label="Edit role"
                     >
@@ -214,7 +214,7 @@ export function RolesTab({ searchQuery = '', onShowCreateRoleDialog }: RolesTabP
                     <button
                       type="button"
                       onClick={() => setDeletingRole(role)}
-                      className="rounded-md p-1.5 text-plm-fg-muted transition-colors hover:bg-plm-error/10 hover:text-plm-error"
+                      className="rounded-md p-1.5 text-ui-fg-secondary transition-colors hover:bg-ui-danger/10 hover:text-ui-danger"
                       title="Delete role"
                       aria-label="Delete role"
                     >
@@ -229,7 +229,7 @@ export function RolesTab({ searchQuery = '', onShowCreateRoleDialog }: RolesTabP
       </SettingsGroup>
 
       {/* Info footer */}
-      <p className="text-[12px] text-plm-fg-muted">
+      <p className="text-[13px] text-ui-fg-secondary">
         Workflow roles define responsibilities in workflows (e.g., approvers, reviewers). Editing a
         role updates it for all assigned users.
       </p>

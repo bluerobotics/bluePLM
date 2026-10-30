@@ -273,11 +273,11 @@ export function ViewNetPermissionsModal({
       onClick={onClose}
     >
       <div
-        className="bg-plm-bg-light border border-plm-border rounded-xl w-full max-w-5xl h-[90vh] mx-4 flex flex-col shadow-2xl overflow-hidden"
+        className="bg-ui-field border border-ui-divider rounded-xl w-full max-w-5xl h-[90vh] mx-4 flex flex-col shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="p-4 border-b border-plm-border flex items-center gap-4 flex-shrink-0">
+        <div className="p-4 border-b border-ui-divider flex items-center gap-4 flex-shrink-0">
           {getEffectiveAvatarUrl(user) ? (
             <img
               src={getEffectiveAvatarUrl(user)!}
@@ -286,40 +286,40 @@ export function ViewNetPermissionsModal({
               referrerPolicy="no-referrer"
             />
           ) : (
-            <div className="w-12 h-12 rounded-full bg-plm-fg-muted/20 flex items-center justify-center text-lg font-medium text-plm-fg">
+            <div className="w-12 h-12 rounded-full bg-ui-fg-secondary/20 flex items-center justify-center text-lg font-medium text-ui-fg">
               {(user.full_name || user.email).charAt(0).toUpperCase()}
             </div>
           )}
           <div className="flex-1">
-            <h2 className="text-lg font-semibold text-plm-fg flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-ui-fg flex items-center gap-2">
               {user.full_name || user.email}
-              <span className="text-sm font-normal text-plm-fg-muted">— Net Permissions</span>
+              <span className="text-[13px] font-normal text-ui-fg-secondary">— Net Permissions</span>
             </h2>
-            <p className="text-sm text-plm-fg-muted">{user.email}</p>
+            <p className="text-[13px] text-ui-fg-secondary">{user.email}</p>
           </div>
 
           <button
             onClick={onClose}
-            className="p-2 text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight rounded-lg transition-colors"
+            className="p-2 text-ui-fg-secondary hover:text-ui-fg hover:bg-ui-hover rounded-lg transition-colors"
           >
             <X size={18} />
           </button>
         </div>
 
         {/* Overview row */}
-        <div className="p-4 border-b border-plm-border bg-plm-bg/50 flex-shrink-0">
+        <div className="p-4 border-b border-ui-divider bg-ui-bg/50 flex-shrink-0">
           <div className="flex flex-wrap items-center gap-4">
             {/* Admin badge (if admin) */}
             {isUserAdmin && (
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-plm-accent/10">
-                <Shield size={16} className="text-plm-accent" />
-                <span className="text-sm font-medium text-plm-accent">Admin</span>
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-ui-accent/10">
+                <Shield size={16} className="text-ui-accent" />
+                <span className="text-[13px] font-medium text-ui-accent">Admin</span>
               </div>
             )}
 
             {/* Teams */}
             <div className="flex items-center gap-1.5">
-              <span className="text-xs text-plm-fg-muted mr-1">Teams:</span>
+              <span className="text-[12px] text-ui-fg-secondary mr-1">Teams:</span>
               {(user.teams || []).length > 0 ? (
                 <>
                   {(user.teams || []).map((team) => {
@@ -333,7 +333,7 @@ export function ViewNetPermissionsModal({
                     return (
                       <div
                         key={team.id}
-                        className="flex items-center gap-1 px-2 py-1 rounded text-xs"
+                        className="flex items-center gap-1 px-2 py-1 rounded text-[12px]"
                         style={{ backgroundColor: `${team.color}15`, color: team.color }}
                         title={team.name}
                       >
@@ -344,7 +344,7 @@ export function ViewNetPermissionsModal({
                   })}
                 </>
               ) : (
-                <span className="text-xs text-plm-fg-muted flex items-center gap-1">
+                <span className="text-[12px] text-ui-fg-secondary flex items-center gap-1">
                   <UserX size={12} />
                   None
                 </span>
@@ -354,7 +354,7 @@ export function ViewNetPermissionsModal({
             {/* Workflow roles */}
             {(user.workflow_roles || []).length > 0 && (
               <div className="flex items-center gap-1.5">
-                <span className="text-xs text-plm-fg-muted mr-1">Roles:</span>
+                <span className="text-[12px] text-ui-fg-secondary mr-1">Roles:</span>
                 {(user.workflow_roles || []).map((wfRole) => {
                   const WfRoleIcon =
                     (
@@ -366,7 +366,7 @@ export function ViewNetPermissionsModal({
                   return (
                     <div
                       key={wfRole.id}
-                      className="flex items-center gap-1 px-2 py-1 rounded text-xs"
+                      className="flex items-center gap-1 px-2 py-1 rounded text-[12px]"
                       style={{ backgroundColor: `${wfRole.color}15`, color: wfRole.color }}
                     >
                       <WfRoleIcon size={12} />
@@ -379,12 +379,12 @@ export function ViewNetPermissionsModal({
 
             {/* Vault access summary */}
             <div className="flex items-center gap-1.5">
-              <span className="text-xs text-plm-fg-muted mr-1">Vaults:</span>
+              <span className="text-[12px] text-ui-fg-secondary mr-1">Vaults:</span>
               <div
-                className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${
+                className={`flex items-center gap-1 px-2 py-1 rounded text-[12px] ${
                   hasFullVaultAccess
-                    ? 'bg-plm-success/10 text-plm-success'
-                    : 'bg-plm-accent/10 text-plm-accent'
+                    ? 'bg-ui-success/10 text-ui-success'
+                    : 'bg-ui-accent/10 text-ui-accent'
                 }`}
               >
                 <Database size={12} />
@@ -397,38 +397,38 @@ export function ViewNetPermissionsModal({
         </div>
 
         {/* Toolbar */}
-        <div className="p-3 border-b border-plm-border flex items-center gap-3 flex-shrink-0 bg-plm-bg/30">
+        <div className="p-3 border-b border-ui-divider flex items-center gap-3 flex-shrink-0 bg-ui-bg/30">
           <div className="relative flex-1 max-w-xs">
             <Search
               size={14}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-ui-fg-secondary"
             />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search resources..."
-              className="w-full pl-9 pr-3 py-1.5 text-sm bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-dim focus:outline-none focus:border-plm-accent"
+              className="w-full pl-9 pr-3 py-1.5 text-[13px] bg-ui-bg border border-ui-divider rounded-lg text-ui-fg placeholder:text-ui-fg focus:outline-none focus:border-ui-accent"
             />
           </div>
 
           <div className="flex items-center gap-1">
             <button
               onClick={expandAll}
-              className="px-2 py-1 text-xs text-plm-fg-muted hover:text-plm-fg rounded hover:bg-plm-highlight transition-colors"
+              className="px-2 py-1 text-[12px] text-ui-fg-secondary hover:text-ui-fg rounded hover:bg-ui-hover transition-colors"
             >
               Expand All
             </button>
             <button
               onClick={collapseAll}
-              className="px-2 py-1 text-xs text-plm-fg-muted hover:text-plm-fg rounded hover:bg-plm-highlight transition-colors"
+              className="px-2 py-1 text-[12px] text-ui-fg-secondary hover:text-ui-fg rounded hover:bg-ui-hover transition-colors"
             >
               Collapse All
             </button>
           </div>
 
           {/* Legend */}
-          <div className="flex items-center gap-4 ml-auto text-xs text-plm-fg-muted">
+          <div className="flex items-center gap-4 ml-auto text-[12px] text-ui-fg-secondary">
             {PERMISSION_ACTIONS.map((action) => (
               <div key={action} className="flex items-center gap-1.5">
                 <div
@@ -454,15 +454,15 @@ export function ViewNetPermissionsModal({
         <div className="flex-1 overflow-y-auto">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="animate-spin text-plm-fg-muted" size={32} />
+              <Loader2 className="animate-spin text-ui-fg-secondary" size={32} />
             </div>
           ) : isUserAdmin ? (
             <div className="p-8 text-center">
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-plm-accent/20 mb-4">
-                <Shield size={32} className="text-plm-accent" />
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-ui-accent/20 mb-4">
+                <Shield size={32} className="text-ui-accent" />
               </div>
-              <h3 className="text-lg font-medium text-plm-fg mb-2">Full Admin Access</h3>
-              <p className="text-sm text-plm-fg-muted max-w-md mx-auto">
+              <h3 className="text-lg font-medium text-ui-fg mb-2">Full Admin Access</h3>
+              <p className="text-[13px] text-ui-fg-secondary max-w-md mx-auto">
                 As an Admin, this user has full access to all resources and actions across the
                 entire system. Team permissions do not restrict admin users.
               </p>
@@ -472,8 +472,8 @@ export function ViewNetPermissionsModal({
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-yellow-500/20 mb-4">
                 <UserX size={32} className="text-yellow-500" />
               </div>
-              <h3 className="text-lg font-medium text-plm-fg mb-2">No Team Assignments</h3>
-              <p className="text-sm text-plm-fg-muted max-w-md mx-auto">
+              <h3 className="text-lg font-medium text-ui-fg mb-2">No Team Assignments</h3>
+              <p className="text-[13px] text-ui-fg-secondary max-w-md mx-auto">
                 This user is not assigned to any teams and has no team-based permissions. Add them
                 to a team to grant permissions.
               </p>
@@ -494,12 +494,12 @@ export function ViewNetPermissionsModal({
                 return (
                   <div
                     key={group.id}
-                    className="border border-plm-border rounded-xl overflow-hidden bg-plm-bg/30"
+                    className="border border-ui-divider rounded-xl overflow-hidden bg-ui-bg/30"
                   >
                     {/* Group header */}
                     <button
                       onClick={() => toggleGroup(group.id)}
-                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-plm-highlight/50 transition-colors text-left"
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-ui-hover/50 transition-colors text-left"
                     >
                       <div
                         className="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center"
@@ -509,8 +509,8 @@ export function ViewNetPermissionsModal({
                       </div>
 
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium text-plm-fg">{group.name}</div>
-                        <div className="text-xs text-plm-fg-muted">
+                        <div className="font-medium text-ui-fg">{group.name}</div>
+                        <div className="text-[12px] text-ui-fg-secondary">
                           {group.id === 'source-files'
                             ? `${accessibleVaults.length} vault${accessibleVaults.length !== 1 ? 's' : ''} accessible`
                             : `${stats.withPerms} of ${stats.total} resources with permissions`}
@@ -518,28 +518,28 @@ export function ViewNetPermissionsModal({
                       </div>
 
                       {isExpanded ? (
-                        <ChevronDown size={18} className="text-plm-fg-muted flex-shrink-0" />
+                        <ChevronDown size={18} className="text-ui-fg-secondary flex-shrink-0" />
                       ) : (
-                        <ChevronRight size={18} className="text-plm-fg-muted flex-shrink-0" />
+                        <ChevronRight size={18} className="text-ui-fg-secondary flex-shrink-0" />
                       )}
                     </button>
 
                     {/* Group resources */}
                     {isExpanded && (
-                      <div className="border-t border-plm-border">
+                      <div className="border-t border-ui-divider">
                         {/* Vault tabs for source-files group */}
                         {group.id === 'source-files' && accessibleVaults.length > 0 && (
-                          <div className="px-4 py-2 border-b border-plm-border bg-plm-bg/50 flex items-center gap-1 flex-wrap">
-                            <span className="text-xs text-plm-fg-muted mr-1">Vault:</span>
+                          <div className="px-4 py-2 border-b border-ui-divider bg-ui-bg/50 flex items-center gap-1 flex-wrap">
+                            <span className="text-[12px] text-ui-fg-secondary mr-1">Vault:</span>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation()
                                 setSelectedSourceFilesVaultId(null)
                               }}
-                              className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors ${
+                              className={`flex items-center gap-1.5 px-2 py-1 rounded text-[12px] transition-colors ${
                                 selectedSourceFilesVaultId === null
-                                  ? 'bg-plm-accent text-white'
-                                  : 'bg-plm-bg-light text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight border border-plm-border'
+                                  ? 'bg-ui-accent text-white'
+                                  : 'bg-ui-field text-ui-fg-secondary hover:text-ui-fg hover:bg-ui-hover border border-ui-divider'
                               }`}
                             >
                               <Database size={11} />
@@ -552,10 +552,10 @@ export function ViewNetPermissionsModal({
                                   e.stopPropagation()
                                   setSelectedSourceFilesVaultId(vault.id)
                                 }}
-                                className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors ${
+                                className={`flex items-center gap-1.5 px-2 py-1 rounded text-[12px] transition-colors ${
                                   selectedSourceFilesVaultId === vault.id
-                                    ? 'bg-plm-accent text-white'
-                                    : 'bg-plm-bg-light text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight border border-plm-border'
+                                    ? 'bg-ui-accent text-white'
+                                    : 'bg-ui-field text-ui-fg-secondary hover:text-ui-fg hover:bg-ui-hover border border-ui-divider'
                                 }`}
                               >
                                 <Folder size={11} />
@@ -563,7 +563,7 @@ export function ViewNetPermissionsModal({
                               </button>
                             ))}
                             {!hasFullVaultAccess && accessibleVaults.length < orgVaults.length && (
-                              <span className="text-xs text-plm-fg-dim ml-1">
+                              <span className="text-[12px] text-ui-fg ml-1">
                                 ({orgVaults.length - accessibleVaults.length} restricted)
                               </span>
                             )}
@@ -608,21 +608,21 @@ export function ViewNetPermissionsModal({
                               key={resourceId}
                               className={`flex items-center gap-3 px-4 py-2.5 ${
                                 idx !== filteredResourceIds.length - 1
-                                  ? 'border-b border-plm-border/20'
+                                  ? 'border-b border-ui-divider/20'
                                   : ''
                               }`}
                             >
                               {/* Resource icon */}
-                              <div className="w-8 h-8 rounded-lg bg-plm-bg-secondary flex items-center justify-center text-plm-fg-muted">
+                              <div className="w-8 h-8 rounded-lg bg-ui-field flex items-center justify-center text-ui-fg-secondary">
                                 <ResourceIcon size={16} />
                               </div>
 
                               {/* Resource info */}
                               <div className="flex-1 min-w-0">
-                                <div className="text-sm text-plm-fg font-medium truncate">
+                                <div className="text-[13px] text-ui-fg font-medium truncate">
                                   {resource.name}
                                 </div>
-                                <div className="text-xs text-plm-fg-muted truncate">
+                                <div className="text-[12px] text-ui-fg-secondary truncate">
                                   {resource.description}
                                 </div>
                               </div>
@@ -640,7 +640,7 @@ export function ViewNetPermissionsModal({
                                         className="w-8 h-8 rounded-lg flex items-center justify-center opacity-20"
                                         title={`${PERMISSION_ACTION_LABELS[action]} not applicable`}
                                       >
-                                        <Minus size={12} className="text-plm-fg-dim" />
+                                        <Minus size={12} className="text-ui-fg" />
                                       </div>
                                     )
                                   }
@@ -674,7 +674,7 @@ export function ViewNetPermissionsModal({
                                       {isGranted ? (
                                         <Check size={12} />
                                       ) : (
-                                        <span className="text-[10px] font-medium">
+                                        <span className="text-[12px] font-medium">
                                           {action.charAt(0).toUpperCase()}
                                         </span>
                                       )}
@@ -695,8 +695,8 @@ export function ViewNetPermissionsModal({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-plm-border flex items-center justify-between bg-plm-bg/50 flex-shrink-0">
-          <div className="flex items-center gap-4 text-sm text-plm-fg-muted">
+        <div className="p-4 border-t border-ui-divider flex items-center justify-between bg-ui-bg/50 flex-shrink-0">
+          <div className="flex items-center gap-4 text-[13px] text-ui-fg-secondary">
             <div className="flex items-center gap-1.5">
               <Shield size={14} />
               <span>

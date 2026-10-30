@@ -119,7 +119,7 @@ function TriStateBox({
       disabled={disabled}
       onChange={() => undefined}
       onClick={onClick}
-      className="accent-plm-accent"
+      className="accent-ui-accent"
       aria-label={label}
       title={label}
     />
@@ -128,10 +128,10 @@ function TriStateBox({
 
 function ValueCell({ value, segments }: { value: string | null; segments: ValueSegments | null }) {
   if (value === null) {
-    return <span className="text-plm-fg-muted/50">{t('vaultAudit.findings.empty')}</span>
+    return <span className="text-ui-fg-secondary/50">{t('vaultAudit.findings.empty')}</span>
   }
 
-  const text = 'whitespace-pre-wrap break-words text-plm-fg'
+  const text = 'whitespace-pre-wrap break-words text-ui-fg'
   if (!segments) return <span className={text}>{value}</span>
 
   return (
@@ -140,9 +140,9 @@ function ValueCell({ value, segments }: { value: string | null; segments: ValueS
       {/* One value being a prefix of the other leaves nothing to highlight, and an unmarked cell
           would read as no difference at all. The marker stands in for the missing span. */}
       {segments.middle === '' ? (
-        <mark className="inline-block w-1 h-3 align-middle bg-plm-warning/50 rounded-sm" />
+        <mark className="inline-block w-1 h-3 align-middle bg-ui-warning/50 rounded-sm" />
       ) : (
-        <mark className="bg-plm-warning/25 text-plm-fg rounded-sm px-0.5">{segments.middle}</mark>
+        <mark className="bg-ui-warning/25 text-ui-fg rounded-sm px-0.5">{segments.middle}</mark>
       )}
       {segments.tail}
     </span>
@@ -169,7 +169,7 @@ function DirectionCell({ finding }: { finding: VaultAuditFinding }) {
   const Icon = direction === 'file-to-vault' ? ArrowLeft : ArrowRight
   return (
     <span
-      className="flex justify-center pt-0.5 text-plm-accent"
+      className="flex justify-center pt-0.5 text-ui-accent"
       title={resolutionHint(finding.resolution)}
     >
       <Icon size={13} />
@@ -195,8 +195,8 @@ function SortButton({
       onClick={() => onSort(sortKey)}
       title={t('vaultAudit.findings.sortBy', { column: label })}
       aria-sort={active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
-      className={`inline-flex items-center gap-0.5 hover:text-plm-fg transition-colors ${
-        active ? 'text-plm-fg' : ''
+      className={`inline-flex items-center gap-0.5 hover:text-ui-fg transition-colors ${
+        active ? 'text-ui-fg' : ''
       }`}
     >
       {label}
@@ -227,8 +227,8 @@ function ConflictButton({
       title={hint}
       className={`px-2 py-0.5 rounded border transition-colors disabled:opacity-40 ${
         selected
-          ? 'border-plm-accent bg-plm-accent/20 text-plm-accent'
-          : 'border-plm-border text-plm-fg-muted hover:text-plm-fg hover:bg-plm-bg-lighter'
+          ? 'border-ui-accent bg-ui-accent/20 text-ui-accent'
+          : 'border-ui-divider text-ui-fg-secondary hover:text-ui-fg hover:bg-ui-field'
       }`}
     >
       {label}
@@ -273,7 +273,7 @@ function FileRowView({
   return (
     <div
       role="row"
-      className="flex items-center gap-2 pl-1 pr-2 py-1.5 border-t border-plm-border bg-plm-bg-lighter/70 hover:bg-plm-bg-lighter"
+      className="flex items-center gap-2 pl-1 pr-2 py-1.5 border-t border-ui-divider bg-ui-field/70 hover:bg-ui-field"
     >
       <button
         type="button"
@@ -282,7 +282,7 @@ function FileRowView({
         title={
           collapsed ? t('vaultAudit.findings.expandFile') : t('vaultAudit.findings.collapseFile')
         }
-        className="p-0.5 rounded text-plm-fg-muted hover:text-plm-fg"
+        className="p-0.5 rounded text-ui-fg-secondary hover:text-ui-fg"
       >
         <Chevron size={14} />
       </button>
@@ -299,7 +299,7 @@ function FileRowView({
         ) : allSettled ? (
           <Check
             size={13}
-            className="text-plm-success"
+            className="text-ui-success"
             aria-label={t('vaultAudit.findings.settled')}
           />
         ) : null}
@@ -309,7 +309,7 @@ function FileRowView({
         {file ? (
           <FileIcon file={file} size={22} />
         ) : (
-          <FileGlyph size={20} className="text-plm-fg-muted" />
+          <FileGlyph size={20} className="text-ui-fg-secondary" />
         )}
       </span>
 
@@ -320,18 +320,18 @@ function FileRowView({
         title={group.relativePath}
         className="min-w-0 flex-1 text-left"
       >
-        <span className="block truncate text-sm text-plm-fg font-medium">{name}</span>
-        {folder && <span className="block truncate text-[11px] text-plm-fg-muted">{folder}</span>}
+        <span className="block truncate text-[13px] text-ui-fg font-medium">{name}</span>
+        {folder && <span className="block truncate text-[12px] text-ui-fg-secondary">{folder}</span>}
       </button>
 
       {heldByOther && (
-        <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] text-plm-warning bg-plm-warning/10 flex-shrink-0">
+        <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[12px] text-ui-warning bg-ui-warning/10 flex-shrink-0">
           <Lock size={10} />
           {heldByLabel(availability)}
         </span>
       )}
 
-      <span className="px-1.5 py-0.5 rounded-full text-[11px] text-plm-fg-muted bg-plm-bg border border-plm-border flex-shrink-0">
+      <span className="px-1.5 py-0.5 rounded-full text-[12px] text-ui-fg-secondary bg-ui-bg border border-ui-divider flex-shrink-0">
         {t('vaultAudit.category.values', { count: group.rows.length })}
       </span>
 
@@ -340,7 +340,7 @@ function FileRowView({
         onClick={() => reveal(group.relativePath)}
         disabled={!file}
         title={file ? t('vaultAudit.findings.reveal') : t('vaultAudit.findings.revealUnavailable')}
-        className="p-1 rounded text-plm-fg-muted hover:text-plm-fg hover:bg-plm-bg transition-colors disabled:opacity-40 disabled:hover:bg-transparent flex-shrink-0"
+        className="p-1 rounded text-ui-fg-secondary hover:text-ui-fg hover:bg-ui-bg transition-colors disabled:opacity-40 disabled:hover:bg-transparent flex-shrink-0"
       >
         <ExternalLink size={13} />
       </button>
@@ -370,15 +370,15 @@ function ValueRowView({ row, disabled, onToggle, onChooseConflict }: ValueRowVie
   return (
     <div
       role="row"
-      className={`${VALUE_GRID} items-start text-xs border-t border-plm-border/40 transition-colors ${
-        row.selected && !row.settled ? 'bg-plm-highlight/40' : 'hover:bg-plm-bg-lighter/40'
+      className={`${VALUE_GRID} items-start text-[12px] border-t border-ui-divider/40 transition-colors ${
+        row.selected && !row.settled ? 'bg-ui-hover/40' : 'hover:bg-ui-field/40'
       } ${row.settled ? 'opacity-70' : ''}`}
     >
       <div role="cell" className="pl-7 pr-1 py-2">
         {row.settled ? (
           <Check
             size={12}
-            className="text-plm-success"
+            className="text-ui-success"
             aria-label={t('vaultAudit.findings.settled')}
           />
         ) : row.selectable ? (
@@ -388,18 +388,18 @@ function ValueRowView({ row, disabled, onToggle, onChooseConflict }: ValueRowVie
             disabled={disabled}
             onChange={() => undefined}
             onClick={(event) => onToggle(row, event.shiftKey)}
-            className="accent-plm-accent"
+            className="accent-ui-accent"
             aria-label={resolutionLabel(finding.resolution)}
           />
         ) : null}
       </div>
       <div role="cell" className="pl-4 pr-2 py-2 min-w-0">
-        <span className="block text-plm-fg break-words">{fieldLabel(finding.field)}</span>
-        <span className="block text-plm-fg-muted break-words">
+        <span className="block text-ui-fg break-words">{fieldLabel(finding.field)}</span>
+        <span className="block text-ui-fg-secondary break-words">
           {finding.configuration ?? t('vaultAudit.findings.fileScope')}
         </span>
         {finding.unattributedReason && (
-          <span className="block text-plm-fg-muted/70">
+          <span className="block text-ui-fg-secondary/70">
             {unattributedReasonLabel(finding.unattributedReason)}
           </span>
         )}
@@ -413,7 +413,7 @@ function ValueRowView({ row, disabled, onToggle, onChooseConflict }: ValueRowVie
       <div role="cell" className="px-2 py-2 min-w-0">
         <ValueCell value={finding.fileValue} segments={comparison?.file ?? null} />
       </div>
-      <div role="cell" className="px-2 py-2 min-w-0 text-plm-fg-muted">
+      <div role="cell" className="px-2 py-2 min-w-0 text-ui-fg-secondary">
         <span title={resolutionHint(finding.resolution)}>
           {resolutionLabel(finding.resolution)}
         </span>
@@ -442,13 +442,13 @@ function ValueRowView({ row, disabled, onToggle, onChooseConflict }: ValueRowVie
           </div>
         )}
         {!row.action.available && (
-          <span className="block text-plm-fg-muted/70">
+          <span className="block text-ui-fg-secondary/70">
             {row.action.reason === 'held-by-another-user'
               ? heldByLabel(row.availability)
               : blockedReasonLabel(row.action.reason)}
           </span>
         )}
-        {trivialNote && <span className="block text-plm-warning/80">{trivialNote}</span>}
+        {trivialNote && <span className="block text-ui-warning/80">{trivialNote}</span>}
       </div>
     </div>
   )
@@ -493,11 +493,11 @@ export function VaultAuditFileList({
   return (
     <div
       role="table"
-      className="flex flex-col h-full min-h-0 border border-plm-border rounded-md bg-plm-bg overflow-hidden"
+      className="flex flex-col h-full min-h-0 border border-ui-divider rounded-md bg-ui-bg overflow-hidden"
     >
       <div
         role="row"
-        className={`${VALUE_GRID} items-center py-1.5 text-[12px] font-medium bg-plm-bg-lighter text-plm-fg-muted border-b border-plm-border flex-shrink-0`}
+        className={`${VALUE_GRID} items-center py-1.5 text-[13px] font-medium bg-ui-field text-ui-fg-secondary border-b border-ui-divider flex-shrink-0`}
       >
         <div role="columnheader" className="pl-2">
           <TriStateBox

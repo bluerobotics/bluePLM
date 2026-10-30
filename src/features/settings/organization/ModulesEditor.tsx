@@ -326,7 +326,7 @@ export function ModulesEditor({
         </SettingsGroup>
 
         {/* Legend */}
-        <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-[12px] text-plm-fg-muted">
+        <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-[13px] text-ui-fg-secondary">
           <div className="flex items-center gap-1.5">
             <Lock size={11} />
             <span>Required module</span>

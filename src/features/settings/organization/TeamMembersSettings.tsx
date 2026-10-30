@@ -264,7 +264,7 @@ export function TeamMembersSettings() {
 
   // ===== RENDER =====
   if (!organization) {
-    return <div className="py-12 text-center text-plm-fg-muted">No organization connected</div>
+    return <div className="py-12 text-center text-ui-fg-secondary">No organization connected</div>
   }
 
   const counts: Record<TabType, number> = {
@@ -322,7 +322,7 @@ export function TeamMembersSettings() {
 
       <SettingsSection title="Members" description={TAB_DESCRIPTIONS[activeTab]}>
         {/* Tab bar, search and the active tab's actions */}
-        <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-b border-plm-border">
+        <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-b border-ui-divider">
           <div role="tablist" aria-label="Members" className="-mb-px flex items-center gap-5">
             {TABS.map((tab) => {
               const selected = activeTab === tab.id
@@ -333,16 +333,16 @@ export function TeamMembersSettings() {
                   role="tab"
                   aria-selected={selected}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-1.5 border-b-2 px-0.5 pb-2.5 pt-1 text-[13px] font-medium outline-none transition-colors focus-visible:text-plm-fg ${
+                  className={`flex items-center gap-1.5 border-b-2 px-0.5 pb-2.5 pt-1 text-[14px] font-medium outline-none transition-colors focus-visible:text-ui-fg ${
                     selected
-                      ? 'border-plm-accent text-plm-fg'
-                      : 'border-transparent text-plm-fg-muted hover:text-plm-fg'
+                      ? 'border-ui-accent text-ui-fg'
+                      : 'border-transparent text-ui-fg-secondary hover:text-ui-fg'
                   }`}
                 >
                   {tab.icon}
                   <span>{tab.label}</span>
                   {counts[tab.id] > 0 && (
-                    <span className="text-[11px] font-normal tabular-nums text-plm-fg-muted">
+                    <span className="text-[12px] font-normal tabular-nums text-ui-fg-secondary">
                       {counts[tab.id]}
                     </span>
                   )}
@@ -354,7 +354,7 @@ export function TeamMembersSettings() {
             <div className="relative w-56">
               <Search
                 size={14}
-                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-plm-fg-muted"
+                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ui-fg-secondary"
               />
               <TextInput
                 size="sm"
@@ -391,7 +391,7 @@ export function TeamMembersSettings() {
 
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="animate-spin text-plm-fg-muted" size={20} />
+            <Loader2 className="animate-spin text-ui-fg-secondary" size={20} />
           </div>
         ) : (
           <div className="space-y-4">

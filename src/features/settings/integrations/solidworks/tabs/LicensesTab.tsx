@@ -58,7 +58,7 @@ export function LicensesTab() {
                     href="https://customerportal.solidworks.com/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-plm-accent hover:underline"
+                    className="text-ui-accent hover:underline"
                     onClick={(e) => {
                       e.preventDefault()
                       window.electronAPI?.openFile('https://customerportal.solidworks.com/')
@@ -90,7 +90,7 @@ export function LicensesTab() {
                     onClick={() => setShowLicenseKey(!showLicenseKey)}
                     title={showLicenseKey ? 'Hide' : 'Show'}
                     aria-label={showLicenseKey ? 'Hide' : 'Show'}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-plm-fg-muted hover:text-plm-fg"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ui-fg-secondary hover:text-ui-fg"
                   >
                     {showLicenseKey ? <EyeOff size={14} /> : <Eye size={14} />}
                   </button>

@@ -198,7 +198,7 @@ export function ServiceTab() {
 
           <SettingRow label="Document Manager API">
             {status.running && !status.dmApiAvailable && status.dmApiError && (
-              <span className="text-[12px] text-plm-error" title={status.dmApiError}>
+              <span className="text-[13px] text-ui-danger" title={status.dmApiError}>
                 (No license key)
               </span>
             )}
@@ -315,18 +315,18 @@ export function ServiceTab() {
           </SettingRow>
 
           {lastMetadataSyncResult && (
-            <div className="flex items-center gap-4 px-4 py-3 text-[12px]">
-              <span className="text-plm-fg-muted">Last sync:</span>
+            <div className="flex items-center gap-4 px-4 py-3 text-[13px]">
+              <span className="text-ui-fg-secondary">Last sync:</span>
               {lastMetadataSyncResult.updated > 0 && (
-                <span className="text-plm-success">{lastMetadataSyncResult.updated} updated</span>
+                <span className="text-ui-success">{lastMetadataSyncResult.updated} updated</span>
               )}
               {lastMetadataSyncResult.unchanged > 0 && (
-                <span className="text-plm-fg-dim">
+                <span className="text-ui-fg">
                   {lastMetadataSyncResult.unchanged} unchanged
                 </span>
               )}
               {lastMetadataSyncResult.failed > 0 && (
-                <span className="text-plm-error">{lastMetadataSyncResult.failed} failed</span>
+                <span className="text-ui-danger">{lastMetadataSyncResult.failed} failed</span>
               )}
             </div>
           )}
@@ -380,7 +380,7 @@ function CapabilitiesSection({
       {isExpanded && (
         <SettingsGroup>
           {!isServiceRunning ? (
-            <div className="px-4 py-3 text-[13px] text-plm-fg-muted">
+            <div className="px-4 py-3 text-[14px] text-ui-fg-secondary">
               Start the service to see available features.
             </div>
           ) : (
@@ -439,33 +439,33 @@ function CapabilityGroup({
   missingHint: string
 }) {
   const dot = available
-    ? 'bg-plm-success'
+    ? 'bg-ui-success'
     : missingTone === 'error'
-      ? 'bg-plm-error'
-      : 'bg-plm-warning'
+      ? 'bg-ui-danger'
+      : 'bg-ui-warning'
   return (
     <div className="px-4 py-3.5">
       <div className="mb-2 flex items-center gap-2">
         <span className={`h-2 w-2 rounded-full ${dot}`} aria-hidden />
-        <span className="text-[13px] font-medium text-plm-fg">{title}</span>
-        <span className="text-[12px] text-plm-fg-dim">{requirement}</span>
+        <span className="text-[14px] font-medium text-ui-fg">{title}</span>
+        <span className="text-[13px] text-ui-fg">{requirement}</span>
       </div>
-      <ul className="ml-4 space-y-1 text-[12px] text-plm-fg-muted">
+      <ul className="ml-4 space-y-1 text-[13px] text-ui-fg-secondary">
         {features.map((feature) => (
           <li
             key={feature}
             className={`flex items-center gap-2 ${available ? '' : 'opacity-50'}`}
           >
             {available ? (
-              <Check size={14} className="flex-shrink-0 text-plm-success" />
+              <Check size={14} className="flex-shrink-0 text-ui-success" />
             ) : (
-              <X size={14} className="flex-shrink-0 text-plm-error" />
+              <X size={14} className="flex-shrink-0 text-ui-danger" />
             )}
             <span>{feature}</span>
           </li>
         ))}
       </ul>
-      {!available && <p className="ml-4 mt-2 text-[12px] text-plm-warning">{missingHint}</p>}
+      {!available && <p className="ml-4 mt-2 text-[13px] text-ui-warning">{missingHint}</p>}
     </div>
   )
 }

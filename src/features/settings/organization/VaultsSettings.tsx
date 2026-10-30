@@ -39,7 +39,7 @@ export function VaultsSettings() {
 
   if (!organization) {
     return (
-      <div className="py-12 text-center text-[13px] text-plm-fg-muted">
+      <div className="py-12 text-center text-[14px] text-ui-fg-secondary">
         No organization connected
       </div>
     )
@@ -112,12 +112,12 @@ export function VaultsSettings() {
 
         {isLoadingVaults ? (
           <div className="flex items-center justify-center py-8">
-            <Loader2 className="animate-spin text-plm-fg-muted" size={20} />
+            <Loader2 className="animate-spin text-ui-fg-secondary" size={20} />
           </div>
         ) : orgVaults.length === 0 ? (
           <SettingsGroup>
             <div className="flex flex-col items-center gap-3 px-4 py-8 text-center">
-              <p className="text-[13px] text-plm-fg-muted">
+              <p className="text-[14px] text-ui-fg-secondary">
                 {isAdmin
                   ? 'No vaults created yet. Add a vault to get started.'
                   : 'No vaults created yet. Ask an organization admin to create one.'}

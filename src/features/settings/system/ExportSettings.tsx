@@ -301,7 +301,7 @@ export function ExportSettings() {
   }
 
   if (!organization) {
-    return <div className="p-6 text-center text-plm-fg-muted">No organization selected</div>
+    return <div className="p-6 text-center text-ui-fg-secondary">No organization selected</div>
   }
 
   if (loading) {
@@ -383,10 +383,10 @@ export function ExportSettings() {
               placeholder="{filename}_{config}"
               className="font-mono"
             />
-            <div className="mt-2 flex items-center gap-2 text-[12px] text-plm-fg-muted">
+            <div className="mt-2 flex items-center gap-2 text-[13px] text-ui-fg-secondary">
               <Eye size={14} />
               <span>Preview</span>
-              <span className="truncate font-mono text-plm-accent">{livePreview}</span>
+              <span className="truncate font-mono text-ui-accent">{livePreview}</span>
             </div>
           </SettingRow>
 
@@ -400,10 +400,10 @@ export function ExportSettings() {
                     setSettings((prev) => ({ ...prev, filename_pattern: preset.pattern }))
                   }
                   aria-pressed={settings.filename_pattern === preset.pattern}
-                  className={`rounded-md border px-2.5 py-1 text-[12px] transition-colors ${
+                  className={`rounded-md border px-2.5 py-1 text-[13px] transition-colors ${
                     settings.filename_pattern === preset.pattern
-                      ? 'border-plm-accent/60 bg-plm-accent/15 text-plm-fg'
-                      : 'border-plm-border bg-plm-bg text-plm-fg-muted hover:bg-plm-highlight hover:text-plm-fg'
+                      ? 'border-ui-accent/60 bg-ui-accent/15 text-ui-fg'
+                      : 'border-ui-divider bg-ui-bg text-ui-fg-secondary hover:bg-ui-hover hover:text-ui-fg'
                   }`}
                   title={preset.description}
                 >
@@ -420,11 +420,11 @@ export function ExportSettings() {
                   type="button"
                   key={token}
                   onClick={() => insertToken(token)}
-                  className="flex flex-col items-start rounded-md border border-plm-border bg-plm-bg px-2 py-1.5 text-left transition-colors hover:border-plm-border-light hover:bg-plm-highlight"
+                  className="flex flex-col items-start rounded-md border border-ui-divider bg-ui-bg px-2 py-1.5 text-left transition-colors hover:border-ui-field-border hover:bg-ui-hover"
                   title={`${description} (e.g., ${example})`}
                 >
-                  <span className="font-mono text-[12px] text-plm-accent">{token}</span>
-                  <span className="w-full truncate text-[11px] text-plm-fg-muted">{label}</span>
+                  <span className="font-mono text-[13px] text-ui-accent">{token}</span>
+                  <span className="w-full truncate text-[12px] text-ui-fg-secondary">{label}</span>
                 </button>
               ))}
             </div>
@@ -555,20 +555,20 @@ export function ExportSettings() {
 
       <SettingsSection title="Token Reference">
         <SettingsGroup>
-          <table className="w-full text-[12px]">
+          <table className="w-full text-[13px]">
             <thead>
-              <tr className="border-b border-plm-border">
-                <th className="px-4 py-2 text-left font-medium text-plm-fg-muted">Token</th>
-                <th className="px-4 py-2 text-left font-medium text-plm-fg-muted">Description</th>
-                <th className="px-4 py-2 text-left font-medium text-plm-fg-muted">Example</th>
+              <tr className="border-b border-ui-divider">
+                <th className="px-4 py-2 text-left font-medium text-ui-fg-secondary">Token</th>
+                <th className="px-4 py-2 text-left font-medium text-ui-fg-secondary">Description</th>
+                <th className="px-4 py-2 text-left font-medium text-ui-fg-secondary">Example</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-plm-border">
+            <tbody className="divide-y divide-ui-divider">
               {FILENAME_TOKENS.map(({ token, description, example }) => (
                 <tr key={token}>
-                  <td className="px-4 py-2 font-mono text-plm-accent">{token}</td>
-                  <td className="px-4 py-2 text-plm-fg-muted">{description}</td>
-                  <td className="px-4 py-2 text-plm-fg">{example}</td>
+                  <td className="px-4 py-2 font-mono text-ui-accent">{token}</td>
+                  <td className="px-4 py-2 text-ui-fg-secondary">{description}</td>
+                  <td className="px-4 py-2 text-ui-fg">{example}</td>
                 </tr>
               ))}
             </tbody>

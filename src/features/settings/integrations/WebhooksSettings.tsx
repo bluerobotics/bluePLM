@@ -55,7 +55,7 @@ export function WebhooksSettings() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 size={20} className="animate-spin text-plm-fg-muted" />
+        <Loader2 size={20} className="animate-spin text-ui-fg-secondary" />
       </div>
     )
   }
@@ -89,7 +89,7 @@ export function WebhooksSettings() {
         {webhooks.length === 0 ? (
           !showForm && (
             <SettingsGroup>
-              <div className="px-4 py-3 text-[13px] text-plm-fg-muted">
+              <div className="px-4 py-3 text-[14px] text-ui-fg-secondary">
                 No webhooks configured. Add a webhook to notify external services when events
                 occur.
               </div>
@@ -122,11 +122,11 @@ export function WebhooksSettings() {
         description={
           <>
             Payloads are signed with HMAC-SHA256. Verify the signature using the{' '}
-            <code className="text-plm-accent">X-BluePLM-Signature</code> header.
+            <code className="text-ui-accent">X-BluePLM-Signature</code> header.
           </>
         }
       >
-        <pre className="overflow-x-auto rounded-lg border border-plm-border bg-plm-bg-light/60 p-3 font-mono text-[12px] text-plm-fg-dim">
+        <pre className="overflow-x-auto rounded-lg border border-ui-divider bg-ui-field/60 p-3 font-mono text-[13px] text-ui-fg">
           {PAYLOAD_EXAMPLE}
         </pre>
       </SettingsSection>
@@ -137,11 +137,11 @@ export function WebhooksSettings() {
           onClick={() => setDeletingWebhook(null)}
         >
           <div
-            className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4"
+            className="bg-ui-field border border-ui-divider rounded-xl p-6 max-w-md w-full mx-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-[15px] font-semibold text-plm-fg mb-3">Delete Webhook</h3>
-            <p className="text-[13px] text-plm-fg-muted mb-5">
+            <h3 className="text-[15px] font-semibold text-ui-fg mb-3">Delete Webhook</h3>
+            <p className="text-[14px] text-ui-fg-secondary mb-5">
               Are you sure you want to delete <strong>{deletingWebhook.name}</strong>? This cannot
               be undone.
             </p>

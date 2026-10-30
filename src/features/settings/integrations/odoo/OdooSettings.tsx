@@ -89,7 +89,7 @@ export function OdooSettings() {
                 <>
                   Connected to {settings?.settings?.url}
                   {settings?.settings?.config_name && (
-                    <span className="ml-1 font-normal text-plm-fg-muted">
+                    <span className="ml-1 font-normal text-ui-fg-secondary">
                       ({settings.settings.config_name})
                     </span>
                   )}
@@ -100,7 +100,7 @@ export function OdooSettings() {
             }
             badge={
               isLoading ? (
-                <Loader2 size={12} className="animate-spin text-plm-fg-muted" />
+                <Loader2 size={12} className="animate-spin text-ui-fg-secondary" />
               ) : connected ? (
                 <Badge tone="success">Connected</Badge>
               ) : apiServerOnline === false ? (
@@ -148,7 +148,7 @@ export function OdooSettings() {
             }
           >
             Odoo integration requires the BluePLM API server. Run{' '}
-            <code className="rounded bg-plm-bg px-1 font-mono">npm run api</code> locally or
+            <code className="rounded bg-ui-bg px-1 font-mono">npm run api</code> locally or
             configure an external API URL in Settings → REST API.
           </Callout>
         )}
@@ -180,19 +180,19 @@ export function OdooSettings() {
           <SettingsGroup>
             {isLoadingConfigs ? (
               <div className="flex items-center justify-center py-6">
-                <Loader2 size={16} className="animate-spin text-plm-fg-muted" />
+                <Loader2 size={16} className="animate-spin text-ui-fg-secondary" />
               </div>
             ) : savedConfigs.length === 0 ? (
-              <div className="px-4 py-3 text-[13px] text-plm-fg-muted">
+              <div className="px-4 py-3 text-[14px] text-ui-fg-secondary">
                 No saved connections yet. Click "New Connection" to create one.
               </div>
             ) : (
-              <div className="max-h-56 divide-y divide-plm-border overflow-y-auto">
+              <div className="max-h-56 divide-y divide-ui-divider overflow-y-auto">
                 {savedConfigs.map((config) => (
                   <div
                     key={config.id}
                     className={`flex items-center gap-3 px-4 py-2.5 ${
-                      config.is_active ? 'bg-plm-accent/[0.06]' : ''
+                      config.is_active ? 'bg-ui-accent/[0.06]' : ''
                     }`}
                   >
                     <div
@@ -201,18 +201,18 @@ export function OdooSettings() {
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="truncate text-[13px] font-medium text-plm-fg">
+                        <span className="truncate text-[14px] font-medium text-ui-fg">
                           {config.name}
                         </span>
                         {config.is_active && <Badge tone="success">Active</Badge>}
                         {config.is_last_test_successful === true && (
-                          <Check size={12} className="text-plm-success flex-shrink-0" />
+                          <Check size={12} className="text-ui-success flex-shrink-0" />
                         )}
                         {config.is_last_test_successful === false && (
-                          <AlertCircle size={12} className="text-plm-error flex-shrink-0" />
+                          <AlertCircle size={12} className="text-ui-danger flex-shrink-0" />
                         )}
                       </div>
-                      <div className="truncate text-[12px] text-plm-fg-muted">
+                      <div className="truncate text-[13px] text-ui-fg-secondary">
                         {config.url} · {config.database}
                       </div>
                     </div>
@@ -226,7 +226,7 @@ export function OdooSettings() {
                             onClick={() => setShowDisconnectDialog(true)}
                             title="Disconnect this connection"
                             aria-label="Disconnect this connection"
-                            className="hover:text-plm-error"
+                            className="hover:text-ui-danger"
                             icon={<Plug size={14} />}
                           />
                         ) : (
@@ -262,7 +262,7 @@ export function OdooSettings() {
                           onClick={() => setDeletingConfig(config)}
                           title="Delete connection"
                           aria-label="Delete connection"
-                          className="hover:text-plm-error"
+                          className="hover:text-ui-danger"
                           icon={<Trash2 size={14} />}
                         />
                       </div>
@@ -388,7 +388,7 @@ export function OdooSettings() {
                   type="button"
                   onClick={() => setShowApiKey(!showApiKey)}
                   aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-plm-fg-muted hover:text-plm-fg"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ui-fg-secondary hover:text-ui-fg"
                 >
                   {showApiKey ? <EyeOff size={14} /> : <Eye size={14} />}
                 </button>
@@ -406,7 +406,7 @@ export function OdooSettings() {
         href="https://www.odoo.com/documentation/17.0/developer/reference/external_api.html"
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center gap-1.5 text-[12px] text-plm-accent hover:underline"
+        className="inline-flex items-center gap-1.5 text-[13px] text-ui-accent hover:underline"
       >
         <ExternalLink size={14} />
         Odoo API Documentation

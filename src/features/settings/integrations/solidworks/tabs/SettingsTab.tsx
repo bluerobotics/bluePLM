@@ -97,27 +97,27 @@ export function SettingsTab() {
                   aria-checked={selected}
                   onClick={() => setCadPreviewMode(option.mode)}
                   disabled={option.disabled}
-                  className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-plm-highlight/50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent ${
-                    index > 0 ? 'border-t border-plm-border' : ''
+                  className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-ui-hover/50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent ${
+                    index > 0 ? 'border-t border-ui-divider' : ''
                   }`}
                 >
                   <span
                     aria-hidden
                     className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border ${
-                      selected ? 'border-plm-accent' : 'border-plm-border-light'
+                      selected ? 'border-ui-accent' : 'border-ui-field-border'
                     }`}
                   >
-                    {selected && <span className="h-2 w-2 rounded-full bg-plm-accent" />}
+                    {selected && <span className="h-2 w-2 rounded-full bg-ui-accent" />}
                   </span>
                   <Icon
                     size={16}
-                    className={`flex-shrink-0 ${selected ? 'text-plm-accent' : 'text-plm-fg-muted'}`}
+                    className={`flex-shrink-0 ${selected ? 'text-ui-accent' : 'text-ui-fg-secondary'}`}
                   />
                   <span className="min-w-0">
-                    <span className="block text-[13px] font-medium text-plm-fg">
+                    <span className="block text-[14px] font-medium text-ui-fg">
                       {option.label}
                     </span>
-                    <span className="block text-[12px] text-plm-fg-muted">
+                    <span className="block text-[13px] text-ui-fg-secondary">
                       {option.description}
                     </span>
                   </span>
@@ -189,7 +189,7 @@ export function SettingsTab() {
             htmlFor="sw-allow-model-revision"
           >
             {isSavingRevisionPolicy ? (
-              <Loader2 size={16} className="animate-spin text-plm-accent" />
+              <Loader2 size={16} className="animate-spin text-ui-accent" />
             ) : (
               <Switch
                 id="sw-allow-model-revision"

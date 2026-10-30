@@ -19,12 +19,12 @@ function DialogShell({ icon, title, onClose, children, footer }: DialogShellProp
       onClick={onClose}
     >
       <div
-        className="mx-4 w-full max-w-md rounded-xl border border-plm-border bg-plm-bg-light p-6"
+        className="mx-4 w-full max-w-md rounded-xl border border-ui-divider bg-ui-field p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center gap-3">
           {icon}
-          <h3 className="text-[15px] font-semibold text-plm-fg">{title}</h3>
+          <h3 className="text-[15px] font-semibold text-ui-fg">{title}</h3>
         </div>
         {children}
         <div className="flex justify-end gap-2">{footer}</div>
@@ -58,7 +58,7 @@ export function MetadataColumnDialogs({
       {deletingColumn && (
         <DialogShell
           icon={
-            <div className="rounded-full bg-plm-error/15 p-2 text-plm-error">
+            <div className="rounded-full bg-ui-danger/15 p-2 text-ui-danger">
               <AlertTriangle size={20} />
             </div>
           }
@@ -75,10 +75,10 @@ export function MetadataColumnDialogs({
             </>
           }
         >
-          <p className="mb-3 text-[13px] text-plm-fg-muted">
+          <p className="mb-3 text-[14px] text-ui-fg-secondary">
             Are you sure you want to delete the column <strong>"{deletingColumn.label}"</strong>?
           </p>
-          <p className="mb-4 text-[12px] text-plm-fg-dim">
+          <p className="mb-4 text-[13px] text-ui-fg">
             This will remove the column from the file browser. Existing file metadata using this
             column will remain in storage but won't be displayed.
           </p>
@@ -88,7 +88,7 @@ export function MetadataColumnDialogs({
       {showPushConfirm && (
         <DialogShell
           icon={
-            <div className="rounded-full bg-plm-warning/15 p-2 text-plm-warning">
+            <div className="rounded-full bg-ui-warning/15 p-2 text-ui-warning">
               <Send size={20} />
             </div>
           }
@@ -105,11 +105,11 @@ export function MetadataColumnDialogs({
             </>
           }
         >
-          <p className="mb-3 text-[13px] text-plm-fg-muted">
+          <p className="mb-3 text-[14px] text-ui-fg-secondary">
             This will override <strong>every user's</strong> column layout with your current
             configuration.
           </p>
-          <p className="mb-4 text-[12px] text-plm-fg-dim">
+          <p className="mb-4 text-[13px] text-ui-fg">
             All connected users will receive the update immediately. Users who are offline will
             receive it when they next open the app.
           </p>

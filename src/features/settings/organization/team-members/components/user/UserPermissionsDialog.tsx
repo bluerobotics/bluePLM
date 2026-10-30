@@ -191,29 +191,29 @@ export function UserPermissionsDialog({
       onClick={onClose}
     >
       <div
-        className="bg-plm-bg-light border border-plm-border rounded-xl w-full max-w-4xl h-[85vh] mx-4 flex flex-col shadow-2xl overflow-hidden"
+        className="bg-ui-field border border-ui-divider rounded-xl w-full max-w-4xl h-[85vh] mx-4 flex flex-col shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="p-4 border-b border-plm-border flex items-center gap-4 flex-shrink-0">
+        <div className="p-4 border-b border-ui-divider flex items-center gap-4 flex-shrink-0">
           <div className="p-2.5 rounded-lg bg-purple-500/20 text-purple-400">
             <Shield size={22} />
           </div>
           <div className="flex-1">
-            <h2 className="text-lg font-semibold text-plm-fg flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-ui-fg flex items-center gap-2">
               Individual Permissions
-              <span className="text-sm font-normal text-plm-fg-muted">
+              <span className="text-[13px] font-normal text-ui-fg-secondary">
                 — {user.full_name || user.email}
               </span>
             </h2>
-            <p className="text-sm text-plm-fg-muted">
+            <p className="text-[13px] text-ui-fg-secondary">
               These permissions are added to any team permissions (union of all)
             </p>
           </div>
 
           {/* Vault scope selector */}
           <div className="flex items-center gap-2">
-            <Database size={16} className="text-plm-fg-muted" />
+            <Database size={16} className="text-ui-fg-secondary" />
             <select
               value={selectedVaultId || 'all'}
               onChange={(e) => {
@@ -221,7 +221,7 @@ export function UserPermissionsDialog({
                 setSelectedVaultId(value === 'all' ? null : value)
               }}
               disabled={vaultsLoading}
-              className="px-3 py-1.5 text-sm bg-plm-bg border border-plm-border rounded-lg text-plm-fg focus:outline-none focus:border-plm-accent min-w-[160px]"
+              className="px-3 py-1.5 text-[13px] bg-ui-bg border border-ui-divider rounded-lg text-ui-fg focus:outline-none focus:border-ui-accent min-w-[160px]"
             >
               <option value="all">All Vaults (Global)</option>
               {vaults.map((vault) => (
@@ -234,34 +234,34 @@ export function UserPermissionsDialog({
 
           <button
             onClick={onClose}
-            className="p-2 text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight rounded-lg"
+            className="p-2 text-ui-fg-secondary hover:text-ui-fg hover:bg-ui-hover rounded-lg"
           >
             <X size={18} />
           </button>
         </div>
 
         {/* Search */}
-        <div className="p-3 border-b border-plm-border flex-shrink-0">
+        <div className="p-3 border-b border-ui-divider flex-shrink-0">
           <div className="relative">
             <Search
               size={14}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-ui-fg-secondary"
             />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search resources..."
-              className="w-full pl-9 pr-3 py-1.5 text-sm bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-dim focus:outline-none focus:border-plm-accent"
+              className="w-full pl-9 pr-3 py-1.5 text-[13px] bg-ui-bg border border-ui-divider rounded-lg text-ui-fg placeholder:text-ui-fg focus:outline-none focus:border-ui-accent"
             />
           </div>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4 bg-plm-bg-light">
+        <div className="flex-1 overflow-y-auto p-4 bg-ui-field">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="animate-spin text-plm-fg-muted" size={32} />
+              <Loader2 className="animate-spin text-ui-fg-secondary" size={32} />
             </div>
           ) : (
             <div className="space-y-0">
@@ -275,16 +275,16 @@ export function UserPermissionsDialog({
                 return (
                   <div
                     key={resource.id}
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-plm-highlight/30 transition-colors"
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-ui-hover/30 transition-colors"
                   >
-                    <div className="w-8 h-8 rounded-lg bg-plm-bg-secondary flex items-center justify-center text-plm-fg-muted flex-shrink-0">
+                    <div className="w-8 h-8 rounded-lg bg-ui-field flex items-center justify-center text-ui-fg-secondary flex-shrink-0">
                       <ResourceIcon size={16} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm text-plm-fg font-medium truncate">
+                      <div className="text-[13px] text-ui-fg font-medium truncate">
                         {resource.name}
                       </div>
-                      <div className="text-xs text-plm-fg-muted truncate">
+                      <div className="text-[12px] text-ui-fg-secondary truncate">
                         {resource.description}
                       </div>
                     </div>
@@ -299,7 +299,7 @@ export function UserPermissionsDialog({
                               key={action}
                               className="w-8 h-8 rounded-lg flex items-center justify-center opacity-20"
                             >
-                              <Minus size={12} className="text-plm-fg-dim" />
+                              <Minus size={12} className="text-ui-fg" />
                             </div>
                           )
                         }
@@ -354,10 +354,10 @@ export function UserPermissionsDialog({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-plm-border flex items-center justify-between bg-plm-bg/50 flex-shrink-0">
-          <div className="text-sm text-plm-fg-muted">
+        <div className="p-4 border-t border-ui-divider flex items-center justify-between bg-ui-bg/50 flex-shrink-0">
+          <div className="text-[13px] text-ui-fg-secondary">
             {permissionCount} resource{permissionCount !== 1 ? 's' : ''} with permissions
-            {hasChanges && <span className="ml-2 text-plm-warning">• Unsaved changes</span>}
+            {hasChanges && <span className="ml-2 text-ui-warning">• Unsaved changes</span>}
           </div>
           <div className="flex items-center gap-2">
             <button onClick={onClose} className="btn btn-ghost">

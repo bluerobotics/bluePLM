@@ -248,8 +248,8 @@ export function AboutSettings() {
       <SettingsGroup>
         <div className="flex flex-wrap items-center gap-4 px-5 py-5">
           {/* Stacked Layers Logo */}
-          <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-plm-accent/10">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" className="text-plm-accent">
+          <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-ui-accent/10">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" className="text-ui-accent">
               <path
                 d="M12 2L2 7L12 12L22 7L12 2Z"
                 stroke="currentColor"
@@ -275,7 +275,7 @@ export function AboutSettings() {
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span className="text-[16px] font-semibold text-plm-fg">BluePLM</span>
+              <span className="text-[16px] font-semibold text-ui-fg">BluePLM</span>
               {updateCheckResult === 'none' && (
                 <Badge tone="success" icon={<CheckCircle size={11} />}>
                   {t('preferences.upToDate')}
@@ -287,7 +287,7 @@ export function AboutSettings() {
                 </Badge>
               )}
             </div>
-            <div className="mt-0.5 text-[12px] text-plm-fg-muted">
+            <div className="mt-0.5 text-[13px] text-ui-fg-secondary">
               Version {appVersion || '...'} · Platform: {platformDisplay}
             </div>
           </div>
@@ -301,8 +301,8 @@ export function AboutSettings() {
         </div>
         {(updateCheckResult === 'none' || updateCheckResult === 'available') && (
           <div
-            className={`px-5 py-2.5 text-[12px] ${
-              updateCheckResult === 'available' ? 'text-plm-accent' : 'text-plm-fg-muted'
+            className={`px-5 py-2.5 text-[13px] ${
+              updateCheckResult === 'available' ? 'text-ui-accent' : 'text-ui-fg-secondary'
             }`}
           >
             {updateCheckResult === 'available'
@@ -310,7 +310,7 @@ export function AboutSettings() {
               : t('preferences.youHaveLatest')}
           </div>
         )}
-        <div className="px-5 py-3 text-[12px] leading-relaxed text-plm-fg-muted">
+        <div className="px-5 py-3 text-[13px] leading-relaxed text-ui-fg-secondary">
           Check in/out CAD files, track revisions, manage engineering changes, control release
           workflows, and collaborate with your team—all in one place.
         </div>
@@ -332,7 +332,7 @@ export function AboutSettings() {
       >
         <SettingsGroup>
           {isLoadingReleases ? (
-            <div className="flex items-center justify-center gap-2 px-4 py-6 text-[13px] text-plm-fg-muted">
+            <div className="flex items-center justify-center gap-2 px-4 py-6 text-[14px] text-ui-fg-secondary">
               <Loader2 size={14} className="animate-spin" />
               Loading releases...
             </div>
@@ -350,7 +350,7 @@ export function AboutSettings() {
               </Callout>
             </div>
           ) : (
-            <div className="max-h-72 divide-y divide-plm-border overflow-y-auto">
+            <div className="max-h-72 divide-y divide-ui-divider overflow-y-auto">
               {releases.map((release) => {
                 const relation = getVersionRelation(release.tag_name)
                 const isCurrent = relation === 'current'
@@ -360,26 +360,26 @@ export function AboutSettings() {
                   <div
                     key={release.tag_name}
                     className={`flex items-center justify-between gap-3 px-4 py-2.5 ${
-                      isCurrent ? 'bg-plm-accent/[0.06]' : ''
+                      isCurrent ? 'bg-ui-accent/[0.06]' : ''
                     }`}
                   >
                     <div className="flex min-w-0 items-center gap-2.5">
                       {isNewer ? (
-                        <ArrowUpCircle size={14} className="flex-shrink-0 text-plm-success" />
+                        <ArrowUpCircle size={14} className="flex-shrink-0 text-ui-success" />
                       ) : isCurrent ? (
-                        <CheckCircle size={14} className="flex-shrink-0 text-plm-accent" />
+                        <CheckCircle size={14} className="flex-shrink-0 text-ui-accent" />
                       ) : (
-                        <ArrowDownCircle size={14} className="flex-shrink-0 text-plm-fg-muted" />
+                        <ArrowDownCircle size={14} className="flex-shrink-0 text-ui-fg-secondary" />
                       )}
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="text-[13px] font-medium text-plm-fg">
+                          <span className="text-[14px] font-medium text-ui-fg">
                             {release.tag_name}
                           </span>
                           {release.prerelease && <Badge tone="warning">Pre</Badge>}
                           {isCurrent && <Badge tone="accent">Current</Badge>}
                         </div>
-                        <div className="text-[12px] text-plm-fg-muted">
+                        <div className="text-[13px] text-ui-fg-secondary">
                           {new Date(release.published_at).toLocaleDateString(undefined, {
                             month: 'short',
                             day: 'numeric',
@@ -435,8 +435,8 @@ export function AboutSettings() {
         </SettingsGroup>
       </SettingsSection>
 
-      <p className="flex items-center justify-center gap-1.5 text-[12px] text-plm-fg-muted">
-        Made with <Heart size={12} className="fill-plm-accent text-plm-accent" /> by Blue Robotics
+      <p className="flex items-center justify-center gap-1.5 text-[13px] text-ui-fg-secondary">
+        Made with <Heart size={12} className="fill-ui-accent text-ui-accent" /> by Blue Robotics
         and contributors worldwide
       </p>
     </SettingsPage>

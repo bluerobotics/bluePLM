@@ -54,14 +54,14 @@ export function VaultAccessDialog({
       onClick={onClose}
     >
       <div
-        className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4"
+        className="bg-ui-field border border-ui-divider rounded-xl p-6 max-w-md w-full mx-4"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-lg font-medium text-plm-fg mb-2 flex items-center gap-2">
-          {isTeam && <Database size={18} className="text-plm-accent" />}
+        <h3 className="text-lg font-medium text-ui-fg mb-2 flex items-center gap-2">
+          {isTeam && <Database size={18} className="text-ui-accent" />}
           {title}
         </h3>
-        <p className={`${isTeam ? 'text-sm' : 'text-base'} text-plm-fg-muted mb-4`}>
+        <p className={`${isTeam ? 'text-[13px]' : 'text-[14px]'} text-ui-fg-secondary mb-4`}>
           {!isTeam && (
             <>
               Select which vaults <strong>{entityName}</strong> can access.
@@ -74,17 +74,17 @@ export function VaultAccessDialog({
         <div
           className={`p-3 rounded-lg border mb-3 ${
             pendingVaultAccess.length === 0
-              ? 'bg-plm-warning/10 border-plm-warning/30'
-              : 'bg-plm-bg border-plm-border'
+              ? 'bg-ui-warning/10 border-ui-warning/30'
+              : 'bg-ui-bg border-ui-divider'
           }`}
         >
           <div className="flex items-center gap-2">
             <Database
               size={16}
-              className={pendingVaultAccess.length === 0 ? 'text-plm-warning' : 'text-plm-fg-muted'}
+              className={pendingVaultAccess.length === 0 ? 'text-ui-warning' : 'text-ui-fg-secondary'}
             />
             <span
-              className={`text-sm ${pendingVaultAccess.length === 0 ? 'text-plm-warning' : 'text-plm-fg-muted'}`}
+              className={`text-[13px] ${pendingVaultAccess.length === 0 ? 'text-ui-warning' : 'text-ui-fg-secondary'}`}
             >
               {pendingVaultAccess.length === 0
                 ? 'No vault access'
@@ -92,7 +92,7 @@ export function VaultAccessDialog({
             </span>
           </div>
           {pendingVaultAccess.length === 0 && (
-            <p className="text-xs text-plm-fg-muted mt-1 ml-6">{defaultAccessText}</p>
+            <p className="text-[12px] text-ui-fg-secondary mt-1 ml-6">{defaultAccessText}</p>
           )}
         </div>
 
@@ -100,7 +100,7 @@ export function VaultAccessDialog({
           {orgVaults.map((vault) => (
             <label
               key={vault.id}
-              className="flex items-center gap-3 p-2 hover:bg-plm-highlight rounded cursor-pointer"
+              className="flex items-center gap-3 p-2 hover:bg-ui-hover rounded cursor-pointer"
             >
               <input
                 type="checkbox"
@@ -112,18 +112,18 @@ export function VaultAccessDialog({
                       : [...current, vault.id],
                   )
                 }}
-                className="w-4 h-4 rounded border-plm-border text-plm-accent focus:ring-plm-accent"
+                className="w-4 h-4 rounded border-ui-divider text-ui-accent focus:ring-ui-accent"
               />
               <Folder
                 size={18}
-                className={vault.is_default ? 'text-plm-accent' : 'text-plm-fg-muted'}
+                className={vault.is_default ? 'text-ui-accent' : 'text-ui-fg-secondary'}
               />
-              <span className="text-base text-plm-fg">{vault.name}</span>
-              {vault.is_default && <span className="text-xs text-plm-accent">(default)</span>}
+              <span className="text-[14px] text-ui-fg">{vault.name}</span>
+              {vault.is_default && <span className="text-[12px] text-ui-accent">(default)</span>}
             </label>
           ))}
         </div>
-        <p className="text-xs text-plm-fg-dim mb-4">
+        <p className="text-[12px] text-ui-fg mb-4">
           Select specific vaults to restrict access, or leave all unchecked for full access to all
           vaults.
         </p>

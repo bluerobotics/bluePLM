@@ -21,7 +21,7 @@ import {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any // TODO: type this
 
-const TABLE_HEAD = 'px-4 py-2 text-[12px] font-medium text-plm-fg-muted'
+const TABLE_HEAD = 'px-4 py-2 text-[13px] font-medium text-ui-fg-secondary'
 
 export function MetadataColumnsSettings() {
   const {
@@ -373,7 +373,7 @@ export function MetadataColumnsSettings() {
               className="grid grid-cols-[1fr_96px_64px] items-center gap-2 px-4 py-2"
             >
               <span
-                className={`truncate text-[13px] ${column.visible ? 'text-plm-fg' : 'text-plm-fg-muted'}`}
+                className={`truncate text-[14px] ${column.visible ? 'text-ui-fg' : 'text-ui-fg-secondary'}`}
               >
                 {column.label}
               </span>
@@ -391,7 +391,7 @@ export function MetadataColumnsSettings() {
                   aria-label={`${column.label} width`}
                 />
               ) : (
-                <span className="text-center text-[12px] text-plm-fg-muted">{column.width}px</span>
+                <span className="text-center text-[13px] text-ui-fg-secondary">{column.width}px</span>
               )}
               <div className="flex justify-center">
                 <Switch
@@ -453,20 +453,20 @@ export function MetadataColumnsSettings() {
 
         {!organization ? (
           <SettingsGroup>
-            <p className="px-4 py-6 text-center text-[13px] text-plm-fg-muted">
+            <p className="px-4 py-6 text-center text-[14px] text-ui-fg-secondary">
               Connect to an organization to view custom columns
             </p>
           </SettingsGroup>
         ) : isLoading ? (
           <div className="flex items-center justify-center py-6">
-            <Loader2 className="animate-spin text-plm-fg-muted" size={20} />
+            <Loader2 className="animate-spin text-ui-fg-secondary" size={20} />
           </div>
         ) : columns.length === 0 && !isCreating ? (
           <SettingsGroup>
             <div className="px-4 py-6 text-center">
-              <p className="text-[13px] text-plm-fg-muted">No custom columns defined</p>
+              <p className="text-[14px] text-ui-fg-secondary">No custom columns defined</p>
               {isAdmin && (
-                <p className="mt-1 text-[12px] text-plm-fg-muted">
+                <p className="mt-1 text-[13px] text-ui-fg-secondary">
                   Click "Add Column" to create custom properties like Material, Weight, etc.
                 </p>
               )}
@@ -495,7 +495,7 @@ export function MetadataColumnsSettings() {
                         type="button"
                         onClick={() => handleMoveColumn(column, 'up')}
                         disabled={index === 0}
-                        className="text-plm-fg-muted hover:text-plm-fg disabled:opacity-30"
+                        className="text-ui-fg-secondary hover:text-ui-fg disabled:opacity-30"
                         aria-label="Move up"
                       >
                         <ChevronUp size={12} />
@@ -504,7 +504,7 @@ export function MetadataColumnsSettings() {
                         type="button"
                         onClick={() => handleMoveColumn(column, 'down')}
                         disabled={index === columns.length - 1}
-                        className="text-plm-fg-muted hover:text-plm-fg disabled:opacity-30"
+                        className="text-ui-fg-secondary hover:text-ui-fg disabled:opacity-30"
                         aria-label="Move down"
                       >
                         <ChevronDown size={12} />
@@ -512,16 +512,16 @@ export function MetadataColumnsSettings() {
                     </div>
                   )}
                   <span
-                    className={`truncate text-[13px] ${column.is_visible ? 'text-plm-fg' : 'text-plm-fg-muted'}`}
+                    className={`truncate text-[14px] ${column.is_visible ? 'text-ui-fg' : 'text-ui-fg-secondary'}`}
                   >
                     {column.label}
                   </span>
                   {column.is_required && <Badge tone="warning">Required</Badge>}
                 </div>
-                <span className="text-center text-[12px] text-plm-fg-muted">
+                <span className="text-center text-[13px] text-ui-fg-secondary">
                   {TYPE_LABELS[column.data_type]}
                 </span>
-                <span className="text-center text-[12px] text-plm-fg-muted">{column.width}px</span>
+                <span className="text-center text-[13px] text-ui-fg-secondary">{column.width}px</span>
                 <div className="flex justify-center">
                   <Switch
                     size="sm"
@@ -561,7 +561,7 @@ export function MetadataColumnsSettings() {
                       size="sm"
                       icon={<Trash2 size={13} />}
                       onClick={() => setDeletingColumn(column)}
-                      className="!px-1.5 !text-plm-error"
+                      className="!px-1.5 !text-ui-danger"
                       title="Delete column"
                       aria-label="Delete column"
                     />

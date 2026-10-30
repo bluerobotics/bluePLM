@@ -35,16 +35,16 @@ export function TeamFormDialog({
       onClick={onCancel}
     >
       <div
-        className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto"
+        className="bg-ui-field border border-ui-divider rounded-xl p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-lg font-medium text-plm-fg mb-6">{title}</h3>
+        <h3 className="text-lg font-medium text-ui-fg mb-6">{title}</h3>
 
         <div className="space-y-4">
           {/* Copy from existing team */}
           {isCreating && existingTeams && existingTeams.length > 0 && setCopyFromTeamId && (
             <div>
-              <label className="block text-sm text-plm-fg-muted mb-1.5">
+              <label className="block text-[13px] text-ui-fg-secondary mb-1.5">
                 <Copy size={12} className="inline mr-1" />
                 Copy from Existing Team
               </label>
@@ -64,7 +64,7 @@ export function TeamFormDialog({
                     }
                   }
                 }}
-                className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg focus:outline-none focus:border-plm-accent"
+                className="w-full px-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-ui-fg focus:outline-none focus:border-ui-accent"
               >
                 <option value="">Start fresh (no copy)</option>
                 {existingTeams.map((team) => (
@@ -78,13 +78,13 @@ export function TeamFormDialog({
 
           {/* Name */}
           <div>
-            <label className="block text-sm text-plm-fg-muted mb-1.5">Team Name *</label>
+            <label className="block text-[13px] text-ui-fg-secondary mb-1.5">Team Name *</label>
             <input
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               placeholder="e.g., Engineering, Accounting, Quality"
-              className={`w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-dim focus:outline-none focus:border-plm-accent ${disableNameEdit ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`w-full px-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-ui-fg placeholder:text-ui-fg focus:outline-none focus:border-ui-accent ${disableNameEdit ? 'opacity-50 cursor-not-allowed' : ''}`}
               autoFocus={!disableNameEdit}
               disabled={disableNameEdit}
             />
@@ -92,21 +92,21 @@ export function TeamFormDialog({
 
           {/* Description */}
           <div>
-            <label className="block text-sm text-plm-fg-muted mb-1.5">Description</label>
+            <label className="block text-[13px] text-ui-fg-secondary mb-1.5">Description</label>
             <textarea
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               placeholder="Brief description of this team's purpose..."
               rows={2}
-              className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-dim focus:outline-none focus:border-plm-accent resize-none"
+              className="w-full px-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-ui-fg placeholder:text-ui-fg focus:outline-none focus:border-ui-accent resize-none"
             />
           </div>
 
           {/* Color & Icon */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm text-plm-fg-muted mb-1.5">Color</label>
-              <div className="flex items-center gap-2 p-2 bg-plm-bg border border-plm-border rounded-lg">
+              <label className="block text-[13px] text-ui-fg-secondary mb-1.5">Color</label>
+              <div className="flex items-center gap-2 p-2 bg-ui-bg border border-ui-divider rounded-lg">
                 <ColorPickerDropdown
                   color={formData.color}
                   onChange={handleColorChange}
@@ -125,7 +125,7 @@ export function TeamFormDialog({
             </div>
 
             <div>
-              <label className="block text-sm text-plm-fg-muted mb-1.5">Icon</label>
+              <label className="block text-[13px] text-ui-fg-secondary mb-1.5">Icon</label>
               <IconPicker
                 value={formData.icon}
                 onChange={handleIconChange}
@@ -135,16 +135,16 @@ export function TeamFormDialog({
           </div>
 
           {/* Default team toggle */}
-          <label className="flex items-center gap-3 p-3 bg-plm-bg border border-plm-border rounded-lg cursor-pointer hover:border-plm-accent/50 transition-colors">
+          <label className="flex items-center gap-3 p-3 bg-ui-bg border border-ui-divider rounded-lg cursor-pointer hover:border-ui-accent/50 transition-colors">
             <input
               type="checkbox"
               checked={formData.is_default}
               onChange={(e) => setFormData({ ...formData, is_default: e.target.checked })}
-              className="w-4 h-4 rounded border-plm-border text-plm-accent focus:ring-plm-accent"
+              className="w-4 h-4 rounded border-ui-divider text-ui-accent focus:ring-ui-accent"
             />
             <div>
-              <div className="text-sm text-plm-fg font-medium">Default Team</div>
-              <div className="text-xs text-plm-fg-muted">
+              <div className="text-[13px] text-ui-fg font-medium">Default Team</div>
+              <div className="text-[12px] text-ui-fg-secondary">
                 New users will automatically be added to this team
               </div>
             </div>

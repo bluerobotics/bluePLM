@@ -198,7 +198,7 @@ export function ModulesSettings() {
                 size="sm"
                 icon={
                   forceResult === 'success' ? (
-                    <Check size={12} className="text-plm-success" />
+                    <Check size={12} className="text-ui-success" />
                   ) : (
                     <Upload size={12} />
                   )
@@ -206,7 +206,7 @@ export function ModulesSettings() {
                 loading={isForcing}
                 onClick={() => setShowForceConfirm(true)}
                 title="Push this configuration to all organization members, overriding their settings"
-                className={forceResult === 'error' ? 'text-plm-error' : ''}
+                className={forceResult === 'error' ? 'text-ui-danger' : ''}
               >
                 {forceResult === 'success'
                   ? 'Pushed!'
@@ -277,8 +277,8 @@ export function ModulesSettings() {
                     <IconComponent size={16} />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[13px] font-medium text-plm-fg">{team.name}</div>
-                    <div className="text-[12px] text-plm-fg-muted">
+                    <div className="truncate text-[14px] font-medium text-ui-fg">{team.name}</div>
+                    <div className="text-[13px] text-ui-fg-secondary">
                       {enabledCount} modules · {team.member_count} member
                       {team.member_count !== 1 ? 's' : ''}
                     </div>
@@ -293,12 +293,12 @@ export function ModulesSettings() {
       {/* Force Push Confirmation Dialog */}
       {showForceConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-          <div className="mx-4 w-full max-w-md overflow-hidden rounded-xl border border-plm-border bg-plm-bg shadow-xl">
+          <div className="mx-4 w-full max-w-md overflow-hidden rounded-xl border border-ui-divider bg-ui-bg shadow-xl">
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-plm-border p-4">
+            <div className="flex items-center justify-between border-b border-ui-divider p-4">
               <div className="flex items-center gap-3">
-                <AlertTriangle size={18} className="text-plm-warning" />
-                <h3 className="text-[15px] font-semibold text-plm-fg">Push to All Users</h3>
+                <AlertTriangle size={18} className="text-ui-warning" />
+                <h3 className="text-[15px] font-semibold text-ui-fg">Push to All Users</h3>
               </div>
               <Button
                 variant="ghost"
@@ -310,8 +310,8 @@ export function ModulesSettings() {
             </div>
 
             {/* Content */}
-            <div className="space-y-3 p-4 text-[13px]">
-              <p className="text-plm-fg">
+            <div className="space-y-3 p-4 text-[14px]">
+              <p className="text-ui-fg">
                 This will <strong>override</strong> the sidebar configuration for{' '}
                 <strong>all users</strong> in your organization.
               </p>
@@ -321,14 +321,14 @@ export function ModulesSettings() {
                 changes overwritten. This action cannot be undone.
               </Callout>
 
-              <p className="text-plm-fg-muted">
+              <p className="text-ui-fg-secondary">
                 Users who are currently online will receive the update immediately. Others will see
                 the changes when they next open BluePLM.
               </p>
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-end gap-2 border-t border-plm-border bg-plm-bg-secondary p-4">
+            <div className="flex items-center justify-end gap-2 border-t border-ui-divider bg-ui-field p-4">
               <Button variant="ghost" onClick={() => setShowForceConfirm(false)}>
                 Cancel
               </Button>

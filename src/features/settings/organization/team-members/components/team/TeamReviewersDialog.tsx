@@ -129,11 +129,11 @@ export function TeamReviewersDialog({
       onClick={onClose}
     >
       <div
-        className="bg-plm-bg-light border border-plm-border rounded-xl w-full max-w-2xl mx-4 max-h-[80vh] flex flex-col"
+        className="bg-ui-field border border-ui-divider rounded-xl w-full max-w-2xl mx-4 max-h-[80vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="p-4 border-b border-plm-border flex items-center gap-3">
+        <div className="p-4 border-b border-ui-divider flex items-center gap-3">
           <div
             className="p-2 rounded-lg"
             style={{ backgroundColor: `${team.color}20`, color: team.color }}
@@ -141,32 +141,32 @@ export function TeamReviewersDialog({
             <IconComponent size={20} />
           </div>
           <div className="flex-1">
-            <h3 className="text-lg font-medium text-plm-fg">{team.name} - Reviewers</h3>
-            <p className="text-sm text-plm-fg-muted">
+            <h3 className="text-lg font-medium text-ui-fg">{team.name} - Reviewers</h3>
+            <p className="text-[13px] text-ui-fg-secondary">
               {reviewers.length} reviewer rule{reviewers.length !== 1 ? 's' : ''} configured
             </p>
           </div>
-          <button onClick={onClose} className="p-2 text-plm-fg-muted hover:text-plm-fg rounded">
+          <button onClick={onClose} className="p-2 text-ui-fg-secondary hover:text-ui-fg rounded">
             <X size={18} />
           </button>
         </div>
 
         {/* Add reviewer section */}
-        <div className="p-4 border-b border-plm-border">
+        <div className="p-4 border-b border-ui-divider">
           <div className="flex items-center justify-between mb-3">
-            <h4 className="text-sm font-medium text-plm-fg flex items-center gap-2">
+            <h4 className="text-[13px] font-medium text-ui-fg flex items-center gap-2">
               <Plus size={14} />
               Add Reviewer Rule
             </h4>
           </div>
 
           {/* Mode tabs: Roles (default) | Users */}
-          <div className="flex border-b border-plm-border mb-3">
+          <div className="flex border-b border-ui-divider mb-3">
             <button
-              className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+              className={`px-3 py-1.5 text-[12px] font-medium transition-colors ${
                 addMode === 'workflow_role'
-                  ? 'text-plm-accent border-b-2 border-plm-accent -mb-px'
-                  : 'text-plm-fg-muted hover:text-plm-fg'
+                  ? 'text-ui-accent border-b-2 border-ui-accent -mb-px'
+                  : 'text-ui-fg-secondary hover:text-ui-fg'
               }`}
               onClick={() => setAddMode('workflow_role')}
             >
@@ -174,10 +174,10 @@ export function TeamReviewersDialog({
               Roles
             </button>
             <button
-              className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+              className={`px-3 py-1.5 text-[12px] font-medium transition-colors ${
                 addMode === 'user'
-                  ? 'text-plm-accent border-b-2 border-plm-accent -mb-px'
-                  : 'text-plm-fg-muted hover:text-plm-fg'
+                  ? 'text-ui-accent border-b-2 border-ui-accent -mb-px'
+                  : 'text-ui-fg-secondary hover:text-ui-fg'
               }`}
               onClick={() => setAddMode('user')}
             >
@@ -188,9 +188,9 @@ export function TeamReviewersDialog({
 
           {/* Roles picker */}
           {addMode === 'workflow_role' && (
-            <div className="max-h-40 overflow-y-auto bg-plm-bg border border-plm-border rounded-lg">
+            <div className="max-h-40 overflow-y-auto bg-ui-bg border border-ui-divider rounded-lg">
               {availableWorkflowRoles.length === 0 ? (
-                <div className="text-center py-4 text-sm text-plm-fg-muted">
+                <div className="text-center py-4 text-[13px] text-ui-fg-secondary">
                   {workflowRoles.length === 0
                     ? 'No roles defined for this organization'
                     : 'All roles are already added'}
@@ -203,7 +203,7 @@ export function TeamReviewersDialog({
                       key={wr.id}
                       onClick={() => handleAddWorkflowRole(wr)}
                       disabled={isAdding}
-                      className="w-full flex items-center gap-3 px-3 py-2 hover:bg-plm-highlight transition-colors text-left border-b border-plm-border/50 last:border-b-0"
+                      className="w-full flex items-center gap-3 px-3 py-2 hover:bg-ui-hover transition-colors text-left border-b border-ui-divider/50 last:border-b-0"
                     >
                       <div
                         className="w-7 h-7 rounded-full flex items-center justify-center"
@@ -212,12 +212,12 @@ export function TeamReviewersDialog({
                         <WRIcon size={14} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm text-plm-fg">{wr.name}</div>
-                        <div className="text-xs text-plm-fg-muted">
+                        <div className="text-[13px] text-ui-fg">{wr.name}</div>
+                        <div className="text-[12px] text-ui-fg-secondary">
                           Anyone on this team with this role
                         </div>
                       </div>
-                      <div className="flex items-center gap-1 text-plm-accent text-xs font-medium">
+                      <div className="flex items-center gap-1 text-ui-accent text-[12px] font-medium">
                         <Plus size={14} />
                       </div>
                     </button>
@@ -229,9 +229,9 @@ export function TeamReviewersDialog({
 
           {/* User picker */}
           {addMode === 'user' && (
-            <div className="max-h-40 overflow-y-auto bg-plm-bg border border-plm-border rounded-lg">
+            <div className="max-h-40 overflow-y-auto bg-ui-bg border border-ui-divider rounded-lg">
               {availableUsers.length === 0 ? (
-                <div className="text-center py-4 text-sm text-plm-fg-muted">
+                <div className="text-center py-4 text-[13px] text-ui-fg-secondary">
                   All team members are already reviewers
                 </div>
               ) : (
@@ -240,7 +240,7 @@ export function TeamReviewersDialog({
                     key={u.id}
                     onClick={() => handleAddUser(u)}
                     disabled={isAdding}
-                    className="w-full flex items-center gap-3 px-3 py-2 hover:bg-plm-highlight transition-colors text-left border-b border-plm-border/50 last:border-b-0"
+                    className="w-full flex items-center gap-3 px-3 py-2 hover:bg-ui-hover transition-colors text-left border-b border-ui-divider/50 last:border-b-0"
                   >
                     {getEffectiveAvatarUrl(u) ? (
                       <img
@@ -250,17 +250,17 @@ export function TeamReviewersDialog({
                         referrerPolicy="no-referrer"
                       />
                     ) : (
-                      <div className="w-7 h-7 rounded-full bg-plm-fg-muted/20 flex items-center justify-center text-xs font-medium">
+                      <div className="w-7 h-7 rounded-full bg-ui-fg-secondary/20 flex items-center justify-center text-[12px] font-medium">
                         {getInitials(u.full_name || u.email)}
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm text-plm-fg truncate">{u.full_name || u.email}</div>
+                      <div className="text-[13px] text-ui-fg truncate">{u.full_name || u.email}</div>
                       {u.full_name && (
-                        <div className="text-xs text-plm-fg-muted truncate">{u.email}</div>
+                        <div className="text-[12px] text-ui-fg-secondary truncate">{u.email}</div>
                       )}
                     </div>
-                    <div className="flex items-center gap-1 text-plm-accent text-xs font-medium">
+                    <div className="flex items-center gap-1 text-ui-accent text-[12px] font-medium">
                       <Plus size={14} />
                     </div>
                   </button>
@@ -272,18 +272,18 @@ export function TeamReviewersDialog({
 
         {/* Current reviewer rules list */}
         <div className="flex-1 overflow-y-auto p-4">
-          <h4 className="text-xs text-plm-fg-muted uppercase tracking-wide mb-3">
+          <h4 className="text-[12px] text-ui-fg-secondary uppercase tracking-wide mb-3">
             Current Reviewer Rules
           </h4>
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
-              <Loader2 className="animate-spin text-plm-fg-muted" size={24} />
+              <Loader2 className="animate-spin text-ui-fg-secondary" size={24} />
             </div>
           ) : reviewers.length === 0 ? (
-            <div className="text-center py-8 text-plm-fg-muted">
+            <div className="text-center py-8 text-ui-fg-secondary">
               <Users size={32} className="mx-auto mb-2 opacity-40" />
-              <p className="text-sm">No reviewer rules configured</p>
-              <p className="text-xs mt-1">
+              <p className="text-[13px]">No reviewer rules configured</p>
+              <p className="text-[12px] mt-1">
                 When no rules are set, selecting this team adds all members as reviewers
               </p>
             </div>
@@ -302,7 +302,7 @@ export function TeamReviewersDialog({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-plm-border flex justify-end">
+        <div className="p-4 border-t border-ui-divider flex justify-end">
           <button onClick={onClose} className="btn btn-primary">
             Done
           </button>
@@ -335,7 +335,7 @@ function ReviewerRulePill({
         referrerPolicy="no-referrer"
       />
     ) : (
-      <div className="w-8 h-8 rounded-full bg-plm-accent/10 flex items-center justify-center text-xs font-medium">
+      <div className="w-8 h-8 rounded-full bg-ui-accent/10 flex items-center justify-center text-[12px] font-medium">
         {getInitials(reviewer.user.full_name || reviewer.user.email)}
       </div>
     )
@@ -356,8 +356,8 @@ function ReviewerRulePill({
       label = wr.name
     } else {
       icon = (
-        <div className="w-8 h-8 rounded-full bg-plm-fg-muted/10 flex items-center justify-center">
-          <ShieldCheck size={16} className="text-plm-fg-muted" />
+        <div className="w-8 h-8 rounded-full bg-ui-fg-secondary/10 flex items-center justify-center">
+          <ShieldCheck size={16} className="text-ui-fg-secondary" />
         </div>
       )
       label = 'Unknown role'
@@ -365,8 +365,8 @@ function ReviewerRulePill({
     sublabel = 'Role'
   } else {
     icon = (
-      <div className="w-8 h-8 rounded-full bg-plm-fg-muted/10 flex items-center justify-center">
-        <Users size={16} className="text-plm-fg-muted" />
+      <div className="w-8 h-8 rounded-full bg-ui-fg-secondary/10 flex items-center justify-center">
+        <Users size={16} className="text-ui-fg-secondary" />
       </div>
     )
     label = 'Unknown'
@@ -374,15 +374,15 @@ function ReviewerRulePill({
   }
 
   return (
-    <div className="flex items-center gap-3 p-3 bg-plm-bg rounded-lg group">
+    <div className="flex items-center gap-3 p-3 bg-ui-bg rounded-lg group">
       {icon}
       <div className="flex-1 min-w-0">
-        <div className="text-sm text-plm-fg truncate">{label}</div>
-        <div className="text-xs text-plm-fg-muted">{sublabel}</div>
+        <div className="text-[13px] text-ui-fg truncate">{label}</div>
+        <div className="text-[12px] text-ui-fg-secondary">{sublabel}</div>
       </div>
       <button
         onClick={() => onRemove(reviewer)}
-        className="p-1.5 text-plm-fg-muted hover:text-plm-error hover:bg-plm-error/10 rounded opacity-0 group-hover:opacity-100 transition-all"
+        className="p-1.5 text-ui-fg-secondary hover:text-ui-danger hover:bg-ui-danger/10 rounded opacity-0 group-hover:opacity-100 transition-all"
         title="Remove reviewer rule"
       >
         <X size={14} />

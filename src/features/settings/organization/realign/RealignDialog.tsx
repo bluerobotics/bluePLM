@@ -195,24 +195,24 @@ export function RealignDialog({ isOpen, onClose }: RealignDialogProps) {
       onClick={handleClose}
     >
       <div
-        className="bg-plm-bg-light border border-plm-border rounded-lg shadow-2xl w-[760px] max-h-[85vh] overflow-auto"
+        className="bg-ui-field border border-ui-divider rounded-lg shadow-2xl w-[760px] max-h-[85vh] overflow-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="p-4 border-b border-plm-border flex items-center justify-between">
+        <div className="p-4 border-b border-ui-divider flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-plm-info/20 flex items-center justify-center">
-              <RefreshCw size={20} className="text-plm-info" />
+            <div className="w-10 h-10 rounded-full bg-ui-accent/20 flex items-center justify-center">
+              <RefreshCw size={20} className="text-ui-accent" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-plm-fg">{t('realign.dialog.title')}</h3>
-              <p className="text-sm text-plm-fg-muted">{t('realign.dialog.subtitle')}</p>
+              <h3 className="text-lg font-semibold text-ui-fg">{t('realign.dialog.title')}</h3>
+              <p className="text-[13px] text-ui-fg-secondary">{t('realign.dialog.subtitle')}</p>
             </div>
           </div>
           <button
             onClick={handleClose}
             disabled={isRunning}
-            className="text-plm-fg-muted hover:text-plm-fg disabled:opacity-50"
+            className="text-ui-fg-secondary hover:text-ui-fg disabled:opacity-50"
             aria-label={t('common.close')}
           >
             <X size={18} />
@@ -253,9 +253,9 @@ export function RealignDialog({ isOpen, onClose }: RealignDialogProps) {
           {outcome && <OutcomeSummary outcome={outcome} />}
         </div>
 
-        <div className="p-4 border-t border-plm-border flex items-center justify-end gap-2">
+        <div className="p-4 border-t border-ui-divider flex items-center justify-end gap-2">
           {isRunning && pendingCommandConfirm && (
-            <span className="text-xs text-plm-fg-muted mr-auto">
+            <span className="text-[12px] text-ui-fg-secondary mr-auto">
               {t('realign.dialog.waitingForConfirmation')}
             </span>
           )}
@@ -280,8 +280,8 @@ function Headline({ report }: { report: ReturnType<typeof analyzeAlignment> }) {
   return (
     <div>
       <div
-        className={`flex items-center gap-2 text-sm font-medium ${
-          report.isAligned ? 'text-plm-success' : 'text-plm-warning'
+        className={`flex items-center gap-2 text-[13px] font-medium ${
+          report.isAligned ? 'text-ui-success' : 'text-ui-warning'
         }`}
       >
         {report.isAligned ? <Check size={16} /> : <AlertTriangle size={16} />}
@@ -289,7 +289,7 @@ function Headline({ report }: { report: ReturnType<typeof analyzeAlignment> }) {
           {t(report.isAligned ? 'realign.headline.aligned' : 'realign.headline.notAligned')}
         </span>
       </div>
-      <div className="flex flex-wrap gap-4 mt-2 text-xs text-plm-fg-muted">
+      <div className="flex flex-wrap gap-4 mt-2 text-[12px] text-ui-fg-secondary">
         <span>
           {t(`realign.orientation.local${pluralSuffix(report.localFileCount)}`, {
             count: report.localFileCount,
@@ -335,7 +335,7 @@ function RepairableGroup({
 }: RepairableGroupProps) {
   return (
     <div>
-      <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-2">
+      <div className="text-[12px] text-ui-fg-secondary uppercase tracking-wide mb-2">
         {t('realign.group.repairable')}
       </div>
       <div className="space-y-2">
@@ -346,23 +346,23 @@ function RepairableGroup({
           const isPendingMove = bucket.id === 'pending_move'
 
           return (
-            <div key={bucket.id} className="p-3 rounded border border-plm-border bg-plm-bg">
+            <div key={bucket.id} className="p-3 rounded border border-ui-divider bg-ui-bg">
               <label className="flex items-start gap-3 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={checked}
                   onChange={() => onToggle(bucket.id)}
                   disabled={isRunning}
-                  className="mt-0.5 accent-plm-accent"
+                  className="mt-0.5 accent-ui-accent"
                 />
-                <span className="text-plm-accent mt-0.5">{REPAIRABLE_ICON[bucket.id]}</span>
+                <span className="text-ui-accent mt-0.5">{REPAIRABLE_ICON[bucket.id]}</span>
                 <div className="flex-1">
-                  <div className="text-sm text-plm-fg">
+                  <div className="text-[13px] text-ui-fg">
                     {t(`realign.${fragment}.label${pluralSuffix(bucket.count)}`, {
                       count: bucket.count,
                     })}
                   </div>
-                  <div className="text-xs text-plm-fg-muted mt-0.5">
+                  <div className="text-[12px] text-ui-fg-secondary mt-0.5">
                     {t(`realign.${fragment}.description`)}
                   </div>
                 </div>
@@ -383,20 +383,20 @@ function RepairableGroup({
         {/* Not tied to a bucket count: rebuilding the sync index is housekeeping that runs
             alongside whichever repairs above are selected, so it gets its own row rather than
             being folded into one of the counted buckets. */}
-        <label className="flex items-start gap-3 p-3 rounded border border-plm-border bg-plm-bg cursor-pointer">
+        <label className="flex items-start gap-3 p-3 rounded border border-ui-divider bg-ui-bg cursor-pointer">
           <input
             type="checkbox"
             checked={plan.rebuildSyncIndex}
             onChange={onToggleSyncIndex}
             disabled={isRunning}
-            className="mt-0.5 accent-plm-accent"
+            className="mt-0.5 accent-ui-accent"
           />
-          <span className="text-plm-accent mt-0.5">
+          <span className="text-ui-accent mt-0.5">
             <RefreshCw size={16} />
           </span>
           <div className="flex-1">
-            <div className="text-sm text-plm-fg">{t('realign.syncIndex.label')}</div>
-            <div className="text-xs text-plm-fg-muted mt-0.5">
+            <div className="text-[13px] text-ui-fg">{t('realign.syncIndex.label')}</div>
+            <div className="text-[12px] text-ui-fg-secondary mt-0.5">
               {t('realign.syncIndex.description')}
             </div>
           </div>
@@ -417,13 +417,13 @@ function NeedsDecisionGroup({ buckets, onGoDecide, isRunning }: NeedsDecisionGro
 
   return (
     <div>
-      <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-2">
+      <div className="text-[12px] text-ui-fg-secondary uppercase tracking-wide mb-2">
         {t('realign.group.needsDecision')}
       </div>
-      <p className="text-xs text-plm-fg-muted mb-2">{t('realign.group.needsDecisionNote')}</p>
+      <p className="text-[12px] text-ui-fg-secondary mb-2">{t('realign.group.needsDecisionNote')}</p>
 
       {visibleBuckets.length === 0 ? (
-        <p className="text-xs text-plm-fg-muted">{t('realign.group.needsDecisionEmpty')}</p>
+        <p className="text-[12px] text-ui-fg-secondary">{t('realign.group.needsDecisionEmpty')}</p>
       ) : (
         <div className="space-y-2">
           {visibleBuckets.map((bucket) => {
@@ -431,15 +431,15 @@ function NeedsDecisionGroup({ buckets, onGoDecide, isRunning }: NeedsDecisionGro
             const { shown, moreCount } = computeSampleDisplay(bucket)
 
             return (
-              <div key={bucket.id} className="p-3 rounded border border-plm-border bg-plm-bg">
+              <div key={bucket.id} className="p-3 rounded border border-ui-divider bg-ui-bg">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1">
-                    <div className="text-sm text-plm-fg">
+                    <div className="text-[13px] text-ui-fg">
                       {t(`realign.${fragment}.label${pluralSuffix(bucket.count)}`, {
                         count: bucket.count,
                       })}
                     </div>
-                    <div className="text-xs text-plm-fg-muted mt-0.5">
+                    <div className="text-[12px] text-ui-fg-secondary mt-0.5">
                       {t(`realign.${fragment}.description`)}
                     </div>
                   </div>
@@ -451,14 +451,14 @@ function NeedsDecisionGroup({ buckets, onGoDecide, isRunning }: NeedsDecisionGro
                 </div>
 
                 {shown.length > 0 && (
-                  <div className="mt-2 bg-plm-bg-secondary rounded border border-plm-border p-2 font-mono text-xs">
+                  <div className="mt-2 bg-ui-field rounded border border-ui-divider p-2 font-mono text-[12px]">
                     {shown.map((item) => (
-                      <div key={item.id} className="truncate text-plm-fg-dim py-0.5">
+                      <div key={item.id} className="truncate text-ui-fg py-0.5">
                         {item.relativePath}
                       </div>
                     ))}
                     {moreCount > 0 && (
-                      <div className="text-plm-fg-muted pt-1">
+                      <div className="text-ui-fg-secondary pt-1">
                         {t('realign.moreFiles', { count: moreCount })}
                       </div>
                     )}
@@ -486,7 +486,7 @@ function InformationalGroup({ buckets, isExpanded, onToggleExpanded }: Informati
     <div>
       <button
         onClick={onToggleExpanded}
-        className="mb-2 flex items-center gap-1.5 text-[12px] font-medium text-plm-fg-muted hover:text-plm-fg"
+        className="mb-2 flex items-center gap-1.5 text-[13px] font-medium text-ui-fg-secondary hover:text-ui-fg"
       >
         {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         <span>
@@ -499,17 +499,17 @@ function InformationalGroup({ buckets, isExpanded, onToggleExpanded }: Informati
           {buckets.map((bucket) => {
             const fragment = bucketKeyFragment(bucket.id)
             return (
-              <div key={bucket.id} className="p-3 rounded border border-plm-border bg-plm-bg">
-                <div className="text-sm text-plm-fg">
+              <div key={bucket.id} className="p-3 rounded border border-ui-divider bg-ui-bg">
+                <div className="text-[13px] text-ui-fg">
                   {t(`realign.${fragment}.label${pluralSuffix(bucket.count)}`, {
                     count: bucket.count,
                   })}
                 </div>
-                <div className="text-xs text-plm-fg-muted mt-0.5">
+                <div className="text-[12px] text-ui-fg-secondary mt-0.5">
                   {t(`realign.${fragment}.whyNote`)}
                 </div>
                 {bucket.id === 'blocked_checkout' && (
-                  <div className="text-xs text-plm-fg-muted mt-1 space-y-0.5">
+                  <div className="text-[12px] text-ui-fg-secondary mt-1 space-y-0.5">
                     {/* A self-held checkout (only reachable via an `outdated` row - see
                         `resolveGuardedBucket`) is not "someone else's work in progress", so it
                         gets its own line rather than being folded into the count above. */}
@@ -562,14 +562,14 @@ const ABORT_REASON_KEY: Record<NonNullable<AlignmentOutcome['abortReason']>, str
 
 function OutcomeSummary({ outcome }: { outcome: AlignmentOutcome }) {
   return (
-    <div className="border-t border-plm-border pt-3">
-      <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-2">
+    <div className="border-t border-ui-divider pt-3">
+      <div className="text-[12px] text-ui-fg-secondary uppercase tracking-wide mb-2">
         {t('realign.outcome.heading')}
       </div>
 
       {outcome.aborted ? (
-        <div className="rounded border border-plm-warning/40 bg-plm-warning/10 p-3 text-sm text-plm-fg flex items-start gap-2">
-          <AlertTriangle size={16} className="shrink-0 mt-0.5 text-plm-warning" />
+        <div className="rounded border border-ui-warning/40 bg-ui-warning/10 p-3 text-[13px] text-ui-fg flex items-start gap-2">
+          <AlertTriangle size={16} className="shrink-0 mt-0.5 text-ui-warning" />
           <span>
             {t('realign.outcome.abortedHeading')}{' '}
             {outcome.abortReason && t(`realign.outcome.${ABORT_REASON_KEY[outcome.abortReason]}`)}
@@ -582,9 +582,9 @@ function OutcomeSummary({ outcome }: { outcome: AlignmentOutcome }) {
             if (!stepResult) return null
 
             return (
-              <div key={stepId} className="flex items-center justify-between text-sm">
-                <span className="text-plm-fg-muted">{t(`realign.outcome.step_${stepId}`)}</span>
-                <span className="text-plm-fg">{describeStepOutcome(stepResult)}</span>
+              <div key={stepId} className="flex items-center justify-between text-[13px]">
+                <span className="text-ui-fg-secondary">{t(`realign.outcome.step_${stepId}`)}</span>
+                <span className="text-ui-fg">{describeStepOutcome(stepResult)}</span>
               </div>
             )
           })}

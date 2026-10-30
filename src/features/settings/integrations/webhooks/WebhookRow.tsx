@@ -46,26 +46,26 @@ export function WebhookRow({
             <div className="flex items-center gap-2">
               <span
                 className={`h-2 w-2 flex-shrink-0 rounded-full ${
-                  webhook.is_active ? 'bg-plm-success' : 'bg-plm-fg-muted'
+                  webhook.is_active ? 'bg-ui-success' : 'bg-ui-fg-secondary'
                 }`}
                 aria-hidden
               />
-              <span className="truncate text-[13px] font-medium text-plm-fg">{webhook.name}</span>
+              <span className="truncate text-[14px] font-medium text-ui-fg">{webhook.name}</span>
               {!webhook.is_active && <Badge>Disabled</Badge>}
             </div>
             {webhook.description && (
-              <p className="truncate text-[12px] text-plm-fg-muted">{webhook.description}</p>
+              <p className="truncate text-[13px] text-ui-fg-secondary">{webhook.description}</p>
             )}
-            <code className="block truncate font-mono text-[12px] text-plm-fg-dim">
+            <code className="block truncate font-mono text-[13px] text-ui-fg">
               {webhook.url}
             </code>
-            <div className="mt-1.5 flex items-center gap-4 text-[12px] text-plm-fg-muted">
+            <div className="mt-1.5 flex items-center gap-4 text-[13px] text-ui-fg-secondary">
               <span className="flex items-center gap-1">
-                <CheckCircle2 size={12} className="text-plm-success" />
+                <CheckCircle2 size={12} className="text-ui-success" />
                 {webhook.success_count} delivered
               </span>
               <span className="flex items-center gap-1">
-                <XCircle size={12} className="text-plm-error" />
+                <XCircle size={12} className="text-ui-danger" />
                 {webhook.failure_count} failed
               </span>
               {webhook.last_triggered_at && (
@@ -101,7 +101,7 @@ export function WebhookRow({
               onClick={onDelete}
               title="Delete"
               aria-label="Delete"
-              className="hover:text-plm-error"
+              className="hover:text-ui-danger"
               icon={<Trash2 size={14} />}
             />
             <Switch
@@ -123,17 +123,17 @@ export function WebhookRow({
         </div>
 
         {webhook.trigger_filter && webhook.trigger_filter !== 'everyone' && (
-          <div className="mt-2 text-[12px] text-plm-fg-muted">
-            <span className="text-plm-fg-dim">Triggered by: </span>
+          <div className="mt-2 text-[13px] text-ui-fg-secondary">
+            <span className="text-ui-fg">Triggered by: </span>
             {webhook.trigger_filter === 'roles' && (
-              <span className="text-plm-fg">
+              <span className="text-ui-fg">
                 {webhook.trigger_roles
                   ?.map((r) => r.charAt(0).toUpperCase() + r.slice(1))
                   .join(', ') || 'No roles selected'}
               </span>
             )}
             {webhook.trigger_filter === 'users' && (
-              <span className="text-plm-fg">
+              <span className="text-ui-fg">
                 {webhook.trigger_user_ids?.length || 0} selected user
                 {(webhook.trigger_user_ids?.length || 0) !== 1 ? 's' : ''}
               </span>
@@ -144,7 +144,7 @@ export function WebhookRow({
         <button
           type="button"
           onClick={onToggleExpanded}
-          className="mt-2 flex items-center gap-1 text-[12px] text-plm-fg-muted hover:text-plm-fg"
+          className="mt-2 flex items-center gap-1 text-[13px] text-ui-fg-secondary hover:text-ui-fg"
         >
           {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
           Recent Deliveries
@@ -152,36 +152,36 @@ export function WebhookRow({
       </div>
 
       {expanded && (
-        <div className="border-t border-plm-border bg-plm-bg/40">
+        <div className="border-t border-ui-divider bg-ui-bg/40">
           {deliveries.length === 0 ? (
-            <div className="px-4 py-3 text-[12px] text-plm-fg-muted">No deliveries yet</div>
+            <div className="px-4 py-3 text-[13px] text-ui-fg-secondary">No deliveries yet</div>
           ) : (
-            <div className="max-h-64 divide-y divide-plm-border overflow-y-auto">
+            <div className="max-h-64 divide-y divide-ui-divider overflow-y-auto">
               {deliveries.map((delivery) => (
-                <div key={delivery.id} className="flex items-center gap-3 px-4 py-2 text-[12px]">
+                <div key={delivery.id} className="flex items-center gap-3 px-4 py-2 text-[13px]">
                   <span className="flex-shrink-0">
                     {delivery.status === 'success' && (
-                      <CheckCircle2 size={14} className="text-plm-success" />
+                      <CheckCircle2 size={14} className="text-ui-success" />
                     )}
                     {delivery.status === 'failed' && (
-                      <XCircle size={14} className="text-plm-error" />
+                      <XCircle size={14} className="text-ui-danger" />
                     )}
                     {delivery.status === 'retrying' && (
-                      <RotateCcw size={14} className="text-plm-warning" />
+                      <RotateCcw size={14} className="text-ui-warning" />
                     )}
                     {delivery.status === 'pending' && (
-                      <Clock size={14} className="text-plm-fg-muted" />
+                      <Clock size={14} className="text-ui-fg-secondary" />
                     )}
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <code className="font-mono text-plm-accent">{delivery.event_type}</code>
+                      <code className="font-mono text-ui-accent">{delivery.event_type}</code>
                       {delivery.response_status && (
                         <span
                           className={
                             delivery.response_status >= 200 && delivery.response_status < 300
-                              ? 'text-plm-success'
-                              : 'text-plm-error'
+                              ? 'text-ui-success'
+                              : 'text-ui-danger'
                           }
                         >
                           {delivery.response_status}
@@ -189,10 +189,10 @@ export function WebhookRow({
                       )}
                     </div>
                     {delivery.last_error && (
-                      <p className="truncate text-plm-error">{delivery.last_error}</p>
+                      <p className="truncate text-ui-danger">{delivery.last_error}</p>
                     )}
                   </div>
-                  <div className="whitespace-nowrap text-plm-fg-dim">
+                  <div className="whitespace-nowrap text-ui-fg">
                     {delivery.created_at
                       ? new Date(delivery.created_at).toLocaleString()
                       : 'unknown'}

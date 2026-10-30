@@ -305,7 +305,7 @@ export function VaultAuditFindings({ findings, kind }: VaultAuditFindingsProps) 
   }
 
   if (!kind) {
-    return <p className="text-xs text-plm-fg-muted">{t('vaultAudit.findings.selectPrompt')}</p>
+    return <p className="text-[12px] text-ui-fg-secondary">{t('vaultAudit.findings.selectPrompt')}</p>
   }
 
   const unit =
@@ -321,7 +321,7 @@ export function VaultAuditFindings({ findings, kind }: VaultAuditFindingsProps) 
         <div className="relative flex-1 min-w-[14rem]">
           <Search
             size={13}
-            className="absolute left-2 top-1/2 -translate-y-1/2 text-plm-fg-muted pointer-events-none"
+            className="absolute left-2 top-1/2 -translate-y-1/2 text-ui-fg-secondary pointer-events-none"
           />
           <input
             type="text"
@@ -339,7 +339,7 @@ export function VaultAuditFindings({ findings, kind }: VaultAuditFindingsProps) 
               }}
               title={t('vaultAudit.findings.clearFilter')}
               aria-label={t('vaultAudit.findings.clearFilter')}
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-plm-fg-muted hover:text-plm-fg"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-ui-fg-secondary hover:text-ui-fg"
             >
               <X size={12} />
             </button>
@@ -348,14 +348,14 @@ export function VaultAuditFindings({ findings, kind }: VaultAuditFindingsProps) 
 
         {actionableTotal > 0 && actionableTotal < allRows.length && (
           <label
-            className="flex items-center gap-1.5 text-xs text-plm-fg-muted cursor-pointer"
+            className="flex items-center gap-1.5 text-[12px] text-ui-fg-secondary cursor-pointer"
             title={t('vaultAudit.findings.actionableOnlyHint')}
           >
             <input
               type="checkbox"
               checked={actionableOnly}
               onChange={(event) => setActionableOnly(event.target.checked)}
-              className="accent-plm-accent"
+              className="accent-ui-accent"
             />
             {t('vaultAudit.findings.actionableOnly')}
           </label>
@@ -386,7 +386,7 @@ export function VaultAuditFindings({ findings, kind }: VaultAuditFindingsProps) 
             onInvert={() => applyBulk('invert')}
             onClearHidden={clearHidden}
           />
-          <span className="text-xs text-plm-fg-muted">
+          <span className="text-[12px] text-ui-fg-secondary">
             {filtering
               ? t('vaultAudit.findings.showing', {
                   shown: visibleRows.length,
@@ -400,13 +400,13 @@ export function VaultAuditFindings({ findings, kind }: VaultAuditFindingsProps) 
       )}
 
       {inCategory.length === 0 && (
-        <p className="text-xs text-plm-fg-muted py-6 text-center">
+        <p className="text-[12px] text-ui-fg-secondary py-6 text-center">
           {t('vaultAudit.findings.none')}
         </p>
       )}
 
       {inCategory.length > 0 && visibleRows.length === 0 && (
-        <p className="text-xs text-plm-fg-muted py-6 text-center">
+        <p className="text-[12px] text-ui-fg-secondary py-6 text-center">
           {t('vaultAudit.findings.noMatches')}
         </p>
       )}
@@ -432,14 +432,14 @@ export function VaultAuditFindings({ findings, kind }: VaultAuditFindingsProps) 
             />
           </div>
 
-          <p className="text-[11px] text-plm-fg-muted">
+          <p className="text-[12px] text-ui-fg-secondary">
             {t('vaultAudit.findings.directionNote')}
             {summary.selectableUnits > 1 && <> {t('vaultAudit.findings.rangeHint')}</>}
           </p>
 
           {/* Stays at the bottom of the scrolling settings area, so the button and the count of
               what it will write are in reach however far down the page the reader has gone. */}
-          <div className="sticky bottom-0 z-20 -mx-1 px-1 pt-2 pb-1 bg-plm-bg border-t border-plm-border max-h-[40vh] overflow-y-auto">
+          <div className="sticky bottom-0 z-20 -mx-1 px-1 pt-2 pb-1 bg-ui-bg border-t border-ui-divider max-h-[40vh] overflow-y-auto">
             {kind === 'conflicting' ? (
               <VaultAuditConflictActionBar conflict={conflict} push={push} />
             ) : kind === 'empty-in-database' ? (

@@ -27,7 +27,7 @@ function MegabyteField({ id, value, onChange }: MegabyteFieldProps) {
         min={1}
         className="!w-24"
       />
-      <span className="text-[12px] text-plm-fg-muted">MB</span>
+      <span className="text-[13px] text-ui-fg-secondary">MB</span>
     </div>
   )
 }

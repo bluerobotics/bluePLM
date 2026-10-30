@@ -222,7 +222,7 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
               defaultTeamId ? (
                 'Users joining via org code (or invited without specific teams) will be added here'
               ) : (
-                <span className="flex items-center gap-1 text-plm-warning">
+                <span className="flex items-center gap-1 text-ui-warning">
                   <AlertTriangle size={12} />
                   New users will have no team permissions until manually assigned
                 </span>
@@ -230,7 +230,7 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
             }
           >
             {isSavingDefaultTeam && (
-              <Loader2 size={14} className="animate-spin text-plm-fg-muted" />
+              <Loader2 size={14} className="animate-spin text-ui-fg-secondary" />
             )}
             <Select
               id="default-new-user-team"
@@ -253,7 +253,7 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
       {filteredTeams.length === 0 ? (
         <SettingsGroup>
           <div className="flex items-center justify-between gap-4 px-4 py-4">
-            <span className="text-[12px] text-plm-fg-muted">No teams yet</span>
+            <span className="text-[13px] text-ui-fg-secondary">No teams yet</span>
             {isAdmin && onShowCreateTeamDialog && (
               <Button
                 variant="primary"
@@ -284,14 +284,14 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
                   type="button"
                   aria-expanded={isExpanded}
                   className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors ${
-                    isExpanded ? 'bg-plm-highlight/40' : 'hover:bg-plm-highlight/40'
+                    isExpanded ? 'bg-ui-hover/40' : 'hover:bg-ui-hover/40'
                   }`}
                   onClick={() => toggleTeamExpand(team.id)}
                 >
                   {isExpanded ? (
-                    <ChevronDown size={14} className="flex-shrink-0 text-plm-fg-muted" />
+                    <ChevronDown size={14} className="flex-shrink-0 text-ui-fg-secondary" />
                   ) : (
-                    <ChevronRight size={14} className="flex-shrink-0 text-plm-fg-muted" />
+                    <ChevronRight size={14} className="flex-shrink-0 text-ui-fg-secondary" />
                   )}
                   <div
                     className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md"
@@ -302,7 +302,7 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
 
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="truncate text-[13px] font-medium text-plm-fg">
+                      <span className="truncate text-[14px] font-medium text-ui-fg">
                         {team.name}
                       </span>
                       {team.is_default && <Badge tone="accent">Default</Badge>}
@@ -312,7 +312,7 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
                         </Badge>
                       )}
                     </div>
-                    <div className="flex items-center gap-1.5 text-[12px] text-plm-fg-muted">
+                    <div className="flex items-center gap-1.5 text-[13px] text-ui-fg-secondary">
                       <span>
                         {team.member_count} member{team.member_count !== 1 ? 's' : ''}
                       </span>
@@ -335,10 +335,10 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
 
                 {/* Expanded Content */}
                 {isExpanded && (
-                  <div className="border-t border-plm-border bg-plm-bg/40">
+                  <div className="border-t border-ui-divider bg-ui-bg/40">
                     {/* Team Actions */}
                     {isAdmin && (
-                      <div className="flex flex-wrap items-center gap-1 border-b border-plm-border px-4 py-2">
+                      <div className="flex flex-wrap items-center gap-1 border-b border-ui-divider px-4 py-2">
                         <Button
                           variant="ghost"
                           size="sm"
@@ -413,7 +413,7 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="ml-auto !text-plm-error hover:!bg-plm-error/10"
+                              className="ml-auto !text-ui-danger hover:!bg-ui-danger/10"
                               icon={<Trash2 size={14} />}
                               onClick={(e) => {
                                 e.stopPropagation()
@@ -430,11 +430,11 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
 
                     {/* Team Members List */}
                     {teamMembers.length === 0 ? (
-                      <p className="px-4 py-3 text-[12px] text-plm-fg-muted">
+                      <p className="px-4 py-3 text-[13px] text-ui-fg-secondary">
                         No members in this team
                       </p>
                     ) : (
-                      <div className="divide-y divide-plm-border pl-11 pr-4">
+                      <div className="divide-y divide-ui-divider pl-11 pr-4">
                         {teamMembers.map((member) => (
                           <ConnectedUserRow
                             key={member.id}

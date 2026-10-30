@@ -13,15 +13,15 @@ interface StatCardProps {
 /** One figure in a grid of figures: a muted label, a large value, an optional detail line. */
 export function StatCard({ icon, label, value, detail, loading = false }: StatCardProps) {
   return (
-    <div className="rounded-lg border border-plm-border bg-plm-bg-light/60 px-4 py-3">
-      <div className="flex items-center gap-1.5 text-[12px] text-plm-fg-muted">
+    <div className="rounded-lg border border-ui-divider bg-ui-field/60 px-4 py-3">
+      <div className="flex items-center gap-1.5 text-[13px] text-ui-fg-secondary">
         {icon}
         <span>{label}</span>
       </div>
-      <div className="mt-1.5 flex h-7 items-center text-[20px] font-semibold tabular-nums text-plm-fg">
-        {loading ? <Loader2 size={16} className="animate-spin text-plm-fg-muted" /> : value}
+      <div className="mt-1.5 flex h-7 items-center text-[20px] font-semibold tabular-nums text-ui-fg">
+        {loading ? <Loader2 size={16} className="animate-spin text-ui-fg-secondary" /> : value}
       </div>
-      {detail && <div className="mt-0.5 text-[12px] text-plm-fg-muted">{detail}</div>}
+      {detail && <div className="mt-0.5 text-[13px] text-ui-fg-secondary">{detail}</div>}
     </div>
   )
 }

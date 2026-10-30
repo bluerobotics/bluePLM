@@ -93,24 +93,24 @@ export function LicenseRow({
   }
 
   return (
-    <tr className="group border-b border-plm-border last:border-0 hover:bg-plm-highlight/40">
+    <tr className="group border-b border-ui-divider last:border-0 hover:bg-ui-hover/40">
       {/* License Name (nickname or fallback) */}
       <td className="py-2.5 pl-4 pr-4">
-        <span className="text-plm-fg font-medium">{getDisplayName()}</span>
+        <span className="text-ui-fg font-medium">{getDisplayName()}</span>
       </td>
 
       {/* Serial Number (formatted with spaces, with copy button) */}
       <td className="py-2.5 pr-4">
         <div className="flex items-center gap-2">
-          <code className="text-[12px] font-mono text-plm-fg-muted tracking-wider">
+          <code className="text-[13px] font-mono text-ui-fg-secondary tracking-wider">
             {formatSerialForDisplay(license.serial_number)}
           </code>
           <button
             onClick={handleCopySerial}
             className={`p-1 rounded transition-colors ${
               copied
-                ? 'text-plm-success'
-                : 'text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight'
+                ? 'text-ui-success'
+                : 'text-ui-fg-secondary hover:text-ui-fg hover:bg-ui-hover'
             }`}
             title={copied ? 'Copied!' : 'Copy serial number'}
           >
@@ -120,10 +120,10 @@ export function LicenseRow({
       </td>
 
       {/* Type */}
-      <td className="py-2.5 pr-4 text-plm-fg-muted capitalize">
+      <td className="py-2.5 pr-4 text-ui-fg-secondary capitalize">
         {license.license_type || 'standalone'}
         {license.license_type === 'network' && license.seats && (
-          <span className="text-plm-fg-dim ml-1">({license.seats} seats)</span>
+          <span className="text-ui-fg ml-1">({license.seats} seats)</span>
         )}
       </td>
 
@@ -132,7 +132,7 @@ export function LicenseRow({
         {assignedUser ? (
           <div className="flex items-center gap-2">
             {/* Avatar */}
-            <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0 bg-plm-bg-secondary">
+            <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0 bg-ui-field">
               {assignedUser.avatar_url ? (
                 <img
                   src={assignedUser.avatar_url}
@@ -141,33 +141,33 @@ export function LicenseRow({
                   referrerPolicy="no-referrer"
                 />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-xs font-medium text-plm-accent bg-plm-accent/20">
+                <div className="w-full h-full flex items-center justify-center text-[12px] font-medium text-ui-accent bg-ui-accent/20">
                   {getInitials(assignedUser.full_name || assignedUser.email)}
                 </div>
               )}
             </div>
             {/* Name/Email */}
             <div className="min-w-0">
-              <div className="text-plm-fg text-sm truncate">
+              <div className="text-ui-fg text-[13px] truncate">
                 {assignedUser.full_name || assignedUser.email}
               </div>
               {assignedUser.full_name && (
-                <div className="text-xs text-plm-fg-dim truncate">{assignedUser.email}</div>
+                <div className="text-[12px] text-ui-fg truncate">{assignedUser.email}</div>
               )}
             </div>
           </div>
         ) : isPendingAssignment && pendingUser ? (
           <div className="flex items-center gap-2">
             {/* Avatar placeholder for pending user */}
-            <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0 bg-plm-warning/15">
-              <div className="w-full h-full flex items-center justify-center text-xs font-medium text-plm-warning">
+            <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0 bg-ui-warning/15">
+              <div className="w-full h-full flex items-center justify-center text-[12px] font-medium text-ui-warning">
                 {getInitials(pendingUser.full_name || pendingUser.email)}
               </div>
             </div>
             {/* Name/Email with pending badge */}
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-plm-fg text-sm truncate">
+                <span className="text-ui-fg text-[13px] truncate">
                   {pendingUser.full_name || pendingUser.email}
                 </span>
                 <Badge tone="warning" icon={<Clock size={10} />}>
@@ -175,12 +175,12 @@ export function LicenseRow({
                 </Badge>
               </div>
               {pendingUser.full_name && (
-                <div className="text-xs text-plm-fg-dim truncate">{pendingUser.email}</div>
+                <div className="text-[12px] text-ui-fg truncate">{pendingUser.email}</div>
               )}
             </div>
           </div>
         ) : (
-          <span className="text-plm-fg-dim">—</span>
+          <span className="text-ui-fg">—</span>
         )}
       </td>
 
@@ -238,7 +238,7 @@ export function LicenseRow({
               loading={isDeleting}
               title="Delete license"
               aria-label="Delete license"
-              className="hover:text-plm-error"
+              className="hover:text-ui-danger"
               icon={<Trash2 size={14} />}
             />
           </div>

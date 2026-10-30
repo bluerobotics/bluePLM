@@ -51,9 +51,9 @@ const TIME_RANGES = [
 ] as const
 
 const CHANNEL_DOT: Record<string, string> = {
-  joined: 'bg-plm-success',
-  joining: 'bg-plm-warning animate-pulse',
-  leaving: 'bg-plm-warning',
+  joined: 'bg-ui-success',
+  joining: 'bg-ui-warning animate-pulse',
+  leaving: 'bg-ui-warning',
 }
 
 function CopyButton({
@@ -72,7 +72,7 @@ function CopyButton({
       onClick={onClick}
       title={title}
       aria-label={title}
-      icon={copied ? <Check size={14} className="text-plm-success" /> : <Copy size={14} />}
+      icon={copied ? <Check size={14} className="text-ui-success" /> : <Copy size={14} />}
     />
   )
 }
@@ -80,8 +80,8 @@ function CopyButton({
 function ValueField({ children, muted = false }: { children: string; muted?: boolean }) {
   return (
     <code
-      className={`min-w-0 flex-1 truncate rounded-md border border-plm-border bg-plm-input px-2.5 py-1.5 font-mono text-[12px] ${
-        muted ? 'text-plm-fg-muted' : 'text-plm-fg'
+      className={`min-w-0 flex-1 truncate rounded-md border border-ui-divider bg-ui-field px-2.5 py-1.5 font-mono text-[13px] ${
+        muted ? 'text-ui-fg-secondary' : 'text-ui-fg'
       }`}
     >
       {children}
@@ -161,7 +161,7 @@ export function SupabaseSettings() {
             }
           >
             {status === 'checking' ? (
-              <Loader2 size={14} className="animate-spin text-plm-fg-muted" />
+              <Loader2 size={14} className="animate-spin text-ui-fg-secondary" />
             ) : (
               <Badge tone={statusBadge.tone}>{statusBadge.text}</Badge>
             )}
@@ -181,7 +181,7 @@ export function SupabaseSettings() {
             }
           >
             {c.authStatus === 'checking' ? (
-              <Loader2 size={14} className="animate-spin text-plm-fg-muted" />
+              <Loader2 size={14} className="animate-spin text-ui-fg-secondary" />
             ) : (
               <Badge tone={c.authStatus === 'authenticated' ? 'info' : 'warning'}>
                 {c.authStatus === 'authenticated' ? 'Signed in' : 'Signed out'}
@@ -195,7 +195,7 @@ export function SupabaseSettings() {
         <SettingsSection title="Schema Version">
           <SettingsGroup>
             {c.loadingSchema ? (
-              <div className="flex items-center gap-2 px-4 py-3.5 text-[13px] text-plm-fg-muted">
+              <div className="flex items-center gap-2 px-4 py-3.5 text-[14px] text-ui-fg-secondary">
                 <Loader2 size={14} className="animate-spin" />
                 Checking schema version...
               </div>
@@ -239,8 +239,8 @@ export function SupabaseSettings() {
             schemaVersion.version < EXPECTED_SCHEMA_VERSION &&
             isAdmin && (
               <Callout tone="warning">
-                <strong className="font-medium text-plm-fg">Admin action needed:</strong> Run the
-                latest <code className="rounded bg-plm-bg px-1">schema.sql</code> in your Supabase
+                <strong className="font-medium text-ui-fg">Admin action needed:</strong> Run the
+                latest <code className="rounded bg-ui-bg px-1">schema.sql</code> in your Supabase
                 SQL editor to enable new features.
               </Callout>
             )}
@@ -252,8 +252,8 @@ export function SupabaseSettings() {
           )}
           {!c.loadingSchema && !schemaVersion && isAdmin && (
             <Callout tone="warning">
-              <strong className="font-medium text-plm-fg">Admin action needed:</strong> Run the
-              latest <code className="rounded bg-plm-bg px-1">schema.sql</code> in your Supabase SQL
+              <strong className="font-medium text-ui-fg">Admin action needed:</strong> Run the
+              latest <code className="rounded bg-ui-bg px-1">schema.sql</code> in your Supabase SQL
               editor to enable schema version tracking.
             </Callout>
           )}
@@ -269,7 +269,7 @@ export function SupabaseSettings() {
                 <CopyButton copied={urlCopied} onClick={handleCopyUrl} title="Copy URL" />
               </div>
             ) : (
-              <span className="text-[13px] text-plm-fg-muted">Not configured</span>
+              <span className="text-[14px] text-ui-fg-secondary">Not configured</span>
             )}
           </SettingRow>
           <SettingRow
@@ -301,7 +301,7 @@ export function SupabaseSettings() {
                   <CopyButton copied={keyCopied} onClick={handleCopyKey} title="Copy key" />
                 </div>
               ) : (
-                <span className="text-[13px] text-plm-fg-muted">Not configured</span>
+                <span className="text-[14px] text-ui-fg-secondary">Not configured</span>
               ))}
           </SettingRow>
         </SettingsGroup>
@@ -311,16 +311,16 @@ export function SupabaseSettings() {
         <SettingsSection title="Server Information">
           <SettingsGroup>
             <SettingRow label="Project URL">
-              <code className="font-mono text-[12px] text-plm-fg">
+              <code className="font-mono text-[13px] text-ui-fg">
                 {new URL(config.url).hostname}
               </code>
             </SettingRow>
             <SettingRow label="Region">
-              <span className="text-[13px] text-plm-fg">{extractRegion(config.url)}</span>
+              <span className="text-[14px] text-ui-fg">{extractRegion(config.url)}</span>
             </SettingRow>
             {config.orgSlug && (
               <SettingRow label="Organization Slug">
-                <code className="font-mono text-[12px] text-plm-fg">{config.orgSlug}</code>
+                <code className="font-mono text-[13px] text-ui-fg">{config.orgSlug}</code>
               </SettingRow>
             )}
           </SettingsGroup>
@@ -427,16 +427,16 @@ export function SupabaseSettings() {
             </SettingRow>
             {c.stats.realtimeConnected &&
               channels.map((channel, idx) => (
-                <div key={idx} className="flex items-center gap-2.5 px-4 py-2 text-[12px]">
+                <div key={idx} className="flex items-center gap-2.5 px-4 py-2 text-[13px]">
                   <span
                     className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${
-                      CHANNEL_DOT[channel.state] ?? 'bg-plm-fg-muted'
+                      CHANNEL_DOT[channel.state] ?? 'bg-ui-fg-secondary'
                     }`}
                   />
-                  <code className="min-w-0 flex-1 truncate font-mono text-plm-fg">
+                  <code className="min-w-0 flex-1 truncate font-mono text-ui-fg">
                     {channel.topic || 'unknown'}
                   </code>
-                  <span className="capitalize text-plm-fg-muted">{channel.state}</span>
+                  <span className="capitalize text-ui-fg-secondary">{channel.state}</span>
                 </div>
               ))}
           </SettingsGroup>

@@ -111,10 +111,10 @@ export function TemplatesTab() {
             {installedSwVersions.length > 0 ? (
               <span className="block">
                 Detected SOLIDWORKS versions:{' '}
-                <span className="text-plm-fg">{installedSwVersions.join(', ')}</span>
+                <span className="text-ui-fg">{installedSwVersions.join(', ')}</span>
               </span>
             ) : (
-              <span className="block text-plm-warning">
+              <span className="block text-ui-warning">
                 No SOLIDWORKS 2020+ installations detected on this computer
               </span>
             )}

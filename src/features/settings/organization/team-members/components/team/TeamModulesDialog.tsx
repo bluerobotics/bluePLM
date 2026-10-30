@@ -128,11 +128,11 @@ export function TeamModulesDialog({ team, onClose }: TeamModulesDialogProps) {
       onClick={onClose}
     >
       <div
-        className="bg-plm-bg-light border border-plm-border rounded-xl max-w-4xl w-full mx-4 max-h-[85vh] flex flex-col"
+        className="bg-ui-field border border-ui-divider rounded-xl max-w-4xl w-full mx-4 max-h-[85vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="p-4 border-b border-plm-border flex items-center justify-between flex-shrink-0">
+        <div className="p-4 border-b border-ui-divider flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-3">
             <div
               className="p-2 rounded-lg"
@@ -141,8 +141,8 @@ export function TeamModulesDialog({ team, onClose }: TeamModulesDialogProps) {
               <IconComponent size={20} />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-plm-fg">{team.name} - Module Defaults</h3>
-              <p className="text-sm text-plm-fg-muted">
+              <h3 className="text-lg font-semibold text-ui-fg">{team.name} - Module Defaults</h3>
+              <p className="text-[13px] text-ui-fg-secondary">
                 Configure sidebar modules for team members
               </p>
             </div>
@@ -156,11 +156,11 @@ export function TeamModulesDialog({ team, onClose }: TeamModulesDialogProps) {
         <div className="flex-1 overflow-y-auto p-4">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 size={24} className="animate-spin text-plm-fg-muted" />
+              <Loader2 size={24} className="animate-spin text-ui-fg-secondary" />
             </div>
           ) : localConfig ? (
             <div className="space-y-4">
-              <p className="text-sm text-plm-fg-muted">
+              <p className="text-[13px] text-ui-fg-secondary">
                 Configure which modules are enabled and how they appear for members of this team.
                 Drag to reorder, create groups, and toggle modules on/off. If a user is in multiple
                 teams, they get a <strong>union</strong> of all enabled modules.
@@ -176,11 +176,11 @@ export function TeamModulesDialog({ team, onClose }: TeamModulesDialogProps) {
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-plm-border flex items-center justify-between flex-shrink-0">
+        <div className="p-4 border-t border-ui-divider flex items-center justify-between flex-shrink-0">
           <button
             onClick={() => setShowClearConfirm(true)}
             disabled={isSaving || !team.module_defaults}
-            className="btn btn-ghost text-plm-error hover:bg-plm-error/10 disabled:opacity-50"
+            className="btn btn-ghost text-ui-danger hover:bg-ui-danger/10 disabled:opacity-50"
           >
             <Trash2 size={14} className="mr-1.5" />
             Clear Defaults
@@ -215,11 +215,11 @@ export function TeamModulesDialog({ team, onClose }: TeamModulesDialogProps) {
           onClick={() => setShowClearConfirm(false)}
         >
           <div
-            className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4"
+            className="bg-ui-field border border-ui-divider rounded-xl p-6 max-w-md w-full mx-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-medium text-plm-fg mb-4">Clear Module Defaults</h3>
-            <p className="text-base text-plm-fg-muted mb-4">
+            <h3 className="text-lg font-medium text-ui-fg mb-4">Clear Module Defaults</h3>
+            <p className="text-[14px] text-ui-fg-secondary mb-4">
               Are you sure you want to clear module defaults for <strong>{team.name}</strong>? Team
               members will use organization or app defaults instead.
             </p>
@@ -229,7 +229,7 @@ export function TeamModulesDialog({ team, onClose }: TeamModulesDialogProps) {
               </button>
               <button
                 onClick={handleClearDefaults}
-                className="btn bg-plm-error text-white hover:bg-plm-error/90"
+                className="btn bg-ui-danger text-white hover:bg-ui-danger/90"
               >
                 Clear Defaults
               </button>

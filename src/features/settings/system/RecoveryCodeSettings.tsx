@@ -171,11 +171,11 @@ export function RecoveryCodeSettings() {
   }
 
   const getCodeStatus = (code: AdminRecoveryCode) => {
-    if (code.is_used) return { label: 'Used', color: 'text-plm-success', icon: UserCheck }
-    if (code.is_revoked) return { label: 'Revoked', color: 'text-plm-error', icon: Ban }
+    if (code.is_used) return { label: 'Used', color: 'text-ui-success', icon: UserCheck }
+    if (code.is_revoked) return { label: 'Revoked', color: 'text-ui-danger', icon: Ban }
     if (new Date(code.expires_at) < new Date())
-      return { label: 'Expired', color: 'text-plm-fg-muted', icon: Clock }
-    return { label: 'Active', color: 'text-plm-accent', icon: Key }
+      return { label: 'Expired', color: 'text-ui-fg-secondary', icon: Clock }
+    return { label: 'Active', color: 'text-ui-accent', icon: Key }
   }
 
   const formatDate = (date: string | null) => {
@@ -192,7 +192,7 @@ export function RecoveryCodeSettings() {
   // Non-admin view
   if (!isAdmin) {
     return (
-      <div className="py-12 text-center text-plm-fg-muted">
+      <div className="py-12 text-center text-ui-fg-secondary">
         Only administrators can manage recovery codes.
       </div>
     )
@@ -235,15 +235,15 @@ export function RecoveryCodeSettings() {
           {/* Loading state */}
           {loading && (
             <div className="flex items-center justify-center py-8">
-              <RefreshCw size={16} className="animate-spin text-plm-fg-muted" />
+              <RefreshCw size={16} className="animate-spin text-ui-fg-secondary" />
             </div>
           )}
 
           {/* Empty state */}
           {!loading && codes.length === 0 && (
             <div className="px-4 py-4">
-              <p className="text-[13px] text-plm-fg">No recovery codes generated yet</p>
-              <p className="mt-0.5 text-[12px] text-plm-fg-muted">
+              <p className="text-[14px] text-ui-fg">No recovery codes generated yet</p>
+              <p className="mt-0.5 text-[13px] text-ui-fg-secondary">
                 We recommend generating at least one recovery code and storing it in a secure
                 physical location in case all admin accounts become inaccessible.
               </p>
@@ -263,20 +263,20 @@ export function RecoveryCodeSettings() {
                     <div className="flex items-center gap-2">
                       <Badge tone={statusTone(code)}>{status.label}</Badge>
                       {code.description && (
-                        <span className="truncate text-[13px] font-medium text-plm-fg">
+                        <span className="truncate text-[14px] font-medium text-ui-fg">
                           {code.description}
                         </span>
                       )}
                     </div>
 
-                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] text-plm-fg-muted">
+                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[13px] text-ui-fg-secondary">
                       <span>Created: {formatDate(code.created_at)}</span>
                       <span>Expires: {formatDate(code.expires_at)}</span>
                       {code.is_used && code.used_at && (
-                        <span className="text-plm-success">Used: {formatDate(code.used_at)}</span>
+                        <span className="text-ui-success">Used: {formatDate(code.used_at)}</span>
                       )}
                       {code.is_revoked && code.revoked_at && (
-                        <span className="text-plm-error">
+                        <span className="text-ui-danger">
                           Revoked: {formatDate(code.revoked_at)}
                           {code.revoke_reason && ` - ${code.revoke_reason}`}
                         </span>
@@ -305,7 +305,7 @@ export function RecoveryCodeSettings() {
                       <button
                         type="button"
                         onClick={() => handleDelete(code.id)}
-                        className="rounded-md p-1.5 text-plm-fg-muted opacity-0 transition-all hover:bg-plm-error/10 hover:text-plm-error focus-visible:opacity-100 group-hover:opacity-100"
+                        className="rounded-md p-1.5 text-ui-fg-secondary opacity-0 transition-all hover:bg-ui-danger/10 hover:text-ui-danger focus-visible:opacity-100 group-hover:opacity-100"
                         title="Delete"
                         aria-label="Delete"
                       >
@@ -322,24 +322,24 @@ export function RecoveryCodeSettings() {
       {/* Generate Code Dialog */}
       {showGenerateDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-plm-bg border border-plm-border rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="p-6 border-b border-plm-border">
+          <div className="bg-ui-bg border border-ui-divider rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="p-6 border-b border-ui-divider">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-plm-accent/10 flex items-center justify-center">
-                  <Key size={20} className="text-plm-accent" />
+                <div className="w-10 h-10 rounded-full bg-ui-accent/10 flex items-center justify-center">
+                  <Key size={20} className="text-ui-accent" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-plm-fg">Generate Recovery Code</h3>
-                  <p className="text-sm text-plm-fg-muted">Create an emergency admin access code</p>
+                  <h3 className="text-lg font-semibold text-ui-fg">Generate Recovery Code</h3>
+                  <p className="text-[13px] text-ui-fg-secondary">Create an emergency admin access code</p>
                 </div>
               </div>
             </div>
 
             <div className="p-6 space-y-4">
               {/* Warning */}
-              <div className="p-3 bg-plm-warning/10 border border-plm-warning/30 rounded flex items-start gap-2">
-                <AlertTriangle size={16} className="text-plm-warning flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-plm-warning">
+              <div className="p-3 bg-ui-warning/10 border border-ui-warning/30 rounded flex items-start gap-2">
+                <AlertTriangle size={16} className="text-ui-warning flex-shrink-0 mt-0.5" />
+                <p className="text-[12px] text-ui-warning">
                   The code will only be shown <strong>once</strong>. Have a pen and paper ready, or
                   be prepared to store it securely offline.
                 </p>
@@ -347,7 +347,7 @@ export function RecoveryCodeSettings() {
 
               {/* Description */}
               <div>
-                <label className="block text-sm font-medium text-plm-fg mb-1">
+                <label className="block text-[13px] font-medium text-ui-fg mb-1">
                   Description (optional)
                 </label>
                 <TextInput
@@ -355,14 +355,14 @@ export function RecoveryCodeSettings() {
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="e.g., Emergency backup for CEO"
                 />
-                <p className="text-xs text-plm-fg-muted mt-1">
+                <p className="text-[12px] text-ui-fg-secondary mt-1">
                   A note to help identify this code later
                 </p>
               </div>
 
               {/* Expiration */}
               <div>
-                <label className="block text-sm font-medium text-plm-fg mb-1">Expires in</label>
+                <label className="block text-[13px] font-medium text-ui-fg mb-1">Expires in</label>
                 <Select
                   className="w-full"
                   value={expiresInDays}
@@ -377,7 +377,7 @@ export function RecoveryCodeSettings() {
               </div>
             </div>
 
-            <div className="p-4 border-t border-plm-border flex justify-end gap-3">
+            <div className="p-4 border-t border-ui-divider flex justify-end gap-3">
               <Button variant="ghost" onClick={() => setShowGenerateDialog(false)}>
                 Cancel
               </Button>
@@ -397,15 +397,15 @@ export function RecoveryCodeSettings() {
       {/* Generated Code Display Modal */}
       {generatedCode && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-plm-bg border border-plm-border rounded-lg shadow-xl max-w-lg w-full mx-4">
-            <div className="p-6 border-b border-plm-border bg-plm-warning/5">
+          <div className="bg-ui-bg border border-ui-divider rounded-lg shadow-xl max-w-lg w-full mx-4">
+            <div className="p-6 border-b border-ui-divider bg-ui-warning/5">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-plm-warning/10 flex items-center justify-center">
-                  <AlertTriangle size={24} className="text-plm-warning" />
+                <div className="w-12 h-12 rounded-full bg-ui-warning/10 flex items-center justify-center">
+                  <AlertTriangle size={24} className="text-ui-warning" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-plm-fg">Write This Code Down!</h3>
-                  <p className="text-sm text-plm-warning">
+                  <h3 className="text-lg font-semibold text-ui-fg">Write This Code Down!</h3>
+                  <p className="text-[13px] text-ui-warning">
                     This is the only time you will see this code
                   </p>
                 </div>
@@ -415,20 +415,20 @@ export function RecoveryCodeSettings() {
             <div className="p-6 space-y-6">
               {/* The Code */}
               <div className="text-center">
-                <p className="text-sm text-plm-fg-muted mb-3">Your Admin Recovery Code:</p>
+                <p className="text-[13px] text-ui-fg-secondary mb-3">Your Admin Recovery Code:</p>
                 <div className="relative">
-                  <div className="bg-plm-bg-secondary border-2 border-dashed border-plm-accent rounded-lg p-6">
-                    <code className="text-3xl font-mono font-bold tracking-wider text-plm-accent">
+                  <div className="bg-ui-field border-2 border-dashed border-ui-accent rounded-lg p-6">
+                    <code className="text-3xl font-mono font-bold tracking-wider text-ui-accent">
                       {generatedCode}
                     </code>
                   </div>
                   <button
                     onClick={handleCopyCode}
-                    className="absolute top-2 right-2 p-2 text-plm-fg-muted hover:text-plm-fg hover:bg-plm-bg-tertiary rounded transition-colors"
+                    className="absolute top-2 right-2 p-2 text-ui-fg-secondary hover:text-ui-fg hover:bg-ui-field rounded transition-colors"
                     title="Copy to clipboard"
                   >
                     {codeCopied ? (
-                      <Check size={20} className="text-plm-success" />
+                      <Check size={20} className="text-ui-success" />
                     ) : (
                       <Copy size={20} />
                     )}
@@ -438,11 +438,11 @@ export function RecoveryCodeSettings() {
 
               {/* Instructions */}
               <div className="space-y-3">
-                <h4 className="font-medium text-plm-fg flex items-center gap-2">
+                <h4 className="font-medium text-ui-fg flex items-center gap-2">
                   <FileText size={16} />
                   What to do now:
                 </h4>
-                <ol className="text-sm text-plm-fg-muted space-y-2 list-decimal list-inside">
+                <ol className="text-[13px] text-ui-fg-secondary space-y-2 list-decimal list-inside">
                   <li>
                     <strong>Write it down</strong> on paper or print this screen
                   </li>
@@ -460,9 +460,9 @@ export function RecoveryCodeSettings() {
               </div>
 
               {/* How to use */}
-              <div className="p-3 bg-plm-bg-secondary rounded-lg">
-                <h4 className="font-medium text-plm-fg text-sm mb-2">To use this code:</h4>
-                <p className="text-xs text-plm-fg-muted">
+              <div className="p-3 bg-ui-field rounded-lg">
+                <h4 className="font-medium text-ui-fg text-[13px] mb-2">To use this code:</h4>
+                <p className="text-[12px] text-ui-fg-secondary">
                   Any user in your organization can enter this code in{' '}
                   <strong>Settings → Account → Emergency Admin Recovery</strong>
                   to immediately become an admin. The code can only be used once.
@@ -475,16 +475,16 @@ export function RecoveryCodeSettings() {
                   type="checkbox"
                   checked={acknowledgedWrite}
                   onChange={(e) => setAcknowledgedWrite(e.target.checked)}
-                  className="mt-1 w-4 h-4 rounded border-plm-border text-plm-accent focus:ring-plm-accent"
+                  className="mt-1 w-4 h-4 rounded border-ui-divider text-ui-accent focus:ring-ui-accent"
                 />
-                <span className="text-sm text-plm-fg">
+                <span className="text-[13px] text-ui-fg">
                   I have written down this code and stored it in a secure location. I understand it
                   will not be shown again.
                 </span>
               </label>
             </div>
 
-            <div className="p-4 border-t border-plm-border">
+            <div className="p-4 border-t border-ui-divider">
               <Button
                 variant="primary"
                 className="w-full"
@@ -503,28 +503,28 @@ export function RecoveryCodeSettings() {
       {/* Revoke Code Dialog */}
       {revokingCode && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-plm-bg border border-plm-border rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="p-6 border-b border-plm-border">
+          <div className="bg-ui-bg border border-ui-divider rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="p-6 border-b border-ui-divider">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-plm-error/10 flex items-center justify-center">
-                  <Ban size={20} className="text-plm-error" />
+                <div className="w-10 h-10 rounded-full bg-ui-danger/10 flex items-center justify-center">
+                  <Ban size={20} className="text-ui-danger" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-plm-fg">Revoke Recovery Code</h3>
-                  <p className="text-sm text-plm-fg-muted">This code will no longer work</p>
+                  <h3 className="text-lg font-semibold text-ui-fg">Revoke Recovery Code</h3>
+                  <p className="text-[13px] text-ui-fg-secondary">This code will no longer work</p>
                 </div>
               </div>
             </div>
 
             <div className="p-6 space-y-4">
-              <p className="text-sm text-plm-fg-muted">
+              <p className="text-[13px] text-ui-fg-secondary">
                 {revokingCode.description
                   ? `Are you sure you want to revoke the code "${revokingCode.description}"?`
                   : 'Are you sure you want to revoke this recovery code?'}
               </p>
 
               <div>
-                <label className="block text-sm font-medium text-plm-fg mb-1">
+                <label className="block text-[13px] font-medium text-ui-fg mb-1">
                   Reason (optional)
                 </label>
                 <TextInput
@@ -535,7 +535,7 @@ export function RecoveryCodeSettings() {
               </div>
             </div>
 
-            <div className="p-4 border-t border-plm-border flex justify-end gap-3">
+            <div className="p-4 border-t border-ui-divider flex justify-end gap-3">
               <Button
                 variant="ghost"
                 onClick={() => {

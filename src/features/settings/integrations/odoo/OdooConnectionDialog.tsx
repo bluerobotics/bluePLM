@@ -5,7 +5,7 @@ import { Button, Callout, TextInput } from '@/components/core/ui'
 import { CONFIG_COLORS } from './odooTypes'
 import type { OdooSettingsState } from './useOdooSettings'
 
-const LABEL = 'text-[12px] font-medium text-plm-fg-dim'
+const LABEL = 'text-[13px] font-medium text-ui-fg'
 
 /** The "New / Edit Odoo connection" dialog: names a connection and holds its credentials. */
 export function OdooConnectionDialog({ odoo }: { odoo: OdooSettingsState }) {
@@ -49,9 +49,9 @@ export function OdooConnectionDialog({ odoo }: { odoo: OdooSettingsState }) {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-plm-bg border border-plm-border rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-plm-border sticky top-0 bg-plm-bg">
-          <h3 className="text-[14px] font-semibold text-plm-fg">
+      <div className="bg-ui-bg border border-ui-divider rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-ui-divider sticky top-0 bg-ui-bg">
+          <h3 className="text-[14px] font-semibold text-ui-fg">
             {editingConfig ? 'Edit Connection' : 'New Odoo Connection'}
           </h3>
           <Button
@@ -89,7 +89,7 @@ export function OdooConnectionDialog({ odoo }: { odoo: OdooSettingsState }) {
                     onClick={() => setConfigColor(color.value)}
                     className={`w-6 h-6 rounded flex items-center justify-center transition-all ${
                       configColor === color.value
-                        ? 'ring-2 ring-offset-1 ring-offset-plm-bg ring-plm-accent'
+                        ? 'ring-2 ring-offset-1 ring-offset-ui-bg ring-ui-accent'
                         : 'hover:opacity-80'
                     }`}
                     style={{ backgroundColor: color.value }}
@@ -117,9 +117,9 @@ export function OdooConnectionDialog({ odoo }: { odoo: OdooSettingsState }) {
             />
           </div>
 
-          <div className="h-px bg-plm-border" />
+          <div className="h-px bg-ui-divider" />
 
-          <div className="text-[13px] font-medium text-plm-fg">Connection details</div>
+          <div className="text-[14px] font-medium text-ui-fg">Connection details</div>
 
           <div className="space-y-1.5">
             <label htmlFor="odoo-config-url" className={LABEL}>
@@ -179,12 +179,12 @@ export function OdooConnectionDialog({ odoo }: { odoo: OdooSettingsState }) {
                 type="button"
                 onClick={() => setShowApiKey(!showApiKey)}
                 aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-plm-fg-muted hover:text-plm-fg"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ui-fg-secondary hover:text-ui-fg"
               >
                 {showApiKey ? <EyeOff size={14} /> : <Eye size={14} />}
               </button>
             </div>
-            <p className="text-[12px] text-plm-fg-muted">
+            <p className="text-[13px] text-ui-fg-secondary">
               {storedKeyApplies
                 ? 'A key is saved for this connection. Leave this blank to keep it.'
                 : hasStoredKey
@@ -201,7 +201,7 @@ export function OdooConnectionDialog({ odoo }: { odoo: OdooSettingsState }) {
           )}
         </div>
 
-        <div className="flex justify-between gap-2 px-4 py-3 border-t border-plm-border bg-plm-bg sticky bottom-0">
+        <div className="flex justify-between gap-2 px-4 py-3 border-t border-ui-divider bg-ui-bg sticky bottom-0">
           <Button
             onClick={handleTest}
             disabled={isTesting || !url || !database || !username || !apiKey}

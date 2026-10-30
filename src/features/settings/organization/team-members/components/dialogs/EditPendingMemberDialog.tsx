@@ -52,15 +52,15 @@ export function EditPendingMemberDialog({
       onClick={onClose}
     >
       <div
-        className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto"
+        className="bg-ui-field border border-ui-divider rounded-xl p-6 max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-medium text-plm-fg flex items-center gap-2">
-            <Pencil size={18} className="text-plm-accent" />
+          <h3 className="text-lg font-medium text-ui-fg flex items-center gap-2">
+            <Pencil size={18} className="text-ui-accent" />
             Edit Pending Member
           </h3>
-          <button onClick={onClose} className="p-1 text-plm-fg-muted hover:text-plm-fg rounded">
+          <button onClick={onClose} className="p-1 text-ui-fg-secondary hover:text-ui-fg rounded">
             <X size={18} />
           </button>
         </div>
@@ -68,15 +68,15 @@ export function EditPendingMemberDialog({
         <div className="space-y-4">
           {/* Email (read-only) */}
           <div>
-            <label className="block text-sm text-plm-fg-muted mb-1">Email</label>
-            <div className="px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg-muted">
+            <label className="block text-[13px] text-ui-fg-secondary mb-1">Email</label>
+            <div className="px-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-ui-fg-secondary">
               {pendingMember.email}
             </div>
           </div>
 
           {/* Full Name */}
           <div>
-            <label className="block text-sm text-plm-fg-muted mb-1">Full Name</label>
+            <label className="block text-[13px] text-ui-fg-secondary mb-1">Full Name</label>
             <input
               type="text"
               value={pendingMemberForm.full_name}
@@ -84,16 +84,16 @@ export function EditPendingMemberDialog({
                 setPendingMemberForm((prev) => ({ ...prev, full_name: e.target.value }))
               }
               placeholder="Enter name"
-              className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-muted focus:border-plm-accent focus:outline-none"
+              className="w-full px-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-ui-fg placeholder:text-ui-fg-secondary focus:border-ui-accent focus:outline-none"
             />
           </div>
 
           {/* Workflow Roles */}
           <div>
-            <label className="block text-sm text-plm-fg-muted mb-2">Workflow Roles</label>
-            <div className="space-y-1 max-h-36 overflow-y-auto border border-plm-border rounded-lg p-2 bg-plm-bg">
+            <label className="block text-[13px] text-ui-fg-secondary mb-2">Workflow Roles</label>
+            <div className="space-y-1 max-h-36 overflow-y-auto border border-ui-divider rounded-lg p-2 bg-ui-bg">
               {workflowRoles.length === 0 ? (
-                <div className="text-sm text-plm-fg-muted p-2">No workflow roles defined yet</div>
+                <div className="text-[13px] text-ui-fg-secondary p-2">No workflow roles defined yet</div>
               ) : (
                 workflowRoles.map((role) => {
                   const RoleIcon = getRoleIcon(role.icon)
@@ -104,8 +104,8 @@ export function EditPendingMemberDialog({
                       onClick={() => togglePendingMemberWorkflowRole(role.id)}
                       className={`w-full flex items-center gap-2 p-2 rounded-lg transition-colors ${
                         isSelected
-                          ? 'bg-plm-accent/10 border border-plm-accent/30'
-                          : 'hover:bg-plm-highlight border border-transparent'
+                          ? 'bg-ui-accent/10 border border-ui-accent/30'
+                          : 'hover:bg-ui-hover border border-transparent'
                       }`}
                     >
                       <div
@@ -114,24 +114,24 @@ export function EditPendingMemberDialog({
                       >
                         <RoleIcon size={14} />
                       </div>
-                      <span className="flex-1 text-left text-sm text-plm-fg">{role.name}</span>
-                      {isSelected && <Check size={14} className="text-plm-accent" />}
+                      <span className="flex-1 text-left text-[13px] text-ui-fg">{role.name}</span>
+                      {isSelected && <Check size={14} className="text-ui-accent" />}
                     </button>
                   )
                 })
               )}
             </div>
-            <p className="text-xs text-plm-fg-muted mt-1">
+            <p className="text-[12px] text-ui-fg-secondary mt-1">
               Roles for workflow approvals and state transitions.
             </p>
           </div>
 
           {/* Teams */}
           <div>
-            <label className="block text-sm text-plm-fg-muted mb-2">Pre-assigned Teams</label>
-            <div className="space-y-1 max-h-48 overflow-y-auto border border-plm-border rounded-lg p-2 bg-plm-bg">
+            <label className="block text-[13px] text-ui-fg-secondary mb-2">Pre-assigned Teams</label>
+            <div className="space-y-1 max-h-48 overflow-y-auto border border-ui-divider rounded-lg p-2 bg-ui-bg">
               {teams.length === 0 ? (
-                <div className="text-sm text-plm-fg-muted p-2">No teams available</div>
+                <div className="text-[13px] text-ui-fg-secondary p-2">No teams available</div>
               ) : (
                 teams.map((team) => {
                   const TeamIcon = getTeamIcon(team.icon)
@@ -142,38 +142,38 @@ export function EditPendingMemberDialog({
                       onClick={() => togglePendingMemberTeam(team.id)}
                       className={`w-full flex items-center gap-2 p-2 rounded-lg transition-colors ${
                         isSelected
-                          ? 'bg-plm-accent/10 border border-plm-accent/30'
-                          : 'hover:bg-plm-highlight border border-transparent'
+                          ? 'bg-ui-accent/10 border border-ui-accent/30'
+                          : 'hover:bg-ui-hover border border-transparent'
                       }`}
                     >
                       <div
                         className={`w-6 h-6 rounded flex items-center justify-center ${
-                          isSelected ? 'bg-plm-accent text-white' : 'bg-plm-fg-muted/10'
+                          isSelected ? 'bg-ui-accent text-white' : 'bg-ui-fg-secondary/10'
                         }`}
                         style={isSelected ? {} : { color: team.color }}
                       >
                         <TeamIcon size={14} />
                       </div>
-                      <span className="flex-1 text-left text-sm text-plm-fg">{team.name}</span>
-                      {isSelected && <Check size={14} className="text-plm-accent" />}
+                      <span className="flex-1 text-left text-[13px] text-ui-fg">{team.name}</span>
+                      {isSelected && <Check size={14} className="text-ui-accent" />}
                     </button>
                   )
                 })
               )}
             </div>
-            <p className="text-xs text-plm-fg-muted mt-1">
+            <p className="text-[12px] text-ui-fg-secondary mt-1">
               User will be automatically added to selected teams when they sign in.
             </p>
           </div>
 
           {/* Vault Access */}
           <div>
-            <label className="block text-sm text-plm-fg-muted mb-2">Vault Access</label>
+            <label className="block text-[13px] text-ui-fg-secondary mb-2">Vault Access</label>
             <div
               className={`p-3 rounded-lg border mb-2 ${
                 pendingMemberForm.vault_ids.length === 0
-                  ? 'bg-plm-warning/10 border-plm-warning/30'
-                  : 'bg-plm-bg border-plm-border'
+                  ? 'bg-ui-warning/10 border-ui-warning/30'
+                  : 'bg-ui-bg border-ui-divider'
               }`}
             >
               <div className="flex items-center gap-2">
@@ -181,12 +181,12 @@ export function EditPendingMemberDialog({
                   size={16}
                   className={
                     pendingMemberForm.vault_ids.length === 0
-                      ? 'text-plm-warning'
-                      : 'text-plm-fg-muted'
+                      ? 'text-ui-warning'
+                      : 'text-ui-fg-secondary'
                   }
                 />
                 <span
-                  className={`text-sm ${pendingMemberForm.vault_ids.length === 0 ? 'text-plm-warning' : 'text-plm-fg-muted'}`}
+                  className={`text-[13px] ${pendingMemberForm.vault_ids.length === 0 ? 'text-ui-warning' : 'text-ui-fg-secondary'}`}
                 >
                   {pendingMemberForm.vault_ids.length === 0
                     ? 'No vault access — select vaults to grant access'
@@ -194,9 +194,9 @@ export function EditPendingMemberDialog({
                 </span>
               </div>
             </div>
-            <div className="space-y-1 max-h-36 overflow-y-auto border border-plm-border rounded-lg p-2 bg-plm-bg">
+            <div className="space-y-1 max-h-36 overflow-y-auto border border-ui-divider rounded-lg p-2 bg-ui-bg">
               {orgVaults.length === 0 ? (
-                <div className="text-sm text-plm-fg-muted p-2">No vaults available</div>
+                <div className="text-[13px] text-ui-fg-secondary p-2">No vaults available</div>
               ) : (
                 orgVaults.map((vault) => {
                   const isSelected = pendingMemberForm.vault_ids.includes(vault.id)
@@ -206,27 +206,27 @@ export function EditPendingMemberDialog({
                       onClick={() => togglePendingMemberVault(vault.id)}
                       className={`w-full flex items-center gap-2 p-2 rounded-lg transition-colors ${
                         isSelected
-                          ? 'bg-plm-accent/10 border border-plm-accent/30'
-                          : 'hover:bg-plm-highlight border border-transparent'
+                          ? 'bg-ui-accent/10 border border-ui-accent/30'
+                          : 'hover:bg-ui-hover border border-transparent'
                       }`}
                     >
                       <div
                         className={`w-6 h-6 rounded flex items-center justify-center ${
                           isSelected
-                            ? 'bg-plm-accent text-white'
-                            : 'bg-plm-fg-muted/10 text-plm-fg-muted'
+                            ? 'bg-ui-accent text-white'
+                            : 'bg-ui-fg-secondary/10 text-ui-fg-secondary'
                         }`}
                       >
                         <Folder size={14} />
                       </div>
-                      <span className="flex-1 text-left text-sm text-plm-fg">{vault.name}</span>
-                      {isSelected && <Check size={14} className="text-plm-accent" />}
+                      <span className="flex-1 text-left text-[13px] text-ui-fg">{vault.name}</span>
+                      {isSelected && <Check size={14} className="text-ui-accent" />}
                     </button>
                   )
                 })
               )}
             </div>
-            <p className="text-xs text-plm-fg-muted mt-1">
+            <p className="text-[12px] text-ui-fg-secondary mt-1">
               Leave empty for access to all vaults, or select specific vaults to restrict access.
             </p>
           </div>

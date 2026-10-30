@@ -227,8 +227,8 @@ export function AccountSettings() {
   }
 
   const getPlatformIcon = (platform: string | null) => {
-    if (platform === 'darwin') return <Laptop size={16} className="text-plm-fg-muted" />
-    return <Monitor size={16} className="text-plm-fg-muted" />
+    if (platform === 'darwin') return <Laptop size={16} className="text-ui-fg-secondary" />
+    return <Monitor size={16} className="text-ui-fg-secondary" />
   }
 
   const handleRemoteSignOut = async (sessionId: string) => {
@@ -283,7 +283,7 @@ export function AccountSettings() {
   const currentVaultPatterns = activeVaultId ? ignorePatterns[activeVaultId] || [] : []
 
   if (!user) {
-    return <div className="text-center py-12 text-plm-fg-muted text-base">Not signed in</div>
+    return <div className="text-center py-12 text-ui-fg-secondary text-[14px]">Not signed in</div>
   }
 
   // Sort sessions so current device is first
@@ -297,10 +297,10 @@ export function AccountSettings() {
     <div className="space-y-8">
       {/* User profile card */}
       <section>
-        <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3">
+        <h2 className="text-[13px] text-ui-fg-secondary uppercase tracking-wide font-medium mb-3">
           Profile
         </h2>
-        <div className="flex items-center gap-4 p-4 bg-plm-bg rounded-lg border border-plm-border">
+        <div className="flex items-center gap-4 p-4 bg-ui-bg rounded-lg border border-ui-divider">
           {getEffectiveAvatarUrl(user) ? (
             <>
               <img
@@ -314,25 +314,25 @@ export function AccountSettings() {
                   target.nextElementSibling?.classList.remove('hidden')
                 }}
               />
-              <div className="w-16 h-16 rounded-full bg-plm-accent flex items-center justify-center text-xl text-white font-semibold hidden">
+              <div className="w-16 h-16 rounded-full bg-ui-accent flex items-center justify-center text-xl text-white font-semibold hidden">
                 {getInitials(user.full_name || user.email)}
               </div>
             </>
           ) : (
-            <div className="w-16 h-16 rounded-full bg-plm-accent flex items-center justify-center text-xl text-white font-semibold">
+            <div className="w-16 h-16 rounded-full bg-ui-accent flex items-center justify-center text-xl text-white font-semibold">
               {getInitials(user.full_name || user.email)}
             </div>
           )}
           <div className="flex-1 min-w-0">
-            <div className="text-xl font-medium text-plm-fg truncate">
+            <div className="text-xl font-medium text-ui-fg truncate">
               {user.full_name || 'No name'}
             </div>
-            {user.job_title && <div className="text-base text-plm-fg-muted">{user.job_title}</div>}
-            <div className="text-base text-plm-fg-muted truncate flex items-center gap-1.5">
+            {user.job_title && <div className="text-[14px] text-ui-fg-secondary">{user.job_title}</div>}
+            <div className="text-[14px] text-ui-fg-secondary truncate flex items-center gap-1.5">
               <Mail size={16} />
               {user.email}
             </div>
-            <div className="text-sm text-plm-fg-dim mt-1">
+            <div className="text-[13px] text-ui-fg mt-1">
               Role: <span className="capitalize">{user.role}</span>
             </div>
           </div>
@@ -344,22 +344,22 @@ export function AccountSettings() {
 
       {/* Sessions */}
       <section>
-        <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3">
+        <h2 className="text-[13px] text-ui-fg-secondary uppercase tracking-wide font-medium mb-3">
           Sessions
         </h2>
-        <div className="bg-plm-bg rounded-lg border border-plm-border overflow-hidden">
-          <div className="px-4 py-3 border-b border-plm-border">
-            <p className="text-sm text-plm-fg-muted">Devices where you're currently signed in</p>
+        <div className="bg-ui-bg rounded-lg border border-ui-divider overflow-hidden">
+          <div className="px-4 py-3 border-b border-ui-divider">
+            <p className="text-[13px] text-ui-fg-secondary">Devices where you're currently signed in</p>
           </div>
 
           <div className="p-4">
             {isLoading ? (
-              <div className="flex items-center justify-center py-4 text-plm-fg-muted">
+              <div className="flex items-center justify-center py-4 text-ui-fg-secondary">
                 <Loader2 size={18} className="animate-spin mr-2" />
-                <span className="text-base">Loading sessions...</span>
+                <span className="text-[14px]">Loading sessions...</span>
               </div>
             ) : sortedSessions.length === 0 ? (
-              <div className="text-center py-4 text-plm-fg-muted text-base">No active sessions</div>
+              <div className="text-center py-4 text-ui-fg-secondary text-[14px]">No active sessions</div>
             ) : (
               <div className="space-y-2">
                 {sortedSessions.map((session) => {
@@ -370,40 +370,40 @@ export function AccountSettings() {
                       key={session.id}
                       className={`flex items-center gap-3 p-3 rounded-lg border ${
                         isCurrentDevice
-                          ? 'bg-plm-accent/5 border-plm-accent/30'
-                          : 'bg-plm-bg-light border-plm-border'
+                          ? 'bg-ui-accent/5 border-ui-accent/30'
+                          : 'bg-ui-field border-ui-divider'
                       }`}
                     >
                       <div
                         className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                          isCurrentDevice ? 'bg-plm-accent/20' : 'bg-plm-highlight'
+                          isCurrentDevice ? 'bg-ui-accent/20' : 'bg-ui-hover'
                         }`}
                       >
                         {getPlatformIcon(session.platform)}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-base font-medium text-plm-fg truncate flex items-center gap-2">
+                        <div className="text-[14px] font-medium text-ui-fg truncate flex items-center gap-2">
                           {session.machine_name}
                           {isCurrentDevice && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-plm-accent/20 text-plm-accent font-medium">
+                            <span className="text-[12px] px-1.5 py-0.5 rounded bg-ui-accent/20 text-ui-accent font-medium">
                               This device
                             </span>
                           )}
                         </div>
-                        <div className="text-sm text-plm-fg-muted flex items-center gap-2">
+                        <div className="text-[13px] text-ui-fg-secondary flex items-center gap-2">
                           <span className="capitalize">{session.platform || 'Unknown'}</span>
                           {session.app_version && (
                             <>
-                              <span className="text-plm-border">•</span>
+                              <span className="text-ui-divider">•</span>
                               <span>v{session.app_version}</span>
                             </>
                           )}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="text-sm text-plm-fg-muted flex items-center gap-1.5">
+                        <div className="text-[13px] text-ui-fg-secondary flex items-center gap-1.5">
                           <span
-                            className={`w-1.5 h-1.5 rounded-full bg-plm-success ${isCurrentDevice ? 'animate-pulse' : ''}`}
+                            className={`w-1.5 h-1.5 rounded-full bg-ui-success ${isCurrentDevice ? 'animate-pulse' : ''}`}
                           />
                           {formatLastSeen(session.last_seen_at)}
                         </div>
@@ -412,7 +412,7 @@ export function AccountSettings() {
                             isCurrentDevice ? handleSignOut() : handleRemoteSignOut(session.id)
                           }
                           disabled={isSigningOut}
-                          className="p-1.5 rounded hover:bg-plm-error/20 text-plm-fg-muted hover:text-plm-error transition-colors disabled:opacity-50"
+                          className="p-1.5 rounded hover:bg-ui-danger/20 text-ui-fg-secondary hover:text-ui-danger transition-colors disabled:opacity-50"
                           title={isCurrentDevice ? 'Sign out' : 'Sign out this device'}
                         >
                           {isSigningOut ? (
@@ -433,14 +433,14 @@ export function AccountSettings() {
 
       {/* Application Updates */}
       <section>
-        <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3">
+        <h2 className="text-[13px] text-ui-fg-secondary uppercase tracking-wide font-medium mb-3">
           {t('preferences.applicationUpdates')}
         </h2>
-        <div className="p-4 bg-plm-bg rounded-lg border border-plm-border">
+        <div className="p-4 bg-ui-bg rounded-lg border border-ui-divider">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <div className="text-base font-medium text-plm-fg">BluePLM {appVersion || '...'}</div>
-              <div className="text-sm text-plm-fg-muted mt-0.5">
+              <div className="text-[14px] font-medium text-ui-fg">BluePLM {appVersion || '...'}</div>
+              <div className="text-[13px] text-ui-fg-secondary mt-0.5">
                 {updateCheckResult === 'none' && t('preferences.youHaveLatest')}
                 {updateCheckResult === 'available' && t('preferences.updateAvailable')}
                 {updateCheckResult === 'error' && t('preferences.couldNotCheck')}
@@ -452,12 +452,12 @@ export function AccountSettings() {
             <button
               onClick={handleCheckForUpdates}
               disabled={isCheckingUpdate}
-              className={`flex items-center gap-2 px-4 py-2 text-base font-medium rounded-lg transition-colors ${
+              className={`flex items-center gap-2 px-4 py-2 text-[14px] font-medium rounded-lg transition-colors ${
                 updateCheckResult === 'none'
                   ? 'bg-green-600/20 text-green-400 border border-green-600/30'
                   : updateCheckResult === 'available'
-                    ? 'bg-plm-accent/20 text-plm-accent border border-plm-accent/30'
-                    : 'bg-plm-highlight text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight/80'
+                    ? 'bg-ui-accent/20 text-ui-accent border border-ui-accent/30'
+                    : 'bg-ui-hover text-ui-fg-secondary hover:text-ui-fg hover:bg-ui-hover/80'
               }`}
             >
               {isCheckingUpdate ? (
@@ -488,7 +488,7 @@ export function AccountSettings() {
 
       {/* Theme Selection */}
       <section>
-        <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3">
+        <h2 className="text-[13px] text-ui-fg-secondary uppercase tracking-wide font-medium mb-3">
           {t('preferences.appearance')}
         </h2>
         <div className="grid grid-cols-2 gap-3">
@@ -500,26 +500,26 @@ export function AccountSettings() {
                 onClick={() => !isSelected && setTheme(option.value)}
                 className={`flex items-center gap-3 p-4 rounded-lg border-2 transition-all text-left ${
                   isSelected
-                    ? 'bg-plm-accent/15 border-plm-accent cursor-default'
-                    : 'bg-plm-bg border-plm-border hover:border-plm-accent/50 hover:bg-plm-highlight cursor-pointer'
+                    ? 'bg-ui-accent/15 border-ui-accent cursor-default'
+                    : 'bg-ui-bg border-ui-divider hover:border-ui-accent/50 hover:bg-ui-hover cursor-pointer'
                 }`}
               >
                 <div
                   className={`p-2.5 rounded-lg ${
-                    isSelected ? 'bg-plm-accent text-white' : 'bg-plm-bg-lighter text-plm-fg-muted'
+                    isSelected ? 'bg-ui-accent text-white' : 'bg-ui-field text-ui-fg-secondary'
                   }`}
                 >
                   {option.icon}
                 </div>
                 <div className="flex-1">
                   <div
-                    className={`text-base font-medium ${isSelected ? 'text-plm-fg' : 'text-plm-fg-dim'}`}
+                    className={`text-[14px] font-medium ${isSelected ? 'text-ui-fg' : 'text-ui-fg'}`}
                   >
                     {option.label}
                   </div>
-                  <div className="text-sm text-plm-fg-muted">{option.description}</div>
+                  <div className="text-[13px] text-ui-fg-secondary">{option.description}</div>
                 </div>
-                {isSelected && <CheckCircle size={18} className="text-plm-accent flex-shrink-0" />}
+                {isSelected && <CheckCircle size={18} className="text-ui-accent flex-shrink-0" />}
               </button>
             )
           })}
@@ -528,20 +528,20 @@ export function AccountSettings() {
 
       {/* Language Selection */}
       <section>
-        <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3">
+        <h2 className="text-[13px] text-ui-fg-secondary uppercase tracking-wide font-medium mb-3">
           {t('preferences.language')}
         </h2>
-        <div className="p-4 bg-plm-bg rounded-lg border border-plm-border">
+        <div className="p-4 bg-ui-bg rounded-lg border border-ui-divider">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-lg bg-plm-accent text-white">
+              <div className="p-2.5 rounded-lg bg-ui-accent text-white">
                 <Globe size={18} />
               </div>
               <div>
-                <div className="text-base font-medium text-plm-fg">
+                <div className="text-[14px] font-medium text-ui-fg">
                   {t('preferences.displayLanguage')}
                 </div>
-                <div className="text-sm text-plm-fg-muted mt-0.5">
+                <div className="text-[13px] text-ui-fg-secondary mt-0.5">
                   {t('preferences.chooseLanguage')}
                 </div>
               </div>
@@ -549,19 +549,19 @@ export function AccountSettings() {
             <div className="relative">
               <button
                 onClick={() => setIsLanguageDropdownOpen(!isLanguageDropdownOpen)}
-                className="flex items-center gap-2 px-4 py-2.5 bg-plm-bg-secondary border border-plm-border rounded-lg hover:border-plm-accent/50 transition-colors min-w-[180px]"
+                className="flex items-center gap-2 px-4 py-2.5 bg-ui-field border border-ui-divider rounded-lg hover:border-ui-accent/50 transition-colors min-w-[180px]"
               >
                 <span className="flex-1 text-left">
-                  <span className="text-plm-fg font-medium">
+                  <span className="text-ui-fg font-medium">
                     {languageOptions.find((l) => l.value === language)?.nativeLabel || 'English'}
                   </span>
-                  <span className="text-plm-fg-muted text-sm ml-2">
+                  <span className="text-ui-fg-secondary text-[13px] ml-2">
                     ({languageOptions.find((l) => l.value === language)?.label || 'English'})
                   </span>
                 </span>
                 <ChevronDown
                   size={16}
-                  className={`text-plm-fg-muted transition-transform ${isLanguageDropdownOpen ? 'rotate-180' : ''}`}
+                  className={`text-ui-fg-secondary transition-transform ${isLanguageDropdownOpen ? 'rotate-180' : ''}`}
                 />
               </button>
 
@@ -573,7 +573,7 @@ export function AccountSettings() {
                     onClick={() => setIsLanguageDropdownOpen(false)}
                   />
                   {/* Dropdown */}
-                  <div className="absolute right-0 top-full mt-1 z-50 bg-plm-bg-secondary border border-plm-border rounded-lg shadow-xl max-h-[320px] overflow-y-auto min-w-[240px]">
+                  <div className="absolute right-0 top-full mt-1 z-50 bg-ui-field border border-ui-divider rounded-lg shadow-xl max-h-[320px] overflow-y-auto min-w-[240px]">
                     {languageOptions.map((option) => {
                       const isSelected = language === option.value
                       return (
@@ -585,13 +585,13 @@ export function AccountSettings() {
                           }}
                           className={`w-full flex items-center justify-between gap-3 px-4 py-2.5 text-left transition-colors ${
                             isSelected
-                              ? 'bg-plm-accent/15 text-plm-accent'
-                              : 'text-plm-fg hover:bg-plm-highlight'
+                              ? 'bg-ui-accent/15 text-ui-accent'
+                              : 'text-ui-fg hover:bg-ui-hover'
                           }`}
                         >
                           <div>
                             <span className="font-medium">{option.nativeLabel}</span>
-                            <span className="text-plm-fg-muted text-sm ml-2">({option.label})</span>
+                            <span className="text-ui-fg-secondary text-[13px] ml-2">({option.label})</span>
                           </div>
                           {isSelected && <CheckCircle size={16} className="flex-shrink-0" />}
                         </button>
@@ -602,31 +602,31 @@ export function AccountSettings() {
               )}
             </div>
           </div>
-          <p className="text-xs text-plm-fg-dim mt-3">{t('preferences.translationsNote')}</p>
+          <p className="text-[12px] text-ui-fg mt-3">{t('preferences.translationsNote')}</p>
         </div>
       </section>
 
       {/* File Extensions */}
       <section>
-        <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3">
+        <h2 className="text-[13px] text-ui-fg-secondary uppercase tracking-wide font-medium mb-3">
           {t('preferences.fileExtensions')}
         </h2>
-        <div className="p-4 bg-plm-bg rounded-lg border border-plm-border">
+        <div className="p-4 bg-ui-bg rounded-lg border border-ui-divider">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-base text-plm-fg">{t('preferences.lowercaseExtensions')}</div>
-              <div className="text-sm text-plm-fg-muted mt-0.5">
+              <div className="text-[14px] text-ui-fg">{t('preferences.lowercaseExtensions')}</div>
+              <div className="text-[13px] text-ui-fg-secondary mt-0.5">
                 {t('preferences.lowercaseExtensionsDesc')}
               </div>
             </div>
             <button
               onClick={() => setLowercaseExtensions(!lowercaseExtensions)}
-              className="text-plm-accent"
+              className="text-ui-accent"
             >
               {lowercaseExtensions ? (
                 <ToggleRight size={28} />
               ) : (
-                <ToggleLeft size={28} className="text-plm-fg-muted" />
+                <ToggleLeft size={28} className="text-ui-fg-secondary" />
               )}
             </button>
           </div>
@@ -635,11 +635,11 @@ export function AccountSettings() {
 
       {/* Ignore Patterns */}
       <section>
-        <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3">
+        <h2 className="text-[13px] text-ui-fg-secondary uppercase tracking-wide font-medium mb-3">
           {t('preferences.ignorePatterns')}
         </h2>
-        <div className="p-4 bg-plm-bg rounded-lg border border-plm-border space-y-3">
-          <p className="text-sm text-plm-fg-muted">{t('preferences.ignorePatternsDesc')}</p>
+        <div className="p-4 bg-ui-bg rounded-lg border border-ui-divider space-y-3">
+          <p className="text-[13px] text-ui-fg-secondary">{t('preferences.ignorePatternsDesc')}</p>
 
           {/* Add new pattern */}
           <div className="flex gap-2">
@@ -651,7 +651,7 @@ export function AccountSettings() {
                 if (e.key === 'Enter') handleAddIgnorePattern()
               }}
               placeholder={t('preferences.ignorePlaceholder')}
-              className="flex-1 bg-plm-bg-secondary border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none font-mono"
+              className="flex-1 bg-ui-field border border-ui-divider rounded-lg px-3 py-2 text-[14px] focus:border-ui-accent focus:outline-none font-mono"
               disabled={!activeVaultId}
             />
             <button
@@ -665,7 +665,7 @@ export function AccountSettings() {
           </div>
 
           {!activeVaultId && (
-            <p className="text-sm text-plm-warning">{t('preferences.connectVaultForPatterns')}</p>
+            <p className="text-[13px] text-ui-warning">{t('preferences.connectVaultForPatterns')}</p>
           )}
 
           {/* Pattern list */}
@@ -674,13 +674,13 @@ export function AccountSettings() {
               {currentVaultPatterns.map((pattern, index) => (
                 <div
                   key={index}
-                  className="flex items-center gap-2 px-3 py-2 bg-plm-bg-secondary rounded-lg group"
+                  className="flex items-center gap-2 px-3 py-2 bg-ui-field rounded-lg group"
                 >
-                  <FileText size={16} className="text-plm-fg-muted flex-shrink-0" />
-                  <code className="flex-1 text-base font-mono text-plm-fg">{pattern}</code>
+                  <FileText size={16} className="text-ui-fg-secondary flex-shrink-0" />
+                  <code className="flex-1 text-[14px] font-mono text-ui-fg">{pattern}</code>
                   <button
                     onClick={() => activeVaultId && removeIgnorePattern(activeVaultId, pattern)}
-                    className="p-1 text-plm-fg-muted hover:text-plm-error rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="p-1 text-ui-fg-secondary hover:text-ui-danger rounded opacity-0 group-hover:opacity-100 transition-opacity"
                   >
                     <X size={14} />
                   </button>
@@ -688,7 +688,7 @@ export function AccountSettings() {
               ))}
             </div>
           ) : activeVaultId ? (
-            <p className="text-sm text-plm-fg-dim text-center py-2">
+            <p className="text-[13px] text-ui-fg text-center py-2">
               {t('preferences.noIgnorePatterns')}
             </p>
           ) : null}

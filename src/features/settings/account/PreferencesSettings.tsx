@@ -119,12 +119,12 @@ export function PreferencesSettings() {
   const excludedCount = activeVaultId ? autoDownloadExcludedFiles[activeVaultId]?.length || 0 : 0
 
   if (!user) {
-    return <div className="py-12 text-center text-[13px] text-plm-fg-muted">Not signed in</div>
+    return <div className="py-12 text-center text-[14px] text-ui-fg-secondary">Not signed in</div>
   }
 
   if (!desktop) {
     return (
-      <div className="py-12 text-center text-[13px] text-plm-fg-muted">
+      <div className="py-12 text-center text-[14px] text-ui-fg-secondary">
         These preferences apply to the desktop app only.
       </div>
     )
@@ -156,7 +156,7 @@ export function PreferencesSettings() {
               loading={isCheckingUpdate}
               icon={
                 updateCheckResult === 'none' ? (
-                  <CheckCircle size={14} className="text-plm-success" />
+                  <CheckCircle size={14} className="text-ui-success" />
                 ) : updateCheckResult === 'available' ? (
                   <Download size={14} />
                 ) : (
@@ -207,7 +207,7 @@ export function PreferencesSettings() {
               htmlFor="settings-skip-large-files"
             >
               {autoDownloadSizeLimit > 0 && (
-                <label className="flex items-center gap-2 text-[12px] text-plm-fg-muted">
+                <label className="flex items-center gap-2 text-[13px] text-ui-fg-secondary">
                   {t('preferences.maxFileSize')}
                   <TextInput
                     type="number"
@@ -265,10 +265,10 @@ export function PreferencesSettings() {
               onChange={handleUsageStatisticsChange}
             />
           </SettingRow>
-          <div className="flex items-center gap-2 px-4 py-2.5 text-[12px] text-plm-fg-muted">
+          <div className="flex items-center gap-2 px-4 py-2.5 text-[13px] text-ui-fg-secondary">
             <Shield
               size={14}
-              className={analyticsActive ? 'text-plm-success' : 'text-plm-fg-muted'}
+              className={analyticsActive ? 'text-ui-success' : 'text-ui-fg-secondary'}
             />
             {analyticsActive
               ? 'Analytics active — errors and performance data are being reported'
@@ -324,7 +324,7 @@ export function PreferencesSettings() {
           </div>
           {currentVaultPatterns.map((pattern, index) => (
             <div key={index} className="group flex items-center gap-2 px-4 py-2">
-              <code className="flex-1 truncate font-mono text-[12px] text-plm-fg">{pattern}</code>
+              <code className="flex-1 truncate font-mono text-[13px] text-ui-fg">{pattern}</code>
               <Button
                 variant="ghost"
                 size="sm"
@@ -337,7 +337,7 @@ export function PreferencesSettings() {
             </div>
           ))}
           {activeVaultId && currentVaultPatterns.length === 0 && (
-            <div className="px-4 py-3 text-[12px] text-plm-fg-muted">
+            <div className="px-4 py-3 text-[13px] text-ui-fg-secondary">
               {t('preferences.noIgnorePatterns')}
             </div>
           )}

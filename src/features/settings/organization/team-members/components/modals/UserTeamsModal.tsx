@@ -44,43 +44,43 @@ export function UserTeamsModal({
       onClick={onClose}
     >
       <div
-        className="bg-plm-bg-light border border-plm-border rounded-xl w-full max-w-md mx-4 max-h-[80vh] flex flex-col"
+        className="bg-ui-field border border-ui-divider rounded-xl w-full max-w-md mx-4 max-h-[80vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-plm-border">
+        <div className="flex items-center justify-between p-4 border-b border-ui-divider">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-plm-accent/10">
-              <Users size={20} className="text-plm-accent" />
+            <div className="p-2 rounded-lg bg-ui-accent/10">
+              <Users size={20} className="text-ui-accent" />
             </div>
             <div>
-              <h3 className="text-lg font-medium text-plm-fg">Teams</h3>
-              <p className="text-xs text-plm-fg-muted truncate max-w-[200px]">
+              <h3 className="text-lg font-medium text-ui-fg">Teams</h3>
+              <p className="text-[12px] text-ui-fg-secondary truncate max-w-[200px]">
                 {user.full_name || user.email}
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight rounded-lg transition-colors"
+            className="p-2 text-ui-fg-secondary hover:text-ui-fg hover:bg-ui-hover rounded-lg transition-colors"
           >
             <X size={18} />
           </button>
         </div>
 
         {/* Search */}
-        <div className="p-4 border-b border-plm-border">
+        <div className="p-4 border-b border-ui-divider">
           <div className="relative">
             <Search
               size={14}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-ui-fg-secondary"
             />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search teams..."
-              className="w-full pl-9 pr-3 py-2 text-sm bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-dim focus:outline-none focus:border-plm-accent"
+              className="w-full pl-9 pr-3 py-2 text-[13px] bg-ui-bg border border-ui-divider rounded-lg text-ui-fg placeholder:text-ui-fg focus:outline-none focus:border-ui-accent"
               autoFocus
             />
           </div>
@@ -89,7 +89,7 @@ export function UserTeamsModal({
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4 space-y-2">
           {filteredTeams.length === 0 ? (
-            <div className="text-center py-6 text-sm text-plm-fg-muted">
+            <div className="text-center py-6 text-[13px] text-ui-fg-secondary">
               {searchQuery ? `No teams match "${searchQuery}"` : 'No teams available'}
             </div>
           ) : (
@@ -103,8 +103,8 @@ export function UserTeamsModal({
                   onClick={() => toggleTeam(team.id)}
                   className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors ${
                     isSelected
-                      ? 'border-plm-accent bg-plm-accent/10'
-                      : 'border-plm-border hover:border-plm-fg-muted hover:bg-plm-highlight'
+                      ? 'border-ui-accent bg-ui-accent/10'
+                      : 'border-ui-divider hover:border-ui-fg-secondary hover:bg-ui-hover'
                   }`}
                 >
                   <div
@@ -113,12 +113,12 @@ export function UserTeamsModal({
                   >
                     <TeamIcon size={16} />
                   </div>
-                  <span className="flex-1 text-left text-sm text-plm-fg font-medium">
+                  <span className="flex-1 text-left text-[13px] text-ui-fg font-medium">
                     {team.name}
                   </span>
                   <div
                     className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
-                      isSelected ? 'border-plm-accent bg-plm-accent' : 'border-plm-fg-muted'
+                      isSelected ? 'border-ui-accent bg-ui-accent' : 'border-ui-fg-secondary'
                     }`}
                   >
                     {isSelected && <Check size={12} className="text-white" />}
@@ -132,7 +132,7 @@ export function UserTeamsModal({
           {!searchQuery && onCreateTeam && (
             <button
               onClick={onCreateTeam}
-              className="w-full flex items-center justify-center gap-2 p-3 rounded-lg border border-dashed border-plm-border text-plm-accent hover:border-plm-accent hover:bg-plm-accent/5 transition-colors"
+              className="w-full flex items-center justify-center gap-2 p-3 rounded-lg border border-dashed border-ui-divider text-ui-accent hover:border-ui-accent hover:bg-ui-accent/5 transition-colors"
             >
               <Plus size={14} />
               Create new team
@@ -141,7 +141,7 @@ export function UserTeamsModal({
         </div>
 
         {/* Footer */}
-        <div className="flex gap-2 justify-end p-4 border-t border-plm-border">
+        <div className="flex gap-2 justify-end p-4 border-t border-ui-divider">
           <button onClick={onClose} className="btn btn-ghost">
             Cancel
           </button>

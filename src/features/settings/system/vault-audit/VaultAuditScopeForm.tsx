@@ -75,7 +75,7 @@ export function VaultAuditScopeForm({
           type="button"
           onClick={() => setExpanded((value) => !value)}
           aria-expanded={showOptions}
-          className="flex items-center gap-1.5 text-[13px] text-plm-fg-muted hover:text-plm-fg"
+          className="flex items-center gap-1.5 text-[14px] text-ui-fg-secondary hover:text-ui-fg"
         >
           <Chevron size={14} />
           {t('vaultAudit.scope.current', {
@@ -91,7 +91,7 @@ export function VaultAuditScopeForm({
         disabled={isRunning}
         className={`grid gap-2 lg:grid-cols-3 ${showOptions ? '' : 'hidden'}`}
       >
-        <legend className="mb-2 text-[13px] font-medium text-plm-fg">
+        <legend className="mb-2 text-[14px] font-medium text-ui-fg">
           {t('vaultAudit.scope.legend')}
         </legend>
 
@@ -100,20 +100,20 @@ export function VaultAuditScopeForm({
             key={option.kind}
             className={`flex cursor-pointer gap-3 rounded-lg border p-3 transition-colors ${
               scope.kind === option.kind
-                ? 'border-plm-accent/60 bg-plm-accent/5'
-                : 'border-plm-border bg-plm-bg-light/60 hover:bg-plm-highlight/40'
+                ? 'border-ui-accent/60 bg-ui-accent/5'
+                : 'border-ui-divider bg-ui-field/60 hover:bg-ui-hover/40'
             } ${isRunning ? 'cursor-not-allowed opacity-60' : ''}`}
           >
             <input
               type="radio"
               name="vault-audit-scope"
-              className="mt-1 accent-plm-accent"
+              className="mt-1 accent-ui-accent"
               checked={scope.kind === option.kind}
               onChange={() => onScopeChange({ ...scope, kind: option.kind })}
             />
             <div className="min-w-0">
-              <div className="text-[13px] font-medium text-plm-fg">{option.label}</div>
-              <p className="mt-0.5 text-[12px] leading-relaxed text-plm-fg-muted">{option.hint}</p>
+              <div className="text-[14px] font-medium text-ui-fg">{option.label}</div>
+              <p className="mt-0.5 text-[13px] leading-relaxed text-ui-fg-secondary">{option.hint}</p>
               {option.kind === 'folder' && scope.kind === 'folder' && (
                 <input
                   type="text"
@@ -146,9 +146,9 @@ export function VaultAuditScopeForm({
           </Button>
         )}
 
-        {isRunning && <Loader2 size={14} className="animate-spin text-plm-fg-muted" />}
+        {isRunning && <Loader2 size={14} className="animate-spin text-ui-fg-secondary" />}
         {!canScan && (
-          <span className="text-[12px] text-plm-fg-muted">{t('vaultAudit.noVault')}</span>
+          <span className="text-[13px] text-ui-fg-secondary">{t('vaultAudit.noVault')}</span>
         )}
       </div>
     </div>

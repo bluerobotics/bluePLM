@@ -49,26 +49,26 @@ export function JobTitleFormDialog({
       onClick={onClose}
     >
       <div
-        className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-sm w-full mx-4"
+        className="bg-ui-field border border-ui-divider rounded-xl p-6 max-w-sm w-full mx-4"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-lg font-medium text-plm-fg mb-4">{title}</h3>
+        <h3 className="text-lg font-medium text-ui-fg mb-4">{title}</h3>
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-plm-fg mb-1">Title Name</label>
+            <label className="block text-[13px] font-medium text-ui-fg mb-1">Title Name</label>
             <input
               type="text"
               value={titleName}
               onChange={(e) => setTitleName(e.target.value)}
               placeholder="e.g., Quality Engineer"
-              className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
+              className="w-full px-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-ui-fg placeholder:text-ui-fg-secondary/50 focus:outline-none focus:border-ui-accent"
               autoFocus
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-plm-fg mb-1">Color</label>
+            <label className="block text-[13px] font-medium text-ui-fg mb-1">Color</label>
             <div className="flex items-center gap-2">
               <ColorPickerDropdown
                 color={titleColor}
@@ -90,7 +90,7 @@ export function JobTitleFormDialog({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-plm-fg mb-1">Icon</label>
+            <label className="block text-[13px] font-medium text-ui-fg mb-1">Icon</label>
             <IconGridPicker
               value={titleIcon}
               onChange={setTitleIcon}
@@ -100,16 +100,16 @@ export function JobTitleFormDialog({
           </div>
 
           {pendingTitleForUser && (
-            <p className="text-sm text-plm-fg-muted">
+            <p className="text-[13px] text-ui-fg-secondary">
               Will assign to:{' '}
-              <strong className="text-plm-fg">
+              <strong className="text-ui-fg">
                 {pendingTitleForUser.full_name || pendingTitleForUser.email}
               </strong>
             </p>
           )}
 
           {isEditMode && (
-            <p className="text-xs text-plm-fg-muted bg-plm-bg p-2 rounded">
+            <p className="text-[12px] text-ui-fg-secondary bg-ui-bg p-2 rounded">
               Changes will update for all users with this title.
             </p>
           )}

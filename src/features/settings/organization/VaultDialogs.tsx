@@ -22,20 +22,20 @@ function ConfirmShell({ icon, iconTone, title, onClose, children, footer }: Conf
       onClick={onClose}
     >
       <div
-        className="mx-4 w-full max-w-md rounded-xl border border-plm-border bg-plm-bg-light p-6"
+        className="mx-4 w-full max-w-md rounded-xl border border-ui-divider bg-ui-field p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center gap-3">
           <div
             className={`rounded-full p-2 ${
               iconTone === 'error'
-                ? 'bg-plm-error/15 text-plm-error'
-                : 'bg-plm-warning/15 text-plm-warning'
+                ? 'bg-ui-danger/15 text-ui-danger'
+                : 'bg-ui-warning/15 text-ui-warning'
             }`}
           >
             {icon}
           </div>
-          <h3 className="text-[15px] font-semibold text-plm-fg">{title}</h3>
+          <h3 className="text-[15px] font-semibold text-ui-fg">{title}</h3>
         </div>
         {children}
         <div className="flex justify-end gap-2">{footer}</div>
@@ -57,24 +57,24 @@ function TypeToConfirm({ name, value, onChange, value2, onChange2 }: TypeToConfi
   return (
     <div className="mb-4 space-y-3">
       <div className="space-y-1.5">
-        <label className="text-[12px] text-plm-fg-dim">
+        <label className="text-[13px] text-ui-fg">
           Type <strong>"{name}"</strong> to confirm:
         </label>
         <TextInput
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={name}
-          className={value === name ? '!border-plm-success' : ''}
+          className={value === name ? '!border-ui-success' : ''}
         />
       </div>
       <div className="space-y-1.5">
-        <label className="text-[12px] text-plm-fg-dim">Type it again to double confirm:</label>
+        <label className="text-[13px] text-ui-fg">Type it again to double confirm:</label>
         <TextInput
           value={value2}
           onChange={(e) => onChange2(e.target.value)}
           placeholder={name}
           disabled={value !== name}
-          className={value2 === name ? '!border-plm-success' : ''}
+          className={value2 === name ? '!border-ui-success' : ''}
         />
       </div>
     </div>
@@ -137,7 +137,7 @@ export function VaultDialogs({ manager }: { manager: VaultsManager }) {
             </>
           }
         >
-          <p className="mb-4 text-[13px] text-plm-fg-muted">
+          <p className="mb-4 text-[14px] text-ui-fg-secondary">
             This will permanently delete the vault <strong>"{deletingVault.name}"</strong> and all
             its files from the cloud. This action cannot be undone.
           </p>
@@ -176,11 +176,11 @@ export function VaultDialogs({ manager }: { manager: VaultsManager }) {
             </>
           }
         >
-          <p className="mb-2 text-[13px] text-plm-fg-muted">
+          <p className="mb-2 text-[14px] text-ui-fg-secondary">
             This will permanently delete all files and file history from{' '}
             <strong>"{clearingVault.name}"</strong>.
           </p>
-          <ul className="mb-4 list-inside list-disc space-y-1 text-[12px] text-plm-fg-dim">
+          <ul className="mb-4 list-inside list-disc space-y-1 text-[13px] text-ui-fg">
             <li>All files will be removed from the cloud</li>
             <li>All file history and versions will be deleted</li>
             <li>Local files will be cleared</li>
@@ -213,7 +213,7 @@ export function VaultDialogs({ manager }: { manager: VaultsManager }) {
             </>
           }
         >
-          <p className="mb-4 text-[13px] text-plm-fg-muted">
+          <p className="mb-4 text-[14px] text-ui-fg-secondary">
             This will remove <strong>"{disconnectingVault.name}"</strong> from BluePLM. Local files
             will be preserved and can be reconnected later.
           </p>
@@ -237,7 +237,7 @@ export function VaultDialogs({ manager }: { manager: VaultsManager }) {
             </>
           }
         >
-          <p className="mb-4 text-[13px] text-plm-fg-muted">
+          <p className="mb-4 text-[14px] text-ui-fg-secondary">
             This will delete all local files for <strong>"{wipingVault.name}"</strong>. Cloud files
             will not be affected and can be re-synced.
           </p>

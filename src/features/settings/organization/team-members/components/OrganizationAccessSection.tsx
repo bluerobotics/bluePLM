@@ -71,7 +71,7 @@ export function OrganizationAccessSection({
   }
 
   const copiedIcon = (copied: boolean) =>
-    copied ? <Check size={14} className="text-plm-success" /> : <Copy size={14} />
+    copied ? <Check size={14} className="text-ui-success" /> : <Copy size={14} />
 
   return (
     <SettingsSection title="Joining">
@@ -123,7 +123,7 @@ export function OrganizationAccessSection({
           <SettingRow label="Allowed Domains" stacked>
             <div className="space-y-2.5">
               {emailDomains.length === 0 ? (
-                <div className="text-[12px] text-plm-fg-muted">
+                <div className="text-[13px] text-ui-fg-secondary">
                   No domains configured. Add one below.
                 </div>
               ) : (
@@ -131,13 +131,13 @@ export function OrganizationAccessSection({
                   {emailDomains.map((domain, idx) => (
                     <span
                       key={idx}
-                      className="inline-flex items-center gap-1 rounded-md border border-plm-border bg-plm-bg py-0.5 pl-2 pr-0.5 text-[12px] text-plm-fg"
+                      className="inline-flex items-center gap-1 rounded-md border border-ui-divider bg-ui-bg py-0.5 pl-2 pr-0.5 text-[13px] text-ui-fg"
                     >
                       @{domain}
                       <button
                         type="button"
                         onClick={() => handleRemoveDomain(idx, domain)}
-                        className="rounded p-0.5 text-plm-fg-muted transition-colors hover:bg-plm-error/15 hover:text-plm-error"
+                        className="rounded p-0.5 text-ui-fg-secondary transition-colors hover:bg-ui-danger/15 hover:text-ui-danger"
                         title="Remove domain"
                         aria-label="Remove domain"
                       >
@@ -150,7 +150,7 @@ export function OrganizationAccessSection({
 
               <div className="flex max-w-md gap-2">
                 <div className="relative flex-1">
-                  <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[13px] text-plm-fg-muted">
+                  <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[14px] text-ui-fg-secondary">
                     @
                   </span>
                   <TextInput

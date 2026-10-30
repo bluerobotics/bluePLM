@@ -137,11 +137,11 @@ export function TeamMembersDialog({ team, orgUsers, onClose, userId }: TeamMembe
       onClick={onClose}
     >
       <div
-        className="bg-plm-bg-light border border-plm-border rounded-xl w-full max-w-2xl mx-4 max-h-[80vh] flex flex-col"
+        className="bg-ui-field border border-ui-divider rounded-xl w-full max-w-2xl mx-4 max-h-[80vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="p-4 border-b border-plm-border flex items-center gap-3">
+        <div className="p-4 border-b border-ui-divider flex items-center gap-3">
           <div
             className="p-2 rounded-lg"
             style={{ backgroundColor: `${team.color}20`, color: team.color }}
@@ -149,48 +149,48 @@ export function TeamMembersDialog({ team, orgUsers, onClose, userId }: TeamMembe
             <IconComponent size={20} />
           </div>
           <div className="flex-1">
-            <h3 className="text-lg font-medium text-plm-fg">{team.name} - Members</h3>
-            <p className="text-sm text-plm-fg-muted">
+            <h3 className="text-lg font-medium text-ui-fg">{team.name} - Members</h3>
+            <p className="text-[13px] text-ui-fg-secondary">
               {members.length} member{members.length !== 1 ? 's' : ''}
             </p>
           </div>
-          <button onClick={onClose} className="p-2 text-plm-fg-muted hover:text-plm-fg rounded">
+          <button onClick={onClose} className="p-2 text-ui-fg-secondary hover:text-ui-fg rounded">
             <X size={18} />
           </button>
         </div>
 
         {/* Add member section */}
-        <div className="p-4 border-b border-plm-border">
+        <div className="p-4 border-b border-ui-divider">
           <div className="flex items-center justify-between mb-3">
-            <h4 className="text-sm font-medium text-plm-fg flex items-center gap-2">
+            <h4 className="text-[13px] font-medium text-ui-fg flex items-center gap-2">
               <UserPlus size={14} />
               Add Members
             </h4>
-            <span className="text-xs text-plm-fg-muted">{availableUsers.length} available</span>
+            <span className="text-[12px] text-ui-fg-secondary">{availableUsers.length} available</span>
           </div>
 
           <div className="relative mb-3">
             <Search
               size={16}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-plm-fg-muted"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-ui-fg-secondary"
             />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Filter users..."
-              className="w-full pl-9 pr-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-dim focus:outline-none focus:border-plm-accent"
+              className="w-full pl-9 pr-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-ui-fg placeholder:text-ui-fg focus:outline-none focus:border-ui-accent"
             />
           </div>
 
           {availableUsers.length === 0 ? (
-            <div className="text-center py-4 text-sm text-plm-fg-muted bg-plm-bg rounded-lg border border-plm-border">
+            <div className="text-center py-4 text-[13px] text-ui-fg-secondary bg-ui-bg rounded-lg border border-ui-divider">
               All organization members are already in this team
             </div>
           ) : (
-            <div className="max-h-64 overflow-y-auto bg-plm-bg border border-plm-border rounded-lg">
+            <div className="max-h-64 overflow-y-auto bg-ui-bg border border-ui-divider rounded-lg">
               {filteredUsers.length === 0 ? (
-                <div className="text-center py-4 text-sm text-plm-fg-muted">
+                <div className="text-center py-4 text-[13px] text-ui-fg-secondary">
                   No users match your search
                 </div>
               ) : (
@@ -202,7 +202,7 @@ export function TeamMembersDialog({ team, orgUsers, onClose, userId }: TeamMembe
                       setSearchQuery('')
                     }}
                     disabled={isAdding}
-                    className="w-full flex items-center gap-3 px-3 py-2 hover:bg-plm-highlight transition-colors text-left border-b border-plm-border/50 last:border-b-0"
+                    className="w-full flex items-center gap-3 px-3 py-2 hover:bg-ui-hover transition-colors text-left border-b border-ui-divider/50 last:border-b-0"
                   >
                     {getEffectiveAvatarUrl(u) ? (
                       <img
@@ -212,15 +212,15 @@ export function TeamMembersDialog({ team, orgUsers, onClose, userId }: TeamMembe
                         referrerPolicy="no-referrer"
                       />
                     ) : (
-                      <div className="w-8 h-8 rounded-full bg-plm-fg-muted/20 flex items-center justify-center text-xs font-medium">
+                      <div className="w-8 h-8 rounded-full bg-ui-fg-secondary/20 flex items-center justify-center text-[12px] font-medium">
                         {getInitials(u.full_name || u.email)}
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm text-plm-fg truncate">{u.full_name || u.email}</div>
-                      <div className="text-xs text-plm-fg-muted truncate">{u.email}</div>
+                      <div className="text-[13px] text-ui-fg truncate">{u.full_name || u.email}</div>
+                      <div className="text-[12px] text-ui-fg-secondary truncate">{u.email}</div>
                     </div>
-                    <div className="flex items-center gap-1 text-plm-accent text-xs font-medium">
+                    <div className="flex items-center gap-1 text-ui-accent text-[12px] font-medium">
                       <Plus size={14} />
                       Add
                     </div>
@@ -235,16 +235,16 @@ export function TeamMembersDialog({ team, orgUsers, onClose, userId }: TeamMembe
         <div className="flex-1 overflow-y-auto p-4">
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
-              <Loader2 className="animate-spin text-plm-fg-muted" size={24} />
+              <Loader2 className="animate-spin text-ui-fg-secondary" size={24} />
             </div>
           ) : members.length === 0 ? (
-            <div className="text-center py-8 text-plm-fg-muted">No members in this team yet</div>
+            <div className="text-center py-8 text-ui-fg-secondary">No members in this team yet</div>
           ) : (
             <div className="space-y-2">
               {members.map((member) => (
                 <div
                   key={member.id}
-                  className="flex items-center gap-3 p-3 bg-plm-bg rounded-lg group"
+                  className="flex items-center gap-3 p-3 bg-ui-bg rounded-lg group"
                 >
                   {getEffectiveAvatarUrl(member.user) ? (
                     <img
@@ -254,24 +254,24 @@ export function TeamMembersDialog({ team, orgUsers, onClose, userId }: TeamMembe
                       referrerPolicy="no-referrer"
                     />
                   ) : (
-                    <div className="w-10 h-10 rounded-full bg-plm-fg-muted/20 flex items-center justify-center text-sm font-medium">
+                    <div className="w-10 h-10 rounded-full bg-ui-fg-secondary/20 flex items-center justify-center text-[13px] font-medium">
                       {getInitials(member.user?.full_name || member.user?.email || '')}
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm text-plm-fg truncate">
+                    <div className="text-[13px] text-ui-fg truncate">
                       {member.user?.full_name || member.user?.email}
                     </div>
-                    <div className="text-xs text-plm-fg-muted truncate">{member.user?.email}</div>
+                    <div className="text-[12px] text-ui-fg-secondary truncate">{member.user?.email}</div>
                   </div>
                   {member.is_team_admin && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-plm-accent/20 text-plm-accent uppercase font-medium">
+                    <span className="text-[12px] px-1.5 py-0.5 rounded bg-ui-accent/20 text-ui-accent uppercase font-medium">
                       Team Admin
                     </span>
                   )}
                   <button
                     onClick={() => removeMember(member)}
-                    className="p-1.5 text-plm-fg-muted hover:text-plm-error hover:bg-plm-error/10 rounded opacity-0 group-hover:opacity-100 transition-all"
+                    className="p-1.5 text-ui-fg-secondary hover:text-ui-danger hover:bg-ui-danger/10 rounded opacity-0 group-hover:opacity-100 transition-all"
                     title="Remove from team"
                   >
                     <X size={14} />
@@ -283,7 +283,7 @@ export function TeamMembersDialog({ team, orgUsers, onClose, userId }: TeamMembe
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-plm-border flex justify-end">
+        <div className="p-4 border-t border-ui-divider flex justify-end">
           <button onClick={onClose} className="btn btn-primary">
             Done
           </button>

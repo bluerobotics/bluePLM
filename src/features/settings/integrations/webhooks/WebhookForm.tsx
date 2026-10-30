@@ -8,7 +8,7 @@ import { EVENTS_BY_CATEGORY, USER_ROLES, generateSecret } from './webhookConstan
 import type { WebhooksState } from './useWebhooks'
 
 const CHECKBOX_CLASS =
-  'w-4 h-4 rounded border-plm-border bg-plm-bg text-plm-accent focus:ring-plm-accent focus:ring-offset-0'
+  'w-4 h-4 rounded border-ui-divider bg-ui-bg text-ui-accent focus:ring-ui-accent focus:ring-offset-0'
 
 const TRIGGER_OPTIONS: { value: WebhookTriggerFilter; label: string }[] = [
   { value: 'everyone', label: 'Everyone' },
@@ -111,7 +111,7 @@ export function WebhookForm({ webhooks }: { webhooks: WebhooksState }) {
                     <button
                       type="button"
                       onClick={() => setShowSecret(!showSecret)}
-                      className="p-1 text-plm-fg-muted hover:text-plm-fg"
+                      className="p-1 text-ui-fg-secondary hover:text-ui-fg"
                       title={showSecret ? 'Hide' : 'Show'}
                     >
                       {showSecret ? <EyeOff size={14} /> : <Eye size={14} />}
@@ -119,7 +119,7 @@ export function WebhookForm({ webhooks }: { webhooks: WebhooksState }) {
                     <button
                       type="button"
                       onClick={handleCopySecret}
-                      className={`p-1 ${secretCopied ? 'text-plm-success' : 'text-plm-fg-muted hover:text-plm-fg'}`}
+                      className={`p-1 ${secretCopied ? 'text-ui-success' : 'text-ui-fg-secondary hover:text-ui-fg'}`}
                       title="Copy"
                     >
                       {secretCopied ? <Check size={14} /> : <Copy size={14} />}
@@ -137,7 +137,7 @@ export function WebhookForm({ webhooks }: { webhooks: WebhooksState }) {
           )}
 
           <SettingRow label="Events *" stacked>
-            <div className="divide-y divide-plm-border rounded-md border border-plm-border bg-plm-bg">
+            <div className="divide-y divide-ui-divider rounded-md border border-ui-divider bg-ui-bg">
               {Object.entries(EVENTS_BY_CATEGORY).map(([category, events]) => {
                 const allSelected = events.every((e) => formData.events.includes(e.value))
                 const someSelected = events.some((e) => formData.events.includes(e.value))
@@ -156,13 +156,13 @@ export function WebhookForm({ webhooks }: { webhooks: WebhooksState }) {
                         className="flex flex-1 items-center gap-2 text-left"
                       >
                         {expandedCategories[category] ? (
-                          <ChevronDown size={14} className="text-plm-fg-muted" />
+                          <ChevronDown size={14} className="text-ui-fg-secondary" />
                         ) : (
-                          <ChevronRight size={14} className="text-plm-fg-muted" />
+                          <ChevronRight size={14} className="text-ui-fg-secondary" />
                         )}
-                        <span className="text-[13px] font-medium text-plm-fg">{category}</span>
+                        <span className="text-[14px] font-medium text-ui-fg">{category}</span>
                         {someSelected && (
-                          <span className="text-[12px] text-plm-accent">
+                          <span className="text-[13px] text-ui-accent">
                             ({events.filter((e) => formData.events.includes(e.value)).length}/
                             {events.length})
                           </span>
@@ -181,7 +181,7 @@ export function WebhookForm({ webhooks }: { webhooks: WebhooksState }) {
                         {events.map((event) => (
                           <label
                             key={event.value}
-                            className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-plm-highlight"
+                            className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-ui-hover"
                           >
                             <input
                               type="checkbox"
@@ -189,8 +189,8 @@ export function WebhookForm({ webhooks }: { webhooks: WebhooksState }) {
                               onChange={() => toggleEvent(event.value)}
                               className={CHECKBOX_CLASS}
                             />
-                            <span className="text-[13px] text-plm-fg">{event.label}</span>
-                            <code className="ml-auto font-mono text-[12px] text-plm-fg-dim">
+                            <span className="text-[14px] text-ui-fg">{event.label}</span>
+                            <code className="ml-auto font-mono text-[13px] text-ui-fg">
                               {event.value}
                             </code>
                           </label>
@@ -226,14 +226,14 @@ export function WebhookForm({ webhooks }: { webhooks: WebhooksState }) {
 
               {formData.trigger_filter === 'roles' && (
                 <div className="space-y-2">
-                  <p className="text-[12px] text-plm-fg-muted">
+                  <p className="text-[13px] text-ui-fg-secondary">
                     Select which roles trigger this webhook:
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {USER_ROLES.map((role) => (
                       <label
                         key={role.value}
-                        className="flex cursor-pointer items-center gap-2 rounded-md border border-plm-border bg-plm-bg px-2.5 py-1.5 text-[13px] text-plm-fg hover:border-plm-border-light"
+                        className="flex cursor-pointer items-center gap-2 rounded-md border border-ui-divider bg-ui-bg px-2.5 py-1.5 text-[14px] text-ui-fg hover:border-ui-field-border"
                       >
                         <input
                           type="checkbox"
@@ -257,17 +257,17 @@ export function WebhookForm({ webhooks }: { webhooks: WebhooksState }) {
 
               {formData.trigger_filter === 'users' && (
                 <div className="space-y-2">
-                  <p className="text-[12px] text-plm-fg-muted">
+                  <p className="text-[13px] text-ui-fg-secondary">
                     Select which users trigger this webhook:
                   </p>
-                  <div className="max-h-48 space-y-0.5 overflow-y-auto rounded-md border border-plm-border bg-plm-bg p-1">
+                  <div className="max-h-48 space-y-0.5 overflow-y-auto rounded-md border border-ui-divider bg-ui-bg p-1">
                     {orgUsers.map((orgUser) => (
                       <label
                         key={orgUser.id}
                         className={`flex cursor-pointer items-center gap-3 rounded px-2 py-1.5 transition-colors ${
                           formData.trigger_user_ids.includes(orgUser.id)
-                            ? 'bg-plm-accent/10'
-                            : 'hover:bg-plm-highlight'
+                            ? 'bg-ui-accent/10'
+                            : 'hover:bg-ui-hover'
                         }`}
                       >
                         <input
@@ -284,22 +284,22 @@ export function WebhookForm({ webhooks }: { webhooks: WebhooksState }) {
                           className={CHECKBOX_CLASS}
                         />
                         <div className="min-w-0 flex-1">
-                          <div className="truncate text-[13px] text-plm-fg">
+                          <div className="truncate text-[14px] text-ui-fg">
                             {orgUser.full_name || orgUser.email}
                           </div>
                           {orgUser.full_name && (
-                            <div className="truncate text-[12px] text-plm-fg-muted">
+                            <div className="truncate text-[13px] text-ui-fg-secondary">
                               {orgUser.email}
                             </div>
                           )}
                         </div>
-                        <span className="text-[12px] capitalize text-plm-fg-dim">
+                        <span className="text-[13px] capitalize text-ui-fg">
                           {orgUser.role}
                         </span>
                       </label>
                     ))}
                     {orgUsers.length === 0 && (
-                      <p className="py-2 text-center text-[13px] text-plm-fg-muted">
+                      <p className="py-2 text-center text-[14px] text-ui-fg-secondary">
                         No users found
                       </p>
                     )}

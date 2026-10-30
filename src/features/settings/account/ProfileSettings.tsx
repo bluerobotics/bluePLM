@@ -342,7 +342,7 @@ export function ProfileSettings() {
   }
 
   if (!user) {
-    return <div className="py-12 text-center text-[13px] text-plm-fg-muted">Not signed in</div>
+    return <div className="py-12 text-center text-[14px] text-ui-fg-secondary">Not signed in</div>
   }
 
   const renderRecordRow = (
@@ -354,11 +354,11 @@ export function ProfileSettings() {
   ) => (
     <div key={key} className="flex items-center gap-3 px-4 py-2.5">
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[13px] font-medium text-plm-fg">
+        <div className="truncate text-[14px] font-medium text-ui-fg">
           {number}
-          {title && <span className="ml-2 font-normal text-plm-fg-muted">— {title}</span>}
+          {title && <span className="ml-2 font-normal text-ui-fg-secondary">— {title}</span>}
         </div>
-        <div className="text-[12px] text-plm-fg-muted">Created {formatDate(createdAt)}</div>
+        <div className="text-[13px] text-ui-fg-secondary">Created {formatDate(createdAt)}</div>
       </div>
       <Badge tone={statusTone(status)} className="capitalize">
         {(status || 'unknown').replace('_', ' ')}
@@ -378,7 +378,7 @@ export function ProfileSettings() {
               <img
                 src={(avatarPreview || effectiveAvatarUrl)!}
                 alt={user.full_name || user.email}
-                className="h-16 w-16 rounded-full border border-plm-border object-cover"
+                className="h-16 w-16 rounded-full border border-ui-divider object-cover"
                 referrerPolicy="no-referrer"
                 onError={(e) => {
                   const target = e.target as HTMLImageElement
@@ -388,7 +388,7 @@ export function ProfileSettings() {
               />
             ) : null}
             <div
-              className={`flex h-16 w-16 items-center justify-center rounded-full bg-plm-accent text-xl font-semibold text-white ${avatarPreview || effectiveAvatarUrl ? 'hidden' : ''}`}
+              className={`flex h-16 w-16 items-center justify-center rounded-full bg-ui-accent text-xl font-semibold text-white ${avatarPreview || effectiveAvatarUrl ? 'hidden' : ''}`}
             >
               {getInitials(user.full_name || user.email)}
             </div>
@@ -420,7 +420,7 @@ export function ProfileSettings() {
               <button
                 type="button"
                 onClick={handleRemoveAvatar}
-                className="absolute -right-1 -top-1 rounded-full bg-plm-error p-1 text-white opacity-0 shadow-lg transition-opacity hover:opacity-90 group-hover:opacity-100"
+                className="absolute -right-1 -top-1 rounded-full bg-ui-danger p-1 text-white opacity-0 shadow-lg transition-opacity hover:opacity-90 group-hover:opacity-100"
                 title="Remove custom picture"
               >
                 <X size={12} />
@@ -430,19 +430,19 @@ export function ProfileSettings() {
 
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span className="truncate text-[15px] font-semibold text-plm-fg">
+              <span className="truncate text-[15px] font-semibold text-ui-fg">
                 {user.full_name || 'No name'}
               </span>
               <Badge className="capitalize">{user.role}</Badge>
             </div>
             {user.job_title && (
-              <div className="text-[13px] text-plm-fg-muted">{user.job_title}</div>
+              <div className="text-[14px] text-ui-fg-secondary">{user.job_title}</div>
             )}
-            <div className="flex items-center gap-1.5 truncate text-[12px] text-plm-fg-muted">
+            <div className="flex items-center gap-1.5 truncate text-[13px] text-ui-fg-secondary">
               <Mail size={12} />
               {user.email}
             </div>
-            <div className="mt-1 text-[12px] text-plm-fg-muted">PNG, JPG, or WebP, max 2MB</div>
+            <div className="mt-1 text-[13px] text-ui-fg-secondary">PNG, JPG, or WebP, max 2MB</div>
           </div>
 
           <Button
@@ -462,12 +462,12 @@ export function ProfileSettings() {
       <SettingsSection title="My ECOs">
         <SettingsGroup>
           {isLoadingECOs ? (
-            <div className="flex items-center gap-2 px-4 py-3.5 text-[13px] text-plm-fg-muted">
+            <div className="flex items-center gap-2 px-4 py-3.5 text-[14px] text-ui-fg-secondary">
               <Loader2 size={14} className="animate-spin" />
               Loading ECOs...
             </div>
           ) : userECOs.length === 0 ? (
-            <div className="px-4 py-3.5 text-[13px] text-plm-fg-muted">No ECOs found</div>
+            <div className="px-4 py-3.5 text-[14px] text-ui-fg-secondary">No ECOs found</div>
           ) : (
             userECOs.map((eco) =>
               renderRecordRow(eco.id, eco.eco_number, eco.title, eco.created_at, eco.status),
@@ -479,12 +479,12 @@ export function ProfileSettings() {
       <SettingsSection title="My RFQs">
         <SettingsGroup>
           {isLoadingRFQs ? (
-            <div className="flex items-center gap-2 px-4 py-3.5 text-[13px] text-plm-fg-muted">
+            <div className="flex items-center gap-2 px-4 py-3.5 text-[14px] text-ui-fg-secondary">
               <Loader2 size={14} className="animate-spin" />
               Loading RFQs...
             </div>
           ) : userRFQs.length === 0 ? (
-            <div className="px-4 py-3.5 text-[13px] text-plm-fg-muted">No RFQs found</div>
+            <div className="px-4 py-3.5 text-[14px] text-ui-fg-secondary">No RFQs found</div>
           ) : (
             userRFQs.map((rfq) =>
               renderRecordRow(rfq.id, rfq.rfq_number, rfq.title, rfq.created_at, rfq.status),
@@ -516,7 +516,7 @@ export function ProfileSettings() {
                 <div>
                   <label
                     htmlFor="settings-recovery-code"
-                    className="mb-1.5 block text-[12px] font-medium text-plm-fg-muted"
+                    className="mb-1.5 block text-[13px] font-medium text-ui-fg-secondary"
                   >
                     Recovery Code
                   </label>

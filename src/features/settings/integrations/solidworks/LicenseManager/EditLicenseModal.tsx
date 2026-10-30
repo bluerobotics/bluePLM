@@ -109,16 +109,16 @@ export function EditLicenseModal({ license, onClose, onSave }: EditLicenseModalP
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-plm-bg-secondary border border-plm-border rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col">
+      <div className="bg-ui-field border border-ui-divider rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-plm-border">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-ui-divider">
           <div className="flex items-center gap-3">
-            <Edit2 size={20} className="text-plm-accent" />
-            <h2 className="text-lg font-semibold text-plm-fg">Edit License</h2>
+            <Edit2 size={20} className="text-ui-accent" />
+            <h2 className="text-lg font-semibold text-ui-fg">Edit License</h2>
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-plm-fg-muted hover:text-plm-fg rounded-lg hover:bg-plm-bg transition-colors"
+            className="p-2 text-ui-fg-secondary hover:text-ui-fg rounded-lg hover:bg-ui-bg transition-colors"
           >
             <X size={20} />
           </button>
@@ -128,7 +128,7 @@ export function EditLicenseModal({ license, onClose, onSave }: EditLicenseModalP
         <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
           {/* Serial Number */}
           <div className="space-y-1">
-            <label className="text-sm font-medium text-plm-fg">
+            <label className="text-[13px] font-medium text-ui-fg">
               Serial Number <span className="text-red-400">*</span>
             </label>
             <input
@@ -137,30 +137,30 @@ export function EditLicenseModal({ license, onClose, onSave }: EditLicenseModalP
               onChange={handleSerialChange}
               onPaste={handleSerialPaste}
               placeholder="XXXX XXXX XXXX XXXX XXXX XXXX"
-              className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-sm text-plm-fg placeholder-plm-fg-dim focus:outline-none focus:border-plm-accent font-mono tracking-wider"
+              className="w-full px-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-[13px] text-ui-fg placeholder-ui-fg focus:outline-none focus:border-ui-accent font-mono tracking-wider"
               required
             />
-            <p className="text-xs text-plm-fg-dim">
+            <p className="text-[12px] text-ui-fg">
               Paste or type — automatically formatted with spaces
             </p>
           </div>
 
           {/* Nickname */}
           <div className="space-y-1">
-            <label className="text-sm font-medium text-plm-fg">Nickname</label>
+            <label className="text-[13px] font-medium text-ui-fg">Nickname</label>
             <input
               type="text"
               value={formData.nickname}
               onChange={(e) => setFormData((prev) => ({ ...prev, nickname: e.target.value }))}
               placeholder="e.g., Design Team License 1"
-              className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-sm text-plm-fg placeholder-plm-fg-dim focus:outline-none focus:border-plm-accent"
+              className="w-full px-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-[13px] text-ui-fg placeholder-ui-fg focus:outline-none focus:border-ui-accent"
             />
-            <p className="text-xs text-plm-fg-dim">A friendly name to identify this license</p>
+            <p className="text-[12px] text-ui-fg">A friendly name to identify this license</p>
           </div>
 
           {/* License Type */}
           <div className="space-y-1">
-            <label className="text-sm font-medium text-plm-fg">License Type</label>
+            <label className="text-[13px] font-medium text-ui-fg">License Type</label>
             <select
               value={formData.license_type}
               onChange={(e) =>
@@ -169,7 +169,7 @@ export function EditLicenseModal({ license, onClose, onSave }: EditLicenseModalP
                   license_type: e.target.value as 'standalone' | 'network',
                 }))
               }
-              className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-sm text-plm-fg focus:outline-none focus:border-plm-accent"
+              className="w-full px-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-[13px] text-ui-fg focus:outline-none focus:border-ui-accent"
             >
               <option value="standalone">Standalone</option>
               <option value="network">Network</option>
@@ -179,7 +179,7 @@ export function EditLicenseModal({ license, onClose, onSave }: EditLicenseModalP
           {/* Seats (only for network) */}
           {formData.license_type === 'network' && (
             <div className="space-y-1">
-              <label className="text-sm font-medium text-plm-fg">Seats</label>
+              <label className="text-[13px] font-medium text-ui-fg">Seats</label>
               <input
                 type="number"
                 min={1}
@@ -187,18 +187,18 @@ export function EditLicenseModal({ license, onClose, onSave }: EditLicenseModalP
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, seats: parseInt(e.target.value) || 1 }))
                 }
-                className="w-24 px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-sm text-plm-fg focus:outline-none focus:border-plm-accent"
+                className="w-24 px-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-[13px] text-ui-fg focus:outline-none focus:border-ui-accent"
               />
             </div>
           )}
 
           {/* Product Name */}
           <div className="space-y-1">
-            <label className="text-sm font-medium text-plm-fg">Product</label>
+            <label className="text-[13px] font-medium text-ui-fg">Product</label>
             <select
               value={formData.product_name}
               onChange={(e) => setFormData((prev) => ({ ...prev, product_name: e.target.value }))}
-              className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-sm text-plm-fg focus:outline-none focus:border-plm-accent"
+              className="w-full px-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-[13px] text-ui-fg focus:outline-none focus:border-ui-accent"
             >
               <option value="">Select a product...</option>
               {PRODUCT_OPTIONS.map((product) => (
@@ -211,14 +211,14 @@ export function EditLicenseModal({ license, onClose, onSave }: EditLicenseModalP
 
           {/* Error message */}
           {error && (
-            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-[13px]">
               {error}
             </div>
           )}
         </form>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-plm-border">
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-ui-divider">
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>

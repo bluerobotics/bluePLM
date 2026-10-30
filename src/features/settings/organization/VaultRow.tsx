@@ -51,7 +51,7 @@ export function VaultRow({ vault, manager }: VaultRowProps) {
     <div className="flex items-center gap-3 px-4 py-3">
       <Folder
         size={16}
-        className={`flex-shrink-0 ${vault.is_default ? 'text-plm-accent' : 'text-plm-fg-muted'}`}
+        className={`flex-shrink-0 ${vault.is_default ? 'text-ui-accent' : 'text-ui-fg-secondary'}`}
       />
       <div className="min-w-0 flex-1">
         {isRenaming ? (
@@ -70,7 +70,7 @@ export function VaultRow({ vault, manager }: VaultRowProps) {
             <Button
               variant="ghost"
               size="sm"
-              icon={<Check size={14} className="text-plm-success" />}
+              icon={<Check size={14} className="text-ui-success" />}
               onClick={() => handleRenameVault(vault)}
               aria-label="Save name"
             />
@@ -85,15 +85,15 @@ export function VaultRow({ vault, manager }: VaultRowProps) {
         ) : (
           <>
             <div className="flex items-center gap-2">
-              <span className="truncate text-[13px] font-medium text-plm-fg">{vault.name}</span>
+              <span className="truncate text-[14px] font-medium text-ui-fg">{vault.name}</span>
               {vault.is_default && <Badge tone="accent">Default</Badge>}
               {connected ? <Badge tone="success">Connected</Badge> : <Badge>Not connected</Badge>}
             </div>
             {vault.description && (
-              <div className="truncate text-[12px] text-plm-fg-muted">{vault.description}</div>
+              <div className="truncate text-[13px] text-ui-fg-secondary">{vault.description}</div>
             )}
             {localPath && (
-              <div className="truncate text-[12px] text-plm-fg-muted" title={localPath}>
+              <div className="truncate text-[13px] text-ui-fg-secondary" title={localPath}>
                 {localPath}
               </div>
             )}
@@ -136,7 +136,7 @@ export function VaultRow({ vault, manager }: VaultRowProps) {
                   icon={<Eraser size={14} />}
                   onClick={() => startWipe(vault)}
                   title="Wipe local files"
-                  className="!text-plm-error"
+                  className="!text-ui-danger"
                 >
                   Wipe Local
                 </Button>
@@ -155,7 +155,7 @@ export function VaultRow({ vault, manager }: VaultRowProps) {
           )}
 
           {isAdmin && (
-            <div className="ml-1 flex items-center gap-0.5 border-l border-plm-border pl-2">
+            <div className="ml-1 flex items-center gap-0.5 border-l border-ui-divider pl-2">
               <Button
                 variant="ghost"
                 size="sm"
@@ -181,7 +181,7 @@ export function VaultRow({ vault, manager }: VaultRowProps) {
                 onClick={() => startClear(vault)}
                 title="Clear vault contents"
                 aria-label="Clear vault contents"
-                className="!text-plm-warning"
+                className="!text-ui-warning"
               />
               <Button
                 variant="ghost"
@@ -190,7 +190,7 @@ export function VaultRow({ vault, manager }: VaultRowProps) {
                 onClick={() => startDelete(vault)}
                 title="Delete vault"
                 aria-label="Delete vault"
-                className="!text-plm-error"
+                className="!text-ui-danger"
               />
             </div>
           )}

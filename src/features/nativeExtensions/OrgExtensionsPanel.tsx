@@ -40,13 +40,13 @@ function SqlFiles({ files }: { files: Array<{ name: string; content: string }> }
   const [copied, setCopied] = useState<string | null>(null)
   if (files.length === 0) return null
   return (
-    <div className="mt-3 rounded-lg border border-plm-warning/40 bg-plm-warning/10 p-3 text-sm">
-      <p className="font-medium text-plm-fg">{t('nativeExtensions.sqlTitle')}</p>
-      <p className="mt-1 text-xs text-plm-fg-muted">{t('nativeExtensions.sqlBody')}</p>
+    <div className="mt-3 rounded-lg border border-ui-warning/40 bg-ui-warning/10 p-3 text-[13px]">
+      <p className="font-medium text-ui-fg">{t('nativeExtensions.sqlTitle')}</p>
+      <p className="mt-1 text-[12px] text-ui-fg-secondary">{t('nativeExtensions.sqlBody')}</p>
       <ul className="mt-2 space-y-1">
         {files.map((file) => (
           <li key={file.name} className="flex items-center gap-2">
-            <code className="text-xs text-plm-fg">{file.name}</code>
+            <code className="text-[12px] text-ui-fg">{file.name}</code>
             <button
               className="btn btn-ghost btn-sm flex items-center gap-1"
               onClick={async () => {
@@ -208,7 +208,7 @@ export function OrgExtensionsPanel() {
           })}
         >
           <p>{t('nativeExtensions.confirmInstallBody')}</p>
-          <p className="mt-1 break-all font-mono text-[12px] text-plm-fg-muted">
+          <p className="mt-1 break-all font-mono text-[13px] text-ui-fg-secondary">
             {pending.manifest.id} · SHA-256 {pending.sha256}
           </p>
           <SqlFiles files={pending.sqlFiles} />
@@ -233,7 +233,7 @@ export function OrgExtensionsPanel() {
 
       <SettingsGroup>
         {rows.length === 0 && (
-          <div className="px-4 py-6 text-center text-[13px] text-plm-fg-muted">
+          <div className="px-4 py-6 text-center text-[14px] text-ui-fg-secondary">
             {t('nativeExtensions.none')}
           </div>
         )}
@@ -242,18 +242,18 @@ export function OrgExtensionsPanel() {
           const name = typeof row.manifest.name === 'string' ? row.manifest.name : row.extensionId
           return (
             <div key={row.extensionId} className="flex items-start gap-3 px-4 py-3">
-              <Puzzle size={16} className="mt-0.5 flex-shrink-0 text-plm-fg-muted" aria-hidden />
+              <Puzzle size={16} className="mt-0.5 flex-shrink-0 text-ui-fg-secondary" aria-hidden />
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 text-[13px] font-medium text-plm-fg">
+                <div className="flex items-center gap-2 text-[14px] font-medium text-ui-fg">
                   {name}
-                  <span className="font-normal text-plm-fg-muted">{row.version}</span>
+                  <span className="font-normal text-ui-fg-secondary">{row.version}</span>
                   <Badge tone={row.enabled ? (state?.status === 'error' ? 'error' : 'success') : 'neutral'}>
                     {statusText(row)}
                   </Badge>
                 </div>
-                <div className="text-[12px] text-plm-fg-muted">{row.extensionId}</div>
+                <div className="text-[13px] text-ui-fg-secondary">{row.extensionId}</div>
                 {row.enabled && state?.status === 'error' && state.error && (
-                  <p className="mt-1 break-words text-[12px] text-plm-error">{state.error}</p>
+                  <p className="mt-1 break-words text-[13px] text-ui-danger">{state.error}</p>
                 )}
               </div>
               {isAdmin && (

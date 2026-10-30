@@ -58,16 +58,16 @@ function Receipt({ outcome }: { outcome: VaultAuditRepairOutcome }) {
   const refused = outcome.files.filter((file) => file.refused !== null)
 
   return (
-    <div className="p-3 rounded-md border border-plm-border bg-plm-bg-lighter space-y-1.5">
-      <p className="text-sm text-plm-fg flex items-center gap-1.5">
-        <Check size={14} className="text-plm-success flex-shrink-0" />
+    <div className="p-3 rounded-md border border-ui-divider bg-ui-field space-y-1.5">
+      <p className="text-[13px] text-ui-fg flex items-center gap-1.5">
+        <Check size={14} className="text-ui-success flex-shrink-0" />
         {t('vaultAudit.repair.receiptHeading', {
           entries: outcome.entriesAdded,
           files: outcome.filesUpdated,
         })}
       </p>
       {shortfall.alreadyPresent > 0 && (
-        <p className="text-xs text-plm-fg-muted">
+        <p className="text-[12px] text-ui-fg-secondary">
           {t('vaultAudit.repair.receiptShortfall', {
             count: shortfall.alreadyPresent,
             requested: outcome.entriesRequested,
@@ -75,12 +75,12 @@ function Receipt({ outcome }: { outcome: VaultAuditRepairOutcome }) {
         </p>
       )}
       {shortfall.noRecord > 0 && (
-        <p className="text-xs text-plm-fg-muted">
+        <p className="text-[12px] text-ui-fg-secondary">
           {t('vaultAudit.repair.receiptNoRecord', { count: shortfall.noRecord })}
         </p>
       )}
       {refused.length > 0 && (
-        <p className="text-xs text-plm-warning flex items-start gap-1.5">
+        <p className="text-[12px] text-ui-warning flex items-start gap-1.5">
           <AlertTriangle size={13} className="mt-0.5 flex-shrink-0" />
           <span>
             {t('vaultAudit.repair.receiptRefused', { count: refused.length })}
@@ -99,23 +99,23 @@ function WriteToVaultBar({ repair }: { repair: UseVaultAuditRepairResult }) {
     <div className="space-y-3">
       <VaultAuditNote
         icon={ShieldCheck}
-        iconClassName="text-plm-success"
+        iconClassName="text-ui-success"
         label={t('vaultAudit.actions.guaranteeLabel')}
       >
         <p>{t('vaultAudit.repair.guarantee')}</p>
       </VaultAuditNote>
 
-      <label className="flex items-start gap-2 text-xs text-plm-fg-muted cursor-pointer">
+      <label className="flex items-start gap-2 text-[12px] text-ui-fg-secondary cursor-pointer">
         <input
           type="checkbox"
           checked={repair.includeDerivedTabs}
           disabled={repair.applying}
           onChange={(event) => repair.setIncludeDerivedTabs(event.target.checked)}
-          className="mt-0.5 accent-plm-accent"
+          className="mt-0.5 accent-ui-accent"
         />
         <span>
-          <span className="text-plm-fg inline-flex items-center gap-1">
-            <Sparkles size={11} className="text-plm-warning" />
+          <span className="text-ui-fg inline-flex items-center gap-1">
+            <Sparkles size={11} className="text-ui-warning" />
             {t('vaultAudit.repair.includeDerived')}
           </span>
           <span className="block">{t('vaultAudit.repair.includeDerivedHint')}</span>
@@ -123,7 +123,7 @@ function WriteToVaultBar({ repair }: { repair: UseVaultAuditRepairResult }) {
       </label>
 
       {repair.error && (
-        <p className="text-sm text-plm-error flex items-start gap-1.5">
+        <p className="text-[13px] text-ui-danger flex items-start gap-1.5">
           <AlertTriangle size={14} className="mt-0.5 flex-shrink-0" />
           {repair.error}
         </p>
@@ -132,7 +132,7 @@ function WriteToVaultBar({ repair }: { repair: UseVaultAuditRepairResult }) {
       {repair.outcome && <Receipt outcome={repair.outcome} />}
 
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs text-plm-fg-muted">
+        <p className="text-[12px] text-ui-fg-secondary">
           {repair.selected.entries === 0
             ? t('vaultAudit.repair.selectPrompt')
             : t('vaultAudit.repair.selectedSummary', {
@@ -164,22 +164,22 @@ function WriteToFileBar({ push }: { push: UseVaultAuditPushResult }) {
     <div className="space-y-3">
       <VaultAuditNote
         icon={FileUp}
-        iconClassName="text-plm-accent"
+        iconClassName="text-ui-accent"
         label={t('vaultAudit.actions.fileWriteLabel')}
       >
         <p>{t('vaultAudit.push.wholeFileNote')}</p>
       </VaultAuditNote>
 
       {push.heldByOthers.size > 0 && (
-        <p className="text-xs text-plm-fg-muted flex items-start gap-1.5">
+        <p className="text-[12px] text-ui-fg-secondary flex items-start gap-1.5">
           <Lock size={13} className="mt-0.5 flex-shrink-0" />
           {t('vaultAudit.push.heldByOthers', { count: push.heldByOthers.size })}
         </p>
       )}
 
       {eligibility.selected > 0 && (
-        <div className="text-xs space-y-1">
-          <p className="text-plm-fg">
+        <div className="text-[12px] space-y-1">
+          <p className="text-ui-fg">
             {t('vaultAudit.push.eligible', {
               eligible: eligibility.eligible.length,
               selected: eligibility.selected,
@@ -188,13 +188,13 @@ function WriteToFileBar({ push }: { push: UseVaultAuditPushResult }) {
           {/* Separated from the lock above because this one is yours to clear: these files are in
               BluePLM and nobody is holding them, so a checkout makes them writable. */}
           {eligibility.tally.notCheckedOut > 0 && (
-            <p className="text-plm-warning flex items-start gap-1.5">
+            <p className="text-ui-warning flex items-start gap-1.5">
               <AlertTriangle size={13} className="mt-0.5 flex-shrink-0" />
               {t('vaultAudit.push.notCheckedOut', { count: eligibility.tally.notCheckedOut })}
             </p>
           )}
           {eligibility.tally.notLoaded > 0 && (
-            <p className="text-plm-fg-muted">
+            <p className="text-ui-fg-secondary">
               {t('vaultAudit.push.notLoaded', { count: eligibility.tally.notLoaded })}
             </p>
           )}
@@ -202,7 +202,7 @@ function WriteToFileBar({ push }: { push: UseVaultAuditPushResult }) {
       )}
 
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs text-plm-fg-muted">
+        <p className="text-[12px] text-ui-fg-secondary">
           {eligibility.selected === 0
             ? t('vaultAudit.push.selectPrompt')
             : t('vaultAudit.push.selectedSummary', { files: eligibility.selected })}
@@ -220,7 +220,7 @@ function WriteToFileBar({ push }: { push: UseVaultAuditPushResult }) {
 
 export function VaultAuditActionBar({ action, repair, push }: VaultAuditActionBarProps) {
   if (action === null) {
-    return <p className="text-xs text-plm-fg-muted">{t('vaultAudit.actions.noneAvailable')}</p>
+    return <p className="text-[12px] text-ui-fg-secondary">{t('vaultAudit.actions.noneAvailable')}</p>
   }
   if (action === 'write-to-vault') return <WriteToVaultBar repair={repair} />
   return <WriteToFileBar push={push} />

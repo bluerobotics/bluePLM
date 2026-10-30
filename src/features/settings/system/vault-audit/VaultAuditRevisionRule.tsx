@@ -37,24 +37,24 @@ export function VaultAuditRevisionRule({
   onChange,
 }: VaultAuditRevisionRuleProps) {
   return (
-    <div className="flex items-start gap-2 p-3 rounded-md border border-plm-border bg-plm-bg-lighter">
-      <GitBranch size={14} className="text-plm-fg-muted mt-0.5 flex-shrink-0" />
+    <div className="flex items-start gap-2 p-3 rounded-md border border-ui-divider bg-ui-field">
+      <GitBranch size={14} className="text-ui-fg-secondary mt-0.5 flex-shrink-0" />
       <div className="space-y-1.5 min-w-0">
-        <label className="flex items-start gap-2 text-xs cursor-pointer">
+        <label className="flex items-start gap-2 text-[12px] cursor-pointer">
           <input
             type="checkbox"
             checked={expectRevisionOnModels}
             onChange={(event) => onChange(event.target.checked)}
-            className="mt-0.5 accent-plm-accent"
+            className="mt-0.5 accent-ui-accent"
           />
           <span>
-            <span className="text-plm-fg block">{t('vaultAudit.revisionRule.label')}</span>
-            <span className="text-plm-fg-muted block">{t('vaultAudit.revisionRule.hint')}</span>
+            <span className="text-ui-fg block">{t('vaultAudit.revisionRule.label')}</span>
+            <span className="text-ui-fg-secondary block">{t('vaultAudit.revisionRule.hint')}</span>
           </span>
         </label>
 
         {hiddenCount > 0 && (
-          <p className="text-xs text-plm-fg-muted">
+          <p className="text-[12px] text-ui-fg-secondary">
             {t('vaultAudit.revisionRule.hidden', { count: hiddenCount })}
           </p>
         )}

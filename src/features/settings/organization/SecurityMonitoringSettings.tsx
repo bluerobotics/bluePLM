@@ -173,7 +173,7 @@ export function SecurityMonitoringSettings() {
       <SettingsSection
         description={t('securityMonitoring.intro')}
         actions={
-          (saving || loading) && <Loader2 size={14} className="animate-spin text-plm-fg-muted" />
+          (saving || loading) && <Loader2 size={14} className="animate-spin text-ui-fg-secondary" />
         }
       >
         <SettingsGroup>

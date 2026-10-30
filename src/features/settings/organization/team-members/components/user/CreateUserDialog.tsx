@@ -203,16 +203,16 @@ export function CreateUserDialog({
       onClick={onClose}
     >
       <div
-        className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto"
+        className="bg-ui-field border border-ui-divider rounded-xl p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start gap-3 mb-6">
-          <div className="p-2 rounded-lg bg-plm-accent/20 text-plm-accent">
+          <div className="p-2 rounded-lg bg-ui-accent/20 text-ui-accent">
             <UserPlus size={20} />
           </div>
           <div>
-            <h3 className="text-lg font-medium text-plm-fg">Add User</h3>
-            <p className="text-sm text-plm-fg-muted mt-1">
+            <h3 className="text-lg font-medium text-ui-fg">Add User</h3>
+            <p className="text-[13px] text-ui-fg-secondary mt-1">
               Pre-create an account. When they sign in with this email, they'll automatically join
               with these settings.
             </p>
@@ -222,37 +222,37 @@ export function CreateUserDialog({
         <div className="space-y-4">
           {/* Email */}
           <div>
-            <label className="block text-sm text-plm-fg-muted mb-1.5">Email Address *</label>
+            <label className="block text-[13px] text-ui-fg-secondary mb-1.5">Email Address *</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="user@company.com"
-              className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-dim focus:outline-none focus:border-plm-accent"
+              className="w-full px-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-ui-fg placeholder:text-ui-fg focus:outline-none focus:border-ui-accent"
               autoFocus
             />
             {email && !isValidEmail && (
-              <p className="text-xs text-plm-error mt-1">Please enter a valid email address</p>
+              <p className="text-[12px] text-ui-danger mt-1">Please enter a valid email address</p>
             )}
           </div>
 
           {/* Full Name */}
           <div>
-            <label className="block text-sm text-plm-fg-muted mb-1.5">Full Name</label>
+            <label className="block text-[13px] text-ui-fg-secondary mb-1.5">Full Name</label>
             <input
               type="text"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               placeholder="John Smith"
-              className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-dim focus:outline-none focus:border-plm-accent"
+              className="w-full px-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-ui-fg placeholder:text-ui-fg focus:outline-none focus:border-ui-accent"
             />
           </div>
 
           {/* Teams */}
           {teams.length > 0 && (
             <div>
-              <label className="block text-sm text-plm-fg-muted mb-1.5">Assign to Teams</label>
-              <div className="space-y-1 max-h-40 overflow-y-auto bg-plm-bg border border-plm-border rounded-lg p-2">
+              <label className="block text-[13px] text-ui-fg-secondary mb-1.5">Assign to Teams</label>
+              <div className="space-y-1 max-h-40 overflow-y-auto bg-ui-bg border border-ui-divider rounded-lg p-2">
                 {teams.map((team) => {
                   const TeamIcon =
                     (
@@ -265,13 +265,13 @@ export function CreateUserDialog({
                   return (
                     <label
                       key={team.id}
-                      className="flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-plm-highlight transition-colors"
+                      className="flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-ui-hover transition-colors"
                     >
                       <input
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => toggleTeam(team.id)}
-                        className="w-4 h-4 rounded border-plm-border text-plm-accent focus:ring-plm-accent"
+                        className="w-4 h-4 rounded border-ui-divider text-ui-accent focus:ring-ui-accent"
                       />
                       <div
                         className="p-1.5 rounded"
@@ -279,12 +279,12 @@ export function CreateUserDialog({
                       >
                         <TeamIcon size={14} />
                       </div>
-                      <span className="text-sm text-plm-fg">{team.name}</span>
+                      <span className="text-[13px] text-ui-fg">{team.name}</span>
                     </label>
                   )
                 })}
               </div>
-              <p className="text-xs text-plm-fg-dim mt-1">
+              <p className="text-[12px] text-ui-fg mt-1">
                 User will be added to selected teams when they first sign in
               </p>
             </div>
@@ -293,23 +293,23 @@ export function CreateUserDialog({
           {/* Vault Access */}
           {vaults.length > 0 && (
             <div>
-              <label className="block text-sm text-plm-fg-muted mb-1.5">Vault Access</label>
+              <label className="block text-[13px] text-ui-fg-secondary mb-1.5">Vault Access</label>
               <div
                 className={`p-3 rounded-lg border mb-2 ${
                   selectedVaultIds.length === 0
-                    ? 'bg-plm-success/10 border-plm-success/30'
-                    : 'bg-plm-warning/10 border-plm-warning/30'
+                    ? 'bg-ui-success/10 border-ui-success/30'
+                    : 'bg-ui-warning/10 border-ui-warning/30'
                 }`}
               >
                 <div className="flex items-center gap-2">
                   <Database
                     size={16}
                     className={
-                      selectedVaultIds.length === 0 ? 'text-plm-success' : 'text-plm-warning'
+                      selectedVaultIds.length === 0 ? 'text-ui-success' : 'text-ui-warning'
                     }
                   />
                   <span
-                    className={`text-sm ${selectedVaultIds.length === 0 ? 'text-plm-success' : 'text-plm-warning'}`}
+                    className={`text-[13px] ${selectedVaultIds.length === 0 ? 'text-ui-success' : 'text-ui-warning'}`}
                   >
                     {selectedVaultIds.length === 0
                       ? 'All vaults (no restrictions)'
@@ -317,32 +317,32 @@ export function CreateUserDialog({
                   </span>
                 </div>
               </div>
-              <div className="space-y-1 max-h-40 overflow-y-auto bg-plm-bg border border-plm-border rounded-lg p-2">
+              <div className="space-y-1 max-h-40 overflow-y-auto bg-ui-bg border border-ui-divider rounded-lg p-2">
                 {vaults.map((vault) => {
                   const isSelected = selectedVaultIds.includes(vault.id)
                   return (
                     <label
                       key={vault.id}
-                      className="flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-plm-highlight transition-colors"
+                      className="flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-ui-hover transition-colors"
                     >
                       <input
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => toggleVault(vault.id)}
-                        className="w-4 h-4 rounded border-plm-border text-plm-accent focus:ring-plm-accent"
+                        className="w-4 h-4 rounded border-ui-divider text-ui-accent focus:ring-ui-accent"
                       />
-                      <Database size={14} className="text-plm-fg-muted" />
+                      <Database size={14} className="text-ui-fg-secondary" />
                       <div className="flex-1 min-w-0">
-                        <span className="text-sm text-plm-fg">{vault.name}</span>
+                        <span className="text-[13px] text-ui-fg">{vault.name}</span>
                         {vault.description && (
-                          <span className="text-xs text-plm-fg-dim ml-2">{vault.description}</span>
+                          <span className="text-[12px] text-ui-fg ml-2">{vault.description}</span>
                         )}
                       </div>
                     </label>
                   )
                 })}
               </div>
-              <p className="text-xs text-plm-fg-dim mt-1">
+              <p className="text-[12px] text-ui-fg mt-1">
                 Leave all unchecked for full access. Check specific vaults to restrict access.
               </p>
             </div>
@@ -351,8 +351,8 @@ export function CreateUserDialog({
           {/* Workflow Roles */}
           {workflowRoles.length > 0 && (
             <div>
-              <label className="block text-sm text-plm-fg-muted mb-1.5">Workflow Roles</label>
-              <div className="space-y-1 max-h-40 overflow-y-auto bg-plm-bg border border-plm-border rounded-lg p-2">
+              <label className="block text-[13px] text-ui-fg-secondary mb-1.5">Workflow Roles</label>
+              <div className="space-y-1 max-h-40 overflow-y-auto bg-ui-bg border border-ui-divider rounded-lg p-2">
                 {workflowRoles.map((role) => {
                   const RoleIcon =
                     (
@@ -365,13 +365,13 @@ export function CreateUserDialog({
                   return (
                     <label
                       key={role.id}
-                      className="flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-plm-highlight transition-colors"
+                      className="flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-ui-hover transition-colors"
                     >
                       <input
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => toggleWorkflowRole(role.id)}
-                        className="w-4 h-4 rounded border-plm-border text-plm-accent focus:ring-plm-accent"
+                        className="w-4 h-4 rounded border-ui-divider text-ui-accent focus:ring-ui-accent"
                       />
                       <div
                         className="p-1.5 rounded"
@@ -380,23 +380,23 @@ export function CreateUserDialog({
                         <RoleIcon size={14} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <span className="text-sm text-plm-fg">{role.name}</span>
+                        <span className="text-[13px] text-ui-fg">{role.name}</span>
                         {role.description && (
-                          <span className="text-xs text-plm-fg-dim ml-2">{role.description}</span>
+                          <span className="text-[12px] text-ui-fg ml-2">{role.description}</span>
                         )}
                       </div>
                     </label>
                   )
                 })}
               </div>
-              <p className="text-xs text-plm-fg-dim mt-1">
+              <p className="text-[12px] text-ui-fg mt-1">
                 Workflow roles for approval processes (e.g., R&D Approver, QA Reviewer)
               </p>
             </div>
           )}
 
           {/* Send Invite Email */}
-          <div className="pt-2 border-t border-plm-border">
+          <div className="pt-2 border-t border-ui-divider">
             <div className="flex items-center justify-between">
               <label className="flex items-center gap-3 cursor-pointer">
                 <input
@@ -404,15 +404,15 @@ export function CreateUserDialog({
                   checked={sendInviteEmail}
                   onChange={(e) => setSendInviteEmail(e.target.checked)}
                   disabled={!apiUrl}
-                  className="w-4 h-4 rounded border-plm-border text-plm-accent focus:ring-plm-accent disabled:opacity-50"
+                  className="w-4 h-4 rounded border-ui-divider text-ui-accent focus:ring-ui-accent disabled:opacity-50"
                 />
                 <div className="flex items-center gap-2">
                   <Mail
                     size={16}
-                    className={sendInviteEmail && apiUrl ? 'text-plm-accent' : 'text-plm-fg-muted'}
+                    className={sendInviteEmail && apiUrl ? 'text-ui-accent' : 'text-ui-fg-secondary'}
                   />
                   <span
-                    className={`text-sm ${sendInviteEmail && apiUrl ? 'text-plm-fg' : 'text-plm-fg-muted'}`}
+                    className={`text-[13px] ${sendInviteEmail && apiUrl ? 'text-ui-fg' : 'text-ui-fg-secondary'}`}
                   >
                     Send invite email
                   </span>
@@ -422,22 +422,22 @@ export function CreateUserDialog({
                 <button
                   type="button"
                   onClick={() => setShowEmailPreview(!showEmailPreview)}
-                  className="text-xs text-plm-accent hover:text-plm-accent/80 transition-colors"
+                  className="text-[12px] text-ui-accent hover:text-ui-accent/80 transition-colors"
                 >
                   {showEmailPreview ? 'Hide preview' : 'Preview email'}
                 </button>
               )}
             </div>
             {!apiUrl && (
-              <p className="text-xs text-plm-fg-dim mt-1.5 ml-7">
+              <p className="text-[12px] text-ui-fg mt-1.5 ml-7">
                 Configure API URL in Settings → REST API to enable invite emails
               </p>
             )}
 
             {/* Email Preview */}
             {apiUrl && sendInviteEmail && showEmailPreview && (
-              <div className="mt-3 ml-7 p-4 bg-white border border-plm-border rounded-lg text-sm">
-                <div className="text-gray-500 text-xs mb-3 pb-2 border-b border-gray-200">
+              <div className="mt-3 ml-7 p-4 bg-white border border-ui-divider rounded-lg text-[13px]">
+                <div className="text-gray-500 text-[12px] mb-3 pb-2 border-b border-gray-200">
                   <div>
                     <strong>To:</strong> {email || 'user@example.com'}
                   </div>
@@ -456,17 +456,17 @@ export function CreateUserDialog({
                   </p>
                   <p>BluePLM is an open-source Product Lifecycle Management system.</p>
                   <div className="my-4">
-                    <span className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">
+                    <span className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg text-[13px]">
                       Accept Invitation
                     </span>
                   </div>
                   {orgCode && (
                     <div className="my-4 p-3 bg-gray-100 rounded-lg">
-                      <p className="text-gray-600 text-xs mb-1">Organization Code:</p>
-                      <code className="text-sm font-mono text-gray-800 break-all">{orgCode}</code>
+                      <p className="text-gray-600 text-[12px] mb-1">Organization Code:</p>
+                      <code className="text-[13px] font-mono text-gray-800 break-all">{orgCode}</code>
                     </div>
                   )}
-                  <p className="text-gray-500 text-xs">
+                  <p className="text-gray-500 text-[12px]">
                     If you didn't expect this invitation, you can ignore this email.
                   </p>
                 </div>
@@ -476,13 +476,13 @@ export function CreateUserDialog({
 
           {/* Notes */}
           <div>
-            <label className="block text-sm text-plm-fg-muted mb-1.5">Notes (optional)</label>
+            <label className="block text-[13px] text-ui-fg-secondary mb-1.5">Notes (optional)</label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Internal notes about this user..."
               rows={2}
-              className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-dim focus:outline-none focus:border-plm-accent resize-none"
+              className="w-full px-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-ui-fg placeholder:text-ui-fg focus:outline-none focus:border-ui-accent resize-none"
             />
           </div>
         </div>

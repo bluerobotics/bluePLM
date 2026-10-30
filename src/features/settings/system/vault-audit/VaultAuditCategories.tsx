@@ -30,7 +30,7 @@ export function VaultAuditCategories({
 }: VaultAuditCategoriesProps) {
   return (
     <nav aria-label={t('vaultAudit.category.heading')} className="space-y-1">
-      <h3 className="px-2 pb-1 text-[12px] font-medium text-plm-fg-muted">
+      <h3 className="px-2 pb-1 text-[13px] font-medium text-ui-fg-secondary">
         {t('vaultAudit.category.heading')}
       </h3>
 
@@ -48,24 +48,24 @@ export function VaultAuditCategories({
             title={categoryDescription(category.kind)}
             className={`w-full text-left px-2.5 py-2 rounded-md border-l-2 transition-colors ${
               isSelected
-                ? 'border-plm-accent bg-plm-highlight'
-                : 'border-transparent hover:bg-plm-bg-lighter'
+                ? 'border-ui-accent bg-ui-hover'
+                : 'border-transparent hover:bg-ui-field'
             } ${empty ? 'opacity-50 cursor-default hover:bg-transparent' : ''}`}
           >
             <div className="flex items-start justify-between gap-2">
-              <span className={`text-sm ${isSelected ? 'text-plm-fg' : 'text-plm-fg/90'}`}>
+              <span className={`text-[13px] ${isSelected ? 'text-ui-fg' : 'text-ui-fg/90'}`}>
                 {categoryLabel(category.kind)}
               </span>
               <span
-                className={`text-sm font-mono tabular-nums flex-shrink-0 ${
-                  empty ? 'text-plm-fg-muted' : TONE_TEXT[category.tone]
+                className={`text-[13px] font-mono tabular-nums flex-shrink-0 ${
+                  empty ? 'text-ui-fg-secondary' : TONE_TEXT[category.tone]
                 }`}
               >
                 {category.valueCount}
               </span>
             </div>
             {!empty && (
-              <span className="block text-[11px] text-plm-fg-muted mt-0.5">
+              <span className="block text-[12px] text-ui-fg-secondary mt-0.5">
                 {t('vaultAudit.category.files', { count: category.fileCount })}
               </span>
             )}

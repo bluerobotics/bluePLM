@@ -28,11 +28,11 @@ export function OdooConfirmDialog({
       onClick={onCancel}
     >
       <div
-        className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4"
+        className="bg-ui-field border border-ui-divider rounded-xl p-6 max-w-md w-full mx-4"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-[15px] font-semibold text-plm-fg mb-3">{title}</h3>
-        <p className="text-[13px] text-plm-fg-muted mb-5">{children}</p>
+        <h3 className="text-[15px] font-semibold text-ui-fg mb-3">{title}</h3>
+        <p className="text-[14px] text-ui-fg-secondary mb-5">{children}</p>
         <div className="flex gap-2 justify-end">
           <Button variant="ghost" onClick={onCancel} disabled={busy}>
             Cancel

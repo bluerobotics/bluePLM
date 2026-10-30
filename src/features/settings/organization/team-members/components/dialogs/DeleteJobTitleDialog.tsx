@@ -26,11 +26,11 @@ export function DeleteJobTitleDialog({
       onClick={onClose}
     >
       <div
-        className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4"
+        className="bg-ui-field border border-ui-divider rounded-xl p-6 max-w-md w-full mx-4"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-lg font-medium text-plm-fg mb-4">Delete Job Title</h3>
-        <p className="text-base text-plm-fg-muted mb-4">
+        <h3 className="text-lg font-medium text-ui-fg mb-4">Delete Job Title</h3>
+        <p className="text-[14px] text-ui-fg-secondary mb-4">
           Are you sure you want to delete <strong>{title.name}</strong>? Users with this title will
           have it removed.
         </p>
@@ -41,7 +41,7 @@ export function DeleteJobTitleDialog({
           <button
             onClick={onConfirm}
             disabled={isDeleting}
-            className="btn bg-plm-error text-white hover:bg-plm-error/90"
+            className="btn bg-ui-danger text-white hover:bg-ui-danger/90"
           >
             {isDeleting ? 'Deleting...' : 'Delete Title'}
           </button>

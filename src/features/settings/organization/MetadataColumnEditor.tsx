@@ -65,8 +65,8 @@ export function MetadataColumnEditor({
   onSave,
 }: MetadataColumnEditorProps) {
   return (
-    <SettingsGroup className="!border-plm-accent/60">
-      <div className="px-4 py-3 text-[13px] font-semibold text-plm-fg">
+    <SettingsGroup className="!border-ui-accent/60">
+      <div className="px-4 py-3 text-[14px] font-semibold text-ui-fg">
         {isCreating ? 'New Column' : 'Edit Column'}
       </div>
 
@@ -174,13 +174,13 @@ export function MetadataColumnEditor({
                 {column.select_options.map((option) => (
                   <span
                     key={option}
-                    className="inline-flex items-center gap-1 rounded-md border border-plm-border bg-plm-bg px-2 py-1 text-[12px] text-plm-fg"
+                    className="inline-flex items-center gap-1 rounded-md border border-ui-divider bg-ui-bg px-2 py-1 text-[13px] text-ui-fg"
                   >
                     {option}
                     <button
                       type="button"
                       onClick={() => onRemoveOption(option)}
-                      className="rounded p-0.5 text-plm-fg-muted hover:text-plm-error"
+                      className="rounded p-0.5 text-ui-fg-secondary hover:text-ui-danger"
                       aria-label={`Remove ${option}`}
                     >
                       <X size={12} />

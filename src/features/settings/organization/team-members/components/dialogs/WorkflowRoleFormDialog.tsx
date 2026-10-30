@@ -48,26 +48,26 @@ export function WorkflowRoleFormDialog({
       onClick={onClose}
     >
       <div
-        className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-sm w-full mx-4"
+        className="bg-ui-field border border-ui-divider rounded-xl p-6 max-w-sm w-full mx-4"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-lg font-medium text-plm-fg mb-4">{title}</h3>
+        <h3 className="text-lg font-medium text-ui-fg mb-4">{title}</h3>
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-plm-fg mb-1">Role Name</label>
+            <label className="block text-[13px] font-medium text-ui-fg mb-1">Role Name</label>
             <input
               type="text"
               value={formData.name}
               onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
               placeholder="e.g., Design Lead"
-              className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
+              className="w-full px-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-ui-fg placeholder:text-ui-fg-secondary/50 focus:outline-none focus:border-ui-accent"
               autoFocus
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-plm-fg mb-1">
+            <label className="block text-[13px] font-medium text-ui-fg mb-1">
               Description (optional)
             </label>
             <input
@@ -75,12 +75,12 @@ export function WorkflowRoleFormDialog({
               value={formData.description}
               onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
               placeholder="e.g., Leads design reviews"
-              className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent"
+              className="w-full px-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-ui-fg placeholder:text-ui-fg-secondary/50 focus:outline-none focus:border-ui-accent"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-plm-fg mb-1">Color</label>
+            <label className="block text-[13px] font-medium text-ui-fg mb-1">Color</label>
             <div className="flex items-center gap-2">
               <ColorPickerDropdown
                 color={formData.color}
@@ -102,7 +102,7 @@ export function WorkflowRoleFormDialog({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-plm-fg mb-1">Icon</label>
+            <label className="block text-[13px] font-medium text-ui-fg mb-1">Icon</label>
             <IconGridPicker
               value={formData.icon}
               onChange={(icon) => setFormData((prev) => ({ ...prev, icon }))}
@@ -112,7 +112,7 @@ export function WorkflowRoleFormDialog({
           </div>
 
           {isEditMode && (
-            <p className="text-xs text-plm-fg-muted bg-plm-bg p-2 rounded">
+            <p className="text-[12px] text-ui-fg-secondary bg-ui-bg p-2 rounded">
               Changes will update for all users with this role.
             </p>
           )}
