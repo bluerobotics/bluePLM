@@ -14,16 +14,20 @@
  *      domain list; a colleague at the company domain is admitted and lands in the default team.
  *
  * Supabase Auth is played by the test: it asks the hook, and only on '{}' inserts auth.users, as
- * Auth does. The stamp's findings after 0502 must be the baseline's own, nothing added.
+ * Auth does. The stamp's findings after the migrations must be the baseline's own, nothing added.
  */
-import { readFileSync } from 'fs'
+import { readdirSync, readFileSync } from 'fs'
 import { resolve } from 'path'
 import type { PGlite } from '@electric-sql/pglite'
 import { beforeAll, describe, expect, it } from 'vitest'
 
 import { actAs, actAsOwner, bootBaseline, MIGRATIONS, seed } from './testing/schemaDb'
 
-const MIGRATION = readFileSync(resolve(MIGRATIONS, '0502_security_hardening.sql'), 'utf8').replace(/\r\n/g, '\n')
+/** What a fresh 5.0 database takes, in order, up to and including 0502 (0500 is the 4.x upgrade). */
+const AFTER_BASELINE = readdirSync(MIGRATIONS)
+  .filter((f) => /^\d{4}_.+\.sql$/.test(f) && f > '0500' && f < '0503')
+  .sort()
+  .map((f) => readFileSync(resolve(MIGRATIONS, f), 'utf8').replace(/\r\n/g, '\n'))
 
 const FOUNDER = '00000000-0000-0000-0000-0000000000f1'
 const SECOND = '00000000-0000-0000-0000-0000000000f2'
@@ -83,7 +87,7 @@ beforeAll(async () => {
   )
   problemsBefore = before.rows[0].r.problems.map((p) => `${p.status} ${p.object}`).sort()
   await db.exec('BEGIN')
-  await db.exec(MIGRATION)
+  for (const sql of AFTER_BASELINE) await db.exec(sql)
   await db.exec('COMMIT')
 }, 120_000)
 
