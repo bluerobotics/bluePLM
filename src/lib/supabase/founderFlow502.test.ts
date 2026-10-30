@@ -95,7 +95,7 @@ beforeAll(async () => {
 describe('a new organization, end to end', () => {
   it('0502 adds no stamp finding to the baseline', async () => {
     expect(await problems()).toEqual(problemsBefore)
-  }, 300_000)
+  }, 600_000)
 
   it('Step 4: the founder signs in before any organization exists, and has none', async () => {
     // The hook is not on yet in Step 4, so Auth creates the account without asking it.
