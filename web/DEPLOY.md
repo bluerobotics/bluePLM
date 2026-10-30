@@ -10,9 +10,15 @@ Realtime). It does not use the Fastify API, so the API needs no change to serve 
   `blueplm.io/*`, which answers every request on the apex before it reaches the apex DNS record (a
   proxied CNAME left over from the old site). `extensions.blueplm.io` stays on the older `blueplm-site`
   Pages project; `workers.dev` and preview URLs are off.
-- Deploy: `npm run deploy:web` (`scripts/deploy-web.mjs`). It reads `SUPABASE_PROJECT_ID` and
-  `SUPABASE_ACCESS_TOKEN` from `.env`, fetches the anon key from the Supabase Management API, builds,
-  and runs `wrangler deploy` (needs `wrangler login`).
+- Deploys follow releases: the `deploy-web` job in `.github/workflows/release.yml` builds and deploys
+  after a `v*` tag's release is published, using the repository variables `VITE_SUPABASE_URL`,
+  `VITE_SUPABASE_ANON_KEY` and `BLUEPLM_WEB_API_URLS` and the secrets `CLOUDFLARE_API_TOKEN` /
+  `CLOUDFLARE_ACCOUNT_ID` (the token needs Workers Scripts and Workers Routes edit on blueplm.io).
+- By hand: `npm run deploy:web` (`scripts/deploy-web.mjs`). It reads `SUPABASE_PROJECT_ID` and
+  `SUPABASE_ACCESS_TOKEN` from `.env`, fetches the anon key and the orgs' API URLs from the Supabase
+  Management API, builds, and runs `wrangler deploy` (needs `wrangler login`).
+- The API (`https://blueplm-api.up.railway.app`, image `ghcr.io/bluerobotics/blueplm-api:latest`)
+  has `CORS_ORIGINS=https://blueplm.io`, and its origin is in the site's `connect-src`.
 - Supabase Auth: `site_url` `https://blueplm.io`; redirect allow-list `https://blueplm.io`,
   `https://blueplm.io/**`, `http://127.0.0.1:*/auth/callback`, `http://localhost:*/auth/callback`;
   sign-ups disabled (see `.cursor/plans/blueplm-web-security-audit.md` for the other settings).

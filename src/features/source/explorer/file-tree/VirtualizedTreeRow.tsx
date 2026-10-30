@@ -25,6 +25,7 @@ import type { FolderMetrics } from './hooks/useVaultTree'
 import type { OperationType, StagedCheckin, ToastType } from '@/stores/types'
 import type { FolderDiffCounts } from './types'
 import type { User } from '@/types/pdm'
+import { cloudOnlyTextClass } from '@/lib/platform'
 
 /** Default row height in pixels (when listRowSize = 24). Used as fallback. */
 export const TREE_ROW_HEIGHT = getTreeRowHeight(DEFAULT_LIST_ROW_SIZE)
@@ -474,9 +475,7 @@ export const VirtualizedTreeRow = memo(function VirtualizedTreeRow({
           className={`truncate text-sm flex-1 min-w-[5rem] ${
             // For folders: use checkFolderSynced() callback (same as icon) for consistent updates
             // For files: use the file's own diffStatus
-            (file.isDirectory ? !folderIsSynced : file.diffStatus === 'cloud')
-              ? 'italic text-plm-fg-muted'
-              : ''
+            cloudOnlyTextClass(file.isDirectory ? !folderIsSynced : file.diffStatus === 'cloud')
           }`}
         >
           {file.isDirectory || !file.extension

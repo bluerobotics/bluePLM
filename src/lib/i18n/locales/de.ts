@@ -111,6 +111,7 @@ export const de: TranslationDict = {
 
   welcome: {
     downloadDesktop: 'Desktop-App herunterladen',
+    downloadDesktopFor: 'Desktop-App herunterladen ({{os}})',
     signedOutFromAnotherDevice: 'Du wurdest von einem anderen Gerät abgemeldet',
     credentialsRequired: 'Bitte E-Mail-Adresse und Passwort eingeben',
     confirmEmail: 'Bitte bestätige dein Konto über die E-Mail',

@@ -149,6 +149,7 @@ export const en: TranslationDict = {
   // Welcome/Auth Screen
   welcome: {
     downloadDesktop: 'Download the desktop app',
+    downloadDesktopFor: 'Download the desktop app ({{os}})',
     signedOutFromAnotherDevice: 'You were signed out from another device',
     credentialsRequired: 'Please enter email and password',
     confirmEmail: 'Please check your email to confirm your account',
@@ -453,9 +454,11 @@ export const en: TranslationDict = {
     downloadSkippedNoHash_one: '1 file had no downloadable hash',
     downloadSkippedNoHash_other: '{{count}} files had no downloadable hash',
     webDownloadTooMany:
-      '{{count}} files selected. The browser downloads files one at a time, so select {{max}} or fewer.',
+      '{{count}} files selected. A browser download holds at most {{max}} files; select fewer.',
+    webDownloadTooLarge:
+      'The selection is {{size}} GB. A browser download holds at most {{max}} GB; select less, or use the desktop app.',
+    webDownloadZipping: 'Zipping {{count}} files...',
     webDownloadStarted_one: 'Downloading 1 file',
-    webDownloadStarted_other: 'Downloading {{count}} files',
     webDownloadFailed: 'Could not download {{name}}: {{error}}',
     downloadVersion: 'Download this version',
     getLatest: 'Get Latest',

@@ -1,7 +1,7 @@
 /**
- * The download command on BluePLM Web (no Electron bridge): each cloud file goes to the browser's
- * own download. Nothing is written to a vault folder, so no folder is created, nothing is made
- * read-only, the sync index is untouched and the store rows stay `cloud`.
+ * The download command on BluePLM Web (no Electron bridge): one cloud file goes to the browser's
+ * own download, several are saved as one zip. Nothing is written to a vault folder, so no folder is
+ * created, nothing is made read-only, the sync index is untouched and the store rows stay `cloud`.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -17,8 +17,10 @@ vi.mock('../../storage', () => ({
   getDownloadUrl: (...args: unknown[]) => getDownloadUrl(...args),
 }))
 const saveUrlAs = vi.fn()
+const saveBlobAs = vi.fn()
 vi.mock('../../browserDownload', () => ({
   saveUrlAs: (...args: unknown[]) => saveUrlAs(...args),
+  saveBlobAs: (...args: unknown[]) => saveBlobAs(...args),
 }))
 const addToSyncIndex = vi.fn()
 vi.mock('../../cache/localSyncIndex', () => ({
@@ -28,8 +30,9 @@ vi.mock('../../../stores/pdmStore', () => ({
   usePDMStore: { getState: () => ({}) },
 }))
 
-// No bridge: the web.
+// No bridge: the web. Storage answers each signed URL with the URL as the body.
 vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() })
+vi.stubGlobal('fetch', async (url: string) => new Response(`bytes of ${url}`))
 
 const { downloadCommand } = await import('./download')
 
@@ -83,6 +86,7 @@ function makeContext(files: LocalFile[]): CommandContext {
     addProgressToast: vi.fn(),
     updateProgressToast: vi.fn(),
     removeToast: vi.fn(),
+    isProgressToastCancelled: vi.fn(() => false),
     addProcessingFoldersSync: vi.fn(),
     addExpectedFileChanges: vi.fn(),
     updateFilesAndClearProcessing: vi.fn(),
@@ -100,7 +104,21 @@ describe('downloadCommand.execute on the web', () => {
     }))
   })
 
-  it('saves each file of a selected folder through the browser under its own name', async () => {
+  it('saves one selected file through the browser under its own name', async () => {
+    const a = cloudFile('Parts/a.sldprt')
+    const ctx = makeContext([a])
+
+    const result = await downloadCommand.execute({ files: [a] }, ctx)
+
+    expect(result).toMatchObject({ success: true, total: 1, succeeded: 1, failed: 0 })
+    expect(getDownloadUrl).toHaveBeenCalledWith('org-1', 'hash-Parts/a.sldprt', 300, {
+      downloadName: 'a.sldprt',
+    })
+    expect(saveUrlAs.mock.calls).toEqual([['https://signed/hash-Parts/a.sldprt', 'a.sldprt']])
+    expect(saveBlobAs).not.toHaveBeenCalled()
+  })
+
+  it('saves the files of a selected folder as one zip named after the folder', async () => {
     const folder = cloudFolder('Parts')
     const a = cloudFile('Parts/a.sldprt')
     const b = cloudFile('Parts/b.sldprt')
@@ -109,13 +127,12 @@ describe('downloadCommand.execute on the web', () => {
     const result = await downloadCommand.execute({ files: [folder] }, ctx)
 
     expect(result).toMatchObject({ success: true, total: 2, succeeded: 2, failed: 0 })
-    expect(getDownloadUrl).toHaveBeenCalledWith('org-1', 'hash-Parts/a.sldprt', 300, {
-      downloadName: 'a.sldprt',
-    })
-    expect(saveUrlAs.mock.calls).toEqual([
-      ['https://signed/hash-Parts/a.sldprt', 'a.sldprt'],
-      ['https://signed/hash-Parts/b.sldprt', 'b.sldprt'],
-    ])
+    expect(saveUrlAs).not.toHaveBeenCalled()
+    expect(saveBlobAs).toHaveBeenCalledTimes(1)
+    expect(saveBlobAs.mock.calls[0][0]).toBe('Parts.zip')
+    // A progress toast while the zip builds, gone afterwards.
+    expect(ctx.addProgressToast).toHaveBeenCalled()
+    expect(ctx.removeToast).toHaveBeenCalled()
     // Nothing local: no store updates, no sync index, no refresh.
     expect(ctx.updateFilesAndClearProcessing).not.toHaveBeenCalled()
     expect(ctx.updateFilesInStore).not.toHaveBeenCalled()
@@ -146,15 +163,17 @@ describe('downloadCommand.execute on the web', () => {
 
     expect(result).toMatchObject({ success: false, succeeded: 1, failed: 1 })
     expect(result.errors).toEqual(['bad.pdf: missing'])
-    expect(saveUrlAs).toHaveBeenCalledTimes(1)
+    // The good file is still zipped and saved.
+    expect(saveBlobAs).toHaveBeenCalledTimes(1)
   })
 
   it('refuses a selection over the browser limit without saving anything', async () => {
-    const files = Array.from({ length: 51 }, (_, i) => cloudFile(`f${i}.pdf`))
+    const files = Array.from({ length: 2001 }, (_, i) => cloudFile(`f${i}.pdf`))
     const ctx = makeContext(files)
     const result = await downloadCommand.execute({ files }, ctx)
-    expect(result).toMatchObject({ success: false, total: 51, succeeded: 0 })
+    expect(result).toMatchObject({ success: false, total: 2001, succeeded: 0 })
     expect(saveUrlAs).not.toHaveBeenCalled()
+    expect(saveBlobAs).not.toHaveBeenCalled()
     expect(ctx.addToast).toHaveBeenCalledWith('error', expect.any(String))
   })
 })

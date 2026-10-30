@@ -110,6 +110,7 @@ export const es: TranslationDict = {
 
   welcome: {
     downloadDesktop: 'Descargar la aplicación de escritorio',
+    downloadDesktopFor: 'Descargar la aplicación de escritorio ({{os}})',
     signedOutFromAnotherDevice: 'Se cerró tu sesión desde otro dispositivo',
     credentialsRequired: 'Introduce el correo electrónico y la contraseña',
     confirmEmail: 'Confirma tu cuenta mediante el correo electrónico',

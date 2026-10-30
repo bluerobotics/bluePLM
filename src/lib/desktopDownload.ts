@@ -9,6 +9,9 @@ export const LATEST_RELEASE_API_URL = 'https://api.github.com/repos/bluerobotics
 
 export type DesktopOs = 'windows' | 'mac' | 'linux'
 
+/** Product names, shown as-is in every language. */
+export const DESKTOP_OS_NAMES: Record<DesktopOs, string> = { windows: 'Windows', mac: 'macOS', linux: 'Linux' }
+
 export interface ReleaseAsset {
   name: string
   browser_download_url: string

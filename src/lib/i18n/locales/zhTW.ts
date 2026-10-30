@@ -106,6 +106,7 @@ export const zhTW: TranslationDict = {
 
   welcome: {
     downloadDesktop: '下載桌面應用程式',
+    downloadDesktopFor: '下載桌面應用程式（{{os}}）',
     signedOutFromAnotherDevice: '您的帳戶已從另一台裝置登出',
     credentialsRequired: '請輸入電子郵件和密碼',
     confirmEmail: '請透過電子郵件確認您的帳戶',

@@ -34,11 +34,23 @@ const keys = await response.json()
 const anon = keys.find((key) => key.name === 'anon')?.api_key
 if (!anon) throw new Error('No anon key returned for the project')
 
+// The orgs' API servers (organizations.settings.api_url), which the build allows in connect-src.
+const apiQuery = await globalThis.fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
+  method: 'POST',
+  headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    query: "select distinct settings->>'api_url' as url from organizations where coalesce(settings->>'api_url', '') <> ''",
+  }),
+})
+if (!apiQuery.ok) throw new Error(`Supabase API URL query failed: ${apiQuery.status}`)
+const apiUrls = (await apiQuery.json()).map((row) => row.url)
+
 const shell = process.platform === 'win32'
 const buildEnv = {
   ...process.env,
   VITE_SUPABASE_URL: `https://${ref}.supabase.co`,
   VITE_SUPABASE_ANON_KEY: anon,
+  BLUEPLM_WEB_API_URLS: apiUrls.join(','),
 }
 execFileSync('npm', ['run', 'build:web'], { cwd: root, env: buildEnv, stdio: 'inherit', shell })
 

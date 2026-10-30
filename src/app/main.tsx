@@ -3,6 +3,10 @@ import { App } from './App'
 import { ErrorBoundary } from '@/components/core'
 import { initAnalytics, trackError } from '@/lib/analytics'
 import '@/index.css'
+import { hasDesktop } from '@/lib/platform'
+
+// Lets index.css style the browser build (BluePLM Web) where it differs from the desktop.
+if (!hasDesktop()) document.documentElement.dataset.host = 'web'
 
 // Initialize Sentry analytics if user has consented
 // Read from persisted store in localStorage

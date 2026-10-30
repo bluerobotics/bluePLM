@@ -7,6 +7,7 @@ import {
   getCheckoutDisplayUser,
   type CheckoutDisplayUser,
 } from '@/lib/checkout/checkoutDisplay'
+import { hasDesktop } from '@/lib/platform'
 
 export interface CheckoutUser extends CheckoutDisplayUser {
   isDifferentMachine?: boolean
@@ -230,7 +231,8 @@ function getFolderIconColor(
 ): string {
   if (!file.isDirectory) return ''
 
-  if (file.diffStatus === 'cloud') return 'text-plm-fg-muted opacity-50'
+  // Faded only where it tells cloud from downloaded: on the web every folder is cloud-only.
+  if (file.diffStatus === 'cloud') return hasDesktop() ? 'text-plm-fg-muted opacity-50' : 'text-plm-fg-muted'
 
   const folderPath = file.relativePath.replace(/\\/g, '/')
   const folderPrefix = folderPath + '/'

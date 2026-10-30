@@ -106,6 +106,7 @@ export const zhCN: TranslationDict = {
 
   welcome: {
     downloadDesktop: '下载桌面应用',
+    downloadDesktopFor: '下载桌面应用（{{os}}）',
     signedOutFromAnotherDevice: '您的账户已从另一台设备退出',
     credentialsRequired: '请输入电子邮箱和密码',
     confirmEmail: '请通过电子邮件确认您的账户',

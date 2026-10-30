@@ -54,6 +54,16 @@ describe('buildContentSecurityPolicy', () => {
 
   it('connects only to this origin and the pinned Supabase host', () => {
     expect(csp.get('connect-src')).toEqual(["'self'", URL_, 'wss://abcdefgh.supabase.co', 'https://api.github.com'])
+    // The org's API server, by origin, when the build is given one.
+    const withApi = directives(buildContentSecurityPolicy(URL_, ['https://api.example.com/v1/', ' ', 'https://API.example.com']))
+    expect(withApi.get('connect-src')).toEqual([
+      "'self'",
+      URL_,
+      'wss://abcdefgh.supabase.co',
+      'https://api.example.com',
+      'https://api.github.com',
+    ])
+    expect(() => buildContentSecurityPolicy(URL_, ['http://api.example.com'])).toThrow(/https/)
   })
 
   it('limits images and frames to this origin, the Supabase host and local blob: URLs', () => {

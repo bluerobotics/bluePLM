@@ -1,7 +1,12 @@
 import { useState } from 'react'
 import { Download, Loader2 } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n'
-import { RELEASES_PAGE_URL, resolveDesktopDownloadUrl } from '@/lib/desktopDownload'
+import {
+  DESKTOP_OS_NAMES,
+  RELEASES_PAGE_URL,
+  detectDesktopOs,
+  resolveDesktopDownloadUrl,
+} from '@/lib/desktopDownload'
 
 /**
  * BluePLM Web's sign-in page: download the desktop app for this computer's OS from the latest
@@ -10,6 +15,7 @@ import { RELEASES_PAGE_URL, resolveDesktopDownloadUrl } from '@/lib/desktopDownl
 export function DownloadDesktopButton() {
   const { t } = useTranslation()
   const [busy, setBusy] = useState(false)
+  const [os] = useState(() => detectDesktopOs(navigator.userAgent))
 
   const download = async () => {
     setBusy(true)
@@ -34,7 +40,7 @@ export function DownloadDesktopButton() {
       className="mt-4 w-full btn btn-secondary gap-2 justify-center py-3"
     >
       {busy ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
-      {t('welcome.downloadDesktop')}
+      {os ? t('welcome.downloadDesktopFor', { os: DESKTOP_OS_NAMES[os] }) : t('welcome.downloadDesktop')}
     </button>
   )
 }
