@@ -26,15 +26,16 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-full items-center justify-center p-4">
+    <div className="flex min-h-full flex-col items-center justify-center gap-6 p-4">
+      <h1 className="flex items-center gap-3 text-2xl font-semibold text-plm-fg">
+        <img src="/icon.svg" alt="" width={36} height={36} />
+        BluePLM
+      </h1>
       <div className="w-full max-w-sm rounded-lg border border-plm-border bg-plm-bg-light p-6">
-        <h1 className="text-lg font-semibold text-plm-fg">{t('auth.title')}</h1>
-        <p className="mt-1 text-sm text-plm-fg-muted">{t('auth.subtitle')}</p>
-
         <button
           type="button"
           onClick={google}
-          className="mt-5 w-full rounded border border-plm-border-light bg-plm-bg px-3 py-2 text-sm text-plm-fg hover:bg-plm-bg-lighter"
+          className="w-full rounded border border-plm-border-light bg-plm-bg px-3 py-2 text-sm text-plm-fg hover:bg-plm-bg-lighter"
         >
           {t('auth.signInWithGoogle')}
         </button>
@@ -82,8 +83,15 @@ export function LoginPage() {
           </button>
         </form>
 
-        <p className="mt-5 text-xs text-plm-fg-muted">{t('auth.desktopOnlyHint')}</p>
       </div>
+      <a
+        href="https://github.com/bluerobotics/bluePLM"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-xs text-plm-fg-muted hover:text-plm-fg hover:underline"
+      >
+        GitHub
+      </a>
     </div>
   )
 }

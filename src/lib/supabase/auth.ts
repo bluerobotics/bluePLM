@@ -148,7 +148,7 @@ export async function signInWithGoogle() {
 
 export async function signInWithEmail(email: string, password: string) {
   const client = getSupabaseClient()
-  authLog('info', 'signInWithEmail called', { email })
+  authLog('info', 'signInWithEmail called')
 
   try {
     const { data, error } = await client.auth.signInWithPassword({

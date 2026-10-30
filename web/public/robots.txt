@@ -1,0 +1,4 @@
+# Only the sign-in page is public; everything else needs an account.
+User-agent: *
+Allow: /$
+Disallow: /

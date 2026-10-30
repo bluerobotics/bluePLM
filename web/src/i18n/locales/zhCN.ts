@@ -19,8 +19,6 @@ export const zhCN: WebDict = {
     forbidden: '只有管理员可以打开此页面。',
   },
   auth: {
-    title: '登录 BluePLM',
-    subtitle: '请使用您的组织邀请您时所用的账户。',
     email: '电子邮件',
     password: '密码',
     signIn: '登录',
@@ -31,7 +29,6 @@ export const zhCN: WebDict = {
     invalidCredentials: '电子邮件或密码不正确。',
     noProfile: '您的账户尚未加入任何组织。请让管理员邀请您，然后重新登录。',
     profileFailed: '无法加载您的个人资料。',
-    desktopOnlyHint: '签入和签出文件以及使用 SOLIDWORKS 需要 BluePLM 桌面应用。',
   },
   shell: {
     nav: {

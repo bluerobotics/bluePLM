@@ -6,3 +6,10 @@
 import { clearConfig } from '@/lib/supabaseConfig'
 
 clearConfig()
+
+// The web client signs in with PKCE and ignores implicit-flow tokens, but an email link sent for
+// another client can still land here with `#access_token=…&refresh_token=…`. Drop that fragment
+// so the tokens do not stay in the address bar or history.
+if (/(^|[#&])(access_token|refresh_token)=/.test(window.location.hash.slice(1))) {
+  window.history.replaceState(null, '', window.location.pathname + window.location.search)
+}

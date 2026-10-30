@@ -51,4 +51,9 @@ describe('downloadFileName', () => {
     expect(downloadFileName('..\\evil/name\u0000.txt', 'x')).toBe('.._evil_name_.txt')
     expect(downloadFileName('', 'fallback')).toBe('fallback')
   })
+
+  it('drops bidi and zero-width characters that could disguise the extension', () => {
+    expect(downloadFileName('invoice‮fdp.exe', 'x')).toBe('invoicefdp.exe')
+    expect(downloadFileName('a​b⁦c﻿.pdf', 'x')).toBe('abc.pdf')
+  })
 })

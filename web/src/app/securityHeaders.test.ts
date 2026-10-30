@@ -58,7 +58,7 @@ describe('buildContentSecurityPolicy', () => {
 
   it('limits images and frames to this origin, the Supabase host and local blob: URLs', () => {
     expect(csp.get('img-src')).toEqual(["'self'", URL_, 'blob:', 'data:'])
-    expect(csp.get('frame-src')).toEqual(["'self'", URL_, 'blob:'])
+    expect(csp.get('frame-src')).toEqual(['blob:'])
     // data: is for images only.
     expect(csp.get('frame-src')).not.toContain('data:')
   })

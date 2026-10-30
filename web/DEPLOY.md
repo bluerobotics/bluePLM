@@ -3,13 +3,30 @@
 BluePLM Web is a static single-page app that talks only to Supabase (PostgREST, Auth, Storage,
 Realtime). It does not use the Fastify API, so the API needs no change to serve it.
 
-## 1. Cloudflare Pages project
+## How it is deployed today (2026-10-30)
+
+- Cloudflare Pages project `blueplm-web` (direct upload, no Git connection), production branch
+  `main`, custom domain `blueplm.io`. `extensions.blueplm.io` stays on the older `blueplm-site`
+  project.
+- Deploy: `npm run deploy:web` (`scripts/deploy-web.mjs`). It reads `SUPABASE_PROJECT_ID` and
+  `SUPABASE_ACCESS_TOKEN` from `.env`, fetches the anon key from the Supabase Management API, builds,
+  and uploads `dist-web` with wrangler 4.40 (needs `wrangler login`). `--preview` deploys to the
+  `preview` branch URL instead.
+- DNS: the `blueplm.io` apex record is a proxied CNAME to `blueplm-web.pages.dev`.
+- Supabase Auth: `site_url` `https://blueplm.io`; redirect allow-list `https://blueplm.io`,
+  `https://blueplm.io/**`, `http://127.0.0.1:*/auth/callback`, `http://localhost:*/auth/callback`;
+  sign-ups disabled (see `.cursor/plans/blueplm-web-security-audit.md` for the other settings).
+
+The Git-connected setup below is the alternative if deploys should follow every push to `main`.
+
+## 1. Cloudflare Pages project (Git-connected alternative)
 
 1. Cloudflare dashboard > Workers & Pages > Create > Pages > Connect to Git, pick
    `bluerobotics/bluePLM`, production branch `main`.
 2. Build settings:
    - Framework preset: None
-   - Build command: `npm ci && npm run build:web`
+   - Build command: `npm ci --ignore-scripts && npm run build:web` (no install scripts from the
+     desktop dependency tree run on the build machine)
    - Build output directory: `dist-web`
    - Root directory: (repo root)
 3. Environment variables (Production and Preview):

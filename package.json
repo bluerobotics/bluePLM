@@ -13,6 +13,7 @@
     "preview": "vite preview",
     "build:web": "vite build --config vite.web.config.ts",
     "preview:web": "vite preview --config vite.web.config.ts",
+    "deploy:web": "node scripts/deploy-web.mjs",
     "electron:dev": "vite",
     "typecheck": "npm run typecheck:renderer && npm run typecheck:electron",
     "typecheck:renderer": "tsc --noEmit",

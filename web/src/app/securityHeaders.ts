@@ -50,7 +50,8 @@ export function buildContentSecurityPolicy(supabaseUrl: string): string {
     ['img-src', "'self'", supabase.https, 'blob:', 'data:'],
     ['font-src', "'self'"],
     ['connect-src', "'self'", supabase.https, supabase.wss],
-    ['frame-src', "'self'", supabase.https, 'blob:'],
+    // Only the review PDF is framed, from a blob: URL; signed URLs are navigations, not frames.
+    ['frame-src', 'blob:'],
     ['worker-src', "'self'"],
     ['media-src', "'self'"],
     ['manifest-src', "'self'"],

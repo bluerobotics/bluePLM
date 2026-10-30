@@ -19,10 +19,14 @@ export function storagePathCandidates(orgId: string | null | undefined, hash: st
 
 /**
  * The name the browser saves the download under. Path separators and control characters are
- * replaced so the name cannot point anywhere but the downloads folder.
+ * replaced so the name cannot point anywhere but the downloads folder, and bidi and zero-width
+ * characters are dropped so a name like `invoice‮fdp.exe` cannot pose as a PDF.
  */
 export function downloadFileName(fileName: string | null | undefined, fallback: string): string {
-  // eslint-disable-next-line no-control-regex
-  const cleaned = (fileName ?? '').replace(/[/\\\u0000-\u001f\u007f]/g, '_').trim()
+  const cleaned = (fileName ?? '')
+    // eslint-disable-next-line no-control-regex
+    .replace(/[/\\\u0000-\u001f\u007f]/g, '_')
+    .replace(/[​-‏‪-‮⁦-⁩﻿]/g, '')
+    .trim()
   return cleaned || fallback
 }

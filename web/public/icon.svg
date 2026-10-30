@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle with gradient -->
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a1929"/>
+      <stop offset="100%" stop-color="#0d2137"/>
+    </linearGradient>
+    <linearGradient id="iconGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#00b4d8"/>
+      <stop offset="100%" stop-color="#0096c7"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Rounded square background -->
+  <rect x="0" y="0" width="512" height="512" rx="100" fill="url(#bgGradient)"/>
+  
+  <!-- Stacked layers icon - scaled and centered -->
+  <!-- Top layer (filled) -->
+  <path 
+    d="M256 96L96 176L256 256L416 176L256 96Z" 
+    fill="url(#iconGradient)"
+    opacity="1"
+  />
+  <!-- Middle layer -->
+  <path 
+    d="M96 256L256 336L416 256" 
+    stroke="url(#iconGradient)" 
+    stroke-width="24" 
+    stroke-linecap="round" 
+    stroke-linejoin="round"
+    fill="none"
+  />
+  <!-- Bottom layer -->
+  <path 
+    d="M96 336L256 416L416 336" 
+    stroke="url(#iconGradient)" 
+    stroke-width="24" 
+    stroke-linecap="round" 
+    stroke-linejoin="round"
+    fill="none"
+  />
+</svg>
+

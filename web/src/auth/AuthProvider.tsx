@@ -54,6 +54,20 @@ export interface ReadyAuth extends AuthState {
 
 const AuthContext = createContext<AuthState | null>(null)
 
+/** Stop refreshing and drop this origin's stored Supabase session and PKCE verifier. */
+function forgetStoredSession(client: ReturnType<typeof getSupabaseClient>): void {
+  void client.auth.stopAutoRefresh()
+  try {
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith('sb-') && (key.endsWith('-auth-token') || key.endsWith('-code-verifier'))) {
+        localStorage.removeItem(key)
+      }
+    }
+  } catch {
+    // Storage blocked: nothing was persisted there.
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [sessionLoaded, setSessionLoaded] = useState(false)
@@ -134,8 +148,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     // Local scope: signing out of the browser must not end the user's desktop sessions. The
     // shared signOut() ends them all (global scope) and also tears down desktop-only state.
+    const client = getSupabaseClient()
     try {
-      await getSupabaseClient().auth.signOut({ scope: 'local' })
+      const { error: signOutError } = await client.auth.signOut({ scope: 'local' })
+      // supabase-js keeps the stored session when the server call fails (network, 5xx), and
+      // auto-refresh would bring it back. On a shared machine that must not happen.
+      if (signOutError) forgetStoredSession(client)
+    } catch {
+      forgetStoredSession(client)
     } finally {
       setCurrentAccessToken(null)
       setSession(null)

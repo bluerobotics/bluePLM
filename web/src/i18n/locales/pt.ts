@@ -19,8 +19,6 @@ export const pt: WebDict = {
     forbidden: 'Apenas administradores podem abrir esta página.',
   },
   auth: {
-    title: 'Entrar no BluePLM',
-    subtitle: 'Use a conta com a qual sua organização convidou você.',
     email: 'E-mail',
     password: 'Senha',
     signIn: 'Entrar',
@@ -32,7 +30,6 @@ export const pt: WebDict = {
     noProfile:
       'Sua conta ainda não faz parte de uma organização. Peça a um administrador para convidar você e entre novamente.',
     profileFailed: 'Não foi possível carregar seu perfil.',
-    desktopOnlyHint: 'Fazer check-in e check-out de arquivos, e trabalhar com o SOLIDWORKS, requer o aplicativo de desktop BluePLM.',
   },
   shell: {
     nav: {
