@@ -6,6 +6,16 @@ All notable changes to BluePLM will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **Settings looks like Claude's settings.** The modal now follows the look of Claude's own settings,
+  measured from it: neutral greys, the system font, a darker navigation column with sentence-case
+  items, a plain header with only a close button, and pages that open on their first heading. Settings
+  sit in flat rows divided by thin lines instead of cards, with 14px text, 28px controls and a softer
+  blue switch, in dark and light themes. This is the first step of a refresh of the whole app.
+- **Deleting your account moved to Profile.** It is no longer in the settings navigation; it is the
+  last section of Profile, and still asks you to type a confirmation.
+
 ### Added
 
 - **Export shortcuts and a quick export folder.** Two new shortcuts in Settings > Keybindings queue the selected
