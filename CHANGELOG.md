@@ -6,6 +6,16 @@ All notable changes to BluePLM will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Export shortcuts and a quick export folder.** Two new shortcuts in Settings > Keybindings queue the selected
+  files for export: Export PDF (Ctrl+Shift+P) exports the selected drawings, and Export STEP (Ctrl+Shift+S) exports
+  the selected parts and assemblies, and for a selected drawing the model it references, named with the drawing's
+  metadata. Exports go to the quick export folder set on this computer (Settings > Export, or under the shortcuts),
+  or next to each file when none is set. Shortcuts can be pressed file after file: exports queue and run one at a
+  time, and a file already waiting for the same export is not queued twice. The context menu's Export submenus
+  share the queue and gain "Export to Quick Export Folder" when one is set. Desktop only.
+
 ## [5.1.2] - 2026-10-30
 
 API 4.1.1 (server backups report their progress); no schema change. Update the app; the API redeploys itself.

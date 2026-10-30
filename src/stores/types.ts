@@ -748,6 +748,8 @@ export interface SettingsSlice {
   theme: ThemeMode
   language: Language
   keybindings: KeybindingsConfig
+  /** Where the export shortcuts write on this computer; null exports next to each source file */
+  quickExportFolder: string | null
 
   // State - Tree Filtering
   hideCloudOnlyFolders: boolean // Hide folders containing only cloud (non-downloaded) files
@@ -839,6 +841,7 @@ export interface SettingsSlice {
   setLanguage: (language: Language) => void
   setKeybinding: (action: KeybindingAction, keybinding: Keybinding) => void
   resetKeybindings: () => void
+  setQuickExportFolder: (folder: string | null) => void
 
   // Actions - Tree Filtering
   setHideCloudOnlyFolders: (enabled: boolean) => void

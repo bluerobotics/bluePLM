@@ -417,6 +417,13 @@ export const settingsCatalog: SettingsCatalog = {
     { label: 'Delete', keywords: ['remove'] },
     { label: 'Toggle Details', keywords: ['details panel'] },
     { label: 'Refresh', keywords: ['reload', 'f5'] },
+    { label: 'Export PDF', keywords: ['pdf', 'drawing', 'quick export'], desktopOnly: true },
+    { label: 'Export STEP', keywords: ['step', 'model', 'quick export'], desktopOnly: true },
+    {
+      label: 'Quick export folder',
+      keywords: ['export location', 'default folder', 'output folder'],
+      desktopOnly: true,
+    },
   ],
   modules: [
     { label: 'Modules', keywords: ['features', 'enable', 'disable'] },
@@ -524,6 +531,12 @@ export const settingsCatalog: SettingsCatalog = {
     { label: 'Resolution Quality', keywords: ['resolution', 'quality'] },
     { label: 'Deviation (mm)', keywords: ['tolerance'] },
     { label: 'Binary STL format', keywords: ['binary', 'ascii'] },
+    { label: 'Quick Export', keywords: ['shortcut', 'keybinding'], desktopOnly: true },
+    {
+      label: 'Quick export folder',
+      keywords: ['export location', 'default folder', 'output folder'],
+      desktopOnly: true,
+    },
     { label: 'Token Reference', keywords: ['tokens', 'help'] },
   ],
   rfq: [

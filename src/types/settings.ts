@@ -53,6 +53,8 @@ export type KeybindingAction =
   | 'openFile'
   | 'toggleDetailsPanel'
   | 'refresh'
+  | 'exportPdf'
+  | 'exportStep'
 
 // Keybinding configuration
 export interface Keybinding {

@@ -42,7 +42,7 @@ const defaultCardViewFields: CardViewFieldConfig[] = [
   { id: 'modifiedTime', label: 'Modified', visible: false },
 ]
 
-const defaultKeybindings: KeybindingsConfig = {
+export const defaultKeybindings: KeybindingsConfig = {
   navigateUp: { key: 'ArrowUp' },
   navigateDown: { key: 'ArrowDown' },
   expandFolder: { key: 'ArrowRight' },
@@ -56,6 +56,8 @@ const defaultKeybindings: KeybindingsConfig = {
   openFile: { key: 'Enter' },
   toggleDetailsPanel: { key: 'p', ctrlKey: true },
   refresh: { key: 'r', ctrlKey: true },
+  exportPdf: { key: 'p', ctrlKey: true, shiftKey: true },
+  exportStep: { key: 's', ctrlKey: true, shiftKey: true },
 }
 
 export const createSettingsSlice: StateCreator<
@@ -107,6 +109,7 @@ export const createSettingsSlice: StateCreator<
   theme: 'dark',
   language: 'en',
   keybindings: defaultKeybindings,
+  quickExportFolder: null,
 
   // Initial state - Tree Filtering
   hideCloudOnlyFolders: false, // Show all folders by default
@@ -203,6 +206,7 @@ export const createSettingsSlice: StateCreator<
       keybindings: { ...state.keybindings, [action]: keybinding },
     })),
   resetKeybindings: () => set({ keybindings: defaultKeybindings }),
+  setQuickExportFolder: (quickExportFolder) => set({ quickExportFolder }),
 
   // Actions - Tree Filtering
   setHideCloudOnlyFolders: (hideCloudOnlyFolders) => set({ hideCloudOnlyFolders }),
