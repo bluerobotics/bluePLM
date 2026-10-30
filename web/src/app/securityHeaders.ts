@@ -52,7 +52,8 @@ export function buildContentSecurityPolicy(supabaseUrl: string): string {
     ['img-src', "'self'", supabase.https, 'https://*.googleusercontent.com', 'blob:', 'data:'],
     // pdf.js (review PDFs) may load a drawing's embedded fonts as data: URLs.
     ['font-src', "'self'", 'https://fonts.gstatic.com', 'data:'],
-    ['connect-src', "'self'", supabase.https, supabase.wss],
+    // api.github.com: the sign-in page looks up the latest desktop installer (src/lib/desktopDownload.ts).
+    ['connect-src', "'self'", supabase.https, supabase.wss, 'https://api.github.com'],
     // Only the review PDF is framed, from a blob: URL; signed URLs are navigations, not frames.
     ['frame-src', 'blob:'],
     ['worker-src', "'self'"],

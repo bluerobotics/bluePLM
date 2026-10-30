@@ -168,7 +168,6 @@ export type NotificationCategory =
   | 'system'
 export type NotificationPriority = 'low' | 'normal' | 'high' | 'urgent'
 
-export type AccountType = 'user' | 'supplier'
 export type SupplierAuthMethod = 'email' | 'phone' | 'wechat'
 
 export type MetadataColumnType = 'text' | 'number' | 'date' | 'boolean' | 'select'

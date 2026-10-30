@@ -53,7 +53,7 @@ describe('buildContentSecurityPolicy', () => {
   })
 
   it('connects only to this origin and the pinned Supabase host', () => {
-    expect(csp.get('connect-src')).toEqual(["'self'", URL_, 'wss://abcdefgh.supabase.co'])
+    expect(csp.get('connect-src')).toEqual(["'self'", URL_, 'wss://abcdefgh.supabase.co', 'https://api.github.com'])
   })
 
   it('limits images and frames to this origin, the Supabase host and local blob: URLs', () => {

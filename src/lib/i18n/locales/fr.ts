@@ -109,6 +109,7 @@ export const fr: TranslationDict = {
   },
 
   welcome: {
+    downloadDesktop: "Télécharger l'application de bureau",
     signedOutFromAnotherDevice: 'Vous avez été déconnecté depuis un autre appareil',
     credentialsRequired: 'Veuillez saisir votre adresse e-mail et votre mot de passe',
     confirmEmail: 'Veuillez confirmer votre compte par e-mail',
@@ -119,23 +120,14 @@ export const fr: TranslationDict = {
     verificationFailed: 'Échec de la vérification. Veuillez réessayer.',
     title: 'BluePLM',
     tagline: 'Gestion du cycle de vie des produits open source',
-    selectAccountType: 'Sélectionnez votre type de compte',
-    teamMember: "Membre de l'équipe",
-    teamMemberDesc: 'Ingénieurs, administrateurs et observateurs',
-    supplier: 'Fournisseur',
-    supplierDesc: 'Accès au portail fournisseur',
     workOffline: 'Travailler hors ligne',
     offlineMode: 'Mode hors ligne',
 
-    teamSignIn: "Connexion membre de l'équipe",
-    signInWithOrg: "Connectez-vous avec votre compte d'organisation",
     signInWithGoogle: 'Se connecter avec Google',
     tryAgain: 'Réessayer',
     connecting: 'Connexion...',
     roleSetByOrg: 'Votre rôle (Admin, Ingénieur, Observateur) est défini par votre organisation',
 
-    supplierPortal: 'Portail fournisseur',
-    createAccount: 'Créez votre compte fournisseur',
     signInToAccount: 'Connectez-vous à votre compte',
     email: 'E-mail',
     password: 'Mot de passe',
@@ -156,8 +148,6 @@ export const fr: TranslationDict = {
     useDifferentNumber: 'Utiliser un autre numéro',
     verificationSent: 'Un code de vérification a été envoyé à',
     includeCountryCode: "Incluez l'indicatif pays (ex: +33 pour la France, +1 pour les USA)",
-    supplierInviteNote:
-      "Les fournisseurs sont invités par les organisations. Contactez votre acheteur si vous avez besoin d'accès.",
 
     connectingToOrg: 'Connexion à votre organisation...',
     organizationVaults: "Coffres de l'organisation",

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { createWelcomeCredentialAuthHandlers } from './welcomeCredentialAuth'
+import { createWelcomeCredentialAuthHandlers, signInMethods } from './welcomeCredentialAuth'
 import { en } from '@/lib/i18n/locales/en'
 
 const fixture = vi.hoisted(() => ({
@@ -19,7 +19,6 @@ vi.mock('@/lib/logger', () => ({
 
 function createState() {
   return {
-    accountType: 'user' as const,
     authEmail: 'person@example.test',
     authPassword: 'password',
     authPasswordConfirm: 'password',
@@ -179,5 +178,35 @@ describe('welcome credential authentication preserves the upstream flow', () => 
     expect(state.setAuthError).toHaveBeenCalledWith('welcome.passwordMismatch')
     expect(fixture.createClient).not.toHaveBeenCalled()
     expect(state.setIsSigningIn).not.toHaveBeenCalled()
+  })
+})
+
+describe('signInMethods: one sign-in page for members and supplier contacts', () => {
+  const none = { google: false, email: false, phone: false }
+
+  it('offers a method the org allows for either audience', () => {
+    const providers = {
+      users: { google: true, email: false, phone: false },
+      suppliers: { google: false, email: true, phone: true },
+    }
+    expect(signInMethods(providers, true)).toEqual({ google: true, email: true, phone: true })
+  })
+
+  it('hides a method the org allows for neither audience', () => {
+    const providers = { users: { ...none, google: true }, suppliers: { ...none, email: true } }
+    expect(signInMethods(providers, true)).toEqual({ google: true, email: true, phone: false })
+  })
+
+  it('offers every method on the desktop when the providers could not be loaded', () => {
+    expect(signInMethods(null, true)).toEqual({ google: true, email: true, phone: true })
+  })
+
+  it('offers Google only on the web, whatever the org allows', () => {
+    expect(signInMethods(null, false)).toEqual({ google: true, email: false, phone: false })
+    const providers = {
+      users: { google: true, email: true, phone: true },
+      suppliers: { google: true, email: true, phone: true },
+    }
+    expect(signInMethods(providers, false)).toEqual({ google: true, email: false, phone: false })
   })
 })
