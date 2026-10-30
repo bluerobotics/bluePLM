@@ -162,6 +162,11 @@ export const pt: TranslationDict = {
   },
 
   setup: {
+    joinTarget:
+      'Este link conecta o BluePLM a {{org}} ({{host}}). Conecte-se somente se confiar em quem o enviou.',
+    webJoinLink: 'Link web para entrar',
+    webJoinLinkDesc: 'Abre o BluePLM em um navegador, conectado a esta organização',
+    copyWebJoinLink: 'Copiar o link web para entrar',
     webHostedOnly:
       'O BluePLM Web conecta-se apenas a projetos Supabase hospedados (*.supabase.co). Use o aplicativo para desktop para um backend auto-hospedado.',
     webRedirectHint:

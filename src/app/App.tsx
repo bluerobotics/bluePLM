@@ -18,6 +18,7 @@ import { checkSchemaCompatibility } from '@/lib/schemaVersion'
 import { checkApiVersion } from '@/lib/apiVersion'
 import { registerSettingsNavigationListener } from '@/lib/settingsNavigation'
 import { getAccessibleVaults } from '@/lib/supabase'
+import { JoinLinkGate } from '@/components/shared/Screens/JoinLinkGate'
 import { useVaultWatchers } from '@/hooks/useVaultWatchers'
 import { hashCheckoutIdentifier } from '@/types/pdm'
 import {
@@ -633,12 +634,15 @@ export function App() {
     )
   }
 
+  // A BluePLM Web join link (blueplm.io/join#<org code>) is confirmed before the app shows.
   return (
-    <AppShell
-      showWelcome={showWelcome}
-      isSignInScreen={isSignInScreen}
-      handleChangeOrg={handleChangeOrg}
-    />
+    <JoinLinkGate onConfigured={handleSupabaseConfigured}>
+      <AppShell
+        showWelcome={showWelcome}
+        isSignInScreen={isSignInScreen}
+        handleChangeOrg={handleChangeOrg}
+      />
+    </JoinLinkGate>
   )
 }
 

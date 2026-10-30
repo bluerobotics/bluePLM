@@ -158,6 +158,11 @@ export const zhCN: TranslationDict = {
   },
 
   setup: {
+    joinTarget:
+      '此链接将 BluePLM 连接到 {{org}}（{{host}}）。仅在信任发送者时连接。',
+    webJoinLink: '网页加入链接',
+    webJoinLinkDesc: '在浏览器中打开已连接到此组织的 BluePLM',
+    copyWebJoinLink: '复制网页加入链接',
     webHostedOnly:
       'BluePLM Web 只能连接托管的 Supabase 项目（*.supabase.co）。自托管后端请使用桌面应用。',
     webRedirectHint:

@@ -205,6 +205,11 @@ export const en: TranslationDict = {
 
   // Setup Screen
   setup: {
+    joinTarget:
+      'This link connects BluePLM to {{org}} ({{host}}). Connect only if you trust whoever sent it.',
+    webJoinLink: 'Web join link',
+    webJoinLinkDesc: 'Opens BluePLM in a browser, connected to this organization',
+    copyWebJoinLink: 'Copy the web join link',
     webHostedOnly:
       'BluePLM Web connects to hosted Supabase projects (*.supabase.co) only. Use the desktop app for a self-hosted backend.',
     webRedirectHint:

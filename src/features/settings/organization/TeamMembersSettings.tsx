@@ -27,11 +27,14 @@ import {
   Briefcase,
   Mail,
   X,
+  Globe,
 } from 'lucide-react'
 import { log } from '@/lib/logger'
 import { copyToClipboard } from '@/lib/clipboard'
 import { getCurrentConfig, supabase } from '@/lib/supabase'
 import { generateOrgCode } from '@/lib/supabaseConfig'
+import { joinLinkFor } from '@/lib/joinLink'
+import { useTranslation } from '@/lib/i18n'
 import { subscribeToMemberChanges } from '@/lib/realtime'
 import { usePDMStore } from '@/stores/pdmStore'
 import { useShallow } from 'zustand/react/shallow'
@@ -68,6 +71,8 @@ type TabType = 'users' | 'teams' | 'roles' | 'titles'
  * Main TeamMembersSettings component
  */
 export function TeamMembersSettings() {
+  const { t } = useTranslation()
+  const [joinLinkCopied, setJoinLinkCopied] = useState(false)
   // ===== STORE STATE =====
   const { user, organization, getEffectiveRole, apiServerUrl, addToast } = usePDMStore(
     useShallow((s) => ({
@@ -533,6 +538,38 @@ export function TeamMembersSettings() {
                 {orgCode ? `${orgCode.substring(0, 24)}...` : '...'}
               </code>
               {codeCopied ? (
+                <Check size={14} className="text-green-500" />
+              ) : (
+                <Copy size={14} className="text-plm-fg-muted" />
+              )}
+            </button>
+          </div>
+
+          {/* Web join link: opens blueplm.io connected to this organization (src/lib/joinLink.ts) */}
+          <div className="flex items-center justify-between p-3">
+            <div className="flex items-center gap-3">
+              <Globe size={18} className="text-plm-accent" />
+              <div>
+                <div className="text-sm font-medium text-plm-fg">{t('setup.webJoinLink')}</div>
+                <div className="text-xs text-plm-fg-muted">{t('setup.webJoinLinkDesc')}</div>
+              </div>
+            </div>
+            <button
+              onClick={async () => {
+                const config = getCurrentConfig()
+                const code = orgCode || (config ? generateOrgCode(config, organization?.slug) : null)
+                if (!code) return
+                const result = await copyToClipboard(joinLinkFor(code))
+                if (result.success) {
+                  setJoinLinkCopied(true)
+                  setTimeout(() => setJoinLinkCopied(false), 2000)
+                }
+              }}
+              className="flex items-center gap-2 px-3 py-1.5 bg-plm-bg-secondary border border-plm-border rounded hover:border-plm-accent transition-colors"
+              title={t('setup.copyWebJoinLink')}
+            >
+              <code className="text-sm font-mono text-plm-fg">blueplm.io/join#…</code>
+              {joinLinkCopied ? (
                 <Check size={14} className="text-green-500" />
               ) : (
                 <Copy size={14} className="text-plm-fg-muted" />
