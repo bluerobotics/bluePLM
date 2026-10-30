@@ -1120,6 +1120,7 @@ export const fr: TranslationDict = {
     statusInterrupted: "Interrompue, reprise",
     interruptedDetail: "Le serveur a redémarré pendant cette exécution (une mise à jour) et a continué dans l'exécution ci-dessus. Rien n'a été perdu.",
     howToRestore: "Comment restaurer une sauvegarde du serveur",
+    fullTestSchedule: "Un test de restauration complet s’exécute automatiquement tous les 30 jours, 4 heures après la sauvegarde de nuit.",
   },
   backupPanel: {
     title: "Sauvegarde et restauration",

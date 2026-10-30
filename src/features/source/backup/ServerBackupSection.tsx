@@ -162,6 +162,7 @@ export function ServerBackupSection({
 
       {/* Test and request state */}
       <div className="text-xs text-plm-fg-muted space-y-1">
+        {config.is_schedule_enabled && <div>{t('serverBackup.fullTestSchedule')}</div>}
         {lastTest && (
           <div>
             {t('serverBackup.lastTest', {

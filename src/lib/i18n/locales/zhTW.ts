@@ -1070,6 +1070,7 @@ export const zhTW: TranslationDict = {
     statusInterrupted: "已中斷，已繼續",
     interruptedDetail: "伺服器在本次執行期間重新啟動（更新），已在上面的執行中繼續。沒有遺失任何內容。",
     howToRestore: "如何還原伺服器備份",
+    fullTestSchedule: "每 30 天自動執行一次完整還原測試，在夜間備份 4 小時後開始。",
   },
   backupPanel: {
     title: "備份與還原",

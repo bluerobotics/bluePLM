@@ -1124,6 +1124,7 @@ export const de: TranslationDict = {
     statusInterrupted: "Unterbrochen, fortgesetzt",
     interruptedDetail: "Der Server wurde während dieses Laufs neu gestartet (ein Update) und hat im Lauf darüber weitergemacht. Es ging nichts verloren.",
     howToRestore: "So stellen Sie eine Server-Sicherung wieder her",
+    fullTestSchedule: "Ein vollständiger Wiederherstellungstest läuft automatisch alle 30 Tage, 4 Stunden nach der nächtlichen Sicherung.",
   },
   backupPanel: {
     title: "Sicherung und Wiederherstellung",

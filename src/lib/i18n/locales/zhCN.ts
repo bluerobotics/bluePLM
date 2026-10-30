@@ -1070,6 +1070,7 @@ export const zhCN: TranslationDict = {
     statusInterrupted: "已中断，已继续",
     interruptedDetail: "服务器在本次运行期间重启（更新），已在上面的运行中继续。没有丢失任何内容。",
     howToRestore: "如何恢复服务器备份",
+    fullTestSchedule: "每 30 天自动运行一次完整恢复测试，在夜间备份 4 小时后开始。",
   },
   backupPanel: {
     title: "备份与恢复",

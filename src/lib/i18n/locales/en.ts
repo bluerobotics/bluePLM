@@ -2441,6 +2441,7 @@ export const en: TranslationDict = {
     statusInterrupted: "Interrupted, resumed",
     interruptedDetail: "The server restarted during this run (an update), so it carried on in the run above. Nothing was lost.",
     howToRestore: "How to restore a server backup",
+    fullTestSchedule: "A full restore test runs automatically every 30 days, 4 hours after the nightly backup.",
   },
   backupPanel: {
     title: "Backup & Restore",

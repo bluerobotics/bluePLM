@@ -1114,6 +1114,7 @@ export const pt: TranslationDict = {
     statusInterrupted: "Interrompido, retomado",
     interruptedDetail: "O servidor reiniciou durante esta execução (uma atualização) e continuou na execução acima. Nada foi perdido.",
     howToRestore: "Como restaurar um backup do servidor",
+    fullTestSchedule: "Um teste de restauração completo é executado automaticamente a cada 30 dias, 4 horas após o backup noturno.",
   },
   backupPanel: {
     title: "Backup e restauração",

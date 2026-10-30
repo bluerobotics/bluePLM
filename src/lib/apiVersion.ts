@@ -38,7 +38,7 @@ import { usePDMStore } from '../stores/pdmStore'
 
 // The API version this app version expects
 // Uses semver: MAJOR.MINOR.PATCH
-export const EXPECTED_API_VERSION = '4.1.1'
+export const EXPECTED_API_VERSION = '4.1.2'
 
 // Minimum API version that will still work (for soft warnings vs hard errors)
 // Breaking changes should bump the major version and update this
@@ -88,6 +88,8 @@ export const API_VERSION_DESCRIPTIONS: Record<string, string> = {
     'Server backups: a backup worker runs scheduled and requested backups and backup tests for organizations that choose server backups (backup_config.run_location, schema 501), with no desktop on. Needs SUPABASE_SERVICE_KEY; BACKUP_WORKER=false turns it off. Per-client rate limits on Railway: its edge reaches the API from a public address that TRUST_PROXY cannot match, so every caller shared one bucket; the rate limiter and the request log now take the client address from CLIENT_IP_HEADER (default x-real-ip on Railway, which its edge overwrites on every public request; first entry, validated as an IP, else request.ip; off turns it off). TRUST_PROXY is unchanged for other hosts.',
   '4.1.1':
     'A server backup or test in progress records how far it is (backup_history.report.progress: phase, done, total, bytes uploaded) every 30 s, so the backup page can show it.',
+  '4.1.2':
+    'Scheduled full test: every 30 days, 4 hours after the nightly backup slot, the backup worker reads every blob back and checks it (kind verify, trigger scheduled). A test a restart cut short is resumed in the same mode, like a backup.',
 }
 
 export interface ApiVersionCheckResult {

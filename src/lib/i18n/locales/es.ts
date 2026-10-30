@@ -1113,6 +1113,7 @@ export const es: TranslationDict = {
     statusInterrupted: "Interrumpida, reanudada",
     interruptedDetail: "El servidor se reinició durante esta ejecución (una actualización) y continuó en la ejecución de arriba. No se perdió nada.",
     howToRestore: "Cómo restaurar una copia del servidor",
+    fullTestSchedule: "Una prueba de restauración completa se ejecuta automáticamente cada 30 días, 4 horas después de la copia nocturna.",
   },
   backupPanel: {
     title: "Copia de seguridad y restauración",

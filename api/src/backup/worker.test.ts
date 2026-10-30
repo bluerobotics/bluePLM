@@ -13,7 +13,7 @@ import { FakeSupabase } from '../../../src/test/fakeSupabase.js'
 import { seededBytes, SimulatedOrg } from '../../test/backupSim.js'
 import { MemoryObjectStore } from './objectStore.js'
 import { BackupRepository } from './repository.js'
-import { BackupWorker, planJob, type ServerBackupConfig } from './worker.js'
+import { BackupWorker, dueFullTest, planJob, type ServerBackupConfig } from './worker.js'
 
 const SCHEMA_501: Record<string, string[]> = {
   backup_config: [
@@ -154,13 +154,15 @@ describe('BackupWorker', () => {
     expect(report.verify).toMatchObject({ ok: true, blobsRead: 3 })
     expect((await (await w.repo()).listSnapshots()).manifests).toHaveLength(1)
 
-    // Not again the same day; again the next night.
+    // No second backup the same day (the tick may run the first scheduled full test, which is
+    // due in this window); the next backup the next night.
+    const backups = () => w.history().filter((r) => r.kind === 'backup')
     w.clock.now += 60_000
     await tick(worker)
-    expect(w.history()).toHaveLength(1)
+    expect(backups()).toHaveLength(1)
     w.clock.now = Date.parse('2026-07-02T02:00:30Z')
     await tick(worker)
-    expect(w.history()).toHaveLength(2)
+    expect(backups()).toHaveLength(2)
   })
 
   it('records its progress on the running history row, then replaces it with the result', async () => {
@@ -286,3 +288,79 @@ describe('BackupWorker', () => {
     expect(w.history()[1]).toMatchObject({ trigger: 'manual', status: 'completed' })
   })
 })
+
+describe('scheduled full test', () => {
+  const base = world({ schedule_hour: 2, schedule_timezone: 'America/Los_Angeles' }).config() as unknown as ServerBackupConfig
+  const day = 24 * 3_600_000
+  // 02:00 PDT is 09:00 UTC; the full test's window opens at 06:00 PDT (13:00 UTC) for 12 h.
+  const backedUp = { lastGoodBackupAt: Date.parse('2026-10-30T09:05:00Z'), lastFullTestAt: null }
+
+  it('runs in the quiet window after the nightly backup, and not outside it', () => {
+    expect(dueFullTest(base, new Date('2026-10-30T13:30:00Z'), backedUp)).toBe(Date.parse('2026-10-30T13:00:00Z'))
+    expect(dueFullTest(base, new Date('2026-10-30T12:00:00Z'), backedUp)).toBeNull()
+    expect(dueFullTest(base, new Date('2026-10-31T01:30:00Z'), backedUp)).toBeNull()
+  })
+
+  it('runs every 30 days, and never with nothing backed up or no schedule', () => {
+    const at = new Date('2026-10-30T13:30:00Z')
+    expect(dueFullTest(base, at, { ...backedUp, lastFullTestAt: at.getTime() - 10 * day })).toBeNull()
+    expect(dueFullTest(base, at, { ...backedUp, lastFullTestAt: at.getTime() - 30 * day })).not.toBeNull()
+    expect(dueFullTest(base, at, { lastGoodBackupAt: null, lastFullTestAt: null })).toBeNull()
+    expect(dueFullTest({ ...base, is_schedule_enabled: false }, at, backedUp)).toBeNull()
+  })
+
+  it('comes after a due backup and a requested test', () => {
+    const at = new Date('2026-10-30T13:30:00Z')
+    expect(planJob({ ...base, last_scheduled_slot_at: '2026-10-30T09:00:00Z' }, at, backedUp)).toMatchObject({
+      kind: 'verify',
+      trigger: 'scheduled',
+      verifyMode: 'full',
+    })
+    expect(planJob({ ...base, last_scheduled_slot_at: '2026-10-29T09:00:00Z' }, at, backedUp)).toMatchObject({
+      kind: 'backup',
+    })
+  })
+
+  it('the worker runs it once in the window, recorded as a scheduled full test', async () => {
+    const w = world({
+      schedule_hour: 2,
+      schedule_minute: 0,
+      schedule_timezone: 'America/Los_Angeles',
+      last_scheduled_slot_at: '2026-10-30T09:00:00.000Z',
+      backup_requested_at: '2026-10-30T09:01:00Z',
+    })
+    w.clock.now = Date.parse('2026-10-30T09:02:00Z')
+    const worker = w.worker()
+    await tick(worker)
+    expect(w.history()[0]).toMatchObject({ kind: 'backup', status: 'completed' })
+
+    w.clock.now = Date.parse('2026-10-30T13:30:00Z')
+    await tick(worker)
+    expect(w.history()[1]).toMatchObject({ kind: 'verify', trigger: 'scheduled', status: 'completed' })
+    expect((w.history()[1].report as { verify: { mode: string } }).verify.mode).toBe('full')
+
+    w.clock.now = Date.parse('2026-10-30T14:30:00Z')
+    await tick(worker)
+    expect(w.history()).toHaveLength(2)
+  })
+
+  it('resumes a test a restart cut short, in the same mode', async () => {
+    const w = world({ backup_started_at: '2026-07-01T11:00:00.000Z' })
+    w.fake.rows('backup_history').push({
+      id: 'stale-test',
+      org_id: w.org.orgId,
+      started_at: '2026-07-01T11:00:00.000Z',
+      status: 'running',
+      machine_id: 'server:dead',
+      machine_name: 'BluePLM server',
+      kind: 'verify',
+      trigger: 'manual',
+      runner: 'server',
+      report: { mode: 'full' },
+    })
+    await tick(w.worker())
+    expect(w.history()[0]).toMatchObject({ status: 'failed', error_details: { interrupted: true } })
+    expect(w.config()).toMatchObject({ verify_requested_at: '2026-07-01T12:00:00.000Z', verify_mode: 'full' })
+  })
+})
+

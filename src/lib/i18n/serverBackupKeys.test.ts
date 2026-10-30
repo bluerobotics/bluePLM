@@ -63,6 +63,7 @@ const KEYS = [
   'serverBackup.statusInterrupted',
   'serverBackup.interruptedDetail',
   'serverBackup.howToRestore',
+  'serverBackup.fullTestSchedule',
 ] as const
 
 describe('serverBackup.* keys exist in every locale', () => {

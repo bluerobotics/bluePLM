@@ -29,7 +29,7 @@ import { runServerBackup, seriousProblems, silentLogger, type BackupLogger } fro
 import type { ObjectStore } from './objectStore.js'
 import { BackupRepository } from './repository.js'
 import { applyRetention, type PruneResult } from './retention.js'
-import { dueSlot } from './schedule.js'
+import { dueSlot, latestSlot } from './schedule.js'
 import type { BackupSource } from './source.js'
 import { verifyRepository, type VerifyMode, type VerifyReport } from './verify.js'
 
@@ -98,8 +98,51 @@ export function isServerConfigComplete(config: ServerBackupConfig): boolean {
   return !!(config.bucket && config.access_key_encrypted && config.secret_key_encrypted && config.restic_password_encrypted)
 }
 
+/** How often the repository is read back in full without anyone asking (a full test). */
+export const FULL_TEST_INTERVAL_DAYS = 30
+/** The full test starts this long after the nightly backup slot, once the backup is done. */
+export const FULL_TEST_DELAY_HOURS = 4
+/** ...and only within this many hours of that, so it never drifts into the next backup. */
+export const FULL_TEST_WINDOW_HOURS = 12
+
+/** History the planner needs beyond backup_config (read in the worker's tick). */
+export interface PlanHistory {
+  /** When the last backup that committed a snapshot started. */
+  lastGoodBackupAt: number | null
+  /** When the last full test that ran to the end started, passed or failed. */
+  lastFullTestAt: number | null
+}
+
+/**
+ * The scheduled full test due now, or null. Every FULL_TEST_INTERVAL_DAYS days, in the quiet
+ * window FULL_TEST_DELAY_HOURS after the nightly backup slot: the sample test after each backup
+ * reads ten blobs, so a blob that rots in the bucket would otherwise go unnoticed until a restore.
+ */
+export function dueFullTest(config: ServerBackupConfig, now: Date, history: PlanHistory): number | null {
+  if (!config.is_schedule_enabled || history.lastGoodBackupAt === null) return null
+  const hour = 3_600_000
+  const schedule = {
+    enabled: true,
+    hour: config.schedule_hour ?? 0,
+    minute: config.schedule_minute ?? 0,
+    timezone: config.schedule_timezone || 'UTC',
+  }
+  const at = now.getTime()
+  const windowStart = latestSlot(schedule, at - FULL_TEST_DELAY_HOURS * hour) + FULL_TEST_DELAY_HOURS * hour
+  if (at - windowStart >= FULL_TEST_WINDOW_HOURS * hour) return null
+  if (history.lastFullTestAt !== null) {
+    if (history.lastFullTestAt >= windowStart) return null
+    if (at - history.lastFullTestAt < (FULL_TEST_INTERVAL_DAYS - 1) * 24 * hour) return null
+  }
+  return windowStart
+}
+
 /** What, if anything, to run for this configuration now. Pure; exported for tests. */
-export function planJob(config: ServerBackupConfig, now: Date): PlannedJob | null {
+export function planJob(
+  config: ServerBackupConfig,
+  now: Date,
+  history: PlanHistory = { lastGoodBackupAt: null, lastFullTestAt: null },
+): PlannedJob | null {
   if (config.run_location !== 'server' || !isServerConfigComplete(config)) return null
   if (config.backup_requested_at) {
     return { kind: 'backup', trigger: 'manual', slot: null, verifyMode: 'sample', requestedBy: config.backup_requested_by }
@@ -118,6 +161,9 @@ export function planJob(config: ServerBackupConfig, now: Date): PlannedJob | nul
   if (config.verify_requested_at) {
     const mode: VerifyMode = config.verify_mode === 'quick' || config.verify_mode === 'full' ? config.verify_mode : 'sample'
     return { kind: 'verify', trigger: 'manual', slot: null, verifyMode: mode, requestedBy: config.verify_requested_by }
+  }
+  if (dueFullTest(config, now, history) !== null) {
+    return { kind: 'verify', trigger: 'scheduled', slot: null, verifyMode: 'full', requestedBy: null }
   }
   return null
 }
@@ -182,7 +228,7 @@ export class BackupWorker {
         await this.recoverInterrupted(config)
         continue
       }
-      const job = planJob(config, this.now())
+      const job = planJob(config, this.now(), await this.planHistory(config.org_id))
       if (!job) continue
       const lockId = await this.claim(config.org_id)
       if (!lockId) continue
@@ -207,6 +253,36 @@ export class BackupWorker {
     return (data ?? []) as unknown as ServerBackupConfig[]
   }
 
+  /** The last good backup and the last full test that ran to the end, from backup_history. */
+  private async planHistory(orgId: string): Promise<PlanHistory> {
+    const { data } = await this.untyped()
+      .from('backup_history')
+      .select('kind, status, started_at, error_details, report')
+      .eq('org_id', orgId)
+      .eq('runner', 'server')
+      .order('started_at', { ascending: false })
+      .limit(60)
+    const rows = (data ?? []) as Array<{
+      kind: string
+      status: string
+      started_at: string
+      error_details: { interrupted?: boolean } | null
+      report: { mode?: string; verify?: { mode?: string } } | null
+    }>
+    const good = rows.find((r) => r.kind === 'backup' && (r.status === 'completed' || r.status === 'warning'))
+    const fullTest = rows.find(
+      (r) =>
+        r.kind === 'verify' &&
+        r.status !== 'running' &&
+        !r.error_details?.interrupted &&
+        (r.report?.verify?.mode ?? r.report?.mode) === 'full',
+    )
+    return {
+      lastGoodBackupAt: good ? Date.parse(good.started_at) : null,
+      lastFullTestAt: fullTest ? Date.parse(fullTest.started_at) : null,
+    }
+  }
+
   /**
    * A job marked running with no live lock was interrupted (a deploy or crash
    * killed the process). Its history rows are closed as failed, and an
@@ -227,11 +303,11 @@ export class BackupWorker {
 
     const { data: stale } = await db
       .from('backup_history')
-      .select('id, kind')
+      .select('id, kind, report')
       .eq('org_id', config.org_id)
       .eq('status', 'running')
       .eq('runner', 'server')
-    const staleRows = (stale ?? []) as Array<{ id: string; kind: string }>
+    const staleRows = (stale ?? []) as Array<{ id: string; kind: string; report: { mode?: string } | null }>
     for (const row of staleRows) {
       await db
         .from('backup_history')
@@ -247,21 +323,30 @@ export class BackupWorker {
     const since = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()
     const { data: recent } = await db
       .from('backup_history')
-      .select('id, error_details')
+      .select('id, kind, error_details')
       .eq('org_id', config.org_id)
-      .eq('kind', 'backup')
       .gte('started_at', since)
-    const interruptions = ((recent ?? []) as Array<{ error_details: { interrupted?: boolean } | null }>).filter(
-      (row) => row.error_details?.interrupted,
-    ).length
-    const resume = staleRows.some((row) => row.kind === 'backup') && interruptions <= 3
+    const recentRows = (recent ?? []) as Array<{ kind: string; error_details: { interrupted?: boolean } | null }>
+    const interruptions = (kind: string) =>
+      recentRows.filter((row) => row.kind === kind && row.error_details?.interrupted).length
+    const staleBackup = staleRows.some((row) => row.kind === 'backup')
+    const staleTest = staleRows.find((row) => row.kind === 'verify')
     const patch: Record<string, unknown> = { backup_started_at: null }
-    if (resume) {
+    if (staleBackup && interruptions('backup') <= 3) {
       patch.backup_requested_at = now.toISOString()
       patch.backup_requested_by = 'BluePLM server (resuming an interrupted backup)'
     }
+    // A test cut short is started again in the same mode (it reads the repository from the start;
+    // nothing it read is lost, it is only time).
+    if (staleTest && interruptions('verify') <= 3) {
+      const mode = staleTest.report?.mode
+      patch.verify_requested_at = now.toISOString()
+      patch.verify_requested_by = 'BluePLM server (resuming an interrupted test)'
+      patch.verify_mode = mode === 'quick' || mode === 'full' ? mode : 'sample'
+    }
+    const resume = 'backup_requested_at' in patch || 'verify_requested_at' in patch
     await db.from('backup_config').update(patch).eq('org_id', config.org_id)
-    this.log.warn('backup worker: recovered an interrupted job', { orgId: config.org_id, resume, interruptions })
+    this.log.warn('backup worker: recovered an interrupted job', { orgId: config.org_id, resume })
   }
 
   /**
@@ -269,7 +354,7 @@ export class BackupWorker {
    * `progressIntervalMs`, so the app can show more than "running". The finished row's report
    * replaces it.
    */
-  private progressWriter(historyId: string | null) {
+  private progressWriter(historyId: string | null, base: Record<string, unknown>) {
     const interval = this.deps.progressIntervalMs ?? 30_000
     let last = -Infinity
     return async (progress: Record<string, unknown>) => {
@@ -279,7 +364,7 @@ export class BackupWorker {
       last = at
       const { error } = await this.untyped()
         .from('backup_history')
-        .update({ report: { progress: { ...progress, at: new Date(at).toISOString() } } })
+        .update({ report: { ...base, progress: { ...progress, at: new Date(at).toISOString() } } })
         .eq('id', historyId)
       if (error) this.log.warn('backup worker: could not record progress', { error: error.message })
     }
@@ -347,6 +432,7 @@ export class BackupWorker {
         kind: job.kind,
         trigger: job.trigger,
         runner: 'server',
+        report: job.kind === 'verify' ? { mode: job.verifyMode } : null,
       })
       .select('id')
       .single()
@@ -368,7 +454,7 @@ export class BackupWorker {
     )
     renew.unref()
 
-    const progress = this.progressWriter(historyId)
+    const progress = this.progressWriter(historyId, job.kind === 'verify' ? { mode: job.verifyMode } : {})
 
     let outcome: Record<string, unknown>
     try {
