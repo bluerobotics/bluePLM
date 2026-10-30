@@ -63,6 +63,9 @@ CREATE TABLE folder (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), org_id uuid,
 CREATE TABLE color_swatch (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id uuid, org_id uuid, color text);
 CREATE TABLE module_access (org_id uuid, module_id text, user_id uuid, team_id uuid);
 CREATE TABLE pending_org_member (org_id uuid, email text, claimed_at timestamptz);
+CREATE TABLE blocked_user (org_id uuid, email text);
+CREATE TABLE supplier_contact (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), email text UNIQUE);
+CREATE ROLE supabase_auth_admin;
 CREATE TABLE notification (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(), org_id uuid NOT NULL, user_id uuid NOT NULL,
   type text NOT NULL, category text, title text NOT NULL, message text, priority text,
@@ -158,7 +161,9 @@ INSERT INTO team_member (team_id, user_id) VALUES ('${ADMINS_TEAM_A}', '${TEAM_A
 INSERT INTO vault (id, org_id) VALUES ('${VA1}', '${ORG_A}'), ('${VA2}', '${ORG_A}'), ('${VB1}', '${ORG_B}');
 INSERT INTO vault_access (vault_id, user_id) VALUES ('${VA1}', '${ALICE}');
 INSERT INTO module_access (org_id, module_id, user_id) VALUES ('${ORG_A}', 'eco', '${ALICE}');
-INSERT INTO pending_org_member (org_id, email) VALUES ('${ORG_A}', 'invited@acme.com');
+INSERT INTO pending_org_member (org_id, email) VALUES ('${ORG_A}', 'invited@acme.com'), ('${ORG_B}', 'Guest@Gmail.com');
+INSERT INTO blocked_user (org_id, email) VALUES ('${ORG_A}', 'banned@acme.com');
+INSERT INTO supplier_contact (email) VALUES ('sales@vendor.example');
 `
 
 let db: PGlite
@@ -399,6 +404,48 @@ describe('4. every exposed function is registered', () => {
     expect(stamped.r.problems).toEqual([])
     expect(stamped.r.stamped).toBe(true)
     expect((await one<{ version: number }>(`SELECT version FROM schema_version WHERE id = 1`)).version).toBe(502)
+  })
+})
+
+describe('6. sign-up needs somewhere to belong', () => {
+  const decide = async (email: string | null) =>
+    (
+      await one<{ r: { error?: { http_code: number; message: string } } }>(
+        `SELECT auth_hook_before_user_created($1::jsonb) AS r`,
+        [JSON.stringify({ metadata: { name: 'before-user-created' }, user: { email, app_metadata: { provider: 'google' } } })],
+      )
+    ).r
+
+  it('allows an invited address, a domain address and a supplier contact', async () => {
+    await as(null)
+    expect(await decide('Guest@gmail.com')).toEqual({}) // invited, even at a public domain
+    expect(await decide('someone.new@ACME.com')).toEqual({}) // org A's domain
+    expect(await decide('sales@vendor.example')).toEqual({})
+  })
+
+  it('refuses a stranger, a public-domain address, a blocked address and no address', async () => {
+    await as(null)
+    for (const email of ['stranger@elsewhere.com', 'random@gmail.com', 'banned@acme.com', null, 'no-at-sign']) {
+      const r = await decide(email)
+      expect(r.error?.http_code, String(email)).toBe(403)
+      expect(r.error?.message).toMatch(/^Not invited/)
+    }
+  })
+
+  it('a claimed invitation no longer admits', async () => {
+    await as(null)
+    await db.exec(`UPDATE pending_org_member SET claimed_at = now() WHERE email = 'Guest@Gmail.com'`)
+    expect((await decide('guest@gmail.com')).error?.http_code).toBe(403)
+  })
+
+  it('only Supabase Auth may call it', async () => {
+    await as(null)
+    const can = await one<{ auth: boolean; authenticated: boolean; anon: boolean }>(
+      `SELECT has_function_privilege('supabase_auth_admin', 'auth_hook_before_user_created(jsonb)', 'EXECUTE') AS auth,
+              has_function_privilege('authenticated', 'auth_hook_before_user_created(jsonb)', 'EXECUTE') AS authenticated,
+              has_function_privilege('anon', 'auth_hook_before_user_created(jsonb)', 'EXECUTE') AS anon`,
+    )
+    expect(can).toEqual({ auth: true, authenticated: false, anon: false })
   })
 })
 

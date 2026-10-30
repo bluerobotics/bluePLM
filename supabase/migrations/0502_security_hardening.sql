@@ -17,6 +17,8 @@
 --      security_monitor_run() (pg_cron, every 10 minutes) adds rate signals, turns new events into
 --      notification rows for the organization's admins, sends a daily summary and runs the
 --      release checks once a day. Thresholds are per organization (org_security_setting).
+--   6. auth_hook_before_user_created(jsonb): Supabase Auth's Before User Created hook. No account
+--      is created for an address with no invitation, organization domain or supplier contact.
 --
 -- Runs in one transaction under the migration runner. Idempotent where the runner may meet a
 -- partly prepared database (IF NOT EXISTS, CREATE OR REPLACE, DROP ... IF EXISTS before CREATE).
@@ -730,7 +732,8 @@ INSERT INTO schema_function_inventory (signature, module, release) VALUES
   ('trg_app_user_security_watch()', 'core', 502),
   ('trg_team_member_security_watch()', 'core', 502),
   ('trg_team_security_watch()', 'core', 502),
-  ('security_monitor_run()', 'core', 502)
+  ('security_monitor_run()', 'core', 502),
+  ('auth_hook_before_user_created(jsonb)', 'core', 502)
 ON CONFLICT (signature) DO NOTHING;
 
 -- ===========================================
@@ -1036,6 +1039,76 @@ DROP TRIGGER IF EXISTS trg_team_security_watch ON team;
 CREATE TRIGGER trg_team_security_watch
   AFTER UPDATE OF name ON team
   FOR EACH ROW EXECUTE FUNCTION trg_team_security_watch();
+
+-- ===========================================
+-- 6. Sign-up needs somewhere to belong
+-- ===========================================
+-- Supabase Auth's "Before User Created" hook: Auth calls this before it creates any account
+-- (password sign-up, Google, an invitation, an admin creating a user). An account is created only
+-- for an address that belongs somewhere, so nobody signs in to find no organization:
+--   - an open invitation (pending_org_member, not yet claimed); /auth/invite writes it before it
+--     calls inviteUserByEmail, so invited accounts pass;
+--   - an organization's email domain (org_email_domain: one organization per domain, never a
+--     public mail provider, added by an admin holding an address there), unless that
+--     organization blocked the address;
+--   - a supplier contact (supplier_contact.email, module 30, when installed);
+--   - or a database with no organization yet, whose first account has to be able to create one.
+--
+-- Contract (Supabase Auth hooks, Postgres function): takes the event as jsonb, returns '{}' to
+-- allow or {"error": {"http_code", "message"}} to refuse. Auth sends the refusal back to the
+-- client as the error description; the client recognises the leading "Not invited" and shows its
+-- own translated text. The hook is switched on in Auth's configuration, not here
+-- (hook_before_user_created_uri = pg-functions://postgres/public/auth_hook_before_user_created);
+-- docs/admin-setup.md says how.
+CREATE OR REPLACE FUNCTION auth_hook_before_user_created(event JSONB)
+RETURNS JSONB
+LANGUAGE plpgsql STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_email TEXT := lower(btrim(event->'user'->>'email'));
+  v_domain TEXT;
+  v_allowed BOOLEAN;
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM organization) THEN
+    RETURN '{}'::jsonb;
+  END IF;
+
+  IF v_email IS NULL OR v_email = '' OR position('@' IN v_email) = 0 THEN
+    v_allowed := false;
+  ELSE
+    v_domain := split_part(v_email, '@', 2);
+    v_allowed :=
+      EXISTS (SELECT 1 FROM pending_org_member p WHERE lower(p.email) = v_email AND p.claimed_at IS NULL)
+      OR EXISTS (
+        SELECT 1 FROM org_email_domain d
+        WHERE d.domain = v_domain
+          AND NOT is_public_email_domain(v_domain)
+          AND NOT EXISTS (SELECT 1 FROM blocked_user b WHERE b.org_id = d.org_id AND lower(b.email) = v_email));
+    IF NOT v_allowed AND to_regclass('public.supplier_contact') IS NOT NULL THEN
+      EXECUTE 'SELECT EXISTS (SELECT 1 FROM supplier_contact c WHERE lower(c.email) = $1)'
+        INTO v_allowed USING v_email;
+    END IF;
+  END IF;
+
+  IF v_allowed THEN
+    RETURN '{}'::jsonb;
+  END IF;
+
+  RETURN jsonb_build_object('error', jsonb_build_object(
+    'http_code', 403,
+    'message', 'Not invited: you haven''t been invited to an organization. Ask your administrator for an invite.'));
+END;
+$$;
+
+REVOKE ALL ON FUNCTION auth_hook_before_user_created(JSONB) FROM PUBLIC, anon, authenticated;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'supabase_auth_admin') THEN
+    GRANT USAGE ON SCHEMA public TO supabase_auth_admin;
+    GRANT EXECUTE ON FUNCTION auth_hook_before_user_created(JSONB) TO supabase_auth_admin;
+  END IF;
+END $$;
 
 -- ===========================================
 -- The stamp: every check, one list
@@ -1458,7 +1531,8 @@ INSERT INTO schema_manifest_entry (kind, name, module, probe, requires, since_ve
   ('function', 'trg_app_user_security_watch()', 'core', NULL, 'security_event_record', 502),
   ('function', 'trg_team_member_security_watch()', 'core', NULL, 'new_rows', 502),
   ('function', 'trg_team_security_watch()', 'core', NULL, 'security_event', 502),
-  ('function', 'security_monitor_run()', 'core', NULL, 'org_admin_user_ids && security_operator_user_ids && schema_list_problems', 502)
+  ('function', 'security_monitor_run()', 'core', NULL, 'org_admin_user_ids && security_operator_user_ids && schema_list_problems', 502),
+  ('function', 'auth_hook_before_user_created(jsonb)', 'core', NULL, 'pending_org_member && org_email_domain && is_public_email_domain && blocked_user', 502)
 ON CONFLICT (kind, name) DO UPDATE
   SET module = EXCLUDED.module, probe = EXCLUDED.probe, requires = EXCLUDED.requires,
       since_version = EXCLUDED.since_version;
@@ -1479,5 +1553,8 @@ LANGUAGE sql IMMUTABLE AS $$ SELECT
   'and a publication that sends deletes. security_monitor_run() (pg_cron, every 10 minutes) records '
   'admin grants, email-domain joins, file and storage delete spikes, auth request spikes, accounts '
   'left without an organization and schema drift, and notifies organization admins, with per-'
-  'organization thresholds in org_security_setting and a daily summary.'
+  'organization thresholds in org_security_setting and a daily summary. '
+  'auth_hook_before_user_created() (Supabase Auth Before User Created hook, enabled in Auth '
+  'configuration) refuses an account for an address with no invitation, organization email domain '
+  'or supplier contact.'
 $$;
