@@ -6,6 +6,34 @@ All notable changes to BluePLM will be documented in this file.
 
 ## [Unreleased]
 
+Server backups: schema 501 (`supabase/migrations/0501_server_backups.sql`, applied by the app like every
+migration) and API 4.1.0. Plan and decisions: `.cursor/plans/server-backups.plan.md`.
+
+### Added
+
+- **Backups that run on the server, with no computer on.** Settings > Backup > Where backups run:
+  "BluePLM server" makes the API's backup worker run the schedule and the "Back up now" requests. It
+  backs up the whole vault from storage (every version, including files nobody has downloaded) and the
+  organization's database rows into an encrypted repository in the same bucket
+  (`blueplm-server-backup/`), keeps daily/weekly/monthly/yearly snapshots per the retention settings, and
+  is incremental: content already backed up is never read again.
+- **Test backup.** Quick check (every snapshot opens, every file present), sample restore (25 files
+  restored and re-hashed, plus a hash check of a sample of the live vault) and full restore test. Every
+  scheduled backup also runs a small sample test. Results, problems and the last good backup show in the
+  backup panel; a backup older than 36 hours is called out.
+- **Isolated backup sandbox and tools** (`npm run backup --prefix api -- ...`): `sandbox` rehearses
+  months of daily backups on local disk, damages the repository on purpose and checks every damage is
+  caught and every snapshot restores byte for byte; `dry-run`, `verify`, `list` and `restore` work
+  against the real bucket through a store that refuses every write.
+
+### Fixed
+
+- **A scheduled backup missed while the designated computer was off was skipped for the day.** The
+  schedule only fired if the app happened to poll inside the scheduled minute. Both runners now run the
+  most recent missed slot once when they are back (`last_scheduled_slot`), and daylight-saving changes
+  no longer skip or double a day.
+- A vault object whose bytes no longer match its content hash is now reported by name instead of being
+  backed up as if it were good.
 ## [5.0.0] - 2026-10-30
 
 Schema 500 and API 4.0.0. **Every client must update, and the database must be upgraded.** A 4.x client

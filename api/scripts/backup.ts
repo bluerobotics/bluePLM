@@ -1,3 +1,4 @@
+/* eslint-disable no-console -- a command-line tool: its output is the console. */
 /**
  * Server backup tools.
  *

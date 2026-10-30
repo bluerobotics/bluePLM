@@ -123,7 +123,7 @@ resolve the same way whether you run from source or from the build.
 |----------|---------|-------------|
 | `SUPABASE_URL` | - | Supabase project URL (required) |
 | `SUPABASE_KEY` | - | Supabase anon key (required) |
-| `SUPABASE_SERVICE_KEY` | - | Service role key (required for user invites) |
+| `SUPABASE_SERVICE_KEY` | - | Service role key (required for user invites and server backups) |
 | `EXTENSION_ENCRYPTION_KEY` | - | Encrypts integration credentials and extension secrets at rest (min 32 chars). See below |
 | `PORT` | `3001` | Port to listen on (auto-set by Railway/Render/Fly.io) |
 | `API_PORT` | - | Override port (fallback if PORT not set) |
@@ -132,6 +132,7 @@ resolve the same way whether you run from source or from the build.
 | `RATE_LIMIT_WINDOW` | `60000` | Time window in ms (60s) |
 | `CORS_ORIGINS` | *(empty)* | Extra browser origins, comma-separated. See below |
 | `ENABLE_DOCS` | `true` | Serve the Swagger UI and OpenAPI document at `/docs` |
+| `BACKUP_WORKER` | `true` | Run scheduled and requested backups and backup tests for organizations that chose server backups (`api/src/backup/`, tools: `npm run backup -- <sandbox, dry-run, verify, list or restore>`) |
 | `NODE_ENV` | `production` | `development` turns on pretty logs and the Vite dev origin |
 
 You can also use `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` if you have them set for development.

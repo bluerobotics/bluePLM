@@ -17,6 +17,7 @@ import { RestoreActionBar } from './RestoreActionBar'
 import { DeleteSnapshotDialog } from './DeleteSnapshotDialog'
 import { BackupConfigForm } from './BackupConfigForm'
 import { BackupStatusViewer } from './BackupStatusViewer'
+import { ServerBackupSection } from './ServerBackupSection'
 
 // Types
 import type { BackupPanelProps, BackupStatus } from './types'
@@ -166,11 +167,22 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
           isUsingCachedData={isUsingCachedData}
         />
 
+        {/* Server-run backups (schema 113): the API's worker, no designated machine */}
+        {status?.isConfigured && config?.run_location === 'server' && organization?.id && (
+          <ServerBackupSection
+            config={config}
+            orgId={organization.id}
+            userEmail={user?.email ?? ''}
+            isAdmin={isAdmin}
+
+          />
+        )}
+
         {/* Backup Schedule Info */}
-        {status?.isConfigured && <BackupScheduleInfo status={status} />}
+        {status?.isConfigured && config?.run_location !== 'server' && <BackupScheduleInfo status={status} />}
 
         {/* Backup Source Section */}
-        {status?.isConfigured && (
+        {status?.isConfigured && config?.run_location !== 'server' && (
           <BackupSourceSection
             status={status}
             isThisDesignated={isThisDesignated}
@@ -262,6 +274,8 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
           }}
           scheduleTimezone={configHook.scheduleTimezone}
           onScheduleTimezoneChange={configHook.setScheduleTimezone}
+          runLocation={configHook.runLocation}
+          onRunLocationChange={configHook.setRunLocation}
           isSaving={configHook.isSaving}
           onSave={configHook.handleSave}
           onExport={configHook.exportConfig}
