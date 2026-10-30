@@ -70,9 +70,22 @@ installer. The website makes them easier to find.
 
 ## API (Fastify)
 
-- `trustProxy` missing behind Railway / Render, so rate limits are shared by all callers; set
-  `Fastify({ trustProxy: true })`. Set `ENABLE_DOCS=false` in `render.yaml`. Otherwise sound (auth on every
-  route, `isAdmin` from `is_org_admin()`, org from the profile, CORS strict).
+- Fixed in API 3.0.1: rate limits were shared by all callers behind the proxy. The API now trusts
+  `TRUST_PROXY_HOPS` hops (default 1), a count rather than `true`, which would let a caller choose its own
+  address. Needs an API redeploy.
+- Not changed: `ENABLE_DOCS`. `api/src/config/env.ts` records a deliberate decision that `/docs` is
+  documentation, not a security control (the surface is published in `api/README.md`).
+- Otherwise sound (auth on every route, `isAdmin` from `is_org_admin()`, org from the profile, CORS strict).
+
+## Status (2026-10-30)
+
+- Web client findings: fixed and deployed.
+- Auth config: applied (table above).
+- API: 3.0.1 in the repo, not yet redeployed.
+- Database C1-C3, H1-H3, M1-M4, Low: open, owned by the "Enforce vault access in RLS for files"
+  session as one schema release. Until it is applied, the remaining exposure is to existing accounts
+  (staff and any supplier contacts), not to strangers. After it lands, rotate the backup storage keys,
+  the restic password and the Google Drive client secret.
 
 ## Web client: fixed in this pass
 

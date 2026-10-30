@@ -38,7 +38,7 @@ import { usePDMStore } from '../stores/pdmStore'
 
 // The API version this app version expects
 // Uses semver: MAJOR.MINOR.PATCH
-export const EXPECTED_API_VERSION = '3.0.0'
+export const EXPECTED_API_VERSION = '3.0.1'
 
 // Minimum API version that will still work (for soft warnings vs hard errors)
 // Breaking changes should bump the major version and update this
@@ -94,6 +94,8 @@ export const API_VERSION_DESCRIPTIONS: Record<string, string> = {
     'Found by the route-level test suite (api/routes/authMatrix.test.ts, files.routes.test.ts). A lookup of a row that does not exist answered 500: .single() returns PostgREST PGRST116 and the routes threw it, so their 404 branches never ran; the error handler now answers 404. Administrators-team members whose role column says viewer were refused the five supplier write routes, which tested role alone; they now check isAdmin first. PATCH /files/:id/metadata changed the state of a checked-out file, which /release and /obsolete refuse; it now answers 409, and 404 for a file outside the organization of the caller. POST /files/:id/checkin answered 409 instead of 403 to a caller without the lock, because it matched a message checkin_file does not send. POST /files/:id/checkout and /checkin with no body answered 400 although every field is optional',
   '3.0.0':
     "Native extension runtime, and Customers leaves the API core. At startup the API loads every enabled native extension that has a serverMain, for the organizations named in NATIVE_EXTENSIONS_ORG_IDS: per extension id it takes the install with the latest installed_at, downloads the package from the org-extensions storage bucket with the service-role client, refuses it unless its sha256 matches the install row, extracts it safely and calls register(app) from its server module; a failing extension is logged and skipped. Its routes are served under /ext/<extensionId>/..., authenticated and rate limited like every other route, and answer 404 when the extension is not loaded or not enabled for the caller's org, 409 EXTENSION_VERSION_MISMATCH when the org's installed sha256 differs from the loaded one, and 504 EXTENSION_TIMEOUT when a handler runs past its timeout. POST /admin/extensions/reload (admin only) reloads them without a restart, and POST /admin/extensions/install refuses native manifests. The sandbox extension storage, secrets, secret-access log and HTTP log use the service-role client, filtered by org and extension. POST /customers/sync, GET /customers/sync/status and POST /customers/sync/cancel are removed, with the customers sync code and the read-only Odoo call guard only it used; the Odoo supplier sync and connection test are unchanged. The blueplm.customers extension serves the same three routes at /ext/blueplm.customers/sync, /sync/status and /sync/cancel. Removing routes is a breaking change, hence the major version",
+  '3.0.1':
+    'Rate limits count per client again. Behind the Railway or Render proxy every request arrived from the proxy address, so the global limit and the /auth/login limit were one bucket shared by every caller and one client could exhaust it for all. The API now trusts TRUST_PROXY_HOPS proxy hops (default 1) for the client address in X-Forwarded-For. It trusts a count, not every hop, so a caller cannot pick its own address; 0 turns it off for an API exposed directly',
 }
 
 export interface ApiVersionCheckResult {

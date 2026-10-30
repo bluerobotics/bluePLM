@@ -1,0 +1,17 @@
+// BluePLM Web on Cloudflare Workers static assets, served at https://blueplm.io.
+// No Worker script: Cloudflare serves dist-web directly, applies its generated _headers, and answers
+// unknown paths with index.html so deep links load. Deploy with `npm run deploy:web`.
+{
+  "name": "blueplm-web",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "../dist-web",
+    "not_found_handling": "single-page-application",
+    "html_handling": "auto-trailing-slash"
+  },
+  // A route, not a custom domain: the apex already has a proxied DNS record, which a custom domain
+  // would have to replace. The route serves every request on that hostname before it reaches the record.
+  "routes": [{ "pattern": "blueplm.io/*", "zone_name": "blueplm.io" }],
+  "workers_dev": false,
+  "preview_urls": false
+}

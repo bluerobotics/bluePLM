@@ -5,19 +5,20 @@ Realtime). It does not use the Fastify API, so the API needs no change to serve 
 
 ## How it is deployed today (2026-10-30)
 
-- Cloudflare Pages project `blueplm-web` (direct upload, no Git connection), production branch
-  `main`, custom domain `blueplm.io`. `extensions.blueplm.io` stays on the older `blueplm-site`
-  project.
+- Cloudflare Workers static assets, service `blueplm-web` (`web/wrangler.jsonc`): no Worker script,
+  SPA fallback for deep links, the generated `_headers` applied. It is attached to the route
+  `blueplm.io/*`, which answers every request on the apex before it reaches the apex DNS record (a
+  proxied CNAME left over from the old site). `extensions.blueplm.io` stays on the older `blueplm-site`
+  Pages project; `workers.dev` and preview URLs are off.
 - Deploy: `npm run deploy:web` (`scripts/deploy-web.mjs`). It reads `SUPABASE_PROJECT_ID` and
   `SUPABASE_ACCESS_TOKEN` from `.env`, fetches the anon key from the Supabase Management API, builds,
-  and uploads `dist-web` with wrangler 4.40 (needs `wrangler login`). `--preview` deploys to the
-  `preview` branch URL instead.
-- DNS: the `blueplm.io` apex record is a proxied CNAME to `blueplm-web.pages.dev`.
+  and runs `wrangler deploy` (needs `wrangler login`).
 - Supabase Auth: `site_url` `https://blueplm.io`; redirect allow-list `https://blueplm.io`,
   `https://blueplm.io/**`, `http://127.0.0.1:*/auth/callback`, `http://localhost:*/auth/callback`;
   sign-ups disabled (see `.cursor/plans/blueplm-web-security-audit.md` for the other settings).
 
-The Git-connected setup below is the alternative if deploys should follow every push to `main`.
+The Pages setup below is the alternative if deploys should follow every push to `main`; it needs the
+apex DNS record pointed at the Pages project and the `blueplm.io/*` Worker route removed.
 
 ## 1. Cloudflare Pages project (Git-connected alternative)
 

@@ -73,6 +73,16 @@ const envSchema = z.object({
   RATE_LIMIT_WINDOW: z.coerce.number().default(60000),
 
   /**
+   * How many reverse-proxy hops in front of the API to trust for the client
+   * address (`X-Forwarded-For`). Railway and Render put one proxy in front, so
+   * the default is 1. Without it every caller has the proxy's address and the
+   * per-IP rate limits become one limit shared by everyone. Trusting every hop
+   * (`true`) would instead let a caller choose its own address and dodge the
+   * limits, so this is a count; 0 turns it off for a directly exposed API.
+   */
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(10).default(1),
+
+  /**
    * Extra browser origins allowed to call this API, comma-separated.
    *
    * This adds to the allowlist rather than replacing it - the desktop app is

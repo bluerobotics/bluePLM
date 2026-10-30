@@ -222,6 +222,8 @@ export async function buildServer(): Promise<FastifyInstance> {
     requestTimeout: REQUEST_TIMEOUT_MS,
     keepAliveTimeout: KEEP_ALIVE_TIMEOUT_MS,
     pluginTimeout: PLUGIN_TIMEOUT_MS,
+    // request.ip (and so every per-IP rate limit) is the address the nearest trusted proxy saw.
+    trustProxy: env.TRUST_PROXY_HOPS > 0 ? env.TRUST_PROXY_HOPS : false,
   })
 
   // Security headers

@@ -45,6 +45,10 @@ services:
       # browser application other than BluePLM calls this API, as a
       # comma-separated list of exact origins. Setting it adds to the
       # allowlist and cannot lock the desktop app out.
+      # Proxy hops trusted for the client address (X-Forwarded-For). Render puts
+      # one proxy in front; without it every caller shares one rate limit.
+      - key: TRUST_PROXY_HOPS
+        value: "1"
       - key: RATE_LIMIT_MAX
         value: "100"
       # Serves the Swagger UI and the OpenAPI document at /docs. On by default;
