@@ -98,8 +98,8 @@ CREATE FUNCTION my_accessible_vault_ids() RETURNS SETOF uuid LANGUAGE sql STABLE
      OR EXISTS (SELECT 1 FROM team_vault_access tva JOIN team_member tm ON tm.team_id = tva.team_id
                 WHERE tva.vault_id = v.id AND tm.user_id = u.id)
 $$;
-CREATE FUNCTION schema_release_version() RETURNS int LANGUAGE sql IMMUTABLE AS $$ SELECT 502 $$;
-CREATE FUNCTION schema_release_description() RETURNS text LANGUAGE sql IMMUTABLE AS $$ SELECT 'test' $$;
+CREATE FUNCTION schema_release_version() RETURNS int LANGUAGE sql IMMUTABLE AS $$ SELECT 500 $$;
+CREATE FUNCTION schema_release_description() RETURNS text LANGUAGE sql IMMUTABLE AS $$ SELECT '5.0' $$;
 CREATE FUNCTION is_org_gate_status_blocking(text) RETURNS boolean LANGUAGE sql IMMUTABLE AS $$ SELECT false $$;
 CREATE FUNCTION check_schema_release() RETURNS TABLE (module text, identity text, status text, detail text)
   LANGUAGE sql AS $$ SELECT NULL::text, NULL::text, NULL::text, NULL::text WHERE false $$;
@@ -110,6 +110,8 @@ CREATE FUNCTION check_anon_reach() RETURNS TABLE (identity text, severity text, 
 CREATE FUNCTION check_null_unsafe_org_gates() RETURNS TABLE (signature text, detail text)
   LANGUAGE sql AS $$ SELECT NULL::text, NULL::text WHERE false $$;
 CREATE FUNCTION check_unbound_entity_args() RETURNS TABLE (signature text, detail text)
+  LANGUAGE sql AS $$ SELECT NULL::text, NULL::text WHERE false $$;
+CREATE FUNCTION check_definer_search_path() RETURNS TABLE (signature text, detail text)
   LANGUAGE sql AS $$ SELECT NULL::text, NULL::text WHERE false $$;
 CREATE FUNCTION check_withdrawn_execute() RETURNS TABLE (module text, signature text, status text, detail text)
   LANGUAGE sql AS $$ SELECT NULL::text, NULL::text, NULL::text, NULL::text WHERE false $$;
@@ -382,6 +384,7 @@ describe('4. every exposed function is registered', () => {
     const stamped = await one<{ r: { stamped: boolean; problems: unknown[] } }>(`SELECT verify_and_stamp_schema() AS r`)
     expect(stamped.r.problems).toEqual([])
     expect(stamped.r.stamped).toBe(true)
+    expect((await one<{ version: number }>(`SELECT version FROM schema_version WHERE id = 1`)).version).toBe(502)
   })
 })
 

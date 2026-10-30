@@ -1038,7 +1038,7 @@ CREATE TRIGGER trg_team_security_watch
 -- ===========================================
 -- verify_and_stamp_schema() used to build this union inline; the daily drift check needs the same
 -- list without stamping, so it lives here once. Adds check_function_inventory() and
--- check_realtime_publication() to what 5.0 checked.
+-- check_realtime_publication() to what 0500 checked.
 CREATE OR REPLACE FUNCTION schema_list_problems()
 RETURNS TABLE (module TEXT, object TEXT, status TEXT, detail TEXT)
 LANGUAGE sql STABLE
@@ -1056,6 +1056,8 @@ AS $$
   SELECT 'security', n.signature, 'null-unsafe-gate', n.detail FROM check_null_unsafe_org_gates() n
   UNION ALL
   SELECT 'security', b.signature, 'unbound-entity-arg', b.detail FROM check_unbound_entity_args() b
+  UNION ALL
+  SELECT 'security', d.signature, 'definer-search-path', d.detail FROM check_definer_search_path() d
   UNION ALL
   SELECT 'security', w.signature, 'execute-not-withdrawn', w.detail
   FROM check_withdrawn_execute() w WHERE w.status = 'reachable'
@@ -1374,3 +1376,22 @@ BEGIN
     PERFORM cron.schedule('blueplm-security-monitor', '*/10 * * * *', 'SELECT public.security_monitor_run()');
   END IF;
 END $$;
+
+-- ===========================================
+-- Release
+-- ===========================================
+CREATE OR REPLACE FUNCTION schema_release_version() RETURNS INTEGER
+LANGUAGE sql IMMUTABLE AS $$ SELECT 502 $$;
+
+CREATE OR REPLACE FUNCTION schema_release_description() RETURNS TEXT
+LANGUAGE sql IMMUTABLE AS $$ SELECT
+  'Security hardening and monitoring. can_access_module answers for the caller only. Realtime no '
+  'longer publishes DELETE events (they bypass RLS); deletes the client needs arrive as '
+  'realtime_tombstone inserts under RLS. organization.email_domains: one organization per domain, no '
+  'public mail domains, and a signed-in admin adds only the domain of their own verified address. '
+  'The stamp refuses any exposed public function no release registered (schema_function_inventory) '
+  'and a publication that sends deletes. security_monitor_run() (pg_cron, every 10 minutes) records '
+  'admin grants, email-domain joins, file and storage delete spikes, auth request spikes, accounts '
+  'left without an organization and schema drift, and notifies organization admins, with per-'
+  'organization thresholds in org_security_setting and a daily summary.'
+$$;

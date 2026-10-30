@@ -55,8 +55,10 @@ export function onRowDeleted(
     'postgres_changes',
     { event: 'INSERT', schema: 'public', table: 'realtime_tombstone', filter: `table_name=eq.${table}` },
     (payload: { new: unknown }) => {
+      // The filter already names the table; checked again so a transport that ignores filters
+      // (the multi-machine simulator) cannot hand one table's delete to another's handler.
       const row = payload.new as RealtimeTombstoneRow | undefined
-      if (row?.row_id) onDelete(row)
+      if (row?.row_id && row.table_name === table) onDelete(row)
     },
   )
 }
