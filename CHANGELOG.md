@@ -6,7 +6,9 @@ All notable changes to BluePLM will be documented in this file.
 
 ## [Unreleased]
 
-Renderer only (no schema change, no API change).
+## [5.1.1] - 2026-10-30
+
+Renderer only: no schema change (502), no API change (4.1.0). Update the app; nothing to apply or redeploy.
 
 ### Changed
 
