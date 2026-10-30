@@ -6,6 +6,60 @@ All notable changes to BluePLM will be documented in this file.
 
 ## [Unreleased]
 
+## [5.0.0] - 2026-10-30
+
+Schema 500 and API 4.0.0. **Every client must update, and the database must be upgraded.** A 4.x client
+cannot use a 5.0 database and a 5.0 client cannot use a 4.x one. 5.0 upgrades the database itself: an
+organization admin opens BluePLM 5.0, gives the database connection string once, and the app applies the
+upgrade (a 4.10 database goes straight to 5.0; an older one is brought to 4.10 first). Everyone else sees
+a "waiting for your admin" screen until then. If your organization runs the private extension
+`blueplm.customers`, apply its 2.0.0 SQL after the upgrade. Redeploy the API (4.0.0) at the same time.
+
+### Changed
+
+- **One naming scheme for the whole database.** Every table, function, policy and index was renamed to
+  one rule: singular tables (`file`, `file_version`, `team_member`; `users` became `app_user`), functions
+  named `<entity>_<verb>` (`file_checkout`, `review_settle`), booleans `is_`/`has_`/`can_`, timestamps
+  `_at`. A test fails on any object that breaks the rule. The old-to-new list is
+  `supabase/rename-map-5.0.json`; your own SQL, reports or scripts that name tables need the new names.
+- **The schema is a clean baseline plus numbered migrations.** `supabase/core.sql` and the modules now
+  define each object once, without a year of compatibility code. Every later change is a numbered file in
+  `supabase/migrations/`, never edited once released.
+- **The app applies database changes itself.** New organizations no longer paste SQL: the app creates the
+  schema the first time an admin connects. Later releases that change the schema are applied the same way,
+  under a lock, each recorded with a checksum so nothing is applied twice or after being altered. "Remember
+  on this computer" lets future upgrades apply automatically for that admin. The connection string is
+  encrypted with the operating system's key store and never leaves the computer.
+- **Forced updates.** The database names the oldest client it accepts; an older client stops with an
+  "update required" screen and installs the update (on macOS, it opens the download page).
+- **File actions take the user from the sign-in.** Check out, check in, move, folder rename and the
+  workflow transition functions no longer accept a user id from the caller.
+- **API 4.0.0.** The REST routes the app never used are gone: `/files`, `/vaults`, `/trash`, `/parts`,
+  `/bom`, `/suppliers`, `/activity`, `/checkouts`, `/auth/login`, `/auth/refresh`, `/auth/me`. They had
+  drifted from the app (no read-only checks, an outdated file state). A future public API will sit on the
+  same database functions the app uses. `TRUST_PROXY` (a list of proxy addresses) replaces
+  `TRUST_PROXY_HOPS`.
+
+### Security
+
+- Every privileged database function pins its `search_path`, and the schema check refuses to stamp
+  a release otherwise.
+- Signed-out (`anon`) access to tables is gone, apart from reading the schema version.
+- Accepting an invitation checks that its teams and vaults belong to the inviting organization.
+- A file must belong to a vault, so a file can never fall outside vault access rules.
+- Leftover functions from older releases that did not check the caller's organization are removed by
+  the upgrade.
+- The Odoo integration keeps each request's data to that request.
+- External links open only `https:` addresses, and the app's windows refuse navigation away from the app.
+- Electron 39.8, electron-updater 6.8 and Fastify 5.12 close their published advisories.
+
+### Removed
+
+- The per-machine Extension Store. Extensions are installed for the whole organization from a `.bpx` in
+  Settings > Extensions.
+- The Slack settings page (its API routes never existed), the unused sandbox-extension tables and API,
+  and code kept only for databases older than 5.0.
+
 ### Fixed
 
 - **Search hands off to navigation.** Opening a folder now leaves search, wherever it is opened from
