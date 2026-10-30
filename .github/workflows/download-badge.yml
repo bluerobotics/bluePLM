@@ -33,7 +33,7 @@ jobs:
             --jq '.[].assets[] | select(.name | endswith(".exe") or endswith(".dmg")) | .download_count' \
             | awk '{s+=$1} END {print s+0}')
           mkdir -p .github/badges
-          printf '{"schemaVersion":1,"label":"installer downloads","message":"%s","color":"blue"}\n' \
+          printf '{"schemaVersion":1,"label":"downloads","message":"%s","color":"blue"}\n' \
             "$total" > .github/badges/downloads.json
           cat .github/badges/downloads.json
 
