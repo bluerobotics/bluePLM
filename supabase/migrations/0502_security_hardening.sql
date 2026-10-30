@@ -122,8 +122,10 @@ CREATE INDEX IF NOT EXISTS realtime_tombstone_org_id_table_name_created_at_idx
   ON realtime_tombstone (org_id, table_name, created_at);
 
 ALTER TABLE realtime_tombstone ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON realtime_tombstone FROM anon, authenticated;
-GRANT SELECT ON realtime_tombstone TO authenticated;
+-- Explicit grants: Supabase gives new public tables no Data API access by default (2026-10-30).
+REVOKE ALL ON TABLE realtime_tombstone FROM PUBLIC, anon, authenticated, service_role;
+GRANT ALL ON TABLE realtime_tombstone TO service_role;
+GRANT SELECT ON TABLE realtime_tombstone TO authenticated;
 
 DROP POLICY IF EXISTS "realtime_tombstone: members read" ON realtime_tombstone;
 CREATE POLICY "realtime_tombstone: members read"
@@ -256,7 +258,8 @@ CREATE TABLE IF NOT EXISTS org_email_domain (
 CREATE INDEX IF NOT EXISTS org_email_domain_org_id_idx ON org_email_domain (org_id);
 
 ALTER TABLE org_email_domain ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON org_email_domain FROM anon, authenticated;
+REVOKE ALL ON TABLE org_email_domain FROM PUBLIC, anon, authenticated, service_role;
+GRANT ALL ON TABLE org_email_domain TO service_role;
 -- No policy: clients read the domains from organization.email_domains, as before.
 
 -- Free mail providers whose addresses anyone can create. Not exhaustive, and does not need to be:
@@ -455,7 +458,8 @@ CREATE TABLE IF NOT EXISTS schema_function_inventory (
 );
 
 ALTER TABLE schema_function_inventory ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON schema_function_inventory FROM anon, authenticated;
+REVOKE ALL ON TABLE schema_function_inventory FROM PUBLIC, anon, authenticated, service_role;
+GRANT ALL ON TABLE schema_function_inventory TO service_role;
 
 CREATE OR REPLACE FUNCTION check_function_inventory()
 RETURNS TABLE (signature TEXT, status TEXT, detail TEXT)
@@ -760,8 +764,9 @@ CREATE TABLE IF NOT EXISTS org_security_setting (
 );
 
 ALTER TABLE org_security_setting ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON org_security_setting FROM anon, authenticated;
-GRANT SELECT, INSERT, UPDATE ON org_security_setting TO authenticated;
+REVOKE ALL ON TABLE org_security_setting FROM PUBLIC, anon, authenticated, service_role;
+GRANT ALL ON TABLE org_security_setting TO service_role;
+GRANT SELECT, INSERT, UPDATE ON TABLE org_security_setting TO authenticated;
 
 DROP POLICY IF EXISTS "org_security_setting: admins read" ON org_security_setting;
 CREATE POLICY "org_security_setting: admins read"
@@ -792,7 +797,8 @@ CREATE TABLE IF NOT EXISTS security_platform_operator (
 );
 
 ALTER TABLE security_platform_operator ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON security_platform_operator FROM anon, authenticated;
+REVOKE ALL ON TABLE security_platform_operator FROM PUBLIC, anon, authenticated, service_role;
+GRANT ALL ON TABLE security_platform_operator TO service_role;
 
 -- Deployment-wide thresholds; one row, written from the SQL editor.
 CREATE TABLE IF NOT EXISTS security_platform_setting (
@@ -805,7 +811,8 @@ CREATE TABLE IF NOT EXISTS security_platform_setting (
 );
 
 ALTER TABLE security_platform_setting ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON security_platform_setting FROM anon, authenticated;
+REVOKE ALL ON TABLE security_platform_setting FROM PUBLIC, anon, authenticated, service_role;
+GRANT ALL ON TABLE security_platform_setting TO service_role;
 INSERT INTO security_platform_setting (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
 
 -- What the monitor found. org_id NULL is a deployment-wide event. Kept 90 days.
@@ -831,8 +838,9 @@ CREATE INDEX IF NOT EXISTS security_event_org_id_created_at_idx ON security_even
 CREATE INDEX IF NOT EXISTS security_event_pending_idx ON security_event (created_at) WHERE notified_at IS NULL;
 
 ALTER TABLE security_event ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON security_event FROM anon, authenticated;
-GRANT SELECT ON security_event TO authenticated;
+REVOKE ALL ON TABLE security_event FROM PUBLIC, anon, authenticated, service_role;
+GRANT ALL ON TABLE security_event TO service_role;
+GRANT SELECT ON TABLE security_event TO authenticated;
 
 -- Per-organization state the monitor keeps between runs. No client access.
 CREATE TABLE IF NOT EXISTS security_monitor_state (
@@ -843,7 +851,8 @@ CREATE TABLE IF NOT EXISTS security_monitor_state (
 );
 
 ALTER TABLE security_monitor_state ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON security_monitor_state FROM anon, authenticated;
+REVOKE ALL ON TABLE security_monitor_state FROM PUBLIC, anon, authenticated, service_role;
+GRANT ALL ON TABLE security_monitor_state TO service_role;
 
 -- Deployment-wide state: one row.
 CREATE TABLE IF NOT EXISTS security_platform_state (
@@ -854,7 +863,8 @@ CREATE TABLE IF NOT EXISTS security_platform_state (
 );
 
 ALTER TABLE security_platform_state ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON security_platform_state FROM anon, authenticated;
+REVOKE ALL ON TABLE security_platform_state FROM PUBLIC, anon, authenticated, service_role;
+GRANT ALL ON TABLE security_platform_state TO service_role;
 INSERT INTO security_platform_state (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
 
 CREATE OR REPLACE FUNCTION security_operator_user_ids()

@@ -47,6 +47,7 @@ CREATE TABLE auth.users (id uuid PRIMARY KEY, email text, email_confirmed_at tim
 CREATE TABLE auth.audit_log_entries (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), payload json, created_at timestamptz DEFAULT now());
 CREATE ROLE authenticated;
 CREATE ROLE anon;
+CREATE ROLE service_role;
 
 CREATE TABLE organization (id uuid PRIMARY KEY, name text, email_domains text[] NOT NULL DEFAULT '{}');
 CREATE TABLE app_user (
@@ -446,6 +447,33 @@ describe('6. sign-up needs somewhere to belong', () => {
               has_function_privilege('anon', 'auth_hook_before_user_created(jsonb)', 'EXECUTE') AS anon`,
     )
     expect(can).toEqual({ auth: true, authenticated: false, anon: false })
+  })
+})
+
+describe('grants', () => {
+  it('every 0502 table states its grants: service_role all, clients only what they use', async () => {
+    await as(null)
+    const tables = [...MIGRATION.matchAll(/CREATE TABLE IF NOT EXISTS ([a-z_]+)/g)].map((m) => m[1])
+    const clientRead: Record<string, string[]> = {
+      realtime_tombstone: ['SELECT'],
+      org_security_setting: ['INSERT', 'SELECT', 'UPDATE'],
+      security_event: ['SELECT'],
+    }
+    for (const table of tables) {
+      const priv = async (role: string) =>
+        (
+          await rows<{ p: string }>(
+            `SELECT privilege_type AS p FROM information_schema.role_table_grants
+             WHERE table_schema = 'public' AND table_name = $1 AND grantee = $2 ORDER BY 1`,
+            [table, role],
+          )
+        ).map((r) => r.p)
+      expect(await priv('service_role'), table).toEqual(
+        ['DELETE', 'INSERT', 'REFERENCES', 'SELECT', 'TRIGGER', 'TRUNCATE', 'UPDATE'],
+      )
+      expect(await priv('authenticated'), table).toEqual(clientRead[table] ?? [])
+      expect(await priv('anon'), table).toEqual([])
+    }
   })
 })
 
