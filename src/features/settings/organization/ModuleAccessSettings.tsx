@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ChevronDown, ChevronRight, Globe, Loader2, Lock, Save, Users, X } from 'lucide-react'
 
-import { usePDMStore } from '@/stores/pdmStore'
-import { supabase } from '@/lib/supabase'
+import { Badge, Button, Callout } from '@/components/core/ui'
 import { log } from '@/lib/logger'
+import { supabase } from '@/lib/supabase'
+import { usePDMStore } from '@/stores/pdmStore'
 import { MODULE_GROUPS, MODULES, type ModuleGroupId, type ModuleId } from '@/types/modules'
+
+import { SettingsGroup, SettingsPage, SettingsSection } from '../components/ui'
 
 interface OrgTeam {
   id: string
@@ -170,188 +173,168 @@ export function ModuleAccessSettings() {
 
   if (!isAdmin) {
     return (
-      <div className="space-y-2">
-        <h1 className="text-xl font-semibold text-plm-fg">Module Access</h1>
-        <p className="text-sm text-plm-warning">
-          Only organization admins can configure module access.
-        </p>
-      </div>
+      <Callout tone="warning">Only organization admins can configure module access.</Callout>
     )
   }
 
+  const chipClass = (selected: boolean) =>
+    `inline-flex h-6 items-center gap-1.5 rounded-full border px-2 text-[12px] transition-colors ${
+      selected
+        ? 'border-plm-accent/60 bg-plm-accent/15 text-plm-fg'
+        : 'border-plm-border text-plm-fg-muted hover:bg-plm-highlight/50 hover:text-plm-fg'
+    }`
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-plm-fg">Module Access</h1>
-        <p className="text-sm text-plm-fg-muted mt-1">
-          Restrict a module to specific teams or people. Modules with no restriction stay visible to
-          everyone in the organization. Admins always keep access.
-        </p>
-      </div>
+    <SettingsPage>
+      <Callout>
+        Restrict a module to specific teams or people. Modules with no restriction stay visible to
+        everyone in the organization. Admins always keep access.
+      </Callout>
 
       {loading ? (
-        <div className="flex items-center justify-center h-32 text-plm-fg-muted">
+        <div className="flex h-32 items-center justify-center text-plm-fg-muted">
           <Loader2 size={20} className="animate-spin" />
         </div>
       ) : (
-        <div className="space-y-6">
-          {MODULE_GROUPS.map((group) => {
-            const groupModules = modulesByGroup.get(group.id)
-            if (!groupModules || groupModules.length === 0) return null
+        MODULE_GROUPS.map((group) => {
+          const groupModules = modulesByGroup.get(group.id)
+          if (!groupModules || groupModules.length === 0) return null
 
-            return (
-              <section key={group.id}>
-                <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-2">
-                  {group.name}
-                </h2>
+          return (
+            <SettingsSection key={group.id} title={group.name}>
+              <SettingsGroup>
+                {groupModules.map((module) => {
+                  const draft = getDraft(module.id)
+                  const current = getSaved(module.id)
+                  const isRestricted = current.teamIds.length > 0 || current.userIds.length > 0
+                  const isExpanded = expandedModuleId === module.id
+                  const dirty = isDirty(module.id)
 
-                <div className="rounded-lg border border-plm-border bg-plm-bg divide-y divide-plm-border">
-                  {groupModules.map((module) => {
-                    const draft = getDraft(module.id)
-                    const current = getSaved(module.id)
-                    const isRestricted = current.teamIds.length > 0 || current.userIds.length > 0
-                    const isExpanded = expandedModuleId === module.id
-                    const dirty = isDirty(module.id)
+                  return (
+                    <div key={module.id}>
+                      <button
+                        type="button"
+                        aria-expanded={isExpanded}
+                        onClick={() => setExpandedModuleId(isExpanded ? null : module.id)}
+                        className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-plm-highlight/40"
+                      >
+                        {isExpanded ? (
+                          <ChevronDown size={14} className="flex-shrink-0 text-plm-fg-muted" />
+                        ) : (
+                          <ChevronRight size={14} className="flex-shrink-0 text-plm-fg-muted" />
+                        )}
 
-                    return (
-                      <div key={module.id}>
-                        <button
-                          type="button"
-                          onClick={() => setExpandedModuleId(isExpanded ? null : module.id)}
-                          className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-plm-highlight/40 transition-colors"
-                        >
-                          {isExpanded ? (
-                            <ChevronDown size={14} className="text-plm-fg-muted flex-shrink-0" />
-                          ) : (
-                            <ChevronRight size={14} className="text-plm-fg-muted flex-shrink-0" />
-                          )}
+                        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-plm-fg">
+                          {module.name}
+                        </span>
 
-                          <span className="flex-1 min-w-0 text-sm text-plm-fg truncate">
-                            {module.name}
-                          </span>
+                        {isRestricted ? (
+                          <Badge tone="warning" icon={<Lock size={10} />}>
+                            {current.teamIds.length > 0 &&
+                              `${current.teamIds.length} team${current.teamIds.length === 1 ? '' : 's'}`}
+                            {current.teamIds.length > 0 && current.userIds.length > 0 && ' + '}
+                            {current.userIds.length > 0 &&
+                              `${current.userIds.length} ${current.userIds.length === 1 ? 'person' : 'people'}`}
+                          </Badge>
+                        ) : (
+                          <Badge icon={<Globe size={10} />}>Everyone</Badge>
+                        )}
+                      </button>
 
-                          {isRestricted ? (
-                            <span className="flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full bg-plm-warning/15 text-plm-warning">
-                              <Lock size={10} />
-                              {current.teamIds.length > 0 &&
-                                `${current.teamIds.length} team${current.teamIds.length === 1 ? '' : 's'}`}
-                              {current.teamIds.length > 0 && current.userIds.length > 0 && ' + '}
-                              {current.userIds.length > 0 &&
-                                `${current.userIds.length} ${current.userIds.length === 1 ? 'person' : 'people'}`}
-                            </span>
-                          ) : (
-                            <span className="flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full bg-plm-bg-lighter text-plm-fg-dim">
-                              <Globe size={10} />
-                              Everyone
-                            </span>
-                          )}
-                        </button>
-
-                        {isExpanded && (
-                          <div className="px-3 pb-3 pt-1 space-y-4 bg-plm-bg-secondary/40">
-                            <div>
-                              <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-plm-fg-muted mb-1.5">
-                                <Users size={11} />
-                                Teams
-                              </div>
-                              {teams.length === 0 ? (
-                                <p className="text-xs text-plm-fg-dim">No teams yet.</p>
-                              ) : (
-                                <div className="flex flex-wrap gap-1.5">
-                                  {teams.map((team) => {
-                                    const selected = draft.teamIds.includes(team.id)
-                                    return (
-                                      <button
-                                        key={team.id}
-                                        type="button"
-                                        onClick={() => toggleSubject(module.id, 'teamIds', team.id)}
-                                        className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs border transition-colors ${
-                                          selected
-                                            ? 'border-plm-accent bg-plm-accent/15 text-plm-fg'
-                                            : 'border-plm-border text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight/50'
-                                        }`}
-                                      >
-                                        <span
-                                          className="w-2 h-2 rounded-full"
-                                          style={{ backgroundColor: team.color }}
-                                        />
-                                        {team.name}
-                                      </button>
-                                    )
-                                  })}
-                                </div>
-                              )}
+                      {isExpanded && (
+                        <div className="space-y-4 border-t border-plm-border bg-plm-bg/40 px-4 py-3 pl-11">
+                          <div>
+                            <div className="mb-1.5 flex items-center gap-1.5 text-[12px] font-medium text-plm-fg-muted">
+                              <Users size={12} />
+                              Teams
                             </div>
-
-                            <div>
-                              <div className="text-[11px] uppercase tracking-wide text-plm-fg-muted mb-1.5">
-                                Individual people
-                              </div>
-                              <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto">
-                                {members.map((member) => {
-                                  const selected = draft.userIds.includes(member.id)
+                            {teams.length === 0 ? (
+                              <p className="text-[12px] text-plm-fg-muted">No teams yet.</p>
+                            ) : (
+                              <div className="flex flex-wrap gap-1.5">
+                                {teams.map((team) => {
+                                  const selected = draft.teamIds.includes(team.id)
                                   return (
                                     <button
-                                      key={member.id}
+                                      key={team.id}
                                       type="button"
-                                      onClick={() => toggleSubject(module.id, 'userIds', member.id)}
-                                      className={`px-2 py-1 rounded-full text-xs border transition-colors ${
-                                        selected
-                                          ? 'border-plm-accent bg-plm-accent/15 text-plm-fg'
-                                          : 'border-plm-border text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight/50'
-                                      }`}
+                                      aria-pressed={selected}
+                                      onClick={() => toggleSubject(module.id, 'teamIds', team.id)}
+                                      className={chipClass(selected)}
                                     >
-                                      {member.full_name || member.email}
+                                      <span
+                                        className="h-2 w-2 rounded-full"
+                                        style={{ backgroundColor: team.color }}
+                                      />
+                                      {team.name}
                                     </button>
                                   )
                                 })}
                               </div>
+                            )}
+                          </div>
+
+                          <div>
+                            <div className="mb-1.5 text-[12px] font-medium text-plm-fg-muted">
+                              Individual people
                             </div>
-
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => handleSave(module.id)}
-                                disabled={!dirty || savingModuleId === module.id}
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-plm-accent text-white hover:bg-plm-accent/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                              >
-                                {savingModuleId === module.id ? (
-                                  <Loader2 size={14} className="animate-spin" />
-                                ) : (
-                                  <Save size={14} />
-                                )}
-                                Save
-                              </button>
-
-                              {(draft.teamIds.length > 0 || draft.userIds.length > 0) && (
-                                <button
-                                  type="button"
-                                  onClick={() => clearRestriction(module.id)}
-                                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-sm rounded-lg border border-plm-border text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight transition-colors"
-                                  title="Remove the restriction so everyone can see this module"
-                                >
-                                  <X size={14} />
-                                  Allow everyone
-                                </button>
-                              )}
-
-                              <p className="text-xs text-plm-fg-dim">
-                                {draft.teamIds.length === 0 && draft.userIds.length === 0
-                                  ? 'Visible to the whole organization.'
-                                  : 'Everyone else sees this module greyed out in their sidebar settings.'}
-                              </p>
+                            <div className="flex max-h-40 flex-wrap gap-1.5 overflow-y-auto">
+                              {members.map((member) => {
+                                const selected = draft.userIds.includes(member.id)
+                                return (
+                                  <button
+                                    key={member.id}
+                                    type="button"
+                                    aria-pressed={selected}
+                                    onClick={() => toggleSubject(module.id, 'userIds', member.id)}
+                                    className={chipClass(selected)}
+                                  >
+                                    {member.full_name || member.email}
+                                  </button>
+                                )
+                              })}
                             </div>
                           </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              </section>
-            )
-          })}
-        </div>
+
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              icon={<Save size={14} />}
+                              loading={savingModuleId === module.id}
+                              onClick={() => handleSave(module.id)}
+                              disabled={!dirty}
+                            >
+                              Save
+                            </Button>
+
+                            {(draft.teamIds.length > 0 || draft.userIds.length > 0) && (
+                              <Button
+                                size="sm"
+                                icon={<X size={14} />}
+                                onClick={() => clearRestriction(module.id)}
+                                title="Remove the restriction so everyone can see this module"
+                              >
+                                Allow everyone
+                              </Button>
+                            )}
+
+                            <p className="text-[12px] text-plm-fg-muted">
+                              {draft.teamIds.length === 0 && draft.userIds.length === 0
+                                ? 'Visible to the whole organization.'
+                                : 'Everyone else sees this module greyed out in their sidebar settings.'}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </SettingsGroup>
+            </SettingsSection>
+          )
+        })
       )}
-    </div>
+    </SettingsPage>
   )
 }

@@ -1,20 +1,14 @@
-import { useState, useEffect, lazy, Suspense } from 'react'
-import {
-  Monitor,
-  RotateCcw,
-  ChevronDown,
-  Layers,
-  ChevronRight,
-  Timer,
-  Activity,
-  FlaskConical,
-  Loader2,
-} from 'lucide-react'
-import { usePDMStore } from '@/stores/pdmStore'
+import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
+import { ChevronRight, Loader2, RotateCcw } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
-import { ReferenceDiagnostics } from '@/features/dev-tools/reference-diagnostics'
-import { FileOperationTiming } from '@/features/dev-tools/performance'
+
+import { Button, Select } from '@/components/core/ui'
 import { FileOperationLog } from '@/features/dev-tools/operation-log'
+import { FileOperationTiming } from '@/features/dev-tools/performance'
+import { ReferenceDiagnostics } from '@/features/dev-tools/reference-diagnostics'
+import { usePDMStore } from '@/stores/pdmStore'
+
+import { SettingRow, SettingsGroup, SettingsPage, SettingsSection } from '../components/ui'
 
 const TestRunnerView = lazy(() =>
   import('@/features/dev-tools/test-runner').then((m) => ({ default: m.TestRunnerView })),
@@ -35,6 +29,40 @@ const devicePresets: DevicePreset[] = [
   { id: 'laptop', name: 'Laptop', width: 1366, height: 768 },
   { id: 'desktop', name: 'Desktop', width: 1920, height: 1080 },
 ]
+
+/** A tool row with a Show/Hide button; the tool renders below the row while open. */
+function ToolRow({
+  label,
+  description,
+  open,
+  onToggle,
+  children,
+}: {
+  label: string
+  description: string
+  open: boolean
+  onToggle: () => void
+  children: ReactNode
+}) {
+  return (
+    <>
+      <SettingRow label={label} description={description}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onToggle}
+          aria-expanded={open}
+          icon={
+            <ChevronRight size={14} className={`transition-transform ${open ? 'rotate-90' : ''}`} />
+          }
+        >
+          {open ? 'Hide' : 'Show'}
+        </Button>
+      </SettingRow>
+      {open && children}
+    </>
+  )
+}
 
 export function DevToolsSettings() {
   const { addToast } = usePDMStore(useShallow((s) => ({ addToast: s.addToast })))
@@ -76,84 +104,54 @@ export function DevToolsSettings() {
   }
 
   return (
-    <div className="space-y-6">
-      <section>
-        <h1 className="text-xl font-semibold text-plm-fg mb-1">Developer Tools</h1>
-        <p className="text-sm text-plm-fg-muted">Testing and development utilities</p>
-      </section>
-
-      <section>
-        <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3">
-          Window Size
-        </h2>
-        <div className="bg-plm-bg rounded-lg border border-plm-border p-4">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 text-plm-fg-muted">
-              <Monitor size={16} />
-              <span className="font-mono text-sm text-plm-fg">
-                {currentSize ? `${currentSize.width}×${currentSize.height}` : '—'}
-              </span>
-            </div>
-
-            <div className="relative flex-1 max-w-[200px]">
-              <select
-                value={selectedPreset}
-                onChange={(e) => handlePresetChange(e.target.value)}
-                className="w-full appearance-none bg-plm-input border border-plm-border rounded px-3 py-1.5 pr-8 text-sm text-plm-fg focus:outline-none focus:border-plm-accent cursor-pointer"
-              >
-                <option value="">Select preset...</option>
-                {devicePresets.map((preset) => (
-                  <option key={preset.id} value={preset.id}>
-                    {preset.name} ({preset.width}×{preset.height})
-                  </option>
-                ))}
-              </select>
-              <ChevronDown
-                size={14}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-plm-fg-muted pointer-events-none"
-              />
-            </div>
-
-            <button
-              onClick={handleReset}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-plm-highlight hover:bg-plm-highlight/80 text-plm-fg rounded transition-colors"
-            >
-              <RotateCcw size={12} />
-              Reset
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <section>
-        <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3">
-          Test Runner
-        </h2>
-        <div className="bg-plm-bg rounded-lg border border-plm-border overflow-hidden">
-          <button
-            onClick={() => setShowTestRunner(!showTestRunner)}
-            className="w-full flex items-center gap-3 p-4 hover:bg-plm-highlight transition-colors"
+    <SettingsPage>
+      <SettingsSection title="Window Size">
+        <SettingsGroup>
+          <SettingRow
+            label="Preset"
+            htmlFor="devtools-window-preset"
+            description={
+              <>
+                Current size:{' '}
+                <span className="font-mono text-plm-fg">
+                  {currentSize ? `${currentSize.width}×${currentSize.height}` : '—'}
+                </span>
+              </>
+            }
           >
-            <div className="p-2 rounded-lg bg-plm-accent/10">
-              <FlaskConical size={16} className="text-plm-accent" />
-            </div>
-            <div className="flex-1 text-left">
-              <div className="text-sm font-medium text-plm-fg">Regression Test Runner</div>
-              <div className="text-xs text-plm-fg-muted">
-                Run .bptest regression scripts and view structured results
-              </div>
-            </div>
-            <ChevronRight
-              size={16}
-              className={`text-plm-fg-muted transition-transform ${showTestRunner ? 'rotate-90' : ''}`}
-            />
-          </button>
+            <Select
+              id="devtools-window-preset"
+              size="sm"
+              value={selectedPreset}
+              onChange={(e) => handlePresetChange(e.target.value)}
+              className="w-56"
+            >
+              <option value="">Select preset...</option>
+              {devicePresets.map((preset) => (
+                <option key={preset.id} value={preset.id}>
+                  {preset.name} ({preset.width}×{preset.height})
+                </option>
+              ))}
+            </Select>
+            <Button size="sm" onClick={handleReset} icon={<RotateCcw size={12} />}>
+              Reset
+            </Button>
+          </SettingRow>
+        </SettingsGroup>
+      </SettingsSection>
 
-          {showTestRunner && (
-            <div className="h-[600px] border-t border-plm-border">
+      <SettingsSection title="Diagnostics">
+        <SettingsGroup>
+          <ToolRow
+            label="Regression Test Runner"
+            description="Run .bptest regression scripts and view structured results"
+            open={showTestRunner}
+            onToggle={() => setShowTestRunner(!showTestRunner)}
+          >
+            <div className="h-[600px]">
               <Suspense
                 fallback={
-                  <div className="flex items-center justify-center h-full text-plm-fg-muted">
+                  <div className="flex h-full items-center justify-center text-plm-fg-muted">
                     <Loader2 size={20} className="animate-spin" />
                   </div>
                 }
@@ -161,105 +159,39 @@ export function DevToolsSettings() {
                 <TestRunnerView />
               </Suspense>
             </div>
-          )}
-        </div>
-      </section>
-
-      <section>
-        <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3">
-          File Operation Timing
-        </h2>
-        <div className="bg-plm-bg rounded-lg border border-plm-border overflow-hidden">
-          <button
-            onClick={() => setShowTimingDashboard(!showTimingDashboard)}
-            className="w-full flex items-center gap-3 p-4 hover:bg-plm-highlight transition-colors"
+          </ToolRow>
+          <ToolRow
+            label="Performance Timing Dashboard"
+            description="Monitor folderMetrics, store updates, and file watcher events"
+            open={showTimingDashboard}
+            onToggle={() => setShowTimingDashboard(!showTimingDashboard)}
           >
-            <div className="p-2 rounded-lg bg-emerald-500/10">
-              <Timer size={16} className="text-emerald-400" />
-            </div>
-            <div className="flex-1 text-left">
-              <div className="text-sm font-medium text-plm-fg">Performance Timing Dashboard</div>
-              <div className="text-xs text-plm-fg-muted">
-                Monitor folderMetrics, store updates, and file watcher events
-              </div>
-            </div>
-            <ChevronRight
-              size={16}
-              className={`text-plm-fg-muted transition-transform ${showTimingDashboard ? 'rotate-90' : ''}`}
-            />
-          </button>
-
-          {showTimingDashboard && (
-            <div className="p-4 border-t border-plm-border">
+            <div className="p-4">
               <FileOperationTiming />
             </div>
-          )}
-        </div>
-      </section>
-
-      <section>
-        <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3">
-          Operation Log
-        </h2>
-        <div className="bg-plm-bg rounded-lg border border-plm-border overflow-hidden">
-          <button
-            onClick={() => setShowOperationLog(!showOperationLog)}
-            className="w-full flex items-center gap-3 p-4 hover:bg-plm-highlight transition-colors"
+          </ToolRow>
+          <ToolRow
+            label="File Operation Log"
+            description="Track file operations with step-by-step timing breakdown"
+            open={showOperationLog}
+            onToggle={() => setShowOperationLog(!showOperationLog)}
           >
-            <div className="p-2 rounded-lg bg-plm-accent/10">
-              <Activity size={16} className="text-plm-accent" />
-            </div>
-            <div className="flex-1 text-left">
-              <div className="text-sm font-medium text-plm-fg">File Operation Log</div>
-              <div className="text-xs text-plm-fg-muted">
-                Track file operations with step-by-step timing breakdown
-              </div>
-            </div>
-            <ChevronRight
-              size={16}
-              className={`text-plm-fg-muted transition-transform ${showOperationLog ? 'rotate-90' : ''}`}
-            />
-          </button>
-
-          {showOperationLog && (
-            <div className="p-4 border-t border-plm-border">
+            <div className="p-4">
               <FileOperationLog />
             </div>
-          )}
-        </div>
-      </section>
-
-      <section>
-        <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3">
-          Reference Diagnostics
-        </h2>
-        <div className="bg-plm-bg rounded-lg border border-plm-border overflow-hidden">
-          <button
-            onClick={() => setShowRefDiagnostics(!showRefDiagnostics)}
-            className="w-full flex items-center gap-3 p-4 hover:bg-plm-highlight transition-colors"
+          </ToolRow>
+          <ToolRow
+            label="BOM Reference Diagnostics"
+            description="Debug assembly reference extraction and path matching issues"
+            open={showRefDiagnostics}
+            onToggle={() => setShowRefDiagnostics(!showRefDiagnostics)}
           >
-            <div className="p-2 rounded-lg bg-amber-500/10">
-              <Layers size={16} className="text-amber-400" />
-            </div>
-            <div className="flex-1 text-left">
-              <div className="text-sm font-medium text-plm-fg">BOM Reference Diagnostics</div>
-              <div className="text-xs text-plm-fg-muted">
-                Debug assembly reference extraction and path matching issues
-              </div>
-            </div>
-            <ChevronRight
-              size={16}
-              className={`text-plm-fg-muted transition-transform ${showRefDiagnostics ? 'rotate-90' : ''}`}
-            />
-          </button>
-
-          {showRefDiagnostics && (
-            <div className="h-[600px] border-t border-plm-border">
+            <div className="h-[600px]">
               <ReferenceDiagnostics />
             </div>
-          )}
-        </div>
-      </section>
-    </div>
+          </ToolRow>
+        </SettingsGroup>
+      </SettingsSection>
+    </SettingsPage>
   )
 }

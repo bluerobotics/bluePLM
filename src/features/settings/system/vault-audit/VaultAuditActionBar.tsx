@@ -34,6 +34,7 @@ import {
   Sparkles,
 } from 'lucide-react'
 
+import { Button } from '@/components/core/ui'
 import { t } from '@/lib/i18n'
 import type { VaultAuditRepairOutcome } from '@/types/vaultAudit'
 
@@ -150,16 +151,17 @@ function WriteToVaultBar({ repair }: { repair: UseVaultAuditRepairResult }) {
                 derived: repair.selected.derived,
               })}
         </p>
-        <button
+        <Button
+          variant="primary"
+          size="sm"
           onClick={() => void repair.apply()}
           disabled={!repair.canApply}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-plm-bg bg-plm-accent hover:bg-plm-accent/90 rounded-md transition-colors disabled:opacity-40 flex-shrink-0"
         >
           {repair.applying ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
           {repair.applying
             ? t('vaultAudit.repair.applying')
             : t('vaultAudit.repair.apply', { count: repair.selected.entries })}
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -215,16 +217,12 @@ function WriteToFileBar({ push }: { push: UseVaultAuditPushResult }) {
             ? t('vaultAudit.push.selectPrompt')
             : t('vaultAudit.push.selectedSummary', { files: eligibility.selected })}
         </p>
-        <button
-          onClick={() => void push.run()}
-          disabled={!push.canRun}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-plm-bg bg-plm-accent hover:bg-plm-accent/90 rounded-md transition-colors disabled:opacity-40 flex-shrink-0"
-        >
+        <Button variant="primary" size="sm" onClick={() => void push.run()} disabled={!push.canRun}>
           {push.running ? <Loader2 size={12} className="animate-spin" /> : <FileUp size={12} />}
           {push.running
             ? t('vaultAudit.push.running')
             : t('vaultAudit.push.apply', { count: eligibility.eligible.length })}
-        </button>
+        </Button>
       </div>
     </div>
   )

@@ -1,0 +1,201 @@
+import {
+  Check,
+  Eraser,
+  Folder,
+  FolderOpen,
+  FolderX,
+  Link,
+  Pencil,
+  Star,
+  Trash2,
+  Unlink,
+  X,
+} from 'lucide-react'
+
+import { Badge, Button, TextInput } from '@/components/core/ui'
+import { hasDesktop } from '@/lib/platform'
+
+import type { Vault, VaultsManager } from './useVaultsManager'
+
+interface VaultRowProps {
+  vault: Vault
+  manager: VaultsManager
+}
+
+/** One vault in the Vaults list: name, local folder, connection state and its actions. */
+export function VaultRow({ vault, manager }: VaultRowProps) {
+  const {
+    isAdmin,
+    renamingVaultId,
+    setRenamingVaultId,
+    renameValue,
+    setRenameValue,
+    startRename,
+    handleRenameVault,
+    handleSetDefaultVault,
+    connectingVaultId,
+    handleConnectVault,
+    isVaultConnected,
+    localPathOf,
+    handleDisconnectVault,
+    startWipe,
+    startClear,
+    startDelete,
+  } = manager
+
+  const connected = isVaultConnected(vault.id)
+  const localPath = connected && hasDesktop() ? localPathOf(vault.id) : undefined
+  const isRenaming = renamingVaultId === vault.id
+
+  return (
+    <div className="flex items-center gap-3 px-4 py-3">
+      <Folder
+        size={16}
+        className={`flex-shrink-0 ${vault.is_default ? 'text-plm-accent' : 'text-plm-fg-muted'}`}
+      />
+      <div className="min-w-0 flex-1">
+        {isRenaming ? (
+          <div className="flex items-center gap-1.5">
+            <TextInput
+              size="sm"
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleRenameVault(vault)
+                if (e.key === 'Escape') setRenamingVaultId(null)
+              }}
+              className="flex-1"
+              autoFocus
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<Check size={14} className="text-plm-success" />}
+              onClick={() => handleRenameVault(vault)}
+              aria-label="Save name"
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<X size={14} />}
+              onClick={() => setRenamingVaultId(null)}
+              aria-label="Cancel rename"
+            />
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center gap-2">
+              <span className="truncate text-[13px] font-medium text-plm-fg">{vault.name}</span>
+              {vault.is_default && <Badge tone="accent">Default</Badge>}
+              {connected ? <Badge tone="success">Connected</Badge> : <Badge>Not connected</Badge>}
+            </div>
+            {vault.description && (
+              <div className="truncate text-[12px] text-plm-fg-muted">{vault.description}</div>
+            )}
+            {localPath && (
+              <div className="truncate text-[12px] text-plm-fg-muted" title={localPath}>
+                {localPath}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+      {!isRenaming && (
+        <div className="flex flex-shrink-0 items-center gap-1">
+          {/* Show in folder (connected vaults, on the desktop only) */}
+          {connected && hasDesktop() && (
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<FolderOpen size={14} />}
+              onClick={() => {
+                if (localPath) {
+                  window.electronAPI?.showInExplorer(localPath)
+                }
+              }}
+              title="Show in folder"
+              aria-label="Show in folder"
+            />
+          )}
+
+          {connected ? (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<Unlink size={14} />}
+                onClick={() => handleDisconnectVault(vault.id)}
+                title="Disconnect vault"
+              >
+                Disconnect
+              </Button>
+              {hasDesktop() && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={<Eraser size={14} />}
+                  onClick={() => startWipe(vault)}
+                  title="Wipe local files"
+                  className="!text-plm-error"
+                >
+                  Wipe Local
+                </Button>
+              )}
+            </>
+          ) : (
+            <Button
+              variant="primary"
+              size="sm"
+              icon={<Link size={14} />}
+              loading={connectingVaultId === vault.id}
+              onClick={() => handleConnectVault(vault)}
+            >
+              Connect
+            </Button>
+          )}
+
+          {isAdmin && (
+            <div className="ml-1 flex items-center gap-0.5 border-l border-plm-border pl-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<Pencil size={14} />}
+                onClick={() => startRename(vault)}
+                title="Rename vault"
+                aria-label="Rename vault"
+              />
+              {!vault.is_default && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={<Star size={14} />}
+                  onClick={() => handleSetDefaultVault(vault.id)}
+                  title="Set as default"
+                  aria-label="Set as default"
+                />
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<FolderX size={14} />}
+                onClick={() => startClear(vault)}
+                title="Clear vault contents"
+                aria-label="Clear vault contents"
+                className="!text-plm-warning"
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<Trash2 size={14} />}
+                onClick={() => startDelete(vault)}
+                title="Delete vault"
+                aria-label="Delete vault"
+                className="!text-plm-error"
+              />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}

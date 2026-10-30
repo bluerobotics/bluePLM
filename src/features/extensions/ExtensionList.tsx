@@ -5,9 +5,12 @@
  * Provides filtering, sorting, and action callbacks.
  */
 import { useState, useMemo } from 'react'
-import { Search, Filter, Grid, List, RefreshCw } from 'lucide-react'
-import { ExtensionCard } from './ExtensionCard'
+import { Search, Grid, List, RefreshCw } from 'lucide-react'
+
+import { Button, SegmentedControl, Select, TextInput } from '@/components/core/ui'
 import type { InstalledExtension, StoreExtensionListing } from '@/stores/types'
+
+import { ExtensionCard } from './ExtensionCard'
 
 interface ExtensionListProps {
   // Data sources
@@ -127,84 +130,73 @@ export function ExtensionList({
     <div className={`flex flex-col h-full ${className}`}>
       {/* Toolbar */}
       {(showSearch || showFilters || showViewToggle) && (
-        <div className="flex items-center gap-3 mb-4 flex-wrap">
+        <div className="flex items-center gap-2 mb-4 flex-wrap">
           {/* Search */}
           {showSearch && (
             <div className="relative flex-1 min-w-[200px]">
               <Search
-                size={16}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
+                size={14}
+                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-plm-fg-muted"
               />
-              <input
+              <TextInput
                 type="text"
                 placeholder="Search extensions..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-gray-800 border border-gray-700 rounded-lg
-                  text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                className="pl-8"
+                aria-label="Search extensions"
               />
             </div>
           )}
 
           {/* Filters */}
           {showFilters && (
-            <div className="flex items-center gap-2">
-              <Filter size={16} className="text-gray-500" />
-              <select
+            <>
+              <Select
                 value={filterBy}
                 onChange={(e) => setFilterBy(e.target.value as FilterOption)}
-                className="px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm 
-                  text-gray-200 focus:outline-none focus:border-blue-500"
+                aria-label="Filter"
               >
                 <option value="all">All</option>
                 <option value="verified">Verified</option>
                 <option value="installed">Installed</option>
-              </select>
+              </Select>
 
-              <select
+              <Select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as SortOption)}
-                className="px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm 
-                  text-gray-200 focus:outline-none focus:border-blue-500"
+                aria-label="Sort"
               >
                 <option value="name">Name</option>
                 <option value="recent">Recently Updated</option>
                 <option value="popular">Popular</option>
-              </select>
-            </div>
+              </Select>
+            </>
           )}
 
           {/* View toggle */}
           {showViewToggle && (
-            <div className="flex items-center border border-gray-700 rounded-lg overflow-hidden">
-              <button
-                onClick={() => setViewMode('grid')}
-                className={`p-2 ${viewMode === 'grid' ? 'bg-gray-700 text-gray-200' : 'text-gray-500 hover:text-gray-300'}`}
-                title="Grid view"
-              >
-                <Grid size={16} />
-              </button>
-              <button
-                onClick={() => setViewMode('list')}
-                className={`p-2 ${viewMode === 'list' ? 'bg-gray-700 text-gray-200' : 'text-gray-500 hover:text-gray-300'}`}
-                title="List view"
-              >
-                <List size={16} />
-              </button>
-            </div>
+            <SegmentedControl<ViewMode>
+              value={viewMode}
+              onChange={setViewMode}
+              aria-label="View"
+              options={[
+                { value: 'grid', label: <Grid size={14} />, title: 'Grid view' },
+                { value: 'list', label: <List size={14} />, title: 'List view' },
+              ]}
+            />
           )}
 
           {/* Refresh button */}
           {onRefresh && (
-            <button
+            <Button
+              variant="ghost"
               onClick={onRefresh}
               disabled={loading}
-              className="p-2 text-gray-400 hover:text-gray-200 hover:bg-gray-700/50 rounded-lg 
-                transition-colors disabled:opacity-50"
               title="Refresh"
-            >
-              <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-            </button>
+              aria-label="Refresh"
+              icon={<RefreshCw size={14} className={loading ? 'animate-spin' : ''} />}
+            />
           )}
         </div>
       )}
@@ -212,8 +204,8 @@ export function ExtensionList({
       {/* Loading state */}
       {loading && extensions.length === 0 && (
         <div className="flex-1 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-3 text-gray-400">
-            <RefreshCw size={32} className="animate-spin" />
+          <div className="flex items-center gap-2 text-[13px] text-plm-fg-muted">
+            <RefreshCw size={16} className="animate-spin" />
             <span>Loading extensions...</span>
           </div>
         </div>
@@ -221,18 +213,13 @@ export function ExtensionList({
 
       {/* Empty state */}
       {!loading && extensions.length === 0 && (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center text-gray-400">
-            <p>{emptyMessage}</p>
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="mt-2 text-blue-400 hover:text-blue-300 text-sm"
-              >
-                Clear search
-              </button>
-            )}
-          </div>
+        <div className="rounded-lg border border-plm-border bg-plm-bg-light/60 px-4 py-3 text-[13px] text-plm-fg-muted">
+          <span>{emptyMessage}</span>
+          {searchQuery && (
+            <Button size="sm" variant="ghost" onClick={() => setSearchQuery('')} className="ml-2">
+              Clear search
+            </Button>
+          )}
         </div>
       )}
 
@@ -241,7 +228,7 @@ export function ExtensionList({
         <div
           className={`flex-1 overflow-y-auto ${
             viewMode === 'grid'
-              ? 'grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3 auto-rows-min'
+              ? 'grid gap-3 grid-cols-1 md:grid-cols-2 xl:grid-cols-3 auto-rows-min'
               : 'flex flex-col gap-2'
           }`}
         >

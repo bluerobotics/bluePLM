@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronRight, Loader2, Play, X } from 'lucide-react'
 
+import { Button, FIELD_CLASS } from '@/components/core/ui'
 import { t } from '@/lib/i18n'
 import type { VaultAuditScope, VaultAuditScopeKind } from '@/types/vaultAudit'
 
@@ -74,7 +75,7 @@ export function VaultAuditScopeForm({
           type="button"
           onClick={() => setExpanded((value) => !value)}
           aria-expanded={showOptions}
-          className="flex items-center gap-1.5 text-sm text-plm-fg-muted hover:text-plm-fg"
+          className="flex items-center gap-1.5 text-[13px] text-plm-fg-muted hover:text-plm-fg"
         >
           <Chevron size={14} />
           {t('vaultAudit.scope.current', {
@@ -90,18 +91,18 @@ export function VaultAuditScopeForm({
         disabled={isRunning}
         className={`grid gap-2 lg:grid-cols-3 ${showOptions ? '' : 'hidden'}`}
       >
-        <legend className="text-sm font-medium text-plm-fg mb-2">
+        <legend className="mb-2 text-[13px] font-medium text-plm-fg">
           {t('vaultAudit.scope.legend')}
         </legend>
 
         {options.map((option) => (
           <label
             key={option.kind}
-            className={`flex gap-3 p-3 rounded-md border cursor-pointer transition-colors ${
+            className={`flex cursor-pointer gap-3 rounded-lg border p-3 transition-colors ${
               scope.kind === option.kind
-                ? 'border-plm-accent bg-plm-highlight'
-                : 'border-plm-border hover:bg-plm-bg-lighter'
-            } ${isRunning ? 'opacity-60 cursor-not-allowed' : ''}`}
+                ? 'border-plm-accent/60 bg-plm-accent/5'
+                : 'border-plm-border bg-plm-bg-light/60 hover:bg-plm-highlight/40'
+            } ${isRunning ? 'cursor-not-allowed opacity-60' : ''}`}
           >
             <input
               type="radio"
@@ -111,8 +112,8 @@ export function VaultAuditScopeForm({
               onChange={() => onScopeChange({ ...scope, kind: option.kind })}
             />
             <div className="min-w-0">
-              <div className="text-sm text-plm-fg">{option.label}</div>
-              <p className="text-xs text-plm-fg-muted mt-0.5">{option.hint}</p>
+              <div className="text-[13px] font-medium text-plm-fg">{option.label}</div>
+              <p className="mt-0.5 text-[12px] leading-relaxed text-plm-fg-muted">{option.hint}</p>
               {option.kind === 'folder' && scope.kind === 'folder' && (
                 <input
                   type="text"
@@ -121,7 +122,7 @@ export function VaultAuditScopeForm({
                   onChange={(event) =>
                     onScopeChange({ kind: 'folder', folderPath: event.target.value })
                   }
-                  className="mt-2 w-full px-2 py-1 text-xs font-mono bg-plm-bg border border-plm-border rounded text-plm-fg outline-none focus:border-plm-accent"
+                  className={`${FIELD_CLASS} mt-2 h-7 px-2 font-mono`}
                 />
               )}
             </div>
@@ -131,27 +132,24 @@ export function VaultAuditScopeForm({
 
       <div className="flex items-center gap-2">
         {isRunning ? (
-          <button
-            onClick={onCancel}
-            disabled={cancelRequested}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-plm-fg bg-plm-bg-lighter hover:bg-plm-bg-light border border-plm-border rounded-md transition-colors disabled:opacity-50"
-          >
-            <X size={14} />
+          <Button icon={<X size={14} />} onClick={onCancel} disabled={cancelRequested}>
             {cancelRequested ? t('vaultAudit.cancelling') : t('vaultAudit.cancel')}
-          </button>
+          </Button>
         ) : (
-          <button
+          <Button
+            variant="primary"
+            icon={<Play size={14} />}
             onClick={onStart}
             disabled={!canScan || blocked}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-plm-fg bg-plm-accent/20 hover:bg-plm-accent/30 border border-plm-accent rounded-md transition-colors disabled:opacity-50"
           >
-            <Play size={14} />
             {hasResult ? t('vaultAudit.rescan') : t('vaultAudit.scan')}
-          </button>
+          </Button>
         )}
 
         {isRunning && <Loader2 size={14} className="animate-spin text-plm-fg-muted" />}
-        {!canScan && <span className="text-xs text-plm-fg-muted">{t('vaultAudit.noVault')}</span>}
+        {!canScan && (
+          <span className="text-[12px] text-plm-fg-muted">{t('vaultAudit.noVault')}</span>
+        )}
       </div>
     </div>
   )

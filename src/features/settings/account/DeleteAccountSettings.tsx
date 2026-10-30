@@ -1,10 +1,18 @@
 import { useState } from 'react'
-import { AlertTriangle, Loader2, Trash2, UserX } from 'lucide-react'
-import { log } from '@/lib/logger'
-import { usePDMStore } from '@/stores/pdmStore'
+import { Trash2 } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
-import { getSupabaseClient } from '@/lib/supabase'
+
+import { Button, Callout, TextInput } from '@/components/core/ui'
+import {
+  SettingRow,
+  SettingsGroup,
+  SettingsPage,
+  SettingsSection,
+} from '@/features/settings/components/ui'
 import { getBackend } from '@/lib/backend'
+import { log } from '@/lib/logger'
+import { getSupabaseClient } from '@/lib/supabase'
+import { usePDMStore } from '@/stores/pdmStore'
 
 export function DeleteAccountSettings() {
   const { user, setUser, setOrganization, addToast } = usePDMStore(
@@ -20,7 +28,7 @@ export function DeleteAccountSettings() {
   const [showConfirmation, setShowConfirmation] = useState(false)
 
   if (!user) {
-    return <div className="text-center py-12 text-plm-fg-muted text-base">Not signed in</div>
+    return <div className="py-12 text-center text-[13px] text-plm-fg-muted">Not signed in</div>
   }
 
   // The text user must type to confirm deletion
@@ -58,136 +66,82 @@ export function DeleteAccountSettings() {
   }
 
   return (
-    <div className="space-y-8">
-      {/* Warning Header */}
-      <section>
-        <div className="flex items-center gap-3 mb-4">
-          <div className="p-2.5 rounded-lg bg-plm-error/20 text-plm-error">
-            <UserX size={24} />
-          </div>
-          <div>
-            <h2 className="text-lg font-semibold text-plm-fg">Delete Account</h2>
-            <p className="text-sm text-plm-fg-muted">Permanently remove your account and data</p>
-          </div>
-        </div>
-      </section>
+    <SettingsPage>
+      <SettingsSection title="What happens when you delete your account">
+        <SettingsGroup>
+          <ul className="list-disc space-y-1.5 py-3.5 pl-8 pr-4 text-[13px] text-plm-fg-dim marker:text-plm-error">
+            <li>Your user profile will be permanently deleted</li>
+            <li>You will be removed from your organization</li>
+            <li>All your team memberships will be removed</li>
+            <li>All your active sessions will be terminated</li>
+            <li>Any files you have checked out will be released</li>
+          </ul>
+        </SettingsGroup>
+        <Callout tone="info">
+          Activity history and file versions you created will be preserved for audit purposes
+        </Callout>
+      </SettingsSection>
 
-      {/* What happens section */}
-      <section className="p-4 bg-plm-bg rounded-lg border border-plm-border">
-        <h3 className="text-base font-medium text-plm-fg mb-3">
-          What happens when you delete your account:
-        </h3>
-        <ul className="space-y-2 text-sm text-plm-fg-muted">
-          <li className="flex items-start gap-2">
-            <span className="text-plm-error mt-0.5">•</span>
-            <span>Your user profile will be permanently deleted</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-plm-error mt-0.5">•</span>
-            <span>You will be removed from your organization</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-plm-error mt-0.5">•</span>
-            <span>All your team memberships will be removed</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-plm-error mt-0.5">•</span>
-            <span>All your active sessions will be terminated</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-plm-error mt-0.5">•</span>
-            <span>Any files you have checked out will be released</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-plm-warning mt-0.5">•</span>
-            <span className="text-plm-warning">
-              Activity history and file versions you created will be preserved for audit purposes
-            </span>
-          </li>
-        </ul>
-      </section>
-
-      {/* Warning banner */}
-      <section className="p-4 bg-plm-error/10 border border-plm-error/30 rounded-lg">
-        <div className="flex items-start gap-3">
-          <AlertTriangle className="text-plm-error flex-shrink-0 mt-0.5" size={20} />
-          <div>
-            <p className="text-base font-medium text-plm-error">This action is irreversible</p>
-            <p className="text-sm text-plm-error/80 mt-1">
-              Once you delete your account, there is no way to recover it. You will need to create a
-              new account and be re-invited to any organizations.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Delete button / confirmation */}
-      <section className="p-4 bg-plm-bg rounded-lg border border-plm-border">
-        {!showConfirmation ? (
-          <button
-            onClick={() => setShowConfirmation(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-plm-error/20 text-plm-error border border-plm-error/30 rounded-lg hover:bg-plm-error/30 transition-colors font-medium"
-          >
-            <Trash2 size={18} />I want to delete my account
-          </button>
-        ) : (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm text-plm-fg-muted mb-2">
+      <SettingsSection title="Danger zone">
+        <SettingsGroup tone="danger">
+          {!showConfirmation ? (
+            <SettingRow
+              label="This action is irreversible"
+              description="Once you delete your account, there is no way to recover it. You will need to create a new account and be re-invited to any organizations."
+            >
+              <Button
+                variant="danger-subtle"
+                icon={<Trash2 size={14} />}
+                onClick={() => setShowConfirmation(true)}
+              >
+                I want to delete my account
+              </Button>
+            </SettingRow>
+          ) : (
+            <div className="space-y-3 px-4 py-4">
+              <label
+                htmlFor="settings-delete-confirmation"
+                className="block text-[13px] text-plm-fg-dim"
+              >
                 To confirm, type{' '}
-                <span className="font-mono font-semibold text-plm-fg bg-plm-bg-secondary px-1.5 py-0.5 rounded">
+                <span className="rounded bg-plm-bg-secondary px-1.5 py-0.5 font-mono font-semibold text-plm-fg">
                   {requiredConfirmation}
                 </span>{' '}
                 below:
               </label>
-              <input
-                type="text"
+              <TextInput
+                id="settings-delete-confirmation"
                 value={confirmationText}
                 onChange={(e) => setConfirmationText(e.target.value)}
                 placeholder={`Type "${requiredConfirmation}" to confirm`}
-                className="w-full bg-plm-bg-secondary border border-plm-border rounded-lg px-3 py-2.5 text-base focus:border-plm-error focus:outline-none"
                 disabled={isDeleting}
                 autoFocus
               />
+              <div className="flex items-center justify-end gap-2">
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setShowConfirmation(false)
+                    setConfirmationText('')
+                  }}
+                  disabled={isDeleting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="danger"
+                  icon={<Trash2 size={14} />}
+                  loading={isDeleting}
+                  onClick={handleDeleteAccount}
+                  disabled={!isConfirmed}
+                >
+                  {isDeleting ? 'Deleting account...' : 'Delete my account permanently'}
+                </Button>
+              </div>
             </div>
-
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handleDeleteAccount}
-                disabled={!isConfirmed || isDeleting}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium transition-colors ${
-                  isConfirmed && !isDeleting
-                    ? 'bg-plm-error text-white hover:bg-plm-error/90'
-                    : 'bg-plm-error/20 text-plm-error/50 cursor-not-allowed'
-                }`}
-              >
-                {isDeleting ? (
-                  <>
-                    <Loader2 size={18} className="animate-spin" />
-                    Deleting account...
-                  </>
-                ) : (
-                  <>
-                    <Trash2 size={18} />
-                    Delete my account permanently
-                  </>
-                )}
-              </button>
-
-              <button
-                onClick={() => {
-                  setShowConfirmation(false)
-                  setConfirmationText('')
-                }}
-                disabled={isDeleting}
-                className="px-4 py-2.5 text-plm-fg-muted hover:text-plm-fg transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-      </section>
-    </div>
+          )}
+        </SettingsGroup>
+      </SettingsSection>
+    </SettingsPage>
   )
 }

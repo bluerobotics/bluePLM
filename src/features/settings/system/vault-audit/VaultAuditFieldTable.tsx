@@ -56,7 +56,7 @@ export function VaultAuditFieldTable({ tallies }: VaultAuditFieldTableProps) {
                 <td className="px-2 py-1.5 text-right text-plm-fg-muted">{tally.databaseEmpty}</td>
                 <td
                   className={`px-2 py-1.5 text-right ${
-                    tally.bothSetDiffer > 0 ? 'text-yellow-500' : 'text-plm-fg-muted'
+                    tally.bothSetDiffer > 0 ? 'text-plm-warning' : 'text-plm-fg-muted'
                   }`}
                 >
                   {tally.bothSetDiffer}

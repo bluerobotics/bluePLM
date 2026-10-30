@@ -1,21 +1,17 @@
 import { useState, useEffect, useRef } from 'react'
+import { Mail, Loader2, Key, Shield, Camera, X } from 'lucide-react'
+import { useShallow } from 'zustand/react/shallow'
+
+import { Badge, Button, Callout, TextInput, type BadgeTone } from '@/components/core/ui'
+import {
+  SettingRow,
+  SettingsGroup,
+  SettingsPage,
+  SettingsSection,
+} from '@/features/settings/components/ui'
 import { isAdminUser } from '@/lib/isAdminUser'
 import { log } from '@/lib/logger'
-import {
-  Mail,
-  Loader2,
-  ShoppingCart,
-  GitBranch,
-  Key,
-  Shield,
-  AlertTriangle,
-  Check,
-  RefreshCw,
-  Camera,
-  X,
-} from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
-import { useShallow } from 'zustand/react/shallow'
 import { getSupabaseClient, useAdminRecoveryCode, supabase } from '@/lib/supabase'
 import { getInitials, getEffectiveAvatarUrl } from '@/lib/utils'
 import { ContributionHistory } from '../system/ContributionHistory'
@@ -279,22 +275,21 @@ export function ProfileSettings() {
     loadRFQs()
   }, [user, organization])
 
-  const getStatusColor = (status: string | null) => {
-    if (!status) return 'bg-gray-500/20 text-gray-400'
+  const statusTone = (status: string | null): BadgeTone => {
     switch (status) {
       case 'open':
       case 'draft':
-        return 'bg-sky-500/20 text-sky-400'
+        return 'info'
       case 'in_progress':
       case 'sent':
-        return 'bg-amber-500/20 text-amber-400'
+        return 'warning'
       case 'completed':
       case 'closed':
-        return 'bg-emerald-500/20 text-emerald-400'
+        return 'success'
       case 'cancelled':
-        return 'bg-rose-500/20 text-rose-400'
+        return 'error'
       default:
-        return 'bg-plm-fg-muted/20 text-plm-fg-muted'
+        return 'neutral'
     }
   }
 
@@ -346,48 +341,66 @@ export function ProfileSettings() {
   }
 
   if (!user) {
-    return <div className="text-center py-12 text-plm-fg-muted text-base">Not signed in</div>
+    return <div className="py-12 text-center text-[13px] text-plm-fg-muted">Not signed in</div>
   }
 
+  const renderRecordRow = (
+    key: string,
+    number: string,
+    title: string | null,
+    createdAt: string | null,
+    status: string | null,
+  ) => (
+    <div key={key} className="flex items-center gap-3 px-4 py-2.5">
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[13px] font-medium text-plm-fg">
+          {number}
+          {title && <span className="ml-2 font-normal text-plm-fg-muted">— {title}</span>}
+        </div>
+        <div className="text-[12px] text-plm-fg-muted">Created {formatDate(createdAt)}</div>
+      </div>
+      <Badge tone={statusTone(status)} className="capitalize">
+        {(status || 'unknown').replace('_', ' ')}
+      </Badge>
+    </div>
+  )
+
   return (
-    <div className="space-y-8">
+    <SettingsPage>
       {/* User profile card */}
-      <section>
-        <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3">
-          Profile
-        </h2>
-        <div className="flex items-start gap-4 p-4 bg-plm-bg rounded-lg border border-plm-border">
+      <SettingsGroup>
+        <div className="flex items-center gap-4 px-4 py-4">
           {/* Avatar with upload controls */}
-          <div className="relative group">
+          <div className="group relative flex-shrink-0">
             {/* Avatar display (preview > custom > google > initials) */}
             {avatarPreview || effectiveAvatarUrl ? (
               <img
                 src={(avatarPreview || effectiveAvatarUrl)!}
                 alt={user.full_name || user.email}
-                className="w-20 h-20 rounded-full object-cover border-2 border-plm-border"
+                className="h-16 w-16 rounded-full border border-plm-border object-cover"
                 referrerPolicy="no-referrer"
                 onError={(e) => {
                   const target = e.target as HTMLImageElement
-                  target.style.display = 'none'
+                  target.classList.add('hidden')
                   target.nextElementSibling?.classList.remove('hidden')
                 }}
               />
             ) : null}
             <div
-              className={`w-20 h-20 rounded-full bg-plm-accent flex items-center justify-center text-2xl text-white font-semibold ${avatarPreview || effectiveAvatarUrl ? 'hidden' : ''}`}
+              className={`flex h-16 w-16 items-center justify-center rounded-full bg-plm-accent text-xl font-semibold text-white ${avatarPreview || effectiveAvatarUrl ? 'hidden' : ''}`}
             >
               {getInitials(user.full_name || user.email)}
             </div>
 
             {/* Upload overlay (shows on hover) */}
             <div
-              className="absolute inset-0 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+              className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-full bg-black/60 opacity-0 transition-opacity group-hover:opacity-100"
               onClick={() => fileInputRef.current?.click()}
             >
               {uploadingAvatar ? (
-                <Loader2 size={24} className="text-white animate-spin" />
+                <Loader2 size={20} className="animate-spin text-white" />
               ) : (
-                <Camera size={24} className="text-white" />
+                <Camera size={20} className="text-white" />
               )}
             </div>
 
@@ -404,8 +417,9 @@ export function ProfileSettings() {
             {/* Remove button (only if custom avatar exists) */}
             {user.custom_avatar_url && !uploadingAvatar && (
               <button
+                type="button"
                 onClick={handleRemoveAvatar}
-                className="absolute -top-1 -right-1 p-1 bg-plm-error rounded-full text-white hover:bg-plm-error/80 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute -right-1 -top-1 rounded-full bg-plm-error p-1 text-white opacity-0 shadow-lg transition-opacity hover:opacity-90 group-hover:opacity-100"
                 title="Remove custom picture"
               >
                 <X size={12} />
@@ -413,174 +427,105 @@ export function ProfileSettings() {
             )}
           </div>
 
-          <div className="flex-1 min-w-0">
-            <div className="text-xl font-medium text-plm-fg truncate">
-              {user.full_name || 'No name'}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="truncate text-[15px] font-semibold text-plm-fg">
+                {user.full_name || 'No name'}
+              </span>
+              <Badge className="capitalize">{user.role}</Badge>
             </div>
-            {user.job_title && <div className="text-base text-plm-fg-muted">{user.job_title}</div>}
-            <div className="text-base text-plm-fg-muted truncate flex items-center gap-1.5">
-              <Mail size={16} />
+            {user.job_title && (
+              <div className="text-[13px] text-plm-fg-muted">{user.job_title}</div>
+            )}
+            <div className="flex items-center gap-1.5 truncate text-[12px] text-plm-fg-muted">
+              <Mail size={12} />
               {user.email}
             </div>
-            <div className="text-sm text-plm-fg-dim mt-1">
-              Role: <span className="capitalize">{user.role}</span>
-            </div>
-
-            {/* Avatar upload help text */}
-            <div className="mt-2 text-xs text-plm-fg-dim">
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploadingAvatar}
-                className="text-plm-accent hover:underline disabled:opacity-50"
-              >
-                {uploadingAvatar ? 'Uploading...' : 'Upload profile picture'}
-              </button>
-              <span className="mx-1">•</span>
-              <span>PNG, JPG, or WebP, max 2MB</span>
-            </div>
+            <div className="mt-1 text-[12px] text-plm-fg-muted">PNG, JPG, or WebP, max 2MB</div>
           </div>
+
+          <Button
+            size="sm"
+            icon={<Camera size={12} />}
+            loading={uploadingAvatar}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {uploadingAvatar ? 'Uploading...' : 'Upload profile picture'}
+          </Button>
         </div>
-      </section>
+      </SettingsGroup>
 
       {/* Contribution History */}
       <ContributionHistory />
 
-      {/* My ECOs */}
-      <section>
-        <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3 flex items-center gap-2">
-          <GitBranch size={16} />
-          My ECOs
-        </h2>
-        <div className="bg-plm-bg rounded-lg border border-plm-border">
+      <SettingsSection title="My ECOs">
+        <SettingsGroup>
           {isLoadingECOs ? (
-            <div className="flex items-center justify-center py-8 text-plm-fg-muted">
-              <Loader2 size={20} className="animate-spin mr-2" />
+            <div className="flex items-center gap-2 px-4 py-3.5 text-[13px] text-plm-fg-muted">
+              <Loader2 size={14} className="animate-spin" />
               Loading ECOs...
             </div>
           ) : userECOs.length === 0 ? (
-            <div className="text-center py-8 text-plm-fg-muted text-sm">No ECOs found</div>
+            <div className="px-4 py-3.5 text-[13px] text-plm-fg-muted">No ECOs found</div>
           ) : (
-            <div className="divide-y divide-plm-border">
-              {userECOs.map((eco) => (
-                <div
-                  key={eco.id}
-                  className="flex items-center gap-3 p-3 hover:bg-plm-bg-lighter transition-colors"
-                >
-                  <div className="p-2 rounded-lg bg-plm-bg-lighter">
-                    <GitBranch size={16} className="text-plm-accent" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-plm-fg truncate">
-                      {eco.eco_number}
-                      {eco.title && <span className="text-plm-fg-muted ml-2">— {eco.title}</span>}
-                    </div>
-                    <div className="text-xs text-plm-fg-dim">
-                      Created {formatDate(eco.created_at)}
-                    </div>
-                  </div>
-                  <span
-                    className={`px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(eco.status)}`}
-                  >
-                    {eco.status.replace('_', ' ')}
-                  </span>
-                </div>
-              ))}
-            </div>
+            userECOs.map((eco) =>
+              renderRecordRow(eco.id, eco.eco_number, eco.title, eco.created_at, eco.status),
+            )
           )}
-        </div>
-      </section>
+        </SettingsGroup>
+      </SettingsSection>
 
-      {/* My RFQs */}
-      <section>
-        <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3 flex items-center gap-2">
-          <ShoppingCart size={16} />
-          My RFQs
-        </h2>
-        <div className="bg-plm-bg rounded-lg border border-plm-border">
+      <SettingsSection title="My RFQs">
+        <SettingsGroup>
           {isLoadingRFQs ? (
-            <div className="flex items-center justify-center py-8 text-plm-fg-muted">
-              <Loader2 size={20} className="animate-spin mr-2" />
+            <div className="flex items-center gap-2 px-4 py-3.5 text-[13px] text-plm-fg-muted">
+              <Loader2 size={14} className="animate-spin" />
               Loading RFQs...
             </div>
           ) : userRFQs.length === 0 ? (
-            <div className="text-center py-8 text-plm-fg-muted text-sm">No RFQs found</div>
+            <div className="px-4 py-3.5 text-[13px] text-plm-fg-muted">No RFQs found</div>
           ) : (
-            <div className="divide-y divide-plm-border">
-              {userRFQs.map((rfq) => (
-                <div
-                  key={rfq.id}
-                  className="flex items-center gap-3 p-3 hover:bg-plm-bg-lighter transition-colors"
-                >
-                  <div className="p-2 rounded-lg bg-plm-bg-lighter">
-                    <ShoppingCart size={16} className="text-violet-400" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-plm-fg truncate">
-                      {rfq.rfq_number}
-                      {rfq.title && <span className="text-plm-fg-muted ml-2">— {rfq.title}</span>}
-                    </div>
-                    <div className="text-xs text-plm-fg-dim">
-                      Created {formatDate(rfq.created_at)}
-                    </div>
-                  </div>
-                  <span
-                    className={`px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(rfq.status)}`}
-                  >
-                    {(rfq.status || 'unknown').replace('_', ' ')}
-                  </span>
-                </div>
-              ))}
-            </div>
+            userRFQs.map((rfq) =>
+              renderRecordRow(rfq.id, rfq.rfq_number, rfq.title, rfq.created_at, rfq.status),
+            )
           )}
-        </div>
-      </section>
+        </SettingsGroup>
+      </SettingsSection>
 
       {/* Emergency Admin Recovery - Only show if not already admin */}
       {!isAdminUser(user.role, userTeams) && (
-        <section className="mt-12 pt-8 border-t border-plm-border">
-          <div className="flex items-center gap-2 mb-3">
-            <Key size={16} className="text-plm-fg-muted" />
-            <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium">
-              Emergency Admin Recovery
-            </h2>
-          </div>
-
-          <div className="bg-plm-bg rounded-lg border border-plm-border p-4">
+        <SettingsSection title="Emergency Admin Recovery">
+          <SettingsGroup>
             {!showRecoveryInput ? (
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-plm-fg-muted">
-                    Have a recovery code? Use it to regain admin access in emergencies.
-                  </p>
-                </div>
-                <button
-                  onClick={() => setShowRecoveryInput(true)}
-                  className="px-3 py-1.5 text-sm text-plm-fg-muted hover:text-plm-fg border border-plm-border hover:border-plm-fg-muted rounded transition-colors"
-                >
+              <SettingRow
+                label="Recovery Code"
+                description="Have a recovery code? Use it to regain admin access in emergencies."
+              >
+                <Button size="sm" icon={<Key size={12} />} onClick={() => setShowRecoveryInput(true)}>
                   Enter Code
-                </button>
-              </div>
+                </Button>
+              </SettingRow>
             ) : (
-              <div className="space-y-4">
-                {/* Warning */}
-                <div className="p-3 bg-plm-warning/10 border border-plm-warning/30 rounded flex items-start gap-2">
-                  <AlertTriangle size={16} className="text-plm-warning flex-shrink-0 mt-0.5" />
-                  <p className="text-xs text-plm-warning">
-                    Recovery codes are single-use and will elevate you to admin immediately. Only
-                    use if you have a valid code from your organization.
-                  </p>
-                </div>
+              <div className="space-y-3 px-4 py-4">
+                <Callout tone="warning">
+                  Recovery codes are single-use and will elevate you to admin immediately. Only use
+                  if you have a valid code from your organization.
+                </Callout>
 
-                {/* Input */}
                 <div>
-                  <label className="block text-sm text-plm-fg-muted mb-2">Recovery Code</label>
-                  <input
-                    type="text"
+                  <label
+                    htmlFor="settings-recovery-code"
+                    className="mb-1.5 block text-[12px] font-medium text-plm-fg-muted"
+                  >
+                    Recovery Code
+                  </label>
+                  <TextInput
+                    id="settings-recovery-code"
                     value={recoveryCode}
                     onChange={(e) => setRecoveryCode(e.target.value.toUpperCase())}
                     placeholder="XXXX-XXXX-XXXX-XXXX"
                     disabled={isSubmittingRecovery || recoveryResult === 'success'}
-                    className="w-full px-3 py-2 bg-plm-bg-secondary border border-plm-border rounded text-plm-fg font-mono text-center tracking-wider placeholder:text-plm-fg-muted focus:outline-none focus:ring-2 focus:ring-plm-accent disabled:opacity-50"
+                    className="text-center font-mono tracking-wider"
                     maxLength={19}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !isSubmittingRecovery) {
@@ -590,54 +535,37 @@ export function ProfileSettings() {
                   />
                 </div>
 
-                {/* Result message */}
                 {recoveryResult === 'success' && (
-                  <div className="p-3 bg-plm-success/10 border border-plm-success/30 rounded flex items-center gap-2">
-                    <Check size={16} className="text-plm-success" />
-                    <p className="text-sm text-plm-success">
-                      Success! You are now an admin. Reloading...
-                    </p>
-                  </div>
+                  <Callout tone="success">Success! You are now an admin. Reloading...</Callout>
                 )}
 
-                {/* Actions */}
-                <div className="flex justify-end gap-3">
-                  <button
+                <div className="flex justify-end gap-2">
+                  <Button
+                    variant="ghost"
                     onClick={() => {
                       setShowRecoveryInput(false)
                       setRecoveryCode('')
                       setRecoveryResult(null)
                     }}
                     disabled={isSubmittingRecovery || recoveryResult === 'success'}
-                    className="px-3 py-1.5 text-sm text-plm-fg-muted hover:text-plm-fg transition-colors disabled:opacity-50"
                   >
                     Cancel
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="primary"
+                    icon={<Shield size={14} />}
+                    loading={isSubmittingRecovery}
                     onClick={handleRecoverySubmit}
-                    disabled={
-                      isSubmittingRecovery || !recoveryCode.trim() || recoveryResult === 'success'
-                    }
-                    className="px-4 py-1.5 text-sm bg-plm-accent text-white rounded hover:bg-plm-accent-hover transition-colors disabled:opacity-50 flex items-center gap-2"
+                    disabled={!recoveryCode.trim() || recoveryResult === 'success'}
                   >
-                    {isSubmittingRecovery ? (
-                      <>
-                        <RefreshCw size={14} className="animate-spin" />
-                        Validating...
-                      </>
-                    ) : (
-                      <>
-                        <Shield size={14} />
-                        Use Code
-                      </>
-                    )}
-                  </button>
+                    {isSubmittingRecovery ? 'Validating...' : 'Use Code'}
+                  </Button>
                 </div>
               </div>
             )}
-          </div>
-        </section>
+          </SettingsGroup>
+        </SettingsSection>
       )}
-    </div>
+    </SettingsPage>
   )
 }

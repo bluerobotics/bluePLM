@@ -1,5 +1,6 @@
 import { AlertTriangle, Check, FileUp, Info, Loader2 } from 'lucide-react'
 
+import { Button } from '@/components/core/ui'
 import { t } from '@/lib/i18n'
 
 import type { UseVaultAuditConflictResult } from './useVaultAuditConflict'
@@ -45,11 +46,12 @@ export function VaultAuditConflictActionBar({ conflict, push }: VaultAuditConfli
                   values: conflict.selectedCount,
                 })}
           </p>
-          <button
+          <Button
+            variant="primary"
+            size="sm"
             type="button"
             onClick={() => void conflict.apply()}
             disabled={busy || !conflict.canApply}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-plm-bg bg-plm-accent hover:bg-plm-accent/90 rounded-md transition-colors disabled:opacity-40 flex-shrink-0"
           >
             {conflict.applying ? (
               <Loader2 size={12} className="animate-spin" />
@@ -59,7 +61,7 @@ export function VaultAuditConflictActionBar({ conflict, push }: VaultAuditConfli
             {conflict.applying
               ? t('vaultAudit.conflict.applying')
               : t('vaultAudit.conflict.applyFile', { count: conflict.selectedCount })}
-          </button>
+          </Button>
         </div>
 
         <div className="flex items-center justify-between gap-3">
@@ -68,17 +70,18 @@ export function VaultAuditConflictActionBar({ conflict, push }: VaultAuditConfli
               ? t('vaultAudit.conflict.bluePlmSelectPrompt')
               : t('vaultAudit.conflict.bluePlmSelectedSummary', { files: selectedFiles })}
           </p>
-          <button
+          <Button
+            variant="primary"
+            size="sm"
             type="button"
             onClick={() => void push.run()}
             disabled={busy || !push.canRun}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-plm-bg bg-plm-accent hover:bg-plm-accent/90 rounded-md transition-colors disabled:opacity-40 flex-shrink-0"
           >
             {push.running ? <Loader2 size={12} className="animate-spin" /> : <FileUp size={12} />}
             {push.running
               ? t('vaultAudit.push.running')
               : t('vaultAudit.conflict.applyBluePlm', { files: push.eligibility.eligible.length })}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

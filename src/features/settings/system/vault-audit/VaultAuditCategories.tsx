@@ -30,7 +30,7 @@ export function VaultAuditCategories({
 }: VaultAuditCategoriesProps) {
   return (
     <nav aria-label={t('vaultAudit.category.heading')} className="space-y-1">
-      <h3 className="px-2 pb-1 text-[11px] uppercase tracking-wide text-plm-fg-muted">
+      <h3 className="px-2 pb-1 text-[12px] font-medium text-plm-fg-muted">
         {t('vaultAudit.category.heading')}
       </h3>
 

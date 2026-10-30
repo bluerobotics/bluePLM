@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import {
-  Shield,
   Key,
   Plus,
   Copy,
@@ -13,8 +12,17 @@ import {
   RefreshCw,
   FileText,
 } from 'lucide-react'
-import { usePDMStore } from '@/stores/pdmStore'
 import { useShallow } from 'zustand/react/shallow'
+
+import {
+  Badge,
+  Button,
+  Callout,
+  Select,
+  TextInput,
+  type BadgeTone,
+} from '@/components/core/ui'
+import { copyToClipboard } from '@/lib/clipboard'
 import {
   generateAdminRecoveryCode,
   listAdminRecoveryCodes,
@@ -22,7 +30,9 @@ import {
   deleteAdminRecoveryCode,
   type AdminRecoveryCode,
 } from '@/lib/supabase'
-import { copyToClipboard } from '@/lib/clipboard'
+import { usePDMStore } from '@/stores/pdmStore'
+
+import { SettingsGroup, SettingsPage, SettingsSection } from '../components/ui'
 
 export function RecoveryCodeSettings() {
   const { user, organization, addToast, getEffectiveRole } = usePDMStore(
@@ -182,147 +192,110 @@ export function RecoveryCodeSettings() {
   // Non-admin view
   if (!isAdmin) {
     return (
-      <div className="text-center py-12">
-        <Shield size={40} className="mx-auto mb-4 text-plm-fg-muted opacity-50" />
-        <p className="text-base text-plm-fg-muted">
-          Only administrators can manage recovery codes.
-        </p>
+      <div className="py-12 text-center text-plm-fg-muted">
+        Only administrators can manage recovery codes.
       </div>
     )
   }
 
+  const statusTone = (code: AdminRecoveryCode): BadgeTone =>
+    code.is_used
+      ? 'success'
+      : code.is_revoked
+        ? 'error'
+        : new Date(code.expires_at) < new Date()
+          ? 'neutral'
+          : 'accent'
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-plm-accent/10 flex items-center justify-center">
-            <Key size={20} className="text-plm-accent" />
-          </div>
-          <div>
-            <h2 className="text-lg font-semibold text-plm-fg">Admin Recovery Codes</h2>
-            <p className="text-sm text-plm-fg-muted">
-              Emergency access codes for admin account recovery
-            </p>
-          </div>
-        </div>
-
-        <button
-          onClick={() => setShowGenerateDialog(true)}
-          className="px-4 py-2 bg-plm-accent text-white rounded-lg hover:bg-plm-accent-hover transition-colors flex items-center gap-2"
-        >
-          <Plus size={16} />
-          Generate Code
-        </button>
-      </div>
-
+    <SettingsPage>
       {/* Warning Banner */}
-      <div className="p-4 bg-plm-warning/10 border border-plm-warning/30 rounded-lg flex items-start gap-3">
-        <AlertTriangle size={20} className="text-plm-warning flex-shrink-0 mt-0.5" />
-        <div className="text-sm">
-          <p className="font-medium text-plm-warning">Important Security Information</p>
-          <p className="text-plm-fg-muted mt-1">
-            Recovery codes allow any user in your organization to become an admin. Codes are only
-            shown <strong>once</strong> when generated and must be written down or stored securely
-            offline. Keep them in a physical location (e.g., a safe) that authorized personnel can
-            access in emergencies.
-          </p>
-        </div>
-      </div>
+      <Callout tone="warning" title="Important Security Information">
+        Recovery codes allow any user in your organization to become an admin. Codes are only shown{' '}
+        <strong>once</strong> when generated and must be written down or stored securely offline.
+        Keep them in a physical location (e.g., a safe) that authorized personnel can access in
+        emergencies.
+      </Callout>
 
-      {/* Loading state */}
-      {loading && (
-        <div className="flex items-center justify-center py-12">
-          <RefreshCw size={24} className="animate-spin text-plm-fg-muted" />
-        </div>
-      )}
+      <SettingsSection
+        title="Admin Recovery Codes"
+        description="Emergency access codes for admin account recovery"
+        actions={
+          <Button
+            variant="primary"
+            size="sm"
+            icon={<Plus size={14} />}
+            onClick={() => setShowGenerateDialog(true)}
+          >
+            Generate Code
+          </Button>
+        }
+      >
+        <SettingsGroup>
+          {/* Loading state */}
+          {loading && (
+            <div className="flex items-center justify-center py-8">
+              <RefreshCw size={16} className="animate-spin text-plm-fg-muted" />
+            </div>
+          )}
 
-      {/* Empty state */}
-      {!loading && codes.length === 0 && (
-        <div className="text-center py-12 border border-plm-border rounded-lg bg-plm-bg-secondary">
-          <Key size={40} className="mx-auto mb-4 text-plm-fg-muted opacity-50" />
-          <p className="text-plm-fg-muted mb-2">No recovery codes generated yet</p>
-          <p className="text-sm text-plm-fg-muted/70 max-w-md mx-auto">
-            We recommend generating at least one recovery code and storing it in a secure physical
-            location in case all admin accounts become inaccessible.
-          </p>
-        </div>
-      )}
+          {/* Empty state */}
+          {!loading && codes.length === 0 && (
+            <div className="px-4 py-4">
+              <p className="text-[13px] text-plm-fg">No recovery codes generated yet</p>
+              <p className="mt-0.5 text-[12px] text-plm-fg-muted">
+                We recommend generating at least one recovery code and storing it in a secure
+                physical location in case all admin accounts become inaccessible.
+              </p>
+            </div>
+          )}
 
-      {/* Codes list */}
-      {!loading && codes.length > 0 && (
-        <div className="space-y-3">
-          {codes.map((code) => {
-            const status = getCodeStatus(code)
-            const StatusIcon = status.icon
+          {/* Codes list */}
+          {!loading &&
+            codes.map((code) => {
+              const status = getCodeStatus(code)
+              const StatusIcon = status.icon
 
-            return (
-              <div
-                key={code.id}
-                className="p-4 border border-plm-border rounded-lg bg-plm-bg-secondary hover:bg-plm-bg-tertiary transition-colors"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-3">
-                    <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                        code.is_used
-                          ? 'bg-plm-success/10'
-                          : code.is_revoked
-                            ? 'bg-plm-error/10'
-                            : new Date(code.expires_at) < new Date()
-                              ? 'bg-plm-bg-tertiary'
-                              : 'bg-plm-accent/10'
-                      }`}
-                    >
-                      <StatusIcon size={16} className={status.color} />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`text-xs font-medium px-2 py-0.5 rounded ${
-                            code.is_used
-                              ? 'bg-plm-success/10 text-plm-success'
-                              : code.is_revoked
-                                ? 'bg-plm-error/10 text-plm-error'
-                                : new Date(code.expires_at) < new Date()
-                                  ? 'bg-plm-bg-tertiary text-plm-fg-muted'
-                                  : 'bg-plm-accent/10 text-plm-accent'
-                          }`}
-                        >
-                          {status.label}
+              return (
+                <div key={code.id} className="group flex items-start gap-3 px-4 py-3">
+                  <StatusIcon size={14} className={`mt-0.5 flex-shrink-0 ${status.color}`} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <Badge tone={statusTone(code)}>{status.label}</Badge>
+                      {code.description && (
+                        <span className="truncate text-[13px] font-medium text-plm-fg">
+                          {code.description}
                         </span>
-                        {code.description && (
-                          <span className="text-sm text-plm-fg">{code.description}</span>
-                        )}
-                      </div>
+                      )}
+                    </div>
 
-                      <div className="mt-2 text-xs text-plm-fg-muted space-y-1">
-                        <p>Created: {formatDate(code.created_at)}</p>
-                        <p>Expires: {formatDate(code.expires_at)}</p>
-                        {code.is_used && code.used_at && (
-                          <p className="text-plm-success">Used: {formatDate(code.used_at)}</p>
-                        )}
-                        {code.is_revoked && code.revoked_at && (
-                          <p className="text-plm-error">
-                            Revoked: {formatDate(code.revoked_at)}
-                            {code.revoke_reason && ` - ${code.revoke_reason}`}
-                          </p>
-                        )}
-                      </div>
+                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] text-plm-fg-muted">
+                      <span>Created: {formatDate(code.created_at)}</span>
+                      <span>Expires: {formatDate(code.expires_at)}</span>
+                      {code.is_used && code.used_at && (
+                        <span className="text-plm-success">Used: {formatDate(code.used_at)}</span>
+                      )}
+                      {code.is_revoked && code.revoked_at && (
+                        <span className="text-plm-error">
+                          Revoked: {formatDate(code.revoked_at)}
+                          {code.revoke_reason && ` - ${code.revoke_reason}`}
+                        </span>
+                      )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
                     {/* Only show revoke for active codes */}
                     {!code.is_used &&
                       !code.is_revoked &&
                       new Date(code.expires_at) > new Date() && (
-                        <button
+                        <Button
+                          variant="danger-subtle"
+                          size="sm"
                           onClick={() => setRevokingCode(code)}
-                          className="px-3 py-1.5 text-sm text-plm-error hover:bg-plm-error/10 rounded transition-colors"
                         >
                           Revoke
-                        </button>
+                        </Button>
                       )}
 
                     {/* Delete for used/revoked/expired codes */}
@@ -330,20 +303,21 @@ export function RecoveryCodeSettings() {
                       code.is_revoked ||
                       new Date(code.expires_at) < new Date()) && (
                       <button
+                        type="button"
                         onClick={() => handleDelete(code.id)}
-                        className="p-1.5 text-plm-fg-muted hover:text-plm-error hover:bg-plm-error/10 rounded transition-colors"
+                        className="rounded-md p-1.5 text-plm-fg-muted opacity-0 transition-all hover:bg-plm-error/10 hover:text-plm-error focus-visible:opacity-100 group-hover:opacity-100"
                         title="Delete"
+                        aria-label="Delete"
                       >
-                        <Trash2 size={16} />
+                        <Trash2 size={14} />
                       </button>
                     )}
                   </div>
                 </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
+              )
+            })}
+        </SettingsGroup>
+      </SettingsSection>
 
       {/* Generate Code Dialog */}
       {showGenerateDialog && (
@@ -376,12 +350,10 @@ export function RecoveryCodeSettings() {
                 <label className="block text-sm font-medium text-plm-fg mb-1">
                   Description (optional)
                 </label>
-                <input
-                  type="text"
+                <TextInput
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="e.g., Emergency backup for CEO"
-                  className="w-full px-3 py-2 bg-plm-bg-secondary border border-plm-border rounded text-plm-fg placeholder:text-plm-fg-muted focus:outline-none focus:ring-2 focus:ring-plm-accent"
                 />
                 <p className="text-xs text-plm-fg-muted mt-1">
                   A note to help identify this code later
@@ -391,44 +363,32 @@ export function RecoveryCodeSettings() {
               {/* Expiration */}
               <div>
                 <label className="block text-sm font-medium text-plm-fg mb-1">Expires in</label>
-                <select
+                <Select
+                  className="w-full"
                   value={expiresInDays}
                   onChange={(e) => setExpiresInDays(Number(e.target.value))}
-                  className="w-full px-3 py-2 bg-plm-bg-secondary border border-plm-border rounded text-plm-fg focus:outline-none focus:ring-2 focus:ring-plm-accent"
                 >
                   <option value={30}>30 days</option>
                   <option value={90}>90 days</option>
                   <option value={180}>6 months</option>
                   <option value={365}>1 year</option>
                   <option value={730}>2 years</option>
-                </select>
+                </Select>
               </div>
             </div>
 
             <div className="p-4 border-t border-plm-border flex justify-end gap-3">
-              <button
-                onClick={() => setShowGenerateDialog(false)}
-                className="px-4 py-2 text-plm-fg-muted hover:text-plm-fg transition-colors"
-              >
+              <Button variant="ghost" onClick={() => setShowGenerateDialog(false)}>
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="primary"
                 onClick={handleGenerate}
-                disabled={generating}
-                className="px-4 py-2 bg-plm-accent text-white rounded hover:bg-plm-accent-hover transition-colors disabled:opacity-50 flex items-center gap-2"
+                loading={generating}
+                icon={<Key size={14} />}
               >
-                {generating ? (
-                  <>
-                    <RefreshCw size={16} className="animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Key size={16} />
-                    Generate Code
-                  </>
-                )}
-              </button>
+                {generating ? 'Generating...' : 'Generate Code'}
+              </Button>
             </div>
           </div>
         </div>
@@ -525,15 +485,16 @@ export function RecoveryCodeSettings() {
             </div>
 
             <div className="p-4 border-t border-plm-border">
-              <button
+              <Button
+                variant="primary"
+                className="w-full"
                 onClick={handleCloseCodeModal}
                 disabled={!acknowledgedWrite}
-                className="w-full px-4 py-2 bg-plm-accent text-white rounded hover:bg-plm-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {acknowledgedWrite
                   ? 'Done - Close This Window'
                   : 'Please confirm you saved the code'}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -566,47 +527,36 @@ export function RecoveryCodeSettings() {
                 <label className="block text-sm font-medium text-plm-fg mb-1">
                   Reason (optional)
                 </label>
-                <input
-                  type="text"
+                <TextInput
                   value={revokeReason}
                   onChange={(e) => setRevokeReason(e.target.value)}
                   placeholder="e.g., Employee left, code compromised"
-                  className="w-full px-3 py-2 bg-plm-bg-secondary border border-plm-border rounded text-plm-fg placeholder:text-plm-fg-muted focus:outline-none focus:ring-2 focus:ring-plm-accent"
                 />
               </div>
             </div>
 
             <div className="p-4 border-t border-plm-border flex justify-end gap-3">
-              <button
+              <Button
+                variant="ghost"
                 onClick={() => {
                   setRevokingCode(null)
                   setRevokeReason('')
                 }}
-                className="px-4 py-2 text-plm-fg-muted hover:text-plm-fg transition-colors"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="danger"
                 onClick={handleRevoke}
-                disabled={isRevoking}
-                className="px-4 py-2 bg-plm-error text-white rounded hover:bg-plm-error/80 transition-colors disabled:opacity-50 flex items-center gap-2"
+                loading={isRevoking}
+                icon={<Ban size={14} />}
               >
-                {isRevoking ? (
-                  <>
-                    <RefreshCw size={16} className="animate-spin" />
-                    Revoking...
-                  </>
-                ) : (
-                  <>
-                    <Ban size={16} />
-                    Revoke Code
-                  </>
-                )}
-              </button>
+                {isRevoking ? 'Revoking...' : 'Revoke Code'}
+              </Button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </SettingsPage>
   )
 }

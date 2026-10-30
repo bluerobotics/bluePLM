@@ -1,4 +1,10 @@
-import { CheckCircle2, AlertTriangle, Loader2, Clock, AlertCircle } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { Clock, Loader2 } from 'lucide-react'
+
+import { Badge, Callout } from '@/components/core/ui'
+import { SettingRow, SettingsGroup, SettingsSection } from '@/features/settings/components/ui'
+
+import { BackupScheduleInfo } from './BackupScheduleInfo'
 import type { BackupStatus } from './types'
 
 interface BackupStatusCardProps {
@@ -8,6 +14,8 @@ interface BackupStatusCardProps {
   backoffRemainingSeconds?: number
   cacheAgeSeconds?: number | null
   isUsingCachedData?: boolean
+  /** Buttons on the right of the section heading (Refresh). */
+  actions?: ReactNode
 }
 
 // Format seconds as a human-readable duration
@@ -24,8 +32,8 @@ function formatDuration(seconds: number): string {
 }
 
 /**
- * Shows the backup configuration status (configured/not configured)
- * and the total number of snapshots available.
+ * The Status section: whether backup is configured, how many snapshots exist, the last and next
+ * backup, and notices about rate limiting or cached data.
  */
 export function BackupStatusCard({
   status,
@@ -34,57 +42,42 @@ export function BackupStatusCard({
   backoffRemainingSeconds,
   cacheAgeSeconds,
   isUsingCachedData,
+  actions,
 }: BackupStatusCardProps) {
   return (
-    <div className="space-y-2">
-      <div
-        className={`p-4 rounded-lg border ${
-          status?.isConfigured
-            ? 'bg-emerald-500/10 border-emerald-500/30'
-            : 'bg-amber-500/10 border-amber-500/30'
-        }`}
-      >
-        <div className="flex items-center gap-3">
-          {status?.isConfigured ? (
-            <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-          ) : (
-            <AlertTriangle className="w-5 h-5 text-amber-400" />
-          )}
-          <div className="flex-1">
-            <div className="font-medium">
-              {status?.isConfigured ? 'Backup Configured' : 'Backup Not Configured'}
-            </div>
-            <div className="text-sm text-plm-fg-muted flex items-center gap-2">
-              {status?.isConfigured ? (
-                isLoadingSnapshots ? (
-                  <>
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                    <span>Loading snapshots...</span>
-                  </>
-                ) : (
-                  `${status.totalSnapshots} snapshot${status.totalSnapshots !== 1 ? 's' : ''} available`
-                )
+    <SettingsSection title="Status" actions={actions}>
+      <SettingsGroup>
+        <SettingRow
+          label={status?.isConfigured ? 'Backup Configured' : 'Backup Not Configured'}
+          description={
+            status?.isConfigured ? (
+              isLoadingSnapshots ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <Loader2 size={12} className="animate-spin" />
+                  Loading snapshots...
+                </span>
               ) : (
-                'Configure backup settings below to enable backups'
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+                `${status.totalSnapshots} snapshot${status.totalSnapshots !== 1 ? 's' : ''} available`
+              )
+            ) : (
+              'Configure backup settings below to enable backups'
+            )
+          }
+        >
+          {status?.isConfigured ? (
+            <Badge tone="success">Configured</Badge>
+          ) : (
+            <Badge tone="warning">Not configured</Badge>
+          )}
+        </SettingRow>
+        {status?.isConfigured && <BackupScheduleInfo status={status} />}
+      </SettingsGroup>
 
       {/* Rate limiting warning */}
       {isBackoffActive && backoffRemainingSeconds && backoffRemainingSeconds > 0 && (
-        <div className="p-3 rounded-lg border bg-amber-500/10 border-amber-500/30">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />
-            <div className="text-sm">
-              <span className="font-medium text-amber-400">Rate limited by backup server</span>
-              <span className="text-plm-fg-muted ml-2">
-                Retry in {formatDuration(backoffRemainingSeconds)}
-              </span>
-            </div>
-          </div>
-        </div>
+        <Callout tone="warning" title="Rate limited by backup server">
+          Retry in {formatDuration(backoffRemainingSeconds)}
+        </Callout>
       )}
 
       {/* Cache age indicator (show when using cached data and not in backoff) */}
@@ -93,11 +86,11 @@ export function BackupStatusCard({
         !isBackoffActive &&
         cacheAgeSeconds != null &&
         cacheAgeSeconds > 60 && (
-          <div className="flex items-center gap-1.5 text-xs text-plm-fg-muted px-1">
-            <Clock className="w-3 h-3" />
+          <div className="flex items-center gap-1.5 text-[12px] text-plm-fg-muted">
+            <Clock size={12} />
             <span>Showing cached data from {formatDuration(cacheAgeSeconds)} ago</span>
           </div>
         )}
-    </div>
+    </SettingsSection>
   )
 }

@@ -11,6 +11,7 @@
 import { useState } from 'react'
 import { AlertTriangle, Check, Eye, Loader2, Lock, ShieldCheck } from 'lucide-react'
 
+import { Button } from '@/components/core/ui'
 import { t } from '@/lib/i18n'
 import type { FillableMetadataField } from '@/lib/supabase/files/fillEmptyMetadata'
 import type { VaultAuditFillOutcome } from '@/types/vaultAudit'
@@ -58,12 +59,14 @@ function Receipt({ outcome }: { outcome: VaultAuditFillOutcome }) {
 
 function Preview({ fill, onCancel }: { fill: UseVaultAuditFillResult; onCancel: () => void }) {
   const rows = fill.plan.requests.flatMap((request) =>
-    (Object.entries(request.values) as Array<[FillableMetadataField, string]>).map(([field, value]) => ({
-      key: `${request.fileId}:${field}`,
-      path: request.relativePath,
-      field,
-      value,
-    })),
+    (Object.entries(request.values) as Array<[FillableMetadataField, string]>).map(
+      ([field, value]) => ({
+        key: `${request.fileId}:${field}`,
+        path: request.relativePath,
+        field,
+        value,
+      }),
+    ),
   )
 
   return (
@@ -91,23 +94,20 @@ function Preview({ fill, onCancel }: { fill: UseVaultAuditFillResult; onCancel: 
         </p>
       )}
       <div className="flex items-center justify-end gap-2">
-        <button
-          onClick={onCancel}
-          disabled={fill.applying}
-          className="px-3 py-1.5 text-xs text-plm-fg-muted hover:text-plm-fg bg-plm-bg border border-plm-border rounded-md transition-colors disabled:opacity-40"
-        >
+        <Button size="sm" onClick={onCancel} disabled={fill.applying}>
           {t('vaultAudit.fill.cancel')}
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="primary"
+          size="sm"
           onClick={() => void fill.apply().then(onCancel)}
           disabled={!fill.canApply}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-plm-bg bg-plm-accent hover:bg-plm-accent/90 rounded-md transition-colors disabled:opacity-40"
         >
           {fill.applying ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
           {fill.applying
             ? t('vaultAudit.fill.applying')
             : t('vaultAudit.fill.apply', { count: fill.plan.valueCount })}
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -154,14 +154,15 @@ export function VaultAuditFillActionBar({ fill }: VaultAuditFillActionBarProps) 
                   files: fill.plan.requests.length,
                 })}
           </p>
-          <button
+          <Button
+            variant="primary"
+            size="sm"
             onClick={() => setPreviewing(true)}
             disabled={!fill.isAdmin || fill.applying || fill.plan.valueCount === 0}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-plm-bg bg-plm-accent hover:bg-plm-accent/90 rounded-md transition-colors disabled:opacity-40 flex-shrink-0"
           >
             <Eye size={12} />
             {t('vaultAudit.fill.review', { count: fill.plan.valueCount })}
-          </button>
+          </Button>
         </div>
       )}
     </div>

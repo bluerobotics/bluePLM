@@ -1,7 +1,16 @@
-import { useState, useEffect } from 'react'
-import { Gauge, Trash2, ExternalLink } from 'lucide-react'
-import { telemetry, TelemetrySnapshot, TelemetryConfig } from '@/lib/telemetry'
+import { useEffect, useState } from 'react'
+import { Activity, Boxes, ExternalLink, Gauge, MemoryStick, Trash2 } from 'lucide-react'
+
+import { Button } from '@/components/core/ui'
 import { TelemetryDashboard } from '@/features/dev-tools/telemetry'
+import { telemetry, TelemetryConfig, TelemetrySnapshot } from '@/lib/telemetry'
+import { formatBytes } from '@/lib/utils/format'
+
+import { SettingRow, SettingsGroup, SettingsPage, SettingsSection } from '../components/ui'
+import { StatCard, StatGrid } from './StatCard'
+
+const RANGE_CLASS =
+  'h-1.5 w-28 cursor-pointer appearance-none rounded-full bg-plm-border accent-plm-accent'
 
 export function PerformanceSettings() {
   const [config, setConfig] = useState<TelemetryConfig>(telemetry.getConfig())
@@ -26,137 +35,109 @@ export function PerformanceSettings() {
     window.electronAPI?.openPerformanceWindow?.()
   }
 
+  const modules = latestSnapshot ? Object.values(latestSnapshot.modules) : []
+  const moduleHeap = modules.reduce((sum, m) => sum + m.heapUsed, 0)
+  const bufferSamples = config.sampleRateHz * config.retentionSeconds
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-plm-fg mb-1">Performance</h2>
-          <p className="text-sm text-plm-fg-muted">
-            Monitor system performance, CPU, memory usage, and track module memory consumption.
-          </p>
-        </div>
-        <button
-          onClick={handlePopOut}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-plm-fg-muted hover:text-plm-fg bg-plm-bg-lighter hover:bg-plm-bg-light border border-plm-border rounded-md transition-colors"
-          title="Open in new window"
-        >
-          <ExternalLink size={14} />
-          Pop Out
-        </button>
-      </div>
-
-      {/* Quick Stats Bar */}
-      <div className="grid grid-cols-1 gap-3">
-        <QuickStatCard
-          icon={<Gauge size={16} />}
-          label="FPS"
-          value={latestSnapshot?.fps ?? 0}
-          format={(v) => `${v}`}
-          color="text-emerald-400"
-        />
-      </div>
-
-      {/* Telemetry Dashboard */}
-      <TelemetryDashboard />
-
-      {/* Configuration Section */}
-      <div className="pt-4 border-t border-plm-border">
-        <h3 className="text-sm font-medium text-plm-fg mb-3">Settings</h3>
-
-        <div className="space-y-4">
-          {/* Sample Rate */}
-          <div className="flex items-center justify-between">
-            <div>
-              <label className="text-sm text-plm-fg">Sample Rate</label>
-              <p className="text-xs text-plm-fg-muted">How often to collect telemetry data</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <input
-                type="range"
-                min="1"
-                max="60"
-                value={config.sampleRateHz}
-                onChange={(e) => {
-                  const newConfig = { ...config, sampleRateHz: parseInt(e.target.value) }
-                  telemetry.configure(newConfig)
-                  setConfig(newConfig)
-                }}
-                className="w-24 h-1.5 bg-plm-border rounded-full appearance-none cursor-pointer accent-plm-accent"
-              />
-              <span className="text-xs text-plm-fg-muted w-12 text-right">
-                {config.sampleRateHz}Hz
-              </span>
-            </div>
+    <SettingsPage>
+      <SettingsSection
+        title="Live metrics"
+        actions={
+          <Button
+            size="sm"
+            onClick={handlePopOut}
+            title="Open in new window"
+            icon={<ExternalLink size={14} />}
+          >
+            Pop Out
+          </Button>
+        }
+      >
+        <StatGrid>
+          <StatCard icon={<Gauge size={13} />} label="FPS" value={latestSnapshot?.fps ?? 0} />
+          <StatCard icon={<Boxes size={13} />} label="Tracked modules" value={modules.length} />
+          <StatCard
+            icon={<MemoryStick size={13} />}
+            label="Module heap"
+            value={formatBytes(moduleHeap)}
+          />
+          <StatCard
+            icon={<Activity size={13} />}
+            label="Buffer size"
+            value={bufferSamples.toLocaleString()}
+            detail="samples"
+          />
+        </StatGrid>
+        <SettingsGroup>
+          <div className="p-4">
+            <TelemetryDashboard />
           </div>
+        </SettingsGroup>
+      </SettingsSection>
 
-          {/* Retention Time */}
-          <div className="flex items-center justify-between">
-            <div>
-              <label className="text-sm text-plm-fg">Retention Time</label>
-              <p className="text-xs text-plm-fg-muted">How long to keep telemetry history</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <input
-                type="range"
-                min="10"
-                max="300"
-                step="10"
-                value={config.retentionSeconds}
-                onChange={(e) => {
-                  const newConfig = { ...config, retentionSeconds: parseInt(e.target.value) }
-                  telemetry.configure(newConfig)
-                  setConfig(newConfig)
-                }}
-                className="w-24 h-1.5 bg-plm-border rounded-full appearance-none cursor-pointer accent-plm-accent"
-              />
-              <span className="text-xs text-plm-fg-muted w-12 text-right">
-                {config.retentionSeconds}s
-              </span>
-            </div>
-          </div>
-
-          {/* Buffer Info */}
-          <div className="flex items-center justify-between text-xs text-plm-fg-muted">
-            <span>Buffer size: {config.sampleRateHz * config.retentionSeconds} samples</span>
-            <button
+      <SettingsSection title="Settings">
+        <SettingsGroup>
+          <SettingRow
+            label="Sample Rate"
+            htmlFor="perf-sample-rate"
+            description="How often to collect telemetry data"
+          >
+            <input
+              id="perf-sample-rate"
+              type="range"
+              min="1"
+              max="60"
+              value={config.sampleRateHz}
+              onChange={(e) => {
+                const newConfig = { ...config, sampleRateHz: parseInt(e.target.value) }
+                telemetry.configure(newConfig)
+                setConfig(newConfig)
+              }}
+              className={RANGE_CLASS}
+            />
+            <span className="w-12 text-right text-[12px] tabular-nums text-plm-fg-muted">
+              {config.sampleRateHz}Hz
+            </span>
+          </SettingRow>
+          <SettingRow
+            label="Retention Time"
+            htmlFor="perf-retention"
+            description="How long to keep telemetry history"
+          >
+            <input
+              id="perf-retention"
+              type="range"
+              min="10"
+              max="300"
+              step="10"
+              value={config.retentionSeconds}
+              onChange={(e) => {
+                const newConfig = { ...config, retentionSeconds: parseInt(e.target.value) }
+                telemetry.configure(newConfig)
+                setConfig(newConfig)
+              }}
+              className={RANGE_CLASS}
+            />
+            <span className="w-12 text-right text-[12px] tabular-nums text-plm-fg-muted">
+              {config.retentionSeconds}s
+            </span>
+          </SettingRow>
+          <SettingRow label="Telemetry data" description={`Buffer size: ${bufferSamples} samples`}>
+            <Button
+              variant="danger-subtle"
+              size="sm"
+              icon={<Trash2 size={12} />}
               onClick={() => {
                 telemetry.clear()
                 setLatestSnapshot(null)
               }}
-              className="flex items-center gap-1 px-2 py-1 text-plm-fg-muted hover:text-plm-error rounded hover:bg-plm-bg-lighter transition-colors"
             >
-              <Trash2 size={12} />
               Clear Data
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+            </Button>
+          </SettingRow>
+        </SettingsGroup>
+      </SettingsSection>
+    </SettingsPage>
   )
 }
-
-// Quick stat card component
-function QuickStatCard({
-  icon,
-  label,
-  value,
-  format,
-  color,
-}: {
-  icon: React.ReactNode
-  label: string
-  value: number
-  format: (v: number) => string
-  color: string
-}) {
-  return (
-    <div className="bg-plm-bg-lighter rounded-lg p-3 border border-plm-border">
-      <div className="flex items-center gap-2 mb-1">
-        <span className={color}>{icon}</span>
-        <span className="text-[10px] uppercase tracking-wide text-plm-fg-muted">{label}</span>
-      </div>
-      <div className={`text-lg font-mono tabular-nums ${color}`}>{format(value)}</div>
-    </div>
-  )
-}
-

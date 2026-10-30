@@ -1,15 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Loader2, Pencil, Plus, Trash2, X } from 'lucide-react'
 
-import { usePDMStore } from '@/stores/pdmStore'
+import { Button, Callout, TextInput } from '@/components/core/ui'
 import { t } from '@/lib/i18n'
 import { log } from '@/lib/logger'
-import {
-  deleteItemDesignation,
-  getItemDesignations,
-  upsertItemDesignation,
-} from '@/lib/supabase'
+import { deleteItemDesignation, getItemDesignations, upsertItemDesignation } from '@/lib/supabase'
+import { usePDMStore } from '@/stores/pdmStore'
 import type { ItemDesignation } from '@/types/item'
+
+import { SettingsGroup, SettingsPage, SettingsSection } from '../components/ui'
 
 export function ItemDesignationsSettings() {
   const organization = usePDMStore((s) => s.organization)
@@ -76,95 +75,85 @@ export function ItemDesignationsSettings() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium">
-          {t('itemBrowser.designationsTitle')}
-        </h3>
-        <p className="text-sm text-plm-fg-dim mt-1">{t('itemBrowser.designationsDescription')}</p>
-      </div>
+    <SettingsPage>
+      {!canManage && <Callout tone="warning">{t('itemBrowser.noPermission')}</Callout>}
 
-      {!canManage && (
-        <p className="text-sm text-plm-warning">{t('itemBrowser.noPermission')}</p>
-      )}
-
-      {loading ? (
-        <div className="flex items-center justify-center h-24 text-plm-fg-muted">
-          <Loader2 size={20} className="animate-spin" />
-        </div>
-      ) : (
-        <div className="space-y-0.5">
-          {designations.length === 0 ? (
-            <p className="text-sm text-plm-fg-dim px-3 py-2">{t('itemBrowser.noDesignations')}</p>
+      <SettingsSection title="Designations" description={t('itemBrowser.designationsDescription')}>
+        <SettingsGroup>
+          {loading ? (
+            <div className="flex h-24 items-center justify-center text-plm-fg-muted">
+              <Loader2 size={20} className="animate-spin" />
+            </div>
+          ) : designations.length === 0 ? (
+            <p className="px-4 py-3 text-[13px] text-plm-fg-muted">
+              {t('itemBrowser.noDesignations')}
+            </p>
           ) : (
             designations.map((designation) => (
               <div
                 key={designation.id}
-                className="grid grid-cols-[1fr_auto] gap-2 px-3 py-2 rounded hover:bg-plm-highlight/50 transition-colors items-center"
+                className={`flex items-center justify-between gap-2 px-4 py-2 ${
+                  editingId === designation.id ? 'bg-plm-accent/5' : ''
+                }`}
               >
-                <span className="text-sm text-plm-fg">{designation.name}</span>
+                <span className="truncate text-[13px] text-plm-fg">{designation.name}</span>
                 {canManage && (
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
+                  <div className="flex items-center gap-0.5">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={<Pencil size={14} />}
                       onClick={() => {
                         setEditingId(designation.id)
                         setNameInput(designation.name)
                       }}
-                      className="p-1.5 rounded text-plm-fg-muted hover:text-plm-fg hover:bg-plm-bg-light"
                       title={t('common.edit')}
-                    >
-                      <Pencil size={14} />
-                    </button>
-                    <button
-                      type="button"
+                      aria-label={t('common.edit')}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={<Trash2 size={14} />}
                       onClick={() => handleDelete(designation.id)}
-                      className="p-1.5 rounded text-plm-fg-muted hover:text-plm-error hover:bg-plm-bg-light"
+                      className="hover:!text-plm-error"
                       title={t('common.delete')}
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                      aria-label={t('common.delete')}
+                    />
                   </div>
                 )}
               </div>
             ))
           )}
-        </div>
-      )}
-
-      {canManage && (
-        <div className="flex items-center gap-2 border-t border-plm-border pt-4">
-          <input
-            type="text"
-            value={nameInput}
-            onChange={(e) => setNameInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleSave()
-            }}
-            placeholder={t('itemBrowser.designationName')}
-            className="flex-1 max-w-xs bg-plm-bg border border-plm-border rounded px-3 py-1.5 text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:border-plm-accent focus:outline-none"
-          />
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving || !nameInput.trim()}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-plm-accent text-white hover:bg-plm-accent/90 disabled:opacity-50 transition-colors"
-          >
-            {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-            {editingId ? t('common.save') : t('itemBrowser.addDesignation')}
-          </button>
-          {editingId && (
-            <button
-              type="button"
-              onClick={resetForm}
-              className="flex items-center gap-1 px-2 py-1.5 text-sm rounded-lg text-plm-fg-muted hover:text-plm-fg hover:bg-plm-bg-light transition-colors"
-            >
-              <X size={14} />
-              {t('common.cancel')}
-            </button>
+          {canManage && (
+            <div className="flex items-center gap-2 px-4 py-3">
+              <TextInput
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSave()
+                }}
+                placeholder={t('itemBrowser.designationName')}
+                className="max-w-xs flex-1"
+                aria-label={t('itemBrowser.designationName')}
+              />
+              <Button
+                variant="primary"
+                icon={<Plus size={14} />}
+                loading={saving}
+                onClick={handleSave}
+                disabled={!nameInput.trim()}
+              >
+                {editingId ? t('common.save') : t('itemBrowser.addDesignation')}
+              </Button>
+              {editingId && (
+                <Button variant="ghost" icon={<X size={14} />} onClick={resetForm}>
+                  {t('common.cancel')}
+                </Button>
+              )}
+            </div>
           )}
-        </div>
-      )}
-    </div>
+        </SettingsGroup>
+      </SettingsSection>
+    </SettingsPage>
   )
 }

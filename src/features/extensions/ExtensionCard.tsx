@@ -7,10 +7,13 @@
  * which it does for administrators only.
  */
 import { useState } from 'react'
-import { Download, Trash2, RefreshCw, ExternalLink, Star } from 'lucide-react'
-import { VerificationBadge, NativeBadge } from './VerificationBadge'
-import type { InstalledExtension, StoreExtensionListing } from '@/stores/types'
+import { Download, Trash2, ExternalLink, Star } from 'lucide-react'
+
+import { Badge, Button, Callout } from '@/components/core/ui'
 import { usePDMStore } from '@/stores/pdmStore'
+import type { InstalledExtension, StoreExtensionListing } from '@/stores/types'
+
+import { VerificationBadge, NativeBadge } from './VerificationBadge'
 
 interface ExtensionCardProps {
   // Either installed extension or store listing
@@ -72,82 +75,82 @@ export function ExtensionCard({
   if (compact) {
     return (
       <div
-        className={`flex items-center gap-3 p-2 rounded-lg bg-gray-800/50 hover:bg-gray-700/50 
-          border border-gray-700/50 cursor-pointer transition-colors ${className}`}
+        className={`flex items-center gap-3 p-2 rounded-lg bg-plm-bg-light/60 hover:bg-plm-highlight
+          border border-plm-border cursor-pointer transition-colors ${className}`}
         onClick={onViewDetails}
       >
         {/* Icon */}
-        <div className="w-8 h-8 rounded-md bg-gray-700 flex items-center justify-center shrink-0 overflow-hidden">
+        <div className="w-8 h-8 rounded-md bg-plm-bg flex items-center justify-center shrink-0 overflow-hidden">
           {icon ? (
             <img src={icon} alt="" className="w-full h-full object-cover" />
           ) : (
-            <span className="text-lg font-bold text-gray-400">{name[0]}</span>
+            <span className="text-[15px] font-semibold text-plm-fg-muted">{name[0]}</span>
           )}
         </div>
 
         {/* Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="font-medium text-sm text-gray-200 truncate">{name}</span>
+            <span className="font-medium text-[13px] text-plm-fg truncate">{name}</span>
             {isVerified && <VerificationBadge status="verified" size="sm" />}
           </div>
-          <div className="text-xs text-gray-400">v{version}</div>
+          <div className="text-[12px] text-plm-fg-muted">v{version}</div>
         </div>
 
         {/* Installed indicator: a package on disk, not a running extension */}
-        {isInstalled && <div className="w-2 h-2 rounded-full shrink-0 bg-gray-500" />}
+        {isInstalled && <div className="w-2 h-2 rounded-full shrink-0 bg-plm-fg-muted" />}
       </div>
     )
   }
 
   return (
     <div
-      className={`relative p-4 rounded-xl bg-gray-800/50 border border-gray-700/50 
-        hover:border-gray-600/50 transition-all group ${className}`}
+      className={`relative p-4 rounded-lg bg-plm-bg-light/60 border border-plm-border
+        hover:border-plm-border-light transition-colors group ${className}`}
     >
       {/* Featured badge */}
       {isFeatured && (
-        <div
-          className="absolute -top-2 -right-2 bg-amber-500 text-black text-[10px] font-bold 
-          px-2 py-0.5 rounded-full flex items-center gap-1"
+        <Badge
+          tone="warning"
+          icon={<Star size={10} fill="currentColor" />}
+          className="absolute right-3 top-3"
         >
-          <Star size={10} fill="currentColor" />
           Featured
-        </div>
+        </Badge>
       )}
 
       {/* Deprecation warning */}
       {deprecation && (
-        <div className="mb-3 p-2 rounded bg-red-500/10 border border-red-500/30 text-red-400 text-xs">
+        <Callout tone="error" className="mb-3">
           <strong>Deprecated:</strong> {deprecation.reason}
-        </div>
+        </Callout>
       )}
 
       {/* Header */}
       <div className="flex gap-3">
         {/* Icon */}
-        <div className="w-12 h-12 rounded-lg bg-gray-700 flex items-center justify-center shrink-0 overflow-hidden">
+        <div className="w-10 h-10 rounded-lg bg-plm-bg flex items-center justify-center shrink-0 overflow-hidden">
           {icon ? (
             <img src={icon} alt="" className="w-full h-full object-cover" />
           ) : (
-            <span className="text-2xl font-bold text-gray-400">{name[0]}</span>
+            <span className="text-[18px] font-semibold text-plm-fg-muted">{name[0]}</span>
           )}
         </div>
 
         {/* Title & Publisher */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="font-semibold text-gray-100 truncate">{name}</h3>
+            <h3 className="text-[13px] font-semibold text-plm-fg truncate">{name}</h3>
             <VerificationBadge status={verification} size="sm" />
             {isNative && <NativeBadge size="sm" />}
           </div>
-          <div className="flex items-center gap-2 text-sm text-gray-400">
+          <div className="flex items-center gap-2 text-[12px] text-plm-fg-muted">
             <span>{publisher}</span>
-            <span className="text-gray-600">•</span>
+            <span className="text-plm-fg-dim">·</span>
             <span>v{version}</span>
             {downloadCount !== undefined && (
               <>
-                <span className="text-gray-600">•</span>
+                <span className="text-plm-fg-dim">·</span>
                 <span className="flex items-center gap-1">
                   <Download size={12} />
                   {downloadCount.toLocaleString()}
@@ -159,18 +162,15 @@ export function ExtensionCard({
       </div>
 
       {/* Description */}
-      <p className="mt-3 text-sm text-gray-400 line-clamp-2">{description}</p>
+      <p className="mt-3 text-[12px] leading-relaxed text-plm-fg-muted line-clamp-2">
+        {description}
+      </p>
 
       {/* Categories/Tags */}
       {storeExtension?.categories && storeExtension.categories.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-1">
           {storeExtension.categories.slice(0, 3).map((cat) => (
-            <span
-              key={cat}
-              className="px-2 py-0.5 text-[10px] rounded-full bg-gray-700/50 text-gray-400"
-            >
-              {cat}
-            </span>
+            <Badge key={cat}>{cat}</Badge>
           ))}
         </div>
       )}
@@ -178,46 +178,35 @@ export function ExtensionCard({
       {/* Actions */}
       <div className="mt-4 flex items-center gap-2">
         {/* View Details */}
-        <button
-          onClick={onViewDetails}
-          className="px-3 py-1.5 text-sm rounded-lg bg-gray-700/50 hover:bg-gray-700 
-            text-gray-300 transition-colors"
-        >
+        <Button size="sm" onClick={onViewDetails}>
           Details
-        </button>
+        </Button>
 
         {/* Install button (for store extensions) */}
         {canInstall && (
-          <button
+          <Button
+            size="sm"
+            variant="primary"
             onClick={() => handleAction('install', onInstall)}
-            disabled={actionLoading === 'install'}
-            className="px-3 py-1.5 text-sm rounded-lg bg-blue-600 hover:bg-blue-500 
-              text-white transition-colors disabled:opacity-50 flex items-center gap-1.5"
+            loading={actionLoading === 'install'}
+            icon={<Download size={14} />}
           >
-            {actionLoading === 'install' ? (
-              <RefreshCw size={14} className="animate-spin" />
-            ) : (
-              <Download size={14} />
-            )}
             Install
-          </button>
+          </Button>
         )}
 
         {/* Uninstall button */}
         {isInstalled && onUninstall && (
-          <button
+          <Button
+            size="sm"
+            variant="danger-subtle"
             onClick={() => handleAction('uninstall', onUninstall)}
-            disabled={actionLoading === 'uninstall'}
-            className="ml-auto px-3 py-1.5 text-sm rounded-lg bg-red-600/20 hover:bg-red-600/30 
-              text-red-400 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+            loading={actionLoading === 'uninstall'}
+            icon={<Trash2 size={14} />}
+            className="ml-auto"
           >
-            {actionLoading === 'uninstall' ? (
-              <RefreshCw size={14} className="animate-spin" />
-            ) : (
-              <Trash2 size={14} />
-            )}
             Uninstall
-          </button>
+          </Button>
         )}
 
         {/* Repository link */}
@@ -226,12 +215,12 @@ export function ExtensionCard({
             href={manifest?.repository || storeExtension?.repositoryUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="ml-auto p-1.5 rounded-lg hover:bg-gray-700/50 text-gray-400 
-              hover:text-gray-300 transition-colors"
+            className="ml-auto p-1.5 rounded-md text-plm-fg-muted hover:bg-plm-highlight
+              hover:text-plm-fg transition-colors"
             title="View source"
             onClick={(e) => e.stopPropagation()}
           >
-            <ExternalLink size={16} />
+            <ExternalLink size={14} />
           </a>
         )}
       </div>

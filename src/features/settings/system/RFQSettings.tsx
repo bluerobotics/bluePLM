@@ -1,9 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
-import { Loader2, FileText, Save } from 'lucide-react'
-import { log } from '@/lib/logger'
-import { usePDMStore } from '@/stores/pdmStore'
+import { Loader2, Save } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
+
+import { Button, Callout, Switch, TextArea, TextInput } from '@/components/core/ui'
+import { log } from '@/lib/logger'
 import { supabase } from '@/lib/supabase'
+import { usePDMStore } from '@/stores/pdmStore'
+
+import { SettingRow, SettingsGroup, SettingsPage, SettingsSection } from '../components/ui'
 
 interface RFQSettingsData {
   default_payment_terms: string
@@ -17,6 +21,21 @@ interface RFQSettingsData {
   terms_and_conditions: string
   footer_text: string
 }
+
+type RFQColumnKey =
+  | 'show_company_logo'
+  | 'show_revision_column'
+  | 'show_material_column'
+  | 'show_finish_column'
+  | 'show_notes_column'
+
+const COLUMN_TOGGLES: { key: RFQColumnKey; label: string }[] = [
+  { key: 'show_company_logo', label: 'Show company logo' },
+  { key: 'show_revision_column', label: 'Show revision column' },
+  { key: 'show_material_column', label: 'Show material column' },
+  { key: 'show_finish_column', label: 'Show finish column' },
+  { key: 'show_notes_column', label: 'Show notes column' },
+]
 
 const DEFAULT_RFQ_SETTINGS: RFQSettingsData = {
   default_payment_terms: 'Net 30',
@@ -136,169 +155,96 @@ export function RFQSettings() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Read-only notice for non-admins */}
+    <SettingsPage>
       {!isAdmin && (
-        <div className="p-3 bg-plm-highlight rounded-lg border border-plm-border text-sm text-plm-fg-muted">
+        <Callout>
           Only administrators can modify RFQ settings. You are viewing in read-only mode.
-        </div>
+        </Callout>
       )}
 
-      {/* RFQ Template Settings */}
-      <div className="p-4 bg-plm-bg rounded-lg border border-plm-border">
-        <div className="flex items-center gap-2 mb-4">
-          <FileText size={20} className="text-plm-accent" />
-          <h3 className="text-base font-medium text-plm-fg">RFQ Template Defaults</h3>
-        </div>
+      <SettingsSection title="RFQ Template Defaults">
+        <SettingsGroup>
+          <SettingRow label="Payment Terms" htmlFor="rfq-payment-terms">
+            <TextInput
+              id="rfq-payment-terms"
+              value={settings.default_payment_terms}
+              onChange={(e) => updateSetting('default_payment_terms', e.target.value)}
+              placeholder="Net 30"
+              disabled={!isAdmin}
+              className="!w-48"
+            />
+          </SettingRow>
+          <SettingRow label="Incoterms" htmlFor="rfq-incoterms">
+            <TextInput
+              id="rfq-incoterms"
+              value={settings.default_incoterms}
+              onChange={(e) => updateSetting('default_incoterms', e.target.value)}
+              placeholder="FOB"
+              disabled={!isAdmin}
+              className="!w-48"
+            />
+          </SettingRow>
+          <SettingRow label="Quote Valid (days)" htmlFor="rfq-valid-days">
+            <TextInput
+              id="rfq-valid-days"
+              type="number"
+              value={settings.default_valid_days}
+              onChange={(e) => updateSetting('default_valid_days', parseInt(e.target.value) || 30)}
+              min="1"
+              disabled={!isAdmin}
+              className="!w-24"
+            />
+          </SettingRow>
+        </SettingsGroup>
+      </SettingsSection>
 
-        <div className="space-y-4">
-          {/* Default values */}
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="text-sm text-plm-fg-muted block mb-1">Payment Terms</label>
-              <input
-                type="text"
-                value={settings.default_payment_terms}
-                onChange={(e) => updateSetting('default_payment_terms', e.target.value)}
-                placeholder="Net 30"
+      <SettingsSection title="RFQ Document Columns">
+        <SettingsGroup>
+          {COLUMN_TOGGLES.map(({ key, label }) => (
+            <SettingRow key={key} label={label}>
+              <Switch
+                checked={settings[key]}
+                onChange={(checked) => updateSetting(key, checked)}
                 disabled={!isAdmin}
-                className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent disabled:opacity-60 disabled:cursor-not-allowed"
+                aria-label={label}
               />
-            </div>
-            <div>
-              <label className="text-sm text-plm-fg-muted block mb-1">Incoterms</label>
-              <input
-                type="text"
-                value={settings.default_incoterms}
-                onChange={(e) => updateSetting('default_incoterms', e.target.value)}
-                placeholder="FOB"
-                disabled={!isAdmin}
-                className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent disabled:opacity-60 disabled:cursor-not-allowed"
-              />
-            </div>
-            <div>
-              <label className="text-sm text-plm-fg-muted block mb-1">Quote Valid (days)</label>
-              <input
-                type="number"
-                value={settings.default_valid_days}
-                onChange={(e) =>
-                  updateSetting('default_valid_days', parseInt(e.target.value) || 30)
-                }
-                min="1"
-                disabled={!isAdmin}
-                className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg focus:outline-none focus:border-plm-accent disabled:opacity-60 disabled:cursor-not-allowed"
-              />
-            </div>
-          </div>
+            </SettingRow>
+          ))}
+        </SettingsGroup>
+      </SettingsSection>
 
-          {/* Column visibility */}
-          <div>
-            <label className="text-sm text-plm-fg-muted block mb-2">RFQ Document Columns</label>
-            <div className="grid grid-cols-2 gap-2">
-              <label
-                className={`flex items-center gap-2 ${isAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}
-              >
-                <input
-                  type="checkbox"
-                  checked={settings.show_company_logo}
-                  onChange={(e) => updateSetting('show_company_logo', e.target.checked)}
-                  disabled={!isAdmin}
-                  className="rounded"
-                />
-                <span className="text-sm text-plm-fg">Show company logo</span>
-              </label>
-              <label
-                className={`flex items-center gap-2 ${isAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}
-              >
-                <input
-                  type="checkbox"
-                  checked={settings.show_revision_column}
-                  onChange={(e) => updateSetting('show_revision_column', e.target.checked)}
-                  disabled={!isAdmin}
-                  className="rounded"
-                />
-                <span className="text-sm text-plm-fg">Show revision column</span>
-              </label>
-              <label
-                className={`flex items-center gap-2 ${isAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}
-              >
-                <input
-                  type="checkbox"
-                  checked={settings.show_material_column}
-                  onChange={(e) => updateSetting('show_material_column', e.target.checked)}
-                  disabled={!isAdmin}
-                  className="rounded"
-                />
-                <span className="text-sm text-plm-fg">Show material column</span>
-              </label>
-              <label
-                className={`flex items-center gap-2 ${isAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}
-              >
-                <input
-                  type="checkbox"
-                  checked={settings.show_finish_column}
-                  onChange={(e) => updateSetting('show_finish_column', e.target.checked)}
-                  disabled={!isAdmin}
-                  className="rounded"
-                />
-                <span className="text-sm text-plm-fg">Show finish column</span>
-              </label>
-              <label
-                className={`flex items-center gap-2 ${isAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}
-              >
-                <input
-                  type="checkbox"
-                  checked={settings.show_notes_column}
-                  onChange={(e) => updateSetting('show_notes_column', e.target.checked)}
-                  disabled={!isAdmin}
-                  className="rounded"
-                />
-                <span className="text-sm text-plm-fg">Show notes column</span>
-              </label>
-            </div>
-          </div>
-
-          {/* Terms and conditions */}
-          <div>
-            <label className="text-sm text-plm-fg-muted block mb-1">Terms and Conditions</label>
-            <textarea
+      <SettingsSection title="Document text">
+        <SettingsGroup>
+          <SettingRow label="Terms and Conditions" htmlFor="rfq-terms" stacked>
+            <TextArea
+              id="rfq-terms"
               value={settings.terms_and_conditions}
               onChange={(e) => updateSetting('terms_and_conditions', e.target.value)}
               rows={4}
               placeholder="Enter standard terms and conditions for RFQ documents..."
               disabled={!isAdmin}
-              className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent resize-none disabled:opacity-60 disabled:cursor-not-allowed"
+              className="resize-none"
             />
-          </div>
-
-          {/* Footer text */}
-          <div>
-            <label className="text-sm text-plm-fg-muted block mb-1">Footer Text</label>
-            <input
-              type="text"
+          </SettingRow>
+          <SettingRow label="Footer Text" htmlFor="rfq-footer" stacked>
+            <TextInput
+              id="rfq-footer"
               value={settings.footer_text}
               onChange={(e) => updateSetting('footer_text', e.target.value)}
               placeholder="Custom footer text for RFQ documents"
               disabled={!isAdmin}
-              className="w-full px-3 py-2 bg-plm-input border border-plm-border rounded text-sm text-plm-fg placeholder:text-plm-fg-muted/50 focus:outline-none focus:border-plm-accent disabled:opacity-60 disabled:cursor-not-allowed"
             />
-          </div>
-        </div>
-      </div>
+          </SettingRow>
+        </SettingsGroup>
+      </SettingsSection>
 
-      {/* Save button - only shown for admins */}
       {isAdmin && (
         <div className="flex justify-end">
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="btn btn-primary flex items-center gap-2"
-          >
-            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+          <Button variant="primary" icon={<Save size={14} />} loading={saving} onClick={handleSave}>
             Save Settings
-          </button>
+          </Button>
         </div>
       )}
-    </div>
+    </SettingsPage>
   )
 }

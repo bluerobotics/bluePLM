@@ -33,6 +33,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronsDownUp, ChevronsUpDown, Search, X } from 'lucide-react'
 
+import { Button, FIELD_CLASS } from '@/components/core/ui'
 import { t } from '@/lib/i18n'
 import type { VaultAuditCategoryKind, VaultAuditFinding } from '@/types/vaultAudit'
 
@@ -202,9 +203,7 @@ export function VaultAuditFindings({ findings, kind }: VaultAuditFindingsProps) 
     const toFile = targets.filter(
       (row) => row.action.available && row.action.kind === 'write-to-file',
     )
-    const toFill = targets.filter(
-      (row) => row.action.available && row.action.kind === 'fill-empty',
-    )
+    const toFill = targets.filter((row) => row.action.available && row.action.kind === 'fill-empty')
 
     if (toFill.length > 0) {
       fill.setMany(
@@ -329,7 +328,7 @@ export function VaultAuditFindings({ findings, kind }: VaultAuditFindingsProps) 
             value={filterInput}
             placeholder={t('vaultAudit.findings.filterPlaceholder')}
             onChange={(event) => setFilterInput(event.target.value)}
-            className="w-full pl-7 pr-7 py-1.5 text-sm bg-plm-bg border border-plm-border rounded-md text-plm-fg outline-none focus:border-plm-accent"
+            className={`${FIELD_CLASS} h-8 pl-7 pr-7`}
           />
           {filterInput && (
             <button
@@ -363,16 +362,16 @@ export function VaultAuditFindings({ findings, kind }: VaultAuditFindingsProps) 
         )}
 
         {groups.length > 1 && (
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={allCollapsed ? <ChevronsUpDown size={12} /> : <ChevronsDownUp size={12} />}
             onClick={toggleCollapseAll}
-            className="flex items-center gap-1 px-2 py-1 text-xs text-plm-fg-muted hover:text-plm-fg border border-plm-border rounded-md hover:bg-plm-bg-lighter transition-colors"
           >
-            {allCollapsed ? <ChevronsUpDown size={12} /> : <ChevronsDownUp size={12} />}
             {allCollapsed
               ? t('vaultAudit.findings.expandAll')
               : t('vaultAudit.findings.collapseAll')}
-          </button>
+          </Button>
         )}
       </div>
 

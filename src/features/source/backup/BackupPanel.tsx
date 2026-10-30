@@ -1,7 +1,10 @@
 import { useState, useMemo } from 'react'
-import { Shield, RefreshCw, Loader2 } from 'lucide-react'
-import { usePDMStore } from '@/stores/pdmStore'
+import { RefreshCw, Loader2 } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
+
+import { Button } from '@/components/core/ui'
+import { SettingsPage } from '@/features/settings/components/ui'
+import { usePDMStore } from '@/stores/pdmStore'
 
 // Hooks
 import { useBackupStatus } from './hooks/useBackupStatus'
@@ -10,7 +13,6 @@ import { useBackupOperations } from './hooks/useBackupOperations'
 
 // Components
 import { BackupStatusCard } from './BackupStatusCard'
-import { BackupScheduleInfo } from './BackupScheduleInfo'
 import { BackupSourceSection } from './BackupSourceSection'
 import { BackupHistory } from './BackupHistory'
 import { RestoreActionBar } from './RestoreActionBar'
@@ -122,79 +124,65 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
   // Snapshots load in background - BackupHistory will show its own spinner
   if (isLoadingConfig) {
     return (
-      <div className="p-4 flex items-center justify-center">
+      <div className="flex items-center justify-center p-4">
         <Loader2 className="w-5 h-5 animate-spin text-plm-fg-muted" />
       </div>
     )
   }
 
   return (
-    <div className="p-4 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Shield className="w-5 h-5 text-plm-accent" />
-          <h3 className="font-semibold">Backup & Restore</h3>
-        </div>
-        <button
-          onClick={refresh}
-          disabled={isRefreshing || isBackoffActive}
-          className={`p-1.5 rounded transition-colors ${
-            isBackoffActive
-              ? 'text-plm-fg-muted/50 cursor-not-allowed'
-              : 'hover:bg-plm-bg-secondary text-plm-fg-muted hover:text-plm-fg'
-          }`}
-          title={
-            isBackoffActive
-              ? `Rate limited - retry in ${backoffRemainingSeconds}s`
-              : 'Refresh from backup server'
-          }
-        >
-          <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-        </button>
-      </div>
+    <SettingsPage>
+      {/* Status, with last and next backup */}
+      <BackupStatusCard
+        status={status}
+        isLoadingSnapshots={isLoadingSnapshots}
+        isBackoffActive={isBackoffActive}
+        backoffRemainingSeconds={backoffRemainingSeconds}
+        cacheAgeSeconds={cacheAgeSeconds}
+        isUsingCachedData={isUsingCachedData}
+        actions={
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={refresh}
+            disabled={isRefreshing || isBackoffActive}
+            title={
+              isBackoffActive
+                ? `Rate limited - retry in ${backoffRemainingSeconds}s`
+                : 'Refresh from backup server'
+            }
+            icon={<RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />}
+          >
+            Refresh
+          </Button>
+        }
+      />
 
-      {/* Status Overview */}
-      <div className="space-y-4">
-        {/* Configuration Status */}
-        <BackupStatusCard
+      {/* Backup Source Section */}
+      {status?.isConfigured && (
+        <BackupSourceSection
           status={status}
-          isLoadingSnapshots={isLoadingSnapshots}
-          isBackoffActive={isBackoffActive}
-          backoffRemainingSeconds={backoffRemainingSeconds}
-          cacheAgeSeconds={cacheAgeSeconds}
-          isUsingCachedData={isUsingCachedData}
+          isThisDesignated={isThisDesignated}
+          isDesignatedOnline={isDesignatedOnline}
+          isAdmin={isAdmin}
+          connectedVaults={connectedVaults}
+          selectedVaultIds={operations.selectedVaultIds}
+          onVaultToggle={handleVaultToggle}
+          isRunningBackup={operations.isRunningBackup}
+          backupProgress={operations.backupProgress}
+          onRunBackup={operations.handleRunBackup}
+          onDesignateThisMachine={operations.handleDesignateThisMachine}
+          onClearDesignatedMachine={operations.handleClearDesignatedMachine}
         />
+      )}
 
-        {/* Backup Schedule Info */}
-        {status?.isConfigured && <BackupScheduleInfo status={status} />}
-
-        {/* Backup Source Section */}
-        {status?.isConfigured && (
-          <BackupSourceSection
-            status={status}
-            isThisDesignated={isThisDesignated}
-            isDesignatedOnline={isDesignatedOnline}
-            isAdmin={isAdmin}
-            connectedVaults={connectedVaults}
-            selectedVaultIds={operations.selectedVaultIds}
-            onVaultToggle={handleVaultToggle}
-            isRunningBackup={operations.isRunningBackup}
-            backupProgress={operations.backupProgress}
-            onRunBackup={operations.handleRunBackup}
-            onDesignateThisMachine={operations.handleDesignateThisMachine}
-            onClearDesignatedMachine={operations.handleClearDesignatedMachine}
-          />
-        )}
-
-        {/* Backup/Restore Status Viewer */}
-        {status?.isConfigured && (
-          <BackupStatusViewer
-            isRunningBackup={operations.isRunningBackup}
-            isRestoring={operations.isRestoring}
-          />
-        )}
-      </div>
+      {/* Backup/Restore Status Viewer */}
+      {status?.isConfigured && (
+        <BackupStatusViewer
+          isRunningBackup={operations.isRunningBackup}
+          isRestoring={operations.isRestoring}
+        />
+      )}
 
       {/* Snapshot History - now shows its own loading state */}
       <BackupHistory
@@ -277,6 +265,6 @@ export function BackupPanel({ isAdmin }: BackupPanelProps) {
           onCancel={() => operations.setDeleteConfirmTarget(null)}
         />
       )}
-    </div>
+    </SettingsPage>
   )
 }

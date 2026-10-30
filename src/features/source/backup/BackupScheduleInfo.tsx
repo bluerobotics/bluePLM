@@ -1,67 +1,57 @@
-import { Clock, Calendar } from 'lucide-react'
+import { SettingRow } from '@/features/settings/components/ui'
+
 import type { BackupStatus } from './types'
-import { formatRelativeTime, getNextScheduledBackup, formatTimeUntil } from './utils'
+import { formatRelativeTime, formatTimeUntil, getNextScheduledBackup } from './utils'
 
 interface BackupScheduleInfoProps {
   status: BackupStatus
 }
 
 /**
- * Shows the last backup time and next scheduled backup time.
+ * The last backup time and the next scheduled backup time, as two rows of a SettingsGroup.
  */
 export function BackupScheduleInfo({ status }: BackupScheduleInfoProps) {
-  return (
-    <div className="flex gap-3">
-      {/* Last Backup */}
-      <div className="flex-1 p-3 rounded-lg bg-plm-bg-secondary border border-plm-border">
-        <div className="flex items-center gap-2 mb-1">
-          <Clock className="w-4 h-4 text-plm-fg-muted" />
-          <span className="text-xs text-plm-fg-muted">Last Backup</span>
-        </div>
-        {status.lastSnapshot ? (
-          <>
-            <div className="text-sm font-medium">
-              {formatRelativeTime(status.lastSnapshot.time)}
-            </div>
-            <div className="text-xs text-plm-fg-muted">{status.lastSnapshot.hostname}</div>
-          </>
-        ) : (
-          <div className="text-sm text-plm-fg-muted">None yet</div>
-        )}
-      </div>
+  const config = status.config
+  const scheduled =
+    config?.schedule_enabled &&
+    config?.designated_machine_id &&
+    config.schedule_hour != null &&
+    config.schedule_minute != null
 
-      {/* Next Scheduled */}
-      <div className="flex-1 p-3 rounded-lg bg-plm-bg-secondary border border-plm-border">
-        <div className="flex items-center gap-2 mb-1">
-          <Calendar className="w-4 h-4 text-plm-fg-muted" />
-          <span className="text-xs text-plm-fg-muted">Next Backup</span>
-        </div>
-        {status.config?.schedule_enabled &&
-        status.config?.designated_machine_id &&
-        status.config.schedule_hour != null &&
-        status.config.schedule_minute != null ? (
-          <>
-            <div className="text-sm font-medium">
-              {formatTimeUntil(
+  return (
+    <>
+      <SettingRow
+        label="Last Backup"
+        description={status.lastSnapshot ? status.lastSnapshot.hostname : undefined}
+      >
+        <span className="text-[13px] text-plm-fg">
+          {status.lastSnapshot ? formatRelativeTime(status.lastSnapshot.time) : 'None yet'}
+        </span>
+      </SettingRow>
+      <SettingRow
+        label="Next Backup"
+        description={
+          scheduled && config
+            ? `${String(config.schedule_hour).padStart(2, '0')}:${String(config.schedule_minute).padStart(2, '0')} ${
+                config.schedule_timezone?.replace(/_/g, ' ').split('/').pop() || 'UTC'
+              }`
+            : undefined
+        }
+      >
+        <span className="text-[13px] text-plm-fg">
+          {scheduled && config && config.schedule_hour != null && config.schedule_minute != null
+            ? formatTimeUntil(
                 getNextScheduledBackup(
-                  status.config.schedule_hour,
-                  status.config.schedule_minute,
-                  status.config.schedule_timezone,
+                  config.schedule_hour,
+                  config.schedule_minute,
+                  config.schedule_timezone,
                 ),
-              )}
-            </div>
-            <div className="text-xs text-plm-fg-muted">
-              {String(status.config.schedule_hour).padStart(2, '0')}:
-              {String(status.config.schedule_minute).padStart(2, '0')}{' '}
-              {status.config.schedule_timezone?.replace(/_/g, ' ').split('/').pop() || 'UTC'}
-            </div>
-          </>
-        ) : (
-          <div className="text-sm text-plm-fg-muted">
-            {!status.config?.designated_machine_id ? 'No machine set' : 'Not scheduled'}
-          </div>
-        )}
-      </div>
-    </div>
+              )
+            : !config?.designated_machine_id
+              ? 'No machine set'
+              : 'Not scheduled'}
+        </span>
+      </SettingRow>
+    </>
   )
 }

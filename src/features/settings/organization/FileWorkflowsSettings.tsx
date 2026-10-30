@@ -8,15 +8,18 @@
  */
 
 import { useState } from 'react'
-import { GitBranch, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 
+import { Callout, Switch } from '@/components/core/ui'
 import { fileWorkflowsEnabled } from '@/lib/fileWorkflows'
 import { t } from '@/lib/i18n'
 import { log } from '@/lib/logger'
 import { supabase } from '@/lib/supabase'
 import { usePDMStore } from '@/stores/pdmStore'
 import type { OrgSettings } from '@/types/pdm'
+
+import { SettingRow, SettingsGroup, SettingsPage, SettingsSection } from '../components/ui'
 
 type WorkflowSettingsPatch = Pick<
   OrgSettings,
@@ -31,15 +34,16 @@ interface ChoiceProps<T extends string> {
   onChange: (value: T) => void
 }
 
+/** One choice of a review-stage rule, as a row of radio options inside a SettingsGroup. */
 function Choice<T extends string>({ name, value, options, disabled, onChange }: ChoiceProps<T>) {
   return (
-    <div className="space-y-2">
+    <SettingsGroup>
       {options.map((option) => (
         <label
           key={option.value}
-          className={`flex items-start gap-2 p-2 rounded border ${
-            value === option.value ? 'border-plm-accent bg-plm-accent/5' : 'border-plm-border'
-          } ${disabled ? 'opacity-60' : 'cursor-pointer'}`}
+          className={`flex items-start gap-3 px-4 py-3 ${
+            disabled ? 'opacity-60' : 'cursor-pointer hover:bg-plm-highlight/40'
+          }`}
         >
           <input
             type="radio"
@@ -47,15 +51,17 @@ function Choice<T extends string>({ name, value, options, disabled, onChange }: 
             checked={value === option.value}
             disabled={disabled}
             onChange={() => onChange(option.value)}
-            className="mt-0.5"
+            className="mt-0.5 accent-plm-accent"
           />
-          <span>
-            <span className="block text-sm text-plm-fg">{option.label}</span>
-            <span className="block text-xs text-plm-fg-muted">{option.hint}</span>
+          <span className="min-w-0">
+            <span className="block text-[13px] font-medium text-plm-fg">{option.label}</span>
+            <span className="mt-0.5 block text-[12px] leading-relaxed text-plm-fg-muted">
+              {option.hint}
+            </span>
           </span>
         </label>
       ))}
-    </div>
+    </SettingsGroup>
   )
 }
 
@@ -114,48 +120,43 @@ export function FileWorkflowsSettings() {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
-      <div>
-        <h2 className="text-lg font-semibold text-plm-fg flex items-center gap-2">
-          <GitBranch size={18} />
-          {t('workflows.settings.title')}
-          {saving && <Loader2 size={14} className="animate-spin text-plm-fg-muted" />}
-        </h2>
-        <p className="text-sm text-plm-fg-muted mt-1">{t('workflows.settings.intro')}</p>
-        {!isAdmin && (
-          <p className="text-xs text-plm-warning mt-2">{t('workflows.settings.adminOnly')}</p>
-        )}
-      </div>
+    <SettingsPage>
+      {!isAdmin && <Callout tone="warning">{t('workflows.settings.adminOnly')}</Callout>}
 
-      <label
-        className={`flex items-start gap-3 p-3 rounded border border-plm-border ${
-          disabled ? 'opacity-60' : 'cursor-pointer'
-        }`}
+      <SettingsSection
+        description={t('workflows.settings.intro')}
+        // Always set, so the heading (and with it the description) renders; the spinner shows
+        // while a change saves.
+        actions={
+          <span className="inline-flex h-4 w-4 items-center" aria-live="polite">
+            {saving && <Loader2 size={14} className="animate-spin text-plm-fg-muted" />}
+          </span>
+        }
       >
-        <input
-          type="checkbox"
-          checked={enabled}
-          disabled={disabled}
-          onChange={(e) => void save({ file_workflows_enabled: e.target.checked })}
-          className="mt-0.5 rounded"
-        />
-        <span>
-          <span className="block text-sm font-medium text-plm-fg">
-            {t('workflows.settings.enable')}
-          </span>
-          <span className="block text-xs text-plm-fg-muted">
-            {enabled ? t('workflows.settings.enabledHint') : t('workflows.settings.disabledHint')}
-          </span>
-        </span>
-      </label>
+        <SettingsGroup>
+          <SettingRow
+            label={t('workflows.settings.enable')}
+            htmlFor="file-workflows-enabled"
+            description={
+              enabled ? t('workflows.settings.enabledHint') : t('workflows.settings.disabledHint')
+            }
+          >
+            <Switch
+              id="file-workflows-enabled"
+              checked={enabled}
+              disabled={disabled}
+              onChange={(checked) => void save({ file_workflows_enabled: checked })}
+            />
+          </SettingRow>
+        </SettingsGroup>
+      </SettingsSection>
 
       {enabled && (
         <>
-          <section className="space-y-2">
-            <h3 className="text-sm font-semibold text-plm-fg">
-              {t('workflows.settings.onApprovalTitle')}
-            </h3>
-            <p className="text-xs text-plm-fg-muted">{t('workflows.settings.onApprovalIntro')}</p>
+          <SettingsSection
+            title={t('workflows.settings.onApprovalTitle')}
+            description={t('workflows.settings.onApprovalIntro')}
+          >
             <Choice
               name="review-stage-on-approval"
               value={onApproval}
@@ -174,13 +175,12 @@ export function FileWorkflowsSettings() {
                 },
               ]}
             />
-          </section>
+          </SettingsSection>
 
-          <section className="space-y-2">
-            <h3 className="text-sm font-semibold text-plm-fg">
-              {t('workflows.settings.packageTitle')}
-            </h3>
-            <p className="text-xs text-plm-fg-muted">{t('workflows.settings.packageIntro')}</p>
+          <SettingsSection
+            title={t('workflows.settings.packageTitle')}
+            description={t('workflows.settings.packageIntro')}
+          >
             <Choice
               name="review-stage-package-policy"
               value={packagePolicy}
@@ -199,9 +199,9 @@ export function FileWorkflowsSettings() {
                 },
               ]}
             />
-          </section>
+          </SettingsSection>
         </>
       )}
-    </div>
+    </SettingsPage>
   )
 }

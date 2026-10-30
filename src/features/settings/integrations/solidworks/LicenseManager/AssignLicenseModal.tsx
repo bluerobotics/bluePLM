@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import { X, Loader2, UserPlus, Search, Clock } from 'lucide-react'
+import { X, UserPlus, Search, Clock } from 'lucide-react'
+
+import { Button } from '@/components/core/ui'
 import { getInitials } from '@/lib/utils'
 import type { LicenseWithAssignment, OrgUser } from './types'
 
@@ -245,21 +247,17 @@ export function AssignLicenseModal({ license, users, onClose, onAssign }: Assign
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-plm-border">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-sm text-plm-fg-muted hover:text-plm-fg transition-colors"
-          >
+          <Button variant="ghost" onClick={onClose}>
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="primary"
             onClick={handleAssign}
-            disabled={!selectedUserId || isAssigning}
-            className="flex items-center gap-2 px-4 py-2 bg-plm-accent text-white rounded-lg hover:bg-plm-accent/80 transition-colors disabled:opacity-50"
+            disabled={!selectedUserId}
+            loading={isAssigning}
           >
-            {isAssigning && <Loader2 size={16} className="animate-spin" />}
             Assign License
-          </button>
+          </Button>
         </div>
       </div>
     </div>

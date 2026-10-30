@@ -92,6 +92,7 @@ export const settingsSections = (): SettingsSection[] => [
         label: 'General',
         icon: SlidersHorizontal,
         description: 'Syncing, file handling, updates and privacy.',
+        desktopOnly: true,
         keywords: ['preferences', 'options', 'sync', 'updates'],
       },
       {
@@ -369,14 +370,13 @@ export const settingsCatalog: SettingsCatalog = {
     { label: 'Deep Blue', keywords: ['theme'] },
     { label: 'Light', keywords: ['theme', 'light mode'] },
     { label: 'System', keywords: ['theme', 'os theme'] },
-    { label: 'Auto-apply seasonal themes', keywords: ['christmas', 'halloween', 'holiday'] },
     { label: 'Display Language', keywords: ['language', 'locale', 'translation', 'i18n'] },
     { label: 'Browser-like Tabs', keywords: ['tabs', 'multiple views', 'interface'] },
   ],
   preferences: [
     { label: 'Application Updates', keywords: ['update', 'version', 'upgrade'], desktopOnly: true },
     { label: 'Check for Updates', keywords: ['update', 'upgrade'], desktopOnly: true },
-    { label: 'Sync', keywords: ['download', 'sync settings'], desktopOnly: true },
+    { label: 'Sync Settings', keywords: ['download', 'sync'], desktopOnly: true },
     { label: 'Auto-download cloud files', keywords: ['sync', 'download'], desktopOnly: true },
     { label: 'Auto-download file updates', keywords: ['sync', 'download', 'newer versions'], desktopOnly: true },
     { label: 'Skip large files', keywords: ['size limit', 'max size'], desktopOnly: true },
@@ -558,7 +558,9 @@ export const settingsCatalog: SettingsCatalog = {
   ],
   'item-designations': [{ label: 'Add designation', keywords: ['new designation', 'item type'] }],
   backup: [
-    { label: 'Backup & Restore', keywords: ['backup', 'restore', 'snapshot'] },
+    { label: 'Status', keywords: ['backup', 'restore', 'snapshot', 'backup & restore'] },
+    { label: 'Last Backup', keywords: ['latest', 'recent'] },
+    { label: 'Next Backup', keywords: ['schedule', 'upcoming'] },
     { label: 'Backup Configuration', keywords: ['s3', 'backblaze', 'storage'] },
     { label: 'Provider', keywords: ['s3', 'backblaze', 'b2'] },
     { label: 'Bucket Name', keywords: ['bucket'] },
@@ -652,8 +654,10 @@ export const settingsCatalog: SettingsCatalog = {
     { label: 'Open API Documentation (Swagger)', keywords: ['swagger', 'openapi', 'docs'] },
   ],
   supabase: [
-    { label: 'Supabase Connection', keywords: ['database', 'backend', 'server'] },
-    { label: 'Connection Status', keywords: ['status', 'online'] },
+    {
+      label: 'Connection Status',
+      keywords: ['status', 'online', 'supabase connection', 'database', 'backend', 'server'],
+    },
     { label: 'Schema Version', keywords: ['migration', 'schema', 'database version'] },
     { label: 'Supabase URL', keywords: ['url', 'project'] },
     { label: 'Anon Key', keywords: ['key', 'api key'] },

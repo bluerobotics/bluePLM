@@ -1,6 +1,7 @@
-import { usePDMStore } from '@/stores/pdmStore'
 import { useShallow } from 'zustand/react/shallow'
+
 import { BackupPanel } from '@/features/source/backup'
+import { usePDMStore } from '@/stores/pdmStore'
 
 export function BackupSettings() {
   const { getEffectiveRole } = usePDMStore(
@@ -9,11 +10,5 @@ export function BackupSettings() {
     })),
   )
 
-  return (
-    <div className="h-full -m-6">
-      <div className="h-full p-6">
-        <BackupPanel isAdmin={getEffectiveRole() === 'admin'} />
-      </div>
-    </div>
-  )
+  return <BackupPanel isAdmin={getEffectiveRole() === 'admin'} />
 }

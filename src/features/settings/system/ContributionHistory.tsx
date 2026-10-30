@@ -13,10 +13,13 @@ import {
   RefreshCw,
   Loader2,
 } from 'lucide-react'
-import { log } from '@/lib/logger'
-import { usePDMStore } from '@/stores/pdmStore'
 import { useShallow } from 'zustand/react/shallow'
+
+import { SegmentedControl, type SegmentedOption } from '@/components/core/ui'
+import { SettingsGroup, SettingsSection } from '@/features/settings/components/ui'
+import { log } from '@/lib/logger'
 import { getSupabaseClient } from '@/lib/supabase'
+import { usePDMStore } from '@/stores/pdmStore'
 
 // Supabase v2 type inference incomplete for contribution history queries
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -71,6 +74,15 @@ const ACTION_COLORS: Record<string, string> = {
   review_kicked_back: 'text-plm-warning',
   review_requested: 'text-plm-accent',
 }
+
+// Heatmap cell colour per intensity level (0 = no activity, 4 = most)
+const INTENSITY_CLASSES = [
+  'bg-plm-bg-lighter',
+  'bg-emerald-900/50',
+  'bg-emerald-700/70',
+  'bg-emerald-500/80',
+  'bg-emerald-400',
+]
 
 // Get the intensity level (0-4) based on activity count
 function getIntensityLevel(count: number, maxCount: number): number {
@@ -451,255 +463,197 @@ export function ContributionHistory() {
     return null
   }
 
-  return (
-    <section className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium">
-          Contribution History
-        </h2>
-        <span className="text-sm text-plm-fg-muted">
-          {totalContributions} contributions in the last year
-        </span>
+  const filterOptions: SegmentedOption<ContributionType>[] = (
+    ['all', 'checkins', 'checkouts', 'creates', 'reviews', 'approvals'] as ContributionType[]
+  ).map((type) => ({
+    value: type,
+    label: <span className="capitalize">{type === 'all' ? 'All Activity' : type}</span>,
+  }))
+
+  const renderActivityRow = (activity: ActivityRecord, key: string, time: string) => (
+    <div key={key} className="flex items-center gap-3 px-4 py-2">
+      <span className={`flex-shrink-0 ${ACTION_COLORS[activity.action] || 'text-plm-fg-muted'}`}>
+        {ACTION_ICONS[activity.action] || <Activity size={14} />}
+      </span>
+      <div className="min-w-0 flex-1 truncate text-[13px] text-plm-fg">
+        <span className="font-medium">{getActionLabel(activity.action)}</span>
+        {activity.file_name && <span className="text-plm-fg-muted"> · {activity.file_name}</span>}
       </div>
+      <span className="flex-shrink-0 text-[12px] text-plm-fg-muted">{time}</span>
+    </div>
+  )
 
-      <div className="bg-plm-bg rounded-lg border border-plm-border p-4 space-y-4">
-        {/* Filter buttons */}
-        <div className="flex flex-wrap gap-2">
-          {(
-            [
-              'all',
-              'checkins',
-              'checkouts',
-              'creates',
-              'reviews',
-              'approvals',
-            ] as ContributionType[]
-          ).map((type) => (
-            <button
-              key={type}
-              onClick={() => setFilter(type)}
-              className={`px-3 py-1.5 text-xs rounded-full transition-colors capitalize ${
-                filter === type
-                  ? 'bg-plm-accent text-white'
-                  : 'bg-plm-bg-lighter text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight'
-              }`}
-            >
-              {type === 'all' ? 'All Activity' : type}
-            </button>
-          ))}
-        </div>
+  return (
+    <>
+      <SettingsSection
+        title="Contribution History"
+        description={`${totalContributions} contributions in the last year`}
+      >
+        <SettingsGroup>
+          <div className="space-y-4 px-4 py-4">
+            <SegmentedControl
+              size="sm"
+              value={filter}
+              options={filterOptions}
+              onChange={setFilter}
+              aria-label="Contribution type"
+            />
 
-        {/* Contribution grid */}
-        {isLoading ? (
-          <div className="flex items-center justify-center py-8 text-plm-fg-muted">
-            <Loader2 size={20} className="animate-spin mr-2" />
-            Loading contribution data...
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {/* Month labels row */}
-            <div className="flex">
-              {/* Spacer for day labels column */}
-              <div className="w-8 flex-shrink-0" />
-              {/* Month labels aligned with week columns */}
-              <div className="flex-1 flex">
-                {Array.from({ length: 53 }, (_, weekIndex) => {
-                  const monthLabel = monthLabels.find((m) => m.weekIndex === weekIndex)
-                  return (
-                    <div key={weekIndex} className="flex-1 min-w-0">
-                      {monthLabel && (
-                        <span className="text-[10px] text-plm-fg-muted">{monthLabel.month}</span>
-                      )}
-                    </div>
-                  )
-                })}
+            {/* Contribution grid */}
+            {isLoading ? (
+              <div className="flex items-center gap-2 py-6 text-[13px] text-plm-fg-muted">
+                <Loader2 size={14} className="animate-spin" />
+                Loading contribution data...
               </div>
-            </div>
-
-            {/* Grid with day labels */}
-            <div className="flex gap-1">
-              {/* Day labels */}
-              <div className="flex flex-col justify-between w-7 flex-shrink-0 py-[2px]">
-                {dayLabels.map((day, i) => (
-                  <div
-                    key={day}
-                    className="h-0 flex items-center text-[10px] text-plm-fg-muted leading-none"
-                    style={{ visibility: i % 2 === 1 ? 'visible' : 'hidden' }}
-                  >
-                    {day}
-                  </div>
-                ))}
-              </div>
-
-              {/* Grid cells - organized by week columns, flex to fill space */}
-              <div className="flex-1 flex gap-[2px]">
-                {Array.from({ length: 53 }, (_, weekIndex) => (
-                  <div key={weekIndex} className="flex-1 flex flex-col gap-[2px]">
-                    {Array.from({ length: 7 }, (_, dayIndex) => {
-                      const cellIndex = dateGrid.findIndex(
-                        (d) => d.weekIndex === weekIndex && d.dayOfWeek === dayIndex,
-                      )
-                      const cell = dateGrid[cellIndex]
-
-                      if (!cell) {
-                        return <div key={dayIndex} className="aspect-square rounded-sm" />
-                      }
-
-                      const dateStr = cell.date.toISOString().split('T')[0]
-                      const dayData = filteredData.get(dateStr)
-                      const count = dayData?.count || 0
-                      const level = getIntensityLevel(count, Math.max(maxCount, 1))
-
-                      // Color classes based on intensity level
-                      const colorClasses = [
-                        'bg-plm-bg-lighter', // 0 - no activity
-                        'bg-emerald-900/50', // 1 - light
-                        'bg-emerald-700/70', // 2 - medium-light
-                        'bg-emerald-500/80', // 3 - medium
-                        'bg-emerald-400', // 4 - high
-                      ]
-
+            ) : (
+              <div className="space-y-2">
+                {/* Month labels row */}
+                <div className="flex">
+                  {/* Spacer for day labels column */}
+                  <div className="w-8 flex-shrink-0" />
+                  {/* Month labels aligned with week columns */}
+                  <div className="flex flex-1">
+                    {Array.from({ length: 53 }, (_, weekIndex) => {
+                      const monthLabel = monthLabels.find((m) => m.weekIndex === weekIndex)
                       return (
-                        <div
-                          key={dayIndex}
-                          onClick={() => handleCellClick(cell.date)}
-                          onMouseEnter={(e) => handleCellHover(e, cell.date, count)}
-                          onMouseLeave={() => setHoveredDay(null)}
-                          className={`aspect-square rounded-sm cursor-pointer transition-all hover:ring-1 hover:ring-plm-fg-muted ${colorClasses[level]}`}
-                          title={`${formatDate(cell.date)}: ${count} contribution${count !== 1 ? 's' : ''}`}
-                        />
+                        <div key={weekIndex} className="min-w-0 flex-1">
+                          {monthLabel && (
+                            <span className="text-[10px] text-plm-fg-muted">
+                              {monthLabel.month}
+                            </span>
+                          )}
+                        </div>
                       )
                     })}
                   </div>
-                ))}
-              </div>
-            </div>
+                </div>
 
-            {/* Legend */}
-            <div className="flex items-center justify-end gap-2 mt-2 text-xs text-plm-fg-muted">
-              <span>Less</span>
-              <div className="flex gap-[2px]">
-                {[0, 1, 2, 3, 4].map((level) => {
-                  const colorClasses = [
-                    'bg-plm-bg-lighter',
-                    'bg-emerald-900/50',
-                    'bg-emerald-700/70',
-                    'bg-emerald-500/80',
-                    'bg-emerald-400',
-                  ]
-                  return (
-                    <div
-                      key={level}
-                      className={`w-[10px] h-[10px] rounded-sm ${colorClasses[level]}`}
-                    />
-                  )
-                })}
+                {/* Grid with day labels */}
+                <div className="flex gap-1">
+                  {/* Day labels */}
+                  <div className="flex w-7 flex-shrink-0 flex-col justify-between py-[2px]">
+                    {dayLabels.map((day, i) => (
+                      <div
+                        key={day}
+                        className={`flex h-0 items-center text-[10px] leading-none text-plm-fg-muted ${
+                          i % 2 === 1 ? '' : 'invisible'
+                        }`}
+                      >
+                        {day}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Grid cells - organized by week columns, flex to fill space */}
+                  <div className="flex flex-1 gap-[2px]">
+                    {Array.from({ length: 53 }, (_, weekIndex) => (
+                      <div key={weekIndex} className="flex flex-1 flex-col gap-[2px]">
+                        {Array.from({ length: 7 }, (_, dayIndex) => {
+                          const cellIndex = dateGrid.findIndex(
+                            (d) => d.weekIndex === weekIndex && d.dayOfWeek === dayIndex,
+                          )
+                          const cell = dateGrid[cellIndex]
+
+                          if (!cell) {
+                            return <div key={dayIndex} className="aspect-square rounded-sm" />
+                          }
+
+                          const dateStr = cell.date.toISOString().split('T')[0]
+                          const dayData = filteredData.get(dateStr)
+                          const count = dayData?.count || 0
+                          const level = getIntensityLevel(count, Math.max(maxCount, 1))
+
+                          return (
+                            <div
+                              key={dayIndex}
+                              onClick={() => handleCellClick(cell.date)}
+                              onMouseEnter={(e) => handleCellHover(e, cell.date, count)}
+                              onMouseLeave={() => setHoveredDay(null)}
+                              className={`aspect-square cursor-pointer rounded-sm transition-all hover:ring-1 hover:ring-plm-fg-muted ${INTENSITY_CLASSES[level]}`}
+                              title={`${formatDate(cell.date)}: ${count} contribution${count !== 1 ? 's' : ''}`}
+                            />
+                          )
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Legend */}
+                <div className="flex items-center justify-end gap-2 text-[12px] text-plm-fg-muted">
+                  <span>Less</span>
+                  <div className="flex gap-[2px]">
+                    {INTENSITY_CLASSES.map((colorClass) => (
+                      <div key={colorClass} className={`h-[10px] w-[10px] rounded-sm ${colorClass}`} />
+                    ))}
+                  </div>
+                  <span>More</span>
+                </div>
               </div>
-              <span>More</span>
-            </div>
+            )}
           </div>
-        )}
+
+          {/* Selected day details */}
+          {selectedDay && (
+            <div>
+              <div className="flex items-center justify-between px-4 py-2.5">
+                <span className="text-[13px] font-medium text-plm-fg">
+                  {formatDate(new Date(selectedDay.date))}
+                </span>
+                <span className="text-[12px] text-plm-fg-muted">
+                  {selectedDay.count} contribution{selectedDay.count !== 1 ? 's' : ''}
+                </span>
+              </div>
+              <div className="max-h-48 overflow-y-auto">
+                {selectedDay.activities.map((activity) =>
+                  renderActivityRow(
+                    activity,
+                    activity.id,
+                    new Date(activity.created_at).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    }),
+                  ),
+                )}
+              </div>
+            </div>
+          )}
+        </SettingsGroup>
 
         {/* Tooltip */}
         {hoveredDay && (
           <div
-            className="fixed z-50 px-2 py-1 text-xs bg-plm-bg-secondary border border-plm-border rounded shadow-lg pointer-events-none"
-            style={{
-              left: hoveredDay.x,
-              top: hoveredDay.y - 30,
-              transform: 'translateX(-50%)',
-            }}
+            className="pointer-events-none fixed z-50 -translate-x-1/2 rounded border border-plm-border bg-plm-bg-secondary px-2 py-1 text-[12px] shadow-lg"
+            style={{ left: hoveredDay.x, top: hoveredDay.y - 30 }}
           >
             <strong>{hoveredDay.count}</strong> contribution{hoveredDay.count !== 1 ? 's' : ''} on{' '}
             {hoveredDay.date}
           </div>
         )}
-      </div>
+      </SettingsSection>
 
-      {/* Selected day details */}
-      {selectedDay && (
-        <div className="bg-plm-bg rounded-lg border border-plm-border p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-medium text-plm-fg">
-              {formatDate(new Date(selectedDay.date))}
-            </h3>
-            <span className="text-xs text-plm-fg-muted">
-              {selectedDay.count} contribution{selectedDay.count !== 1 ? 's' : ''}
-            </span>
-          </div>
-          <div className="space-y-2 max-h-48 overflow-y-auto">
-            {selectedDay.activities.map((activity) => (
-              <div
-                key={activity.id}
-                className="flex items-center gap-3 p-2 bg-plm-bg-lighter rounded-lg"
-              >
-                <div
-                  className={`p-1.5 rounded ${ACTION_COLORS[activity.action] || 'text-plm-fg-muted'}`}
-                >
-                  {ACTION_ICONS[activity.action] || <Activity size={14} />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm text-plm-fg truncate">
-                    {getActionLabel(activity.action)}
-                    {activity.file_name && (
-                      <span className="text-plm-fg-muted ml-1">• {activity.file_name}</span>
-                    )}
-                  </div>
-                  <div className="text-xs text-plm-fg-dim">
-                    {new Date(activity.created_at).toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Recent Activity Log */}
-      <div className="bg-plm-bg rounded-lg border border-plm-border p-4">
-        <h3 className="text-sm font-medium text-plm-fg mb-3 flex items-center gap-2">
-          <Activity size={16} className="text-plm-accent" />
-          Recent Activity
-        </h3>
-
-        {isLoading ? (
-          <div className="flex items-center justify-center py-6 text-plm-fg-muted">
-            <Loader2 size={16} className="animate-spin mr-2" />
-            Loading...
-          </div>
-        ) : recentActivity.length === 0 ? (
-          <div className="text-center py-6 text-plm-fg-muted text-sm">No recent activity</div>
-        ) : (
-          <div className="space-y-1 max-h-80 overflow-y-auto">
-            {recentActivity.map((activity, index) => (
-              <div
-                key={`${activity.id}-${index}`}
-                className="flex items-center gap-3 p-2 hover:bg-plm-bg-lighter rounded-lg transition-colors"
-              >
-                <div
-                  className={`p-1.5 rounded-full bg-plm-bg-lighter ${ACTION_COLORS[activity.action] || 'text-plm-fg-muted'}`}
-                >
-                  {ACTION_ICONS[activity.action] || <Activity size={14} />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm text-plm-fg">
-                    <span className="font-medium">{getActionLabel(activity.action)}</span>
-                    {activity.file_name && (
-                      <span className="text-plm-fg-muted"> • {activity.file_name}</span>
-                    )}
-                  </div>
-                </div>
-                <div className="text-xs text-plm-fg-dim flex-shrink-0">
-                  {formatRelativeTime(activity.created_at)}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </section>
+      <SettingsSection title="Recent Activity">
+        <SettingsGroup>
+          {isLoading ? (
+            <div className="flex items-center gap-2 px-4 py-3.5 text-[13px] text-plm-fg-muted">
+              <Loader2 size={14} className="animate-spin" />
+              Loading...
+            </div>
+          ) : recentActivity.length === 0 ? (
+            <div className="px-4 py-3.5 text-[13px] text-plm-fg-muted">No recent activity</div>
+          ) : (
+            <div className="max-h-80 overflow-y-auto py-1">
+              {recentActivity.map((activity, index) =>
+                renderActivityRow(
+                  activity,
+                  `${activity.id}-${index}`,
+                  formatRelativeTime(activity.created_at),
+                ),
+              )}
+            </div>
+          )}
+        </SettingsGroup>
+      </SettingsSection>
+    </>
   )
 }

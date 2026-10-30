@@ -25,8 +25,9 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import { AlertTriangle, ChevronRight, Lock, Trash2 } from 'lucide-react'
+import { ChevronRight, Trash2 } from 'lucide-react'
 
+import { Button, Callout } from '@/components/core/ui'
 import { SwServiceVersionNotice } from '@/components/shared'
 import { t } from '@/lib/i18n'
 import { SW_SERVICE_VERSION_DOCUMENT_MANAGER_READ } from '@/lib/swServiceVersion'
@@ -41,17 +42,9 @@ import { VaultAuditOverview } from './VaultAuditOverview'
 import { VaultAuditProgress } from './VaultAuditProgress'
 import { VaultAuditRevisionRule } from './VaultAuditRevisionRule'
 import { VaultAuditScopeForm } from './VaultAuditScopeForm'
+import { SettingsSection } from '../../components/ui'
 import { categoryDescription, categoryLabel } from './vaultAuditLabels'
 import { hasEvidence } from './vaultAuditView'
-
-function AdminOnlyNotice() {
-  return (
-    <div className="flex items-start gap-2 p-3 rounded-md border border-plm-border bg-plm-bg-lighter">
-      <Lock size={14} className="text-plm-fg-muted mt-0.5 flex-shrink-0" />
-      <p className="text-sm text-plm-fg-muted">{t('vaultAudit.adminOnly')}</p>
-    </div>
-  )
-}
 
 export function VaultAuditSettings() {
   const audit = useVaultAudit()
@@ -81,17 +74,12 @@ export function VaultAuditSettings() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-base font-semibold text-plm-fg mb-1">{t('vaultAudit.title')}</h3>
-        <p className="text-sm text-plm-fg-muted">{t('vaultAudit.description')}</p>
-      </div>
-
+    <SettingsSection title={t('vaultAudit.title')} description={t('vaultAudit.description')}>
       {!audit.isAdmin ? (
-        <AdminOnlyNotice />
+        <Callout>{t('vaultAudit.adminOnly')}</Callout>
       ) : (
-        <>
-          <p className="text-xs text-plm-fg-muted">{t('vaultAudit.readOnlyNote')}</p>
+        <div className="space-y-6">
+          <p className="text-[12px] text-plm-fg-muted">{t('vaultAudit.readOnlyNote')}</p>
 
           {audit.serviceCheck && (
             <SwServiceVersionNotice
@@ -121,10 +109,7 @@ export function VaultAuditSettings() {
           {audit.isRunning && <VaultAuditProgress progress={audit.progress} />}
 
           {audit.runState === 'failed' && audit.error && (
-            <p className="text-sm text-plm-error flex items-start gap-1.5">
-              <AlertTriangle size={14} className="mt-0.5 flex-shrink-0" />
-              {audit.error}
-            </p>
+            <Callout tone="error">{audit.error}</Callout>
           )}
 
           {audit.view && (
@@ -165,10 +150,10 @@ export function VaultAuditSettings() {
                       {selectedCategory && (
                         <>
                           <div>
-                            <h3 className="text-sm font-medium text-plm-fg">
+                            <h4 className="text-[13px] font-semibold text-plm-fg">
                               {categoryLabel(selectedCategory)}
-                            </h3>
-                            <p className="text-xs text-plm-fg-muted">
+                            </h4>
+                            <p className="text-[12px] text-plm-fg-muted">
                               {categoryDescription(selectedCategory)}
                             </p>
                           </div>
@@ -182,12 +167,15 @@ export function VaultAuditSettings() {
                   </div>
 
                   {/* Context for the numbers, not something to act on, so it stays folded. */}
-                  <details className="group rounded-md border border-plm-border">
-                    <summary className="flex items-center gap-1.5 px-3 py-2 text-sm text-plm-fg-muted hover:text-plm-fg cursor-pointer select-none list-none">
-                      <ChevronRight size={14} className="transition-transform group-open:rotate-90" />
+                  <details className="group rounded-lg border border-plm-border bg-plm-bg-light/60">
+                    <summary className="flex cursor-pointer select-none list-none items-center gap-1.5 px-4 py-2.5 text-[13px] text-plm-fg-muted hover:text-plm-fg">
+                      <ChevronRight
+                        size={14}
+                        className="transition-transform group-open:rotate-90"
+                      />
                       {t('vaultAudit.details.heading')}
                     </summary>
-                    <div className="space-y-6 px-3 pb-3 pt-1">
+                    <div className="space-y-6 px-4 pb-4 pt-1">
                       <VaultAuditCoverage coverage={audit.view.coverage} />
                       <VaultAuditFieldTable tallies={audit.view.fieldTallies} />
                     </div>
@@ -196,25 +184,25 @@ export function VaultAuditSettings() {
               )}
 
               <div className="flex items-center justify-between pt-2 border-t border-plm-border">
-                <p className="text-xs text-plm-fg-muted max-w-2xl">
+                <p className="max-w-2xl text-[12px] text-plm-fg-muted">
                   {t('vaultAudit.result.notStored')}
                 </p>
-                <button
+                <Button
+                  size="sm"
+                  icon={<Trash2 size={12} />}
                   onClick={() => {
                     setSelectedCategory(null)
                     audit.clear()
                   }}
                   disabled={audit.isRunning}
-                  className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-plm-fg-muted hover:text-plm-fg bg-plm-bg-lighter hover:bg-plm-bg-light border border-plm-border rounded-md transition-colors disabled:opacity-50 flex-shrink-0"
                 >
-                  <Trash2 size={12} />
                   {t('vaultAudit.clear')}
-                </button>
+                </Button>
               </div>
             </div>
           )}
-        </>
+        </div>
       )}
-    </div>
+    </SettingsSection>
   )
 }

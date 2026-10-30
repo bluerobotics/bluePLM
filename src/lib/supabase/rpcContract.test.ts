@@ -35,6 +35,8 @@ interface Param {
 
 interface Signature {
   params: Param[]
+  /** Number of input arguments, which (with their types) is how DROP FUNCTION names an overload. */
+  arity: number
   file: string
 }
 
@@ -106,16 +108,21 @@ function loadFunctions(): Map<string, Signature[]> {
       const open = m.index + m[0].length - 1
       const close = closingParen(sql, open)
       if (close < 0) continue
+      const args = splitTopLevel(sql.slice(open + 1, close))
       if (/^DROP/i.test(m[1])) {
-        fns.delete(name)
+        // DROP FUNCTION f(UUID, TEXT) removes that overload only; the others stay defined.
+        const kept = (fns.get(name) ?? []).filter((sig) => sig.arity !== args.length)
+        if (kept.length) fns.set(name, kept)
+        else fns.delete(name)
         continue
       }
-      const params = splitTopLevel(sql.slice(open + 1, close))
+      const inputs = args.filter((arg) => !/^out\s/i.test(arg))
+      const params = args
         .map(parseParam)
         .filter((p): p is Param & { out: boolean } => p !== null && !p.out)
         .map(({ name: n, optional }) => ({ name: n, optional }))
       const list = fns.get(name) ?? []
-      list.push({ params, file: relative(REPO, file).replace(/\\/g, '/') })
+      list.push({ params, arity: inputs.length, file: relative(REPO, file).replace(/\\/g, '/') })
       fns.set(name, list)
     }
   }

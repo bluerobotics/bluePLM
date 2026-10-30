@@ -17,6 +17,7 @@ import {
   X,
 } from 'lucide-react'
 
+import { Button } from '@/components/core/ui'
 import { t } from '@/lib/i18n'
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
@@ -258,17 +259,17 @@ export function RealignDialog({ isOpen, onClose }: RealignDialogProps) {
               {t('realign.dialog.waitingForConfirmation')}
             </span>
           )}
-          <button onClick={handleClose} disabled={isRunning} className="btn btn-ghost">
+          <Button variant="ghost" onClick={handleClose} disabled={isRunning}>
             {t('common.close')}
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="primary"
             onClick={handleRun}
             disabled={!canRun}
-            className="btn btn-primary disabled:opacity-50"
+            icon={isRunning ? <Loader2 size={14} className="animate-spin" /> : undefined}
           >
-            {isRunning ? <Loader2 size={14} className="animate-spin" /> : null}
             {t('realign.runButton')}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -284,7 +285,9 @@ function Headline({ report }: { report: ReturnType<typeof analyzeAlignment> }) {
         }`}
       >
         {report.isAligned ? <Check size={16} /> : <AlertTriangle size={16} />}
-        <span>{t(report.isAligned ? 'realign.headline.aligned' : 'realign.headline.notAligned')}</span>
+        <span>
+          {t(report.isAligned ? 'realign.headline.aligned' : 'realign.headline.notAligned')}
+        </span>
       </div>
       <div className="flex flex-wrap gap-4 mt-2 text-xs text-plm-fg-muted">
         <span>
@@ -343,10 +346,7 @@ function RepairableGroup({
           const isPendingMove = bucket.id === 'pending_move'
 
           return (
-            <div
-              key={bucket.id}
-              className="p-3 rounded border border-plm-border bg-plm-bg"
-            >
+            <div key={bucket.id} className="p-3 rounded border border-plm-border bg-plm-bg">
               <label className="flex items-start gap-3 cursor-pointer">
                 <input
                   type="checkbox"
@@ -444,13 +444,9 @@ function NeedsDecisionGroup({ buckets, onGoDecide, isRunning }: NeedsDecisionGro
                     </div>
                   </div>
                   {NEEDS_DECISION_ACTION_BUCKETS.includes(bucket.id) && (
-                    <button
-                      onClick={() => onGoDecide(bucket.id)}
-                      disabled={isRunning}
-                      className="btn btn-secondary text-xs shrink-0 disabled:opacity-50"
-                    >
+                    <Button size="sm" onClick={() => onGoDecide(bucket.id)} disabled={isRunning}>
                       {t(`realign.${fragment}.actionButton`)}
-                    </button>
+                    </Button>
                   )}
                 </div>
 
@@ -490,7 +486,7 @@ function InformationalGroup({ buckets, isExpanded, onToggleExpanded }: Informati
     <div>
       <button
         onClick={onToggleExpanded}
-        className="flex items-center gap-1.5 text-xs text-plm-fg-muted uppercase tracking-wide mb-2 hover:text-plm-fg"
+        className="mb-2 flex items-center gap-1.5 text-[12px] font-medium text-plm-fg-muted hover:text-plm-fg"
       >
         {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         <span>
@@ -519,16 +515,22 @@ function InformationalGroup({ buckets, isExpanded, onToggleExpanded }: Informati
                         gets its own line rather than being folded into the count above. */}
                     {bucket.selfHeldCount > 0 && (
                       <div>
-                        {t(`realign.blockedCheckout.selfHeld${pluralSuffix(bucket.selfHeldCount)}`, {
-                          count: bucket.selfHeldCount,
-                        })}
+                        {t(
+                          `realign.blockedCheckout.selfHeld${pluralSuffix(bucket.selfHeldCount)}`,
+                          {
+                            count: bucket.selfHeldCount,
+                          },
+                        )}
                       </div>
                     )}
                     {otherHeldCount(bucket) > 0 && (
                       <div>
-                        {t(`realign.blockedCheckout.otherHeld${pluralSuffix(otherHeldCount(bucket))}`, {
-                          count: otherHeldCount(bucket),
-                        })}
+                        {t(
+                          `realign.blockedCheckout.otherHeld${pluralSuffix(otherHeldCount(bucket))}`,
+                          {
+                            count: otherHeldCount(bucket),
+                          },
+                        )}
                       </div>
                     )}
                   </div>

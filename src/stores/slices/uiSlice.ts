@@ -92,7 +92,7 @@ export const createUISlice: StateCreator<
       get().openSettings()
       return
     }
-    let resolvedView = activeView
+    let resolvedView: SidebarView = activeView
     if ((resolvedView as string).startsWith('group-')) {
       const children = getChildModules(resolvedView as string, getDefaultModuleConfig())
       resolvedView = (children[0]?.id ?? 'explorer') as SidebarView

@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import { X, Loader2, Key, Search, Clock, Check } from 'lucide-react'
+import { X, Key, Search, Clock, Check } from 'lucide-react'
+
+import { Button } from '@/components/core/ui'
 import { getInitials } from '@/lib/utils'
 import type { AddLicenseFormData, OrgUser } from './types'
 
@@ -376,22 +378,12 @@ export function AddLicenseModal({ users, onClose, onSave }: AddLicenseModalProps
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-plm-border">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-sm text-plm-fg-muted hover:text-plm-fg transition-colors"
-          >
+          <Button variant="ghost" onClick={onClose}>
             Cancel
-          </button>
-          <button
-            type="submit"
-            onClick={handleSubmit}
-            disabled={isSaving}
-            className="flex items-center gap-2 px-4 py-2 bg-plm-accent text-white rounded-lg hover:bg-plm-accent/80 transition-colors disabled:opacity-50"
-          >
-            {isSaving && <Loader2 size={16} className="animate-spin" />}
+          </Button>
+          <Button variant="primary" type="submit" onClick={handleSubmit} loading={isSaving}>
             {selectedUserId ? 'Add & Assign License' : 'Add License'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

@@ -1,5 +1,9 @@
-import { Server, Monitor, Loader2, Play, AlertTriangle } from 'lucide-react'
-import type { BackupStatus, BackupProgress, ConnectedVault } from './types'
+import { AlertTriangle, Loader2, Monitor, Play } from 'lucide-react'
+
+import { Badge, Button, Callout } from '@/components/core/ui'
+import { SettingRow, SettingsGroup, SettingsSection } from '@/features/settings/components/ui'
+
+import type { BackupProgress, BackupStatus, ConnectedVault } from './types'
 import { formatRelativeTime } from './utils'
 import { VaultSelector } from './VaultSelector'
 
@@ -38,164 +42,122 @@ export function BackupSourceSection({
 }: BackupSourceSectionProps) {
   const config = status.config
 
+  const sourceBadge = config?.designated_machine_id ? (
+    isThisDesignated || isDesignatedOnline ? (
+      <Badge
+        tone="success"
+        icon={<span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" />}
+      >
+        Online
+      </Badge>
+    ) : (
+      <Badge>Offline</Badge>
+    )
+  ) : (
+    <Badge tone="warning">Not set</Badge>
+  )
+
+  const noVaultsSelected = isThisDesignated && selectedVaultIds.length === 0
+  const backupDisabled =
+    isRunningBackup ||
+    (!isThisDesignated && !isDesignatedOnline) ||
+    !!config?.backup_requested_at ||
+    noVaultsSelected
+  const backupTitle = noVaultsSelected
+    ? 'Select at least one vault to backup'
+    : !isThisDesignated && !isDesignatedOnline
+      ? 'Backup machine is offline'
+      : undefined
+
   return (
-    <div className="p-4 rounded-lg bg-plm-bg-secondary border border-plm-border space-y-3">
-      <div className="flex items-center justify-between">
-        <h4 className="text-sm font-medium flex items-center gap-2">
-          <Server className="w-4 h-4 text-plm-fg-muted" />
-          Backup Source
-        </h4>
+    <SettingsSection title="Backup Source" actions={sourceBadge}>
+      <SettingsGroup>
         {config?.designated_machine_id ? (
-          isThisDesignated || isDesignatedOnline ? (
-            <span className="flex items-center gap-1.5 text-xs text-emerald-400">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              Online
-            </span>
-          ) : (
-            <span className="flex items-center gap-1.5 text-xs text-plm-fg-muted">
-              <span className="w-2 h-2 rounded-full bg-plm-fg-muted" />
-              Offline
-            </span>
-          )
-        ) : (
-          <span className="text-xs text-amber-400">Not set</span>
-        )}
-      </div>
-
-      {config?.designated_machine_id ? (
-        // Show designated machine info
-        <div className="space-y-3">
-          <div className="flex items-center gap-3">
-            <Monitor className="w-8 h-8 text-plm-fg-muted" />
-            <div className="flex-1">
-              <div className="font-medium flex items-center gap-2">
-                {config.designated_machine_name || 'Unknown'}
-                {isThisDesignated && (
-                  <span className="text-xs px-1.5 py-0.5 bg-plm-accent/20 text-plm-accent rounded">
-                    This machine
-                  </span>
-                )}
-              </div>
-              <div className="text-xs text-plm-fg-muted">
-                {config.designated_machine_platform} • {config.designated_machine_user_email}
-              </div>
-              {!isThisDesignated && config.designated_machine_last_seen && (
-                <div className="text-xs text-plm-fg-muted">
-                  Last seen: {formatRelativeTime(config.designated_machine_last_seen)}
+          <SettingRow
+            label={config.designated_machine_name || 'Unknown'}
+            badge={isThisDesignated ? <Badge tone="accent">This machine</Badge> : undefined}
+            description={
+              <>
+                <div>
+                  {config.designated_machine_platform} · {config.designated_machine_user_email}
                 </div>
-              )}
-            </div>
-          </div>
+                {!isThisDesignated && config.designated_machine_last_seen && (
+                  <div>Last seen: {formatRelativeTime(config.designated_machine_last_seen)}</div>
+                )}
+              </>
+            }
+          />
+        ) : (
+          <SettingRow
+            label="No backup machine designated"
+            description="Backups run on one designated machine."
+          />
+        )}
 
-          {/* Vaults to backup */}
-          {isThisDesignated && (
-            <VaultSelector
-              connectedVaults={connectedVaults}
-              selectedVaultIds={selectedVaultIds}
-              onVaultToggle={onVaultToggle}
-            />
-          )}
-        </div>
-      ) : (
-        // No machine designated
-        <div className="flex items-center gap-3 py-2">
-          <Monitor className="w-8 h-8 text-plm-fg-muted opacity-50" />
-          <div className="flex-1 text-sm text-plm-fg-muted">No backup machine designated</div>
-        </div>
-      )}
+        {/* Vaults to backup */}
+        {config?.designated_machine_id && isThisDesignated && (
+          <VaultSelector
+            connectedVaults={connectedVaults}
+            selectedVaultIds={selectedVaultIds}
+            onVaultToggle={onVaultToggle}
+          />
+        )}
+
+        {/* Admin controls */}
+        {isAdmin && (
+          <div className="flex flex-wrap items-center justify-end gap-2 px-4 py-3">
+            {isThisDesignated ? (
+              <Button size="sm" onClick={onClearDesignatedMachine}>
+                Clear designation
+              </Button>
+            ) : !config?.designated_machine_id ? (
+              <Button size="sm" variant="primary" onClick={onDesignateThisMachine}>
+                Set this machine as backup source
+              </Button>
+            ) : !isDesignatedOnline ? (
+              // Another machine is designated but offline - allow taking over
+              <Button size="sm" onClick={onDesignateThisMachine} icon={<Monitor size={14} />}>
+                Take over as backup source
+              </Button>
+            ) : null}
+
+            {config?.designated_machine_id && (
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={onRunBackup}
+                disabled={backupDisabled}
+                title={backupTitle}
+                icon={
+                  isRunningBackup || config?.backup_requested_at ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : noVaultsSelected ? (
+                    <AlertTriangle size={14} />
+                  ) : (
+                    <Play size={14} />
+                  )
+                }
+              >
+                {isRunningBackup
+                  ? backupProgress?.message || 'Running Backup...'
+                  : config?.backup_requested_at
+                    ? 'Backup Requested...'
+                    : noVaultsSelected
+                      ? 'No Vaults Selected'
+                      : isThisDesignated
+                        ? 'Sync & Backup Now'
+                        : 'Request Backup'}
+              </Button>
+            )}
+          </div>
+        )}
+      </SettingsGroup>
 
       {/* Backup request/running status */}
       {config?.backup_requested_at && !config?.backup_running_since && (
-        <div className="p-2 rounded bg-blue-500/10 border border-blue-500/30 text-xs text-blue-300">
-          ⏳ Backup requested by {config.backup_requested_by}...
-        </div>
+        <Callout tone="info">Backup requested by {config.backup_requested_by}...</Callout>
       )}
-      {config?.backup_running_since && (
-        <div className="p-2 rounded bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300">
-          🔄 Backup in progress...
-        </div>
-      )}
-
-      {/* Admin controls */}
-      {isAdmin && (
-        <div className="space-y-2 pt-2 border-t border-plm-border">
-          {/* Designate/Clear machine button */}
-          {isThisDesignated ? (
-            <button
-              onClick={onClearDesignatedMachine}
-              className="w-full py-2 px-4 rounded text-sm bg-plm-bg-tertiary hover:bg-plm-bg-primary text-plm-fg-muted hover:text-plm-fg border border-plm-border"
-            >
-              Clear designation
-            </button>
-          ) : !config?.designated_machine_id ? (
-            <button
-              onClick={onDesignateThisMachine}
-              className="w-full py-2 px-4 rounded text-sm bg-plm-accent text-white hover:bg-plm-accent-hover font-medium"
-            >
-              Set this machine as backup source
-            </button>
-          ) : !isDesignatedOnline ? (
-            // Another machine is designated but offline - allow taking over
-            <button
-              onClick={onDesignateThisMachine}
-              className="w-full py-2 px-4 rounded text-sm bg-amber-600 text-white hover:bg-amber-500 font-medium flex items-center justify-center gap-2"
-            >
-              <Monitor className="w-4 h-4" />
-              Take over as backup source
-            </button>
-          ) : null}
-
-          {/* Backup Now button */}
-          {config?.designated_machine_id &&
-            (() => {
-              const noVaultsSelected = isThisDesignated && selectedVaultIds.length === 0
-              const isDisabled =
-                isRunningBackup ||
-                (!isThisDesignated && !isDesignatedOnline) ||
-                !!config?.backup_requested_at ||
-                noVaultsSelected
-              const getTitle = () => {
-                if (noVaultsSelected) return 'Select at least one vault to backup'
-                if (!isThisDesignated && !isDesignatedOnline) return 'Backup machine is offline'
-                return undefined
-              }
-              return (
-                <button
-                  onClick={onRunBackup}
-                  disabled={isDisabled}
-                  className={`w-full py-2.5 px-4 rounded font-medium flex items-center justify-center gap-2 ${
-                    isDisabled
-                      ? 'bg-plm-bg-tertiary text-plm-fg-muted cursor-not-allowed'
-                      : 'bg-emerald-600 text-white hover:bg-emerald-500'
-                  }`}
-                  title={getTitle()}
-                >
-                  {isRunningBackup ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      {backupProgress?.message || 'Running Backup...'}
-                    </>
-                  ) : config?.backup_requested_at ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Backup Requested...
-                    </>
-                  ) : noVaultsSelected ? (
-                    <>
-                      <AlertTriangle className="w-4 h-4" />
-                      No Vaults Selected
-                    </>
-                  ) : (
-                    <>
-                      <Play className="w-4 h-4" />
-                      {isThisDesignated ? 'Sync & Backup Now' : 'Request Backup'}
-                    </>
-                  )}
-                </button>
-              )
-            })()}
-        </div>
-      )}
-    </div>
+      {config?.backup_running_since && <Callout tone="success">Backup in progress...</Callout>}
+    </SettingsSection>
   )
 }

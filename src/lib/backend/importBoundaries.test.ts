@@ -115,6 +115,7 @@ describe('authentication call-site import boundaries', () => {
       'src/features/settings/account/AccountSettings.tsx',
       'src/features/settings/account/DeleteAccountSettings.tsx',
       'src/features/settings/account/PreferencesSettings.tsx',
+      'src/features/settings/account/SessionsSettings.tsx',
       'src/hooks/useSessionHeartbeat.ts',
     ]
     for (const callSite of callSites) {

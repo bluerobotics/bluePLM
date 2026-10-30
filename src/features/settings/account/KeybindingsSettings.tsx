@@ -1,7 +1,10 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { Keyboard, RotateCcw, Edit3, Check, X, Info } from 'lucide-react'
-import { usePDMStore } from '@/stores/pdmStore'
+import { RotateCcw, Edit3, Check, X } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
+
+import { Button, Callout } from '@/components/core/ui'
+import { SettingsGroup, SettingsPage, SettingsSection } from '@/features/settings/components/ui'
+import { usePDMStore } from '@/stores/pdmStore'
 import type { KeybindingAction, Keybinding } from '@/types/settings'
 
 // Keybinding action definitions with labels and descriptions
@@ -216,49 +219,54 @@ function KeybindingRow({
   }
 
   return (
-    <div className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-plm-bg-light transition-colors group">
-      <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium text-plm-fg">{label}</div>
-        <div className="text-xs text-plm-fg-muted truncate">{description}</div>
+    <div className="group flex items-center justify-between gap-4 px-4 py-2.5">
+      <div className="min-w-0 flex-1">
+        <div className="text-[13px] font-medium text-plm-fg">{label}</div>
+        <div className="truncate text-[12px] text-plm-fg-muted">{description}</div>
       </div>
 
-      <div className="flex items-center gap-2 ml-4">
+      <div className="flex items-center gap-1.5">
         {isEditing ? (
           <>
             <button
               ref={inputRef}
-              className="px-3 py-1.5 bg-plm-accent/20 border border-plm-accent rounded text-sm font-mono text-plm-accent min-w-[120px] text-center focus:outline-none focus:ring-2 focus:ring-plm-accent"
+              type="button"
+              className="h-7 min-w-[120px] rounded-md border border-plm-accent bg-plm-accent/10 px-3 text-center font-mono text-[12px] text-plm-accent outline-none focus-visible:ring-2 focus-visible:ring-plm-accent/60"
             >
               {pendingKeybinding ? formatKeybinding(pendingKeybinding) : 'Press keys...'}
             </button>
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<Check size={14} className="text-plm-success" />}
               onClick={handleSave}
               disabled={!pendingKeybinding}
-              className="p-1.5 rounded hover:bg-plm-success/20 text-plm-success disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               title="Save"
-            >
-              <Check size={16} />
-            </button>
-            <button
+              aria-label="Save"
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<X size={14} />}
               onClick={handleCancel}
-              className="p-1.5 rounded hover:bg-plm-error/20 text-plm-error transition-colors"
               title="Cancel"
-            >
-              <X size={16} />
-            </button>
+              aria-label="Cancel"
+            />
           </>
         ) : (
           <>
-            <div className="px-3 py-1.5 bg-plm-bg border border-plm-border rounded text-sm font-mono text-plm-fg-muted min-w-[120px] text-center">
+            <kbd className="flex h-7 min-w-[120px] items-center justify-center rounded-md border border-plm-border bg-plm-bg px-3 font-mono text-[12px] text-plm-fg-dim">
               {formatKeybinding(keybinding)}
-            </div>
-            <button
+            </kbd>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<Edit3 size={14} />}
               onClick={() => onEdit(action)}
-              className="p-1.5 rounded hover:bg-plm-bg text-plm-fg-muted hover:text-plm-fg transition-colors opacity-0 group-hover:opacity-100"
               title="Edit keybinding"
-            >
-              <Edit3 size={16} />
-            </button>
+              aria-label={`Edit ${label}`}
+              className="opacity-0 focus-visible:opacity-100 group-hover:opacity-100"
+            />
           </>
         )}
       </div>
@@ -307,67 +315,37 @@ export function KeybindingsSettings() {
   }))
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-plm-accent/10 rounded-lg">
-            <Keyboard size={20} className="text-plm-accent" />
-          </div>
-          <div>
-            <h2 className="text-lg font-semibold text-plm-fg">Keyboard Shortcuts</h2>
-            <p className="text-sm text-plm-fg-muted">
-              Customize keyboard shortcuts for file navigation and actions
-            </p>
-          </div>
-        </div>
+    <SettingsPage>
+      <Callout
+        action={
+          <Button size="sm" icon={<RotateCcw size={12} />} onClick={handleResetAll}>
+            Reset to Defaults
+          </Button>
+        }
+      >
+        Click the edit button next to any shortcut to change it. Press the new key combination and
+        click the checkmark to save. Shortcuts work when the file browser is focused.
+      </Callout>
 
-        <button
-          onClick={handleResetAll}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-plm-fg-muted hover:text-plm-fg hover:bg-plm-bg-light transition-colors"
-        >
-          <RotateCcw size={14} />
-          Reset to Defaults
-        </button>
-      </div>
-
-      {/* Info box */}
-      <div className="flex items-start gap-3 p-3 bg-plm-info/10 border border-plm-info/20 rounded-lg">
-        <Info size={16} className="text-plm-info flex-shrink-0 mt-0.5" />
-        <div className="text-sm text-plm-fg-muted">
-          <p>
-            Click the edit button next to any shortcut to change it. Press the new key combination
-            and click the checkmark to save.
-          </p>
-          <p className="mt-1">Shortcuts work when the file browser is focused.</p>
-        </div>
-      </div>
-
-      {/* Keybinding sections */}
-      <div className="space-y-6">
-        {keybindingsByCategory.map(({ category, items }) => (
-          <div key={category} className="space-y-1">
-            <h3 className="text-xs font-mono uppercase text-plm-fg-muted/60 px-3 mb-2">
-              {category}
-            </h3>
-            <div className="bg-plm-bg-light rounded-lg border border-plm-border divide-y divide-plm-border/50">
-              {items.map(({ action, label, description }) => (
-                <KeybindingRow
-                  key={action}
-                  action={action}
-                  label={label}
-                  description={description}
-                  keybinding={keybindings[action]}
-                  onEdit={handleEdit}
-                  isEditing={editingAction === action}
-                  onSave={(kb) => handleSave(action, kb)}
-                  onCancel={handleCancel}
-                />
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
+      {keybindingsByCategory.map(({ category, items }) => (
+        <SettingsSection key={category} title={category}>
+          <SettingsGroup>
+            {items.map(({ action, label, description }) => (
+              <KeybindingRow
+                key={action}
+                action={action}
+                label={label}
+                description={description}
+                keybinding={keybindings[action]}
+                onEdit={handleEdit}
+                isEditing={editingAction === action}
+                onSave={(kb) => handleSave(action, kb)}
+                onCancel={handleCancel}
+              />
+            ))}
+          </SettingsGroup>
+        </SettingsSection>
+      ))}
+    </SettingsPage>
   )
 }

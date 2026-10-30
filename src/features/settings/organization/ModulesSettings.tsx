@@ -1,21 +1,30 @@
 import { useState, useEffect } from 'react'
 import * as LucideIcons from 'lucide-react'
 import {
+  AlertTriangle,
+  Check,
+  Download,
+  ExternalLink,
   RotateCcw,
   Save,
-  Download,
-  Loader2,
-  Users,
-  ExternalLink,
   Upload,
-  AlertTriangle,
+  Users,
   X,
 } from 'lucide-react'
-import { log } from '@/lib/logger'
-import { usePDMStore } from '@/stores/pdmStore'
 import { useShallow } from 'zustand/react/shallow'
+
+import { Badge, Button, Callout } from '@/components/core/ui'
+import {
+  SettingRow,
+  SettingsGroup,
+  SettingsPage,
+  SettingsSection,
+} from '@/features/settings/components/ui'
 import { useDeniedModules } from '@/hooks/useDeniedModules'
+import { log } from '@/lib/logger'
 import { supabase } from '@/lib/supabase'
+import { usePDMStore } from '@/stores/pdmStore'
+
 import { ModulesEditor } from './ModulesEditor'
 
 // Team type for module defaults display
@@ -152,77 +161,77 @@ export function ModulesSettings() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header with actions */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-plm-fg">Modules</h1>
-          <p className="text-sm text-plm-fg-muted mt-1">
-            Enable, disable, and reorder sidebar modules
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {isAdmin && (
-            <>
-              <button
+    <SettingsPage>
+      <SettingsSection
+        title="Modules"
+        description="Enable, disable, and reorder sidebar modules"
+        actions={
+          <>
+            <Button
+              size="sm"
+              icon={<Download size={12} />}
+              loading={isLoading}
+              onClick={handleLoadOrgDefaults}
+              title="Load organization defaults"
+            >
+              Load Defaults
+            </Button>
+            <Button
+              size="sm"
+              icon={<RotateCcw size={12} />}
+              onClick={resetModulesToDefaults}
+              title="Reset to factory defaults"
+            >
+              Reset
+            </Button>
+          </>
+        }
+      >
+        {isAdmin && (
+          <SettingsGroup>
+            <SettingRow
+              label="Organization defaults"
+              badge={<Badge tone="accent">Admin</Badge>}
+              description="Save this configuration as the default for new members, or push it to every member now."
+            >
+              <Button
+                size="sm"
+                icon={
+                  forceResult === 'success' ? (
+                    <Check size={12} className="text-plm-success" />
+                  ) : (
+                    <Upload size={12} />
+                  )
+                }
+                loading={isForcing}
                 onClick={() => setShowForceConfirm(true)}
-                disabled={isForcing}
-                className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg transition-colors ${
-                  forceResult === 'success'
-                    ? 'bg-plm-success/20 text-plm-success border border-plm-success/30'
-                    : forceResult === 'error'
-                      ? 'bg-plm-error/20 text-plm-error border border-plm-error/30'
-                      : 'bg-amber-500/20 text-amber-400 border border-amber-500/30 hover:bg-amber-500/30'
-                }`}
                 title="Push this configuration to all organization members, overriding their settings"
+                className={forceResult === 'error' ? 'text-plm-error' : ''}
               >
-                {isForcing ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
                 {forceResult === 'success'
                   ? 'Pushed!'
                   : forceResult === 'error'
                     ? 'Failed'
                     : 'Push to All Users'}
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                icon={saveResult === 'success' ? <Check size={12} /> : <Save size={12} />}
+                loading={isSaving}
                 onClick={handleSaveOrgDefaults}
-                disabled={isSaving}
-                className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg transition-colors ${
-                  saveResult === 'success'
-                    ? 'bg-plm-success/20 text-plm-success border border-plm-success/30'
-                    : saveResult === 'error'
-                      ? 'bg-plm-error/20 text-plm-error border border-plm-error/30'
-                      : 'bg-plm-accent text-white hover:bg-plm-accent/80'
-                }`}
                 title="Save as organization defaults for new members"
               >
-                {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                 {saveResult === 'success'
                   ? 'Saved!'
                   : saveResult === 'error'
                     ? 'Failed'
                     : 'Save Defaults'}
-              </button>
-            </>
-          )}
-          <button
-            onClick={handleLoadOrgDefaults}
-            disabled={isLoading}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg border border-plm-border text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight transition-colors disabled:opacity-50"
-            title="Load organization defaults"
-          >
-            {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-            Load Defaults
-          </button>
-          <button
-            onClick={resetModulesToDefaults}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg border border-plm-border text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight transition-colors"
-            title="Reset to factory defaults"
-          >
-            <RotateCcw size={14} />
-            Reset
-          </button>
-        </div>
-      </div>
+              </Button>
+            </SettingRow>
+          </SettingsGroup>
+        )}
+      </SettingsSection>
 
       {/* Main Module Editor */}
       <ModulesEditor
@@ -233,22 +242,21 @@ export function ModulesSettings() {
 
       {/* Teams with Module Defaults */}
       {teamsWithModules.length > 0 && (
-        <section className="pb-4">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium flex items-center gap-2">
-              <Users size={14} />
-              Teams with Custom Module Defaults
-            </h2>
-            <button
+        <SettingsSection
+          title="Teams with Custom Module Defaults"
+          description="Team members inherit these module defaults instead of organization defaults."
+          actions={
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<ExternalLink size={12} />}
               onClick={() => usePDMStore.getState().setSettingsTab('team-members')}
-              className="text-xs text-plm-accent hover:text-plm-accent/80 flex items-center gap-1"
             >
               Manage in Teams Settings
-              <ExternalLink size={10} />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            </Button>
+          }
+        >
+          <SettingsGroup>
             {teamsWithModules.map((team) => {
               // Dynamic Lucide icon lookup requires any cast (icon name is runtime string)
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -261,98 +269,81 @@ export function ModulesSettings() {
                 : 0
 
               return (
-                <div
-                  key={team.id}
-                  className="flex items-center gap-3 p-3 bg-plm-bg rounded-lg border border-plm-border hover:border-plm-accent/30 transition-colors"
-                >
+                <div key={team.id} className="flex items-center gap-3 px-4 py-2.5">
                   <div
-                    className="p-2 rounded-lg"
+                    className="rounded-md p-1.5"
                     style={{ backgroundColor: `${team.color}20`, color: team.color }}
                   >
-                    <IconComponent size={18} />
+                    <IconComponent size={16} />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-plm-fg truncate">{team.name}</div>
-                    <div className="text-xs text-plm-fg-muted">
-                      {enabledCount} modules • {team.member_count} member
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[13px] font-medium text-plm-fg">{team.name}</div>
+                    <div className="text-[12px] text-plm-fg-muted">
+                      {enabledCount} modules · {team.member_count} member
                       {team.member_count !== 1 ? 's' : ''}
                     </div>
                   </div>
-                  <div
-                    className="w-2 h-2 rounded-full bg-green-500"
-                    title="Has custom module defaults"
-                  />
                 </div>
               )
             })}
-          </div>
-
-          <p className="text-xs text-plm-fg-dim mt-3">
-            Team members inherit these module defaults instead of organization defaults.
-          </p>
-        </section>
+          </SettingsGroup>
+        </SettingsSection>
       )}
 
       {/* Force Push Confirmation Dialog */}
       {showForceConfirm && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-plm-bg border border-plm-border rounded-xl shadow-xl max-w-md w-full mx-4 overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+          <div className="mx-4 w-full max-w-md overflow-hidden rounded-xl border border-plm-border bg-plm-bg shadow-xl">
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-plm-border">
+            <div className="flex items-center justify-between border-b border-plm-border p-4">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-amber-500/20">
-                  <AlertTriangle size={20} className="text-amber-400" />
-                </div>
-                <h3 className="text-lg font-semibold text-plm-fg">Push to All Users</h3>
+                <AlertTriangle size={18} className="text-plm-warning" />
+                <h3 className="text-[15px] font-semibold text-plm-fg">Push to All Users</h3>
               </div>
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<X size={14} />}
                 onClick={() => setShowForceConfirm(false)}
-                className="p-1.5 rounded-lg text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight transition-colors"
-              >
-                <X size={18} />
-              </button>
+                aria-label="Close"
+              />
             </div>
 
             {/* Content */}
-            <div className="p-4 space-y-4">
-              <p className="text-sm text-plm-fg">
+            <div className="space-y-3 p-4 text-[13px]">
+              <p className="text-plm-fg">
                 This will <strong>override</strong> the sidebar configuration for{' '}
                 <strong>all users</strong> in your organization.
               </p>
 
-              <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
-                <p className="text-sm text-amber-300">
-                  <strong>Warning:</strong> Users who have customized their sidebar will have their
-                  changes overwritten. This action cannot be undone.
-                </p>
-              </div>
+              <Callout tone="warning">
+                <strong>Warning:</strong> Users who have customized their sidebar will have their
+                changes overwritten. This action cannot be undone.
+              </Callout>
 
-              <p className="text-sm text-plm-fg-muted">
+              <p className="text-plm-fg-muted">
                 Users who are currently online will receive the update immediately. Others will see
                 the changes when they next open BluePLM.
               </p>
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-end gap-3 p-4 border-t border-plm-border bg-plm-bg-secondary">
-              <button
-                onClick={() => setShowForceConfirm(false)}
-                className="px-4 py-2 text-sm rounded-lg border border-plm-border text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight transition-colors"
-              >
+            <div className="flex items-center justify-end gap-2 border-t border-plm-border bg-plm-bg-secondary p-4">
+              <Button variant="ghost" onClick={() => setShowForceConfirm(false)}>
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="primary"
+                icon={<Upload size={14} />}
+                loading={isForcing}
                 onClick={handleForceOrgDefaults}
-                disabled={isForcing}
-                className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-amber-500 text-black font-medium hover:bg-amber-400 transition-colors disabled:opacity-50"
               >
-                {isForcing ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
                 {isForcing ? 'Pushing...' : 'Push to All Users'}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </SettingsPage>
   )
 }

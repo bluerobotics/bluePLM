@@ -12,7 +12,6 @@
 import { useState, useCallback } from 'react'
 import * as LucideIcons from 'lucide-react'
 import {
-  UsersRound,
   UserPlus,
   Clock,
   ChevronDown,
@@ -27,8 +26,12 @@ import {
   UserCog,
   Loader2,
 } from 'lucide-react'
-import { usePDMStore } from '@/stores/pdmStore'
 import { useShallow } from 'zustand/react/shallow'
+
+import { Badge, Button } from '@/components/core/ui'
+import { usePDMStore } from '@/stores/pdmStore'
+
+import { SettingsGroup } from '../../../components/ui'
 import {
   useMembers,
   useTeams,
@@ -165,210 +168,217 @@ export function UsersTab({ searchQuery = '', onShowCreateUserDialog }: UsersTabP
   return (
     <>
       {/* All Users Section */}
-      <div className="space-y-3">
-        {filteredAllUsers.length === 0 ? (
-          <div className="text-center py-8 border border-dashed border-plm-border rounded-lg">
-            <UsersRound size={36} className="mx-auto text-plm-fg-muted mb-3 opacity-50" />
-            <p className="text-sm text-plm-fg-muted mb-4">
+      {filteredAllUsers.length === 0 ? (
+        <SettingsGroup>
+          <div className="flex items-center justify-between gap-4 px-4 py-4">
+            <span className="text-[12px] text-plm-fg-muted">
               {orgUsers.length === 0 ? 'No users yet' : 'No users match your search'}
-            </p>
+            </span>
             {isAdmin && orgUsers.length === 0 && onShowCreateUserDialog && (
-              <button onClick={onShowCreateUserDialog} className="btn btn-primary btn-sm">
-                <UserPlus size={14} className="mr-1" />
+              <Button
+                variant="primary"
+                size="sm"
+                icon={<UserPlus size={14} />}
+                onClick={onShowCreateUserDialog}
+              >
                 Add First User
-              </button>
+              </Button>
             )}
           </div>
-        ) : (
-          <div className="rounded-lg overflow-hidden bg-plm-bg/50 ring-1 ring-white/5">
-            <div className="divide-y divide-white/10">
-              {filteredAllUsers.map((u) => (
-                <ConnectedUserRow key={u.id} user={u} />
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
+        </SettingsGroup>
+      ) : (
+        <SettingsGroup>
+          {filteredAllUsers.map((u) => (
+            <ConnectedUserRow key={u.id} user={u} />
+          ))}
+        </SettingsGroup>
+      )}
 
       {/* Pending Members Section (pre-created accounts) */}
       {isAdmin && pendingMembers.length > 0 && (
-        <div className="space-y-3">
+        <div className="space-y-2">
           <button
+            type="button"
             onClick={() => setShowPendingMembers(!showPendingMembers)}
-            className="w-full flex items-center justify-between text-sm font-medium text-plm-fg-muted uppercase tracking-wide hover:text-plm-fg transition-colors"
+            aria-expanded={showPendingMembers}
+            className="flex items-center gap-1.5 text-[13px] font-medium text-plm-fg-muted transition-colors hover:text-plm-fg"
           >
-            <span className="flex items-center gap-2">
-              <Clock size={14} />
-              Pending Members ({pendingMembers.length})
-            </span>
-            {showPendingMembers ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            {showPendingMembers ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            Pending Members
+            <span className="text-[11px] font-normal tabular-nums">{pendingMembers.length}</span>
           </button>
 
           {showPendingMembers && (
-            <div className="border border-plm-border rounded-lg overflow-hidden bg-plm-bg/50">
-              <div className="p-3 border-b border-plm-border bg-plm-bg/30">
-                <p className="text-xs text-plm-fg-muted">
-                  Pre-created accounts awaiting user sign-in. These users can sign in with the
-                  organization code.
-                </p>
+            <SettingsGroup>
+              <div className="px-4 py-2.5 text-[12px] text-plm-fg-muted">
+                Pre-created accounts awaiting user sign-in. These users can sign in with the
+                organization code.
               </div>
-              <div className="divide-y divide-plm-border/50">
-                {pendingMembers.map((pm) => (
-                  <div key={pm.id} className="flex items-center gap-3 p-3 group">
-                    <div className="w-10 h-10 rounded-full bg-plm-fg-muted/10 flex items-center justify-center">
-                      <Clock size={18} className="text-plm-fg-muted" />
+              {pendingMembers.map((pm) => (
+                <div
+                  key={pm.id}
+                  className="group flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-plm-highlight/40"
+                >
+                  <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-plm-fg-muted/10">
+                    <Clock size={14} className="text-plm-fg-muted" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 text-[13px] font-medium text-plm-fg">
+                      <span className="truncate">{pm.full_name || pm.email}</span>
+                      <Badge tone="warning">Pending</Badge>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-base text-plm-fg truncate flex items-center gap-2">
-                        {pm.full_name || pm.email}
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-400 uppercase">
-                          Pending
-                        </span>
-                      </div>
-                      <div className="text-sm text-plm-fg-muted truncate flex items-center gap-2 flex-wrap">
-                        <span className="truncate">{pm.email}</span>
-                        {pm.workflow_role_ids && pm.workflow_role_ids.length > 0 && (
-                          <span className="flex items-center gap-1">
-                            {pm.workflow_role_ids.slice(0, 2).map((roleId) => {
-                              const role = workflowRoles.find((r) => r.id === roleId)
-                              if (!role) return null
-                              const RoleIcon =
-                                (
-                                  LucideIcons as unknown as Record<
-                                    string,
-                                    React.ComponentType<{ size?: number }>
-                                  >
-                                )[role.icon] || Shield
-                              return (
-                                <span
-                                  key={roleId}
-                                  className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px]"
-                                  style={{ backgroundColor: `${role.color}20`, color: role.color }}
-                                  title={role.name}
+                    <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[12px] text-plm-fg-muted">
+                      <span className="truncate">{pm.email}</span>
+                      {pm.workflow_role_ids && pm.workflow_role_ids.length > 0 && (
+                        <span className="flex items-center gap-1">
+                          {pm.workflow_role_ids.slice(0, 2).map((roleId) => {
+                            const role = workflowRoles.find((r) => r.id === roleId)
+                            if (!role) return null
+                            const RoleIcon =
+                              (
+                                LucideIcons as unknown as Record<
+                                  string,
+                                  React.ComponentType<{ size?: number }>
                                 >
-                                  <RoleIcon size={10} />
-                                  {role.name}
-                                </span>
-                              )
-                            })}
-                            {pm.workflow_role_ids.length > 2 && (
-                              <span className="text-xs text-plm-fg-dim">
-                                +{pm.workflow_role_ids.length - 2}
+                              )[role.icon] || Shield
+                            return (
+                              <span
+                                key={roleId}
+                                className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium"
+                                style={{ backgroundColor: `${role.color}20`, color: role.color }}
+                                title={role.name}
+                              >
+                                <RoleIcon size={10} />
+                                {role.name}
                               </span>
-                            )}
-                          </span>
-                        )}
-                        {pm.team_ids && pm.team_ids.length > 0 && (
-                          <span className="flex items-center gap-1 px-1.5 py-0.5 bg-plm-fg-muted/10 rounded text-plm-fg-dim">
-                            <Users size={10} />
-                            {pm.team_ids.length} team{pm.team_ids.length !== 1 ? 's' : ''}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                      {apiServerUrl && (
-                        <button
-                          onClick={() => handleResendInvite(pm)}
-                          disabled={resendingInviteId === pm.id}
-                          className="p-1.5 text-plm-fg-muted hover:text-plm-accent hover:bg-plm-accent/10 rounded disabled:opacity-50"
-                          title="Resend invite email"
-                        >
-                          {resendingInviteId === pm.id ? (
-                            <Loader2 size={14} className="animate-spin" />
-                          ) : (
-                            <Mail size={14} />
-                          )}
-                        </button>
-                      )}
-                      <button
-                        onClick={() => openEditPendingMember(pm)}
-                        className="p-1.5 text-plm-fg-muted hover:text-plm-accent hover:bg-plm-accent/10 rounded"
-                        title="Edit pending member"
-                      >
-                        <Pencil size={14} />
-                      </button>
-                      <button
-                        onClick={() => deletePendingMember(pm.id)}
-                        className="p-1.5 text-plm-fg-muted hover:text-plm-error hover:bg-plm-error/10 rounded"
-                        title="Remove pending member"
-                      >
-                        <X size={14} />
-                      </button>
-
-                      {/* More actions dropdown */}
-                      <div className="relative">
-                        <button
-                          onClick={() =>
-                            setPendingMemberDropdownOpen(
-                              pendingMemberDropdownOpen === pm.id ? null : pm.id,
                             )
-                          }
-                          className="p-1.5 text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight rounded"
-                          title="More actions"
-                        >
-                          <MoreVertical size={14} />
-                        </button>
-
-                        {pendingMemberDropdownOpen === pm.id && (
-                          <>
-                            <div
-                              className="fixed inset-0 z-[100]"
-                              onClick={() => setPendingMemberDropdownOpen(null)}
-                            />
-                            <div
-                              className="fixed z-[101] bg-plm-bg-light border border-plm-border rounded-lg shadow-xl py-1 min-w-[180px]"
-                              ref={(el) => {
-                                if (el) {
-                                  const btn = el.previousElementSibling
-                                    ?.previousElementSibling as HTMLElement
-                                  if (btn) {
-                                    const rect = btn.getBoundingClientRect()
-                                    const menuHeight = el.offsetHeight
-                                    const spaceBelow = window.innerHeight - rect.bottom
-
-                                    if (spaceBelow < menuHeight) {
-                                      el.style.bottom = `${window.innerHeight - rect.top + 4}px`
-                                      el.style.top = 'auto'
-                                    } else {
-                                      el.style.top = `${rect.bottom + 4}px`
-                                      el.style.bottom = 'auto'
-                                    }
-                                    el.style.right = `${window.innerWidth - rect.right}px`
-                                  }
-                                }
-                              }}
-                            >
-                              <button
-                                onClick={() => {
-                                  setViewingPendingMemberPermissions(pm)
-                                  setPendingMemberDropdownOpen(null)
-                                }}
-                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-plm-fg hover:bg-plm-highlight transition-colors"
-                              >
-                                <Eye size={14} />
-                                View Net Permissions
-                              </button>
-                              <button
-                                onClick={() => {
-                                  const fakeUser = pendingMemberToOrgUser(pm, teams, workflowRoles)
-                                  startUserImpersonation(fakeUser.id, fakeUser)
-                                  setPendingMemberDropdownOpen(null)
-                                }}
-                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-plm-fg hover:bg-plm-highlight transition-colors"
-                              >
-                                <UserCog size={14} />
-                                Simulate Permissions
-                              </button>
-                            </div>
-                          </>
-                        )}
-                      </div>
+                          })}
+                          {pm.workflow_role_ids.length > 2 && (
+                            <span className="text-[11px] text-plm-fg-muted">
+                              +{pm.workflow_role_ids.length - 2}
+                            </span>
+                          )}
+                        </span>
+                      )}
+                      {pm.team_ids && pm.team_ids.length > 0 && (
+                        <Badge icon={<Users size={10} />}>
+                          {pm.team_ids.length} team{pm.team_ids.length !== 1 ? 's' : ''}
+                        </Badge>
+                      )}
                     </div>
                   </div>
-                ))}
-              </div>
-            </div>
+                  <div className="flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+                    {apiServerUrl && (
+                      <button
+                        type="button"
+                        onClick={() => handleResendInvite(pm)}
+                        disabled={resendingInviteId === pm.id}
+                        className="rounded-md p-1.5 text-plm-fg-muted hover:bg-plm-highlight hover:text-plm-fg disabled:opacity-50"
+                        title="Resend invite email"
+                        aria-label="Resend invite email"
+                      >
+                        {resendingInviteId === pm.id ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <Mail size={14} />
+                        )}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => openEditPendingMember(pm)}
+                      className="rounded-md p-1.5 text-plm-fg-muted hover:bg-plm-highlight hover:text-plm-fg"
+                      title="Edit pending member"
+                      aria-label="Edit pending member"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deletePendingMember(pm.id)}
+                      className="rounded-md p-1.5 text-plm-fg-muted hover:bg-plm-error/10 hover:text-plm-error"
+                      title="Remove pending member"
+                      aria-label="Remove pending member"
+                    >
+                      <X size={14} />
+                    </button>
+
+                    {/* More actions dropdown */}
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPendingMemberDropdownOpen(
+                            pendingMemberDropdownOpen === pm.id ? null : pm.id,
+                          )
+                        }
+                        className="rounded-md p-1.5 text-plm-fg-muted hover:bg-plm-highlight hover:text-plm-fg"
+                        title="More actions"
+                        aria-label="More actions"
+                      >
+                        <MoreVertical size={14} />
+                      </button>
+
+                      {pendingMemberDropdownOpen === pm.id && (
+                        <>
+                          <div
+                            className="fixed inset-0 z-[100]"
+                            onClick={() => setPendingMemberDropdownOpen(null)}
+                          />
+                          <div
+                            className="fixed z-[101] min-w-[180px] rounded-lg border border-plm-border bg-plm-bg-light py-1 shadow-xl"
+                            ref={(el) => {
+                              if (el) {
+                                const btn = el.previousElementSibling
+                                  ?.previousElementSibling as HTMLElement
+                                if (btn) {
+                                  const rect = btn.getBoundingClientRect()
+                                  const menuHeight = el.offsetHeight
+                                  const spaceBelow = window.innerHeight - rect.bottom
+
+                                  if (spaceBelow < menuHeight) {
+                                    el.style.bottom = `${window.innerHeight - rect.top + 4}px`
+                                    el.style.top = 'auto'
+                                  } else {
+                                    el.style.top = `${rect.bottom + 4}px`
+                                    el.style.bottom = 'auto'
+                                  }
+                                  el.style.right = `${window.innerWidth - rect.right}px`
+                                }
+                              }
+                            }}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setViewingPendingMemberPermissions(pm)
+                                setPendingMemberDropdownOpen(null)
+                              }}
+                              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] text-plm-fg transition-colors hover:bg-plm-highlight"
+                            >
+                              <Eye size={14} />
+                              View Net Permissions
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const fakeUser = pendingMemberToOrgUser(pm, teams, workflowRoles)
+                                startUserImpersonation(fakeUser.id, fakeUser)
+                                setPendingMemberDropdownOpen(null)
+                              }}
+                              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] text-plm-fg transition-colors hover:bg-plm-highlight"
+                            >
+                              <UserCog size={14} />
+                              Simulate Permissions
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </SettingsGroup>
           )}
         </div>
       )}

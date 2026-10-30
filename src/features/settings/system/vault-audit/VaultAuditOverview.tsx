@@ -40,9 +40,7 @@ function notComparedLines(view: VaultAuditView): string[] {
   const { noConfigurationRecord, beyondLimit } = view.notCompared
 
   if (noConfigurationRecord > 0) {
-    lines.push(
-      t('vaultAudit.notCompared.noConfigurationRecord', { count: noConfigurationRecord }),
-    )
+    lines.push(t('vaultAudit.notCompared.noConfigurationRecord', { count: noConfigurationRecord }))
   }
   if (beyondLimit > 0) {
     lines.push(t('vaultAudit.notCompared.beyondLimit', { count: beyondLimit }))
@@ -100,11 +98,11 @@ export function VaultAuditOverview({ view, artifactPath }: VaultAuditOverviewPro
         {tone === 'clean' ? (
           <CheckCircle2 size={16} className="text-plm-success mt-0.5 flex-shrink-0" />
         ) : tone === 'empty' ? (
-          <AlertTriangle size={16} className="text-yellow-500 mt-0.5 flex-shrink-0" />
+          <AlertTriangle size={16} className="text-plm-warning mt-0.5 flex-shrink-0" />
         ) : tone === 'partial' ? (
           <CircleDashed size={16} className="text-plm-fg-muted mt-0.5 flex-shrink-0" />
         ) : (
-          <FileWarning size={16} className="text-yellow-500 mt-0.5 flex-shrink-0" />
+          <FileWarning size={16} className="text-plm-warning mt-0.5 flex-shrink-0" />
         )}
         <div className="min-w-0">
           <p className="text-sm text-plm-fg">{headlineTextOf(view, tone)}</p>
@@ -130,7 +128,7 @@ export function VaultAuditOverview({ view, artifactPath }: VaultAuditOverviewPro
       </div>
 
       {view.cancelled && (
-        <p className="text-xs text-yellow-500 flex items-start gap-1.5">
+        <p className="text-xs text-plm-warning flex items-start gap-1.5">
           <AlertTriangle size={13} className="mt-0.5 flex-shrink-0" />
           {t('vaultAudit.result.cancelledNote')}
         </p>

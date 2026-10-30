@@ -1,7 +1,11 @@
 import { useState } from 'react'
-import { Key, Plus, Loader2, AlertCircle, Info } from 'lucide-react'
-import { usePDMStore } from '@/stores/pdmStore'
+import { Plus, Loader2 } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
+
+import { Badge, Button, Callout } from '@/components/core/ui'
+import { SettingsGroup, SettingsSection } from '@/features/settings/components/ui'
+import { usePDMStore } from '@/stores/pdmStore'
+
 import { useLicenseManager } from './useLicenseManager'
 import { LicenseTable } from './LicenseTable'
 import { AddLicenseModal } from './AddLicenseModal'
@@ -48,97 +52,75 @@ export function LicenseManagerSection() {
   }
 
   return (
-    <div className="space-y-3">
-      <label className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium">
-        SOLIDWORKS Licenses {isAdmin ? '(Organization-wide)' : ''}
-      </label>
+    <SettingsSection
+      title={
+        <span className="flex items-center gap-2">
+          <span>SOLIDWORKS Licenses</span>
+          {isAdmin && <Badge>Organization-wide</Badge>}
+        </span>
+      }
+      description={
+        isAdmin
+          ? 'Track and assign SOLIDWORKS license keys for your organization.'
+          : 'Your assigned SOLIDWORKS licenses.'
+      }
+      actions={
+        isAdmin ? (
+          <Button
+            size="sm"
+            variant="primary"
+            onClick={() => setShowAddModal(true)}
+            icon={<Plus size={14} />}
+          >
+            Add License
+          </Button>
+        ) : undefined
+      }
+    >
+      <Callout tone="info">
+        All license activations and deactivations must be done through the SOLIDWORKS License
+        Manager (Start Menu → SOLIDWORKS Tools). This list is for tracking and assignment only.
+      </Callout>
 
-      <div className="p-4 bg-plm-bg rounded-lg border border-plm-border space-y-4 min-h-[300px]">
-        {/* Header with description and buttons */}
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <Key size={20} className="text-plm-fg-muted mt-0.5 flex-shrink-0" />
-            <div>
-              <p className="text-sm text-plm-fg-muted">
-                {isAdmin
-                  ? 'Track and assign SOLIDWORKS license keys for your organization.'
-                  : 'Your assigned SOLIDWORKS licenses.'}
-              </p>
+      {error && !isLoading && <Callout tone="error">{error}</Callout>}
+
+      {!error && (
+        <SettingsGroup>
+          {isLoading ? (
+            <div className="flex items-center justify-center gap-2 py-8 text-[13px] text-plm-fg-muted">
+              <Loader2 size={16} className="animate-spin" />
+              Loading licenses...
             </div>
-          </div>
-
-          {isAdmin && (
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-plm-accent text-white rounded-lg hover:bg-plm-accent/80 transition-colors flex-shrink-0"
-            >
-              <Plus size={16} />
-              Add License
-            </button>
-          )}
-        </div>
-
-        {/* Info note about activation */}
-        <div className="flex items-start gap-2 p-3 rounded-lg bg-plm-bg-secondary/50 border border-plm-border text-sm">
-          <Info size={16} className="text-plm-fg-muted mt-0.5 flex-shrink-0" />
-          <p className="text-plm-fg-muted">
-            All license activations and deactivations must be done through the SOLIDWORKS License
-            Manager (Start Menu → SOLIDWORKS Tools). This list is for tracking and assignment only.
-          </p>
-        </div>
-
-        {/* Loading state */}
-        {isLoading && (
-          <div className="flex items-center justify-center py-8 text-plm-fg-muted">
-            <Loader2 size={24} className="animate-spin mr-2" />
-            Loading licenses...
-          </div>
-        )}
-
-        {/* Error state */}
-        {error && !isLoading && (
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400">
-            <AlertCircle size={18} />
-            <span className="text-sm">{error}</span>
-          </div>
-        )}
-
-        {/* Empty state */}
-        {!isLoading && !error && visibleLicenses.length === 0 && (
-          <div className="text-center py-8">
-            <Key size={32} className="mx-auto mb-3 text-plm-fg-dim" />
-            <p className="text-sm text-plm-fg-muted">
+          ) : visibleLicenses.length === 0 ? (
+            <div className="px-4 py-3 text-[13px] text-plm-fg-muted">
               {isAdmin
                 ? 'No licenses added yet. Click "Add License" to get started.'
                 : 'No licenses assigned to you.'}
-            </p>
-          </div>
-        )}
-
-        {/* License table */}
-        {!isLoading && !error && visibleLicenses.length > 0 && (
-          <LicenseTable
-            licenses={visibleLicenses}
-            isAdmin={isAdmin}
-            onDelete={deleteLicense}
-            onAssign={(license) => setAssigningLicense(license)}
-            onUnassign={async (license) => {
-              if (license.assignment) {
-                await unassignLicense(license.assignment.id)
-              }
-            }}
-            onUnassignPending={async (license) => {
-              if (license.pendingAssignment) {
-                await unassignPendingLicense(
-                  license.pendingAssignment.pending_member_id,
-                  license.id,
-                )
-              }
-            }}
-            onEdit={(license) => setEditingLicense(license)}
-          />
-        )}
-      </div>
+            </div>
+          ) : (
+            <LicenseTable
+              licenses={visibleLicenses}
+              isAdmin={isAdmin}
+              onDelete={deleteLicense}
+              onAssign={(license) => setAssigningLicense(license)}
+              onUnassign={async (license) => {
+                if (license.assignment) {
+                  await unassignLicense(license.assignment.id)
+                }
+              }}
+              onUnassignPending={async (license) => {
+                if (license.pendingAssignment) {
+                  await unassignPendingLicense(
+                    license.pendingAssignment.pending_member_id,
+                    license.id,
+                  )
+                }
+              }}
+              onEdit={(license) => setEditingLicense(license)}
+            />
+          )}
+        </SettingsGroup>
+      )}
 
       {/* Add License Modal */}
       {showAddModal && (
@@ -186,6 +168,6 @@ export function LicenseManagerSection() {
           }}
         />
       )}
-    </div>
+    </SettingsSection>
   )
 }

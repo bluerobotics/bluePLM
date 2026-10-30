@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react'
 import { ChevronDown, ChevronUp, AlertTriangle, Activity } from 'lucide-react'
+
+import { Badge, Callout } from '@/components/core/ui'
+
 import { useBackupLogs } from './hooks/useBackupLogs'
 import { BackupLogConsole } from './BackupLogConsole'
 import { BackupProgressTracker } from './BackupProgressTracker'
@@ -76,41 +79,36 @@ export function BackupStatusViewer({
   }
 
   return (
-    <div className="rounded-lg border border-plm-border overflow-hidden bg-plm-bg-secondary">
+    <div className="overflow-hidden rounded-lg border border-plm-border bg-plm-bg-light/60">
       {/* Header - always visible */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-plm-bg-tertiary transition-colors"
+        className="flex w-full items-center justify-between px-4 py-3 transition-colors hover:bg-plm-highlight"
       >
         <div className="flex items-center gap-2">
           <Activity
             className={`w-4 h-4 ${operationRunning ? 'text-plm-accent animate-pulse' : 'text-plm-fg-muted'}`}
           />
-          <span className="font-medium text-sm">
+          <span className="text-[13px] font-medium text-plm-fg">
             {mode === 'restore' ? 'Restore Status' : 'Backup Status'}
           </span>
 
           {/* Error badge */}
           {hasErrors && !isExpanded && (
-            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 text-xs">
-              <AlertTriangle className="w-3 h-3" />
+            <Badge tone="error" icon={<AlertTriangle size={11} />}>
               {errorCount} error{errorCount !== 1 ? 's' : ''}
-            </span>
+            </Badge>
           )}
 
           {/* Running indicator */}
           {operationRunning && (
-            <span className="px-2 py-0.5 rounded-full bg-plm-accent/20 text-plm-accent text-xs animate-pulse">
+            <Badge tone="accent" className="animate-pulse">
               In Progress
-            </span>
+            </Badge>
           )}
 
           {/* Completed indicator */}
-          {!operationRunning && lastStats?.success && (
-            <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-xs">
-              Complete
-            </span>
-          )}
+          {!operationRunning && lastStats?.success && <Badge tone="success">Complete</Badge>}
         </div>
 
         {isExpanded ? (
@@ -146,30 +144,20 @@ export function BackupStatusViewer({
 
           {/* Summary stats when complete */}
           {lastStats && !operationRunning && (
-            <div
-              className={`p-3 rounded-lg text-sm ${
-                lastStats.success
-                  ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300'
-                  : 'bg-red-500/10 border border-red-500/30 text-red-300'
-              }`}
+            <Callout
+              tone={lastStats.success ? 'success' : 'error'}
+              action={
+                <span className="text-[12px] text-plm-fg-muted">
+                  {lastStats.success
+                    ? `${lastStats.filesProcessed} files · ${formatDuration(lastStats.durationMs)}`
+                    : 'Check logs for details'}
+                </span>
+              }
             >
-              {lastStats.success ? (
-                <div className="flex items-center justify-between">
-                  <span>✓ {mode === 'restore' ? 'Restore' : 'Backup'} completed successfully</span>
-                  <span className="text-xs opacity-75">
-                    {lastStats.filesProcessed} files • {formatDuration(lastStats.durationMs)}
-                  </span>
-                </div>
-              ) : (
-                <div className="flex items-center justify-between">
-                  <span>
-                    ✗ {mode === 'restore' ? 'Restore' : 'Backup'} completed with{' '}
-                    {lastStats.errorsCount} error{lastStats.errorsCount !== 1 ? 's' : ''}
-                  </span>
-                  <span className="text-xs opacity-75">Check logs for details</span>
-                </div>
-              )}
-            </div>
+              {lastStats.success
+                ? `${mode === 'restore' ? 'Restore' : 'Backup'} completed successfully`
+                : `${mode === 'restore' ? 'Restore' : 'Backup'} completed with ${lastStats.errorsCount} error${lastStats.errorsCount !== 1 ? 's' : ''}`}
+            </Callout>
           )}
         </div>
       )}

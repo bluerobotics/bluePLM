@@ -1,7 +1,12 @@
-import { Clock, Loader2 } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { Loader2 } from 'lucide-react'
+
+import { Badge, Callout, Select } from '@/components/core/ui'
+import { SettingsGroup, SettingsSection } from '@/features/settings/components/ui'
+
+import { BackupHistoryItem } from './BackupHistoryItem'
 import type { BackupStatus, DeleteConfirmTarget } from './types'
 import { extractVaultNamesFromSnapshots, formatDate } from './utils'
-import { BackupHistoryItem } from './BackupHistoryItem'
 
 interface BackupHistoryProps {
   status: BackupStatus | null
@@ -14,6 +19,14 @@ interface BackupHistoryProps {
   onHistoryVaultFilterChange: (filter: string) => void
   isRestoring: boolean
   isLoadingSnapshots?: boolean
+}
+
+function EmptyState({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex items-center justify-center gap-2 px-4 py-8 text-[13px] text-plm-fg-muted">
+      {children}
+    </div>
+  )
 }
 
 /**
@@ -41,83 +54,78 @@ export function BackupHistory({
     }) || []
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h4 className="text-sm font-medium flex items-center gap-2">
-          <Clock className="w-4 h-4 text-plm-fg-muted" />
-          Backup History
+    <SettingsSection
+      title="Backup History"
+      description={
+        !isAdmin && (status?.snapshots?.length ?? 0) > 0
+          ? 'Only admins can run backups and restore'
+          : undefined
+      }
+      actions={
+        <>
           {isLoadingSnapshots ? (
-            <Loader2 className="w-3 h-3 animate-spin text-plm-fg-muted" />
+            <Loader2 size={14} className="animate-spin text-plm-fg-muted" />
           ) : status?.totalSnapshots ? (
-            <span className="text-xs text-plm-fg-muted">({status.totalSnapshots})</span>
+            <Badge>{status.totalSnapshots}</Badge>
           ) : null}
-        </h4>
-
-        {/* Vault filter */}
-        {vaultNames.length > 0 && (
-          <select
-            value={historyVaultFilter}
-            onChange={(e) => onHistoryVaultFilterChange(e.target.value)}
-            className="px-2 py-1 rounded text-xs bg-plm-bg-primary border border-plm-border"
-          >
-            <option value="all">All vaults</option>
-            {vaultNames.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
-
-      <div className="max-h-80 overflow-y-auto space-y-2 pr-1">
-        {!status?.isConfigured ? (
-          <div className="text-sm text-plm-fg-muted py-8 text-center bg-plm-bg-secondary rounded-lg border border-plm-border">
-            Configure backup settings to view history
-          </div>
-        ) : isLoadingSnapshots && filteredSnapshots.length === 0 ? (
-          <div className="text-sm text-plm-fg-muted py-8 text-center bg-plm-bg-secondary rounded-lg border border-plm-border">
-            <div className="flex items-center justify-center gap-2">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span>Loading backup history...</span>
+          {/* Vault filter */}
+          {vaultNames.length > 0 && (
+            <Select
+              size="sm"
+              aria-label="Vault"
+              value={historyVaultFilter}
+              onChange={(e) => onHistoryVaultFilterChange(e.target.value)}
+            >
+              <option value="all">All vaults</option>
+              {vaultNames.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </Select>
+          )}
+        </>
+      }
+    >
+      {status?.isConfigured &&
+      !(isLoadingSnapshots && filteredSnapshots.length === 0) &&
+      status.error ? (
+        <Callout tone="error">{status.error}</Callout>
+      ) : (
+        <SettingsGroup>
+          {!status?.isConfigured ? (
+            <EmptyState>Configure backup settings to view history</EmptyState>
+          ) : isLoadingSnapshots && filteredSnapshots.length === 0 ? (
+            <EmptyState>
+              <Loader2 size={14} className="animate-spin" />
+              Loading backup history...
+            </EmptyState>
+          ) : filteredSnapshots.length === 0 ? (
+            <EmptyState>
+              No backups yet. Click "Sync & Backup Now" to create your first backup.
+            </EmptyState>
+          ) : (
+            <div className="max-h-96 divide-y divide-plm-border overflow-y-auto">
+              {filteredSnapshots.map((snapshot) => (
+                <BackupHistoryItem
+                  key={snapshot.id}
+                  snapshot={snapshot}
+                  isSelected={selectedSnapshot === snapshot.id}
+                  isAdmin={isAdmin}
+                  isDeleting={deletingSnapshotIds.has(snapshot.id)}
+                  isRestoring={isRestoring}
+                  onSelect={() =>
+                    onSelectSnapshot(selectedSnapshot === snapshot.id ? null : snapshot.id)
+                  }
+                  onRequestDelete={() =>
+                    onRequestDelete({ id: snapshot.id, time: formatDate(snapshot.time) })
+                  }
+                />
+              ))}
             </div>
-          </div>
-        ) : status.error ? (
-          <div className="text-sm text-red-400 py-4 text-center bg-red-500/10 rounded-lg border border-red-500/30">
-            {status.error}
-          </div>
-        ) : filteredSnapshots.length === 0 ? (
-          <div className="text-sm text-plm-fg-muted py-8 text-center bg-plm-bg-secondary rounded-lg border border-plm-border">
-            No backups yet. Click "Sync & Backup Now" to create your first backup.
-          </div>
-        ) : (
-          filteredSnapshots.map((snapshot) => (
-            <BackupHistoryItem
-              key={snapshot.id}
-              snapshot={snapshot}
-              isSelected={selectedSnapshot === snapshot.id}
-              isAdmin={isAdmin}
-              isDeleting={deletingSnapshotIds.has(snapshot.id)}
-              isRestoring={isRestoring}
-              onSelect={() =>
-                onSelectSnapshot(selectedSnapshot === snapshot.id ? null : snapshot.id)
-              }
-              onRequestDelete={() =>
-                onRequestDelete({ id: snapshot.id, time: formatDate(snapshot.time) })
-              }
-            />
-          ))
-        )}
-      </div>
-
-      {/* Non-admin notice */}
-      {!isAdmin && (status?.snapshots?.length ?? 0) > 0 && (
-        <div className="p-2 rounded bg-plm-bg-secondary border border-plm-border">
-          <p className="text-xs text-plm-fg-muted text-center">
-            Only admins can run backups and restore
-          </p>
-        </div>
+          )}
+        </SettingsGroup>
       )}
-    </div>
+    </SettingsSection>
   )
 }

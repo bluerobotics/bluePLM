@@ -8,14 +8,17 @@ import {
   Loader2,
   CheckCircle,
   Download,
-  History,
   ArrowUpCircle,
   ArrowDownCircle,
 } from 'lucide-react'
-import { log } from '@/lib/logger'
-import { useTranslation } from '@/lib/i18n'
-import { usePDMStore } from '@/stores/pdmStore'
 import { useShallow } from 'zustand/react/shallow'
+
+import { Badge, Button, Callout } from '@/components/core/ui'
+import { useTranslation } from '@/lib/i18n'
+import { log } from '@/lib/logger'
+import { usePDMStore } from '@/stores/pdmStore'
+
+import { SettingRow, SettingsGroup, SettingsPage, SettingsSection } from '../components/ui'
 
 interface GitHubRelease {
   tag_name: string
@@ -224,228 +227,207 @@ export function AboutSettings() {
       linux: 'Linux',
     }[platform] || platform
 
+  const openExternal = (url: string) => {
+    window.electronAPI?.openFile(url)
+  }
+
   return (
-    <div className="space-y-6">
-      {/* App Info */}
-      <div className="text-center py-8">
-        {/* Stacked Layers Logo */}
-        <div className="w-20 h-20 mx-auto mb-4 flex items-center justify-center">
-          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" className="text-plm-accent">
-            <path
-              d="M12 2L2 7L12 12L22 7L12 2Z"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <path
-              d="M2 17L12 22L22 17"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <path
-              d="M2 12L12 17L22 12"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+    <SettingsPage>
+      {/* Summary: what is installed, and whether it is current */}
+      <SettingsGroup>
+        <div className="flex flex-wrap items-center gap-4 px-5 py-5">
+          {/* Stacked Layers Logo */}
+          <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-plm-accent/10">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" className="text-plm-accent">
+              <path
+                d="M12 2L2 7L12 12L22 7L12 2Z"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M2 17L12 22L22 17"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M2 12L12 17L22 12"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-[16px] font-semibold text-plm-fg">BluePLM</span>
+              {updateCheckResult === 'none' && (
+                <Badge tone="success" icon={<CheckCircle size={11} />}>
+                  {t('preferences.upToDate')}
+                </Badge>
+              )}
+              {updateCheckResult === 'available' && (
+                <Badge tone="accent" icon={<Download size={11} />}>
+                  {t('preferences.available')}
+                </Badge>
+              )}
+            </div>
+            <div className="mt-0.5 text-[12px] text-plm-fg-muted">
+              Version {appVersion || '...'} · Platform: {platformDisplay}
+            </div>
+          </div>
+          <Button
+            onClick={handleCheckForUpdates}
+            loading={isCheckingUpdate}
+            icon={<RefreshCw size={14} />}
+          >
+            {isCheckingUpdate ? t('preferences.checking') : t('preferences.checkForUpdates')}
+          </Button>
         </div>
-        <h2 className="text-3xl font-bold text-plm-fg">BluePLM</h2>
-        <p className="text-sm text-plm-fg-muted mt-2 max-w-md mx-auto leading-relaxed">
+        {(updateCheckResult === 'none' || updateCheckResult === 'available') && (
+          <div
+            className={`px-5 py-2.5 text-[12px] ${
+              updateCheckResult === 'available' ? 'text-plm-accent' : 'text-plm-fg-muted'
+            }`}
+          >
+            {updateCheckResult === 'available'
+              ? t('preferences.updateAvailable')
+              : t('preferences.youHaveLatest')}
+          </div>
+        )}
+        <div className="px-5 py-3 text-[12px] leading-relaxed text-plm-fg-muted">
           Check in/out CAD files, track revisions, manage engineering changes, control release
           workflows, and collaborate with your team—all in one place.
-        </p>
-        <p className="text-base text-plm-fg-muted mt-4">Version {appVersion || '...'}</p>
-        <p className="text-sm text-plm-fg-dim mt-1">Platform: {platformDisplay}</p>
-
-        {/* Check for Updates */}
-        <button
-          onClick={handleCheckForUpdates}
-          disabled={isCheckingUpdate}
-          className={`mt-4 flex items-center gap-2 mx-auto px-4 py-2 text-base font-medium rounded-lg transition-colors ${
-            updateCheckResult === 'none'
-              ? 'bg-green-600/20 text-green-400 border border-green-600/30'
-              : updateCheckResult === 'available'
-                ? 'bg-plm-accent/20 text-plm-accent border border-plm-accent/30'
-                : 'bg-plm-highlight text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight/80'
-          }`}
-        >
-          {isCheckingUpdate ? (
-            <>
-              <Loader2 size={14} className="animate-spin" />
-              {t('preferences.checking')}
-            </>
-          ) : updateCheckResult === 'none' ? (
-            <>
-              <CheckCircle size={14} />
-              {t('preferences.upToDate')}
-            </>
-          ) : updateCheckResult === 'available' ? (
-            <>
-              <Download size={14} />
-              {t('preferences.available')}
-            </>
-          ) : (
-            <>
-              <RefreshCw size={14} />
-              {t('preferences.checkForUpdates')}
-            </>
-          )}
-        </button>
-        {updateCheckResult === 'none' && (
-          <p className="text-sm text-plm-fg-dim mt-2">{t('preferences.youHaveLatest')}</p>
-        )}
-        {updateCheckResult === 'available' && (
-          <p className="text-sm text-plm-accent mt-2">{t('preferences.updateAvailable')}</p>
-        )}
-      </div>
-
-      {/* Version History */}
-      <div className="bg-plm-bg rounded-lg border border-plm-border overflow-hidden">
-        <div className="flex items-center gap-3 p-3 border-b border-white/5">
-          <History size={18} className="text-plm-fg-muted" />
-          <span className="text-sm font-medium text-plm-fg">Version History</span>
         </div>
+      </SettingsGroup>
 
-        {isLoadingReleases ? (
-          <div className="flex items-center justify-center gap-2 p-6 text-plm-fg-muted">
-            <Loader2 size={16} className="animate-spin" />
-            <span>Loading releases...</span>
-          </div>
-        ) : releasesError ? (
-          <div className="p-4 text-center">
-            <p className="text-sm text-plm-error mb-2">{releasesError}</p>
-            <button onClick={fetchReleases} className="text-sm text-plm-accent hover:underline">
-              Try again
-            </button>
-          </div>
-        ) : (
-          <div className="h-48 overflow-y-auto">
-            {releases.map((release) => {
-              const relation = getVersionRelation(release.tag_name)
-              const isCurrent = relation === 'current'
-              const isNewer = relation === 'newer'
+      <SettingsSection
+        title="Version History"
+        actions={
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={fetchReleases}
+            disabled={isLoadingReleases}
+            title="Refresh"
+            aria-label="Refresh"
+            icon={<RefreshCw size={14} className={isLoadingReleases ? 'animate-spin' : ''} />}
+          />
+        }
+      >
+        <SettingsGroup>
+          {isLoadingReleases ? (
+            <div className="flex items-center justify-center gap-2 px-4 py-6 text-[13px] text-plm-fg-muted">
+              <Loader2 size={14} className="animate-spin" />
+              Loading releases...
+            </div>
+          ) : releasesError ? (
+            <div className="p-3">
+              <Callout
+                tone="error"
+                action={
+                  <Button size="sm" onClick={fetchReleases}>
+                    Try again
+                  </Button>
+                }
+              >
+                {releasesError}
+              </Callout>
+            </div>
+          ) : (
+            <div className="max-h-72 divide-y divide-plm-border overflow-y-auto">
+              {releases.map((release) => {
+                const relation = getVersionRelation(release.tag_name)
+                const isCurrent = relation === 'current'
+                const isNewer = relation === 'newer'
 
-              return (
-                <div
-                  key={release.tag_name}
-                  className={`flex items-center justify-between px-3 py-2 border-b border-white/5 last:border-b-0 ${
-                    isCurrent ? 'bg-plm-accent/10' : 'hover:bg-plm-highlight/30'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    {isNewer ? (
-                      <ArrowUpCircle size={14} className="text-green-400 flex-shrink-0" />
-                    ) : isCurrent ? (
-                      <CheckCircle size={14} className="text-plm-accent flex-shrink-0" />
-                    ) : (
-                      <ArrowDownCircle size={14} className="text-plm-fg-muted flex-shrink-0" />
-                    )}
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`text-sm font-medium ${isCurrent ? 'text-plm-accent' : 'text-plm-fg'}`}
-                        >
-                          {release.tag_name}
-                        </span>
-                        {release.prerelease && (
-                          <span className="px-1 py-0.5 text-[10px] bg-yellow-500/20 text-yellow-400 rounded">
-                            Pre
+                return (
+                  <div
+                    key={release.tag_name}
+                    className={`flex items-center justify-between gap-3 px-4 py-2.5 ${
+                      isCurrent ? 'bg-plm-accent/[0.06]' : ''
+                    }`}
+                  >
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      {isNewer ? (
+                        <ArrowUpCircle size={14} className="flex-shrink-0 text-plm-success" />
+                      ) : isCurrent ? (
+                        <CheckCircle size={14} className="flex-shrink-0 text-plm-accent" />
+                      ) : (
+                        <ArrowDownCircle size={14} className="flex-shrink-0 text-plm-fg-muted" />
+                      )}
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[13px] font-medium text-plm-fg">
+                            {release.tag_name}
                           </span>
-                        )}
-                        {isCurrent && (
-                          <span className="px-1 py-0.5 text-[10px] bg-plm-accent/20 text-plm-accent rounded">
-                            Current
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs text-plm-fg-muted">
-                        {new Date(release.published_at).toLocaleDateString(undefined, {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                        })}
+                          {release.prerelease && <Badge tone="warning">Pre</Badge>}
+                          {isCurrent && <Badge tone="accent">Current</Badge>}
+                        </div>
+                        <div className="text-[12px] text-plm-fg-muted">
+                          {new Date(release.published_at).toLocaleDateString(undefined, {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                          })}
+                        </div>
                       </div>
                     </div>
+
+                    {!isCurrent && (
+                      <Button
+                        size="sm"
+                        variant={isNewer ? 'primary' : 'secondary'}
+                        onClick={() => handleInstallVersion(release)}
+                        loading={fetchingRelease === release.tag_name}
+                        icon={<Download size={12} />}
+                      >
+                        {isNewer ? 'Upgrade' : 'Rollback'}
+                      </Button>
+                    )}
                   </div>
+                )
+              })}
+            </div>
+          )}
+        </SettingsGroup>
+      </SettingsSection>
 
-                  {!isCurrent && (
-                    <button
-                      onClick={() => handleInstallVersion(release)}
-                      disabled={fetchingRelease === release.tag_name}
-                      className={`flex items-center gap-1 px-2 py-1 text-xs font-medium rounded transition-colors ${
-                        fetchingRelease === release.tag_name
-                          ? 'bg-plm-highlight text-plm-fg-muted cursor-wait'
-                          : isNewer
-                            ? 'bg-green-600/20 text-green-400 hover:bg-green-600/30'
-                            : 'bg-plm-highlight text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight/80'
-                      }`}
-                    >
-                      {fetchingRelease === release.tag_name ? (
-                        <Loader2 size={10} className="animate-spin" />
-                      ) : (
-                        <Download size={10} />
-                      )}
-                      {isNewer ? 'Upgrade' : 'Rollback'}
-                    </button>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
+      <SettingsSection title="Links">
+        <SettingsGroup>
+          <SettingRow label="GitHub Repository" description="View source code and contribute">
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={<Github size={14} />}
+              onClick={() => openExternal('https://github.com/bluerobotics/bluePLM')}
+            >
+              Open
+              <ExternalLink size={12} />
+            </Button>
+          </SettingRow>
+          <SettingRow label="Report Issues" description="Found a bug? Let us know!">
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={<Info size={14} />}
+              onClick={() => openExternal('https://github.com/bluerobotics/bluePLM/issues')}
+            >
+              Open
+              <ExternalLink size={12} />
+            </Button>
+          </SettingRow>
+        </SettingsGroup>
+      </SettingsSection>
 
-      {/* Links */}
-      <div className="space-y-2">
-        <a
-          href="https://github.com/bluerobotics/bluePLM"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-3 p-4 bg-plm-bg rounded-lg border border-plm-border hover:border-plm-fg-muted transition-colors"
-          onClick={(e) => {
-            e.preventDefault()
-            window.electronAPI?.openFile('https://github.com/bluerobotics/bluePLM')
-          }}
-        >
-          <Github size={24} className="text-plm-fg-muted" />
-          <div className="flex-1">
-            <div className="text-base font-medium text-plm-fg">GitHub Repository</div>
-            <div className="text-sm text-plm-fg-muted">View source code and contribute</div>
-          </div>
-          <ExternalLink size={18} className="text-plm-fg-muted" />
-        </a>
-
-        <a
-          href="https://github.com/bluerobotics/bluePLM/issues"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-3 p-4 bg-plm-bg rounded-lg border border-plm-border hover:border-plm-fg-muted transition-colors"
-          onClick={(e) => {
-            e.preventDefault()
-            window.electronAPI?.openFile('https://github.com/bluerobotics/bluePLM/issues')
-          }}
-        >
-          <Info size={24} className="text-plm-fg-muted" />
-          <div className="flex-1">
-            <div className="text-base font-medium text-plm-fg">Report Issues</div>
-            <div className="text-sm text-plm-fg-muted">Found a bug? Let us know!</div>
-          </div>
-          <ExternalLink size={18} className="text-plm-fg-muted" />
-        </a>
-      </div>
-
-      {/* Credits */}
-      <div className="pt-4 border-t border-plm-border text-center">
-        <p className="text-base text-plm-fg-muted flex items-center justify-center gap-1.5">
-          Made with <Heart size={16} className="text-blue-400 fill-blue-400" /> by Blue Robotics and
-          contributors worldwide
-        </p>
-      </div>
-    </div>
+      <p className="flex items-center justify-center gap-1.5 text-[12px] text-plm-fg-muted">
+        Made with <Heart size={12} className="fill-plm-accent text-plm-accent" /> by Blue Robotics
+        and contributors worldwide
+      </p>
+    </SettingsPage>
   )
 }

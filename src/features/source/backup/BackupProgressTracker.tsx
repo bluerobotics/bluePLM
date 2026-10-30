@@ -99,7 +99,7 @@ export function BackupProgressTracker({
           </span>
         </div>
 
-        <div className="w-full bg-plm-bg-tertiary rounded-full h-2 overflow-hidden">
+        <div className="w-full bg-plm-border rounded-full h-2 overflow-hidden">
           <div
             className={`h-full rounded-full transition-all duration-300 ${
               hasError ? 'bg-red-500' : isComplete ? 'bg-emerald-500' : 'bg-plm-accent'

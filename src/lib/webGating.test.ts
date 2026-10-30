@@ -23,6 +23,7 @@ afterEach(() => {
 })
 
 const WEB_HIDDEN_TABS: readonly SettingsTab[] = [
+  'preferences',
   'supabase',
   'backup',
   'extension-store',
@@ -86,7 +87,7 @@ describe('settings tabs on the web', () => {
     stubHost(false)
     const tabs = visibleTabs(true)
     for (const tab of WEB_HIDDEN_TABS) expect(tabs, tab).not.toContain(tab)
-    for (const tab of ['profile', 'preferences', 'team-members', 'metadata-columns'] as const) {
+    for (const tab of ['profile', 'appearance', 'sessions', 'team-members', 'metadata-columns'] as const) {
       expect(tabs).toContain(tab)
     }
   })
@@ -109,13 +110,13 @@ describe('settings tabs on the web', () => {
     }))
     const webIndex = buildSettingsSearchIndex(webSections, settingsCatalogFor(false))
     expect(searchSettings(webIndex, 'solidworks').some((g) => g.tab === 'solidworks')).toBe(false)
-    // A desktop-only setting inside a kept tab is left out too.
+    // Desktop-only settings are left out, while the web keeps the ones that apply there.
     const updates = searchSettings(webIndex, 'Check for Updates')
     const labels = updates.flatMap((g) => g.settings.map((h) => h.entry.label))
     expect(labels).not.toContain('Check for Updates')
     const webPrefs = (settingsCatalogFor(false).preferences ?? []).map((e) => e.label)
     expect(webPrefs).not.toContain('Application Updates')
-    expect(webPrefs).toContain('Appearance')
+    expect(searchSettings(webIndex, 'dark mode').some((g) => g.tab === 'appearance')).toBe(true)
 
     expect(settingsCatalogFor(true)).toBe(settingsCatalog)
   })

@@ -9,10 +9,11 @@
  * (getEffectiveRole() === 'admin', which includes the Administrators team).
  */
 import { useEffect, useState } from 'react'
-import { Store, Package, Upload, Info } from 'lucide-react'
-
-import { usePDMStore } from '@/stores/pdmStore'
+import { Store, Package, Upload } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
+
+import { Badge, Button, Callout, SegmentedControl } from '@/components/core/ui'
+import { usePDMStore } from '@/stores/pdmStore'
 import { useExtensions } from '@/hooks/useExtensions'
 import { log } from '@/lib/logger'
 import { t } from '@/lib/i18n'
@@ -113,82 +114,55 @@ export function ExtensionStoreView() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-gray-900">
-      {/* Header */}
-      <div className="px-6 py-4 border-b border-gray-800">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Store size={24} className="text-blue-400" />
-            <h1 className="text-xl font-semibold text-gray-100">Extension Store</h1>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {/* Sideload button (administrators only) */}
-            {isAdmin && (
-              <button
-                onClick={() => setShowSideloadDialog(true)}
-                className="flex items-center gap-2 px-3 py-1.5 bg-gray-700/50 text-gray-300 
-                  rounded-lg hover:bg-gray-700 transition-colors"
-              >
-                <Upload size={16} />
-                <span className="text-sm">Sideload</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* No runtime: say so rather than imply installed extensions run */}
-        <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">
-          <Info size={16} className="mt-0.5 shrink-0" />
-          <div>
-            <p>{t('extensionRuntime.notice')}</p>
-            {!isAdmin && (
-              <p className="mt-1 text-amber-400/80">{t('extensionRuntime.adminOnly')}</p>
-            )}
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex gap-1 mt-4">
-          <button
-            onClick={() => setActiveTab('store')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-              activeTab === 'store'
-                ? 'bg-blue-600 text-white'
-                : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
-            }`}
-          >
-            <Store size={16} />
-            <span>Browse Store</span>
-            <span className="ml-1 px-1.5 py-0.5 bg-black/20 rounded text-xs">
-              {storeExtensions.length}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('installed')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-              activeTab === 'installed'
-                ? 'bg-blue-600 text-white'
-                : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
-            }`}
-          >
-            <Package size={16} />
-            <span>Installed</span>
-            <span className="ml-1 px-1.5 py-0.5 bg-black/20 rounded text-xs">
-              {installedArray.length}
-            </span>
-          </button>
-        </div>
-      </div>
+    <div className="flex h-full flex-col gap-6">
+      {/* No runtime: say so rather than imply installed extensions run */}
+      <Callout tone="warning">
+        <p>{t('extensionRuntime.notice')}</p>
+        {!isAdmin && <p className="mt-1">{t('extensionRuntime.adminOnly')}</p>}
+      </Callout>
 
       {/* Organization-installed native extensions (these do run) */}
-      <div className="px-6 pt-4">
-        <OrgExtensionsPanel />
+      <OrgExtensionsPanel />
+
+      <div className="flex items-center justify-between gap-3">
+        <SegmentedControl<TabId>
+          value={activeTab}
+          onChange={setActiveTab}
+          aria-label="Extensions"
+          options={[
+            {
+              value: 'store',
+              icon: <Store size={14} />,
+              label: (
+                <>
+                  <span>Browse Store</span>
+                  <Badge>{storeExtensions.length}</Badge>
+                </>
+              ),
+            },
+            {
+              value: 'installed',
+              icon: <Package size={14} />,
+              label: (
+                <>
+                  <span>Installed</span>
+                  <Badge>{installedArray.length}</Badge>
+                </>
+              ),
+            },
+          ]}
+        />
+
+        {/* Sideload button (administrators only) */}
+        {isAdmin && (
+          <Button size="sm" onClick={() => setShowSideloadDialog(true)} icon={<Upload size={14} />}>
+            Sideload
+          </Button>
+        )}
       </div>
 
       {/* Content */}
-      <div className="flex-1 p-6 overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-hidden">
         {activeTab === 'store' ? (
           <ExtensionList
             storeExtensions={storeExtensions}

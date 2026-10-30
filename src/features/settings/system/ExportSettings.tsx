@@ -1,10 +1,21 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Loader2, Package, FileOutput, Eye, RotateCcw, User, Building2, Box } from 'lucide-react'
-import { log } from '@/lib/logger'
-import { usePDMStore } from '@/stores/pdmStore'
+import { Building2, Eye, Loader2, RotateCcw, User } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
+
+import {
+  Badge,
+  Button,
+  SegmentedControl,
+  Switch,
+  TextInput,
+  type SegmentedOption,
+} from '@/components/core/ui'
+import { log } from '@/lib/logger'
 import { supabase } from '@/lib/supabase'
+import { usePDMStore } from '@/stores/pdmStore'
 import { ExportSettings as ExportSettingsType, DEFAULT_EXPORT_SETTINGS } from '@/types/pdm'
+
+import { SettingRow, SettingsGroup, SettingsPage, SettingsSection } from '../components/ui'
 
 // LocalStorage key for user preferences
 const USER_EXPORT_SETTINGS_KEY = 'blueplm_export_settings'
@@ -97,6 +108,22 @@ const PRESET_PATTERNS = [
     description: 'BR-101011-394_Default_RevA.step',
   },
   { pattern: '{filename}_{date}', label: 'File + Date', description: 'Part1_2026-01-01.step' },
+]
+
+// '' stands for a stored setting that has no value yet: no segment is selected.
+type ExportFormatChoice = NonNullable<ExportSettingsType['default_export_format']> | ''
+type StlResolutionChoice = NonNullable<ExportSettingsType['stl_resolution']> | ''
+
+const EXPORT_FORMAT_OPTIONS: SegmentedOption<ExportFormatChoice>[] = [
+  { value: 'step', label: 'STEP' },
+  { value: 'iges', label: 'IGES' },
+  { value: 'stl', label: 'STL' },
+]
+
+const STL_RESOLUTION_OPTIONS: SegmentedOption<StlResolutionChoice>[] = [
+  { value: 'coarse', label: 'Coarse' },
+  { value: 'fine', label: 'Fine' },
+  { value: 'custom', label: 'Custom' },
 ]
 
 // Get user's export settings from localStorage
@@ -256,7 +283,10 @@ export function ExportSettings() {
       addToast('success', 'Organization default saved')
     } catch (error) {
       log.error('[ExportSettings]', 'Failed to save org export settings', { error: error })
-      addToast('error', `Failed to save: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      addToast(
+        'error',
+        `Failed to save: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      )
     } finally {
       setSaving(false)
     }
@@ -284,243 +314,191 @@ export function ExportSettings() {
   }
 
   return (
-    <div className="p-6 space-y-8 max-w-4xl">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-emerald-500/10">
-            <Package className="text-emerald-400" size={24} />
-          </div>
-          <div>
-            <h2 className="text-lg font-semibold text-plm-fg">Export Settings</h2>
-            <p className="text-sm text-plm-fg-muted">Configure how exported files are named</p>
-          </div>
-        </div>
-
-        {/* Save buttons */}
-        <div className="flex items-center gap-2">
-          {hasUserOverride && (
-            <button
-              onClick={handleResetToOrgDefault}
-              className="flex items-center gap-2 px-3 py-2 bg-plm-bg border border-plm-border hover:bg-plm-bg-light rounded-lg text-plm-fg-muted hover:text-plm-fg text-sm transition-colors"
-              title="Reset to organization default"
+    <SettingsPage>
+      <SettingsSection
+        title="Export Settings"
+        description="Configure how exported files are named"
+        actions={
+          <>
+            {hasUserOverride && (
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<RotateCcw size={14} />}
+                onClick={handleResetToOrgDefault}
+                title="Reset to organization default"
+              >
+                Reset to Default
+              </Button>
+            )}
+            {isAdmin && (
+              <Button
+                size="sm"
+                icon={<Building2 size={14} />}
+                loading={saving}
+                onClick={handleSaveOrgDefault}
+                title="Set as organization-wide default"
+              >
+                Save as Org Default
+              </Button>
+            )}
+            <Button
+              variant="primary"
+              size="sm"
+              icon={<User size={14} />}
+              onClick={handleSaveUserPreference}
             >
-              <RotateCcw size={14} />
-              Reset to Default
-            </button>
-          )}
-
-          <button
-            onClick={handleSaveUserPreference}
-            className="flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 rounded-lg text-white text-sm font-medium transition-colors"
-          >
-            <User size={16} />
-            Save for Me
-          </button>
-
-          {isAdmin && (
-            <button
-              onClick={handleSaveOrgDefault}
-              disabled={saving}
-              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 rounded-lg text-white text-sm font-medium transition-colors"
-              title="Set as organization-wide default"
-            >
-              {saving ? <Loader2 size={16} className="animate-spin" /> : <Building2 size={16} />}
-              Save as Org Default
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Current mode indicator */}
-      <div
-        className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm ${
-          hasUserOverride
-            ? 'bg-cyan-500/10 border border-cyan-500/30 text-cyan-400'
-            : 'bg-plm-bg-light/30 border border-plm-border/30 text-plm-fg-muted'
-        }`}
+              Save for Me
+            </Button>
+          </>
+        }
       >
-        {hasUserOverride ? (
-          <>
-            <User size={16} />
-            <span>Using your personal preference</span>
-          </>
-        ) : (
-          <>
-            <Building2 size={16} />
-            <span>Using organization default</span>
-          </>
-        )}
-      </div>
-
-      {/* Filename Pattern */}
-      <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-plm-fg mb-2">Filename Pattern</label>
-          <input
-            type="text"
-            value={settings.filename_pattern}
-            onChange={(e) => setSettings((prev) => ({ ...prev, filename_pattern: e.target.value }))}
-            placeholder="{filename}_{config}"
-            className="w-full px-4 py-2.5 bg-plm-bg border border-plm-border rounded-lg text-plm-fg 
-              focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20
-              font-mono text-sm"
-          />
-          <p className="mt-1.5 text-xs text-plm-fg-muted">
-            Use tokens like {'{partNumber}'}, {'{config}'}, {'{rev}'} to build dynamic filenames
-          </p>
+          {hasUserOverride ? (
+            <Badge tone="accent" icon={<User size={12} />}>
+              Using your personal preference
+            </Badge>
+          ) : (
+            <Badge icon={<Building2 size={12} />}>Using organization default</Badge>
+          )}
         </div>
 
-        {/* Live Preview */}
-        <div className="bg-plm-bg-light/30 border border-plm-border/50 rounded-lg p-4">
-          <div className="flex items-center gap-2 text-xs text-plm-fg-muted mb-2">
-            <Eye size={14} />
-            <span>Preview</span>
-          </div>
-          <div className="font-mono text-sm text-cyan-400">{livePreview}</div>
-        </div>
-
-        {/* Preset Patterns */}
-        <div>
-          <label className="block text-xs text-plm-fg-muted mb-2">Quick Presets</label>
-          <div className="flex flex-wrap gap-2">
-            {PRESET_PATTERNS.map((preset) => (
-              <button
-                key={preset.pattern}
-                onClick={() =>
-                  setSettings((prev) => ({ ...prev, filename_pattern: preset.pattern }))
-                }
-                className={`px-3 py-1.5 rounded text-xs transition-colors
-                  ${
-                    settings.filename_pattern === preset.pattern
-                      ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/50'
-                      : 'bg-plm-bg border border-plm-border/50 text-plm-fg-muted hover:bg-plm-bg-light/50 hover:text-plm-fg'
-                  }`}
-                title={preset.description}
-              >
-                {preset.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Available Tokens */}
-        <div>
-          <label className="block text-xs text-plm-fg-muted mb-2">
-            Available Tokens (click to insert)
-          </label>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-            {FILENAME_TOKENS.map(({ token, label, description, example }) => (
-              <button
-                key={token}
-                onClick={() => insertToken(token)}
-                className="flex flex-col items-start p-2 rounded bg-plm-bg border border-plm-border/50 
-                  hover:bg-plm-bg-light/50 hover:border-plm-border text-left transition-colors group"
-                title={`${description} (e.g., ${example})`}
-              >
-                <span className="text-xs font-mono text-cyan-400 group-hover:text-cyan-300">
-                  {token}
-                </span>
-                <span className="text-[10px] text-plm-fg-muted truncate w-full">{label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Additional Options */}
-      <div className="space-y-4 border-t border-plm-border/50 pt-6">
-        <h3 className="text-sm font-medium text-plm-fg">Additional Options</h3>
-
-        {/* Include config name checkbox */}
-        <label className="flex items-center gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={settings.include_config_in_filename}
-            onChange={(e) =>
-              setSettings((prev) => ({ ...prev, include_config_in_filename: e.target.checked }))
+        <SettingsGroup>
+          <SettingRow
+            label="Filename Pattern"
+            htmlFor="export-filename-pattern"
+            description={
+              <>
+                Use tokens like {'{partNumber}'}, {'{config}'}, {'{rev}'} to build dynamic filenames
+              </>
             }
-            className="w-4 h-4 rounded border-plm-border bg-plm-bg text-cyan-500 
-              focus:ring-cyan-500/20 focus:ring-offset-0"
-          />
-          <div>
-            <div className="text-sm text-plm-fg">
-              Include configuration name for single-config exports
+            stacked
+          >
+            <TextInput
+              id="export-filename-pattern"
+              value={settings.filename_pattern}
+              onChange={(e) =>
+                setSettings((prev) => ({ ...prev, filename_pattern: e.target.value }))
+              }
+              placeholder="{filename}_{config}"
+              className="font-mono"
+            />
+            <div className="mt-2 flex items-center gap-2 text-[12px] text-plm-fg-muted">
+              <Eye size={14} />
+              <span>Preview</span>
+              <span className="truncate font-mono text-plm-accent">{livePreview}</span>
             </div>
-            <div className="text-xs text-plm-fg-muted">
-              When exporting a single configuration, add config name to filename
+          </SettingRow>
+
+          <SettingRow label="Quick Presets" stacked>
+            <div className="flex flex-wrap gap-1.5">
+              {PRESET_PATTERNS.map((preset) => (
+                <button
+                  type="button"
+                  key={preset.pattern}
+                  onClick={() =>
+                    setSettings((prev) => ({ ...prev, filename_pattern: preset.pattern }))
+                  }
+                  aria-pressed={settings.filename_pattern === preset.pattern}
+                  className={`rounded-md border px-2.5 py-1 text-[12px] transition-colors ${
+                    settings.filename_pattern === preset.pattern
+                      ? 'border-plm-accent/60 bg-plm-accent/15 text-plm-fg'
+                      : 'border-plm-border bg-plm-bg text-plm-fg-muted hover:bg-plm-highlight hover:text-plm-fg'
+                  }`}
+                  title={preset.description}
+                >
+                  {preset.label}
+                </button>
+              ))}
             </div>
-          </div>
-        </label>
+          </SettingRow>
 
-        {/* Default export format */}
-        <div>
-          <label className="block text-sm text-plm-fg mb-2">Default Export Format</label>
-          <div className="flex gap-2">
-            {(['step', 'iges', 'stl'] as const).map((format) => (
-              <button
-                key={format}
-                onClick={() => setSettings((prev) => ({ ...prev, default_export_format: format }))}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors
-                  ${
-                    settings.default_export_format === format
-                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/50'
-                      : 'bg-plm-bg border border-plm-border/50 text-plm-fg-muted hover:bg-plm-bg-light/50'
-                  }`}
-              >
-                <FileOutput size={14} />
-                {format.toUpperCase()}
-              </button>
-            ))}
-          </div>
-          <p className="mt-1.5 text-xs text-plm-fg-muted">
-            Default format when exporting from file browser context menu
-          </p>
-        </div>
-      </div>
+          <SettingRow label="Available Tokens (click to insert)" stacked>
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 md:grid-cols-4">
+              {FILENAME_TOKENS.map(({ token, label, description, example }) => (
+                <button
+                  type="button"
+                  key={token}
+                  onClick={() => insertToken(token)}
+                  className="flex flex-col items-start rounded-md border border-plm-border bg-plm-bg px-2 py-1.5 text-left transition-colors hover:border-plm-border-light hover:bg-plm-highlight"
+                  title={`${description} (e.g., ${example})`}
+                >
+                  <span className="font-mono text-[12px] text-plm-accent">{token}</span>
+                  <span className="w-full truncate text-[11px] text-plm-fg-muted">{label}</span>
+                </button>
+              ))}
+            </div>
+          </SettingRow>
+        </SettingsGroup>
+      </SettingsSection>
 
-      {/* STL Export Options */}
-      <div className="space-y-4 border-t border-plm-border/50 pt-6">
-        <div className="flex items-center gap-2">
-          <Box size={16} className="text-violet-400" />
-          <h3 className="text-sm font-medium text-plm-fg">STL Export Options</h3>
-        </div>
+      <SettingsSection title="Additional Options">
+        <SettingsGroup>
+          <SettingRow
+            label="Include configuration name for single-config exports"
+            description="When exporting a single configuration, add config name to filename"
+          >
+            <Switch
+              checked={settings.include_config_in_filename}
+              onChange={(checked) =>
+                setSettings((prev) => ({ ...prev, include_config_in_filename: checked }))
+              }
+              aria-label="Include configuration name for single-config exports"
+            />
+          </SettingRow>
+          <SettingRow
+            label="Default Export Format"
+            description="Default format when exporting from file browser context menu"
+          >
+            <SegmentedControl<ExportFormatChoice>
+              value={settings.default_export_format ?? ''}
+              onChange={(format) => {
+                if (!format) return
+                const next = format
+                setSettings((prev) => ({ ...prev, default_export_format: next }))
+              }}
+              options={EXPORT_FORMAT_OPTIONS}
+              aria-label="Default Export Format"
+            />
+          </SettingRow>
+        </SettingsGroup>
+      </SettingsSection>
 
-        {/* Resolution dropdown */}
-        <div>
-          <label className="block text-sm text-plm-fg mb-2">Resolution Quality</label>
-          <div className="flex gap-2">
-            {(['coarse', 'fine', 'custom'] as const).map((res) => (
-              <button
-                key={res}
-                onClick={() => setSettings((prev) => ({ ...prev, stl_resolution: res }))}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors capitalize
-                  ${
-                    settings.stl_resolution === res
-                      ? 'bg-violet-500/20 text-violet-300 border border-violet-500/50'
-                      : 'bg-plm-bg border border-plm-border/50 text-plm-fg-muted hover:bg-plm-bg-light/50'
-                  }`}
-              >
-                {res}
-              </button>
-            ))}
-          </div>
-          <p className="mt-1.5 text-xs text-plm-fg-muted">
-            {settings.stl_resolution === 'coarse' &&
-              'Larger triangles, smaller file size. Good for visualization.'}
-            {settings.stl_resolution === 'fine' &&
-              'Smaller triangles, better accuracy. Recommended for 3D printing.'}
-            {settings.stl_resolution === 'custom' &&
-              'Specify custom deviation and angle tolerances.'}
-          </p>
-        </div>
+      <SettingsSection title="STL Export Options">
+        <SettingsGroup>
+          <SettingRow
+            label="Resolution Quality"
+            description={
+              <>
+                {settings.stl_resolution === 'coarse' &&
+                  'Larger triangles, smaller file size. Good for visualization.'}
+                {settings.stl_resolution === 'fine' &&
+                  'Smaller triangles, better accuracy. Recommended for 3D printing.'}
+                {settings.stl_resolution === 'custom' &&
+                  'Specify custom deviation and angle tolerances.'}
+              </>
+            }
+          >
+            <SegmentedControl<StlResolutionChoice>
+              value={settings.stl_resolution ?? ''}
+              onChange={(res) => {
+                if (!res) return
+                const next = res
+                setSettings((prev) => ({ ...prev, stl_resolution: next }))
+              }}
+              options={STL_RESOLUTION_OPTIONS}
+              aria-label="Resolution Quality"
+            />
+          </SettingRow>
 
-        {/* Custom resolution settings (only visible when custom is selected) */}
-        {settings.stl_resolution === 'custom' && (
-          <div className="grid grid-cols-2 gap-4 p-4 bg-plm-bg-light/20 rounded-lg border border-plm-border/30">
-            <div>
-              <label className="block text-xs text-plm-fg-muted mb-1.5">Deviation (mm)</label>
-              <input
+          {settings.stl_resolution === 'custom' && (
+            <SettingRow
+              label="Deviation (mm)"
+              htmlFor="export-stl-deviation"
+              description="Max distance between mesh and actual surface"
+            >
+              <TextInput
+                id="export-stl-deviation"
                 type="number"
                 step="0.01"
                 min="0.001"
@@ -532,18 +510,18 @@ export function ExportSettings() {
                     stl_custom_deviation: parseFloat(e.target.value) || 0.1,
                   }))
                 }
-                className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg text-sm
-                  focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
+                className="!w-28"
               />
-              <p className="mt-1 text-[10px] text-plm-fg-muted">
-                Max distance between mesh and actual surface
-              </p>
-            </div>
-            <div>
-              <label className="block text-xs text-plm-fg-muted mb-1.5">
-                Angle Tolerance (degrees)
-              </label>
-              <input
+            </SettingRow>
+          )}
+          {settings.stl_resolution === 'custom' && (
+            <SettingRow
+              label="Angle Tolerance (degrees)"
+              htmlFor="export-stl-angle"
+              description="Angular resolution for curved surfaces"
+            >
+              <TextInput
+                id="export-stl-angle"
                 type="number"
                 step="1"
                 min="1"
@@ -555,62 +533,48 @@ export function ExportSettings() {
                     stl_custom_angle: parseFloat(e.target.value) || 10,
                   }))
                 }
-                className="w-full px-3 py-2 bg-plm-bg border border-plm-border rounded-lg text-plm-fg text-sm
-                  focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
+                className="!w-28"
               />
-              <p className="mt-1 text-[10px] text-plm-fg-muted">
-                Angular resolution for curved surfaces
-              </p>
-            </div>
-          </div>
-        )}
+            </SettingRow>
+          )}
 
-        {/* Binary format toggle */}
-        <label className="flex items-center gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={settings.stl_binary_format ?? true}
-            onChange={(e) =>
-              setSettings((prev) => ({ ...prev, stl_binary_format: e.target.checked }))
-            }
-            className="w-4 h-4 rounded border-plm-border bg-plm-bg text-violet-500 
-              focus:ring-violet-500/20 focus:ring-offset-0"
-          />
-          <div>
-            <div className="text-sm text-plm-fg">Binary STL format</div>
-            <div className="text-xs text-plm-fg-muted">
-              Binary files are smaller and faster to write. Disable for ASCII format
-              (human-readable).
-            </div>
-          </div>
-        </label>
-      </div>
+          <SettingRow
+            label="Binary STL format"
+            description="Binary files are smaller and faster to write. Disable for ASCII format (human-readable)."
+          >
+            <Switch
+              checked={settings.stl_binary_format ?? true}
+              onChange={(checked) =>
+                setSettings((prev) => ({ ...prev, stl_binary_format: checked }))
+              }
+              aria-label="Binary STL format"
+            />
+          </SettingRow>
+        </SettingsGroup>
+      </SettingsSection>
 
-      {/* Token Reference */}
-      <div className="border-t border-plm-border/50 pt-6">
-        <h3 className="text-sm font-medium text-plm-fg mb-4">Token Reference</h3>
-        <div className="bg-plm-bg-light/20 rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
+      <SettingsSection title="Token Reference">
+        <SettingsGroup>
+          <table className="w-full text-[12px]">
             <thead>
-              <tr className="border-b border-plm-border/30">
-                <th className="text-left px-4 py-2 text-plm-fg-muted font-medium">Token</th>
-                <th className="text-left px-4 py-2 text-plm-fg-muted font-medium">Description</th>
-                <th className="text-left px-4 py-2 text-plm-fg-muted font-medium">Example</th>
+              <tr className="border-b border-plm-border">
+                <th className="px-4 py-2 text-left font-medium text-plm-fg-muted">Token</th>
+                <th className="px-4 py-2 text-left font-medium text-plm-fg-muted">Description</th>
+                <th className="px-4 py-2 text-left font-medium text-plm-fg-muted">Example</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-plm-border">
               {FILENAME_TOKENS.map(({ token, description, example }) => (
-                <tr key={token} className="border-b border-plm-border/20 last:border-0">
-                  <td className="px-4 py-2 font-mono text-cyan-400 text-xs">{token}</td>
-                  <td className="px-4 py-2 text-plm-fg-muted text-xs">{description}</td>
-                  <td className="px-4 py-2 text-plm-fg text-xs">{example}</td>
+                <tr key={token}>
+                  <td className="px-4 py-2 font-mono text-plm-accent">{token}</td>
+                  <td className="px-4 py-2 text-plm-fg-muted">{description}</td>
+                  <td className="px-4 py-2 text-plm-fg">{example}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
-      </div>
-    </div>
+        </SettingsGroup>
+      </SettingsSection>
+    </SettingsPage>
   )
 }
-

@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import { X, Loader2, Edit2 } from 'lucide-react'
+import { X, Edit2 } from 'lucide-react'
+
+import { Button } from '@/components/core/ui'
 import type { LicenseWithAssignment, SolidWorksLicenseUpdate } from './types'
 
 interface EditLicenseModalProps {
@@ -217,22 +219,12 @@ export function EditLicenseModal({ license, onClose, onSave }: EditLicenseModalP
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-plm-border">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-sm text-plm-fg-muted hover:text-plm-fg transition-colors"
-          >
+          <Button variant="ghost" onClick={onClose}>
             Cancel
-          </button>
-          <button
-            type="submit"
-            onClick={handleSubmit}
-            disabled={isSaving}
-            className="flex items-center gap-2 px-4 py-2 bg-plm-accent text-white rounded-lg hover:bg-plm-accent/80 transition-colors disabled:opacity-50"
-          >
-            {isSaving && <Loader2 size={16} className="animate-spin" />}
+          </Button>
+          <Button variant="primary" type="submit" onClick={handleSubmit} loading={isSaving}>
             Save Changes
-          </button>
+          </Button>
         </div>
       </div>
     </div>

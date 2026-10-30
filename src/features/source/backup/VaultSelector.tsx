@@ -1,4 +1,5 @@
-import { Folder } from 'lucide-react'
+import { Switch } from '@/components/core/ui'
+
 import type { ConnectedVault } from './types'
 
 interface VaultSelectorProps {
@@ -8,7 +9,7 @@ interface VaultSelectorProps {
 }
 
 /**
- * Checkbox list to select which vaults to include in backup.
+ * Switches choosing which vaults to include in the backup, one row per connected vault.
  * Only shown when this machine is the designated backup source.
  */
 export function VaultSelector({
@@ -17,33 +18,27 @@ export function VaultSelector({
   onVaultToggle,
 }: VaultSelectorProps) {
   return (
-    <div className="p-2 rounded bg-plm-bg-tertiary space-y-2">
-      <div className="text-xs text-plm-fg-muted flex items-center gap-2">
-        <Folder className="w-4 h-4" />
-        Vaults to backup
-      </div>
+    <div className="px-4 py-3.5">
+      <div className="mb-2 text-[13px] font-medium text-plm-fg">Vaults to backup</div>
       {connectedVaults.length > 0 ? (
-        <div className="space-y-1">
+        <div className="divide-y divide-plm-border rounded-md border border-plm-border">
           {connectedVaults.map((vault) => (
-            <label
-              key={vault.id}
-              className="flex items-center gap-2 p-1.5 rounded hover:bg-plm-bg-secondary cursor-pointer"
-            >
-              <input
-                type="checkbox"
-                checked={selectedVaultIds.includes(vault.id)}
-                onChange={(e) => onVaultToggle(vault.id, e.target.checked)}
-                className="w-4 h-4 rounded border-plm-border bg-plm-bg-primary"
-              />
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium truncate">{vault.name}</div>
-                <div className="text-xs text-plm-fg-muted truncate">{vault.localPath}</div>
+            <div key={vault.id} className="flex items-center gap-3 px-3 py-2">
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[13px] text-plm-fg">{vault.name}</div>
+                <div className="truncate text-[12px] text-plm-fg-muted">{vault.localPath}</div>
               </div>
-            </label>
+              <Switch
+                size="sm"
+                aria-label={vault.name}
+                checked={selectedVaultIds.includes(vault.id)}
+                onChange={(checked) => onVaultToggle(vault.id, checked)}
+              />
+            </div>
           ))}
         </div>
       ) : (
-        <div className="text-sm text-amber-400">No vaults connected</div>
+        <div className="text-[12px] text-plm-warning">No vaults connected</div>
       )}
     </div>
   )

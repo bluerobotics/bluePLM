@@ -1,59 +1,27 @@
 import { useState, useEffect } from 'react'
-import { log } from '@/lib/logger'
-import {
-  Plus,
-  Trash2,
-  Pencil,
-  X,
-  Loader2,
-  Eye,
-  EyeOff,
-  ChevronUp,
-  ChevronDown,
-  AlertTriangle,
-  Send,
-} from 'lucide-react'
-import { usePDMStore } from '@/stores/pdmStore'
+import { ChevronDown, ChevronUp, Loader2, Pencil, Plus, Send, Trash2 } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
+
+import { Badge, Button, Switch, TextInput } from '@/components/core/ui'
+import { log } from '@/lib/logger'
 import { supabase } from '@/lib/supabase'
-import type { FileMetadataColumn, MetadataColumnType } from '@/types/database'
+import { usePDMStore } from '@/stores/pdmStore'
+import type { FileMetadataColumn } from '@/types/database'
+
+import { SettingRow, SettingsGroup, SettingsPage, SettingsSection } from '../components/ui'
+import { MetadataColumnDialogs } from './MetadataColumnDialogs'
+import {
+  DEFAULT_COLUMN,
+  MetadataColumnEditor,
+  TYPE_LABELS,
+  type EditingColumn,
+} from './MetadataColumnEditor'
 
 // Supabase v2 type inference incomplete for metadata column operations
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any // TODO: type this
 
-const TYPE_LABELS: Record<MetadataColumnType, string> = {
-  text: 'Text',
-  number: 'Number',
-  date: 'Date',
-  boolean: 'Yes/No',
-  select: 'Dropdown',
-}
-
-interface EditingColumn {
-  id?: string
-  name: string
-  label: string
-  data_type: MetadataColumnType
-  select_options: string[]
-  width: number
-  visible: boolean
-  sortable: boolean
-  required: boolean
-  default_value: string
-}
-
-const DEFAULT_COLUMN: EditingColumn = {
-  name: '',
-  label: '',
-  data_type: 'text',
-  select_options: [],
-  width: 120,
-  visible: true,
-  sortable: true,
-  required: false,
-  default_value: '',
-}
+const TABLE_HEAD = 'px-4 py-2 text-[12px] font-medium text-plm-fg-muted'
 
 export function MetadataColumnsSettings() {
   const {
@@ -384,613 +352,292 @@ export function MetadataColumnsSettings() {
   const isAdmin = getEffectiveRole() === 'admin'
 
   return (
-    <div className="space-y-6">
-      {/* Built-in Columns Section */}
-      <div className="space-y-3">
-        <div>
-          <h3 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium">
-            Built-in Columns
-          </h3>
-          <p className="text-sm text-plm-fg-dim mt-1">
-            Standard columns.{' '}
-            {isAdmin
-              ? 'Set default width and visibility for your organization.'
-              : 'Toggle visibility to show/hide.'}
-          </p>
-        </div>
-
-        {/* Table header */}
-        <div className="grid grid-cols-[1fr_80px_60px] gap-2 px-3 py-1.5 text-xs text-plm-fg-muted uppercase tracking-wide border-b border-plm-border">
-          <span>Column</span>
-          <span className="text-center">Width</span>
-          <span className="text-center">Visible</span>
-        </div>
-
-        {/* Column rows */}
-        <div className="space-y-0.5">
+    <SettingsPage>
+      <SettingsSection
+        title="Built-in Columns"
+        description={`Standard columns. ${
+          isAdmin
+            ? 'Set default width and visibility for your organization.'
+            : 'Toggle visibility to show/hide.'
+        }`}
+      >
+        <SettingsGroup>
+          <div className={`grid grid-cols-[1fr_96px_64px] items-center gap-2 ${TABLE_HEAD}`}>
+            <span>Column</span>
+            <span className="text-center">Width</span>
+            <span className="text-center">Visible</span>
+          </div>
           {builtinColumns.map((column) => (
             <div
               key={column.id}
-              className={`grid grid-cols-[1fr_80px_60px] gap-2 px-3 py-2 rounded hover:bg-plm-highlight/50 transition-colors items-center ${!column.visible ? 'opacity-50' : ''}`}
+              className="grid grid-cols-[1fr_96px_64px] items-center gap-2 px-4 py-2"
             >
-              <span className="text-sm text-plm-fg">{column.label}</span>
-
-              {/* Width input (admin only) */}
+              <span
+                className={`truncate text-[13px] ${column.visible ? 'text-plm-fg' : 'text-plm-fg-muted'}`}
+              >
+                {column.label}
+              </span>
               {isAdmin ? (
-                <input
+                <TextInput
                   type="number"
+                  size="sm"
                   value={column.width}
                   onChange={(e) =>
                     setColumnWidth(column.id, Math.max(40, parseInt(e.target.value) || 40))
                   }
-                  className="w-full bg-plm-bg border border-plm-border rounded px-2 py-1 text-xs text-center focus:border-plm-accent focus:outline-none"
+                  className="text-center"
                   min={40}
                   max={500}
+                  aria-label={`${column.label} width`}
                 />
               ) : (
-                <span className="text-xs text-plm-fg-muted text-center">{column.width}px</span>
+                <span className="text-center text-[12px] text-plm-fg-muted">{column.width}px</span>
               )}
-
-              {/* Visibility toggle */}
               <div className="flex justify-center">
-                <button
-                  onClick={() => toggleColumnVisibility(column.id)}
-                  className="p-1 hover:bg-plm-highlight rounded transition-colors"
+                <Switch
+                  size="sm"
+                  checked={column.visible}
+                  onChange={() => toggleColumnVisibility(column.id)}
                   title={column.visible ? 'Hide column' : 'Show column'}
-                >
-                  {column.visible ? (
-                    <Eye size={14} className="text-plm-accent" />
-                  ) : (
-                    <EyeOff size={14} className="text-plm-fg-muted" />
-                  )}
-                </button>
+                  aria-label={column.visible ? 'Hide column' : 'Show column'}
+                />
               </div>
             </div>
           ))}
-        </div>
-      </div>
+        </SettingsGroup>
+      </SettingsSection>
 
-      {/* Divider */}
-      <div className="border-t border-plm-border" />
-
-      {/* Custom Columns Section */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium">
-              Custom Columns
-            </h3>
-            <p className="text-sm text-plm-fg-dim mt-1">
-              {isAdmin
-                ? 'Define custom properties that appear in the file browser.'
-                : 'Custom properties defined by your organization admin.'}
-            </p>
-          </div>
-          {isAdmin && !isCreating && !editingColumn && organization && (
-            <button
+      <SettingsSection
+        title="Custom Columns"
+        description={
+          isAdmin
+            ? 'Define custom properties that appear in the file browser.'
+            : 'Custom properties defined by your organization admin.'
+        }
+        actions={
+          isAdmin &&
+          !isCreating &&
+          !editingColumn &&
+          organization && (
+            <Button
+              variant="primary"
+              size="sm"
+              icon={<Plus size={14} />}
               onClick={() => {
                 setEditingColumn({ ...DEFAULT_COLUMN })
                 setIsCreating(true)
               }}
-              className="btn btn-primary btn-sm flex items-center gap-1"
             >
-              <Plus size={14} />
               Add Column
-            </button>
-          )}
-        </div>
-
-        {/* Create/Edit Form (admin only) */}
+            </Button>
+          )
+        }
+      >
         {isAdmin && editingColumn && (
-          <div className="p-4 bg-plm-bg rounded-lg border border-plm-accent space-y-4">
-            <h3 className="font-medium text-plm-fg">{isCreating ? 'New Column' : 'Edit Column'}</h3>
-
-            <div className="grid grid-cols-2 gap-4">
-              {/* Name */}
-              <div className="space-y-1">
-                <label className="text-sm text-plm-fg-muted">Internal Name</label>
-                <input
-                  type="text"
-                  value={editingColumn.name}
-                  onChange={(e) =>
-                    setEditingColumn({
-                      ...editingColumn,
-                      name: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''),
-                    })
-                  }
-                  placeholder="e.g., material, weight"
-                  className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none font-mono"
-                  disabled={!isCreating}
-                />
-                <p className="text-xs text-plm-fg-dim">
-                  Used in data storage. Lowercase letters, numbers, underscores only.
-                </p>
-              </div>
-
-              {/* Label */}
-              <div className="space-y-1">
-                <label className="text-sm text-plm-fg-muted">Display Label</label>
-                <input
-                  type="text"
-                  value={editingColumn.label}
-                  onChange={(e) =>
-                    setEditingColumn({
-                      ...editingColumn,
-                      label: e.target.value,
-                    })
-                  }
-                  placeholder="e.g., Material, Weight (kg)"
-                  className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              {/* Data Type */}
-              <div className="space-y-1">
-                <label className="text-sm text-plm-fg-muted">Data Type</label>
-                <select
-                  value={editingColumn.data_type}
-                  onChange={(e) =>
-                    setEditingColumn({
-                      ...editingColumn,
-                      data_type: e.target.value as MetadataColumnType,
-                      select_options:
-                        e.target.value === 'select' ? editingColumn.select_options : [],
-                    })
-                  }
-                  className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
-                >
-                  {Object.entries(TYPE_LABELS).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Width */}
-              <div className="space-y-1">
-                <label className="text-sm text-plm-fg-muted">Column Width (px)</label>
-                <input
-                  type="number"
-                  value={editingColumn.width}
-                  onChange={(e) =>
-                    setEditingColumn({
-                      ...editingColumn,
-                      width: Math.max(50, parseInt(e.target.value) || 120),
-                    })
-                  }
-                  min={50}
-                  max={500}
-                  className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
-                />
-              </div>
-
-              {/* Default Value */}
-              <div className="space-y-1">
-                <label className="text-sm text-plm-fg-muted">Default Value</label>
-                <input
-                  type="text"
-                  value={editingColumn.default_value}
-                  onChange={(e) =>
-                    setEditingColumn({
-                      ...editingColumn,
-                      default_value: e.target.value,
-                    })
-                  }
-                  placeholder="Optional"
-                  className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
-                />
-              </div>
-            </div>
-
-            {/* Select Options (only for select type) */}
-            {editingColumn.data_type === 'select' && (
-              <div className="space-y-2">
-                <label className="text-sm text-plm-fg-muted">Dropdown Options</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newOption}
-                    onChange={(e) => setNewOption(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        addSelectOption()
-                      }
-                    }}
-                    placeholder="Add an option..."
-                    className="flex-1 bg-plm-bg-light border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none"
-                  />
-                  <button
-                    onClick={addSelectOption}
-                    disabled={!newOption.trim()}
-                    className="btn btn-primary btn-sm"
-                  >
-                    <Plus size={14} />
-                  </button>
-                </div>
-                {editingColumn.select_options.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {editingColumn.select_options.map((option) => (
-                      <span
-                        key={option}
-                        className="inline-flex items-center gap-1 px-2 py-1 bg-plm-bg-light border border-plm-border rounded text-sm"
-                      >
-                        {option}
-                        <button
-                          onClick={() => removeSelectOption(option)}
-                          className="p-0.5 hover:text-plm-error"
-                        >
-                          <X size={12} />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Toggles */}
-            <div className="flex gap-6">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={editingColumn.visible}
-                  onChange={(e) =>
-                    setEditingColumn({
-                      ...editingColumn,
-                      visible: e.target.checked,
-                    })
-                  }
-                  className="w-4 h-4 rounded border-plm-border text-plm-accent focus:ring-plm-accent"
-                />
-                <span className="text-base text-plm-fg">Visible by default</span>
-              </label>
-
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={editingColumn.sortable}
-                  onChange={(e) =>
-                    setEditingColumn({
-                      ...editingColumn,
-                      sortable: e.target.checked,
-                    })
-                  }
-                  className="w-4 h-4 rounded border-plm-border text-plm-accent focus:ring-plm-accent"
-                />
-                <span className="text-base text-plm-fg">Sortable</span>
-              </label>
-
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={editingColumn.required}
-                  onChange={(e) =>
-                    setEditingColumn({
-                      ...editingColumn,
-                      required: e.target.checked,
-                    })
-                  }
-                  className="w-4 h-4 rounded border-plm-border text-plm-accent focus:ring-plm-accent"
-                />
-                <span className="text-base text-plm-fg">Required</span>
-              </label>
-            </div>
-
-            {/* Actions */}
-            <div className="flex gap-2 justify-end pt-2 border-t border-plm-border">
-              <button
-                onClick={() => {
-                  setEditingColumn(null)
-                  setIsCreating(false)
-                }}
-                className="btn btn-ghost btn-sm"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveColumn}
-                disabled={isSaving || !editingColumn.name.trim() || !editingColumn.label.trim()}
-                className="btn btn-primary btn-sm"
-              >
-                {isSaving ? (
-                  <>
-                    <Loader2 size={14} className="animate-spin" />
-                    Saving...
-                  </>
-                ) : isCreating ? (
-                  'Create Column'
-                ) : (
-                  'Save Changes'
-                )}
-              </button>
-            </div>
-          </div>
+          <MetadataColumnEditor
+            column={editingColumn}
+            onChange={setEditingColumn}
+            isCreating={isCreating}
+            isSaving={isSaving}
+            newOption={newOption}
+            onNewOptionChange={setNewOption}
+            onAddOption={addSelectOption}
+            onRemoveOption={removeSelectOption}
+            onCancel={() => {
+              setEditingColumn(null)
+              setIsCreating(false)
+            }}
+            onSave={handleSaveColumn}
+          />
         )}
 
-        {/* Custom Columns List */}
         {!organization ? (
-          <div className="text-center py-6 text-plm-fg-muted text-sm border border-dashed border-plm-border rounded-lg">
-            Connect to an organization to view custom columns
-          </div>
+          <SettingsGroup>
+            <p className="px-4 py-6 text-center text-[13px] text-plm-fg-muted">
+              Connect to an organization to view custom columns
+            </p>
+          </SettingsGroup>
         ) : isLoading ? (
           <div className="flex items-center justify-center py-6">
             <Loader2 className="animate-spin text-plm-fg-muted" size={20} />
           </div>
         ) : columns.length === 0 && !isCreating ? (
-          <div className="text-center py-6 text-plm-fg-muted text-sm border border-dashed border-plm-border rounded-lg">
-            <p>No custom columns defined</p>
-            {isAdmin && (
-              <p className="text-xs mt-1 text-plm-fg-dim">
-                Click "Add Column" to create custom properties like Material, Weight, etc.
-              </p>
-            )}
-          </div>
-        ) : (
-          <>
-            {/* Table header */}
-            <div className="grid grid-cols-[1fr_80px_80px_60px_auto] gap-2 px-3 py-1.5 text-xs text-plm-fg-muted uppercase tracking-wide border-b border-plm-border">
+          <SettingsGroup>
+            <div className="px-4 py-6 text-center">
+              <p className="text-[13px] text-plm-fg-muted">No custom columns defined</p>
+              {isAdmin && (
+                <p className="mt-1 text-[12px] text-plm-fg-muted">
+                  Click "Add Column" to create custom properties like Material, Weight, etc.
+                </p>
+              )}
+            </div>
+          </SettingsGroup>
+        ) : columns.length > 0 ? (
+          <SettingsGroup>
+            <div
+              className={`grid grid-cols-[1fr_80px_80px_64px_auto] items-center gap-2 ${TABLE_HEAD}`}
+            >
               <span>Column</span>
               <span className="text-center">Type</span>
               <span className="text-center">Width</span>
               <span className="text-center">Visible</span>
-              {isAdmin && <span className="text-center w-20">Actions</span>}
+              {isAdmin && <span className="w-16 text-center">Actions</span>}
             </div>
-
-            {/* Column rows */}
-            <div className="space-y-0.5">
-              {columns.map((column, index) => (
-                <div
-                  key={column.id}
-                  className={`grid grid-cols-[1fr_80px_80px_60px_auto] gap-2 px-3 py-2 rounded hover:bg-plm-highlight/50 transition-colors items-center group ${!column.visible ? 'opacity-50' : ''}`}
-                >
-                  {/* Name with reorder buttons (admin) */}
-                  <div className="flex items-center gap-2">
-                    {isAdmin && (
-                      <div className="flex flex-col opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => handleMoveColumn(column, 'up')}
-                          disabled={index === 0}
-                          className="p-0 text-plm-fg-muted hover:text-plm-fg disabled:opacity-30"
-                        >
-                          <ChevronUp size={12} />
-                        </button>
-                        <button
-                          onClick={() => handleMoveColumn(column, 'down')}
-                          disabled={index === columns.length - 1}
-                          className="p-0 text-plm-fg-muted hover:text-plm-fg disabled:opacity-30"
-                        >
-                          <ChevronDown size={12} />
-                        </button>
-                      </div>
-                    )}
-                    <span className="text-sm text-plm-fg">{column.label}</span>
-                    {column.required && (
-                      <span className="text-[10px] px-1 py-0.5 bg-plm-warning/20 text-plm-warning rounded">
-                        req
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Type */}
-                  <span className="text-xs text-plm-fg-muted text-center">
-                    {TYPE_LABELS[column.data_type]}
-                  </span>
-
-                  {/* Width */}
-                  <span className="text-xs text-plm-fg-muted text-center">{column.width}px</span>
-
-                  {/* Visibility toggle */}
-                  <div className="flex justify-center">
-                    <button
-                      onClick={() => handleToggleVisibility(column)}
-                      className="p-1 hover:bg-plm-highlight rounded transition-colors"
-                      title={column.visible ? 'Hide column' : 'Show column'}
-                    >
-                      {column.visible ? (
-                        <Eye size={14} className="text-plm-accent" />
-                      ) : (
-                        <EyeOff size={14} className="text-plm-fg-muted" />
-                      )}
-                    </button>
-                  </div>
-
-                  {/* Actions (admin only) */}
+            {columns.map((column, index) => (
+              <div
+                key={column.id}
+                className="group grid grid-cols-[1fr_80px_80px_64px_auto] items-center gap-2 px-4 py-2"
+              >
+                <div className="flex min-w-0 items-center gap-2">
                   {isAdmin && (
-                    <div className="flex items-center justify-center gap-1 w-20">
+                    <div className="flex flex-col opacity-0 transition-opacity group-hover:opacity-100">
                       <button
-                        onClick={() => {
-                          setEditingColumn({
-                            id: column.id,
-                            name: column.name,
-                            label: column.label,
-                            data_type: column.data_type,
-                            select_options: column.select_options || [],
-                            width: column.width,
-                            visible: column.visible,
-                            sortable: column.sortable,
-                            required: column.required,
-                            default_value: column.default_value || '',
-                          })
-                          setIsCreating(false)
-                        }}
-                        className="p-1 hover:bg-plm-highlight rounded transition-colors"
-                        title="Edit column"
+                        type="button"
+                        onClick={() => handleMoveColumn(column, 'up')}
+                        disabled={index === 0}
+                        className="text-plm-fg-muted hover:text-plm-fg disabled:opacity-30"
+                        aria-label="Move up"
                       >
-                        <Pencil size={12} className="text-plm-fg-muted" />
+                        <ChevronUp size={12} />
                       </button>
                       <button
-                        onClick={() => setDeletingColumn(column)}
-                        className="p-1 hover:bg-plm-error/20 rounded transition-colors"
-                        title="Delete column"
+                        type="button"
+                        onClick={() => handleMoveColumn(column, 'down')}
+                        disabled={index === columns.length - 1}
+                        className="text-plm-fg-muted hover:text-plm-fg disabled:opacity-30"
+                        aria-label="Move down"
                       >
-                        <Trash2 size={12} className="text-plm-error" />
+                        <ChevronDown size={12} />
                       </button>
                     </div>
                   )}
+                  <span
+                    className={`truncate text-[13px] ${column.visible ? 'text-plm-fg' : 'text-plm-fg-muted'}`}
+                  >
+                    {column.label}
+                  </span>
+                  {column.required && <Badge tone="warning">Required</Badge>}
                 </div>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* Actions & Info */}
-      <div className="p-4 bg-plm-bg rounded border border-plm-border space-y-3">
-        {/* Personal defaults - available to all users */}
-        {user && (
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={handleSaveUserDefaults}
-              disabled={isSavingUserDefaults}
-              className="btn btn-primary btn-sm"
-            >
-              {isSavingUserDefaults ? 'Saving...' : 'Save as My Defaults'}
-            </button>
-            <button
-              onClick={handleLoadUserDefaults}
-              disabled={isLoadingUserDefaults}
-              className="btn btn-ghost btn-sm"
-            >
-              {isLoadingUserDefaults ? 'Loading...' : 'Load My Defaults'}
-            </button>
-            <button
-              onClick={handleResetToDefaults}
-              className="btn btn-ghost btn-sm text-plm-fg-muted"
-            >
-              Reset to App Defaults
-            </button>
-          </div>
-        )}
-
-        {/* Org defaults - admin only for save/push, all users can load */}
-        {organization && (
-          <div className="flex flex-wrap gap-2">
-            {isAdmin && (
-              <button
-                onClick={handleSaveOrgDefaults}
-                disabled={isSavingDefaults}
-                className="btn btn-sm bg-plm-accent/20 text-plm-accent hover:bg-plm-accent/30 border border-plm-accent/30"
-              >
-                {isSavingDefaults ? 'Saving...' : 'Save as Org Defaults'}
-              </button>
-            )}
-            {isAdmin && (
-              <button
-                onClick={() => setShowPushConfirm(true)}
-                disabled={isPushing}
-                className="btn btn-sm bg-plm-warning/20 text-plm-warning hover:bg-plm-warning/30 border border-plm-warning/30 flex items-center gap-1.5"
-              >
-                {isPushing ? (
-                  <>
-                    <Loader2 size={14} className="animate-spin" />
-                    Pushing...
-                  </>
-                ) : (
-                  <>
-                    <Send size={14} />
-                    Push to All Users
-                  </>
+                <span className="text-center text-[12px] text-plm-fg-muted">
+                  {TYPE_LABELS[column.data_type]}
+                </span>
+                <span className="text-center text-[12px] text-plm-fg-muted">{column.width}px</span>
+                <div className="flex justify-center">
+                  <Switch
+                    size="sm"
+                    checked={column.visible}
+                    onChange={() => handleToggleVisibility(column)}
+                    title={column.visible ? 'Hide column' : 'Show column'}
+                    aria-label={column.visible ? 'Hide column' : 'Show column'}
+                  />
+                </div>
+                {isAdmin && (
+                  <div className="flex w-16 items-center justify-center gap-0.5">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={<Pencil size={13} />}
+                      onClick={() => {
+                        setEditingColumn({
+                          id: column.id,
+                          name: column.name,
+                          label: column.label,
+                          data_type: column.data_type,
+                          select_options: column.select_options || [],
+                          width: column.width,
+                          visible: column.visible,
+                          sortable: column.sortable,
+                          required: column.required,
+                          default_value: column.default_value || '',
+                        })
+                        setIsCreating(false)
+                      }}
+                      className="!px-1.5"
+                      title="Edit column"
+                      aria-label="Edit column"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={<Trash2 size={13} />}
+                      onClick={() => setDeletingColumn(column)}
+                      className="!px-1.5 !text-plm-error"
+                      title="Delete column"
+                      aria-label="Delete column"
+                    />
+                  </div>
                 )}
-              </button>
-            )}
-            <button
-              onClick={handleLoadOrgDefaults}
-              disabled={isLoadingDefaults}
-              className="btn btn-ghost btn-sm"
+              </div>
+            ))}
+          </SettingsGroup>
+        ) : null}
+      </SettingsSection>
+
+      <SettingsSection title="Column layout">
+        <SettingsGroup>
+          {user && (
+            <SettingRow
+              label="Your layout"
+              description='"Save as My Defaults" saves your column layout to the cloud so it syncs across devices.'
             >
-              {isLoadingDefaults ? 'Loading...' : 'Load Org Defaults'}
-            </button>
-          </div>
-        )}
-
-        <p className="text-xs text-plm-fg-dim">
-          "Save as My Defaults" saves your column layout to the cloud so it syncs across devices.
-          {isAdmin &&
-            ' "Save as Org Defaults" sets the starting configuration for new team members. "Push to All Users" overrides every user\'s current column layout.'}
-        </p>
-      </div>
-
-      {/* Delete Confirmation Dialog */}
-      {deletingColumn && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center"
-          onClick={() => setDeletingColumn(null)}
-        >
-          <div
-            className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-plm-error/20 rounded-full">
-                <AlertTriangle size={20} className="text-plm-error" />
-              </div>
-              <h3 className="text-lg font-medium text-plm-fg">Delete Column</h3>
-            </div>
-            <p className="text-base text-plm-fg-muted mb-4">
-              Are you sure you want to delete the column <strong>"{deletingColumn.label}"</strong>?
-            </p>
-            <p className="text-sm text-plm-fg-dim mb-4">
-              This will remove the column from the file browser. Existing file metadata using this
-              column will remain in storage but won't be displayed.
-            </p>
-            <div className="flex gap-2 justify-end">
-              <button onClick={() => setDeletingColumn(null)} className="btn btn-ghost">
-                Cancel
-              </button>
-              <button
-                onClick={handleDeleteColumn}
-                disabled={isDeleting}
-                className="btn bg-plm-error text-white hover:bg-plm-error/90 disabled:opacity-50"
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleSaveUserDefaults}
+                disabled={isSavingUserDefaults}
               >
-                {isDeleting ? 'Deleting...' : 'Delete Column'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+                {isSavingUserDefaults ? 'Saving...' : 'Save as My Defaults'}
+              </Button>
+              <Button size="sm" onClick={handleLoadUserDefaults} disabled={isLoadingUserDefaults}>
+                {isLoadingUserDefaults ? 'Loading...' : 'Load My Defaults'}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={handleResetToDefaults}>
+                Reset to App Defaults
+              </Button>
+            </SettingRow>
+          )}
+          {organization && (
+            <SettingRow
+              label="Organization layout"
+              description={
+                isAdmin
+                  ? '"Save as Org Defaults" sets the starting configuration for new team members. "Push to All Users" overrides every user\'s current column layout.'
+                  : undefined
+              }
+            >
+              {isAdmin && (
+                <Button size="sm" onClick={handleSaveOrgDefaults} disabled={isSavingDefaults}>
+                  {isSavingDefaults ? 'Saving...' : 'Save as Org Defaults'}
+                </Button>
+              )}
+              {isAdmin && (
+                <Button
+                  variant="danger-subtle"
+                  size="sm"
+                  icon={<Send size={14} />}
+                  loading={isPushing}
+                  onClick={() => setShowPushConfirm(true)}
+                >
+                  {isPushing ? 'Pushing...' : 'Push to All Users'}
+                </Button>
+              )}
+              <Button size="sm" onClick={handleLoadOrgDefaults} disabled={isLoadingDefaults}>
+                {isLoadingDefaults ? 'Loading...' : 'Load Org Defaults'}
+              </Button>
+            </SettingRow>
+          )}
+        </SettingsGroup>
+      </SettingsSection>
 
-      {/* Push to All Users Confirmation Dialog */}
-      {showPushConfirm && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center"
-          onClick={() => setShowPushConfirm(false)}
-        >
-          <div
-            className="bg-plm-bg-light border border-plm-border rounded-xl p-6 max-w-md w-full mx-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-plm-warning/20 rounded-full">
-                <Send size={20} className="text-plm-warning" />
-              </div>
-              <h3 className="text-lg font-medium text-plm-fg">Push to All Users</h3>
-            </div>
-            <p className="text-base text-plm-fg-muted mb-4">
-              This will override <strong>every user's</strong> column layout with your current
-              configuration.
-            </p>
-            <p className="text-sm text-plm-fg-dim mb-4">
-              All connected users will receive the update immediately. Users who are offline will
-              receive it when they next open the app.
-            </p>
-            <div className="flex gap-2 justify-end">
-              <button onClick={() => setShowPushConfirm(false)} className="btn btn-ghost">
-                Cancel
-              </button>
-              <button
-                onClick={handlePushToAllUsers}
-                className="btn bg-plm-warning text-white hover:bg-plm-warning/90"
-              >
-                Push to All Users
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+      <MetadataColumnDialogs
+        deletingColumn={deletingColumn}
+        isDeleting={isDeleting}
+        onCancelDelete={() => setDeletingColumn(null)}
+        onConfirmDelete={handleDeleteColumn}
+        showPushConfirm={showPushConfirm}
+        onCancelPush={() => setShowPushConfirm(false)}
+        onConfirmPush={handlePushToAllUsers}
+      />
+    </SettingsPage>
   )
 }

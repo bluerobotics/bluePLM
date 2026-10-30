@@ -6,7 +6,29 @@ All notable changes to BluePLM will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **Settings is a modal.** Settings opens over whatever you are doing instead of replacing the
+  sidebar and main view: navigation and search on the left, the page on the right, Esc or the close
+  button to return. Ctrl+, (Cmd+, on macOS) opens and closes it, and it can be maximized. Every way
+  into settings (the activity bar, the user menu, "open vault settings" links, deep links) opens the
+  modal on the right page.
+- **Settings is reorganized and restyled.** The pages are grouped as Account, Organization, Files &
+  Data, Integrations and This Computer, each with an icon, a title and a one-line description.
+  Preferences is split into Appearance (theme, language, tabs), General (sync, updates, privacy,
+  file handling; desktop only) and Devices (signed-in sessions). Every page now uses the same
+  sections, rows, switches, selects and buttons, from new shared controls in
+  `src/components/core/ui` that the rest of the app will move to next.
+- **Theme tints render.** Tailwind dropped every opacity modifier on the theme colours
+  (`bg-plm-accent/20` and the like compiled to nothing), so about 1,300 intended tints across the app
+  never showed. They do now, which subtly changes highlights, badges and hover states everywhere.
+
 ### Fixed
+
+- **Company contact details can be cleared.** Emptying the phone, website or contact email on the
+  Company page and saving now clears it; before, an empty field kept the old value.
+- **Turning Google Drive off can be saved.** The Save button was hidden while the integration was
+  switched off.
 
 - **Search hands off to navigation.** Opening a folder now leaves search, wherever it is opened from
   (double-click or Enter in the results, the breadcrumb, the sidebar tree, Back, a search result, a

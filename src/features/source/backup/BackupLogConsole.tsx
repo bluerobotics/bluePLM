@@ -58,7 +58,7 @@ export function BackupLogConsole({
   return (
     <div className="flex flex-col border border-plm-border rounded-lg overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 bg-plm-bg-tertiary border-b border-plm-border">
+      <div className="flex items-center justify-between px-3 py-2 bg-plm-bg-light border-b border-plm-border">
         <span className="text-xs font-medium text-plm-fg-muted">Console Output</span>
 
         <div className="flex items-center gap-1">
@@ -84,7 +84,7 @@ export function BackupLogConsole({
                         onFilterChange(option.value)
                         setShowFilterMenu(false)
                       }}
-                      className={`w-full px-3 py-1.5 text-left text-xs hover:bg-plm-bg-tertiary ${
+                      className={`w-full px-3 py-1.5 text-left text-xs hover:bg-plm-highlight ${
                         filter === option.value ? 'text-plm-accent' : 'text-plm-fg'
                       }`}
                     >

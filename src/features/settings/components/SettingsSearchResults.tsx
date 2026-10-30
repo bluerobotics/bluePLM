@@ -4,6 +4,7 @@ import { usePDMStore } from '@/stores/pdmStore'
 import { useTranslation } from '@/lib/i18n'
 import { highlightSegments } from '@/lib/fuzzySearch'
 import { useSettingsSearch } from '../useSettingsSearch'
+import { SettingsGroup } from './ui'
 
 function Highlighted({ text, positions }: { text: string; positions: readonly number[] }) {
   return (
@@ -39,11 +40,13 @@ export function SettingsSearchResults() {
 
   if (hits.length === 0) {
     return (
-      <div className="flex-1 overflow-y-auto bg-plm-bg">
-        <div className="flex flex-col items-center justify-center gap-2 py-24 text-plm-fg-muted">
-          <SearchX size={28} className="opacity-60" />
-          <div className="text-sm text-plm-fg">{t('settings.searchNoResults', { query })}</div>
-          <div className="text-xs">{t('settings.searchNoResultsHint')}</div>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="flex flex-col items-center justify-center gap-1.5 py-24 text-plm-fg-muted">
+          <SearchX size={20} className="mb-1 opacity-60" />
+          <div className="text-[13px] font-medium text-plm-fg">
+            {t('settings.searchNoResults', { query })}
+          </div>
+          <div className="text-[12px]">{t('settings.searchNoResultsHint')}</div>
         </div>
       </div>
     )
@@ -55,28 +58,28 @@ export function SettingsSearchResults() {
   )
 
   return (
-    <div className="flex-1 overflow-y-auto bg-plm-bg">
-      <div className="max-w-3xl mx-auto p-6">
-        <div className="flex items-baseline justify-between mb-4">
-          <span className="text-sm text-plm-fg-muted">
+    <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="mx-auto max-w-[860px] px-8 pb-16 pt-7">
+        <div className="mb-6 flex items-baseline justify-between gap-4">
+          <span className="text-[13px] text-plm-fg-muted">
             {hits.length === 1
               ? t('settings.searchResultCountOne')
               : t('settings.searchResultCount', { count: hits.length })}
           </span>
-          <span className="text-xs text-plm-fg-muted/70">{t('settings.searchKeyboardHint')}</span>
+          <span className="text-[12px] text-plm-fg-muted">{t('settings.searchKeyboardHint')}</span>
         </div>
 
-        <div className="flex flex-col gap-4">
+        <div className="space-y-6">
           {groups.map((group, g) => (
-            <section key={group.tab}>
-              <div className="flex items-center gap-1 px-2 mb-1 text-[12px] font-mono uppercase text-plm-fg-muted/60">
+            <section key={group.tab} className="space-y-2">
+              <div className="flex items-center gap-1.5 text-[12px] text-plm-fg-muted">
                 <span>{group.category}</span>
-                <ChevronRight size={12} />
-                <span className="normal-case font-sans text-[13px] text-plm-fg-dim">
+                <ChevronRight size={12} className="opacity-60" />
+                <span className="text-[14px] font-semibold text-plm-fg">
                   <Highlighted text={group.tabLabel} positions={group.tabLabelPositions} />
                 </span>
               </div>
-              <div className="rounded-lg border border-plm-border/60 bg-plm-sidebar/40 overflow-hidden">
+              <SettingsGroup>
                 {group.settings.map((hit, i) => {
                   const index = groupStarts[g] + i
                   const isActive = index === activeIndex
@@ -89,16 +92,16 @@ export function SettingsSearchResults() {
                         if (!isActive) setActiveIndex(index)
                       }}
                       onClick={() => openSettingFromSearch(hit.entry.tab, hit.entry.label)}
-                      className={`w-full flex items-center justify-between gap-3 px-3 py-2 text-left text-[13px] border-b border-plm-border/40 last:border-b-0 outline-none transition-colors ${
+                      className={`flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-[13px] outline-none transition-colors ${
                         isActive ? 'bg-plm-highlight text-plm-fg' : 'text-plm-fg-dim'
                       }`}
                     >
                       <span className="truncate">
                         <Highlighted text={hit.entry.label} positions={hit.labelPositions} />
                       </span>
-                      <span className="flex items-center gap-2 flex-shrink-0">
+                      <span className="flex flex-shrink-0 items-center gap-2">
                         {hit.matchedKeyword && hit.labelPositions.length === 0 && (
-                          <span className="text-[11px] text-plm-fg-muted">
+                          <span className="text-[12px] text-plm-fg-muted">
                             {t('settings.searchMatchedKeyword', { keyword: hit.matchedKeyword })}
                           </span>
                         )}
@@ -110,7 +113,7 @@ export function SettingsSearchResults() {
                     </button>
                   )
                 })}
-              </div>
+              </SettingsGroup>
             </section>
           ))}
         </div>

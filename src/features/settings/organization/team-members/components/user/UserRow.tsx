@@ -18,6 +18,7 @@ import {
   Loader2,
   X,
 } from 'lucide-react'
+import { Badge } from '@/components/core/ui'
 import { isAdminUser } from '@/lib/isAdminUser'
 import { getInitials, getEffectiveAvatarUrl, getAvatarColor } from '@/lib/utils'
 import { formatLastOnline, getTitleIcon, getTeamIcon, getRoleIcon } from '../../utils'
@@ -65,11 +66,11 @@ export function UserRow({
 
   return (
     <div
-      className={`flex items-center gap-3 ${compact ? 'py-2 px-1' : 'p-3'} hover:bg-plm-highlight transition-colors group`}
+      className={`group flex items-center gap-3 ${compact ? 'px-1 py-2' : 'px-4 py-2.5'} transition-colors hover:bg-plm-highlight/40`}
     >
       <button
         onClick={onViewProfile}
-        className="flex items-center gap-3 flex-1 min-w-0 text-left hover:opacity-80 transition-opacity"
+        className="flex min-w-0 flex-1 items-center gap-3 rounded text-left outline-none focus-visible:ring-2 focus-visible:ring-plm-accent/60"
       >
         {(() => {
           const avatarColors = getAvatarColor(user.email || user.full_name)
@@ -77,41 +78,41 @@ export function UserRow({
             <img
               src={getEffectiveAvatarUrl(user)!}
               alt=""
-              className={`${compact ? 'w-8 h-8' : 'w-10 h-10'} rounded-full object-cover`}
+              className={`${compact ? 'h-7 w-7' : 'h-8 w-8'} flex-shrink-0 rounded-full object-cover`}
               referrerPolicy="no-referrer"
             />
           ) : (
             <div
-              className={`${compact ? 'w-8 h-8 text-xs' : 'w-10 h-10 text-sm'} rounded-full ${avatarColors.bg} ${avatarColors.text} flex items-center justify-center font-medium`}
+              className={`${compact ? 'h-7 w-7 text-[11px]' : 'h-8 w-8 text-[12px]'} flex flex-shrink-0 items-center justify-center rounded-full font-medium ${avatarColors.bg} ${avatarColors.text}`}
             >
               {getInitials(user.full_name || user.email)}
             </div>
           )
         })()}
         <div className="flex-1 min-w-0">
-          <div
-            className={`${compact ? 'text-sm' : 'text-base'} text-plm-fg truncate flex items-center gap-2`}
-          >
-            {user.full_name || user.email}
-            {isCurrentUser && <span className="text-xs text-plm-fg-dim">(you)</span>}
+          <div className="flex items-center gap-2 text-[13px] font-medium text-plm-fg">
+            <span className="truncate">{user.full_name || user.email}</span>
+            {isCurrentUser && (
+              <span className="text-[12px] font-normal text-plm-fg-muted">(you)</span>
+            )}
+            {/* Vault access badge */}
+            {!isAdminUser(user.role, user.teams) && vaultAccessCount > 0 && (
+              <Badge icon={<Lock size={10} />}>
+                {vaultAccessCount} vault{vaultAccessCount !== 1 ? 's' : ''}
+              </Badge>
+            )}
           </div>
-          <div className={`${compact ? 'text-xs' : 'text-sm'} text-plm-fg-muted truncate`}>
-            {user.email}
+          <div className="flex min-w-0 items-center gap-1.5 text-[12px] text-plm-fg-muted">
+            <span className="truncate">{user.email}</span>
+            {/* Last online */}
+            {!compact && formatLastOnline(user.last_online) && (
+              <span className="flex flex-shrink-0 items-center gap-1 text-plm-fg-muted/80">
+                <span aria-hidden>·</span>
+                <Clock size={10} />
+                {formatLastOnline(user.last_online)}
+              </span>
+            )}
           </div>
-          {/* Last online - on its own line */}
-          {!compact && formatLastOnline(user.last_online) && (
-            <div className="flex items-center gap-1 text-plm-fg-dim text-xs mt-0.5">
-              <Clock size={10} />
-              {formatLastOnline(user.last_online)}
-            </div>
-          )}
-          {/* Vault access badge */}
-          {!isAdminUser(user.role, user.teams) && vaultAccessCount > 0 && (
-            <div className="flex items-center gap-1 px-1.5 py-0.5 bg-plm-fg-muted/10 rounded text-plm-fg-dim text-[11px] mt-0.5 w-fit">
-              <Lock size={10} />
-              {vaultAccessCount} vault{vaultAccessCount !== 1 ? 's' : ''}
-            </div>
-          )}
         </div>
       </button>
 
@@ -125,11 +126,11 @@ export function UserRow({
               setTeamsDropdownOpen(false)
               setRolesDropdownOpen(false)
             }}
-            className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors ${
+            className={`inline-flex h-6 items-center gap-1 whitespace-nowrap rounded px-1.5 text-[11px] font-medium transition-colors cursor-pointer ${
               user.job_title
-                ? ''
-                : 'bg-plm-fg-muted/10 text-plm-fg-muted border border-dashed border-plm-border'
-            } hover:ring-1 hover:ring-current cursor-pointer`}
+                ? 'hover:brightness-110'
+                : 'border border-dashed border-plm-border text-plm-fg-muted hover:text-plm-fg'
+            }`}
             style={
               user.job_title
                 ? { backgroundColor: `${user.job_title.color}15`, color: user.job_title.color }
@@ -173,7 +174,7 @@ export function UserRow({
                 {/* View-only mode for non-admins */}
                 {!canManage || !onToggleJobTitle ? (
                   <div className="p-3">
-                    <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-2">
+                    <div className="mb-2 text-[12px] font-medium text-plm-fg-muted">
                       Job Title
                     </div>
                     {user.job_title ? (
@@ -228,7 +229,7 @@ export function UserRow({
                             setTitleSearch('')
                           }}
                           disabled={togglingTitle}
-                          className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors hover:bg-plm-highlight ${
+                          className={`w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-left transition-colors hover:bg-plm-highlight ${
                             !user.job_title ? 'text-plm-fg' : 'text-plm-fg-muted'
                           }`}
                         >
@@ -262,7 +263,7 @@ export function UserRow({
                                 setTitleSearch('')
                               }}
                               disabled={togglingTitle}
-                              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors hover:bg-plm-highlight"
+                              className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-left transition-colors hover:bg-plm-highlight"
                             >
                               <div
                                 className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
@@ -303,11 +304,11 @@ export function UserRow({
                   setRolesDropdownOpen(false)
                   setTitleDropdownOpen(false)
                 }}
-                className={`flex items-center gap-1 px-2 py-1 rounded text-xs whitespace-nowrap transition-colors ${
+                className={`inline-flex h-6 items-center gap-1 whitespace-nowrap rounded px-1.5 text-[11px] font-medium transition-colors cursor-pointer ${
                   (user.teams || []).length > 0
-                    ? 'bg-teal-500/10 text-teal-400'
-                    : 'bg-yellow-500/10 text-yellow-500 border border-dashed border-yellow-500/30'
-                } hover:ring-1 hover:ring-current cursor-pointer`}
+                    ? 'bg-plm-fg-muted/15 text-plm-fg-dim hover:text-plm-fg'
+                    : 'border border-dashed border-plm-warning/40 bg-plm-warning/10 text-plm-warning'
+                }`}
                 title={(user.teams || []).map((t) => t.name).join(', ') || 'No teams assigned'}
               >
                 {(user.teams || []).length > 0 ? (
@@ -351,7 +352,7 @@ export function UserRow({
                     {/* View-only mode for non-admins */}
                     {!canManage || !onToggleTeam ? (
                       <div className="p-3">
-                        <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-2">
+                        <div className="mb-2 text-[12px] font-medium text-plm-fg-muted">
                           Teams
                         </div>
                         {(user.teams || []).length > 0 ? (
@@ -418,7 +419,7 @@ export function UserRow({
                                     setTogglingTeam(null)
                                   }}
                                   disabled={isToggling}
-                                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors hover:bg-plm-highlight"
+                                  className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-left transition-colors hover:bg-plm-highlight"
                                 >
                                   <div
                                     className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
@@ -459,11 +460,11 @@ export function UserRow({
                   setTeamsDropdownOpen(false)
                   setTitleDropdownOpen(false)
                 }}
-                className={`flex items-center gap-1 px-2 py-1 rounded text-xs whitespace-nowrap transition-colors ${
+                className={`inline-flex h-6 items-center gap-1 whitespace-nowrap rounded px-1.5 text-[11px] font-medium transition-colors cursor-pointer ${
                   (userWorkflowRoleIds || []).length > 0
-                    ? 'bg-purple-500/10 text-purple-400'
-                    : 'bg-plm-fg-muted/10 text-plm-fg-muted border border-dashed border-plm-border'
-                } hover:ring-1 hover:ring-current cursor-pointer`}
+                    ? 'bg-plm-accent/15 text-plm-accent hover:bg-plm-accent/20'
+                    : 'border border-dashed border-plm-border text-plm-fg-muted hover:text-plm-fg'
+                }`}
                 title={
                   (userWorkflowRoleIds || [])
                     .map((id) => workflowRoles.find((r) => r.id === id)?.name)
@@ -505,7 +506,7 @@ export function UserRow({
                     {/* View-only mode for non-admins */}
                     {!canManage || !onToggleWorkflowRole ? (
                       <div className="p-3">
-                        <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-2">
+                        <div className="mb-2 text-[12px] font-medium text-plm-fg-muted">
                           Workflow Roles
                         </div>
                         {(userWorkflowRoleIds || []).length > 0 ? (
@@ -574,7 +575,7 @@ export function UserRow({
                                     setTogglingRole(null)
                                   }}
                                   disabled={isToggling}
-                                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors hover:bg-plm-highlight"
+                                  className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-left transition-colors hover:bg-plm-highlight"
                                 >
                                   <div
                                     className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
@@ -615,11 +616,11 @@ export function UserRow({
               // Always allow opening to view - admins can edit, others can just view
               setRolesDropdownOpen(!rolesDropdownOpen)
             }}
-            className={`flex items-center gap-1 px-2 py-1 rounded text-xs whitespace-nowrap transition-colors ${
+            className={`inline-flex h-6 items-center gap-1 whitespace-nowrap rounded px-1.5 text-[11px] font-medium transition-colors cursor-pointer ${
               (userWorkflowRoleIds || []).length > 0
-                ? 'bg-purple-500/10 text-purple-400'
-                : 'bg-plm-fg-muted/10 text-plm-fg-muted border border-dashed border-plm-border'
-            } hover:ring-1 hover:ring-current cursor-pointer`}
+                ? 'bg-plm-accent/15 text-plm-accent hover:bg-plm-accent/20'
+                : 'border border-dashed border-plm-border text-plm-fg-muted hover:text-plm-fg'
+            }`}
             title={
               (userWorkflowRoleIds || [])
                 .map((id) => workflowRoles.find((r) => r.id === id)?.name)
@@ -661,7 +662,7 @@ export function UserRow({
                 {/* View-only mode for non-admins */}
                 {!canManage || !onToggleWorkflowRole ? (
                   <div className="p-3">
-                    <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-2">
+                    <div className="mb-2 text-[12px] font-medium text-plm-fg-muted">
                       Workflow Roles
                     </div>
                     {(userWorkflowRoleIds || []).length > 0 ? (
@@ -726,7 +727,7 @@ export function UserRow({
                                 setTogglingRole(null)
                               }}
                               disabled={isToggling}
-                              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors hover:bg-plm-highlight"
+                              className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-left transition-colors hover:bg-plm-highlight"
                             >
                               <div
                                 className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
@@ -759,8 +760,11 @@ export function UserRow({
         <div className="relative">
           <button
             onClick={() => setActionDropdownOpen(!actionDropdownOpen)}
-            className="p-1.5 text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight rounded transition-colors"
+            className={`rounded-md p-1.5 text-plm-fg-muted transition-all hover:bg-plm-highlight hover:text-plm-fg focus-visible:opacity-100 ${
+              actionDropdownOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+            }`}
             title="More actions"
+            aria-label="More actions"
           >
             <MoreVertical size={16} />
           </button>
@@ -802,7 +806,7 @@ export function UserRow({
                     onViewProfile()
                     setActionDropdownOpen(false)
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-plm-fg hover:bg-plm-highlight transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-left text-plm-fg hover:bg-plm-highlight transition-colors"
                 >
                   <User size={14} />
                   View Profile
@@ -815,7 +819,7 @@ export function UserRow({
                       onViewNetPermissions()
                       setActionDropdownOpen(false)
                     }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-plm-fg hover:bg-plm-highlight transition-colors"
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-left text-plm-fg hover:bg-plm-highlight transition-colors"
                   >
                     <FileKey size={14} />
                     View Net Permissions
@@ -830,7 +834,7 @@ export function UserRow({
                       setActionDropdownOpen(false)
                     }}
                     disabled={isSimulating}
-                    className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors ${
+                    className={`w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-left transition-colors ${
                       isSimulating
                         ? 'text-cyan-400 bg-cyan-400/10'
                         : 'text-plm-fg hover:bg-plm-highlight'
@@ -851,7 +855,7 @@ export function UserRow({
                       onPermissions()
                       setActionDropdownOpen(false)
                     }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-plm-fg hover:bg-plm-highlight transition-colors"
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-left text-plm-fg hover:bg-plm-highlight transition-colors"
                   >
                     <Shield size={14} />
                     Individual Permissions
@@ -865,7 +869,7 @@ export function UserRow({
                       onVaultAccess()
                       setActionDropdownOpen(false)
                     }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-plm-fg hover:bg-plm-highlight transition-colors"
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-left text-plm-fg hover:bg-plm-highlight transition-colors"
                   >
                     <Database size={14} />
                     Manage Vault Access
@@ -881,7 +885,7 @@ export function UserRow({
                         onRemoveFromTeam()
                         setActionDropdownOpen(false)
                       }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-plm-warning hover:bg-plm-warning/10 transition-colors"
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-left text-plm-warning hover:bg-plm-warning/10 transition-colors"
                     >
                       <X size={14} />
                       Remove from Team
@@ -898,7 +902,7 @@ export function UserRow({
                         onRemove()
                         setActionDropdownOpen(false)
                       }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-plm-error hover:bg-plm-error/10 transition-colors"
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-left text-plm-error hover:bg-plm-error/10 transition-colors"
                     >
                       <UserMinus size={14} />
                       Remove from Organization

@@ -72,29 +72,33 @@ export function SolidWorksSettings() {
   return (
     <div className={`space-y-6 ${width}`}>
       {/* Tab Navigation */}
-      <div className="border-b border-plm-border">
-        <nav className="flex gap-1" aria-label="SolidWorks Settings Tabs">
-          {visibleTabs.map((tab) => {
-            const Icon = tab.icon
-            const isActive = currentTab === tab.id
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-                  isActive
-                    ? 'border-plm-accent text-plm-accent'
-                    : 'border-transparent text-plm-fg-muted hover:text-plm-fg hover:border-plm-fg-dim'
-                }`}
-                aria-current={isActive ? 'page' : undefined}
-              >
-                <Icon size={16} />
-                {tab.label}
-              </button>
-            )
-          })}
-        </nav>
-      </div>
+      <nav
+        className="flex gap-5 border-b border-plm-border"
+        role="tablist"
+        aria-label="SolidWorks Settings Tabs"
+      >
+        {visibleTabs.map((tab) => {
+          const Icon = tab.icon
+          const isActive = currentTab === tab.id
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              onClick={() => setActiveTab(tab.id)}
+              className={`-mb-px flex items-center gap-1.5 border-b-2 pb-2.5 pt-1 text-[13px] font-medium transition-colors outline-none focus-visible:text-plm-fg ${
+                isActive
+                  ? 'border-plm-accent text-plm-fg'
+                  : 'border-transparent text-plm-fg-muted hover:text-plm-fg'
+              }`}
+            >
+              <Icon size={14} className={isActive ? 'text-plm-accent' : ''} />
+              {tab.label}
+            </button>
+          )
+        })}
+      </nav>
 
       {/* Tab Content */}
       <div className="min-h-[400px]">{renderTabContent()}</div>

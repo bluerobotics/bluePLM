@@ -279,7 +279,9 @@ function FileRowView({
         type="button"
         onClick={() => onToggleCollapsed(group.fileId)}
         aria-expanded={!collapsed}
-        title={collapsed ? t('vaultAudit.findings.expandFile') : t('vaultAudit.findings.collapseFile')}
+        title={
+          collapsed ? t('vaultAudit.findings.expandFile') : t('vaultAudit.findings.collapseFile')
+        }
         className="p-0.5 rounded text-plm-fg-muted hover:text-plm-fg"
       >
         <Chevron size={14} />
@@ -295,7 +297,11 @@ function FileRowView({
             onClick={() => onToggleFile(group)}
           />
         ) : allSettled ? (
-          <Check size={13} className="text-plm-success" aria-label={t('vaultAudit.findings.settled')} />
+          <Check
+            size={13}
+            className="text-plm-success"
+            aria-label={t('vaultAudit.findings.settled')}
+          />
         ) : null}
       </span>
 
@@ -370,7 +376,11 @@ function ValueRowView({ row, disabled, onToggle, onChooseConflict }: ValueRowVie
     >
       <div role="cell" className="pl-7 pr-1 py-2">
         {row.settled ? (
-          <Check size={12} className="text-plm-success" aria-label={t('vaultAudit.findings.settled')} />
+          <Check
+            size={12}
+            className="text-plm-success"
+            aria-label={t('vaultAudit.findings.settled')}
+          />
         ) : row.selectable ? (
           <input
             type="checkbox"
@@ -404,7 +414,9 @@ function ValueRowView({ row, disabled, onToggle, onChooseConflict }: ValueRowVie
         <ValueCell value={finding.fileValue} segments={comparison?.file ?? null} />
       </div>
       <div role="cell" className="px-2 py-2 min-w-0 text-plm-fg-muted">
-        <span title={resolutionHint(finding.resolution)}>{resolutionLabel(finding.resolution)}</span>
+        <span title={resolutionHint(finding.resolution)}>
+          {resolutionLabel(finding.resolution)}
+        </span>
         {isConflict && row.conflict && (
           <div className="mt-1 flex flex-wrap gap-1">
             {finding.field !== 'revision' && (
@@ -485,7 +497,7 @@ export function VaultAuditFileList({
     >
       <div
         role="row"
-        className={`${VALUE_GRID} items-center py-1.5 text-[11px] uppercase tracking-wide bg-plm-bg-lighter text-plm-fg-muted border-b border-plm-border flex-shrink-0`}
+        className={`${VALUE_GRID} items-center py-1.5 text-[12px] font-medium bg-plm-bg-lighter text-plm-fg-muted border-b border-plm-border flex-shrink-0`}
       >
         <div role="columnheader" className="pl-2">
           <TriStateBox
