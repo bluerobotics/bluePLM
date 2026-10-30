@@ -167,6 +167,31 @@ describe('backup and restore', () => {
     expect(fs.readdirSync(path.join(tmp, 'repo'), { recursive: true }).some((f) => String(f).endsWith('.partial'))).toBe(false)
   })
 
+  it('backs up an object not named by its hash (the organization logo) under the hash of its bytes', async () => {
+    const repo = await newRepo()
+    const org = seedOrg(1)
+    const logo = seededBytes('logo', 4321)
+    org.objects.set(`${org.orgId}/_assets/logo.png`, logo)
+    const run = await backup(repo, org)
+    expect(run.problems).toEqual([])
+    const entry = (await repo.readObjects(run.manifest)).find((e) => e.name.endsWith('_assets/logo.png'))
+    expect(entry).toMatchObject({ size: logo.length, hash: crypto.createHash('sha256').update(logo).digest('hex') })
+    await expect(repo.checkBlob(entry!.hash)).resolves.toEqual({ size: logo.length })
+    expect((await backup(repo, org)).stats.objectsUploaded).toBe(0)
+  })
+
+  it('reports a damaged object once; later runs list it as known and are not warnings', async () => {
+    const repo = await newRepo()
+    const org = seedOrg(2)
+    org.checkIn('Parts/old.sldprt', seededBytes('old', 2000))
+    org.corrupt('Parts/old.sldprt')
+    const first = await backup(repo, org, new Date('2026-10-30T09:00:00Z'))
+    expect(seriousProblems(first.problems)).toHaveLength(1)
+    const second = await backup(repo, org, new Date('2026-10-31T09:00:00Z'))
+    expect(second.problems).toEqual([expect.objectContaining({ kind: 'corrupt_source', known: true })])
+    expect(seriousProblems(second.problems)).toEqual([])
+  })
+
   it('retries a read that fails once, and reports one that keeps failing', async () => {
     const repo = await newRepo()
     const org = seedOrg(2)

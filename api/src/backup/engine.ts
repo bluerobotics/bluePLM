@@ -17,8 +17,9 @@
  *   written, either uploaded in this run or present in the repository.
  */
 
-import { BackupRepository, newSnapshotId, type SnapshotManifest, type SnapshotObjectEntry, type SnapshotProblem, type SnapshotTrigger } from './repository.js'
-import { ContentMismatchError } from './crypto.js'
+import { BackupRepository, newSnapshotId, streamToBuffer, type SnapshotManifest, type SnapshotObjectEntry, type SnapshotProblem, type SnapshotTrigger } from './repository.js'
+import { ContentMismatchError, sha256Hex } from './crypto.js'
+import { Readable } from 'node:stream'
 import { BACKUP_TABLES, hashFromObjectName, type BackupSource, type BackupTable } from './source.js'
 
 export interface BackupLogger {
@@ -131,6 +132,7 @@ export async function runServerBackup(options: BackupRunOptions): Promise<Backup
     after = page[page.length - 1].name
   }
   const existing = await repo.listBlobs()
+  const unaddressed: Array<{ name: string; size: number }> = []
   const entries: SnapshotObjectEntry[] = []
   const pending: Array<{ name: string; hash: string; size: number }> = []
   const duplicates: Array<{ name: string; hash: string; size: number }> = []
@@ -140,7 +142,9 @@ export async function runServerBackup(options: BackupRunOptions): Promise<Backup
   for (const object of objects) {
     const hash = hashFromObjectName(object.name)
     if (!hash) {
-      problems.push({ kind: 'not_content_addressed', name: object.name, detail: 'Object name is not a SHA-256 hash; not backed up.' })
+      // Not named by its content (the organization logo, `_assets/...`): stored under the hash
+      // of what is read, after the content-addressed objects.
+      unaddressed.push(object)
       continue
     }
     const stored = existing.get(repo.blobKey(hash))
@@ -216,6 +220,32 @@ export async function runServerBackup(options: BackupRunOptions): Promise<Backup
   await Promise.all(workers)
   for (const item of duplicates) await uploadOne(item)
 
+  // Objects not named by their hash: read whole (they are small assets), hashed, stored by that.
+  for (const object of unaddressed) {
+    if (object.size > MAX_UNADDRESSED_BYTES) {
+      problems.push({
+        kind: 'not_content_addressed',
+        name: object.name,
+        detail: `Not named by its content hash and larger than ${MAX_UNADDRESSED_BYTES / 1024 / 1024} MB; not backed up.`,
+      })
+      continue
+    }
+    try {
+      const bytes = await streamToBuffer(await source.openObject(object.name))
+      const hash = sha256Hex(bytes)
+      if (!existing.has(repo.blobKey(hash)) && !uploaded.has(hash)) {
+        await repo.putBlob(hash, bytes.length, Readable.from([bytes]))
+        uploaded.set(hash, bytes.length)
+        bytesUploaded += bytes.length
+        objectsUploaded++
+      }
+      entries.push({ name: object.name, hash, size: bytes.length })
+      bytesTotal += bytes.length
+    } catch (err) {
+      problems.push({ kind: 'unreadable_source', name: object.name, detail: err instanceof Error ? err.message : String(err) })
+    }
+  }
+
   // 3. Commit.
   await onProgress?.({ phase: 'commit', objectsDone: done, objectsTotal: objects.length, bytesUploaded })
   entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
@@ -223,6 +253,7 @@ export async function runServerBackup(options: BackupRunOptions): Promise<Backup
   for (const table of tablesMissing) {
     problems.push({ kind: 'table_missing', name: table, detail: 'The module that holds this table is not installed.' })
   }
+  await markKnownProblems(repo, problems)
   const manifest: SnapshotManifest = {
     format: 'blueplm-server-snapshot',
     version: 1,
@@ -261,5 +292,24 @@ export async function runServerBackup(options: BackupRunOptions): Promise<Backup
 
 /** Problems that make a run a warning rather than a clean success (missing modules are not). */
 export function seriousProblems(problems: SnapshotProblem[]): SnapshotProblem[] {
-  return problems.filter((p) => p.kind !== 'table_missing')
+  return problems.filter((p) => p.kind !== 'table_missing' && !p.known)
+}
+
+/** Objects not named by their hash larger than this are reported, not read into memory. */
+const MAX_UNADDRESSED_BYTES = 64 * 1024 * 1024
+
+/**
+ * Marks problems the newest committed snapshot already reported (same kind, object and detail)
+ * as known. A repository whose newest manifest cannot be read marks nothing: every problem is
+ * then reported as new, which is the safe direction.
+ */
+async function markKnownProblems(repo: BackupRepository, problems: SnapshotProblem[]): Promise<void> {
+  if (problems.length === 0) return
+  const { manifests } = await repo.listSnapshots().catch(() => ({ manifests: [] as SnapshotManifest[] }))
+  const previous = manifests[manifests.length - 1]
+  if (!previous) return
+  const seen = new Set(previous.problems.map((p) => `${p.kind}|${p.name}|${p.detail}`))
+  for (const problem of problems) {
+    if (seen.has(`${problem.kind}|${problem.name}|${problem.detail}`)) problem.known = true
+  }
 }

@@ -79,6 +79,12 @@ export interface SnapshotProblem {
   kind: 'corrupt_source' | 'unreadable_source' | 'not_content_addressed' | 'table_missing'
   name: string
   detail: string
+  /**
+   * The previous snapshot reported the same problem. It is still listed, but does not make the
+   * run a warning again: a damaged object found once would otherwise warn (and notify admins)
+   * every night.
+   */
+  known?: boolean
 }
 
 export interface SnapshotManifest {
