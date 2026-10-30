@@ -9,11 +9,13 @@
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import process from 'node:process'
 
 const root = resolve(import.meta.dirname, '..')
+
 function readEnv() {
   const env = {}
-  const text = readFileSync(resolve(root, '.env'), 'utf8').replace(/^﻿/, '')
+  const text = readFileSync(resolve(root, '.env'), 'utf8').replace(/^\uFEFF/, '')
   for (const line of text.split(/\r?\n/)) {
     const match = line.match(/^([A-Z0-9_]+)=(.*)$/)
     if (match) env[match[1]] = match[2].trim().replace(/^["']|["']$/g, '')
@@ -24,7 +26,7 @@ function readEnv() {
 const { SUPABASE_PROJECT_ID: ref, SUPABASE_ACCESS_TOKEN: token } = readEnv()
 if (!ref || !token) throw new Error('SUPABASE_PROJECT_ID and SUPABASE_ACCESS_TOKEN must be set in .env')
 
-const response = await fetch(`https://api.supabase.com/v1/projects/${ref}/api-keys`, {
+const response = await globalThis.fetch(`https://api.supabase.com/v1/projects/${ref}/api-keys`, {
   headers: { Authorization: `Bearer ${token}` },
 })
 if (!response.ok) throw new Error(`Supabase API keys request failed: ${response.status}`)
