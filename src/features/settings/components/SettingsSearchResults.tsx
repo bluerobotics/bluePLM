@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { ChevronRight, SearchX } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { useTranslation } from '@/lib/i18n'
 import { highlightSegments } from '@/lib/fuzzySearch'
@@ -11,7 +11,7 @@ function Highlighted({ text, positions }: { text: string; positions: readonly nu
     <>
       {highlightSegments(text, positions).map((segment, i) =>
         segment.match ? (
-          <mark key={i} className="bg-transparent text-ui-accent font-semibold">
+          <mark key={i} className="bg-transparent font-semibold text-ui-fg">
             {segment.text}
           </mark>
         ) : (
@@ -41,12 +41,13 @@ export function SettingsSearchResults() {
   if (hits.length === 0) {
     return (
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="flex flex-col items-center justify-center gap-1.5 py-24 text-ui-fg-secondary">
-          <SearchX size={20} className="mb-1 opacity-60" />
-          <div className="text-[14px] font-medium text-ui-fg">
+        <div className="space-y-1 px-4 pb-12 pt-5">
+          <div className="text-[16px] font-semibold text-ui-fg">
             {t('settings.searchNoResults', { query })}
           </div>
-          <div className="text-[13px]">{t('settings.searchNoResultsHint')}</div>
+          <div className="text-[14px] text-ui-fg-secondary">
+            {t('settings.searchNoResultsHint')}
+          </div>
         </div>
       </div>
     )
@@ -59,64 +60,65 @@ export function SettingsSearchResults() {
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto max-w-[860px] px-8 pb-16 pt-7">
-        <div className="mb-6 flex items-baseline justify-between gap-4">
-          <span className="text-[14px] text-ui-fg-secondary">
+      <div className="px-4 pb-12 pt-5">
+        <div className="flex items-baseline justify-between gap-4 pb-1">
+          <h3 className="text-[16px] font-semibold leading-6 text-ui-fg">
             {hits.length === 1
               ? t('settings.searchResultCountOne')
               : t('settings.searchResultCount', { count: hits.length })}
+          </h3>
+          <span className="text-[13px] text-ui-fg-secondary">
+            {t('settings.searchKeyboardHint')}
           </span>
-          <span className="text-[13px] text-ui-fg-secondary">{t('settings.searchKeyboardHint')}</span>
         </div>
 
-        <div className="space-y-6">
-          {groups.map((group, g) => (
-            <section key={group.tab} className="space-y-2">
-              <div className="flex items-center gap-1.5 text-[13px] text-ui-fg-secondary">
-                <span>{group.category}</span>
-                <ChevronRight size={12} className="opacity-60" />
-                <span className="text-[14px] font-semibold text-ui-fg">
-                  <Highlighted text={group.tabLabel} positions={group.tabLabelPositions} />
-                </span>
-              </div>
-              <SettingsGroup>
-                {group.settings.map((hit, i) => {
-                  const index = groupStarts[g] + i
-                  const isActive = index === activeIndex
-                  return (
-                    <button
-                      key={`${hit.entry.label}:${i}`}
-                      ref={isActive ? activeRef : undefined}
-                      type="button"
-                      onMouseMove={() => {
-                        if (!isActive) setActiveIndex(index)
-                      }}
-                      onClick={() => openSettingFromSearch(hit.entry.tab, hit.entry.label)}
-                      className={`flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-[14px] outline-none transition-colors ${
-                        isActive ? 'bg-ui-hover text-ui-fg' : 'text-ui-fg'
-                      }`}
-                    >
-                      <span className="truncate">
+        <SettingsGroup>
+          {groups.flatMap((group, g) =>
+            group.settings.map((hit, i) => {
+              const index = groupStarts[g] + i
+              const isActive = index === activeIndex
+              return (
+                <div key={`${group.tab}:${hit.entry.label}:${i}`} className="py-1">
+                  <button
+                    ref={isActive ? activeRef : undefined}
+                    type="button"
+                    onMouseMove={() => {
+                      if (!isActive) setActiveIndex(index)
+                    }}
+                    onClick={() => openSettingFromSearch(hit.entry.tab, hit.entry.label)}
+                    className={`-mx-2 flex w-[calc(100%+1rem)] items-center justify-between gap-3 rounded-lg px-2 py-2 text-left outline-none transition-colors ${
+                      isActive ? 'bg-ui-hover' : ''
+                    }`}
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-[14px] text-ui-fg">
                         <Highlighted text={hit.entry.label} positions={hit.labelPositions} />
                       </span>
-                      <span className="flex flex-shrink-0 items-center gap-2">
+                      <span className="mt-0.5 flex items-center gap-1 truncate text-[13px] text-ui-fg-secondary">
+                        <span>{group.category}</span>
+                        <ChevronRight size={12} aria-hidden className="flex-shrink-0" />
+                        <span>
+                          <Highlighted text={group.tabLabel} positions={group.tabLabelPositions} />
+                        </span>
                         {hit.matchedKeyword && hit.labelPositions.length === 0 && (
-                          <span className="text-[13px] text-ui-fg-secondary">
+                          <span>
+                            {' · '}
                             {t('settings.searchMatchedKeyword', { keyword: hit.matchedKeyword })}
                           </span>
                         )}
-                        <ChevronRight
-                          size={14}
-                          className={isActive ? 'text-ui-accent' : 'text-ui-fg-secondary/50'}
-                        />
                       </span>
-                    </button>
-                  )
-                })}
-              </SettingsGroup>
-            </section>
-          ))}
-        </div>
+                    </span>
+                    <ChevronRight
+                      size={16}
+                      aria-hidden
+                      className={`flex-shrink-0 ${isActive ? 'text-ui-fg' : 'text-ui-fg-secondary'}`}
+                    />
+                  </button>
+                </div>
+              )
+            }),
+          )}
+        </SettingsGroup>
       </div>
     </div>
   )

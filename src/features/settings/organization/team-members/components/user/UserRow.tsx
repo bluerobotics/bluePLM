@@ -1,26 +1,23 @@
 // User Row Component - displays a single user with inline dropdown menus
 import { useState } from 'react'
 import {
-  Users,
   Shield,
   ChevronDown,
   Search,
   Check,
   Lock,
-  UserX,
   MoreVertical,
   User,
   FileKey,
   UserCog,
   Database,
   UserMinus,
-  Clock,
   Loader2,
   X,
 } from 'lucide-react'
-import { Badge } from '@/components/core/ui'
+import { Badge, Button } from '@/components/core/ui'
 import { isAdminUser } from '@/lib/isAdminUser'
-import { getInitials, getEffectiveAvatarUrl, getAvatarColor } from '@/lib/utils'
+import { getInitials, getEffectiveAvatarUrl } from '@/lib/utils'
 import { formatLastOnline, getTitleIcon, getTeamIcon, getRoleIcon } from '../../utils'
 import type { UserRowProps } from '../../types'
 
@@ -66,14 +63,13 @@ export function UserRow({
 
   return (
     <div
-      className={`group flex items-center gap-3 ${compact ? 'px-1 py-2' : 'px-4 py-2.5'} transition-colors hover:bg-ui-hover/40`}
+      className={`group flex items-center gap-3 ${compact ? 'py-2' : 'py-3'}`}
     >
       <button
         onClick={onViewProfile}
         className="flex min-w-0 flex-1 items-center gap-3 rounded text-left outline-none focus-visible:ring-2 focus-visible:ring-ui-accent/60"
       >
         {(() => {
-          const avatarColors = getAvatarColor(user.email || user.full_name)
           return getEffectiveAvatarUrl(user) ? (
             <img
               src={getEffectiveAvatarUrl(user)!}
@@ -83,14 +79,14 @@ export function UserRow({
             />
           ) : (
             <div
-              className={`${compact ? 'h-7 w-7 text-[12px]' : 'h-8 w-8 text-[13px]'} flex flex-shrink-0 items-center justify-center rounded-full font-medium ${avatarColors.bg} ${avatarColors.text}`}
+              className={`${compact ? 'h-7 w-7 text-[12px]' : 'h-8 w-8 text-[13px]'} flex flex-shrink-0 items-center justify-center rounded-full bg-ui-selected font-medium text-ui-fg`}
             >
               {getInitials(user.full_name || user.email)}
             </div>
           )
         })()}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 text-[14px] font-medium text-ui-fg">
+          <div className="flex items-center gap-2 text-[14px] text-ui-fg">
             <span className="truncate">{user.full_name || user.email}</span>
             {isCurrentUser && (
               <span className="text-[13px] font-normal text-ui-fg-secondary">(you)</span>
@@ -106,9 +102,8 @@ export function UserRow({
             <span className="truncate">{user.email}</span>
             {/* Last online */}
             {!compact && formatLastOnline(user.last_online_at) && (
-              <span className="flex flex-shrink-0 items-center gap-1 text-ui-fg-secondary/80">
+              <span className="flex flex-shrink-0 items-center gap-1.5">
                 <span aria-hidden>·</span>
-                <Clock size={10} />
                 {formatLastOnline(user.last_online_at)}
               </span>
             )}
@@ -126,21 +121,10 @@ export function UserRow({
               setTeamsDropdownOpen(false)
               setRolesDropdownOpen(false)
             }}
-            className={`inline-flex h-6 items-center gap-1 whitespace-nowrap rounded px-1.5 text-[12px] font-medium transition-colors cursor-pointer ${
-              user.job_title
-                ? 'hover:brightness-110'
-                : 'border border-dashed border-ui-divider text-ui-fg-secondary hover:text-ui-fg'
+            className={`inline-flex h-6 items-center gap-1 whitespace-nowrap rounded-md px-1.5 text-[12px] font-medium transition-colors cursor-pointer ${
+              user.job_title ? 'bg-ui-field text-ui-fg-secondary hover:text-ui-fg' : 'text-ui-fg-secondary hover:bg-ui-hover hover:text-ui-fg'
             }`}
-            style={
-              user.job_title
-                ? { backgroundColor: `${user.job_title.color}15`, color: user.job_title.color }
-                : {}
-            }
           >
-            {(() => {
-              const TitleIcon = getTitleIcon(user.job_title?.icon)
-              return <TitleIcon size={12} />
-            })()}
             {user.job_title?.name || 'No title'}
             <ChevronDown size={12} />
           </button>
@@ -304,25 +288,19 @@ export function UserRow({
                   setRolesDropdownOpen(false)
                   setTitleDropdownOpen(false)
                 }}
-                className={`inline-flex h-6 items-center gap-1 whitespace-nowrap rounded px-1.5 text-[12px] font-medium transition-colors cursor-pointer ${
+                className={`inline-flex h-6 items-center gap-1 whitespace-nowrap rounded-md px-1.5 text-[12px] font-medium transition-colors cursor-pointer ${
                   (user.teams || []).length > 0
-                    ? 'bg-ui-fg-secondary/15 text-ui-fg hover:text-ui-fg'
-                    : 'border border-dashed border-ui-warning/40 bg-ui-warning/10 text-ui-warning'
+                    ? 'bg-ui-field text-ui-fg-secondary hover:text-ui-fg'
+                    : 'bg-ui-warning/15 text-ui-warning'
                 }`}
                 title={(user.teams || []).map((t) => t.name).join(', ') || 'No teams assigned'}
               >
                 {(user.teams || []).length > 0 ? (
-                  <>
-                    <Users size={12} />
-                    <span>
-                      {(user.teams || []).length} team{(user.teams || []).length !== 1 ? 's' : ''}
-                    </span>
-                  </>
+                  <span>
+                    {(user.teams || []).length} team{(user.teams || []).length !== 1 ? 's' : ''}
+                  </span>
                 ) : (
-                  <>
-                    <UserX size={12} />
-                    <span>Unassigned</span>
-                  </>
+                  <span>Unassigned</span>
                 )}
                 <ChevronDown size={12} />
               </button>
@@ -460,10 +438,10 @@ export function UserRow({
                   setTeamsDropdownOpen(false)
                   setTitleDropdownOpen(false)
                 }}
-                className={`inline-flex h-6 items-center gap-1 whitespace-nowrap rounded px-1.5 text-[12px] font-medium transition-colors cursor-pointer ${
+                className={`inline-flex h-6 items-center gap-1 whitespace-nowrap rounded-md px-1.5 text-[12px] font-medium transition-colors cursor-pointer ${
                   (userWorkflowRoleIds || []).length > 0
-                    ? 'bg-ui-accent/15 text-ui-accent hover:bg-ui-accent/20'
-                    : 'border border-dashed border-ui-divider text-ui-fg-secondary hover:text-ui-fg'
+                    ? 'bg-ui-field text-ui-fg-secondary hover:text-ui-fg'
+                    : 'text-ui-fg-secondary hover:bg-ui-hover hover:text-ui-fg'
                 }`}
                 title={
                   (userWorkflowRoleIds || [])
@@ -472,7 +450,6 @@ export function UserRow({
                     .join(', ') || 'No roles assigned'
                 }
               >
-                <Shield size={12} />
                 <span>
                   {(userWorkflowRoleIds || []).length > 0
                     ? `${(userWorkflowRoleIds || []).length} role${(userWorkflowRoleIds || []).length !== 1 ? 's' : ''}`
@@ -616,10 +593,10 @@ export function UserRow({
               // Always allow opening to view - admins can edit, others can just view
               setRolesDropdownOpen(!rolesDropdownOpen)
             }}
-            className={`inline-flex h-6 items-center gap-1 whitespace-nowrap rounded px-1.5 text-[12px] font-medium transition-colors cursor-pointer ${
+            className={`inline-flex h-6 items-center gap-1 whitespace-nowrap rounded-md px-1.5 text-[12px] font-medium transition-colors cursor-pointer ${
               (userWorkflowRoleIds || []).length > 0
-                ? 'bg-ui-accent/15 text-ui-accent hover:bg-ui-accent/20'
-                : 'border border-dashed border-ui-divider text-ui-fg-secondary hover:text-ui-fg'
+                ? 'bg-ui-field text-ui-fg-secondary hover:text-ui-fg'
+                : 'text-ui-fg-secondary hover:bg-ui-hover hover:text-ui-fg'
             }`}
             title={
               (userWorkflowRoleIds || [])
@@ -628,7 +605,6 @@ export function UserRow({
                 .join(', ') || 'No roles'
             }
           >
-            <Shield size={12} />
             <span>
               {(userWorkflowRoleIds || []).length > 0
                 ? `${(userWorkflowRoleIds || []).length} role${(userWorkflowRoleIds || []).length !== 1 ? 's' : ''}`
@@ -758,16 +734,17 @@ export function UserRow({
       {/* Actions dropdown */}
       {(canManage || isRealAdmin) && (
         <div className="relative">
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => setActionDropdownOpen(!actionDropdownOpen)}
-            className={`rounded-md p-1.5 text-ui-fg-secondary transition-all hover:bg-ui-hover hover:text-ui-fg focus-visible:opacity-100 ${
+            className={`!px-1.5 focus-visible:opacity-100 ${
               actionDropdownOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
             }`}
+            icon={<MoreVertical size={16} />}
             title="More actions"
             aria-label="More actions"
-          >
-            <MoreVertical size={16} />
-          </button>
+          />
 
           {actionDropdownOpen && (
             <>
@@ -836,7 +813,7 @@ export function UserRow({
                     disabled={isSimulating}
                     className={`w-full flex items-center gap-2 px-3 py-1.5 text-[14px] text-left transition-colors ${
                       isSimulating
-                        ? 'text-cyan-400 bg-cyan-400/10'
+                        ? 'bg-ui-selected text-ui-fg'
                         : 'text-ui-fg hover:bg-ui-hover'
                     }`}
                   >

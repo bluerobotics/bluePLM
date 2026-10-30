@@ -105,16 +105,16 @@ export function VaultAuditOverview({ view, artifactPath }: VaultAuditOverviewPro
           <FileWarning size={16} className="text-ui-warning mt-0.5 flex-shrink-0" />
         )}
         <div className="min-w-0">
-          <p className="text-[13px] text-ui-fg">{headlineTextOf(view, tone)}</p>
+          <p className="text-[14px] text-ui-fg">{headlineTextOf(view, tone)}</p>
           {unmatchedFolderPath && (
-            <p className="text-[12px] text-ui-fg-secondary mt-1">
+            <p className="text-[13px] text-ui-fg-secondary mt-1">
               {t('vaultAudit.result.folderMatchedNothingAnywhere', {
                 path: unmatchedFolderPath,
                 vault: view.scopeDescription.vaultPath,
               })}
             </p>
           )}
-          <p className="text-[12px] text-ui-fg-secondary mt-0.5">
+          <p className="text-[13px] text-ui-fg-secondary mt-0.5">
             {t('vaultAudit.result.scanned', {
               files: view.filesCompared,
               seconds: Math.round(view.durationMs / MS_PER_SECOND),
@@ -128,32 +128,32 @@ export function VaultAuditOverview({ view, artifactPath }: VaultAuditOverviewPro
       </div>
 
       {view.cancelled && (
-        <p className="text-[12px] text-ui-warning flex items-start gap-1.5">
+        <p className="text-[13px] text-ui-warning flex items-start gap-1.5">
           <AlertTriangle size={13} className="mt-0.5 flex-shrink-0" />
           {t('vaultAudit.result.cancelledNote')}
         </p>
       )}
 
       {notCompared.length > 0 && (
-        <p className="text-[12px] text-ui-fg-secondary">
+        <p className="text-[13px] text-ui-fg-secondary">
           {t('vaultAudit.notCompared.heading')}: {notCompared.join(' · ')}
         </p>
       )}
 
       {notRead.length > 0 && (
-        <p className="text-[12px] text-ui-fg-secondary">
+        <p className="text-[13px] text-ui-fg-secondary">
           {t('vaultAudit.unread.heading')}: {notRead.join(' · ')}
         </p>
       )}
 
       {view.integrity.filesChanged > 0 ? (
-        <p className="text-[12px] text-ui-danger flex items-start gap-1.5">
+        <p className="text-[13px] text-ui-danger flex items-start gap-1.5">
           <AlertTriangle size={13} className="mt-0.5 flex-shrink-0" />
           {t('vaultAudit.integrity.changed', { count: view.integrity.filesChanged })}
         </p>
       ) : (
         view.integrity.filesHashed > 0 && (
-          <p className="text-[12px] text-ui-fg-secondary flex items-start gap-1.5">
+          <p className="text-[13px] text-ui-fg-secondary flex items-start gap-1.5">
             <ShieldCheck size={13} className="mt-0.5 flex-shrink-0 text-ui-success" />
             {t('vaultAudit.integrity.verified', { count: view.integrity.filesHashed })}
           </p>
@@ -161,13 +161,13 @@ export function VaultAuditOverview({ view, artifactPath }: VaultAuditOverviewPro
       )}
 
       {view.noEvidenceValues > 0 && (
-        <p className="text-[12px] text-ui-fg-secondary">
+        <p className="text-[13px] text-ui-fg-secondary">
           {t('vaultAudit.result.noEvidence', { count: view.noEvidenceValues })}
         </p>
       )}
 
       {artifactPath && (
-        <p className="text-[12px] text-ui-fg-secondary font-mono break-all">
+        <p className="text-[13px] text-ui-fg-secondary font-mono break-all">
           {t('vaultAudit.result.artifact', { path: artifactPath })}
         </p>
       )}

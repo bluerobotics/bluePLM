@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import {
-  Shield,
   RefreshCw,
   Eye,
   EyeOff,
@@ -321,64 +320,52 @@ export function ApiSettings() {
 
   return (
     <SettingsPage>
-      <SettingsSection
-        title="Server Status"
-        actions={
-          apiUrl ? (
-            <Button
-              size="sm"
-              onClick={checkApiStatus}
-              disabled={apiStatus === 'checking'}
-              icon={
-                <RefreshCw size={14} className={apiStatus === 'checking' ? 'animate-spin' : ''} />
-              }
-            >
-              Refresh
-            </Button>
-          ) : undefined
-        }
-      >
+      <SettingsSection title="Server Status">
         <SettingsGroup>
           <SettingRow
-            label={
+            label="API server"
+            badge={
               <span className="flex items-center gap-2">
                 <span className={`h-2 w-2 flex-shrink-0 rounded-full ${statusDot}`} aria-hidden />
-                {apiStatus === 'online' && 'API Server Online'}
-                {apiStatus === 'offline' && 'API Server Offline'}
-                {apiStatus === 'checking' && 'Checking...'}
-                {apiStatus === 'unknown' &&
-                  (apiUrl ? 'Status Unknown' : 'No API server configured')}
+                {apiVersion && (
+                  <Badge tone={versionCheck?.status === 'current' ? 'success' : 'warning'}>
+                    v{apiVersion}
+                  </Badge>
+                )}
               </span>
             }
-            badge={
-              apiVersion ? (
-                <Badge tone={versionCheck?.status === 'current' ? 'success' : 'warning'}>
-                  v{apiVersion}
-                </Badge>
-              ) : undefined
-            }
             description={
-              apiUrl ? (
-                <span className="flex flex-wrap items-center gap-2">
-                  {versionCheck && versionCheck.status !== 'current' && (
-                    <span className="text-ui-warning">(expected v{EXPECTED_API_VERSION})</span>
-                  )}
-                  {apiBuild && <code className="font-mono text-ui-fg">{apiBuild}</code>}
-                  {lastChecked && <span>Checked {lastChecked.toLocaleTimeString()}</span>}
+              <span className="flex flex-wrap items-center gap-x-2">
+                <span>
+                  {apiStatus === 'online' && 'API Server Online'}
+                  {apiStatus === 'offline' && 'API Server Offline'}
+                  {apiStatus === 'checking' && 'Checking...'}
+                  {apiStatus === 'unknown' &&
+                    (apiUrl ? 'Status Unknown' : 'No API server configured')}
                 </span>
-              ) : undefined
+                {apiUrl && versionCheck && versionCheck.status !== 'current' && (
+                  <span>(expected v{EXPECTED_API_VERSION})</span>
+                )}
+                {apiUrl && apiBuild && <code className="font-mono">{apiBuild}</code>}
+                {apiUrl && lastChecked && (
+                  <span>Checked {lastChecked.toLocaleTimeString()}</span>
+                )}
+              </span>
             }
           >
             {apiUrl && (
-              <a
-                href={`${apiUrl}/docs`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-[13px] text-ui-accent hover:underline"
+              <Button
+                onClick={checkApiStatus}
+                disabled={apiStatus === 'checking'}
+                icon={
+                  <RefreshCw
+                    size={14}
+                    className={apiStatus === 'checking' ? 'animate-spin' : ''}
+                  />
+                }
               >
-                <ExternalLink size={14} />
-                Open API Documentation (Swagger)
-              </a>
+                Refresh
+              </Button>
             )}
           </SettingRow>
 
@@ -386,7 +373,7 @@ export function ApiSettings() {
             label="API Server URL"
             badge={
               !isAdmin ? (
-                <Badge icon={<Shield size={10} />}>Admin required to edit</Badge>
+                <Badge>Admin required to edit</Badge>
               ) : undefined
             }
             description={
@@ -417,7 +404,7 @@ export function ApiSettings() {
               </div>
             ) : apiUrl ? (
               <>
-                <code className="max-w-[320px] truncate font-mono text-[13px] text-ui-fg">
+                <code className="max-w-[320px] truncate font-mono text-[13px] text-ui-fg-secondary">
                   {apiUrl}
                 </code>
                 {isAdmin && (
@@ -446,6 +433,20 @@ export function ApiSettings() {
               <span className="text-[13px] text-ui-fg-secondary">No API server configured</span>
             )}
           </SettingRow>
+
+          {apiUrl && (
+            <SettingRow label="API documentation">
+              <a
+                href={`${apiUrl}/docs`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-[14px] text-ui-accent hover:underline"
+              >
+                Open API Documentation (Swagger)
+                <ExternalLink size={13} />
+              </a>
+            </SettingRow>
+          )}
         </SettingsGroup>
 
         {apiUrl &&
@@ -453,6 +454,7 @@ export function ApiSettings() {
           versionCheck.status !== 'current' &&
           versionCheck.status !== 'unknown' && (
             <Callout
+              className="mt-3"
               tone={versionCheck.status === 'incompatible' ? 'error' : 'warning'}
               title={versionCheck.message}
             >
@@ -461,9 +463,9 @@ export function ApiSettings() {
           )}
 
         {apiUrl && apiStatus === 'offline' && (
-          <Callout tone="info" title="Need to deploy?">
-            <p>Deploy to Railway or Render in 5 min.</p>
-            <div className="mt-1 flex gap-3">
+          <p className="pt-3 text-[14px] leading-[1.4] text-ui-fg-secondary">
+            Need to deploy? Deploy to Railway or Render in 5 min:{' '}
+            <span className="inline-flex gap-3">
               <a
                 href="https://railway.app/new"
                 target="_blank"
@@ -488,8 +490,8 @@ export function ApiSettings() {
               >
                 Guide
               </a>
-            </div>
-          </Callout>
+            </span>
+          </p>
         )}
       </SettingsSection>
 
@@ -497,7 +499,7 @@ export function ApiSettings() {
         <SettingsGroup>
           {apiToken ? (
             <>
-              <div className="flex items-center gap-2 px-4 py-3">
+              <div className="flex items-center gap-2 py-3">
                 <code className="min-w-0 flex-1 truncate font-mono text-[13px] text-ui-fg-secondary">
                   {showToken ? apiToken : `${apiToken.substring(0, 20)}${'•'.repeat(30)}`}
                 </code>
@@ -520,15 +522,15 @@ export function ApiSettings() {
                 />
               </div>
               {apiUrl && (
-                <div className="px-4 py-3">
-                  <code className="block rounded bg-ui-bg px-2 py-1.5 font-mono text-[13px] text-ui-fg">
+                <div className="py-3">
+                  <code className="block font-mono text-[13px] text-ui-fg-secondary">
                     curl -H "Authorization: Bearer $TOKEN" {apiUrl}/files
                   </code>
                 </div>
               )}
             </>
           ) : (
-            <div className="px-4 py-3 text-[14px] text-ui-fg-secondary">
+            <div className="py-4 text-[14px] text-ui-fg-secondary">
               Sign in to get an API token
             </div>
           )}
@@ -537,7 +539,7 @@ export function ApiSettings() {
 
       {apiToken && apiStatus === 'online' && apiUrl && (
         <SettingsSection title="Quick Test">
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 pt-3">
             {['/health', '/webhooks', '/integrations/odoo'].map((endpoint) => (
               <Button
                 key={endpoint}
@@ -564,11 +566,11 @@ export function ApiSettings() {
       >
         <SettingsGroup>
           {apiHistory.length === 0 ? (
-            <div className="px-4 py-3 text-[14px] text-ui-fg-secondary">No API calls recorded</div>
+            <div className="py-4 text-[14px] text-ui-fg-secondary">No API calls recorded</div>
           ) : (
             <div className="max-h-48 divide-y divide-ui-divider overflow-y-auto">
               {apiHistory.slice(0, 20).map((call) => (
-                <div key={call.id} className="flex items-center gap-2 px-4 py-2 text-[13px]">
+                <div key={call.id} className="flex items-center gap-3 py-2.5 text-[14px]">
                   <Badge
                     tone={
                       call.status >= 200 && call.status < 300
@@ -584,8 +586,8 @@ export function ApiSettings() {
                   <span className="min-w-0 flex-1 truncate font-mono text-ui-fg">
                     {call.endpoint}
                   </span>
-                  <span className="flex items-center gap-1 text-ui-fg-secondary">
-                    <Clock size={10} />
+                  <span className="flex items-center gap-1 text-[13px] text-ui-fg-secondary">
+                    <Clock size={12} />
                     {call.duration}ms
                   </span>
                 </div>

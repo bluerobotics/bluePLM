@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type React from 'react'
 import * as LucideIcons from 'lucide-react'
 import { UserPlus, Users, Shield, Database, Mail, Loader2, UserCheck } from 'lucide-react'
+import { Button } from '@/components/core/ui'
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { useShallow } from 'zustand/react/shallow'
@@ -488,17 +489,17 @@ export function CreateUserDialog({
         </div>
 
         <div className="flex gap-2 justify-end mt-6">
-          <button onClick={onClose} className="btn btn-ghost">
+          <Button variant="ghost" onClick={onClose}>
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="primary"
             onClick={handleCreate}
             disabled={isSaving || !email || !isValidEmail}
-            className="btn btn-primary flex items-center gap-2"
           >
             {isSaving ? <Loader2 size={16} className="animate-spin" /> : <UserCheck size={16} />}
             {isSaving ? 'Creating...' : 'Create User'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

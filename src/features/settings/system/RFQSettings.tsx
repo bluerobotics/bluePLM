@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Loader2, Save } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 
-import { Button, Callout, Switch, TextArea, TextInput } from '@/components/core/ui'
+import { Button, Switch, TextArea, TextInput } from '@/components/core/ui'
 import { log } from '@/lib/logger'
 import { supabase } from '@/lib/supabase'
 import { usePDMStore } from '@/stores/pdmStore'
@@ -143,26 +143,31 @@ export function RFQSettings() {
   }
 
   if (!organization) {
-    return <div className="text-center py-12 text-ui-fg-secondary">No organization connected</div>
+    return (
+      <div className="py-12 text-center text-[14px] text-ui-fg-secondary">
+        No organization connected
+      </div>
+    )
   }
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="animate-spin text-ui-accent" size={24} />
+        <Loader2 className="animate-spin text-ui-fg-secondary" size={20} />
       </div>
     )
   }
 
   return (
     <SettingsPage>
-      {!isAdmin && (
-        <Callout>
-          Only administrators can modify RFQ settings. You are viewing in read-only mode.
-        </Callout>
-      )}
-
-      <SettingsSection title="RFQ Template Defaults">
+      <SettingsSection
+        title="RFQ Template Defaults"
+        description={
+          isAdmin
+            ? undefined
+            : 'Only administrators can change RFQ settings. You are viewing them read-only.'
+        }
+      >
         <SettingsGroup>
           <SettingRow label="Payment Terms" htmlFor="rfq-payment-terms">
             <TextInput

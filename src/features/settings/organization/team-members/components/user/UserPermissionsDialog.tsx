@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import type React from 'react'
 import * as LucideIcons from 'lucide-react'
 import { Shield, X, Loader2, Search, Database, Check, Minus } from 'lucide-react'
+import { Button } from '@/components/core/ui'
 import { PERMISSION_ACTIONS, PERMISSION_ACTION_LABELS, ALL_RESOURCES } from '@/types/permissions'
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
@@ -360,9 +361,9 @@ export function UserPermissionsDialog({
             {hasChanges && <span className="ml-2 text-ui-warning">• Unsaved changes</span>}
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={onClose} className="btn btn-ghost">
+            <Button variant="ghost" onClick={onClose}>
               Cancel
-            </button>
+            </Button>
             <button
               onClick={savePermissions}
               disabled={isSaving || !hasChanges}

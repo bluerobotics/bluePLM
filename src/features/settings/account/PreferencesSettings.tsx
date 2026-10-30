@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { CheckCircle, Download, Plus, RefreshCw, Shield, Trash2, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 
-import { Button, Callout, Switch, TextInput } from '@/components/core/ui'
+import { Button, Switch, TextInput } from '@/components/core/ui'
 import {
   SettingRow,
   SettingsGroup,
@@ -154,15 +154,6 @@ export function PreferencesSettings() {
               variant={updateCheckResult === 'available' ? 'primary' : 'secondary'}
               onClick={handleCheckForUpdates}
               loading={isCheckingUpdate}
-              icon={
-                updateCheckResult === 'none' ? (
-                  <CheckCircle size={14} className="text-ui-success" />
-                ) : updateCheckResult === 'available' ? (
-                  <Download size={14} />
-                ) : (
-                  <RefreshCw size={14} />
-                )
-              }
             >
               {isCheckingUpdate
                 ? t('preferences.checking')
@@ -237,11 +228,7 @@ export function PreferencesSettings() {
                 String(excludedCount),
               )}
             >
-              <Button
-                size="sm"
-                icon={<Trash2 size={12} />}
-                onClick={() => clearAutoDownloadExclusions(activeVaultId)}
-              >
+              <Button size="sm" onClick={() => clearAutoDownloadExclusions(activeVaultId)}>
                 {t('preferences.clearExcludedFiles')}
               </Button>
             </SettingRow>
@@ -265,10 +252,12 @@ export function PreferencesSettings() {
               onChange={handleUsageStatisticsChange}
             />
           </SettingRow>
-          <div className="flex items-center gap-2 px-4 py-2.5 text-[13px] text-ui-fg-secondary">
-            <Shield
-              size={14}
-              className={analyticsActive ? 'text-ui-success' : 'text-ui-fg-secondary'}
+          <div className="flex items-center gap-2 py-3 text-[13px] text-ui-fg-secondary">
+            <span
+              aria-hidden
+              className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${
+                analyticsActive ? 'bg-ui-success' : 'bg-ui-fg-tertiary'
+              }`}
             />
             {analyticsActive
               ? 'Analytics active — errors and performance data are being reported'
@@ -297,11 +286,18 @@ export function PreferencesSettings() {
 
       <SettingsSection
         title={t('preferences.ignorePatterns')}
-        description={t('preferences.ignorePatternsDesc')}
+        description={
+          activeVaultId ? (
+            t('preferences.ignorePatternsDesc')
+          ) : (
+            <>
+              {t('preferences.ignorePatternsDesc')} {t('preferences.connectVaultForPatterns')}
+            </>
+          )
+        }
       >
-        {!activeVaultId && <Callout tone="warning">{t('preferences.connectVaultForPatterns')}</Callout>}
         <SettingsGroup>
-          <div className="flex gap-2 px-4 py-3">
+          <div className="flex gap-2 py-3">
             <TextInput
               value={newIgnorePattern}
               onChange={(e) => setNewIgnorePattern(e.target.value)}
@@ -314,8 +310,6 @@ export function PreferencesSettings() {
               disabled={!activeVaultId}
             />
             <Button
-              variant="primary"
-              icon={<Plus size={14} />}
               onClick={handleAddIgnorePattern}
               disabled={!newIgnorePattern.trim() || !activeVaultId}
             >
@@ -323,7 +317,7 @@ export function PreferencesSettings() {
             </Button>
           </div>
           {currentVaultPatterns.map((pattern, index) => (
-            <div key={index} className="group flex items-center gap-2 px-4 py-2">
+            <div key={index} className="group flex items-center gap-2 py-2">
               <code className="flex-1 truncate font-mono text-[13px] text-ui-fg">{pattern}</code>
               <Button
                 variant="ghost"
@@ -337,7 +331,7 @@ export function PreferencesSettings() {
             </div>
           ))}
           {activeVaultId && currentVaultPatterns.length === 0 && (
-            <div className="px-4 py-3 text-[13px] text-ui-fg-secondary">
+            <div className="py-3 text-[14px] text-ui-fg-secondary">
               {t('preferences.noIgnorePatterns')}
             </div>
           )}

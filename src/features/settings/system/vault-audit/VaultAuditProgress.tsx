@@ -20,25 +20,25 @@ export function VaultAuditProgress({ progress }: VaultAuditProgressProps) {
 
   return (
     <div className="space-y-1.5">
-      <div className="h-1.5 w-full rounded-full bg-ui-divider overflow-hidden">
+      <div className="h-1 w-full rounded-full bg-ui-field overflow-hidden">
         {known ? (
           <div
-            className="h-full bg-ui-accent transition-[width] duration-200"
+            className="h-full bg-ui-fg-secondary transition-[width] duration-200"
             style={{ width: `${percent}%` }}
           />
         ) : (
-          <div className="h-full w-1/3 bg-ui-accent animate-pulse" />
+          <div className="h-full w-1/3 bg-ui-fg-secondary animate-pulse" />
         )}
       </div>
 
-      <div className="flex items-center justify-between text-[12px] text-ui-fg-secondary">
+      <div className="flex items-center justify-between text-[13px] text-ui-fg-secondary">
         <span>
           {known
             ? t('vaultAudit.progressFiles', {
                 completed: progress.completed,
                 total: progress.total,
               })
-            : (progress.message || t('vaultAudit.preparing'))}
+            : progress.message || t('vaultAudit.preparing')}
         </span>
         {known && <span>{percent}%</span>}
       </div>

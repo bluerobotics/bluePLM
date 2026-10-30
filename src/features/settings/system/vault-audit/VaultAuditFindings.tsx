@@ -305,7 +305,9 @@ export function VaultAuditFindings({ findings, kind }: VaultAuditFindingsProps) 
   }
 
   if (!kind) {
-    return <p className="text-[12px] text-ui-fg-secondary">{t('vaultAudit.findings.selectPrompt')}</p>
+    return (
+      <p className="text-[13px] text-ui-fg-secondary">{t('vaultAudit.findings.selectPrompt')}</p>
+    )
   }
 
   const unit =
@@ -328,7 +330,7 @@ export function VaultAuditFindings({ findings, kind }: VaultAuditFindingsProps) 
             value={filterInput}
             placeholder={t('vaultAudit.findings.filterPlaceholder')}
             onChange={(event) => setFilterInput(event.target.value)}
-            className={`${FIELD_CLASS} h-8 pl-7 pr-7`}
+            className={`${FIELD_CLASS} h-7 pl-7 pr-7`}
           />
           {filterInput && (
             <button
@@ -348,7 +350,7 @@ export function VaultAuditFindings({ findings, kind }: VaultAuditFindingsProps) 
 
         {actionableTotal > 0 && actionableTotal < allRows.length && (
           <label
-            className="flex items-center gap-1.5 text-[12px] text-ui-fg-secondary cursor-pointer"
+            className="flex items-center gap-1.5 text-[13px] text-ui-fg-secondary cursor-pointer"
             title={t('vaultAudit.findings.actionableOnlyHint')}
           >
             <input
@@ -386,7 +388,7 @@ export function VaultAuditFindings({ findings, kind }: VaultAuditFindingsProps) 
             onInvert={() => applyBulk('invert')}
             onClearHidden={clearHidden}
           />
-          <span className="text-[12px] text-ui-fg-secondary">
+          <span className="text-[13px] text-ui-fg-secondary">
             {filtering
               ? t('vaultAudit.findings.showing', {
                   shown: visibleRows.length,
@@ -400,13 +402,11 @@ export function VaultAuditFindings({ findings, kind }: VaultAuditFindingsProps) 
       )}
 
       {inCategory.length === 0 && (
-        <p className="text-[12px] text-ui-fg-secondary py-6 text-center">
-          {t('vaultAudit.findings.none')}
-        </p>
+        <p className="text-[14px] text-ui-fg-secondary py-4">{t('vaultAudit.findings.none')}</p>
       )}
 
       {inCategory.length > 0 && visibleRows.length === 0 && (
-        <p className="text-[12px] text-ui-fg-secondary py-6 text-center">
+        <p className="text-[14px] text-ui-fg-secondary py-4">
           {t('vaultAudit.findings.noMatches')}
         </p>
       )}
@@ -432,7 +432,7 @@ export function VaultAuditFindings({ findings, kind }: VaultAuditFindingsProps) 
             />
           </div>
 
-          <p className="text-[12px] text-ui-fg-secondary">
+          <p className="text-[13px] text-ui-fg-secondary">
             {t('vaultAudit.findings.directionNote')}
             {summary.selectableUnits > 1 && <> {t('vaultAudit.findings.rangeHint')}</>}
           </p>

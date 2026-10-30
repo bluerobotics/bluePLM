@@ -8,6 +8,7 @@
  */
 
 import { Pencil, X, Loader2, Check, Folder, Database } from 'lucide-react'
+import { Button } from '@/components/core/ui'
 import { getRoleIcon, getTeamIcon } from '../../utils'
 import type {
   PendingMember,
@@ -233,13 +234,13 @@ export function EditPendingMemberDialog({
         </div>
 
         <div className="flex gap-2 justify-end mt-6">
-          <button onClick={onClose} className="btn btn-ghost">
+          <Button variant="ghost" onClick={onClose}>
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="primary"
             onClick={onSave}
             disabled={isSaving}
-            className="btn btn-primary flex items-center gap-2"
           >
             {isSaving ? (
               <>
@@ -249,7 +250,7 @@ export function EditPendingMemberDialog({
             ) : (
               'Save Changes'
             )}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

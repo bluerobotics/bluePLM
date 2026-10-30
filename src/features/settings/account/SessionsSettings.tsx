@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Laptop, Loader2, LogOut, Monitor } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 
 import { Badge, Button } from '@/components/core/ui'
@@ -122,25 +122,23 @@ export function SessionsSettings() {
       <SettingsSection title="Signed-in devices">
         <SettingsGroup>
           {isLoading && sortedSessions.length === 0 ? (
-            <div className="flex items-center gap-2 px-4 py-3.5 text-[14px] text-ui-fg-secondary">
+            <div className="flex items-center gap-2 py-3 text-[14px] text-ui-fg-secondary">
               <Loader2 size={14} className="animate-spin" />
               Loading sessions...
             </div>
           ) : sortedSessions.length === 0 ? (
-            <div className="px-4 py-3.5 text-[14px] text-ui-fg-secondary">No active sessions</div>
+            <div className="py-3 text-[14px] text-ui-fg-secondary">No active sessions</div>
           ) : (
             sortedSessions.map((session) => {
               const isCurrentDevice = session.machine_id === currentMachineId
-              const PlatformIcon = session.platform === 'darwin' ? Laptop : Monitor
               return (
-                <div key={session.id} className="flex items-center gap-3 px-4 py-3">
-                  <PlatformIcon size={16} className="flex-shrink-0 text-ui-fg-secondary" />
+                <div key={session.id} className="flex items-center gap-3 py-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="truncate text-[14px] font-medium text-ui-fg">
+                      <span className="truncate text-[14px] text-ui-fg">
                         {session.machine_name}
                       </span>
-                      {isCurrentDevice && <Badge tone="accent">This device</Badge>}
+                      {isCurrentDevice && <Badge>This device</Badge>}
                     </div>
                     <div className="text-[13px] text-ui-fg-secondary">
                       <span className="capitalize">{session.platform || 'Unknown'}</span>
@@ -152,7 +150,6 @@ export function SessionsSettings() {
                   <Button
                     variant="secondary"
                     size="sm"
-                    icon={<LogOut size={12} />}
                     loading={signingOutSessionId === session.id}
                     onClick={() =>
                       isCurrentDevice ? handleSignOut() : handleRemoteSignOut(session.id)

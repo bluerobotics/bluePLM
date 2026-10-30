@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState } from 'react'
-import { Activity, FolderOpen, Key, Loader2, ScanSearch, Settings } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 
 import { t } from '@/lib/i18n'
 import { usePDMStore } from '@/stores/pdmStore'
@@ -16,17 +16,16 @@ type TabId = 'service' | 'licenses' | 'templates' | 'settings' | 'metadata-audit
 interface Tab {
   id: TabId
   label: string
-  icon: typeof Activity
   /** Only shown to administrators. The panel itself re-checks the role. */
   adminOnly?: boolean
 }
 
 const tabs = (): Tab[] => [
-  { id: 'service', label: 'Service', icon: Activity },
-  { id: 'licenses', label: 'Licenses', icon: Key },
-  { id: 'templates', label: 'Templates', icon: FolderOpen },
-  { id: 'settings', label: 'Settings', icon: Settings },
-  { id: 'metadata-audit', label: t('vaultAudit.tabLabel'), icon: ScanSearch, adminOnly: true },
+  { id: 'service', label: 'Service' },
+  { id: 'licenses', label: 'Licenses' },
+  { id: 'templates', label: 'Templates' },
+  { id: 'settings', label: 'Settings' },
+  { id: 'metadata-audit', label: t('vaultAudit.tabLabel'), adminOnly: true },
 ]
 
 function TabLoading() {
@@ -67,18 +66,17 @@ export function SolidWorksSettings() {
   }
 
   // The audit is a file list and uses the full width it is given; the forms read better narrow.
-  const width = currentTab === 'metadata-audit' ? '' : 'max-w-6xl mx-auto'
+  const width = currentTab === 'metadata-audit' ? '' : 'max-w-3xl'
 
   return (
-    <div className={`space-y-6 ${width}`}>
-      {/* Tab Navigation */}
+    <div className={`space-y-8 ${width}`}>
+      {/* Tab navigation: a quiet underline bar, text only */}
       <nav
-        className="flex gap-5 border-b border-ui-divider"
+        className="flex gap-6 border-b border-ui-divider"
         role="tablist"
         aria-label="SolidWorks Settings Tabs"
       >
         {visibleTabs.map((tab) => {
-          const Icon = tab.icon
           const isActive = currentTab === tab.id
           return (
             <button
@@ -87,13 +85,12 @@ export function SolidWorksSettings() {
               role="tab"
               aria-selected={isActive}
               onClick={() => setActiveTab(tab.id)}
-              className={`-mb-px flex items-center gap-1.5 border-b-2 pb-2.5 pt-1 text-[14px] font-medium transition-colors outline-none focus-visible:text-ui-fg ${
+              className={`-mb-px border-b-2 pb-2.5 text-[14px] transition-colors outline-none focus-visible:text-ui-fg ${
                 isActive
-                  ? 'border-ui-accent text-ui-fg'
+                  ? 'border-ui-fg font-medium text-ui-fg'
                   : 'border-transparent text-ui-fg-secondary hover:text-ui-fg'
               }`}
             >
-              <Icon size={14} className={isActive ? 'text-ui-accent' : ''} />
               {tab.label}
             </button>
           )

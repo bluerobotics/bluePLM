@@ -1,6 +1,6 @@
 import { Loader2, Plus } from 'lucide-react'
 
-import { Badge, Button, Callout } from '@/components/core/ui'
+import { Badge, Button } from '@/components/core/ui'
 import { SettingsGroup, SettingsPage, SettingsSection } from '@/features/settings/components/ui'
 
 import { WebhookForm } from './webhooks/WebhookForm'
@@ -49,7 +49,16 @@ export function WebhooksSettings() {
   } = state
 
   if (!isAdmin) {
-    return <Callout tone="info">Only administrators can manage webhook settings.</Callout>
+    return (
+      <SettingsPage>
+        <SettingsSection
+          title="Endpoints"
+          description="Only administrators can manage webhook settings."
+        >
+          {null}
+        </SettingsSection>
+      </SettingsPage>
+    )
   }
 
   if (loading) {
@@ -89,7 +98,7 @@ export function WebhooksSettings() {
         {webhooks.length === 0 ? (
           !showForm && (
             <SettingsGroup>
-              <div className="px-4 py-3 text-[14px] text-ui-fg-secondary">
+              <div className="py-4 text-[14px] text-ui-fg-secondary">
                 No webhooks configured. Add a webhook to notify external services when events
                 occur.
               </div>
@@ -122,11 +131,11 @@ export function WebhooksSettings() {
         description={
           <>
             Payloads are signed with HMAC-SHA256. Verify the signature using the{' '}
-            <code className="text-ui-accent">X-BluePLM-Signature</code> header.
+            <code className="font-mono text-ui-fg">X-BluePLM-Signature</code> header.
           </>
         }
       >
-        <pre className="overflow-x-auto rounded-lg border border-ui-divider bg-ui-field/60 p-3 font-mono text-[13px] text-ui-fg">
+        <pre className="mt-3 overflow-x-auto rounded-lg bg-ui-field p-3 font-mono text-[13px] text-ui-fg-secondary">
           {PAYLOAD_EXAMPLE}
         </pre>
       </SettingsSection>

@@ -147,19 +147,18 @@ export function ServiceTab() {
 
   return (
     <SettingsPage>
-      <SettingsSection title="SolidWorks Service">
+      <SettingsSection
+        title="SolidWorks Service"
+        description={
+          status.swInstalled
+            ? 'Enables BOM extraction, property reading and file export. Full functionality is available with your SolidWorks installation.'
+            : 'Enables BOM extraction, property reading and file export. Basic features work with a Document Manager license key; install SolidWorks for full export.'
+        }
+      >
         <SettingsGroup>
           {/* Overall integration status + start/stop */}
           <SettingRow
-            label={
-              <span className="flex items-center gap-2">
-                <span
-                  className={`h-2 w-2 flex-shrink-0 rounded-full ${overallStatusConfig[overallStatus].color}`}
-                  aria-hidden
-                />
-                {overallStatusConfig[overallStatus].label}
-              </span>
-            }
+            label={overallStatusConfig[overallStatus].label}
             badge={<Badge tone={statusTone}>{status.running ? 'Running' : 'Stopped'}</Badge>}
             description={overallStatusConfig[overallStatus].description}
           >
@@ -221,14 +220,6 @@ export function ServiceTab() {
 
         {/* Version Mismatch Warning */}
         {versionCheck && <SwServiceVersionNotice check={versionCheck} />}
-
-        <Callout tone="info">
-          The SolidWorks service enables BOM extraction, property reading, and file export
-          features.
-          {status.swInstalled
-            ? ' Full functionality available with your SolidWorks installation.'
-            : ' Basic features work with just a Document Manager license key. Install SolidWorks for full export capabilities.'}
-        </Callout>
       </SettingsSection>
 
       <SettingsSection title="Service options">
@@ -300,7 +291,11 @@ export function ServiceTab() {
                   ? `${syncedSwFiles.length} file${syncedSwFiles.length > 1 ? 's' : ''} in vault (check out to sync)`
                   : 'No SolidWorks files found'
             }
-            description="Sync only works on files you have checked out for editing"
+            description={
+              status.running && checkedOutSwFiles.length === 0 && syncedSwFiles.length > 0
+                ? 'Check out SolidWorks files to sync their metadata'
+                : 'Sync only works on files you have checked out for editing'
+            }
           >
             <Button
               variant="primary"
@@ -315,7 +310,7 @@ export function ServiceTab() {
           </SettingRow>
 
           {lastMetadataSyncResult && (
-            <div className="flex items-center gap-4 px-4 py-3 text-[13px]">
+            <div className="flex items-center gap-4 py-3 text-[14px]">
               <span className="text-ui-fg-secondary">Last sync:</span>
               {lastMetadataSyncResult.updated > 0 && (
                 <span className="text-ui-success">{lastMetadataSyncResult.updated} updated</span>
@@ -333,10 +328,7 @@ export function ServiceTab() {
         </SettingsGroup>
 
         {!status.running && (
-          <Callout tone="warning">Start the SolidWorks service to enable metadata sync</Callout>
-        )}
-        {status.running && checkedOutSwFiles.length === 0 && syncedSwFiles.length > 0 && (
-          <Callout tone="info">Check out SolidWorks files to sync their metadata</Callout>
+          <Callout className="mt-3" tone="warning">Start the SolidWorks service to enable metadata sync</Callout>
         )}
       </SettingsSection>
     </SettingsPage>
@@ -380,7 +372,7 @@ function CapabilitiesSection({
       {isExpanded && (
         <SettingsGroup>
           {!isServiceRunning ? (
-            <div className="px-4 py-3 text-[14px] text-ui-fg-secondary">
+            <div className="py-4 text-[14px] text-ui-fg-secondary">
               Start the service to see available features.
             </div>
           ) : (
@@ -444,13 +436,13 @@ function CapabilityGroup({
       ? 'bg-ui-danger'
       : 'bg-ui-warning'
   return (
-    <div className="px-4 py-3.5">
+    <div className="py-4">
       <div className="mb-2 flex items-center gap-2">
         <span className={`h-2 w-2 rounded-full ${dot}`} aria-hidden />
         <span className="text-[14px] font-medium text-ui-fg">{title}</span>
-        <span className="text-[13px] text-ui-fg">{requirement}</span>
+        <span className="text-[14px] text-ui-fg-secondary">{requirement}</span>
       </div>
-      <ul className="ml-4 space-y-1 text-[13px] text-ui-fg-secondary">
+      <ul className="ml-4 space-y-1 text-[14px] text-ui-fg-secondary">
         {features.map((feature) => (
           <li
             key={feature}
@@ -465,7 +457,9 @@ function CapabilityGroup({
           </li>
         ))}
       </ul>
-      {!available && <p className="ml-4 mt-2 text-[13px] text-ui-warning">{missingHint}</p>}
+      {!available && (
+        <p className="ml-4 mt-2 text-[14px] text-ui-fg-secondary">{missingHint}</p>
+      )}
     </div>
   )
 }

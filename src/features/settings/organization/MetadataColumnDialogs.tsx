@@ -19,12 +19,12 @@ function DialogShell({ icon, title, onClose, children, footer }: DialogShellProp
       onClick={onClose}
     >
       <div
-        className="mx-4 w-full max-w-md rounded-xl border border-ui-divider bg-ui-field p-6"
+        className="mx-4 w-full max-w-md rounded-xl border border-ui-border bg-ui-bg p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center gap-3">
           {icon}
-          <h3 className="text-[15px] font-semibold text-ui-fg">{title}</h3>
+          <h3 className="text-[16px] font-semibold text-ui-fg">{title}</h3>
         </div>
         {children}
         <div className="flex justify-end gap-2">{footer}</div>

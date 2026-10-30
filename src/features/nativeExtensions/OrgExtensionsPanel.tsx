@@ -9,7 +9,8 @@
  * nothing here runs SQL.
  */
 import { useState } from 'react'
-import { Check, Copy, Power, PowerOff, Puzzle, RefreshCw, Trash2, Upload } from 'lucide-react'
+import { Check, Copy, Power, PowerOff, RefreshCw, Trash2, Upload } from 'lucide-react'
+
 import { usePDMStore } from '@/stores/pdmStore'
 import { t } from '@/lib/i18n'
 import { log } from '@/lib/logger'
@@ -40,27 +41,27 @@ function SqlFiles({ files }: { files: Array<{ name: string; content: string }> }
   const [copied, setCopied] = useState<string | null>(null)
   if (files.length === 0) return null
   return (
-    <div className="mt-3 rounded-lg border border-ui-warning/40 bg-ui-warning/10 p-3 text-[13px]">
-      <p className="font-medium text-ui-fg">{t('nativeExtensions.sqlTitle')}</p>
-      <p className="mt-1 text-[12px] text-ui-fg-secondary">{t('nativeExtensions.sqlBody')}</p>
+    <Callout tone="warning" title={t('nativeExtensions.sqlTitle')} className="mt-3">
+      <p>{t('nativeExtensions.sqlBody')}</p>
       <ul className="mt-2 space-y-1">
         {files.map((file) => (
           <li key={file.name} className="flex items-center gap-2">
-            <code className="text-[12px] text-ui-fg">{file.name}</code>
-            <button
-              className="btn btn-ghost btn-sm flex items-center gap-1"
+            <code className="font-mono text-[13px] text-ui-fg">{file.name}</code>
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={async () => {
                 const result = await copyToClipboard(file.content)
                 if (result.success) setCopied(file.name)
               }}
+              icon={copied === file.name ? <Check size={12} /> : <Copy size={12} />}
             >
-              {copied === file.name ? <Check size={12} /> : <Copy size={12} />}
               {copied === file.name ? t('nativeExtensions.copied') : t('nativeExtensions.copy')}
-            </button>
+            </Button>
           </li>
         ))}
       </ul>
-    </div>
+    </Callout>
   )
 }
 
@@ -170,6 +171,7 @@ export function OrgExtensionsPanel() {
 
   return (
     <SettingsSection
+      title={t('nativeExtensions.sectionTitle')}
       description={t('nativeExtensions.sectionDescription')}
       actions={
         <>
@@ -197,10 +199,11 @@ export function OrgExtensionsPanel() {
         </>
       }
     >
-      {error && <Callout tone="error">{t('nativeExtensions.error', { message: error })}</Callout>}
+      {error && <Callout className="mt-3" tone="error">{t('nativeExtensions.error', { message: error })}</Callout>}
 
       {pending && (
         <Callout
+          className="mt-3"
           tone="info"
           title={t('nativeExtensions.confirmInstallTitle', {
             name: pending.manifest.name,
@@ -233,7 +236,7 @@ export function OrgExtensionsPanel() {
 
       <SettingsGroup>
         {rows.length === 0 && (
-          <div className="px-4 py-6 text-center text-[14px] text-ui-fg-secondary">
+          <div className="py-4 text-[14px] text-ui-fg-secondary">
             {t('nativeExtensions.none')}
           </div>
         )}
@@ -241,17 +244,20 @@ export function OrgExtensionsPanel() {
           const state = states[row.extensionId]
           const name = typeof row.manifest.name === 'string' ? row.manifest.name : row.extensionId
           return (
-            <div key={row.extensionId} className="flex items-start gap-3 px-4 py-3">
-              <Puzzle size={16} className="mt-0.5 flex-shrink-0 text-ui-fg-secondary" aria-hidden />
+            <div key={row.extensionId} className="flex items-start gap-3 py-4">
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 text-[14px] font-medium text-ui-fg">
+                <div className="flex items-center gap-2 text-[14px] text-ui-fg">
                   {name}
-                  <span className="font-normal text-ui-fg-secondary">{row.version}</span>
-                  <Badge tone={row.enabled ? (state?.status === 'error' ? 'error' : 'success') : 'neutral'}>
+                  <span className="text-ui-fg-secondary">{row.version}</span>
+                  <Badge
+                    tone={
+                      row.enabled ? (state?.status === 'error' ? 'error' : 'success') : 'neutral'
+                    }
+                  >
                     {statusText(row)}
                   </Badge>
                 </div>
-                <div className="text-[13px] text-ui-fg-secondary">{row.extensionId}</div>
+                <div className="mt-1 text-[14px] text-ui-fg-secondary">{row.extensionId}</div>
                 {row.enabled && state?.status === 'error' && state.error && (
                   <p className="mt-1 break-words text-[13px] text-ui-danger">{state.error}</p>
                 )}

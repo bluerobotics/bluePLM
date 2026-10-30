@@ -9,9 +9,7 @@
  * - useTeamDialogs for dialog state
  */
 import { useState } from 'react'
-import * as LucideIcons from 'lucide-react'
 import {
-  Users,
   Plus,
   ChevronDown,
   ChevronRight,
@@ -20,7 +18,6 @@ import {
   Pencil,
   Trash2,
   Database,
-  Star,
   LayoutGrid,
   Loader2,
   AlertTriangle,
@@ -211,7 +208,7 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
       ?.default_new_user_team_id || ''
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Default Team for New Users Setting */}
       {isAdmin && teams.length > 0 && (
         <SettingsGroup>
@@ -252,8 +249,8 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
 
       {filteredTeams.length === 0 ? (
         <SettingsGroup>
-          <div className="flex items-center justify-between gap-4 px-4 py-4">
-            <span className="text-[13px] text-ui-fg-secondary">No teams yet</span>
+          <div className="flex items-center justify-between gap-4 py-4">
+            <span className="text-[14px] text-ui-fg-secondary">No teams yet</span>
             {isAdmin && onShowCreateTeamDialog && (
               <Button
                 variant="primary"
@@ -261,7 +258,7 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
                 icon={<Plus size={14} />}
                 onClick={onShowCreateTeamDialog}
               >
-                Create First Team
+                Create first team
               </Button>
             )}
           </div>
@@ -269,10 +266,6 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
       ) : (
         <SettingsGroup>
           {filteredTeams.map((team) => {
-            const IconComponent =
-              (LucideIcons as unknown as Record<string, React.ComponentType<{ size?: number }>>)[
-                team.icon
-              ] || Users
             const isExpanded = expandedTeams.has(team.id)
             const teamMembers = orgUsers.filter((u) => u.teams?.some((t) => t.id === team.id))
             const teamVaults = teamVaultAccessMap[team.id] || []
@@ -283,9 +276,7 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
                 <button
                   type="button"
                   aria-expanded={isExpanded}
-                  className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors ${
-                    isExpanded ? 'bg-ui-hover/40' : 'hover:bg-ui-hover/40'
-                  }`}
+                  className="flex w-full items-center gap-3 py-3.5 text-left"
                   onClick={() => toggleTeamExpand(team.id)}
                 >
                   {isExpanded ? (
@@ -293,26 +284,23 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
                   ) : (
                     <ChevronRight size={14} className="flex-shrink-0 text-ui-fg-secondary" />
                   )}
-                  <div
-                    className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md"
-                    style={{ backgroundColor: `${team.color}20`, color: team.color }}
-                  >
-                    <IconComponent size={16} />
-                  </div>
+                  <span
+                    aria-hidden
+                    className="h-2 w-2 flex-shrink-0 rounded-full"
+                    style={{ backgroundColor: team.color }}
+                  />
 
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="truncate text-[14px] font-medium text-ui-fg">
+                      <span className="truncate text-[14px] text-ui-fg">
                         {team.name}
                       </span>
-                      {team.is_default && <Badge tone="accent">Default</Badge>}
+                      {team.is_default && <Badge>Default</Badge>}
                       {team.is_system && (
-                        <Badge tone="warning" icon={<Star size={10} className="fill-current" />}>
-                          Required
-                        </Badge>
+                        <Badge>Required</Badge>
                       )}
                     </div>
-                    <div className="flex items-center gap-1.5 text-[13px] text-ui-fg-secondary">
+                    <div className="mt-0.5 flex items-center gap-1.5 text-[13px] text-ui-fg-secondary">
                       <span>
                         {team.member_count} member{team.member_count !== 1 ? 's' : ''}
                       </span>
@@ -323,8 +311,7 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
                       {teamVaults.length > 0 && (
                         <>
                           <span aria-hidden>·</span>
-                          <span className="flex items-center gap-1">
-                            <Database size={10} />
+                          <span>
                             {teamVaults.length} vault{teamVaults.length !== 1 ? 's' : ''}
                           </span>
                         </>
@@ -335,10 +322,10 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
 
                 {/* Expanded Content */}
                 {isExpanded && (
-                  <div className="border-t border-ui-divider bg-ui-bg/40">
+                  <div className="pb-3 pl-[26px]">
                     {/* Team Actions */}
                     {isAdmin && (
-                      <div className="flex flex-wrap items-center gap-1 border-b border-ui-divider px-4 py-2">
+                      <div className="-ml-2.5 flex flex-wrap items-center gap-1 pb-1">
                         <Button
                           variant="ghost"
                           size="sm"
@@ -395,7 +382,7 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
                           }}
                         >
                           Modules
-                          {team.module_defaults && <Badge tone="success">Set</Badge>}
+                          {team.module_defaults && <Badge>Set</Badge>}
                         </Button>
                         {!team.is_system && (
                           <>
@@ -430,11 +417,11 @@ export function TeamsTab({ searchQuery = '', onShowCreateTeamDialog }: TeamsTabP
 
                     {/* Team Members List */}
                     {teamMembers.length === 0 ? (
-                      <p className="px-4 py-3 text-[13px] text-ui-fg-secondary">
+                      <p className="py-3 text-[14px] text-ui-fg-secondary">
                         No members in this team
                       </p>
                     ) : (
-                      <div className="divide-y divide-ui-divider pl-11 pr-4">
+                      <div className="divide-y divide-ui-divider">
                         {teamMembers.map((member) => (
                           <ConnectedUserRow
                             key={member.id}

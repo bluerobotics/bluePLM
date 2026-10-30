@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { X, Key, Search, Clock, Check } from 'lucide-react'
 
-import { Button } from '@/components/core/ui'
+import { Button, TextInput, Select } from '@/components/core/ui'
 import { getInitials } from '@/lib/utils'
 import type { AddLicenseFormData, OrgUser } from './types'
 
@@ -152,7 +152,7 @@ export function AddLicenseModal({ users, onClose, onSave }: AddLicenseModalProps
         }`}
       >
         <div
-          className={`w-7 h-7 rounded-full overflow-hidden flex-shrink-0 ${user.is_pending ? 'bg-yellow-500/20' : 'bg-ui-field'}`}
+          className={`w-7 h-7 rounded-full overflow-hidden flex-shrink-0 ${user.is_pending ? 'bg-ui-warning/20' : 'bg-ui-field'}`}
         >
           {user.avatar_url ? (
             <img
@@ -163,7 +163,7 @@ export function AddLicenseModal({ users, onClose, onSave }: AddLicenseModalProps
             />
           ) : (
             <div
-              className={`w-full h-full flex items-center justify-center text-[12px] font-medium ${user.is_pending ? 'text-yellow-400' : 'text-ui-fg'}`}
+              className={`w-full h-full flex items-center justify-center text-[12px] font-medium ${user.is_pending ? 'text-ui-warning' : 'text-ui-fg'}`}
             >
               {getInitials(user.full_name || user.email)}
             </div>
@@ -173,7 +173,7 @@ export function AddLicenseModal({ users, onClose, onSave }: AddLicenseModalProps
           <div className="flex items-center gap-2">
             <span className="text-[13px] text-ui-fg truncate">{user.full_name || user.email}</span>
             {user.is_pending && (
-              <span className="flex items-center gap-1 px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 text-[12px] rounded">
+              <span className="flex items-center gap-1 px-1.5 py-0.5 bg-ui-warning/20 text-ui-warning text-[12px] rounded">
                 <Clock size={10} />
                 Pending
               </span>
@@ -192,7 +192,7 @@ export function AddLicenseModal({ users, onClose, onSave }: AddLicenseModalProps
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-ui-divider">
           <div className="flex items-center gap-3">
-            <Key size={20} className="text-ui-accent" />
+            <Key size={20} className="text-ui-fg-secondary" />
             <h2 className="text-lg font-semibold text-ui-fg">Add SOLIDWORKS License</h2>
           </div>
           <button
@@ -208,18 +208,18 @@ export function AddLicenseModal({ users, onClose, onSave }: AddLicenseModalProps
           {/* Serial Number */}
           <div className="space-y-1">
             <label className="text-[13px] font-medium text-ui-fg">
-              Serial Number <span className="text-red-400">*</span>
+              Serial Number <span className="text-ui-danger">*</span>
             </label>
-            <input
+            <TextInput
               type="text"
               value={formData.serial_number}
               onChange={handleSerialChange}
               onPaste={handleSerialPaste}
               placeholder="XXXX XXXX XXXX XXXX XXXX XXXX"
-              className="w-full px-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-[13px] text-ui-fg placeholder-ui-fg focus:outline-none focus:border-ui-accent font-mono tracking-wider"
+              className="font-mono"
               required
             />
-            <p className="text-[12px] text-ui-fg">
+            <p className="text-[13px] text-ui-fg-secondary">
               Paste or type your serial number — it will be formatted automatically
             </p>
           </div>
@@ -227,12 +227,11 @@ export function AddLicenseModal({ users, onClose, onSave }: AddLicenseModalProps
           {/* Nickname */}
           <div className="space-y-1">
             <label className="text-[13px] font-medium text-ui-fg">Nickname</label>
-            <input
+            <TextInput
               type="text"
               value={formData.nickname}
               onChange={(e) => updateField('nickname', e.target.value)}
               placeholder="e.g., Design Team License 1"
-              className="w-full px-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-[13px] text-ui-fg placeholder-ui-fg focus:outline-none focus:border-ui-accent"
             />
           </div>
 
@@ -240,36 +239,35 @@ export function AddLicenseModal({ users, onClose, onSave }: AddLicenseModalProps
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-[13px] font-medium text-ui-fg">License Type</label>
-              <select
+              <Select
                 value={formData.license_type}
                 onChange={(e) =>
                   updateField('license_type', e.target.value as 'standalone' | 'network')
                 }
-                className="w-full px-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-[13px] text-ui-fg focus:outline-none focus:border-ui-accent"
+                className="w-full"
               >
                 <option value="standalone">Standalone</option>
                 <option value="network">Network</option>
-              </select>
+              </Select>
             </div>
 
             {formData.license_type === 'network' ? (
               <div className="space-y-1">
                 <label className="text-[13px] font-medium text-ui-fg">Seats</label>
-                <input
+                <TextInput
                   type="number"
                   min={1}
                   value={formData.seats}
                   onChange={(e) => updateField('seats', parseInt(e.target.value) || 1)}
-                  className="w-full px-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-[13px] text-ui-fg focus:outline-none focus:border-ui-accent"
                 />
               </div>
             ) : (
               <div className="space-y-1">
                 <label className="text-[13px] font-medium text-ui-fg">Product</label>
-                <select
+                <Select
                   value={formData.product_name}
                   onChange={(e) => updateField('product_name', e.target.value)}
-                  className="w-full px-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-[13px] text-ui-fg focus:outline-none focus:border-ui-accent"
+                className="w-full"
                 >
                   <option value="">Select...</option>
                   {PRODUCT_OPTIONS.map((product) => (
@@ -277,7 +275,7 @@ export function AddLicenseModal({ users, onClose, onSave }: AddLicenseModalProps
                       {product}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
             )}
           </div>
@@ -286,10 +284,10 @@ export function AddLicenseModal({ users, onClose, onSave }: AddLicenseModalProps
           {formData.license_type === 'network' && (
             <div className="space-y-1">
               <label className="text-[13px] font-medium text-ui-fg">Product</label>
-              <select
+              <Select
                 value={formData.product_name}
                 onChange={(e) => updateField('product_name', e.target.value)}
-                className="w-full px-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-[13px] text-ui-fg focus:outline-none focus:border-ui-accent"
+                className="w-full"
               >
                 <option value="">Select a product...</option>
                 {PRODUCT_OPTIONS.map((product) => (
@@ -297,7 +295,7 @@ export function AddLicenseModal({ users, onClose, onSave }: AddLicenseModalProps
                     {product}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
           )}
 
@@ -311,12 +309,12 @@ export function AddLicenseModal({ users, onClose, onSave }: AddLicenseModalProps
                 size={14}
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-ui-fg-secondary"
               />
-              <input
+              <TextInput
                 type="text"
                 value={userSearchQuery}
                 onChange={(e) => setUserSearchQuery(e.target.value)}
                 placeholder="Search users..."
-                className="w-full pl-9 pr-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-[13px] text-ui-fg placeholder-ui-fg focus:outline-none focus:border-ui-accent"
+                className="pl-9"
               />
             </div>
 
@@ -337,7 +335,7 @@ export function AddLicenseModal({ users, onClose, onSave }: AddLicenseModalProps
                     {activeUsers.length > 0 && (
                       <>
                         {pendingUsers.length > 0 && (
-                          <div className="px-3 py-1.5 text-[12px] font-medium text-ui-fg-secondary uppercase tracking-wide bg-ui-field border-b border-ui-divider">
+                          <div className="px-3 py-1.5 text-[13px] text-ui-fg-secondary bg-ui-field border-b border-ui-divider">
                             Active Members
                           </div>
                         )}
@@ -348,7 +346,7 @@ export function AddLicenseModal({ users, onClose, onSave }: AddLicenseModalProps
                     {/* Pending users */}
                     {pendingUsers.length > 0 && (
                       <>
-                        <div className="px-3 py-1.5 text-[12px] font-medium text-ui-fg-secondary uppercase tracking-wide bg-ui-field border-y border-ui-divider flex items-center gap-1">
+                        <div className="px-3 py-1.5 text-[13px] text-ui-fg-secondary bg-ui-field border-y border-ui-divider flex items-center gap-1">
                           <Clock size={10} />
                           Pending Invites
                         </div>
@@ -370,7 +368,7 @@ export function AddLicenseModal({ users, onClose, onSave }: AddLicenseModalProps
 
           {/* Error message */}
           {error && (
-            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-[13px]">
+            <div className="text-[14px] text-ui-danger">
               {error}
             </div>
           )}

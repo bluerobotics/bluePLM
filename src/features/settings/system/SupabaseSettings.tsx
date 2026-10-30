@@ -1,18 +1,7 @@
 import { useState } from 'react'
-import {
-  Check,
-  Clock,
-  Copy,
-  Eye,
-  EyeOff,
-  FileText,
-  HardDrive,
-  Loader2,
-  RefreshCw,
-  Users,
-} from 'lucide-react'
+import { Check, Copy, Eye, EyeOff, Loader2, RefreshCw } from 'lucide-react'
 
-import { Badge, Button, Callout, SegmentedControl, type BadgeTone } from '@/components/core/ui'
+import { Badge, Button, SegmentedControl, type BadgeTone } from '@/components/core/ui'
 import { copyToClipboard } from '@/lib/clipboard'
 import { log } from '@/lib/logger'
 import { EXPECTED_SCHEMA_VERSION } from '@/lib/schemaVersion'
@@ -80,7 +69,7 @@ function CopyButton({
 function ValueField({ children, muted = false }: { children: string; muted?: boolean }) {
   return (
     <code
-      className={`min-w-0 flex-1 truncate rounded-md border border-ui-divider bg-ui-field px-2.5 py-1.5 font-mono text-[13px] ${
+      className={`min-w-0 flex-1 truncate rounded-lg border border-ui-field-border bg-ui-field px-2.5 py-1 font-mono text-[13px] ${
         muted ? 'text-ui-fg-secondary' : 'text-ui-fg'
       }`}
     >
@@ -126,22 +115,19 @@ export function SupabaseSettings() {
 
   return (
     <SettingsPage>
-      {!c.isConfigured && (
-        <Callout tone="warning" title="Supabase Not Configured">
-          Connect to a Supabase project to enable cloud features. Use the organization code from
-          your administrator or configure environment variables during development.
-        </Callout>
-      )}
-
       <SettingsSection
         title="Connection Status"
+        description={
+          c.isConfigured
+            ? undefined
+            : 'Supabase is not configured. Connect to a Supabase project to enable cloud features: use the organization code from your administrator, or configure environment variables during development.'
+        }
         actions={
           <Button
             variant="ghost"
             size="sm"
             onClick={c.checkConnectionStatus}
-            disabled={status === 'checking'}
-            icon={<RefreshCw size={14} className={status === 'checking' ? 'animate-spin' : ''} />}
+            loading={status === 'checking'}
           >
             Refresh
           </Button>
@@ -195,7 +181,7 @@ export function SupabaseSettings() {
         <SettingsSection title="Schema Version">
           <SettingsGroup>
             {c.loadingSchema ? (
-              <div className="flex items-center gap-2 px-4 py-3.5 text-[14px] text-ui-fg-secondary">
+              <div className="flex items-center gap-2 py-3 text-[14px] text-ui-fg-secondary">
                 <Loader2 size={14} className="animate-spin" />
                 Checking schema version...
               </div>
@@ -238,24 +224,22 @@ export function SupabaseSettings() {
             schemaVersion &&
             schemaVersion.version < EXPECTED_SCHEMA_VERSION &&
             isAdmin && (
-              <Callout tone="warning">
-                <strong className="font-medium text-ui-fg">Admin action needed:</strong> Run the
-                latest <code className="rounded bg-ui-bg px-1">schema.sql</code> in your Supabase
-                SQL editor to enable new features.
-              </Callout>
+              <p className="pt-3 text-[14px] leading-[1.4] text-ui-fg-secondary">
+                Admin action needed: run the latest schema in your Supabase SQL editor to enable new
+                features.
+              </p>
             )}
           {!c.loadingSchema && schemaVersion && schemaVersion.version > EXPECTED_SCHEMA_VERSION && (
-            <Callout tone="info">
+            <p className="pt-3 text-[14px] leading-[1.4] text-ui-fg-secondary">
               Your database is newer than this app version. Consider updating BluePLM for the best
               experience.
-            </Callout>
+            </p>
           )}
           {!c.loadingSchema && !schemaVersion && isAdmin && (
-            <Callout tone="warning">
-              <strong className="font-medium text-ui-fg">Admin action needed:</strong> Run the
-              latest <code className="rounded bg-ui-bg px-1">schema.sql</code> in your Supabase SQL
-              editor to enable schema version tracking.
-            </Callout>
+            <p className="pt-3 text-[14px] leading-[1.4] text-ui-fg-secondary">
+              Admin action needed: run the latest schema in your Supabase SQL editor to enable
+              schema version tracking.
+            </p>
           )}
         </SettingsSection>
       )}
@@ -331,38 +315,28 @@ export function SupabaseSettings() {
         <SettingsSection
           title="Database Statistics"
           actions={
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={c.loadStats}
-              disabled={c.loadingStats}
-              icon={<RefreshCw size={14} className={c.loadingStats ? 'animate-spin' : ''} />}
-            >
+            <Button variant="ghost" size="sm" onClick={c.loadStats} loading={c.loadingStats}>
               Refresh
             </Button>
           }
         >
           <StatGrid>
             <StatCard
-              icon={<FileText size={13} />}
               label="Files"
               value={c.stats.totalFiles.toLocaleString()}
               loading={c.loadingStats}
             />
             <StatCard
-              icon={<HardDrive size={13} />}
               label="Vaults"
               value={c.stats.totalVaults.toLocaleString()}
               loading={c.loadingStats}
             />
             <StatCard
-              icon={<Users size={13} />}
               label="Members"
               value={c.stats.totalUsers.toLocaleString()}
               loading={c.loadingStats}
             />
             <StatCard
-              icon={<Clock size={13} />}
               label="Checked Out"
               value={c.stats.totalCheckouts.toLocaleString()}
               loading={c.loadingStats}
@@ -427,7 +401,7 @@ export function SupabaseSettings() {
             </SettingRow>
             {c.stats.realtimeConnected &&
               channels.map((channel, idx) => (
-                <div key={idx} className="flex items-center gap-2.5 px-4 py-2 text-[13px]">
+                <div key={idx} className="flex items-center gap-2.5 py-2.5 text-[13px]">
                   <span
                     className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${
                       CHANNEL_DOT[channel.state] ?? 'bg-ui-fg-secondary'

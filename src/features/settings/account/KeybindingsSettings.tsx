@@ -1,8 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { RotateCcw, Edit3, Check, X } from 'lucide-react'
+import { Edit3, Check, X } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 
-import { Button, Callout } from '@/components/core/ui'
+import { Button } from '@/components/core/ui'
 import { SettingsGroup, SettingsPage, SettingsSection } from '@/features/settings/components/ui'
 import { usePDMStore } from '@/stores/pdmStore'
 import type { KeybindingAction, Keybinding } from '@/types/settings'
@@ -219,10 +219,10 @@ function KeybindingRow({
   }
 
   return (
-    <div className="group flex items-center justify-between gap-4 px-4 py-2.5">
+    <div className="group flex items-center justify-between gap-12 py-3">
       <div className="min-w-0 flex-1">
-        <div className="text-[14px] font-medium text-ui-fg">{label}</div>
-        <div className="truncate text-[13px] text-ui-fg-secondary">{description}</div>
+        <div className="text-[14px] text-ui-fg">{label}</div>
+        <div className="mt-0.5 truncate text-[14px] text-ui-fg-secondary">{description}</div>
       </div>
 
       <div className="flex items-center gap-1.5">
@@ -231,14 +231,14 @@ function KeybindingRow({
             <button
               ref={inputRef}
               type="button"
-              className="h-7 min-w-[120px] rounded-md border border-ui-accent bg-ui-accent/10 px-3 text-center font-mono text-[13px] text-ui-accent outline-none focus-visible:ring-2 focus-visible:ring-ui-accent/60"
+              className="h-7 min-w-[120px] rounded-lg border border-ui-accent bg-ui-field px-3 text-center text-[13px] text-ui-fg outline-none focus-visible:ring-2 focus-visible:ring-ui-accent/50"
             >
               {pendingKeybinding ? formatKeybinding(pendingKeybinding) : 'Press keys...'}
             </button>
             <Button
               variant="ghost"
               size="sm"
-              icon={<Check size={14} className="text-ui-success" />}
+              icon={<Check size={14} />}
               onClick={handleSave}
               disabled={!pendingKeybinding}
               title="Save"
@@ -255,7 +255,7 @@ function KeybindingRow({
           </>
         ) : (
           <>
-            <kbd className="flex h-7 min-w-[120px] items-center justify-center rounded-md border border-ui-divider bg-ui-bg px-3 font-mono text-[13px] text-ui-fg">
+            <kbd className="flex h-7 min-w-[120px] items-center justify-center rounded-lg border border-ui-field-border bg-ui-field px-3 font-sans text-[13px] text-ui-fg">
               {formatKeybinding(keybinding)}
             </kbd>
             <Button
@@ -316,16 +316,17 @@ export function KeybindingsSettings() {
 
   return (
     <SettingsPage>
-      <Callout
-        action={
-          <Button size="sm" icon={<RotateCcw size={12} />} onClick={handleResetAll}>
+      <SettingsSection
+        title="Keyboard Shortcuts"
+        description="Click the edit button next to any shortcut to change it. Press the new key combination and click the checkmark to save. Shortcuts work when the file browser is focused."
+        actions={
+          <Button size="sm" onClick={handleResetAll}>
             Reset to Defaults
           </Button>
         }
       >
-        Click the edit button next to any shortcut to change it. Press the new key combination and
-        click the checkmark to save. Shortcuts work when the file browser is focused.
-      </Callout>
+        {null}
+      </SettingsSection>
 
       {keybindingsByCategory.map(({ category, items }) => (
         <SettingsSection key={category} title={category}>

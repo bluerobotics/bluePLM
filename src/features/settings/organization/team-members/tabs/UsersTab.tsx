@@ -10,21 +10,17 @@
  * - useFilteredData for search filtering
  */
 import { useState, useCallback } from 'react'
-import * as LucideIcons from 'lucide-react'
 import {
   UserPlus,
   Clock,
   ChevronDown,
   ChevronRight,
-  Users,
-  Shield,
   Mail,
   Pencil,
   X,
   MoreVertical,
   Eye,
   UserCog,
-  Loader2,
 } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 
@@ -170,8 +166,8 @@ export function UsersTab({ searchQuery = '', onShowCreateUserDialog }: UsersTabP
       {/* All Users Section */}
       {filteredAllUsers.length === 0 ? (
         <SettingsGroup>
-          <div className="flex items-center justify-between gap-4 px-4 py-4">
-            <span className="text-[13px] text-ui-fg-secondary">
+          <div className="flex items-center justify-between gap-4 py-4">
+            <span className="text-[14px] text-ui-fg-secondary">
               {orgUsers.length === 0 ? 'No users yet' : 'No users match your search'}
             </span>
             {isAdmin && orgUsers.length === 0 && onShowCreateUserDialog && (
@@ -181,7 +177,7 @@ export function UsersTab({ searchQuery = '', onShowCreateUserDialog }: UsersTabP
                 icon={<UserPlus size={14} />}
                 onClick={onShowCreateUserDialog}
               >
-                Add First User
+                Add first user
               </Button>
             )}
           </div>
@@ -196,36 +192,37 @@ export function UsersTab({ searchQuery = '', onShowCreateUserDialog }: UsersTabP
 
       {/* Pending Members Section (pre-created accounts) */}
       {isAdmin && pendingMembers.length > 0 && (
-        <div className="space-y-2">
+        <div>
           <button
             type="button"
             onClick={() => setShowPendingMembers(!showPendingMembers)}
             aria-expanded={showPendingMembers}
-            className="flex items-center gap-1.5 text-[14px] font-medium text-ui-fg-secondary transition-colors hover:text-ui-fg"
+            className="flex items-center gap-1.5 pb-1 text-[16px] font-semibold leading-6 text-ui-fg"
           >
             {showPendingMembers ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-            Pending Members
-            <span className="text-[12px] font-normal tabular-nums">{pendingMembers.length}</span>
+            Pending members
+            <span className="text-[13px] font-normal tabular-nums text-ui-fg-secondary">{pendingMembers.length}</span>
           </button>
 
           {showPendingMembers && (
-            <SettingsGroup>
-              <div className="px-4 py-2.5 text-[13px] text-ui-fg-secondary">
+            <>
+              <p className="text-[14px] leading-[1.4] text-ui-fg-secondary">
                 Pre-created accounts awaiting user sign-in. These users can sign in with the
                 organization code.
-              </div>
+              </p>
+              <SettingsGroup>
               {pendingMembers.map((pm) => (
                 <div
                   key={pm.id}
-                  className="group flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-ui-hover/40"
+                  className="group flex items-center gap-3 py-3"
                 >
-                  <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-ui-fg-secondary/10">
+                  <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-ui-field">
                     <Clock size={14} className="text-ui-fg-secondary" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 text-[14px] font-medium text-ui-fg">
+                    <div className="flex items-center gap-2 text-[14px] text-ui-fg">
                       <span className="truncate">{pm.full_name || pm.email}</span>
-                      <Badge tone="warning">Pending</Badge>
+                      <Badge>Pending</Badge>
                     </div>
                     <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[13px] text-ui-fg-secondary">
                       <span className="truncate">{pm.email}</span>
@@ -234,34 +231,21 @@ export function UsersTab({ searchQuery = '', onShowCreateUserDialog }: UsersTabP
                           {pm.workflow_role_ids.slice(0, 2).map((roleId) => {
                             const role = workflowRoles.find((r) => r.id === roleId)
                             if (!role) return null
-                            const RoleIcon =
-                              (
-                                LucideIcons as unknown as Record<
-                                  string,
-                                  React.ComponentType<{ size?: number }>
-                                >
-                              )[role.icon] || Shield
                             return (
-                              <span
-                                key={roleId}
-                                className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[12px] font-medium"
-                                style={{ backgroundColor: `${role.color}20`, color: role.color }}
-                                title={role.name}
-                              >
-                                <RoleIcon size={10} />
+                              <Badge key={roleId} title={role.name}>
                                 {role.name}
-                              </span>
+                              </Badge>
                             )
                           })}
                           {pm.workflow_role_ids.length > 2 && (
-                            <span className="text-[12px] text-ui-fg-secondary">
+                            <span className="text-[13px] text-ui-fg-secondary">
                               +{pm.workflow_role_ids.length - 2}
                             </span>
                           )}
                         </span>
                       )}
                       {pm.team_ids && pm.team_ids.length > 0 && (
-                        <Badge icon={<Users size={10} />}>
+                        <Badge>
                           {pm.team_ids.length} team{pm.team_ids.length !== 1 ? 's' : ''}
                         </Badge>
                       )}
@@ -269,55 +253,51 @@ export function UsersTab({ searchQuery = '', onShowCreateUserDialog }: UsersTabP
                   </div>
                   <div className="flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
                     {apiServerUrl && (
-                      <button
-                        type="button"
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="!px-1.5"
                         onClick={() => handleResendInvite(pm)}
-                        disabled={resendingInviteId === pm.id}
-                        className="rounded-md p-1.5 text-ui-fg-secondary hover:bg-ui-hover hover:text-ui-fg disabled:opacity-50"
+                        loading={resendingInviteId === pm.id}
+                        icon={<Mail size={14} />}
                         title="Resend invite email"
                         aria-label="Resend invite email"
-                      >
-                        {resendingInviteId === pm.id ? (
-                          <Loader2 size={14} className="animate-spin" />
-                        ) : (
-                          <Mail size={14} />
-                        )}
-                      </button>
+                      />
                     )}
-                    <button
-                      type="button"
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="!px-1.5"
                       onClick={() => openEditPendingMember(pm)}
-                      className="rounded-md p-1.5 text-ui-fg-secondary hover:bg-ui-hover hover:text-ui-fg"
+                      icon={<Pencil size={14} />}
                       title="Edit pending member"
                       aria-label="Edit pending member"
-                    >
-                      <Pencil size={14} />
-                    </button>
-                    <button
-                      type="button"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="!px-1.5 hover:!text-ui-danger"
                       onClick={() => deletePendingMember(pm.id)}
-                      className="rounded-md p-1.5 text-ui-fg-secondary hover:bg-ui-danger/10 hover:text-ui-danger"
+                      icon={<X size={14} />}
                       title="Remove pending member"
                       aria-label="Remove pending member"
-                    >
-                      <X size={14} />
-                    </button>
+                    />
 
                     {/* More actions dropdown */}
                     <div className="relative">
-                      <button
-                        type="button"
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="!px-1.5"
                         onClick={() =>
                           setPendingMemberDropdownOpen(
                             pendingMemberDropdownOpen === pm.id ? null : pm.id,
                           )
                         }
-                        className="rounded-md p-1.5 text-ui-fg-secondary hover:bg-ui-hover hover:text-ui-fg"
+                        icon={<MoreVertical size={14} />}
                         title="More actions"
                         aria-label="More actions"
-                      >
-                        <MoreVertical size={14} />
-                      </button>
+                      />
 
                       {pendingMemberDropdownOpen === pm.id && (
                         <>
@@ -378,7 +358,8 @@ export function UsersTab({ searchQuery = '', onShowCreateUserDialog }: UsersTabP
                   </div>
                 </div>
               ))}
-            </SettingsGroup>
+              </SettingsGroup>
+            </>
           )}
         </div>
       )}

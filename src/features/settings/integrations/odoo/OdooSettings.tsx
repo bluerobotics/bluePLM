@@ -76,28 +76,16 @@ export function OdooSettings() {
 
   return (
     <SettingsPage>
-      {!isAdmin && (
-        <Callout tone="info">Only administrators can edit integration settings.</Callout>
-      )}
-
       {/* Status header */}
-      <SettingsSection>
+      <SettingsSection
+        title="Connection"
+        description={
+          isAdmin ? undefined : 'Only administrators can edit integration settings.'
+        }
+      >
         <SettingsGroup>
           <SettingRow
-            label={
-              connected ? (
-                <>
-                  Connected to {settings?.settings?.url}
-                  {settings?.settings?.config_name && (
-                    <span className="ml-1 font-normal text-ui-fg-secondary">
-                      ({settings.settings.config_name})
-                    </span>
-                  )}
-                </>
-              ) : (
-                'Not connected'
-              )
-            }
+            label="Odoo"
             badge={
               isLoading ? (
                 <Loader2 size={12} className="animate-spin text-ui-fg-secondary" />
@@ -106,19 +94,29 @@ export function OdooSettings() {
               ) : apiServerOnline === false ? (
                 <Badge tone="warning">API server offline</Badge>
               ) : (
-                <Badge>Off</Badge>
+                <Badge>Not connected</Badge>
               )
             }
             description={
-              connected && settings?.last_sync_at
-                ? `Last sync: ${new Date(settings.last_sync_at).toLocaleDateString()}`
+              connected
+                ? `Connected to ${settings?.settings?.url ?? ''}${
+                    settings?.settings?.config_name ? ` (${settings.settings.config_name})` : ''
+                  }${
+                    settings?.last_sync_at
+                      ? ` · Last sync: ${new Date(settings.last_sync_at).toLocaleDateString()}`
+                      : ''
+                  }`
                 : 'Sync suppliers, products, and BOMs from your Odoo instance'
             }
           >
+            {!connected && isAdmin && apiServerOnline !== false && (
+              <Button variant="primary" onClick={openNewConnection} icon={<Plus size={14} />}>
+                Connect
+              </Button>
+            )}
             {connected && isAdmin && (
               <>
                 <Button
-                  size="sm"
                   onClick={handleSync}
                   loading={isSyncing}
                   icon={<RefreshCw size={14} />}
@@ -126,7 +124,6 @@ export function OdooSettings() {
                   Sync Suppliers Now
                 </Button>
                 <Button
-                  size="sm"
                   variant="danger-subtle"
                   onClick={() => setShowDisconnectDialog(true)}
                 >
@@ -139,6 +136,7 @@ export function OdooSettings() {
 
         {apiServerOnline === false && (
           <Callout
+            className="mt-3"
             tone="warning"
             title="API Server Offline"
             action={
@@ -148,14 +146,14 @@ export function OdooSettings() {
             }
           >
             Odoo integration requires the BluePLM API server. Run{' '}
-            <code className="rounded bg-ui-bg px-1 font-mono">npm run api</code> locally or
+            <code className="font-mono">npm run api</code> locally or
             configure an external API URL in Settings → REST API.
           </Callout>
         )}
 
         {/* Credential storage misconfigured on the API - actionable by an admin */}
         {setupError && (
-          <Callout tone="error" title="API key could not be stored">
+          <Callout className="mt-3" tone="error" title="API key could not be stored">
             {setupError}
           </Callout>
         )}
@@ -166,7 +164,7 @@ export function OdooSettings() {
           title={
             <span className="flex items-center gap-2">
               <span>Odoo Connections</span>
-              {savedConfigs.length > 0 && <Badge tone="accent">{savedConfigs.length}</Badge>}
+              {savedConfigs.length > 0 && <Badge>{savedConfigs.length}</Badge>}
             </span>
           }
           actions={
@@ -183,7 +181,7 @@ export function OdooSettings() {
                 <Loader2 size={16} className="animate-spin text-ui-fg-secondary" />
               </div>
             ) : savedConfigs.length === 0 ? (
-              <div className="px-4 py-3 text-[14px] text-ui-fg-secondary">
+              <div className="py-4 text-[14px] text-ui-fg-secondary">
                 No saved connections yet. Click "New Connection" to create one.
               </div>
             ) : (
@@ -191,9 +189,7 @@ export function OdooSettings() {
                 {savedConfigs.map((config) => (
                   <div
                     key={config.id}
-                    className={`flex items-center gap-3 px-4 py-2.5 ${
-                      config.is_active ? 'bg-ui-accent/[0.06]' : ''
-                    }`}
+                    className="flex items-center gap-3 py-3"
                   >
                     <div
                       className="w-2.5 h-2.5 rounded-full flex-shrink-0"
@@ -201,7 +197,7 @@ export function OdooSettings() {
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="truncate text-[14px] font-medium text-ui-fg">
+                        <span className="truncate text-[14px] text-ui-fg">
                           {config.name}
                         </span>
                         {config.is_active && <Badge tone="success">Active</Badge>}
@@ -212,7 +208,7 @@ export function OdooSettings() {
                           <AlertCircle size={12} className="text-ui-danger flex-shrink-0" />
                         )}
                       </div>
-                      <div className="truncate text-[13px] text-ui-fg-secondary">
+                      <div className="mt-0.5 truncate text-[13px] text-ui-fg-secondary">
                         {config.url} · {config.database}
                       </div>
                     </div>
@@ -397,7 +393,9 @@ export function OdooSettings() {
           </SettingsGroup>
 
           {testResult && (
-            <Callout tone={testResult.success ? 'success' : 'error'}>{testResult.message}</Callout>
+            <Callout className="mt-3" tone={testResult.success ? 'success' : 'error'}>
+              {testResult.message}
+            </Callout>
           )}
         </SettingsSection>
       )}
@@ -406,10 +404,10 @@ export function OdooSettings() {
         href="https://www.odoo.com/documentation/17.0/developer/reference/external_api.html"
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center gap-1.5 text-[13px] text-ui-accent hover:underline"
+        className="inline-flex items-center gap-1.5 text-[14px] text-ui-accent hover:underline"
       >
-        <ExternalLink size={14} />
         Odoo API Documentation
+        <ExternalLink size={13} />
       </a>
 
       {showSaveDialog && isAdmin && <OdooConnectionDialog odoo={odoo} />}

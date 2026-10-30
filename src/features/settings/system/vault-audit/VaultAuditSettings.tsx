@@ -76,10 +76,10 @@ export function VaultAuditSettings() {
   return (
     <SettingsSection title={t('vaultAudit.title')} description={t('vaultAudit.description')}>
       {!audit.isAdmin ? (
-        <Callout>{t('vaultAudit.adminOnly')}</Callout>
+        <p className="text-[14px] text-ui-fg-secondary">{t('vaultAudit.adminOnly')}</p>
       ) : (
         <div className="space-y-6">
-          <p className="text-[13px] text-ui-fg-secondary">{t('vaultAudit.readOnlyNote')}</p>
+          <p className="text-[14px] text-ui-fg-secondary">{t('vaultAudit.readOnlyNote')}</p>
 
           {audit.serviceCheck && (
             <SwServiceVersionNotice
@@ -113,7 +113,7 @@ export function VaultAuditSettings() {
           )}
 
           {audit.view && (
-            <div className="space-y-6 pt-4 border-t border-ui-divider">
+            <div className="space-y-8 pt-6 border-t border-ui-divider">
               <VaultAuditOverview view={audit.view} artifactPath={audit.artifactPath} />
 
               {/*
@@ -153,7 +153,7 @@ export function VaultAuditSettings() {
                             <h4 className="text-[14px] font-semibold text-ui-fg">
                               {categoryLabel(selectedCategory)}
                             </h4>
-                            <p className="text-[13px] text-ui-fg-secondary">
+                            <p className="mt-1 text-[14px] text-ui-fg-secondary">
                               {categoryDescription(selectedCategory)}
                             </p>
                           </div>
@@ -167,15 +167,15 @@ export function VaultAuditSettings() {
                   </div>
 
                   {/* Context for the numbers, not something to act on, so it stays folded. */}
-                  <details className="group rounded-lg border border-ui-divider bg-ui-field/60">
-                    <summary className="flex cursor-pointer select-none list-none items-center gap-1.5 px-4 py-2.5 text-[14px] text-ui-fg-secondary hover:text-ui-fg">
+                  <details className="group">
+                    <summary className="flex cursor-pointer select-none list-none items-center gap-1.5 py-2 text-[14px] font-semibold text-ui-fg">
                       <ChevronRight
                         size={14}
                         className="transition-transform group-open:rotate-90"
                       />
                       {t('vaultAudit.details.heading')}
                     </summary>
-                    <div className="space-y-6 px-4 pb-4 pt-1">
+                    <div className="space-y-8 pt-3">
                       <VaultAuditCoverage coverage={audit.view.coverage} />
                       <VaultAuditFieldTable tallies={audit.view.fieldTallies} />
                     </div>
@@ -183,8 +183,8 @@ export function VaultAuditSettings() {
                 </>
               )}
 
-              <div className="flex items-center justify-between pt-2 border-t border-ui-divider">
-                <p className="max-w-2xl text-[13px] text-ui-fg-secondary">
+              <div className="flex items-center justify-between gap-4 pt-4 border-t border-ui-divider">
+                <p className="max-w-2xl text-[14px] text-ui-fg-secondary">
                   {t('vaultAudit.result.notStored')}
                 </p>
                 <Button

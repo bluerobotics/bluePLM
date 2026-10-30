@@ -7,6 +7,7 @@
  * @module team-members/JobTitleFormDialog
  */
 
+import { Button } from '@/components/core/ui'
 import { IconGridPicker } from '@/components/shared/IconPicker'
 import { ColorPickerDropdown } from '@/components/shared/ColorPicker'
 import { getTitleIcon } from '../../utils'
@@ -116,16 +117,16 @@ export function JobTitleFormDialog({
         </div>
 
         <div className="flex gap-2 justify-end mt-6">
-          <button onClick={onClose} className="btn btn-ghost">
+          <Button variant="ghost" onClick={onClose}>
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="primary"
             onClick={onSave}
             disabled={isSaving || !titleName.trim()}
-            className="btn btn-primary"
           >
             {saveButtonText}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

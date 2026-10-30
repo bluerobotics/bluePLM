@@ -29,12 +29,12 @@ export function VaultAuditNote({
   const [open, setOpen] = useState(false)
 
   return (
-    <div className="rounded-md border border-ui-divider bg-ui-field">
+    <div>
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
         aria-expanded={open}
-        className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-[12px] text-ui-fg-secondary hover:text-ui-fg transition-colors"
+        className="w-full flex items-center gap-2 py-1.5 text-left text-[13px] text-ui-fg-secondary hover:text-ui-fg transition-colors"
       >
         <Icon size={13} className={`flex-shrink-0 ${iconClassName}`} />
         <span className="flex-1">{label}</span>
@@ -43,7 +43,9 @@ export function VaultAuditNote({
           {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         </span>
       </button>
-      {open && <div className="px-3 pb-2 text-[12px] text-ui-fg-secondary space-y-2">{children}</div>}
+      {open && (
+        <div className="pb-2 pl-5 text-[13px] text-ui-fg-secondary space-y-2">{children}</div>
+      )}
     </div>
   )
 }

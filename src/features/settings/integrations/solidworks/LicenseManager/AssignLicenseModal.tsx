@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { X, UserPlus, Search, Clock } from 'lucide-react'
 
-import { Button } from '@/components/core/ui'
+import { Button, TextInput } from '@/components/core/ui'
 import { getInitials } from '@/lib/utils'
 import type { LicenseWithAssignment, OrgUser } from './types'
 
@@ -100,7 +100,7 @@ export function AssignLicenseModal({ license, users, onClose, onAssign }: Assign
         <div className="flex items-center gap-2">
           <span className="text-[13px] text-ui-fg truncate">{user.full_name || user.email}</span>
           {user.is_pending && (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 text-[12px] rounded">
+            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-ui-warning/20 text-ui-warning text-[12px] rounded">
               <Clock size={10} />
               Pending
             </span>
@@ -120,7 +120,7 @@ export function AssignLicenseModal({ license, users, onClose, onAssign }: Assign
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-ui-divider">
           <div className="flex items-center gap-3">
-            <UserPlus size={20} className="text-ui-accent" />
+            <UserPlus size={20} className="text-ui-fg-secondary" />
             <h2 className="text-lg font-semibold text-ui-fg">Assign License</h2>
           </div>
           <button
@@ -146,7 +146,7 @@ export function AssignLicenseModal({ license, users, onClose, onAssign }: Assign
 
           {/* Current assignment warning */}
           {license.assignment && (
-            <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-[13px] text-yellow-400">
+            <div className="p-3 bg-ui-warning/10 border border-ui-warning/30 rounded-lg text-[13px] text-ui-warning">
               This license is currently assigned to{' '}
               <strong>
                 {license.assignment.user?.full_name || license.assignment.user?.email}
@@ -163,12 +163,12 @@ export function AssignLicenseModal({ license, users, onClose, onAssign }: Assign
                 size={16}
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-ui-fg-secondary"
               />
-              <input
+              <TextInput
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search users..."
-                className="w-full pl-10 pr-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-[13px] text-ui-fg placeholder-ui-fg focus:outline-none focus:border-ui-accent"
+                className="pl-9"
               />
             </div>
           </div>
@@ -185,7 +185,7 @@ export function AssignLicenseModal({ license, users, onClose, onAssign }: Assign
                 {activeUsers.length > 0 && (
                   <>
                     {pendingUsers.length > 0 && (
-                      <div className="px-4 py-2 text-[12px] font-medium text-ui-fg-secondary uppercase tracking-wide bg-ui-field/50 border-b border-ui-divider">
+                      <div className="px-4 py-2 text-[13px] text-ui-fg-secondary bg-ui-field/50 border-b border-ui-divider">
                         Active Members
                       </div>
                     )}
@@ -196,7 +196,7 @@ export function AssignLicenseModal({ license, users, onClose, onAssign }: Assign
                 {/* Pending users section */}
                 {pendingUsers.length > 0 && (
                   <>
-                    <div className="px-4 py-2 text-[12px] font-medium text-ui-fg-secondary uppercase tracking-wide bg-ui-field/50 border-b border-ui-divider flex items-center gap-2">
+                    <div className="px-4 py-2 text-[13px] text-ui-fg-secondary bg-ui-field/50 border-b border-ui-divider flex items-center gap-2">
                       <Clock size={12} />
                       Pending Invites
                     </div>
@@ -230,7 +230,7 @@ export function AssignLicenseModal({ license, users, onClose, onAssign }: Assign
                 <div className="text-[13px] text-ui-fg font-medium flex items-center gap-2">
                   {selectedUser.full_name || selectedUser.email}
                   {selectedUser.is_pending && (
-                    <span className="text-[12px] text-yellow-400">(Pending)</span>
+                    <span className="text-[12px] text-ui-warning">(Pending)</span>
                   )}
                 </div>
               </div>
@@ -239,7 +239,7 @@ export function AssignLicenseModal({ license, users, onClose, onAssign }: Assign
 
           {/* Error message */}
           {error && (
-            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-[13px]">
+            <div className="text-[14px] text-ui-danger">
               {error}
             </div>
           )}

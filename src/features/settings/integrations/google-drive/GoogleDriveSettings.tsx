@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Loader2, Check, Eye, EyeOff } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 
-import { Badge, Button, Callout, Switch, TextInput } from '@/components/core/ui'
+import { Badge, Button, Switch, TextInput } from '@/components/core/ui'
 import {
   SettingRow,
   SettingsGroup,
@@ -139,27 +139,39 @@ export function GoogleDriveSettings() {
 
   return (
     <SettingsPage>
-      {!isAdmin && (
-        <Callout tone="info">Only administrators can edit integration settings.</Callout>
-      )}
-
-      <SettingsSection>
+      <SettingsSection
+        title="Connection"
+        description={
+          isAdmin ? undefined : 'Only administrators can edit integration settings.'
+        }
+      >
         <SettingsGroup>
+          <SettingRow
+            label="Google Drive"
+            description={
+              isLoading
+                ? 'Loading settings...'
+                : configured
+                  ? 'Org members can connect their Google Drive.'
+                  : enabled
+                    ? 'Enabled, but the OAuth client ID and secret are missing.'
+                    : 'Not enabled for this organization.'
+            }
+          >
+            {isLoading ? (
+              <Loader2 size={14} className="animate-spin text-ui-fg-secondary" />
+            ) : configured ? (
+              <Badge tone="success">Configured</Badge>
+            ) : enabled ? (
+              <Badge tone="warning">Needs credentials</Badge>
+            ) : (
+              <Badge>Off</Badge>
+            )}
+          </SettingRow>
           <SettingRow
             label="Enable Google Drive"
             description="Allow org members to connect their Google Drive"
             htmlFor="google-drive-enabled"
-            badge={
-              isLoading ? (
-                <Loader2 size={12} className="animate-spin text-ui-fg-secondary" />
-              ) : configured ? (
-                <Badge tone="success">Configured</Badge>
-              ) : enabled ? (
-                <Badge tone="warning">Needs credentials</Badge>
-              ) : (
-                <Badge>Off</Badge>
-              )
-            }
           >
             <Switch
               id="google-drive-enabled"
@@ -231,32 +243,40 @@ export function GoogleDriveSettings() {
             </SettingRow>
           </SettingsGroup>
 
-          <Callout tone="info" title="Setup instructions">
-            <ol className="mt-1 list-decimal list-inside space-y-0.5">
-              <li>
-                Go to{' '}
-                <a
-                  href="https://console.cloud.google.com/apis/credentials"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-ui-accent hover:underline"
-                >
-                  Google Cloud Console
-                </a>
-              </li>
-              <li>Create or select a project</li>
-              <li>Enable the Google Drive API and the Google Sheets API</li>
-              <li>Create OAuth 2.0 credentials (Desktop app type)</li>
-              <li>Copy the Client ID and Client Secret here</li>
-            </ol>
-          </Callout>
+        </SettingsSection>
+      )}
+
+      {enabled && (
+        <SettingsSection title="Setup instructions">
+          <ol className="list-decimal list-inside space-y-1 pt-2 text-[14px] leading-[1.4] text-ui-fg-secondary">
+            <li>
+              Go to{' '}
+              <a
+                href="https://console.cloud.google.com/apis/credentials"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-ui-accent hover:underline"
+              >
+                Google Cloud Console
+              </a>
+            </li>
+            <li>Create or select a project</li>
+            <li>Enable the Google Drive API and the Google Sheets API</li>
+            <li>Create OAuth 2.0 credentials (Desktop app type)</li>
+            <li>Copy the Client ID and Client Secret here</li>
+          </ol>
         </SettingsSection>
       )}
 
       {/* Outside the credentials section, so turning Google Drive off can be saved too */}
       {isAdmin && (
         <div className="flex justify-end">
-          <Button variant="primary" onClick={saveSettings} loading={isSaving} icon={<Check size={14} />}>
+          <Button
+            variant="primary"
+            onClick={saveSettings}
+            loading={isSaving}
+            icon={<Check size={14} />}
+          >
             Save Google Drive Settings
           </Button>
         </div>

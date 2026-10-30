@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Mail, Loader2, Key, Shield, Camera, X } from 'lucide-react'
+import { Loader2, Camera, X } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 
 import { Badge, Button, Callout, TextInput, type BadgeTone } from '@/components/core/ui'
@@ -111,7 +111,8 @@ export function ProfileSettings() {
 
       // Update user's custom avatar via RPC (RPC types not inferred in Supabase v2)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: updateError } = await (supabase as any).rpc('user_update_avatar', { // TODO: type this
+      const { error: updateError } = await (supabase as any).rpc('user_update_avatar', {
+        // TODO: type this
         p_custom_avatar_url: signedData.signedUrl,
       })
 
@@ -155,7 +156,8 @@ export function ProfileSettings() {
 
       // Clear custom avatar URL via RPC (RPC types not inferred in Supabase v2)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: updateError } = await (supabase as any).rpc('user_update_avatar', { // TODO: type this
+      const { error: updateError } = await (supabase as any).rpc('user_update_avatar', {
+        // TODO: type this
         p_custom_avatar_url: '', // Empty string clears it
       })
 
@@ -352,11 +354,11 @@ export function ProfileSettings() {
     createdAt: string | null,
     status: string | null,
   ) => (
-    <div key={key} className="flex items-center gap-3 px-4 py-2.5">
+    <div key={key} className="flex items-center gap-3 py-3">
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[14px] font-medium text-ui-fg">
+        <div className="truncate text-[14px] text-ui-fg">
           {number}
-          {title && <span className="ml-2 font-normal text-ui-fg-secondary">— {title}</span>}
+          {title && <span className="ml-2 text-ui-fg-secondary">{title}</span>}
         </div>
         <div className="text-[13px] text-ui-fg-secondary">Created {formatDate(createdAt)}</div>
       </div>
@@ -368,9 +370,8 @@ export function ProfileSettings() {
 
   return (
     <SettingsPage>
-      {/* User profile card */}
-      <SettingsGroup>
-        <div className="flex items-center gap-4 px-4 py-4">
+      <SettingsSection title="Profile">
+        <div className="flex items-center gap-4 py-4">
           {/* Avatar with upload controls */}
           <div className="group relative flex-shrink-0">
             {/* Avatar display (preview > custom > google > initials) */}
@@ -378,7 +379,7 @@ export function ProfileSettings() {
               <img
                 src={(avatarPreview || effectiveAvatarUrl)!}
                 alt={user.full_name || user.email}
-                className="h-16 w-16 rounded-full border border-ui-divider object-cover"
+                className="h-14 w-14 rounded-full object-cover"
                 referrerPolicy="no-referrer"
                 onError={(e) => {
                   const target = e.target as HTMLImageElement
@@ -388,7 +389,7 @@ export function ProfileSettings() {
               />
             ) : null}
             <div
-              className={`flex h-16 w-16 items-center justify-center rounded-full bg-ui-accent text-xl font-semibold text-white ${avatarPreview || effectiveAvatarUrl ? 'hidden' : ''}`}
+              className={`flex h-14 w-14 items-center justify-center rounded-full bg-ui-selected text-[18px] font-medium text-ui-fg ${avatarPreview || effectiveAvatarUrl ? 'hidden' : ''}`}
             >
               {getInitials(user.full_name || user.email)}
             </div>
@@ -420,7 +421,7 @@ export function ProfileSettings() {
               <button
                 type="button"
                 onClick={handleRemoveAvatar}
-                className="absolute -right-1 -top-1 rounded-full bg-ui-danger p-1 text-white opacity-0 shadow-lg transition-opacity hover:opacity-90 group-hover:opacity-100"
+                className="absolute -right-1 -top-1 rounded-full border border-ui-field-border bg-ui-field p-1 text-ui-fg opacity-0 transition-opacity hover:text-ui-danger group-hover:opacity-100"
                 title="Remove custom picture"
               >
                 <X size={12} />
@@ -430,7 +431,7 @@ export function ProfileSettings() {
 
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span className="truncate text-[15px] font-semibold text-ui-fg">
+              <span className="truncate text-[14px] font-medium text-ui-fg">
                 {user.full_name || 'No name'}
               </span>
               <Badge className="capitalize">{user.role}</Badge>
@@ -438,23 +439,15 @@ export function ProfileSettings() {
             {user.job_title && (
               <div className="text-[14px] text-ui-fg-secondary">{user.job_title}</div>
             )}
-            <div className="flex items-center gap-1.5 truncate text-[13px] text-ui-fg-secondary">
-              <Mail size={12} />
-              {user.email}
-            </div>
+            <div className="truncate text-[14px] text-ui-fg-secondary">{user.email}</div>
             <div className="mt-1 text-[13px] text-ui-fg-secondary">PNG, JPG, or WebP, max 2MB</div>
           </div>
 
-          <Button
-            size="sm"
-            icon={<Camera size={12} />}
-            loading={uploadingAvatar}
-            onClick={() => fileInputRef.current?.click()}
-          >
+          <Button size="sm" loading={uploadingAvatar} onClick={() => fileInputRef.current?.click()}>
             {uploadingAvatar ? 'Uploading...' : 'Upload profile picture'}
           </Button>
         </div>
-      </SettingsGroup>
+      </SettingsSection>
 
       {/* Contribution History */}
       <ContributionHistory />
@@ -462,12 +455,12 @@ export function ProfileSettings() {
       <SettingsSection title="My ECOs">
         <SettingsGroup>
           {isLoadingECOs ? (
-            <div className="flex items-center gap-2 px-4 py-3.5 text-[14px] text-ui-fg-secondary">
+            <div className="flex items-center gap-2 py-3 text-[14px] text-ui-fg-secondary">
               <Loader2 size={14} className="animate-spin" />
               Loading ECOs...
             </div>
           ) : userECOs.length === 0 ? (
-            <div className="px-4 py-3.5 text-[14px] text-ui-fg-secondary">No ECOs found</div>
+            <div className="py-3 text-[14px] text-ui-fg-secondary">No ECOs found</div>
           ) : (
             userECOs.map((eco) =>
               renderRecordRow(eco.id, eco.eco_number, eco.title, eco.created_at, eco.status),
@@ -479,12 +472,12 @@ export function ProfileSettings() {
       <SettingsSection title="My RFQs">
         <SettingsGroup>
           {isLoadingRFQs ? (
-            <div className="flex items-center gap-2 px-4 py-3.5 text-[14px] text-ui-fg-secondary">
+            <div className="flex items-center gap-2 py-3 text-[14px] text-ui-fg-secondary">
               <Loader2 size={14} className="animate-spin" />
               Loading RFQs...
             </div>
           ) : userRFQs.length === 0 ? (
-            <div className="px-4 py-3.5 text-[14px] text-ui-fg-secondary">No RFQs found</div>
+            <div className="py-3 text-[14px] text-ui-fg-secondary">No RFQs found</div>
           ) : (
             userRFQs.map((rfq) =>
               renderRecordRow(rfq.id, rfq.rfq_number, rfq.title, rfq.created_at, rfq.status),
@@ -502,24 +495,20 @@ export function ProfileSettings() {
                 label="Recovery Code"
                 description="Have a recovery code? Use it to regain admin access in emergencies."
               >
-                <Button size="sm" icon={<Key size={12} />} onClick={() => setShowRecoveryInput(true)}>
+                <Button size="sm" onClick={() => setShowRecoveryInput(true)}>
                   Enter Code
                 </Button>
               </SettingRow>
             ) : (
-              <div className="space-y-3 px-4 py-4">
-                <Callout tone="warning">
-                  Recovery codes are single-use and will elevate you to admin immediately. Only use
-                  if you have a valid code from your organization.
-                </Callout>
-
+              <div className="space-y-3 py-4">
                 <div>
-                  <label
-                    htmlFor="settings-recovery-code"
-                    className="mb-1.5 block text-[13px] font-medium text-ui-fg-secondary"
-                  >
+                  <label htmlFor="settings-recovery-code" className="block text-[14px] text-ui-fg">
                     Recovery Code
                   </label>
+                  <p className="mb-2 mt-1 text-[14px] leading-[1.4] text-ui-fg-secondary">
+                    Recovery codes are single-use and will elevate you to admin immediately. Only
+                    use one if you have a valid code from your organization.
+                  </p>
                   <TextInput
                     id="settings-recovery-code"
                     value={recoveryCode}
@@ -554,7 +543,6 @@ export function ProfileSettings() {
                   </Button>
                   <Button
                     variant="primary"
-                    icon={<Shield size={14} />}
                     loading={isSubmittingRecovery}
                     onClick={handleRecoverySubmit}
                     disabled={!recoveryCode.trim() || recoveryResult === 'success'}

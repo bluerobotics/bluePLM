@@ -1,7 +1,6 @@
 import {
   Check,
   Eraser,
-  Folder,
   FolderOpen,
   FolderX,
   Link,
@@ -48,11 +47,7 @@ export function VaultRow({ vault, manager }: VaultRowProps) {
   const isRenaming = renamingVaultId === vault.id
 
   return (
-    <div className="flex items-center gap-3 px-4 py-3">
-      <Folder
-        size={16}
-        className={`flex-shrink-0 ${vault.is_default ? 'text-ui-accent' : 'text-ui-fg-secondary'}`}
-      />
+    <div className="flex items-center gap-3 py-3.5">
       <div className="min-w-0 flex-1">
         {isRenaming ? (
           <div className="flex items-center gap-1.5">
@@ -85,12 +80,14 @@ export function VaultRow({ vault, manager }: VaultRowProps) {
         ) : (
           <>
             <div className="flex items-center gap-2">
-              <span className="truncate text-[14px] font-medium text-ui-fg">{vault.name}</span>
-              {vault.is_default && <Badge tone="accent">Default</Badge>}
+              <span className="truncate text-[14px] text-ui-fg">{vault.name}</span>
+              {vault.is_default && <Badge>Default</Badge>}
               {connected ? <Badge tone="success">Connected</Badge> : <Badge>Not connected</Badge>}
             </div>
             {vault.description && (
-              <div className="truncate text-[13px] text-ui-fg-secondary">{vault.description}</div>
+              <div className="mt-0.5 truncate text-[13px] text-ui-fg-secondary">
+                {vault.description}
+              </div>
             )}
             {localPath && (
               <div className="truncate text-[13px] text-ui-fg-secondary" title={localPath}>
@@ -131,12 +128,11 @@ export function VaultRow({ vault, manager }: VaultRowProps) {
               </Button>
               {hasDesktop() && (
                 <Button
-                  variant="ghost"
+                  variant="danger-subtle"
                   size="sm"
                   icon={<Eraser size={14} />}
                   onClick={() => startWipe(vault)}
                   title="Wipe local files"
-                  className="!text-ui-danger"
                 >
                   Wipe Local
                 </Button>
@@ -144,7 +140,6 @@ export function VaultRow({ vault, manager }: VaultRowProps) {
             </>
           ) : (
             <Button
-              variant="primary"
               size="sm"
               icon={<Link size={14} />}
               loading={connectingVaultId === vault.id}
@@ -181,7 +176,6 @@ export function VaultRow({ vault, manager }: VaultRowProps) {
                 onClick={() => startClear(vault)}
                 title="Clear vault contents"
                 aria-label="Clear vault contents"
-                className="!text-ui-warning"
               />
               <Button
                 variant="ghost"

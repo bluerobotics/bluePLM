@@ -24,7 +24,7 @@ interface VaultAuditSelectionBarProps {
 }
 
 const LINK_BUTTON =
-  'text-[12px] text-ui-accent hover:underline disabled:opacity-40 disabled:no-underline'
+  'text-[13px] text-ui-accent hover:underline disabled:opacity-40 disabled:no-underline'
 
 export function VaultAuditSelectionBar({
   summary,
@@ -60,7 +60,7 @@ export function VaultAuditSelectionBar({
           <button type="button" onClick={onInvert} disabled={disabled} className={LINK_BUTTON}>
             {t('vaultAudit.findings.invert')}
           </button>
-          <span className="text-[12px] text-ui-fg-secondary" aria-live="polite">
+          <span className="text-[13px] text-ui-fg-secondary" aria-live="polite">
             {t('vaultAudit.findings.selectedOf', {
               selected: selectedUnits,
               total: selectableUnits,
@@ -70,15 +70,10 @@ export function VaultAuditSelectionBar({
       )}
 
       {hiddenSelectedUnits > 0 && (
-        <span className="flex items-center gap-1.5 text-[12px] text-ui-warning">
+        <span className="flex items-center gap-1.5 text-[13px] text-ui-warning">
           <EyeOff size={12} className="flex-shrink-0" />
           {t('vaultAudit.findings.hiddenSelected', { count: hiddenSelectedUnits })}
-          <button
-            type="button"
-            onClick={onClearHidden}
-            disabled={disabled}
-            className={LINK_BUTTON}
-          >
+          <button type="button" onClick={onClearHidden} disabled={disabled} className={LINK_BUTTON}>
             {t('vaultAudit.findings.clearHidden')}
           </button>
         </span>

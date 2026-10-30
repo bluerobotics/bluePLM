@@ -1,16 +1,5 @@
 import { useState, useEffect } from 'react'
-import * as LucideIcons from 'lucide-react'
-import {
-  AlertTriangle,
-  Check,
-  Download,
-  ExternalLink,
-  RotateCcw,
-  Save,
-  Upload,
-  Users,
-  X,
-} from 'lucide-react'
+import { AlertTriangle, X } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 
 import { Badge, Button, Callout } from '@/components/core/ui'
@@ -169,19 +158,13 @@ export function ModulesSettings() {
           <>
             <Button
               size="sm"
-              icon={<Download size={12} />}
               loading={isLoading}
               onClick={handleLoadOrgDefaults}
               title="Load organization defaults"
             >
               Load Defaults
             </Button>
-            <Button
-              size="sm"
-              icon={<RotateCcw size={12} />}
-              onClick={resetModulesToDefaults}
-              title="Reset to factory defaults"
-            >
+            <Button size="sm" onClick={resetModulesToDefaults} title="Reset to factory defaults">
               Reset
             </Button>
           </>
@@ -191,18 +174,11 @@ export function ModulesSettings() {
           <SettingsGroup>
             <SettingRow
               label="Organization defaults"
-              badge={<Badge tone="accent">Admin</Badge>}
+              badge={<Badge>Admin</Badge>}
               description="Save this configuration as the default for new members, or push it to every member now."
             >
               <Button
                 size="sm"
-                icon={
-                  forceResult === 'success' ? (
-                    <Check size={12} className="text-ui-success" />
-                  ) : (
-                    <Upload size={12} />
-                  )
-                }
                 loading={isForcing}
                 onClick={() => setShowForceConfirm(true)}
                 title="Push this configuration to all organization members, overriding their settings"
@@ -217,7 +193,6 @@ export function ModulesSettings() {
               <Button
                 variant="primary"
                 size="sm"
-                icon={saveResult === 'success' ? <Check size={12} /> : <Save size={12} />}
                 loading={isSaving}
                 onClick={handleSaveOrgDefaults}
                 title="Save as organization defaults for new members"
@@ -249,7 +224,6 @@ export function ModulesSettings() {
             <Button
               variant="ghost"
               size="sm"
-              icon={<ExternalLink size={12} />}
               onClick={() => usePDMStore.getState().setSettingsTab('team-members')}
             >
               Manage in Teams Settings
@@ -258,9 +232,6 @@ export function ModulesSettings() {
         >
           <SettingsGroup>
             {teamsWithModules.map((team) => {
-              // Dynamic Lucide icon lookup requires any cast (icon name is runtime string)
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const IconComponent = (LucideIcons as any)[team.icon] || Users // TODO: type this
               const defaults = team.module_defaults as {
                 enabled_modules?: Record<string, boolean>
               } | null
@@ -269,15 +240,14 @@ export function ModulesSettings() {
                 : 0
 
               return (
-                <div key={team.id} className="flex items-center gap-3 px-4 py-2.5">
-                  <div
-                    className="rounded-md p-1.5"
-                    style={{ backgroundColor: `${team.color}20`, color: team.color }}
-                  >
-                    <IconComponent size={16} />
-                  </div>
+                <div key={team.id} className="flex items-center gap-3 py-3">
+                  <span
+                    aria-hidden
+                    className="h-2 w-2 flex-shrink-0 rounded-full"
+                    style={{ backgroundColor: team.color }}
+                  />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[14px] font-medium text-ui-fg">{team.name}</div>
+                    <div className="truncate text-[14px] text-ui-fg">{team.name}</div>
                     <div className="text-[13px] text-ui-fg-secondary">
                       {enabledCount} modules · {team.member_count} member
                       {team.member_count !== 1 ? 's' : ''}
@@ -293,12 +263,12 @@ export function ModulesSettings() {
       {/* Force Push Confirmation Dialog */}
       {showForceConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-          <div className="mx-4 w-full max-w-md overflow-hidden rounded-xl border border-ui-divider bg-ui-bg shadow-xl">
+          <div className="mx-4 w-full max-w-md overflow-hidden rounded-xl border border-ui-border bg-ui-bg shadow-xl">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-ui-divider p-4">
               <div className="flex items-center gap-3">
                 <AlertTriangle size={18} className="text-ui-warning" />
-                <h3 className="text-[15px] font-semibold text-ui-fg">Push to All Users</h3>
+                <h3 className="text-[16px] font-semibold text-ui-fg">Push to All Users</h3>
               </div>
               <Button
                 variant="ghost"
@@ -328,16 +298,11 @@ export function ModulesSettings() {
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-end gap-2 border-t border-ui-divider bg-ui-field p-4">
+            <div className="flex items-center justify-end gap-2 border-t border-ui-divider p-4">
               <Button variant="ghost" onClick={() => setShowForceConfirm(false)}>
                 Cancel
               </Button>
-              <Button
-                variant="primary"
-                icon={<Upload size={14} />}
-                loading={isForcing}
-                onClick={handleForceOrgDefaults}
-              >
+              <Button variant="primary" loading={isForcing} onClick={handleForceOrgDefaults}>
                 {isForcing ? 'Pushing...' : 'Push to All Users'}
               </Button>
             </div>

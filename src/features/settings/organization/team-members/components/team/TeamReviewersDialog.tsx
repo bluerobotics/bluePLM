@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Users, X, Loader2, Plus, UserCircle, ShieldCheck } from 'lucide-react'
+import { Button } from '@/components/core/ui'
 import { usePDMStore } from '@/stores/pdmStore'
 import { useShallow } from 'zustand/react/shallow'
 import { supabase } from '@/lib/supabase'
@@ -303,9 +304,9 @@ export function TeamReviewersDialog({
 
         {/* Footer */}
         <div className="p-4 border-t border-ui-divider flex justify-end">
-          <button onClick={onClose} className="btn btn-primary">
+          <Button variant="primary" onClick={onClose}>
             Done
-          </button>
+          </Button>
         </div>
       </div>
     </div>

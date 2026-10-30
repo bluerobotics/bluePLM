@@ -23,15 +23,7 @@
  * run that quietly processed the eligible eighth would leave the vault looking done.
  */
 
-import {
-  AlertTriangle,
-  Check,
-  FileUp,
-  Loader2,
-  Lock,
-  ShieldCheck,
-  Sparkles,
-} from 'lucide-react'
+import { AlertTriangle, Check, FileUp, Loader2, Lock, ShieldCheck, Sparkles } from 'lucide-react'
 
 import { Button } from '@/components/core/ui'
 import { t } from '@/lib/i18n'
@@ -58,8 +50,8 @@ function Receipt({ outcome }: { outcome: VaultAuditRepairOutcome }) {
   const refused = outcome.files.filter((file) => file.refused !== null)
 
   return (
-    <div className="p-3 rounded-md border border-ui-divider bg-ui-field space-y-1.5">
-      <p className="text-[13px] text-ui-fg flex items-center gap-1.5">
+    <div className="space-y-1.5">
+      <p className="text-[14px] text-ui-fg flex items-center gap-1.5">
         <Check size={14} className="text-ui-success flex-shrink-0" />
         {t('vaultAudit.repair.receiptHeading', {
           entries: outcome.entriesAdded,
@@ -67,7 +59,7 @@ function Receipt({ outcome }: { outcome: VaultAuditRepairOutcome }) {
         })}
       </p>
       {shortfall.alreadyPresent > 0 && (
-        <p className="text-[12px] text-ui-fg-secondary">
+        <p className="text-[13px] text-ui-fg-secondary">
           {t('vaultAudit.repair.receiptShortfall', {
             count: shortfall.alreadyPresent,
             requested: outcome.entriesRequested,
@@ -75,12 +67,12 @@ function Receipt({ outcome }: { outcome: VaultAuditRepairOutcome }) {
         </p>
       )}
       {shortfall.noRecord > 0 && (
-        <p className="text-[12px] text-ui-fg-secondary">
+        <p className="text-[13px] text-ui-fg-secondary">
           {t('vaultAudit.repair.receiptNoRecord', { count: shortfall.noRecord })}
         </p>
       )}
       {refused.length > 0 && (
-        <p className="text-[12px] text-ui-warning flex items-start gap-1.5">
+        <p className="text-[13px] text-ui-warning flex items-start gap-1.5">
           <AlertTriangle size={13} className="mt-0.5 flex-shrink-0" />
           <span>
             {t('vaultAudit.repair.receiptRefused', { count: refused.length })}
@@ -105,7 +97,7 @@ function WriteToVaultBar({ repair }: { repair: UseVaultAuditRepairResult }) {
         <p>{t('vaultAudit.repair.guarantee')}</p>
       </VaultAuditNote>
 
-      <label className="flex items-start gap-2 text-[12px] text-ui-fg-secondary cursor-pointer">
+      <label className="flex items-start gap-2 text-[13px] text-ui-fg-secondary cursor-pointer">
         <input
           type="checkbox"
           checked={repair.includeDerivedTabs}
@@ -132,7 +124,7 @@ function WriteToVaultBar({ repair }: { repair: UseVaultAuditRepairResult }) {
       {repair.outcome && <Receipt outcome={repair.outcome} />}
 
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[12px] text-ui-fg-secondary">
+        <p className="text-[13px] text-ui-fg-secondary">
           {repair.selected.entries === 0
             ? t('vaultAudit.repair.selectPrompt')
             : t('vaultAudit.repair.selectedSummary', {
@@ -171,14 +163,14 @@ function WriteToFileBar({ push }: { push: UseVaultAuditPushResult }) {
       </VaultAuditNote>
 
       {push.heldByOthers.size > 0 && (
-        <p className="text-[12px] text-ui-fg-secondary flex items-start gap-1.5">
+        <p className="text-[13px] text-ui-fg-secondary flex items-start gap-1.5">
           <Lock size={13} className="mt-0.5 flex-shrink-0" />
           {t('vaultAudit.push.heldByOthers', { count: push.heldByOthers.size })}
         </p>
       )}
 
       {eligibility.selected > 0 && (
-        <div className="text-[12px] space-y-1">
+        <div className="text-[13px] space-y-1">
           <p className="text-ui-fg">
             {t('vaultAudit.push.eligible', {
               eligible: eligibility.eligible.length,
@@ -202,7 +194,7 @@ function WriteToFileBar({ push }: { push: UseVaultAuditPushResult }) {
       )}
 
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[12px] text-ui-fg-secondary">
+        <p className="text-[13px] text-ui-fg-secondary">
           {eligibility.selected === 0
             ? t('vaultAudit.push.selectPrompt')
             : t('vaultAudit.push.selectedSummary', { files: eligibility.selected })}
@@ -220,7 +212,9 @@ function WriteToFileBar({ push }: { push: UseVaultAuditPushResult }) {
 
 export function VaultAuditActionBar({ action, repair, push }: VaultAuditActionBarProps) {
   if (action === null) {
-    return <p className="text-[12px] text-ui-fg-secondary">{t('vaultAudit.actions.noneAvailable')}</p>
+    return (
+      <p className="text-[13px] text-ui-fg-secondary">{t('vaultAudit.actions.noneAvailable')}</p>
+    )
   }
   if (action === 'write-to-vault') return <WriteToVaultBar repair={repair} />
   return <WriteToFileBar push={push} />

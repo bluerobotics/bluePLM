@@ -1,16 +1,5 @@
 import { useState, useEffect } from 'react'
-import {
-  Github,
-  Heart,
-  ExternalLink,
-  Info,
-  RefreshCw,
-  Loader2,
-  CheckCircle,
-  Download,
-  ArrowUpCircle,
-  ArrowDownCircle,
-} from 'lucide-react'
+import { ExternalLink, Loader2, RefreshCw } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { readClientMinVersion } from '@/features/dbUpgrade/readDbState'
 import { compareAppVersions } from '@/features/dbUpgrade/gateDecision'
@@ -21,7 +10,7 @@ import { compareAppVersions } from '@/features/dbUpgrade/gateDecision'
  */
 const FLOOR_WITHOUT_DATABASE_ANSWER = '5.0.0'
 
-import { Badge, Button, Callout } from '@/components/core/ui'
+import { Badge, Button } from '@/components/core/ui'
 import { useTranslation } from '@/lib/i18n'
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
@@ -76,7 +65,9 @@ export function AboutSettings() {
       const data: GitHubRelease[] = await response.json()
       const floor = (await readClientMinVersion()) ?? FLOOR_WITHOUT_DATABASE_ANSWER
       setReleases(
-        data.filter((release) => compareAppVersions(release.tag_name.replace(/^v/, ''), floor) >= 0),
+        data.filter(
+          (release) => compareAppVersions(release.tag_name.replace(/^v/, ''), floor) >= 0,
+        ),
       )
     } catch (error) {
       log.error('[About]', 'Failed to fetch releases', { error: error })
@@ -244,77 +235,34 @@ export function AboutSettings() {
 
   return (
     <SettingsPage>
-      {/* Summary: what is installed, and whether it is current */}
-      <SettingsGroup>
-        <div className="flex flex-wrap items-center gap-4 px-5 py-5">
-          {/* Stacked Layers Logo */}
-          <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-ui-accent/10">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" className="text-ui-accent">
-              <path
-                d="M12 2L2 7L12 12L22 7L12 2Z"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M2 17L12 22L22 17"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M2 12L12 17L22 12"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <span className="text-[16px] font-semibold text-ui-fg">BluePLM</span>
-              {updateCheckResult === 'none' && (
-                <Badge tone="success" icon={<CheckCircle size={11} />}>
-                  {t('preferences.upToDate')}
-                </Badge>
-              )}
-              {updateCheckResult === 'available' && (
-                <Badge tone="accent" icon={<Download size={11} />}>
-                  {t('preferences.available')}
-                </Badge>
-              )}
-            </div>
-            <div className="mt-0.5 text-[13px] text-ui-fg-secondary">
-              Version {appVersion || '...'} · Platform: {platformDisplay}
-            </div>
-          </div>
-          <Button
-            onClick={handleCheckForUpdates}
-            loading={isCheckingUpdate}
-            icon={<RefreshCw size={14} />}
+      <SettingsSection
+        title="BluePLM"
+        description="Check in/out CAD files, track revisions, manage engineering changes, control release workflows, and collaborate with your team, all in one place."
+      >
+        <SettingsGroup>
+          <SettingRow
+            label={`Version ${appVersion || '...'} · Platform: ${platformDisplay}`}
+            badge={
+              updateCheckResult === 'none' ? (
+                <Badge tone="success">{t('preferences.upToDate')}</Badge>
+              ) : updateCheckResult === 'available' ? (
+                <Badge tone="info">{t('preferences.available')}</Badge>
+              ) : undefined
+            }
+            description={
+              updateCheckResult === 'available'
+                ? t('preferences.updateAvailable')
+                : updateCheckResult === 'none'
+                  ? t('preferences.youHaveLatest')
+                  : undefined
+            }
           >
-            {isCheckingUpdate ? t('preferences.checking') : t('preferences.checkForUpdates')}
-          </Button>
-        </div>
-        {(updateCheckResult === 'none' || updateCheckResult === 'available') && (
-          <div
-            className={`px-5 py-2.5 text-[13px] ${
-              updateCheckResult === 'available' ? 'text-ui-accent' : 'text-ui-fg-secondary'
-            }`}
-          >
-            {updateCheckResult === 'available'
-              ? t('preferences.updateAvailable')
-              : t('preferences.youHaveLatest')}
-          </div>
-        )}
-        <div className="px-5 py-3 text-[13px] leading-relaxed text-ui-fg-secondary">
-          Check in/out CAD files, track revisions, manage engineering changes, control release
-          workflows, and collaborate with your team—all in one place.
-        </div>
-      </SettingsGroup>
+            <Button onClick={handleCheckForUpdates} loading={isCheckingUpdate}>
+              {isCheckingUpdate ? t('preferences.checking') : t('preferences.checkForUpdates')}
+            </Button>
+          </SettingRow>
+        </SettingsGroup>
+      </SettingsSection>
 
       <SettingsSection
         title="Version History"
@@ -332,22 +280,16 @@ export function AboutSettings() {
       >
         <SettingsGroup>
           {isLoadingReleases ? (
-            <div className="flex items-center justify-center gap-2 px-4 py-6 text-[14px] text-ui-fg-secondary">
+            <div className="flex items-center gap-2 py-3 text-[14px] text-ui-fg-secondary">
               <Loader2 size={14} className="animate-spin" />
               Loading releases...
             </div>
           ) : releasesError ? (
-            <div className="p-3">
-              <Callout
-                tone="error"
-                action={
-                  <Button size="sm" onClick={fetchReleases}>
-                    Try again
-                  </Button>
-                }
-              >
-                {releasesError}
-              </Callout>
+            <div className="flex items-center justify-between gap-4 py-3">
+              <span className="text-[14px] text-ui-danger">{releasesError}</span>
+              <Button size="sm" onClick={fetchReleases}>
+                Try again
+              </Button>
             </div>
           ) : (
             <div className="max-h-72 divide-y divide-ui-divider overflow-y-auto">
@@ -359,25 +301,14 @@ export function AboutSettings() {
                 return (
                   <div
                     key={release.tag_name}
-                    className={`flex items-center justify-between gap-3 px-4 py-2.5 ${
-                      isCurrent ? 'bg-ui-accent/[0.06]' : ''
-                    }`}
+                    className="flex items-center justify-between gap-3 py-3"
                   >
                     <div className="flex min-w-0 items-center gap-2.5">
-                      {isNewer ? (
-                        <ArrowUpCircle size={14} className="flex-shrink-0 text-ui-success" />
-                      ) : isCurrent ? (
-                        <CheckCircle size={14} className="flex-shrink-0 text-ui-accent" />
-                      ) : (
-                        <ArrowDownCircle size={14} className="flex-shrink-0 text-ui-fg-secondary" />
-                      )}
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="text-[14px] font-medium text-ui-fg">
-                            {release.tag_name}
-                          </span>
+                          <span className="text-[14px] text-ui-fg">{release.tag_name}</span>
                           {release.prerelease && <Badge tone="warning">Pre</Badge>}
-                          {isCurrent && <Badge tone="accent">Current</Badge>}
+                          {isCurrent && <Badge>Current</Badge>}
                         </div>
                         <div className="text-[13px] text-ui-fg-secondary">
                           {new Date(release.published_at).toLocaleDateString(undefined, {
@@ -392,10 +323,9 @@ export function AboutSettings() {
                     {!isCurrent && (
                       <Button
                         size="sm"
-                        variant={isNewer ? 'primary' : 'secondary'}
+                        variant={isNewer ? 'secondary' : 'ghost'}
                         onClick={() => handleInstallVersion(release)}
                         loading={fetchingRelease === release.tag_name}
-                        icon={<Download size={12} />}
                       >
                         {isNewer ? 'Upgrade' : 'Rollback'}
                       </Button>
@@ -414,7 +344,6 @@ export function AboutSettings() {
             <Button
               size="sm"
               variant="ghost"
-              icon={<Github size={14} />}
               onClick={() => openExternal('https://github.com/bluerobotics/bluePLM')}
             >
               Open
@@ -425,7 +354,6 @@ export function AboutSettings() {
             <Button
               size="sm"
               variant="ghost"
-              icon={<Info size={14} />}
               onClick={() => openExternal('https://github.com/bluerobotics/bluePLM/issues')}
             >
               Open
@@ -435,9 +363,8 @@ export function AboutSettings() {
         </SettingsGroup>
       </SettingsSection>
 
-      <p className="flex items-center justify-center gap-1.5 text-[13px] text-ui-fg-secondary">
-        Made with <Heart size={12} className="fill-ui-accent text-ui-accent" /> by Blue Robotics
-        and contributors worldwide
+      <p className="text-[13px] text-ui-fg-secondary">
+        Made by Blue Robotics and contributors worldwide.
       </p>
     </SettingsPage>
   )

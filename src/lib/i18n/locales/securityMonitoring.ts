@@ -9,6 +9,7 @@ type NamespaceDict = Record<string, string | Record<string, string>>
 
 const en: NamespaceDict = {
   title: 'Security Monitoring',
+  generalTitle: 'General',
   intro: "The database checks for signs of trouble every 10 minutes and notifies this organization's administrators.",
   adminOnly: 'Only administrators can see and change security monitoring.',
   enable: 'Monitor this organization',
@@ -41,6 +42,7 @@ const en: NamespaceDict = {
 
 const de: NamespaceDict = {
   title: 'Sicherheitsüberwachung',
+  generalTitle: 'Allgemein',
   intro: 'Die Datenbank prüft alle 10 Minuten auf Auffälligkeiten und benachrichtigt die Administratoren dieser Organisation.',
   adminOnly: 'Nur Administratoren können die Sicherheitsüberwachung sehen und ändern.',
   enable: 'Diese Organisation überwachen',
@@ -73,6 +75,7 @@ const de: NamespaceDict = {
 
 const es: NamespaceDict = {
   title: 'Supervisión de seguridad',
+  generalTitle: 'General',
   intro: 'La base de datos busca señales de problemas cada 10 minutos y avisa a los administradores de esta organización.',
   adminOnly: 'Solo los administradores pueden ver y cambiar la supervisión de seguridad.',
   enable: 'Supervisar esta organización',
@@ -105,6 +108,7 @@ const es: NamespaceDict = {
 
 const fr: NamespaceDict = {
   title: 'Surveillance de la sécurité',
+  generalTitle: 'Général',
   intro: "La base de données recherche des signes d'anomalie toutes les 10 minutes et avertit les administrateurs de cette organisation.",
   adminOnly: 'Seuls les administrateurs peuvent voir et modifier la surveillance de la sécurité.',
   enable: 'Surveiller cette organisation',
@@ -137,6 +141,7 @@ const fr: NamespaceDict = {
 
 const pt: NamespaceDict = {
   title: 'Monitorização de segurança',
+  generalTitle: 'Geral',
   intro: 'A base de dados procura sinais de problemas a cada 10 minutos e avisa os administradores desta organização.',
   adminOnly: 'Apenas os administradores podem ver e alterar a monitorização de segurança.',
   enable: 'Monitorizar esta organização',
@@ -169,6 +174,7 @@ const pt: NamespaceDict = {
 
 const zhCN: NamespaceDict = {
   title: '安全监控',
+  generalTitle: '常规',
   intro: '数据库每 10 分钟检查一次异常迹象，并通知本组织的管理员。',
   adminOnly: '只有管理员可以查看和更改安全监控。',
   enable: '监控本组织',
@@ -201,6 +207,7 @@ const zhCN: NamespaceDict = {
 
 const zhTW: NamespaceDict = {
   title: '安全監控',
+  generalTitle: '一般',
   intro: '資料庫每 10 分鐘檢查一次異常跡象，並通知本組織的管理員。',
   adminOnly: '只有管理員可以檢視和變更安全監控。',
   enable: '監控本組織',

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Loader2, Pencil, Plus, Trash2, X } from 'lucide-react'
 
-import { Button, Callout, TextInput } from '@/components/core/ui'
+import { Button, TextInput } from '@/components/core/ui'
 import { t } from '@/lib/i18n'
 import { log } from '@/lib/logger'
 import { deleteItemDesignation, getItemDesignations, upsertItemDesignation } from '@/lib/supabase'
@@ -76,24 +76,33 @@ export function ItemDesignationsSettings() {
 
   return (
     <SettingsPage>
-      {!canManage && <Callout tone="warning">{t('itemBrowser.noPermission')}</Callout>}
-
-      <SettingsSection title="Designations" description={t('itemBrowser.designationsDescription')}>
+      <SettingsSection
+        title="Designations"
+        description={
+          canManage ? (
+            t('itemBrowser.designationsDescription')
+          ) : (
+            <>
+              {t('itemBrowser.designationsDescription')} {t('itemBrowser.noPermission')}
+            </>
+          )
+        }
+      >
         <SettingsGroup>
           {loading ? (
-            <div className="flex h-24 items-center justify-center text-ui-fg-secondary">
+            <div className="flex h-24 items-center text-ui-fg-secondary">
               <Loader2 size={20} className="animate-spin" />
             </div>
           ) : designations.length === 0 ? (
-            <p className="px-4 py-3 text-[14px] text-ui-fg-secondary">
+            <p className="py-3.5 text-[14px] text-ui-fg-secondary">
               {t('itemBrowser.noDesignations')}
             </p>
           ) : (
             designations.map((designation) => (
               <div
                 key={designation.id}
-                className={`flex items-center justify-between gap-2 px-4 py-2 ${
-                  editingId === designation.id ? 'bg-ui-accent/5' : ''
+                className={`flex items-center justify-between gap-2 py-2.5 ${
+                  editingId === designation.id ? 'bg-ui-hover' : ''
                 }`}
               >
                 <span className="truncate text-[14px] text-ui-fg">{designation.name}</span>
@@ -125,7 +134,7 @@ export function ItemDesignationsSettings() {
             ))
           )}
           {canManage && (
-            <div className="flex items-center gap-2 px-4 py-3">
+            <div className="flex items-center gap-2 py-3.5">
               <TextInput
                 value={nameInput}
                 onChange={(e) => setNameInput(e.target.value)}

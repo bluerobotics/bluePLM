@@ -1,5 +1,3 @@
-import type { ReactNode } from 'react'
-import { Check, CloudSun, Crown, Ghost, Monitor, Moon, Snowflake, Sun, Waves } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 
 import { Select, Switch } from '@/components/core/ui'
@@ -21,8 +19,79 @@ const languageOptions: { value: Language; label: string; nativeLabel: string }[]
   { value: 'pt', label: 'Portuguese', nativeLabel: 'Português' },
   { value: 'zh-CN', label: 'Chinese (Simplified)', nativeLabel: '简体中文' },
   { value: 'zh-TW', label: 'Chinese (Traditional)', nativeLabel: '繁體中文' },
-  { value: 'sindarin', label: 'Sindarin (Elvish)', nativeLabel: '🧝 Tengwar' },
+  { value: 'sindarin', label: 'Sindarin (Elvish)', nativeLabel: 'Tengwar' },
 ]
+
+// A small preview of each theme: its background, side bar and accent. Static colours on purpose,
+// so every swatch shows its own theme whatever theme is active.
+const SWATCH: Record<ThemeMode, { bg: string; side: string; line: string; accent: string }> = {
+  dark: { bg: 'bg-[#1f1f1f]', side: 'bg-[#181818]', line: 'bg-[#3b3b3b]', accent: 'bg-[#557dd8]' },
+  'deep-blue': {
+    bg: 'bg-[#0a1929]',
+    side: 'bg-[#071320]',
+    line: 'bg-[#1e3a5c]',
+    accent: 'bg-[#3b82f6]',
+  },
+  light: { bg: 'bg-[#ffffff]', side: 'bg-[#f4f4f4]', line: 'bg-[#e0e0e0]', accent: 'bg-[#3a6bd6]' },
+  system: {
+    bg: 'bg-[#1f1f1f]',
+    side: 'bg-[#181818]',
+    line: 'bg-[#3b3b3b]',
+    accent: 'bg-[#557dd8]',
+  },
+  kenneth: {
+    bg: 'bg-[#120a1c]',
+    side: 'bg-[#0d0714]',
+    line: 'bg-[#2e1b45]',
+    accent: 'bg-[#a855f7]',
+  },
+  weather: {
+    bg: 'bg-[#1c1916]',
+    side: 'bg-[#161310]',
+    line: 'bg-[#3a3227]',
+    accent: 'bg-[#f59e0b]',
+  },
+  christmas: {
+    bg: 'bg-[#0d1117]',
+    side: 'bg-[#0a0e13]',
+    line: 'bg-[#1c2128]',
+    accent: 'bg-[#c0392b]',
+  },
+  halloween: {
+    bg: 'bg-[#0d0d0d]',
+    side: 'bg-[#080808]',
+    line: 'bg-[#242424]',
+    accent: 'bg-[#f97316]',
+  },
+}
+
+function ThemeSwatch({ theme, selected }: { theme: ThemeMode; selected: boolean }) {
+  const c = SWATCH[theme]
+  return (
+    <span
+      aria-hidden
+      className={`relative flex h-14 w-[88px] overflow-hidden rounded-lg border ${
+        selected
+          ? 'border-ui-accent ring-1 ring-ui-accent'
+          : 'border-ui-field-border group-hover:border-ui-fg-tertiary'
+      }`}
+    >
+      <span className={`w-5 ${c.side}`} />
+      <span className={`flex flex-1 flex-col gap-1.5 p-2 ${c.bg}`}>
+        <span className={`h-1.5 w-8 rounded-full ${c.accent}`} />
+        <span className={`h-1.5 w-12 rounded-full ${c.line}`} />
+        <span className={`h-1.5 w-10 rounded-full ${c.line}`} />
+      </span>
+      {theme === 'system' && (
+        <span className="absolute inset-y-0 right-0 flex w-1/2 flex-col gap-1.5 bg-[#ffffff] p-2 pl-0">
+          <span className="h-1.5 w-4 rounded-r-full bg-[#3a6bd6]" />
+          <span className="h-1.5 w-8 rounded-r-full bg-[#e0e0e0]" />
+          <span className="h-1.5 w-6 rounded-r-full bg-[#e0e0e0]" />
+        </span>
+      )}
+    </span>
+  )
+}
 
 /** Theme, display language and interface layout: how the app looks on this machine. */
 export function AppearanceSettings() {
@@ -39,57 +108,48 @@ export function AppearanceSettings() {
     })),
   )
 
-  const themeOptions: { value: ThemeMode; label: string; icon: ReactNode; description: string }[] =
-    [
-      {
-        value: 'dark',
-        label: t('preferences.themeDark'),
-        icon: <Moon size={16} />,
-        description: t('preferences.themeDarkDesc'),
-      },
-      {
-        value: 'deep-blue',
-        label: t('preferences.themeDeepBlue'),
-        icon: <Waves size={16} />,
-        description: t('preferences.themeDeepBlueDesc'),
-      },
-      {
-        value: 'light',
-        label: t('preferences.themeLight'),
-        icon: <Sun size={16} />,
-        description: t('preferences.themeLightDesc'),
-      },
-      {
-        value: 'system',
-        label: t('preferences.themeSystem'),
-        icon: <Monitor size={16} />,
-        description: t('preferences.themeSystemDesc'),
-      },
-      {
-        value: 'kenneth',
-        label: t('preferences.themeKenneth'),
-        icon: <Crown size={16} />,
-        description: t('preferences.themeKennethDesc'),
-      },
-      {
-        value: 'weather',
-        label: t('preferences.themeWeather'),
-        icon: <CloudSun size={16} />,
-        description: t('preferences.themeWeatherDesc'),
-      },
-      {
-        value: 'christmas',
-        label: t('preferences.themeChristmas'),
-        icon: <Snowflake size={16} />,
-        description: t('preferences.themeChristmasDesc'),
-      },
-      {
-        value: 'halloween',
-        label: t('preferences.themeHalloween'),
-        icon: <Ghost size={16} />,
-        description: t('preferences.themeHalloweenDesc'),
-      },
-    ]
+  const themeOptions: { value: ThemeMode; label: string; description: string }[] = [
+    {
+      value: 'dark',
+      label: t('preferences.themeDark'),
+      description: t('preferences.themeDarkDesc'),
+    },
+    {
+      value: 'deep-blue',
+      label: t('preferences.themeDeepBlue'),
+      description: t('preferences.themeDeepBlueDesc'),
+    },
+    {
+      value: 'light',
+      label: t('preferences.themeLight'),
+      description: t('preferences.themeLightDesc'),
+    },
+    {
+      value: 'system',
+      label: t('preferences.themeSystem'),
+      description: t('preferences.themeSystemDesc'),
+    },
+    {
+      value: 'kenneth',
+      label: t('preferences.themeKenneth'),
+      description: t('preferences.themeKennethDesc'),
+    },
+    {
+      value: 'weather',
+      label: t('preferences.themeWeather'),
+      description: t('preferences.themeWeatherDesc'),
+    },
+    {
+      value: 'christmas',
+      label: t('preferences.themeChristmas'),
+      description: t('preferences.themeChristmasDesc'),
+    },
+    {
+      value: 'halloween',
+      label: t('preferences.themeHalloween'),
+      description: t('preferences.themeHalloweenDesc'),
+    },
+  ]
 
   if (!user) {
     return <div className="py-12 text-center text-[14px] text-ui-fg-secondary">Not signed in</div>
@@ -98,7 +158,7 @@ export function AppearanceSettings() {
   return (
     <SettingsPage>
       <SettingsSection title="Theme">
-        <div role="radiogroup" aria-label="Theme" className="grid grid-cols-2 gap-2">
+        <div role="radiogroup" aria-label="Theme" className="flex flex-wrap gap-x-4 gap-y-4 pt-3">
           {themeOptions.map((option) => {
             const isSelected = theme === option.value
             return (
@@ -107,27 +167,16 @@ export function AppearanceSettings() {
                 type="button"
                 role="radio"
                 aria-checked={isSelected}
+                title={option.description}
                 onClick={() => !isSelected && setTheme(option.value)}
-                className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ui-accent/60 ${
-                  isSelected
-                    ? 'cursor-default border-ui-accent bg-ui-accent/10'
-                    : 'border-ui-divider bg-ui-field/60 hover:border-ui-field-border hover:bg-ui-hover'
-                }`}
+                className="group flex w-[88px] flex-col items-center gap-2 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ui-accent/50"
               >
+                <ThemeSwatch theme={option.value} selected={isSelected} />
                 <span
-                  className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md ${
-                    isSelected ? 'bg-ui-accent text-white' : 'bg-ui-hover text-ui-fg-secondary'
-                  }`}
+                  className={`text-[13px] ${isSelected ? 'text-ui-fg' : 'text-ui-fg-secondary group-hover:text-ui-fg'}`}
                 >
-                  {option.icon}
+                  {option.label}
                 </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[14px] font-medium text-ui-fg">{option.label}</span>
-                  <span className="block truncate text-[13px] text-ui-fg-secondary">
-                    {option.description}
-                  </span>
-                </span>
-                {isSelected && <Check size={16} className="flex-shrink-0 text-ui-accent" />}
               </button>
             )
           })}

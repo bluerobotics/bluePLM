@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Loader2 } from 'lucide-react'
 
 interface StatCardProps {
+  /** Kept for callers; figures show no icon, like Claude's settings. */
   icon?: ReactNode
   label: string
   value: ReactNode
@@ -10,15 +11,12 @@ interface StatCardProps {
   loading?: boolean
 }
 
-/** One figure in a grid of figures: a muted label, a large value, an optional detail line. */
-export function StatCard({ icon, label, value, detail, loading = false }: StatCardProps) {
+/** One figure in a row of figures: a muted label over a larger value, no box. */
+export function StatCard({ label, value, detail, loading = false }: StatCardProps) {
   return (
-    <div className="rounded-lg border border-ui-divider bg-ui-field/60 px-4 py-3">
-      <div className="flex items-center gap-1.5 text-[13px] text-ui-fg-secondary">
-        {icon}
-        <span>{label}</span>
-      </div>
-      <div className="mt-1.5 flex h-7 items-center text-[20px] font-semibold tabular-nums text-ui-fg">
+    <div className="min-w-0">
+      <div className="truncate text-[13px] text-ui-fg-secondary">{label}</div>
+      <div className="mt-1 flex h-7 items-center text-[20px] font-medium tabular-nums text-ui-fg">
         {loading ? <Loader2 size={16} className="animate-spin text-ui-fg-secondary" /> : value}
       </div>
       {detail && <div className="mt-0.5 text-[13px] text-ui-fg-secondary">{detail}</div>}
@@ -26,7 +24,7 @@ export function StatCard({ icon, label, value, detail, loading = false }: StatCa
   )
 }
 
-/** A responsive grid of StatCards. */
+/** A row of StatCards, separated by spacing only. */
 export function StatGrid({ children }: { children: ReactNode }) {
-  return <div className="grid grid-cols-2 gap-3 md:grid-cols-4">{children}</div>
+  return <div className="grid grid-cols-2 gap-x-8 gap-y-4 py-4 md:grid-cols-4">{children}</div>
 }

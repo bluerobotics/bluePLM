@@ -8,7 +8,7 @@ import { EVENTS_BY_CATEGORY, USER_ROLES, generateSecret } from './webhookConstan
 import type { WebhooksState } from './useWebhooks'
 
 const CHECKBOX_CLASS =
-  'w-4 h-4 rounded border-ui-divider bg-ui-bg text-ui-accent focus:ring-ui-accent focus:ring-offset-0'
+  'w-4 h-4 rounded border-ui-field-border bg-ui-field text-ui-accent focus:ring-ui-accent focus:ring-offset-0'
 
 const TRIGGER_OPTIONS: { value: WebhookTriggerFilter; label: string }[] = [
   { value: 'everyone', label: 'Everyone' },
@@ -137,14 +137,14 @@ export function WebhookForm({ webhooks }: { webhooks: WebhooksState }) {
           )}
 
           <SettingRow label="Events *" stacked>
-            <div className="divide-y divide-ui-divider rounded-md border border-ui-divider bg-ui-bg">
+            <div className="divide-y divide-ui-divider">
               {Object.entries(EVENTS_BY_CATEGORY).map(([category, events]) => {
                 const allSelected = events.every((e) => formData.events.includes(e.value))
                 const someSelected = events.some((e) => formData.events.includes(e.value))
 
                 return (
                   <div key={category}>
-                    <div className="flex items-center justify-between px-3 py-2">
+                    <div className="flex items-center justify-between py-2">
                       <button
                         type="button"
                         onClick={() =>
@@ -160,9 +160,9 @@ export function WebhookForm({ webhooks }: { webhooks: WebhooksState }) {
                         ) : (
                           <ChevronRight size={14} className="text-ui-fg-secondary" />
                         )}
-                        <span className="text-[14px] font-medium text-ui-fg">{category}</span>
+                        <span className="text-[14px] text-ui-fg">{category}</span>
                         {someSelected && (
-                          <span className="text-[13px] text-ui-accent">
+                          <span className="text-[13px] text-ui-fg-secondary">
                             ({events.filter((e) => formData.events.includes(e.value)).length}/
                             {events.length})
                           </span>
@@ -177,11 +177,11 @@ export function WebhookForm({ webhooks }: { webhooks: WebhooksState }) {
                       </Button>
                     </div>
                     {expandedCategories[category] && (
-                      <div className="space-y-0.5 px-3 pb-2">
+                      <div className="space-y-0.5 pb-2 pl-5">
                         {events.map((event) => (
                           <label
                             key={event.value}
-                            className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-ui-hover"
+                            className="flex cursor-pointer items-center gap-2 py-1.5"
                           >
                             <input
                               type="checkbox"
@@ -190,7 +190,7 @@ export function WebhookForm({ webhooks }: { webhooks: WebhooksState }) {
                               className={CHECKBOX_CLASS}
                             />
                             <span className="text-[14px] text-ui-fg">{event.label}</span>
-                            <code className="ml-auto font-mono text-[13px] text-ui-fg">
+                            <code className="ml-auto font-mono text-[13px] text-ui-fg-secondary">
                               {event.value}
                             </code>
                           </label>
@@ -226,14 +226,14 @@ export function WebhookForm({ webhooks }: { webhooks: WebhooksState }) {
 
               {formData.trigger_filter === 'roles' && (
                 <div className="space-y-2">
-                  <p className="text-[13px] text-ui-fg-secondary">
+                  <p className="text-[14px] text-ui-fg-secondary">
                     Select which roles trigger this webhook:
                   </p>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-x-5 gap-y-2">
                     {USER_ROLES.map((role) => (
                       <label
                         key={role.value}
-                        className="flex cursor-pointer items-center gap-2 rounded-md border border-ui-divider bg-ui-bg px-2.5 py-1.5 text-[14px] text-ui-fg hover:border-ui-field-border"
+                        className="flex cursor-pointer items-center gap-2 text-[14px] text-ui-fg"
                       >
                         <input
                           type="checkbox"
@@ -257,18 +257,14 @@ export function WebhookForm({ webhooks }: { webhooks: WebhooksState }) {
 
               {formData.trigger_filter === 'users' && (
                 <div className="space-y-2">
-                  <p className="text-[13px] text-ui-fg-secondary">
+                  <p className="text-[14px] text-ui-fg-secondary">
                     Select which users trigger this webhook:
                   </p>
-                  <div className="max-h-48 space-y-0.5 overflow-y-auto rounded-md border border-ui-divider bg-ui-bg p-1">
+                  <div className="max-h-48 divide-y divide-ui-divider overflow-y-auto">
                     {orgUsers.map((orgUser) => (
                       <label
                         key={orgUser.id}
-                        className={`flex cursor-pointer items-center gap-3 rounded px-2 py-1.5 transition-colors ${
-                          formData.trigger_user_ids.includes(orgUser.id)
-                            ? 'bg-ui-accent/10'
-                            : 'hover:bg-ui-hover'
-                        }`}
+                        className="flex cursor-pointer items-center gap-3 py-2"
                       >
                         <input
                           type="checkbox"
@@ -293,7 +289,7 @@ export function WebhookForm({ webhooks }: { webhooks: WebhooksState }) {
                             </div>
                           )}
                         </div>
-                        <span className="text-[13px] capitalize text-ui-fg">
+                        <span className="text-[13px] capitalize text-ui-fg-secondary">
                           {orgUser.role}
                         </span>
                       </label>

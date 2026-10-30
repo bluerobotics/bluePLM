@@ -77,10 +77,10 @@ export function ExtensionModulesSection({
             anchors.push({ id: placement.after, name: placement.after })
           }
           return (
-            <div key={ws.id} className="flex items-center gap-3 px-4 py-2.5">
+            <div key={ws.id} className="flex items-center gap-3 py-3">
               <span className="text-ui-fg-secondary">{getModuleIcon(ws.icon, 16)}</span>
               <div className="min-w-0 flex-1">
-                <div className="truncate text-[14px] font-medium text-ui-fg">{ws.title}</div>
+                <div className="truncate text-[14px] text-ui-fg">{ws.title}</div>
                 <div className="truncate text-[13px] text-ui-fg-secondary">
                   {t('nativeExtensions.moduleFrom', { extension: ws.extensionId })}
                 </div>

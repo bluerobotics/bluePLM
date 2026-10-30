@@ -1,4 +1,4 @@
-import { Globe, Image as ImageIcon, Loader2, Save, Trash2, Upload } from 'lucide-react'
+import { Image as ImageIcon, Loader2, Save, Trash2, Upload } from 'lucide-react'
 
 import { Button, TextInput } from '@/components/core/ui'
 
@@ -13,12 +13,12 @@ export function CompanyProfileSettings() {
   const { profile } = p
 
   if (!p.organization) {
-    return <div className="py-12 text-center text-ui-fg-secondary">No organization connected</div>
+    return <div className="py-12 text-center text-[14px] text-ui-fg-secondary">No organization connected</div>
   }
 
   if (!p.isAdmin) {
     return (
-      <div className="py-12 text-center text-ui-fg-secondary">
+      <div className="py-12 text-center text-[14px] text-ui-fg-secondary">
         Only administrators can manage company profile
       </div>
     )
@@ -43,14 +43,14 @@ export function CompanyProfileSettings() {
                   <img
                     src={profile.logo_url}
                     alt="Company logo"
-                    className="h-12 max-w-48 rounded border border-ui-divider bg-ui-bg object-contain p-1.5"
+                    className="h-12 max-w-48 rounded-lg border border-ui-divider object-contain p-1.5"
                   />
                 ) : (
-                  <span className="flex h-12 w-24 items-center justify-center rounded border border-dashed border-ui-divider text-ui-fg-secondary">
+                  <span className="flex h-12 w-24 items-center justify-center rounded-lg border border-dashed border-ui-divider text-ui-fg-secondary">
                     <ImageIcon size={18} />
                   </span>
                 )}
-                <span className="text-[13px] font-normal text-ui-fg-secondary">
+                <span className="text-[14px] leading-[1.4] text-ui-fg-secondary">
                   PNG, JPG, or SVG. Max 2MB. Appears on RFQ documents.
                 </span>
               </span>
@@ -67,14 +67,14 @@ export function CompanyProfileSettings() {
               </Button>
             )}
             <label
-              className={`inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md border border-ui-divider bg-ui-field px-2.5 text-[13px] font-medium text-ui-fg transition-colors hover:border-ui-field-border hover:bg-ui-hover ${
+              className={`inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-lg border border-ui-field-border bg-ui-field px-2.5 text-[13px] font-medium text-ui-fg transition-colors hover:bg-ui-selected focus-within:ring-2 focus-within:ring-ui-accent/50 ${
                 p.uploadingLogo ? 'pointer-events-none opacity-50' : ''
               }`}
             >
               {p.uploadingLogo ? (
-                <Loader2 size={12} className="animate-spin" />
+                <Loader2 size={14} className="animate-spin" />
               ) : (
-                <Upload size={12} />
+                <Upload size={14} />
               )}
               {profile.logo_url ? 'Replace Logo' : 'Upload Logo'}
               <input
@@ -123,7 +123,7 @@ export function CompanyProfileSettings() {
             icon={<Save size={14} />}
             onClick={p.handleSave}
           >
-            Save Contact Info
+            Save contact info
           </Button>
         }
       >
@@ -148,20 +148,14 @@ export function CompanyProfileSettings() {
             />
           </SettingRow>
           <SettingRow label="Website" htmlFor="company-website">
-            <div className="relative w-72">
-              <Globe
-                size={14}
-                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ui-fg-secondary"
-              />
-              <TextInput
-                id="company-website"
-                type="url"
-                className="pl-8"
-                value={profile.website || ''}
-                onChange={(e) => p.updateField('website', e.target.value)}
-                placeholder="https://www.company.com"
-              />
-            </div>
+            <TextInput
+              id="company-website"
+              type="url"
+              className="w-72"
+              value={profile.website || ''}
+              onChange={(e) => p.updateField('website', e.target.value)}
+              placeholder="https://www.company.com"
+            />
           </SettingRow>
         </SettingsGroup>
       </SettingsSection>

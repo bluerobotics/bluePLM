@@ -44,18 +44,18 @@ export function AddressList({
             <Loader2 className="animate-spin text-ui-fg-secondary" size={16} />
           </div>
         ) : addresses.length === 0 ? (
-          <div className="px-4 py-4 text-[13px] text-ui-fg-secondary">{emptyText}</div>
+          <div className="py-4 text-[14px] text-ui-fg-secondary">{emptyText}</div>
         ) : (
           addresses.map((address) => (
-            <div key={address.id} className="group flex items-start gap-4 px-4 py-3">
+            <div key={address.id} className="group flex items-start gap-4 py-3.5">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="truncate text-[14px] font-medium text-ui-fg">
+                  <span className="truncate text-[14px] text-ui-fg">
                     {address.label}
                   </span>
-                  {address.is_default && <Badge tone="accent">Default</Badge>}
+                  {address.is_default && <Badge>Default</Badge>}
                 </div>
-                <div className="mt-0.5 space-y-0.5 text-[13px] leading-relaxed text-ui-fg-secondary">
+                <div className="mt-1 space-y-0.5 text-[13px] leading-[1.45] text-ui-fg-secondary">
                   {address.company_name && <div>{address.company_name}</div>}
                   {address.contact_name && <div>{address.contact_name}</div>}
                   {address.attention_to && <div>ATTN: {address.attention_to}</div>}

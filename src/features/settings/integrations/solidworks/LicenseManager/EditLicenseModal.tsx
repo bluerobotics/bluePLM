@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { X, Edit2 } from 'lucide-react'
 
-import { Button } from '@/components/core/ui'
+import { Button, TextInput, Select } from '@/components/core/ui'
 import type { LicenseWithAssignment, SolidWorksLicenseUpdate } from './types'
 
 interface EditLicenseModalProps {
@@ -113,7 +113,7 @@ export function EditLicenseModal({ license, onClose, onSave }: EditLicenseModalP
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-ui-divider">
           <div className="flex items-center gap-3">
-            <Edit2 size={20} className="text-ui-accent" />
+            <Edit2 size={20} className="text-ui-fg-secondary" />
             <h2 className="text-lg font-semibold text-ui-fg">Edit License</h2>
           </div>
           <button
@@ -129,18 +129,18 @@ export function EditLicenseModal({ license, onClose, onSave }: EditLicenseModalP
           {/* Serial Number */}
           <div className="space-y-1">
             <label className="text-[13px] font-medium text-ui-fg">
-              Serial Number <span className="text-red-400">*</span>
+              Serial Number <span className="text-ui-danger">*</span>
             </label>
-            <input
+            <TextInput
               type="text"
               value={formData.serial_number}
               onChange={handleSerialChange}
               onPaste={handleSerialPaste}
               placeholder="XXXX XXXX XXXX XXXX XXXX XXXX"
-              className="w-full px-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-[13px] text-ui-fg placeholder-ui-fg focus:outline-none focus:border-ui-accent font-mono tracking-wider"
+              className="font-mono"
               required
             />
-            <p className="text-[12px] text-ui-fg">
+            <p className="text-[13px] text-ui-fg-secondary">
               Paste or type — automatically formatted with spaces
             </p>
           </div>
@@ -148,20 +148,19 @@ export function EditLicenseModal({ license, onClose, onSave }: EditLicenseModalP
           {/* Nickname */}
           <div className="space-y-1">
             <label className="text-[13px] font-medium text-ui-fg">Nickname</label>
-            <input
+            <TextInput
               type="text"
               value={formData.nickname}
               onChange={(e) => setFormData((prev) => ({ ...prev, nickname: e.target.value }))}
               placeholder="e.g., Design Team License 1"
-              className="w-full px-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-[13px] text-ui-fg placeholder-ui-fg focus:outline-none focus:border-ui-accent"
             />
-            <p className="text-[12px] text-ui-fg">A friendly name to identify this license</p>
+            <p className="text-[13px] text-ui-fg-secondary">A friendly name to identify this license</p>
           </div>
 
           {/* License Type */}
           <div className="space-y-1">
             <label className="text-[13px] font-medium text-ui-fg">License Type</label>
-            <select
+            <Select
               value={formData.license_type}
               onChange={(e) =>
                 setFormData((prev) => ({
@@ -169,25 +168,25 @@ export function EditLicenseModal({ license, onClose, onSave }: EditLicenseModalP
                   license_type: e.target.value as 'standalone' | 'network',
                 }))
               }
-              className="w-full px-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-[13px] text-ui-fg focus:outline-none focus:border-ui-accent"
+                className="w-full"
             >
               <option value="standalone">Standalone</option>
               <option value="network">Network</option>
-            </select>
+            </Select>
           </div>
 
           {/* Seats (only for network) */}
           {formData.license_type === 'network' && (
             <div className="space-y-1">
               <label className="text-[13px] font-medium text-ui-fg">Seats</label>
-              <input
+              <TextInput
                 type="number"
                 min={1}
                 value={formData.seats}
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, seats: parseInt(e.target.value) || 1 }))
                 }
-                className="w-24 px-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-[13px] text-ui-fg focus:outline-none focus:border-ui-accent"
+                className="w-24"
               />
             </div>
           )}
@@ -195,10 +194,10 @@ export function EditLicenseModal({ license, onClose, onSave }: EditLicenseModalP
           {/* Product Name */}
           <div className="space-y-1">
             <label className="text-[13px] font-medium text-ui-fg">Product</label>
-            <select
+            <Select
               value={formData.product_name}
               onChange={(e) => setFormData((prev) => ({ ...prev, product_name: e.target.value }))}
-              className="w-full px-3 py-2 bg-ui-bg border border-ui-divider rounded-lg text-[13px] text-ui-fg focus:outline-none focus:border-ui-accent"
+                className="w-full"
             >
               <option value="">Select a product...</option>
               {PRODUCT_OPTIONS.map((product) => (
@@ -206,12 +205,12 @@ export function EditLicenseModal({ license, onClose, onSave }: EditLicenseModalP
                   {product}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
 
           {/* Error message */}
           {error && (
-            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-[13px]">
+            <div className="text-[14px] text-ui-danger">
               {error}
             </div>
           )}

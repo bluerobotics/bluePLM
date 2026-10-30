@@ -89,20 +89,18 @@ export function VaultAuditScopeForm({
 
       <fieldset
         disabled={isRunning}
-        className={`grid gap-2 lg:grid-cols-3 ${showOptions ? '' : 'hidden'}`}
+        className={`divide-y divide-ui-divider ${showOptions ? '' : 'hidden'}`}
       >
-        <legend className="mb-2 text-[14px] font-medium text-ui-fg">
+        <legend className="mb-1 text-[14px] font-semibold text-ui-fg">
           {t('vaultAudit.scope.legend')}
         </legend>
 
         {options.map((option) => (
           <label
             key={option.kind}
-            className={`flex cursor-pointer gap-3 rounded-lg border p-3 transition-colors ${
-              scope.kind === option.kind
-                ? 'border-ui-accent/60 bg-ui-accent/5'
-                : 'border-ui-divider bg-ui-field/60 hover:bg-ui-hover/40'
-            } ${isRunning ? 'cursor-not-allowed opacity-60' : ''}`}
+            className={`flex cursor-pointer gap-3 py-3.5 ${
+              isRunning ? 'cursor-not-allowed opacity-60' : ''
+            }`}
           >
             <input
               type="radio"
@@ -112,8 +110,8 @@ export function VaultAuditScopeForm({
               onChange={() => onScopeChange({ ...scope, kind: option.kind })}
             />
             <div className="min-w-0">
-              <div className="text-[14px] font-medium text-ui-fg">{option.label}</div>
-              <p className="mt-0.5 text-[13px] leading-relaxed text-ui-fg-secondary">{option.hint}</p>
+              <div className="text-[14px] text-ui-fg">{option.label}</div>
+              <p className="mt-1 text-[14px] leading-[1.4] text-ui-fg-secondary">{option.hint}</p>
               {option.kind === 'folder' && scope.kind === 'folder' && (
                 <input
                   type="text"
@@ -122,7 +120,7 @@ export function VaultAuditScopeForm({
                   onChange={(event) =>
                     onScopeChange({ kind: 'folder', folderPath: event.target.value })
                   }
-                  className={`${FIELD_CLASS} mt-2 h-7 px-2 font-mono`}
+                  className={`${FIELD_CLASS} mt-2 h-7 max-w-md px-2.5`}
                 />
               )}
             </div>

@@ -20,8 +20,6 @@
  * is printed whenever it is not zero, in the same place as the control that produced it.
  */
 
-import { GitBranch } from 'lucide-react'
-
 import { t } from '@/lib/i18n'
 
 interface VaultAuditRevisionRuleProps {
@@ -37,10 +35,9 @@ export function VaultAuditRevisionRule({
   onChange,
 }: VaultAuditRevisionRuleProps) {
   return (
-    <div className="flex items-start gap-2 p-3 rounded-md border border-ui-divider bg-ui-field">
-      <GitBranch size={14} className="text-ui-fg-secondary mt-0.5 flex-shrink-0" />
+    <div className="border-t border-ui-divider pt-3">
       <div className="space-y-1.5 min-w-0">
-        <label className="flex items-start gap-2 text-[12px] cursor-pointer">
+        <label className="flex items-start gap-2 text-[13px] cursor-pointer">
           <input
             type="checkbox"
             checked={expectRevisionOnModels}
@@ -54,7 +51,7 @@ export function VaultAuditRevisionRule({
         </label>
 
         {hiddenCount > 0 && (
-          <p className="text-[12px] text-ui-fg-secondary">
+          <p className="text-[13px] text-ui-fg-secondary">
             {t('vaultAudit.revisionRule.hidden', { count: hiddenCount })}
           </p>
         )}

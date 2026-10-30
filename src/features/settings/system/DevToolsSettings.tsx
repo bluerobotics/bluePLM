@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
-import { ChevronRight, Loader2, RotateCcw } from 'lucide-react'
+import { ChevronRight, Loader2 } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 
 import { Button, Select } from '@/components/core/ui'
@@ -133,7 +133,7 @@ export function DevToolsSettings() {
                 </option>
               ))}
             </Select>
-            <Button size="sm" onClick={handleReset} icon={<RotateCcw size={12} />}>
+            <Button size="sm" onClick={handleReset}>
               Reset
             </Button>
           </SettingRow>
@@ -166,7 +166,7 @@ export function DevToolsSettings() {
             open={showTimingDashboard}
             onToggle={() => setShowTimingDashboard(!showTimingDashboard)}
           >
-            <div className="p-4">
+            <div className="py-4">
               <FileOperationTiming />
             </div>
           </ToolRow>
@@ -176,7 +176,7 @@ export function DevToolsSettings() {
             open={showOperationLog}
             onToggle={() => setShowOperationLog(!showOperationLog)}
           >
-            <div className="p-4">
+            <div className="py-4">
               <FileOperationLog />
             </div>
           </ToolRow>

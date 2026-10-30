@@ -239,14 +239,17 @@ export function ModuleOrderListItem({
         {showDropBefore && <DropLine edge="top" />}
         <div
           {...handleDragEvents}
-          className={`flex cursor-move items-center gap-3 px-3 py-2 transition-colors ${
-            isDragging ? 'bg-ui-accent/10 opacity-50' : ''
+          className={`flex cursor-move items-center gap-3 py-2.5 transition-colors ${
+            isDragging ? 'bg-ui-hover opacity-50' : ''
           }`}
         >
-          <GripVertical size={14} className="text-ui-fg-secondary flex-shrink-0 pointer-events-none" />
+          <GripVertical
+            size={14}
+            className="text-ui-fg-secondary flex-shrink-0 pointer-events-none"
+          />
           <div className="flex items-center gap-2 flex-1 pointer-events-none">
             <Minus size={16} className="text-ui-fg-secondary" />
-            <span className="text-[13px] text-ui-fg-secondary">Divider</span>
+            <span className="text-[14px] text-ui-fg-secondary">Divider</span>
           </div>
           <Button
             variant="ghost"
@@ -280,25 +283,30 @@ export function ModuleOrderListItem({
         {showDropBefore && <DropLine edge="top" />}
         <div
           {...handleDragEvents}
-          className={`flex cursor-move items-center gap-3 px-3 py-2 transition-colors ${
-            isDragging ? 'bg-ui-accent/10 opacity-50' : isGroupEnabled ? '' : 'opacity-60'
+          className={`flex cursor-move items-center gap-3 py-2.5 transition-colors ${
+            isDragging ? 'bg-ui-hover opacity-50' : isGroupEnabled ? '' : 'opacity-60'
           }`}
         >
-          <GripVertical size={14} className="text-ui-fg-secondary flex-shrink-0 pointer-events-none" />
+          <GripVertical
+            size={14}
+            className="text-ui-fg-secondary flex-shrink-0 pointer-events-none"
+          />
           <div
-            className={`p-1.5 rounded-md pointer-events-none ${!isGroupEnabled ? 'opacity-50' : ''}`}
-            style={{ color: group.iconColor || 'var(--plm-accent)' }}
+            className={`pointer-events-none ${!isGroupEnabled ? 'opacity-50' : ''} ${
+              group.iconColor ? '' : 'text-ui-fg'
+            }`}
+            style={group.iconColor ? { color: group.iconColor } : undefined}
           >
             {IconComponent ? <IconComponent size={16} /> : <Package size={16} />}
           </div>
           <div className="flex-1 min-w-0 pointer-events-none">
             <div className="flex items-center gap-2">
               <span
-                className={`text-[14px] font-medium ${isGroupEnabled ? 'text-ui-fg' : 'text-ui-fg-secondary'}`}
+                className={`text-[14px] ${isGroupEnabled ? 'text-ui-fg' : 'text-ui-fg-secondary'}`}
               >
                 {group.name}
               </span>
-              <Badge tone="accent">Group</Badge>
+              <Badge>Group</Badge>
               {childCount > 0 && (
                 <span className="text-[13px] text-ui-fg-secondary">{childCount} items</span>
               )}
@@ -382,37 +390,32 @@ export function ModuleOrderListItem({
       {showDropBefore && !isLockedToGroup && <DropLine edge="top" />}
       <div
         {...(isLockedToGroup ? lockedDragEvents : handleDragEvents)}
-        className={`flex items-center gap-3 py-2 pr-3 transition-colors ${
+        className={`flex items-center gap-3 py-2.5 transition-colors ${
           isLockedToGroup ? 'cursor-default' : 'cursor-move'
         } ${
           isDragging
-            ? 'bg-ui-accent/10 opacity-50'
+            ? 'bg-ui-hover opacity-50'
             : !module.implemented || isDenied
               ? 'opacity-50'
-              : 'hover:bg-ui-hover/40'
-        } ${currentParentId ? 'pl-9' : 'pl-3'}`}
+              : ''
+        } ${currentParentId ? 'pl-6' : ''}`}
       >
         {/* Only show drag handle if not locked to a group */}
         {isLockedToGroup ? (
           <div className="w-[14px] flex-shrink-0" />
         ) : (
-          <GripVertical size={14} className="text-ui-fg-secondary flex-shrink-0 pointer-events-none" />
+          <GripVertical
+            size={14}
+            className="text-ui-fg-secondary flex-shrink-0 pointer-events-none"
+          />
         )}
 
         {/* Icon with custom color support */}
         <div
-          className={`pointer-events-none rounded-md p-1.5 ${
-            !customIconColor &&
-            (isEnabled && isVisible ? 'text-ui-accent' : 'text-ui-fg-secondary')
+          className={`pointer-events-none ${
+            !customIconColor && (isEnabled && isVisible ? 'text-ui-fg' : 'text-ui-fg-secondary')
           }`}
-          style={
-            customIconColor
-              ? {
-                  color: customIconColor,
-                  backgroundColor: `${customIconColor}15`,
-                }
-              : undefined
-          }
+          style={customIconColor ? { color: customIconColor } : undefined}
         >
           {moduleIcons[module.icon] || <Package size={16} />}
         </div>
@@ -433,12 +436,11 @@ export function ModuleOrderListItem({
             )}
             {module.required && (
               <span title="Required when group enabled">
-                <Lock size={10} className="text-ui-fg" />
+                <Lock size={12} className="text-ui-fg-secondary" />
               </span>
             )}
             {childCount > 0 && (
               <Badge
-                tone="accent"
                 icon={<ChevronRight size={10} />}
                 title={`Has ${childCount} sub-item${childCount > 1 ? 's' : ''}`}
               >
@@ -476,7 +478,7 @@ export function ModuleOrderListItem({
               setShowColorPicker(!showColorPicker)
               setShowParentSelect(false)
             }}
-            className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${
+            className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
               customIconColor
                 ? 'hover:bg-ui-hover'
                 : 'text-ui-fg-secondary hover:bg-ui-hover hover:text-ui-fg'
@@ -485,7 +487,7 @@ export function ModuleOrderListItem({
           >
             {customIconColor ? (
               <div
-                className="w-3.5 h-3.5 rounded-full border border-white/30"
+                className="w-3.5 h-3.5 rounded-full border border-ui-field-border"
                 style={{ backgroundColor: customIconColor }}
               />
             ) : (
@@ -512,9 +514,9 @@ export function ModuleOrderListItem({
               setShowParentSelect(!showParentSelect)
               setShowColorPicker(false)
             }}
-            className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${
+            className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
               currentParentId
-                ? 'bg-ui-accent/10 text-ui-accent hover:bg-ui-accent/20'
+                ? 'bg-ui-selected text-ui-fg hover:bg-ui-hover'
                 : 'text-ui-fg-secondary hover:bg-ui-hover hover:text-ui-fg'
             }`}
             title="Set parent module (create sub-group)"
@@ -525,10 +527,10 @@ export function ModuleOrderListItem({
           {/* Parent selection dropdown */}
           {showParentSelect && (
             <div
-              className="absolute right-0 top-full mt-1 w-48 bg-ui-bg border border-ui-divider rounded-lg shadow-xl z-50 py-1 max-h-60 overflow-y-auto"
+              className="absolute right-0 top-full mt-1 w-48 bg-ui-bg border border-ui-border rounded-lg shadow-xl z-50 py-1 max-h-60 overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="border-b border-ui-divider px-3 py-1.5 text-[13px] font-medium text-ui-fg-secondary">
+              <div className="border-b border-ui-divider px-3 py-1.5 text-[13px] text-ui-fg-secondary">
                 Set Parent
               </div>
               <button
@@ -537,18 +539,18 @@ export function ModuleOrderListItem({
                   setShowParentSelect(false)
                 }}
                 className={`w-full px-3 py-2 text-left text-[13px] hover:bg-ui-hover transition-colors flex items-center gap-2 ${
-                  !currentParentId ? 'text-ui-accent' : 'text-ui-fg'
+                  !currentParentId ? 'font-medium text-ui-fg' : 'text-ui-fg'
                 }`}
               >
                 <div
-                  className={`w-2 h-2 rounded-full ${!currentParentId ? 'bg-ui-accent' : 'bg-transparent border border-ui-divider'}`}
+                  className={`w-2 h-2 rounded-full ${!currentParentId ? 'bg-ui-fg' : 'bg-transparent border border-ui-field-border'}`}
                 />
                 None (Top-level)
               </button>
               {/* Custom Groups section */}
               {(config.customGroups || []).length > 0 && (
                 <>
-                  <div className="border-y border-ui-divider bg-ui-field px-3 py-1 text-[12px] text-ui-fg-secondary">
+                  <div className="border-y border-ui-divider px-3 py-1 text-[13px] text-ui-fg-secondary">
                     Groups
                   </div>
                   {(config.customGroups || []).map((group) => {
@@ -563,13 +565,13 @@ export function ModuleOrderListItem({
                           setShowParentSelect(false)
                         }}
                         className={`w-full px-3 py-2 text-left text-[13px] hover:bg-ui-hover transition-colors flex items-center gap-2 ${
-                          currentParentId === group.id ? 'text-ui-accent' : 'text-ui-fg'
+                          currentParentId === group.id ? 'font-medium text-ui-fg' : 'text-ui-fg'
                         }`}
                       >
                         <div
-                          className={`w-2 h-2 rounded-full ${currentParentId === group.id ? 'bg-ui-accent' : 'bg-transparent border border-ui-divider'}`}
+                          className={`w-2 h-2 rounded-full ${currentParentId === group.id ? 'bg-ui-fg' : 'bg-transparent border border-ui-field-border'}`}
                         />
-                        <span style={{ color: group.iconColor || 'var(--plm-accent)' }}>
+                        <span style={group.iconColor ? { color: group.iconColor } : undefined}>
                           {GroupIcon ? <GroupIcon size={12} /> : <Package size={12} />}
                         </span>
                         {group.name}
@@ -582,7 +584,7 @@ export function ModuleOrderListItem({
               {/* Modules section */}
               {availableParents.length > 0 && (
                 <>
-                  <div className="border-y border-ui-divider bg-ui-field px-3 py-1 text-[12px] text-ui-fg-secondary">
+                  <div className="border-y border-ui-divider px-3 py-1 text-[13px] text-ui-fg-secondary">
                     Modules
                   </div>
                   {availableParents.map((parent) => (
@@ -593,11 +595,11 @@ export function ModuleOrderListItem({
                         setShowParentSelect(false)
                       }}
                       className={`w-full px-3 py-2 text-left text-[13px] hover:bg-ui-hover transition-colors flex items-center gap-2 ${
-                        currentParentId === parent.id ? 'text-ui-accent' : 'text-ui-fg'
+                        currentParentId === parent.id ? 'font-medium text-ui-fg' : 'text-ui-fg'
                       }`}
                     >
                       <div
-                        className={`w-2 h-2 rounded-full ${currentParentId === parent.id ? 'bg-ui-accent' : 'bg-transparent border border-ui-divider'}`}
+                        className={`w-2 h-2 rounded-full ${currentParentId === parent.id ? 'bg-ui-fg' : 'bg-transparent border border-ui-field-border'}`}
                       />
                       <span className="text-ui-fg-secondary mr-1">
                         {moduleIcons[parent.icon] || <Package size={12} />}

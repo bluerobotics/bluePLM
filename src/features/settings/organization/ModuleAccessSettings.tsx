@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ChevronDown, ChevronRight, Globe, Loader2, Lock, Save, Users, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, Globe, Loader2, Lock, Save, X } from 'lucide-react'
 
 import { Badge, Button, Callout } from '@/components/core/ui'
 import { log } from '@/lib/logger'
@@ -180,17 +180,12 @@ export function ModuleAccessSettings() {
   const chipClass = (selected: boolean) =>
     `inline-flex h-6 items-center gap-1.5 rounded-full border px-2 text-[13px] transition-colors ${
       selected
-        ? 'border-ui-accent/60 bg-ui-accent/15 text-ui-fg'
-        : 'border-ui-divider text-ui-fg-secondary hover:bg-ui-hover/50 hover:text-ui-fg'
+        ? 'border-ui-selected-border bg-ui-selected text-ui-fg'
+        : 'border-ui-divider text-ui-fg-secondary hover:bg-ui-hover hover:text-ui-fg'
     }`
 
   return (
     <SettingsPage>
-      <Callout>
-        Restrict a module to specific teams or people. Modules with no restriction stay visible to
-        everyone in the organization. Admins always keep access.
-      </Callout>
-
       {loading ? (
         <div className="flex h-32 items-center justify-center text-ui-fg-secondary">
           <Loader2 size={20} className="animate-spin" />
@@ -199,9 +194,19 @@ export function ModuleAccessSettings() {
         MODULE_GROUPS.map((group) => {
           const groupModules = modulesByGroup.get(group.id)
           if (!groupModules || groupModules.length === 0) return null
+          const isFirstGroup =
+            MODULE_GROUPS.find((g) => (modulesByGroup.get(g.id)?.length ?? 0) > 0)?.id === group.id
 
           return (
-            <SettingsSection key={group.id} title={group.name}>
+            <SettingsSection
+              key={group.id}
+              title={group.name}
+              description={
+                isFirstGroup
+                  ? 'Restrict a module to specific teams or people. Modules with no restriction stay visible to everyone in the organization. Admins always keep access.'
+                  : undefined
+              }
+            >
               <SettingsGroup>
                 {groupModules.map((module) => {
                   const draft = getDraft(module.id)
@@ -216,7 +221,7 @@ export function ModuleAccessSettings() {
                         type="button"
                         aria-expanded={isExpanded}
                         onClick={() => setExpandedModuleId(isExpanded ? null : module.id)}
-                        className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-ui-hover/40"
+                        className="flex w-full items-center gap-3 py-3.5 text-left"
                       >
                         {isExpanded ? (
                           <ChevronDown size={14} className="flex-shrink-0 text-ui-fg-secondary" />
@@ -224,12 +229,12 @@ export function ModuleAccessSettings() {
                           <ChevronRight size={14} className="flex-shrink-0 text-ui-fg-secondary" />
                         )}
 
-                        <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-ui-fg">
+                        <span className="min-w-0 flex-1 truncate text-[14px] text-ui-fg">
                           {module.name}
                         </span>
 
                         {isRestricted ? (
-                          <Badge tone="warning" icon={<Lock size={10} />}>
+                          <Badge icon={<Lock size={10} />}>
                             {current.teamIds.length > 0 &&
                               `${current.teamIds.length} team${current.teamIds.length === 1 ? '' : 's'}`}
                             {current.teamIds.length > 0 && current.userIds.length > 0 && ' + '}
@@ -242,10 +247,9 @@ export function ModuleAccessSettings() {
                       </button>
 
                       {isExpanded && (
-                        <div className="space-y-4 border-t border-ui-divider bg-ui-bg/40 px-4 py-3 pl-11">
+                        <div className="space-y-4 pb-4 pl-[26px]">
                           <div>
-                            <div className="mb-1.5 flex items-center gap-1.5 text-[13px] font-medium text-ui-fg-secondary">
-                              <Users size={12} />
+                            <div className="mb-1.5 text-[13px] text-ui-fg-secondary">
                               Teams
                             </div>
                             {teams.length === 0 ? (
@@ -275,7 +279,7 @@ export function ModuleAccessSettings() {
                           </div>
 
                           <div>
-                            <div className="mb-1.5 text-[13px] font-medium text-ui-fg-secondary">
+                            <div className="mb-1.5 text-[13px] text-ui-fg-secondary">
                               Individual people
                             </div>
                             <div className="flex max-h-40 flex-wrap gap-1.5 overflow-y-auto">

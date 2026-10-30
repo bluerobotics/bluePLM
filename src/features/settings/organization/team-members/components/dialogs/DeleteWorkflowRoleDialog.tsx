@@ -7,6 +7,8 @@
  * @module team-members/DeleteWorkflowRoleDialog
  */
 
+import { Button } from '@/components/core/ui'
+
 export interface DeleteWorkflowRoleDialogProps {
   role: { id: string; name: string }
   onConfirm: () => Promise<void>
@@ -35,16 +37,16 @@ export function DeleteWorkflowRoleDialog({
           from this role.
         </p>
         <div className="flex gap-2 justify-end">
-          <button onClick={onClose} className="btn btn-ghost" disabled={isDeleting}>
+          <Button variant="ghost" onClick={onClose} disabled={isDeleting}>
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="danger"
             onClick={onConfirm}
             disabled={isDeleting}
-            className="btn bg-ui-danger text-white hover:bg-ui-danger/90"
           >
             {isDeleting ? 'Deleting...' : 'Delete Role'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

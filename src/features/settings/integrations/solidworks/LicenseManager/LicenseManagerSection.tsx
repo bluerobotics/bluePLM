@@ -61,14 +61,14 @@ export function LicenseManagerSection() {
       }
       description={
         isAdmin
-          ? 'Track and assign SOLIDWORKS license keys for your organization.'
-          : 'Your assigned SOLIDWORKS licenses.'
+          ? 'Track and assign SOLIDWORKS license keys for your organization. Activate and deactivate licenses in the SOLIDWORKS License Manager (Start Menu → SOLIDWORKS Tools); this list is for tracking and assignment only.'
+          : 'Your assigned SOLIDWORKS licenses. Activate and deactivate them in the SOLIDWORKS License Manager (Start Menu → SOLIDWORKS Tools).'
       }
       actions={
         isAdmin ? (
           <Button
             size="sm"
-            variant="primary"
+            variant="secondary"
             onClick={() => setShowAddModal(true)}
             icon={<Plus size={14} />}
           >
@@ -77,12 +77,7 @@ export function LicenseManagerSection() {
         ) : undefined
       }
     >
-      <Callout tone="info">
-        All license activations and deactivations must be done through the SOLIDWORKS License
-        Manager (Start Menu → SOLIDWORKS Tools). This list is for tracking and assignment only.
-      </Callout>
-
-      {error && !isLoading && <Callout tone="error">{error}</Callout>}
+      {error && !isLoading && <Callout className="mt-3" tone="error">{error}</Callout>}
 
       {!error && (
         <SettingsGroup>
@@ -92,7 +87,7 @@ export function LicenseManagerSection() {
               Loading licenses...
             </div>
           ) : visibleLicenses.length === 0 ? (
-            <div className="px-4 py-3 text-[14px] text-ui-fg-secondary">
+            <div className="py-4 text-[14px] text-ui-fg-secondary">
               {isAdmin
                 ? 'No licenses added yet. Click "Add License" to get started.'
                 : 'No licenses assigned to you.'}

@@ -22,7 +22,7 @@ function ConfirmShell({ icon, iconTone, title, onClose, children, footer }: Conf
       onClick={onClose}
     >
       <div
-        className="mx-4 w-full max-w-md rounded-xl border border-ui-divider bg-ui-field p-6"
+        className="mx-4 w-full max-w-md rounded-xl border border-ui-border bg-ui-bg p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center gap-3">
@@ -35,7 +35,7 @@ function ConfirmShell({ icon, iconTone, title, onClose, children, footer }: Conf
           >
             {icon}
           </div>
-          <h3 className="text-[15px] font-semibold text-ui-fg">{title}</h3>
+          <h3 className="text-[16px] font-semibold text-ui-fg">{title}</h3>
         </div>
         {children}
         <div className="flex justify-end gap-2">{footer}</div>
@@ -57,7 +57,7 @@ function TypeToConfirm({ name, value, onChange, value2, onChange2 }: TypeToConfi
   return (
     <div className="mb-4 space-y-3">
       <div className="space-y-1.5">
-        <label className="text-[13px] text-ui-fg">
+        <label className="text-[14px] text-ui-fg">
           Type <strong>"{name}"</strong> to confirm:
         </label>
         <TextInput
@@ -68,7 +68,7 @@ function TypeToConfirm({ name, value, onChange, value2, onChange2 }: TypeToConfi
         />
       </div>
       <div className="space-y-1.5">
-        <label className="text-[13px] text-ui-fg">Type it again to double confirm:</label>
+        <label className="text-[14px] text-ui-fg">Type it again to double confirm:</label>
         <TextInput
           value={value2}
           onChange={(e) => onChange2(e.target.value)}

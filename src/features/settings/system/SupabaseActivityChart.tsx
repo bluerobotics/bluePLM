@@ -1,8 +1,8 @@
-import type { ReactNode } from 'react'
-import { Activity, ArrowDownRight, ArrowUpRight, Loader2, TrendingUp, Users } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 
 import { formatBytes } from '@/lib/utils/format'
 
+import { StatCard, StatGrid } from './StatCard'
 import type { ActivityTimeRange, DailyActivity, NetworkStats } from './supabaseActivity'
 
 const SERIES = [
@@ -28,18 +28,6 @@ function bucketTitle(timeRange: ActivityTimeRange, date: string): string {
   })
 }
 
-function SummaryStat({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
-  return (
-    <div className="flex items-center gap-2.5">
-      <span className="text-ui-fg-secondary">{icon}</span>
-      <div className="min-w-0">
-        <div className="text-[13px] text-ui-fg-secondary">{label}</div>
-        <div className="text-[14px] font-medium tabular-nums text-ui-fg">{value}</div>
-      </div>
-    </div>
-  )
-}
-
 interface SupabaseActivityChartProps {
   timeRange: ActivityTimeRange
   dailyActivity: DailyActivity[]
@@ -58,30 +46,14 @@ export function SupabaseActivityChart({
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-4 px-4 py-3.5 md:grid-cols-4">
-        <SummaryStat
-          icon={<ArrowUpRight size={14} />}
-          label="Data In"
-          value={formatBytes(networkStats.totalBytesIn)}
-        />
-        <SummaryStat
-          icon={<ArrowDownRight size={14} />}
-          label="Data Out (est.)"
-          value={formatBytes(networkStats.totalBytesOut)}
-        />
-        <SummaryStat
-          icon={<Activity size={14} />}
-          label="Total Events"
-          value={networkStats.totalEvents.toLocaleString()}
-        />
-        <SummaryStat
-          icon={<Users size={14} />}
-          label="Active Users"
-          value={String(networkStats.activeUsers)}
-        />
-      </div>
+      <StatGrid>
+        <StatCard label="Data In" value={formatBytes(networkStats.totalBytesIn)} />
+        <StatCard label="Data Out (est.)" value={formatBytes(networkStats.totalBytesOut)} />
+        <StatCard label="Total Events" value={networkStats.totalEvents.toLocaleString()} />
+        <StatCard label="Active Users" value={String(networkStats.activeUsers)} />
+      </StatGrid>
 
-      <div className="space-y-3 px-4 py-4">
+      <div className="space-y-3 py-4">
         {loading ? (
           <div className="flex h-32 items-center justify-center">
             <Loader2 size={20} className="animate-spin text-ui-fg-secondary" />
@@ -126,7 +98,7 @@ export function SupabaseActivityChart({
                     />
                   </div>
 
-                  <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md border border-ui-divider bg-ui-field p-2 text-[13px] opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+                  <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg border border-ui-field-border bg-ui-field p-2 text-[13px] opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
                     <div className="mb-1 font-medium text-ui-fg">
                       {bucketTitle(timeRange, day.date)}
                     </div>
@@ -155,7 +127,7 @@ export function SupabaseActivityChart({
                   </div>
 
                   <span
-                    className={`text-[12px] ${isLast ? 'font-medium text-ui-accent' : 'text-ui-fg-secondary'}`}
+                    className={`text-[12px] ${isLast ? 'font-medium text-ui-fg' : 'text-ui-fg-secondary'}`}
                   >
                     {day.dayLabel.substring(0, 3)}
                   </span>
@@ -175,11 +147,8 @@ export function SupabaseActivityChart({
             ))}
           </div>
           {!loading && networkStats.peakEvents > 0 && (
-            <span className="flex items-center gap-1.5">
-              <TrendingUp size={12} className="text-ui-accent" />
-              Peak: <strong className="font-medium text-ui-fg">
-                {networkStats.peakEvents}
-              </strong>{' '}
+            <span>
+              Peak: <strong className="font-medium text-ui-fg">{networkStats.peakEvents}</strong>{' '}
               events {timeRange === '24h' ? 'at' : 'on'} {networkStats.peakDay}
             </span>
           )}

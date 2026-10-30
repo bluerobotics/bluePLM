@@ -1,21 +1,6 @@
 // src/features/settings/organization/realign/RealignDialog.tsx
 import { useEffect, useMemo, useState } from 'react'
-import {
-  AlertTriangle,
-  Check,
-  ChevronDown,
-  ChevronRight,
-  Cloud,
-  EyeOff,
-  FolderX,
-  HardDrive,
-  Loader2,
-  Lock,
-  Move,
-  Pencil,
-  RefreshCw,
-  X,
-} from 'lucide-react'
+import { AlertTriangle, Check, ChevronDown, ChevronRight, Loader2, X } from 'lucide-react'
 
 import { Button } from '@/components/core/ui'
 import { t } from '@/lib/i18n'
@@ -54,18 +39,6 @@ import {
 interface RealignDialogProps {
   isOpen: boolean
   onClose: () => void
-}
-
-const REPAIRABLE_ICON: Record<AlignmentBucketId, React.ReactNode> = {
-  pending_move: <Move size={16} />,
-  orphaned: <FolderX size={16} />,
-  outdated: <RefreshCw size={16} />,
-  cloud_only: <Cloud size={16} />,
-  local_only: <HardDrive size={16} />,
-  modified: <Pencil size={16} />,
-  ghost: <AlertTriangle size={16} />,
-  ignored: <EyeOff size={16} />,
-  blocked_checkout: <Lock size={16} />,
 }
 
 /** Buckets whose bucket-specific "go do it" action leaves the dialog rather than acting inline. */
@@ -195,31 +168,26 @@ export function RealignDialog({ isOpen, onClose }: RealignDialogProps) {
       onClick={handleClose}
     >
       <div
-        className="bg-ui-field border border-ui-divider rounded-lg shadow-2xl w-[760px] max-h-[85vh] overflow-auto"
+        className="bg-ui-bg border border-ui-border rounded-xl shadow-2xl w-[760px] max-h-[85vh] overflow-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="p-4 border-b border-ui-divider flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-ui-accent/20 flex items-center justify-center">
-              <RefreshCw size={20} className="text-ui-accent" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-ui-fg">{t('realign.dialog.title')}</h3>
-              <p className="text-[13px] text-ui-fg-secondary">{t('realign.dialog.subtitle')}</p>
-            </div>
+        <div className="px-5 py-4 border-b border-ui-border flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-[16px] font-semibold text-ui-fg">{t('realign.dialog.title')}</h3>
+            <p className="mt-1 text-[14px] text-ui-fg-secondary">{t('realign.dialog.subtitle')}</p>
           </div>
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={<X size={18} />}
             onClick={handleClose}
             disabled={isRunning}
-            className="text-ui-fg-secondary hover:text-ui-fg disabled:opacity-50"
             aria-label={t('common.close')}
-          >
-            <X size={18} />
-          </button>
+          />
         </div>
 
-        <div className="p-4 space-y-5">
+        <div className="px-5 py-4 space-y-8">
           <Headline report={report} />
 
           <RepairableGroup
@@ -253,9 +221,9 @@ export function RealignDialog({ isOpen, onClose }: RealignDialogProps) {
           {outcome && <OutcomeSummary outcome={outcome} />}
         </div>
 
-        <div className="p-4 border-t border-ui-divider flex items-center justify-end gap-2">
+        <div className="px-5 py-4 border-t border-ui-border flex items-center justify-end gap-2">
           {isRunning && pendingCommandConfirm && (
-            <span className="text-[12px] text-ui-fg-secondary mr-auto">
+            <span className="text-[13px] text-ui-fg-secondary mr-auto">
               {t('realign.dialog.waitingForConfirmation')}
             </span>
           )}
@@ -280,7 +248,7 @@ function Headline({ report }: { report: ReturnType<typeof analyzeAlignment> }) {
   return (
     <div>
       <div
-        className={`flex items-center gap-2 text-[13px] font-medium ${
+        className={`flex items-center gap-2 text-[14px] font-medium ${
           report.isAligned ? 'text-ui-success' : 'text-ui-warning'
         }`}
       >
@@ -289,7 +257,7 @@ function Headline({ report }: { report: ReturnType<typeof analyzeAlignment> }) {
           {t(report.isAligned ? 'realign.headline.aligned' : 'realign.headline.notAligned')}
         </span>
       </div>
-      <div className="flex flex-wrap gap-4 mt-2 text-[12px] text-ui-fg-secondary">
+      <div className="flex flex-wrap gap-4 mt-2 text-[13px] text-ui-fg-secondary">
         <span>
           {t(`realign.orientation.local${pluralSuffix(report.localFileCount)}`, {
             count: report.localFileCount,
@@ -335,10 +303,10 @@ function RepairableGroup({
 }: RepairableGroupProps) {
   return (
     <div>
-      <div className="text-[12px] text-ui-fg-secondary uppercase tracking-wide mb-2">
+      <div className="mb-1 text-[14px] font-semibold text-ui-fg">
         {t('realign.group.repairable')}
       </div>
-      <div className="space-y-2">
+      <div className="divide-y divide-ui-divider">
         {buckets.map((bucket) => {
           const planKey = REPAIRABLE_BUCKET_TO_PLAN_KEY[bucket.id]
           const fragment = bucketKeyFragment(bucket.id)
@@ -346,7 +314,7 @@ function RepairableGroup({
           const isPendingMove = bucket.id === 'pending_move'
 
           return (
-            <div key={bucket.id} className="p-3 rounded border border-ui-divider bg-ui-bg">
+            <div key={bucket.id} className="py-3">
               <label className="flex items-start gap-3 cursor-pointer">
                 <input
                   type="checkbox"
@@ -355,14 +323,13 @@ function RepairableGroup({
                   disabled={isRunning}
                   className="mt-0.5 accent-ui-accent"
                 />
-                <span className="text-ui-accent mt-0.5">{REPAIRABLE_ICON[bucket.id]}</span>
                 <div className="flex-1">
-                  <div className="text-[13px] text-ui-fg">
+                  <div className="text-[14px] text-ui-fg">
                     {t(`realign.${fragment}.label${pluralSuffix(bucket.count)}`, {
                       count: bucket.count,
                     })}
                   </div>
-                  <div className="text-[12px] text-ui-fg-secondary mt-0.5">
+                  <div className="text-[13px] text-ui-fg-secondary mt-0.5">
                     {t(`realign.${fragment}.description`)}
                   </div>
                 </div>
@@ -383,7 +350,7 @@ function RepairableGroup({
         {/* Not tied to a bucket count: rebuilding the sync index is housekeeping that runs
             alongside whichever repairs above are selected, so it gets its own row rather than
             being folded into one of the counted buckets. */}
-        <label className="flex items-start gap-3 p-3 rounded border border-ui-divider bg-ui-bg cursor-pointer">
+        <label className="flex items-start gap-3 py-3 cursor-pointer">
           <input
             type="checkbox"
             checked={plan.rebuildSyncIndex}
@@ -391,12 +358,9 @@ function RepairableGroup({
             disabled={isRunning}
             className="mt-0.5 accent-ui-accent"
           />
-          <span className="text-ui-accent mt-0.5">
-            <RefreshCw size={16} />
-          </span>
           <div className="flex-1">
-            <div className="text-[13px] text-ui-fg">{t('realign.syncIndex.label')}</div>
-            <div className="text-[12px] text-ui-fg-secondary mt-0.5">
+            <div className="text-[14px] text-ui-fg">{t('realign.syncIndex.label')}</div>
+            <div className="text-[13px] text-ui-fg-secondary mt-0.5">
               {t('realign.syncIndex.description')}
             </div>
           </div>
@@ -417,29 +381,33 @@ function NeedsDecisionGroup({ buckets, onGoDecide, isRunning }: NeedsDecisionGro
 
   return (
     <div>
-      <div className="text-[12px] text-ui-fg-secondary uppercase tracking-wide mb-2">
+      <div className="mb-1 text-[14px] font-semibold text-ui-fg">
         {t('realign.group.needsDecision')}
       </div>
-      <p className="text-[12px] text-ui-fg-secondary mb-2">{t('realign.group.needsDecisionNote')}</p>
+      <p className="text-[13px] text-ui-fg-secondary mb-1">
+        {t('realign.group.needsDecisionNote')}
+      </p>
 
       {visibleBuckets.length === 0 ? (
-        <p className="text-[12px] text-ui-fg-secondary">{t('realign.group.needsDecisionEmpty')}</p>
+        <p className="py-3 text-[13px] text-ui-fg-secondary">
+          {t('realign.group.needsDecisionEmpty')}
+        </p>
       ) : (
-        <div className="space-y-2">
+        <div className="divide-y divide-ui-divider">
           {visibleBuckets.map((bucket) => {
             const fragment = bucketKeyFragment(bucket.id)
             const { shown, moreCount } = computeSampleDisplay(bucket)
 
             return (
-              <div key={bucket.id} className="p-3 rounded border border-ui-divider bg-ui-bg">
+              <div key={bucket.id} className="py-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1">
-                    <div className="text-[13px] text-ui-fg">
+                    <div className="text-[14px] text-ui-fg">
                       {t(`realign.${fragment}.label${pluralSuffix(bucket.count)}`, {
                         count: bucket.count,
                       })}
                     </div>
-                    <div className="text-[12px] text-ui-fg-secondary mt-0.5">
+                    <div className="text-[13px] text-ui-fg-secondary mt-0.5">
                       {t(`realign.${fragment}.description`)}
                     </div>
                   </div>
@@ -451,9 +419,9 @@ function NeedsDecisionGroup({ buckets, onGoDecide, isRunning }: NeedsDecisionGro
                 </div>
 
                 {shown.length > 0 && (
-                  <div className="mt-2 bg-ui-field rounded border border-ui-divider p-2 font-mono text-[12px]">
+                  <div className="mt-2 text-[13px]">
                     {shown.map((item) => (
-                      <div key={item.id} className="truncate text-ui-fg py-0.5">
+                      <div key={item.id} className="truncate text-ui-fg-secondary py-0.5">
                         {item.relativePath}
                       </div>
                     ))}
@@ -486,7 +454,7 @@ function InformationalGroup({ buckets, isExpanded, onToggleExpanded }: Informati
     <div>
       <button
         onClick={onToggleExpanded}
-        className="mb-2 flex items-center gap-1.5 text-[13px] font-medium text-ui-fg-secondary hover:text-ui-fg"
+        className="mb-1 flex items-center gap-1.5 text-[14px] font-semibold text-ui-fg"
       >
         {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         <span>
@@ -495,21 +463,21 @@ function InformationalGroup({ buckets, isExpanded, onToggleExpanded }: Informati
       </button>
 
       {isExpanded && (
-        <div className="space-y-2">
+        <div className="divide-y divide-ui-divider">
           {buckets.map((bucket) => {
             const fragment = bucketKeyFragment(bucket.id)
             return (
-              <div key={bucket.id} className="p-3 rounded border border-ui-divider bg-ui-bg">
-                <div className="text-[13px] text-ui-fg">
+              <div key={bucket.id} className="py-3">
+                <div className="text-[14px] text-ui-fg">
                   {t(`realign.${fragment}.label${pluralSuffix(bucket.count)}`, {
                     count: bucket.count,
                   })}
                 </div>
-                <div className="text-[12px] text-ui-fg-secondary mt-0.5">
+                <div className="text-[13px] text-ui-fg-secondary mt-0.5">
                   {t(`realign.${fragment}.whyNote`)}
                 </div>
                 {bucket.id === 'blocked_checkout' && (
-                  <div className="text-[12px] text-ui-fg-secondary mt-1 space-y-0.5">
+                  <div className="text-[13px] text-ui-fg-secondary mt-1 space-y-0.5">
                     {/* A self-held checkout (only reachable via an `outdated` row - see
                         `resolveGuardedBucket`) is not "someone else's work in progress", so it
                         gets its own line rather than being folded into the count above. */}
@@ -562,13 +530,13 @@ const ABORT_REASON_KEY: Record<NonNullable<AlignmentOutcome['abortReason']>, str
 
 function OutcomeSummary({ outcome }: { outcome: AlignmentOutcome }) {
   return (
-    <div className="border-t border-ui-divider pt-3">
-      <div className="text-[12px] text-ui-fg-secondary uppercase tracking-wide mb-2">
+    <div>
+      <div className="mb-1 text-[14px] font-semibold text-ui-fg">
         {t('realign.outcome.heading')}
       </div>
 
       {outcome.aborted ? (
-        <div className="rounded border border-ui-warning/40 bg-ui-warning/10 p-3 text-[13px] text-ui-fg flex items-start gap-2">
+        <div className="py-2 text-[14px] text-ui-fg flex items-start gap-2">
           <AlertTriangle size={16} className="shrink-0 mt-0.5 text-ui-warning" />
           <span>
             {t('realign.outcome.abortedHeading')}{' '}
@@ -582,7 +550,7 @@ function OutcomeSummary({ outcome }: { outcome: AlignmentOutcome }) {
             if (!stepResult) return null
 
             return (
-              <div key={stepId} className="flex items-center justify-between text-[13px]">
+              <div key={stepId} className="flex items-center justify-between text-[14px]">
                 <span className="text-ui-fg-secondary">{t(`realign.outcome.step_${stepId}`)}</span>
                 <span className="text-ui-fg">{describeStepOutcome(stepResult)}</span>
               </div>

@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import type React from 'react'
 import * as LucideIcons from 'lucide-react'
 import { Users, UserPlus, Search, Plus, X, Loader2 } from 'lucide-react'
+import { Button } from '@/components/core/ui'
 import { log } from '@/lib/logger'
 import { supabase } from '@/lib/supabase'
 import { usePDMStore } from '@/stores/pdmStore'
@@ -284,9 +285,9 @@ export function TeamMembersDialog({ team, orgUsers, onClose, userId }: TeamMembe
 
         {/* Footer */}
         <div className="p-4 border-t border-ui-divider flex justify-end">
-          <button onClick={onClose} className="btn btn-primary">
+          <Button variant="primary" onClick={onClose}>
             Done
-          </button>
+          </Button>
         </div>
       </div>
     </div>

@@ -25,11 +25,11 @@ export function LicenseTable({
       <table className="w-full text-[14px]">
         <thead>
           <tr className="border-b border-ui-divider text-left text-[13px]">
-            <th className="py-2 pl-4 pr-4 font-medium text-ui-fg-secondary">License</th>
-            <th className="py-2 pr-4 font-medium text-ui-fg-secondary">Serial Number</th>
-            <th className="py-2 pr-4 font-medium text-ui-fg-secondary">Type</th>
-            <th className="py-2 pr-4 font-medium text-ui-fg-secondary">Assigned To</th>
-            {isAdmin && <th className="py-2 pr-4 font-medium text-ui-fg-secondary text-right">Actions</th>}
+            <th className="py-2 pr-4 font-normal text-ui-fg-secondary">License</th>
+            <th className="py-2 pr-4 font-normal text-ui-fg-secondary">Serial Number</th>
+            <th className="py-2 pr-4 font-normal text-ui-fg-secondary">Type</th>
+            <th className="py-2 pr-4 font-normal text-ui-fg-secondary">Assigned To</th>
+            {isAdmin && <th className="py-2 font-normal text-right text-ui-fg-secondary">Actions</th>}
           </tr>
         </thead>
         <tbody>

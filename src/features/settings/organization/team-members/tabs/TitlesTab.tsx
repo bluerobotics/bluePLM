@@ -7,8 +7,7 @@
  * - useJobTitleDialogs for dialog state
  * - useMembers for user data
  */
-import * as LucideIcons from 'lucide-react'
-import { Briefcase, Plus, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Pencil, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 
@@ -110,8 +109,8 @@ export function TitlesTab({ searchQuery = '', onShowCreateTitleDialog }: TitlesT
   if (filteredTitles.length === 0) {
     return (
       <SettingsGroup>
-        <div className="flex items-center justify-between gap-4 px-4 py-4">
-          <span className="text-[13px] text-ui-fg-secondary">
+        <div className="flex items-center justify-between gap-4 py-4">
+          <span className="text-[14px] text-ui-fg-secondary">
             {searchQuery ? 'No matching job titles' : 'No job titles yet'}
           </span>
           {isAdmin && !searchQuery && onShowCreateTitleDialog && (
@@ -121,7 +120,7 @@ export function TitlesTab({ searchQuery = '', onShowCreateTitleDialog }: TitlesT
               icon={<Plus size={14} />}
               onClick={onShowCreateTitleDialog}
             >
-              Create First Title
+              Create first title
             </Button>
           )}
         </div>
@@ -130,32 +129,27 @@ export function TitlesTab({ searchQuery = '', onShowCreateTitleDialog }: TitlesT
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <SettingsGroup>
         <>
           {filteredTitles.map((title) => {
-            const TitleIcon =
-              (LucideIcons as unknown as Record<string, React.ComponentType<{ size?: number }>>)[
-                title.icon
-              ] || Briefcase
             const usersWithTitle = orgUsers.filter((u) => u.job_title?.id === title.id)
 
             return (
               <div
                 key={title.id}
-                className="group flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-ui-hover/40"
+                className="group flex items-center gap-3 py-3"
               >
-                {/* Title icon */}
-                <div
-                  className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md"
-                  style={{ backgroundColor: `${title.color}20`, color: title.color }}
-                >
-                  <TitleIcon size={16} />
-                </div>
+                {/* Title colour */}
+                <span
+                  aria-hidden
+                  className="h-2 w-2 flex-shrink-0 rounded-full"
+                  style={{ backgroundColor: title.color }}
+                />
 
                 {/* Title info */}
                 <div className="flex-1 min-w-0">
-                  <div className="truncate text-[14px] font-medium text-ui-fg">{title.name}</div>
+                  <div className="truncate text-[14px] text-ui-fg">{title.name}</div>
                   <div className="text-[13px] text-ui-fg-secondary">
                     {usersWithTitle.length} user{usersWithTitle.length !== 1 ? 's' : ''}
                   </div>
@@ -170,14 +164,14 @@ export function TitlesTab({ searchQuery = '', onShowCreateTitleDialog }: TitlesT
                           key={u.id}
                           src={getEffectiveAvatarUrl(u)!}
                           alt={u.full_name || u.email}
-                          className="h-6 w-6 rounded-full border-2 border-ui-field object-cover"
+                          className="h-6 w-6 rounded-full border-2 border-ui-bg object-cover"
                           title={u.full_name || u.email}
                           referrerPolicy="no-referrer"
                         />
                       ) : (
                         <div
                           key={u.id}
-                          className="h-6 w-6 rounded-full bg-ui-fg-secondary/20 flex items-center justify-center text-[12px] font-medium border-2 border-ui-field"
+                          className="h-6 w-6 rounded-full bg-ui-selected text-ui-fg flex items-center justify-center text-[12px] font-medium border-2 border-ui-bg"
                           title={u.full_name || u.email}
                         >
                           {getInitials(u.full_name || u.email)}
@@ -185,7 +179,7 @@ export function TitlesTab({ searchQuery = '', onShowCreateTitleDialog }: TitlesT
                       ),
                     )}
                     {usersWithTitle.length > 4 && (
-                      <div className="h-6 w-6 rounded-full bg-ui-fg-secondary/20 flex items-center justify-center text-[12px] font-medium border-2 border-ui-field">
+                      <div className="h-6 w-6 rounded-full bg-ui-selected text-ui-fg flex items-center justify-center text-[12px] font-medium border-2 border-ui-bg">
                         +{usersWithTitle.length - 4}
                       </div>
                     )}
@@ -195,24 +189,24 @@ export function TitlesTab({ searchQuery = '', onShowCreateTitleDialog }: TitlesT
                 {/* Actions */}
                 {isAdmin && (
                   <div className="flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
-                    <button
-                      type="button"
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="!px-1.5"
                       onClick={() => openEditTitleDialog(title)}
-                      className="rounded-md p-1.5 text-ui-fg-secondary transition-colors hover:bg-ui-hover hover:text-ui-fg"
+                      icon={<Pencil size={14} />}
                       title="Edit title"
                       aria-label="Edit title"
-                    >
-                      <Pencil size={14} />
-                    </button>
-                    <button
-                      type="button"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="!px-1.5 hover:!text-ui-danger"
                       onClick={() => setDeletingTitle(title)}
-                      className="rounded-md p-1.5 text-ui-fg-secondary transition-colors hover:bg-ui-danger/10 hover:text-ui-danger"
+                      icon={<Trash2 size={14} />}
                       title="Delete title"
                       aria-label="Delete title"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    />
                   </div>
                 )}
               </div>
@@ -222,7 +216,7 @@ export function TitlesTab({ searchQuery = '', onShowCreateTitleDialog }: TitlesT
       </SettingsGroup>
 
       {/* Info footer */}
-      <p className="text-[13px] text-ui-fg-secondary">
+      <p className="text-[14px] leading-[1.4] text-ui-fg-secondary">
         Job titles are display-only labels. Editing a title updates it for all users who have it
         assigned. All permissions come from teams.
       </p>

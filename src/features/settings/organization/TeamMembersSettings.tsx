@@ -13,17 +13,7 @@
  * edit/delete dialogs which are triggered from within the tabs.
  */
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
-import {
-  Briefcase,
-  Loader2,
-  Plus,
-  RefreshCw,
-  Search,
-  Shield,
-  UserPlus,
-  Users,
-  UsersRound,
-} from 'lucide-react'
+import { Loader2, Plus, RefreshCw, Search, UserPlus } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 
 import { Button, TextInput } from '@/components/core/ui'
@@ -62,11 +52,11 @@ import { OrganizationAccessSection } from './team-members/components/Organizatio
 
 type TabType = 'users' | 'teams' | 'roles' | 'titles'
 
-const TABS: readonly { id: TabType; label: string; icon: ReactNode; search: string }[] = [
-  { id: 'users', label: 'Users', icon: <UsersRound size={14} />, search: 'Search users...' },
-  { id: 'teams', label: 'Teams', icon: <Users size={14} />, search: 'Search teams...' },
-  { id: 'roles', label: 'Roles', icon: <Shield size={14} />, search: 'Search roles...' },
-  { id: 'titles', label: 'Titles', icon: <Briefcase size={14} />, search: 'Search titles...' },
+const TABS: readonly { id: TabType; label: string; search: string }[] = [
+  { id: 'users', label: 'Users', search: 'Search users...' },
+  { id: 'teams', label: 'Teams', search: 'Search teams...' },
+  { id: 'roles', label: 'Roles', search: 'Search roles...' },
+  { id: 'titles', label: 'Titles', search: 'Search titles...' },
 ]
 
 const TAB_DESCRIPTIONS: Record<TabType, string> = {
@@ -264,7 +254,7 @@ export function TeamMembersSettings() {
 
   // ===== RENDER =====
   if (!organization) {
-    return <div className="py-12 text-center text-ui-fg-secondary">No organization connected</div>
+    return <div className="py-12 text-center text-[14px] text-ui-fg-secondary">No organization connected</div>
   }
 
   const counts: Record<TabType, number> = {
@@ -322,8 +312,8 @@ export function TeamMembersSettings() {
 
       <SettingsSection title="Members" description={TAB_DESCRIPTIONS[activeTab]}>
         {/* Tab bar, search and the active tab's actions */}
-        <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-b border-ui-divider">
-          <div role="tablist" aria-label="Members" className="-mb-px flex items-center gap-5">
+        <div className="mt-3 flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-b border-ui-divider">
+          <div role="tablist" aria-label="Members" className="-mb-px flex items-center gap-6">
             {TABS.map((tab) => {
               const selected = activeTab === tab.id
               return (
@@ -333,16 +323,15 @@ export function TeamMembersSettings() {
                   role="tab"
                   aria-selected={selected}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-1.5 border-b-2 px-0.5 pb-2.5 pt-1 text-[14px] font-medium outline-none transition-colors focus-visible:text-ui-fg ${
+                  className={`flex items-center gap-1.5 border-b-2 pb-2.5 pt-1 text-[14px] outline-none transition-colors focus-visible:text-ui-fg ${
                     selected
-                      ? 'border-ui-accent text-ui-fg'
+                      ? 'border-ui-fg font-medium text-ui-fg'
                       : 'border-transparent text-ui-fg-secondary hover:text-ui-fg'
                   }`}
                 >
-                  {tab.icon}
                   <span>{tab.label}</span>
                   {counts[tab.id] > 0 && (
-                    <span className="text-[12px] font-normal tabular-nums text-ui-fg-secondary">
+                    <span className="text-[13px] font-normal tabular-nums text-ui-fg-secondary">
                       {counts[tab.id]}
                     </span>
                   )}
@@ -394,7 +383,7 @@ export function TeamMembersSettings() {
             <Loader2 className="animate-spin text-ui-fg-secondary" size={20} />
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-8">
             {activeTab === 'users' && (
               <UsersTab
                 searchQuery={searchQuery}

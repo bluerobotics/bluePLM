@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import type React from 'react'
 import * as LucideIcons from 'lucide-react'
 import { Users, X, Loader2, Trash2 } from 'lucide-react'
+import { Button } from '@/components/core/ui'
 import { log } from '@/lib/logger'
 import { usePDMStore } from '@/stores/pdmStore'
 import { useShallow } from 'zustand/react/shallow'
@@ -147,9 +148,9 @@ export function TeamModulesDialog({ team, onClose }: TeamModulesDialogProps) {
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="btn btn-ghost btn-sm">
+          <Button variant="ghost" size="sm" onClick={onClose}>
             <X size={18} />
-          </button>
+          </Button>
         </div>
 
         {/* Content */}
@@ -177,23 +178,24 @@ export function TeamModulesDialog({ team, onClose }: TeamModulesDialogProps) {
 
         {/* Footer */}
         <div className="p-4 border-t border-ui-divider flex items-center justify-between flex-shrink-0">
-          <button
+          <Button
+            variant="ghost"
+            className="!text-ui-danger hover:!bg-ui-danger/10"
             onClick={() => setShowClearConfirm(true)}
             disabled={isSaving || !team.module_defaults}
-            className="btn btn-ghost text-ui-danger hover:bg-ui-danger/10 disabled:opacity-50"
           >
             <Trash2 size={14} className="mr-1.5" />
             Clear Defaults
-          </button>
+          </Button>
 
           <div className="flex items-center gap-2">
-            <button onClick={onClose} className="btn btn-ghost" disabled={isSaving}>
+            <Button variant="ghost" onClick={onClose} disabled={isSaving}>
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="primary"
               onClick={handleSaveDefaults}
               disabled={isSaving || isLoading || !hasChanges}
-              className="btn btn-primary"
             >
               {isSaving ? (
                 <>
@@ -203,7 +205,7 @@ export function TeamModulesDialog({ team, onClose }: TeamModulesDialogProps) {
               ) : (
                 'Save Defaults'
               )}
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -224,15 +226,15 @@ export function TeamModulesDialog({ team, onClose }: TeamModulesDialogProps) {
               members will use organization or app defaults instead.
             </p>
             <div className="flex gap-2 justify-end">
-              <button onClick={() => setShowClearConfirm(false)} className="btn btn-ghost">
+              <Button variant="ghost" onClick={() => setShowClearConfirm(false)}>
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="danger"
                 onClick={handleClearDefaults}
-                className="btn bg-ui-danger text-white hover:bg-ui-danger/90"
               >
                 Clear Defaults
-              </button>
+              </Button>
             </div>
           </div>
         </div>

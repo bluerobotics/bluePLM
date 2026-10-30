@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { AlertTriangle, Loader2, UserMinus } from 'lucide-react'
+import { Button } from '@/components/core/ui'
 import type { OrgUser } from '../../types'
 
 interface RemoveUserDialogProps {
@@ -81,9 +82,9 @@ export function RemoveUserDialog({
         </div>
 
         <div className="flex gap-2 justify-end">
-          <button onClick={onClose} className="btn btn-ghost">
+          <Button variant="ghost" onClick={onClose}>
             Cancel
-          </button>
+          </Button>
           <button
             onClick={onConfirm}
             disabled={!isConfirmed || isRemoving}

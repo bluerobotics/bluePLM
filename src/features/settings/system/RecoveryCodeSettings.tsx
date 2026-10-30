@@ -17,7 +17,6 @@ import { useShallow } from 'zustand/react/shallow'
 import {
   Badge,
   Button,
-  Callout,
   Select,
   TextInput,
   type BadgeTone,
@@ -192,7 +191,7 @@ export function RecoveryCodeSettings() {
   // Non-admin view
   if (!isAdmin) {
     return (
-      <div className="py-12 text-center text-ui-fg-secondary">
+      <div className="py-12 text-center text-[14px] text-ui-fg-secondary">
         Only administrators can manage recovery codes.
       </div>
     )
@@ -200,26 +199,25 @@ export function RecoveryCodeSettings() {
 
   const statusTone = (code: AdminRecoveryCode): BadgeTone =>
     code.is_used
-      ? 'success'
+      ? 'neutral'
       : code.is_revoked
         ? 'error'
         : new Date(code.expires_at) < new Date()
           ? 'neutral'
-          : 'accent'
+          : 'success'
 
   return (
     <SettingsPage>
-      {/* Warning Banner */}
-      <Callout tone="warning" title="Important Security Information">
-        Recovery codes allow any user in your organization to become an admin. Codes are only shown{' '}
-        <strong>once</strong> when generated and must be written down or stored securely offline.
-        Keep them in a physical location (e.g., a safe) that authorized personnel can access in
-        emergencies.
-      </Callout>
-
       <SettingsSection
         title="Admin Recovery Codes"
-        description="Emergency access codes for admin account recovery"
+        description={
+          <>
+            Emergency access codes for admin account recovery. A code lets any user in your
+            organization become an admin. It is shown only <strong>once</strong>, when generated:
+            write it down and keep it somewhere physical, such as a safe, that authorized people can
+            reach in an emergency.
+          </>
+        }
         actions={
           <Button
             variant="primary"
@@ -241,9 +239,9 @@ export function RecoveryCodeSettings() {
 
           {/* Empty state */}
           {!loading && codes.length === 0 && (
-            <div className="px-4 py-4">
+            <div className="py-4">
               <p className="text-[14px] text-ui-fg">No recovery codes generated yet</p>
-              <p className="mt-0.5 text-[13px] text-ui-fg-secondary">
+              <p className="mt-1 text-[14px] leading-[1.4] text-ui-fg-secondary">
                 We recommend generating at least one recovery code and storing it in a secure
                 physical location in case all admin accounts become inaccessible.
               </p>
@@ -254,19 +252,17 @@ export function RecoveryCodeSettings() {
           {!loading &&
             codes.map((code) => {
               const status = getCodeStatus(code)
-              const StatusIcon = status.icon
 
               return (
-                <div key={code.id} className="group flex items-start gap-3 px-4 py-3">
-                  <StatusIcon size={14} className={`mt-0.5 flex-shrink-0 ${status.color}`} />
+                <div key={code.id} className="group flex items-center gap-3 py-3.5">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <Badge tone={statusTone(code)}>{status.label}</Badge>
                       {code.description && (
-                        <span className="truncate text-[14px] font-medium text-ui-fg">
+                        <span className="truncate text-[14px] text-ui-fg">
                           {code.description}
                         </span>
                       )}
+                      <Badge tone={statusTone(code)}>{status.label}</Badge>
                     </div>
 
                     <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[13px] text-ui-fg-secondary">
@@ -302,15 +298,15 @@ export function RecoveryCodeSettings() {
                     {(code.is_used ||
                       code.is_revoked ||
                       new Date(code.expires_at) < new Date()) && (
-                      <button
-                        type="button"
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() => handleDelete(code.id)}
-                        className="rounded-md p-1.5 text-ui-fg-secondary opacity-0 transition-all hover:bg-ui-danger/10 hover:text-ui-danger focus-visible:opacity-100 group-hover:opacity-100"
+                        className="!px-1.5 opacity-0 hover:!text-ui-danger focus-visible:opacity-100 group-hover:opacity-100"
+                        icon={<Trash2 size={14} />}
                         title="Delete"
                         aria-label="Delete"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      />
                     )}
                   </div>
                 </div>
@@ -325,9 +321,6 @@ export function RecoveryCodeSettings() {
           <div className="bg-ui-bg border border-ui-divider rounded-lg shadow-xl max-w-md w-full mx-4">
             <div className="p-6 border-b border-ui-divider">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-ui-accent/10 flex items-center justify-center">
-                  <Key size={20} className="text-ui-accent" />
-                </div>
                 <div>
                   <h3 className="text-lg font-semibold text-ui-fg">Generate Recovery Code</h3>
                   <p className="text-[13px] text-ui-fg-secondary">Create an emergency admin access code</p>
@@ -417,8 +410,8 @@ export function RecoveryCodeSettings() {
               <div className="text-center">
                 <p className="text-[13px] text-ui-fg-secondary mb-3">Your Admin Recovery Code:</p>
                 <div className="relative">
-                  <div className="bg-ui-field border-2 border-dashed border-ui-accent rounded-lg p-6">
-                    <code className="text-3xl font-mono font-bold tracking-wider text-ui-accent">
+                  <div className="bg-ui-field border border-dashed border-ui-field-border rounded-lg p-6">
+                    <code className="text-3xl font-mono font-bold tracking-wider text-ui-fg">
                       {generatedCode}
                     </code>
                   </div>

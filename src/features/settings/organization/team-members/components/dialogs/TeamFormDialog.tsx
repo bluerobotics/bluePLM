@@ -1,5 +1,6 @@
 // Team Form Dialog - Create/Edit team modal
 import { Copy, Loader2 } from 'lucide-react'
+import { Button } from '@/components/core/ui'
 import { IconPicker } from '@/components/shared/IconPicker'
 import { ColorPickerDropdown } from '@/components/shared/ColorPicker'
 import { getTeamIcon } from '../../utils'
@@ -152,17 +153,17 @@ export function TeamFormDialog({
         </div>
 
         <div className="flex gap-2 justify-end mt-6">
-          <button onClick={onCancel} className="btn btn-ghost">
+          <Button variant="ghost" onClick={onCancel}>
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="primary"
             onClick={onSave}
             disabled={isSaving || !formData.name.trim()}
-            className="btn btn-primary"
           >
             {isSaving ? <Loader2 size={16} className="animate-spin" /> : null}
             {isCreating ? 'Create Team' : 'Save Changes'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

@@ -7,7 +7,6 @@
  * - useWorkflowRoleDialogs for dialog state
  * - useWorkflowRoleHandlers for CRUD operations
  */
-import * as LucideIcons from 'lucide-react'
 import { Shield, Plus, Pencil, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
@@ -114,8 +113,8 @@ export function RolesTab({ searchQuery = '', onShowCreateRoleDialog }: RolesTabP
   if (filteredRoles.length === 0) {
     return (
       <SettingsGroup>
-        <div className="flex items-center justify-between gap-4 px-4 py-4">
-          <span className="text-[13px] text-ui-fg-secondary">
+        <div className="flex items-center justify-between gap-4 py-4">
+          <span className="text-[14px] text-ui-fg-secondary">
             {searchQuery ? 'No matching workflow roles' : 'No workflow roles yet'}
           </span>
           {isAdmin && !searchQuery && onShowCreateRoleDialog && (
@@ -125,7 +124,7 @@ export function RolesTab({ searchQuery = '', onShowCreateRoleDialog }: RolesTabP
               icon={<Plus size={14} />}
               onClick={onShowCreateRoleDialog}
             >
-              Create First Role
+              Create first role
             </Button>
           )}
         </div>
@@ -134,14 +133,10 @@ export function RolesTab({ searchQuery = '', onShowCreateRoleDialog }: RolesTabP
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <SettingsGroup>
         <>
           {filteredRoles.map((role) => {
-            const RoleIcon =
-              (LucideIcons as unknown as Record<string, React.ComponentType<{ size?: number }>>)[
-                role.icon
-              ] || Shield
             const usersWithRole = orgUsers.filter((u) =>
               userWorkflowRoleAssignments[u.id]?.includes(role.id),
             )
@@ -149,19 +144,18 @@ export function RolesTab({ searchQuery = '', onShowCreateRoleDialog }: RolesTabP
             return (
               <div
                 key={role.id}
-                className="group flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-ui-hover/40"
+                className="group flex items-center gap-3 py-3"
               >
-                {/* Role icon */}
-                <div
-                  className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md"
-                  style={{ backgroundColor: `${role.color}20`, color: role.color }}
-                >
-                  <RoleIcon size={16} />
-                </div>
+                {/* Role colour */}
+                <span
+                  aria-hidden
+                  className="h-2 w-2 flex-shrink-0 rounded-full"
+                  style={{ backgroundColor: role.color }}
+                />
 
                 {/* Role info */}
                 <div className="flex-1 min-w-0">
-                  <div className="truncate text-[14px] font-medium text-ui-fg">{role.name}</div>
+                  <div className="truncate text-[14px] text-ui-fg">{role.name}</div>
                   <div className="truncate text-[13px] text-ui-fg-secondary">
                     {usersWithRole.length} user{usersWithRole.length !== 1 ? 's' : ''}
                     {role.description && ` · ${role.description}`}
@@ -177,14 +171,14 @@ export function RolesTab({ searchQuery = '', onShowCreateRoleDialog }: RolesTabP
                           key={u.id}
                           src={getEffectiveAvatarUrl(u)!}
                           alt={u.full_name || u.email}
-                          className="h-6 w-6 rounded-full border-2 border-ui-field object-cover"
+                          className="h-6 w-6 rounded-full border-2 border-ui-bg object-cover"
                           title={u.full_name || u.email}
                           referrerPolicy="no-referrer"
                         />
                       ) : (
                         <div
                           key={u.id}
-                          className="h-6 w-6 rounded-full bg-ui-fg-secondary/20 flex items-center justify-center text-[12px] font-medium border-2 border-ui-field"
+                          className="h-6 w-6 rounded-full bg-ui-selected text-ui-fg flex items-center justify-center text-[12px] font-medium border-2 border-ui-bg"
                           title={u.full_name || u.email}
                         >
                           {getInitials(u.full_name || u.email)}
@@ -192,7 +186,7 @@ export function RolesTab({ searchQuery = '', onShowCreateRoleDialog }: RolesTabP
                       ),
                     )}
                     {usersWithRole.length > 4 && (
-                      <div className="h-6 w-6 rounded-full bg-ui-fg-secondary/20 flex items-center justify-center text-[12px] font-medium border-2 border-ui-field">
+                      <div className="h-6 w-6 rounded-full bg-ui-selected text-ui-fg flex items-center justify-center text-[12px] font-medium border-2 border-ui-bg">
                         +{usersWithRole.length - 4}
                       </div>
                     )}
@@ -202,24 +196,24 @@ export function RolesTab({ searchQuery = '', onShowCreateRoleDialog }: RolesTabP
                 {/* Actions */}
                 {isAdmin && (
                   <div className="flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
-                    <button
-                      type="button"
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="!px-1.5"
                       onClick={() => openEditRoleDialog(role)}
-                      className="rounded-md p-1.5 text-ui-fg-secondary transition-colors hover:bg-ui-hover hover:text-ui-fg"
+                      icon={<Pencil size={14} />}
                       title="Edit role"
                       aria-label="Edit role"
-                    >
-                      <Pencil size={14} />
-                    </button>
-                    <button
-                      type="button"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="!px-1.5 hover:!text-ui-danger"
                       onClick={() => setDeletingRole(role)}
-                      className="rounded-md p-1.5 text-ui-fg-secondary transition-colors hover:bg-ui-danger/10 hover:text-ui-danger"
+                      icon={<Trash2 size={14} />}
                       title="Delete role"
                       aria-label="Delete role"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    />
                   </div>
                 )}
               </div>
@@ -229,7 +223,7 @@ export function RolesTab({ searchQuery = '', onShowCreateRoleDialog }: RolesTabP
       </SettingsGroup>
 
       {/* Info footer */}
-      <p className="text-[13px] text-ui-fg-secondary">
+      <p className="text-[14px] leading-[1.4] text-ui-fg-secondary">
         Workflow roles define responsibilities in workflows (e.g., approvers, reviewers). Editing a
         role updates it for all assigned users.
       </p>

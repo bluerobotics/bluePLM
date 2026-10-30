@@ -65,8 +65,8 @@ export function MetadataColumnEditor({
   onSave,
 }: MetadataColumnEditorProps) {
   return (
-    <SettingsGroup className="!border-ui-accent/60">
-      <div className="px-4 py-3 text-[14px] font-semibold text-ui-fg">
+    <SettingsGroup>
+      <div className="py-3 text-[14px] font-semibold text-ui-fg">
         {isCreating ? 'New Column' : 'Edit Column'}
       </div>
 
@@ -162,7 +162,6 @@ export function MetadataColumnEditor({
                 className="flex-1"
               />
               <Button
-                variant="primary"
                 icon={<Plus size={14} />}
                 onClick={onAddOption}
                 disabled={!newOption.trim()}
@@ -174,7 +173,7 @@ export function MetadataColumnEditor({
                 {column.select_options.map((option) => (
                   <span
                     key={option}
-                    className="inline-flex items-center gap-1 rounded-md border border-ui-divider bg-ui-bg px-2 py-1 text-[13px] text-ui-fg"
+                    className="inline-flex items-center gap-1 rounded-md bg-ui-field px-2 py-1 text-[13px] text-ui-fg"
                   >
                     {option}
                     <button
@@ -215,7 +214,7 @@ export function MetadataColumnEditor({
         />
       </SettingRow>
 
-      <div className="flex justify-end gap-2 px-4 py-3">
+      <div className="flex justify-end gap-2 py-3">
         <Button variant="ghost" size="sm" onClick={onCancel}>
           Cancel
         </Button>

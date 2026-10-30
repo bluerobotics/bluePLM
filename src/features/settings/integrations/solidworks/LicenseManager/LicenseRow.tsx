@@ -93,16 +93,16 @@ export function LicenseRow({
   }
 
   return (
-    <tr className="group border-b border-ui-divider last:border-0 hover:bg-ui-hover/40">
+    <tr className="group border-b border-ui-divider last:border-0">
       {/* License Name (nickname or fallback) */}
-      <td className="py-2.5 pl-4 pr-4">
-        <span className="text-ui-fg font-medium">{getDisplayName()}</span>
+      <td className="py-3 pr-4">
+        <span className="text-ui-fg">{getDisplayName()}</span>
       </td>
 
       {/* Serial Number (formatted with spaces, with copy button) */}
-      <td className="py-2.5 pr-4">
+      <td className="py-3 pr-4">
         <div className="flex items-center gap-2">
-          <code className="text-[13px] font-mono text-ui-fg-secondary tracking-wider">
+          <code className="text-[13px] font-mono text-ui-fg-secondary">
             {formatSerialForDisplay(license.serial_number)}
           </code>
           <button
@@ -120,15 +120,15 @@ export function LicenseRow({
       </td>
 
       {/* Type */}
-      <td className="py-2.5 pr-4 text-ui-fg-secondary capitalize">
+      <td className="py-3 pr-4 text-ui-fg-secondary capitalize">
         {license.license_type || 'standalone'}
         {license.license_type === 'network' && license.seats && (
-          <span className="text-ui-fg ml-1">({license.seats} seats)</span>
+          <span className="ml-1">({license.seats} seats)</span>
         )}
       </td>
 
       {/* Assigned To */}
-      <td className="py-2.5 pr-4">
+      <td className="py-3 pr-4">
         {assignedUser ? (
           <div className="flex items-center gap-2">
             {/* Avatar */}
@@ -141,33 +141,33 @@ export function LicenseRow({
                   referrerPolicy="no-referrer"
                 />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-[12px] font-medium text-ui-accent bg-ui-accent/20">
+                <div className="w-full h-full flex items-center justify-center text-[12px] font-medium text-ui-fg-secondary">
                   {getInitials(assignedUser.full_name || assignedUser.email)}
                 </div>
               )}
             </div>
             {/* Name/Email */}
             <div className="min-w-0">
-              <div className="text-ui-fg text-[13px] truncate">
+              <div className="text-ui-fg text-[14px] truncate">
                 {assignedUser.full_name || assignedUser.email}
               </div>
               {assignedUser.full_name && (
-                <div className="text-[12px] text-ui-fg truncate">{assignedUser.email}</div>
+                <div className="text-[13px] text-ui-fg-secondary truncate">{assignedUser.email}</div>
               )}
             </div>
           </div>
         ) : isPendingAssignment && pendingUser ? (
           <div className="flex items-center gap-2">
             {/* Avatar placeholder for pending user */}
-            <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0 bg-ui-warning/15">
-              <div className="w-full h-full flex items-center justify-center text-[12px] font-medium text-ui-warning">
+            <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0 bg-ui-field">
+              <div className="w-full h-full flex items-center justify-center text-[12px] font-medium text-ui-fg-secondary">
                 {getInitials(pendingUser.full_name || pendingUser.email)}
               </div>
             </div>
             {/* Name/Email with pending badge */}
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-ui-fg text-[13px] truncate">
+                <span className="text-ui-fg text-[14px] truncate">
                   {pendingUser.full_name || pendingUser.email}
                 </span>
                 <Badge tone="warning" icon={<Clock size={10} />}>
@@ -175,17 +175,17 @@ export function LicenseRow({
                 </Badge>
               </div>
               {pendingUser.full_name && (
-                <div className="text-[12px] text-ui-fg truncate">{pendingUser.email}</div>
+                <div className="text-[13px] text-ui-fg-secondary truncate">{pendingUser.email}</div>
               )}
             </div>
           </div>
         ) : (
-          <span className="text-ui-fg">—</span>
+          <span className="text-ui-fg-secondary">—</span>
         )}
       </td>
 
       {/* Actions - Admin only */}
-      <td className="py-2.5 pr-4 text-right">
+      <td className="py-3 text-right">
         {isAdmin && (
           <div className="flex items-center justify-end gap-0.5">
             {/* Assign/Unassign button */}

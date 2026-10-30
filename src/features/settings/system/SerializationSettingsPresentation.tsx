@@ -1,9 +1,8 @@
 import type { Dispatch, SetStateAction } from 'react'
 import {
   AlertTriangle,
+  Check,
   EyeOff,
-  FileBox,
-  Layers,
   Loader2,
   Plus,
   RefreshCw,
@@ -12,7 +11,7 @@ import {
   X,
 } from 'lucide-react'
 
-import { Button, Callout, FIELD_CLASS, Select, Switch } from '@/components/core/ui'
+import { Button, FIELD_CLASS, Select, Switch } from '@/components/core/ui'
 import type { TranslationParams } from '@/lib/i18n'
 import type { HighestSerialScanResult } from '@/lib/serialization'
 
@@ -21,16 +20,14 @@ import type { SerializationSettingsData } from './serializationSettingsModel'
 
 // The controls the presentation test reads (fields and action buttons) stay native elements with
 // the primitives' classes: the test walks the returned element tree without rendering components.
-const INPUT = `${FIELD_CLASS} h-8 px-2.5`
+const INPUT = `${FIELD_CLASS} h-7 px-2.5`
 const BUTTON = {
-  base: 'inline-flex flex-shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border h-7 px-2.5 text-[13px] font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ui-accent/60 disabled:cursor-not-allowed disabled:opacity-50',
-  primary: 'border-transparent bg-ui-accent text-white shadow-sm hover:bg-ui-accent',
-  secondary:
-    'border-ui-divider bg-ui-field text-ui-fg hover:border-ui-field-border hover:bg-ui-hover',
-  ghost:
-    'border-transparent bg-transparent text-ui-fg hover:bg-ui-hover hover:text-ui-fg',
+  base: 'inline-flex flex-shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border h-7 px-2.5 text-[13px] font-medium transition-colors duration-100 outline-none focus-visible:ring-2 focus-visible:ring-ui-accent/50 disabled:cursor-not-allowed disabled:opacity-40',
+  primary: 'border-transparent bg-ui-fg text-ui-bg hover:bg-ui-fg/90',
+  secondary: 'border-ui-field-border bg-ui-field text-ui-fg hover:bg-ui-selected',
+  ghost: 'border-transparent bg-transparent text-ui-fg hover:bg-ui-hover',
 } as const
-const CODE = 'rounded bg-ui-bg px-2 py-1 font-mono text-[13px] text-ui-accent'
+const CODE = 'rounded-md bg-ui-field px-1.5 py-0.5 font-mono text-[13px] text-ui-fg'
 
 const EXAMPLE_PATTERNS = [
   { code: 'PN-00001', note: 'Prefix: "PN-", 5 digits' },
@@ -125,13 +122,17 @@ export function SerializationSettingsPresentation({
   } = bindings
 
   if (!organization) {
-    return <div className="text-center py-12 text-ui-fg-secondary">No organization connected</div>
+    return (
+      <div className="py-12 text-center text-[14px] text-ui-fg-secondary">
+        No organization connected
+      </div>
+    )
   }
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="animate-spin text-ui-accent" size={24} />
+        <Loader2 className="animate-spin text-ui-fg-secondary" size={20} />
       </div>
     )
   }
@@ -141,15 +142,13 @@ export function SerializationSettingsPresentation({
 
   return (
     <SettingsPage>
-      {!isAdmin && (
-        <Callout>
-          Only administrators can modify serialization settings. You are viewing in read-only mode.
-        </Callout>
-      )}
-
       <SettingsSection
         title="Serial Number Settings"
-        description="Configure how sequential item/part numbers are generated for your organization."
+        description={
+          isAdmin
+            ? 'Configure how sequential item/part numbers are generated for your organization.'
+            : 'Configure how sequential item/part numbers are generated for your organization. Only administrators can change these settings.'
+        }
       >
         <SettingsGroup>
           <SettingRow
@@ -162,9 +161,7 @@ export function SerializationSettingsPresentation({
               ) : undefined
             }
           >
-            <span className="font-mono text-[18px] font-semibold text-ui-accent">
-              {livePreview}
-            </span>
+            <span className="font-mono text-[14px] font-medium text-ui-fg">{livePreview}</span>
             <button
               type="button"
               onClick={fetchPreview}
@@ -199,8 +196,8 @@ export function SerializationSettingsPresentation({
         description="Select which file types should automatically receive a serial number when created"
       >
         <SettingsGroup className={dimmed}>
-          <div className="grid grid-cols-3 gap-2 p-4">
-            {COMMON_EXTENSIONS.map(({ ext, label, icon }) => {
+          <div className="grid grid-cols-3 gap-2 py-4">
+            {COMMON_EXTENSIONS.map(({ ext, label }) => {
               const isSelected = (settings.auto_apply_extensions || []).includes(ext)
               return (
                 <button
@@ -209,37 +206,24 @@ export function SerializationSettingsPresentation({
                   onClick={() => isAdmin && settings.enabled && toggleExtension(ext)}
                   disabled={locked}
                   aria-pressed={isSelected}
-                  className={`flex items-center gap-2 rounded-md border px-3 py-2 text-left transition-colors ${
+                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition-colors ${
                     isSelected
-                      ? 'border-ui-accent bg-ui-accent/10 text-ui-fg'
-                      : 'border-ui-divider bg-ui-bg text-ui-fg-secondary hover:border-ui-accent/50'
+                      ? 'border-ui-selected-border bg-ui-selected'
+                      : 'border-ui-field-border bg-ui-field hover:bg-ui-hover'
                   } ${locked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
                 >
-                  {icon === 'assembly' ? (
-                    <Layers
-                      size={16}
-                      className={isSelected ? 'text-amber-400' : 'text-ui-fg-secondary'}
-                    />
-                  ) : (
-                    <FileBox
-                      size={16}
-                      className={isSelected ? 'text-ui-accent' : 'text-ui-fg-secondary'}
-                    />
-                  )}
                   <div className="min-w-0 flex-1">
-                    <div className="font-mono text-[13px]">{ext}</div>
+                    <div className="text-[14px] text-ui-fg">{ext}</div>
                     <div className="truncate text-[13px] text-ui-fg-secondary">{label}</div>
                   </div>
-                  {isSelected && (
-                    <div className="h-2 w-2 flex-shrink-0 rounded-full bg-ui-accent" />
-                  )}
+                  {isSelected && <Check size={14} className="flex-shrink-0 text-ui-fg" />}
                 </button>
               )
             })}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 px-4 py-3">
-            <span className="text-[13px] text-ui-fg-secondary">Custom:</span>
+          <div className="flex flex-wrap items-center gap-2 py-3.5">
+            <span className="text-[14px] text-ui-fg">Custom:</span>
             <input
               type="text"
               value={customExtension}
@@ -263,14 +247,14 @@ export function SerializationSettingsPresentation({
                 .map((ext) => (
                   <span
                     key={ext}
-                    className="inline-flex items-center gap-1 rounded bg-ui-accent/15 px-2 py-0.5 font-mono text-[13px] text-ui-accent"
+                    className="inline-flex items-center gap-1 rounded-md bg-ui-field px-2 py-0.5 text-[13px] text-ui-fg"
                   >
                     {ext}
                     {isAdmin && settings.enabled && (
                       <button
                         type="button"
                         onClick={() => toggleExtension(ext)}
-                        className="hover:text-ui-danger"
+                        className="text-ui-fg-secondary hover:text-ui-danger"
                         aria-label={`Remove ${ext}`}
                       >
                         <X size={12} />
@@ -282,16 +266,16 @@ export function SerializationSettingsPresentation({
           </div>
 
           {(settings.auto_apply_extensions || []).length > 0 && (
-            <div className="px-4 py-3 text-[13px] text-ui-fg-secondary">
+            <div className="py-3.5 text-[14px] text-ui-fg-secondary">
               Auto-serialization enabled for:{' '}
-              <span className="font-mono text-ui-fg">
+              <span className="text-ui-fg">
                 {(settings.auto_apply_extensions || []).join(', ')}
               </span>
             </div>
           )}
           {(settings.auto_apply_extensions || []).length === 0 && settings.enabled && (
-            <div className="flex items-center gap-1.5 px-4 py-3 text-[13px] text-ui-warning">
-              <AlertTriangle size={12} />
+            <div className="flex items-center gap-1.5 py-3.5 text-[14px] text-ui-warning">
+              <AlertTriangle size={14} />
               No file types selected. Auto-serialization won't apply to any files.
             </div>
           )}
@@ -383,8 +367,8 @@ export function SerializationSettingsPresentation({
             />
           </SettingRow>
           {isAdmin && (
-            <div className="flex items-center gap-1.5 px-4 py-2.5 text-[13px] text-ui-warning">
-              <AlertTriangle size={12} />
+            <div className="flex items-center gap-1.5 py-3.5 text-[14px] text-ui-warning">
+              <AlertTriangle size={14} />
               Changing this value can cause duplicate or skipped numbers. Use with caution.
             </div>
           )}
@@ -406,8 +390,8 @@ export function SerializationSettingsPresentation({
             </SettingRow>
           )}
           {isAdmin && settings.enabled && detectedResult && (
-            <div className="px-4 py-3">
-              <div className="text-[13px] text-ui-fg-secondary">
+            <div className="py-3.5">
+              <div className="text-[14px] text-ui-fg-secondary">
                 Scanned{' '}
                 <span className="font-medium text-ui-fg">{detectedResult.totalScanned}</span> files
               </div>
@@ -422,7 +406,7 @@ export function SerializationSettingsPresentation({
                   <div>
                     <div className="text-[14px] text-ui-fg">
                       Highest found:{' '}
-                      <span className="font-mono font-medium text-ui-accent">
+                      <span className="font-mono font-medium text-ui-fg">
                         {detectedResult.highestPartNumber}
                       </span>
                     </div>
@@ -453,7 +437,7 @@ export function SerializationSettingsPresentation({
         description={
           <>
             Add variant suffixes to base numbers (e.g., BR101101
-            <span className="text-ui-accent">-104</span>)
+            <span className="text-ui-fg">-104</span>)
           </>
         }
         actions={
@@ -522,9 +506,9 @@ export function SerializationSettingsPresentation({
                 aria-label="Tab required"
               />
             </SettingRow>
-            <div className="space-y-2 px-4 py-3">
+            <div className="space-y-3 py-4">
               <div>
-                <div className="mb-1 text-[13px] text-ui-fg-secondary">Example with tab:</div>
+                <div className="mb-1.5 text-[14px] text-ui-fg-secondary">Example with tab:</div>
                 <div className="flex flex-wrap items-center gap-2">
                   {['1', '2', '3'].map((tab, index) => (
                     <span key={tab} className="flex items-center gap-2">
@@ -541,7 +525,7 @@ export function SerializationSettingsPresentation({
               </div>
               {!settings.tab_required && (
                 <div>
-                  <div className="mb-1 text-[13px] text-ui-fg-secondary">Base only (no tab):</div>
+                  <div className="mb-1.5 text-[14px] text-ui-fg-secondary">Base only (no tab):</div>
                   <code className={CODE}>
                     {basePreview}
                     {settings.suffix}
@@ -597,8 +581,8 @@ export function SerializationSettingsPresentation({
             {!settings.tab_allow_numbers &&
               !settings.tab_allow_letters &&
               !settings.tab_allow_special && (
-                <div className="flex items-center gap-1.5 px-4 py-2.5 text-[13px] text-ui-warning">
-                  <AlertTriangle size={12} />
+                <div className="flex items-center gap-1.5 py-3.5 text-[14px] text-ui-warning">
+                  <AlertTriangle size={14} />
                   No characters allowed. Tab input will be disabled.
                 </div>
               )}
@@ -620,7 +604,7 @@ export function SerializationSettingsPresentation({
       >
         <SettingsGroup className={dimmed}>
           {showKeepoutForm && (
-            <div className="grid grid-cols-4 gap-3 px-4 py-3">
+            <div className="grid grid-cols-4 gap-3 py-4">
               <div>
                 <label className="mb-1 block text-[13px] text-ui-fg-secondary">Start</label>
                 <input
@@ -658,7 +642,7 @@ export function SerializationSettingsPresentation({
                   <button
                     type="button"
                     onClick={addKeepoutZone}
-                    className={`${BUTTON.base} ${BUTTON.primary} !h-8`}
+                    className={`${BUTTON.base} ${BUTTON.primary}`}
                   >
                     Add
                   </button>
@@ -668,7 +652,7 @@ export function SerializationSettingsPresentation({
                       setShowKeepoutForm(false)
                       setNewKeepout({ start: '', end: '', description: '' })
                     }}
-                    className={`${BUTTON.base} ${BUTTON.ghost} !h-8 !px-2`}
+                    className={`${BUTTON.base} ${BUTTON.ghost} !px-1.5`}
                     aria-label="Cancel"
                   >
                     <X size={14} />
@@ -679,19 +663,21 @@ export function SerializationSettingsPresentation({
           )}
 
           {settings.keepout_zones.length === 0 ? (
-            <div className="px-4 py-6 text-center text-[14px] text-ui-fg-secondary">
+            <div className="py-4 text-[14px] text-ui-fg-secondary">
               No keepout zones defined. All numbers will be available for assignment.
             </div>
           ) : (
             settings.keepout_zones.map((zone, index) => (
-              <div key={index} className="flex items-center justify-between gap-4 px-4 py-2.5">
+              <div key={index} className="flex items-center justify-between gap-4 py-3">
                 <div className="flex min-w-0 items-center gap-4">
-                  <div className="font-mono text-[14px]">
-                    <span className="text-ui-warning">{zone.start.toLocaleString()}</span>
+                  <div className="text-[14px] text-ui-fg">
+                    <span>{zone.start.toLocaleString()}</span>
                     <span className="mx-2 text-ui-fg-secondary">→</span>
-                    <span className="text-ui-warning">{zone.end_num.toLocaleString()}</span>
+                    <span>{zone.end_num.toLocaleString()}</span>
                   </div>
-                  <span className="truncate text-[14px] text-ui-fg-secondary">{zone.description}</span>
+                  <span className="truncate text-[14px] text-ui-fg-secondary">
+                    {zone.description}
+                  </span>
                   <span className="text-[13px] text-ui-fg-secondary">
                     ({(zone.end_num - zone.start + 1).toLocaleString()} numbers)
                   </span>
@@ -715,7 +701,7 @@ export function SerializationSettingsPresentation({
 
       <SettingsSection title="Example Patterns">
         <SettingsGroup>
-          <div className="grid grid-cols-2 gap-3 p-4 text-[14px]">
+          <div className="grid grid-cols-2 gap-3 py-4 text-[14px]">
             {EXAMPLE_PATTERNS.map(({ code, note }) => (
               <div key={code} className="flex items-center gap-2">
                 <code className={CODE}>{code}</code>

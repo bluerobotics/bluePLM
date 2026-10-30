@@ -7,6 +7,7 @@
  * @module team-members/DeleteTeamDialog
  */
 
+import { Button } from '@/components/core/ui'
 import type { TeamWithDetails } from '../../types'
 
 export interface DeleteTeamDialogProps {
@@ -32,16 +33,16 @@ export function DeleteTeamDialog({ team, onConfirm, onClose, isDeleting }: Delet
           {team.member_count} members from the team and delete all associated permissions.
         </p>
         <div className="flex gap-2 justify-end">
-          <button onClick={onClose} className="btn btn-ghost">
+          <Button variant="ghost" onClick={onClose}>
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="danger"
             onClick={onConfirm}
             disabled={isDeleting}
-            className="btn bg-ui-danger text-white hover:bg-ui-danger/90"
           >
             {isDeleting ? 'Deleting...' : 'Delete Team'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

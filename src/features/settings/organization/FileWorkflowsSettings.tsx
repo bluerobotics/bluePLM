@@ -11,7 +11,7 @@ import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 
-import { Callout, Switch } from '@/components/core/ui'
+import { Switch } from '@/components/core/ui'
 import { fileWorkflowsEnabled } from '@/lib/fileWorkflows'
 import { t } from '@/lib/i18n'
 import { log } from '@/lib/logger'
@@ -41,9 +41,7 @@ function Choice<T extends string>({ name, value, options, disabled, onChange }: 
       {options.map((option) => (
         <label
           key={option.value}
-          className={`flex items-start gap-3 px-4 py-3 ${
-            disabled ? 'opacity-60' : 'cursor-pointer hover:bg-ui-hover/40'
-          }`}
+          className={`flex items-start gap-3 py-3.5 ${disabled ? 'opacity-60' : 'cursor-pointer'}`}
         >
           <input
             type="radio"
@@ -54,8 +52,8 @@ function Choice<T extends string>({ name, value, options, disabled, onChange }: 
             className="mt-0.5 accent-ui-accent"
           />
           <span className="min-w-0">
-            <span className="block text-[14px] font-medium text-ui-fg">{option.label}</span>
-            <span className="mt-0.5 block text-[13px] leading-relaxed text-ui-fg-secondary">
+            <span className="block text-[14px] text-ui-fg">{option.label}</span>
+            <span className="mt-1 block text-[14px] leading-[1.4] text-ui-fg-secondary">
               {option.hint}
             </span>
           </span>
@@ -121,12 +119,18 @@ export function FileWorkflowsSettings() {
 
   return (
     <SettingsPage>
-      {!isAdmin && <Callout tone="warning">{t('workflows.settings.adminOnly')}</Callout>}
-
       <SettingsSection
-        description={t('workflows.settings.intro')}
-        // Always set, so the heading (and with it the description) renders; the spinner shows
-        // while a change saves.
+        title={t('workflows.settings.title')}
+        description={
+          isAdmin ? (
+            t('workflows.settings.intro')
+          ) : (
+            <>
+              {t('workflows.settings.intro')} {t('workflows.settings.adminOnly')}
+            </>
+          )
+        }
+        // The spinner shows while a change saves.
         actions={
           <span className="inline-flex h-4 w-4 items-center" aria-live="polite">
             {saving && <Loader2 size={14} className="animate-spin text-ui-fg-secondary" />}

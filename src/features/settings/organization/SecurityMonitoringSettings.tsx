@@ -171,6 +171,7 @@ export function SecurityMonitoringSettings() {
   return (
     <SettingsPage>
       <SettingsSection
+        title={t('securityMonitoring.generalTitle')}
         description={t('securityMonitoring.intro')}
         actions={
           (saving || loading) && <Loader2 size={14} className="animate-spin text-ui-fg-secondary" />

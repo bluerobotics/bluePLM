@@ -17,9 +17,9 @@
  */
 
 import { useMemo, useState } from 'react'
-import { ChevronRight, Lock, Minus, Plus } from 'lucide-react'
+import { ChevronRight, Lock, Minus } from 'lucide-react'
 
-import { Badge, Button, Callout } from '@/components/core/ui'
+import { Badge, Button } from '@/components/core/ui'
 import { SettingsGroup, SettingsSection } from '@/features/settings/components/ui'
 import {
   buildCombinedOrderList,
@@ -253,7 +253,7 @@ export function ModulesEditor({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-10">
       <SettingsSection
         title="Sidebar Order"
         description={
@@ -263,20 +263,10 @@ export function ModulesEditor({
         }
         actions={
           <>
-            <Button
-              size="sm"
-              icon={<Plus size={12} />}
-              onClick={handleAddGroup}
-              title="Add a custom group"
-            >
+            <Button size="sm" onClick={handleAddGroup} title="Add a custom group">
               Add Group
             </Button>
-            <Button
-              size="sm"
-              icon={<Plus size={12} />}
-              onClick={handleAddDivider}
-              title="Add a section divider"
-            >
+            <Button size="sm" onClick={handleAddDivider} title="Add a section divider">
               Add Divider
             </Button>
           </>
@@ -326,7 +316,7 @@ export function ModulesEditor({
         </SettingsGroup>
 
         {/* Legend */}
-        <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-[13px] text-ui-fg-secondary">
+        <div className="flex flex-wrap gap-x-4 gap-y-1.5 pt-3 text-[13px] text-ui-fg-secondary">
           <div className="flex items-center gap-1.5">
             <Lock size={11} />
             <span>Required module</span>
@@ -351,11 +341,11 @@ export function ModulesEditor({
           )}
         </div>
 
-        <Callout title="Creating Sub-menus">
-          Click the <ChevronRight size={11} className="inline" /> button on any module to set its
-          parent. Child modules will appear as a fly-out submenu when hovering their parent in the
-          sidebar.
-        </Callout>
+        <p className="pt-3 text-[13px] leading-[1.4] text-ui-fg-secondary">
+          To make a sub-menu, click the <ChevronRight size={12} className="inline" /> button on any
+          module to set its parent. Child modules appear as a fly-out submenu when hovering their
+          parent in the sidebar.
+        </p>
       </SettingsSection>
 
       {/* Native extension workspaces: visibility only (placed by their group) */}

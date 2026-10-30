@@ -40,7 +40,7 @@ export function WebhookRow({
 }: WebhookRowProps) {
   return (
     <div>
-      <div className="px-4 py-3.5">
+      <div className="py-4">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
@@ -50,13 +50,13 @@ export function WebhookRow({
                 }`}
                 aria-hidden
               />
-              <span className="truncate text-[14px] font-medium text-ui-fg">{webhook.name}</span>
+              <span className="truncate text-[14px] text-ui-fg">{webhook.name}</span>
               {!webhook.is_active && <Badge>Disabled</Badge>}
             </div>
             {webhook.description && (
-              <p className="truncate text-[13px] text-ui-fg-secondary">{webhook.description}</p>
+              <p className="mt-1 truncate text-[14px] text-ui-fg-secondary">{webhook.description}</p>
             )}
-            <code className="block truncate font-mono text-[13px] text-ui-fg">
+            <code className="mt-1 block truncate font-mono text-[13px] text-ui-fg-secondary">
               {webhook.url}
             </code>
             <div className="mt-1.5 flex items-center gap-4 text-[13px] text-ui-fg-secondary">
@@ -116,7 +116,7 @@ export function WebhookRow({
 
         <div className="mt-2.5 flex flex-wrap gap-1">
           {webhook.events.map((event) => (
-            <Badge key={event} tone="accent" className="font-mono">
+            <Badge key={event} className="font-mono">
               {event}
             </Badge>
           ))}
@@ -124,7 +124,7 @@ export function WebhookRow({
 
         {webhook.trigger_filter && webhook.trigger_filter !== 'everyone' && (
           <div className="mt-2 text-[13px] text-ui-fg-secondary">
-            <span className="text-ui-fg">Triggered by: </span>
+            <span>Triggered by: </span>
             {webhook.trigger_filter === 'roles' && (
               <span className="text-ui-fg">
                 {webhook.trigger_roles
@@ -152,13 +152,13 @@ export function WebhookRow({
       </div>
 
       {expanded && (
-        <div className="border-t border-ui-divider bg-ui-bg/40">
+        <div className="border-t border-ui-divider pl-5">
           {deliveries.length === 0 ? (
-            <div className="px-4 py-3 text-[13px] text-ui-fg-secondary">No deliveries yet</div>
+            <div className="py-3 text-[14px] text-ui-fg-secondary">No deliveries yet</div>
           ) : (
             <div className="max-h-64 divide-y divide-ui-divider overflow-y-auto">
               {deliveries.map((delivery) => (
-                <div key={delivery.id} className="flex items-center gap-3 px-4 py-2 text-[13px]">
+                <div key={delivery.id} className="flex items-center gap-3 py-2.5 text-[13px]">
                   <span className="flex-shrink-0">
                     {delivery.status === 'success' && (
                       <CheckCircle2 size={14} className="text-ui-success" />
@@ -175,7 +175,7 @@ export function WebhookRow({
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <code className="font-mono text-ui-accent">{delivery.event_type}</code>
+                      <code className="font-mono text-ui-fg">{delivery.event_type}</code>
                       {delivery.response_status && (
                         <span
                           className={
@@ -192,7 +192,7 @@ export function WebhookRow({
                       <p className="truncate text-ui-danger">{delivery.last_error}</p>
                     )}
                   </div>
-                  <div className="whitespace-nowrap text-ui-fg">
+                  <div className="whitespace-nowrap text-ui-fg-secondary">
                     {delivery.created_at
                       ? new Date(delivery.created_at).toLocaleString()
                       : 'unknown'}

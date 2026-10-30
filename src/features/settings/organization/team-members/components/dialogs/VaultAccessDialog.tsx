@@ -8,6 +8,7 @@
  */
 
 import { Database, Folder } from 'lucide-react'
+import { Button } from '@/components/core/ui'
 import type { Vault } from '../../types'
 
 export interface VaultAccessDialogProps {
@@ -128,12 +129,12 @@ export function VaultAccessDialog({
           vaults.
         </p>
         <div className="flex gap-2 justify-end">
-          <button onClick={onClose} className="btn btn-ghost">
+          <Button variant="ghost" onClick={onClose}>
             Cancel
-          </button>
-          <button onClick={onSave} disabled={isSaving} className="btn btn-primary">
+          </Button>
+          <Button variant="primary" onClick={onSave} disabled={isSaving}>
             {isSaving ? 'Saving...' : 'Save Access'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

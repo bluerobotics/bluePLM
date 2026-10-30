@@ -1,18 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import {
-  Activity,
-  FileCheck,
-  FilePlus,
-  FileOutput,
-  FileX,
-  CheckCircle,
-  XCircle,
-  Undo2,
-  GitBranch,
-  ArrowRight,
-  RefreshCw,
-  Loader2,
-} from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 
 import { SegmentedControl, type SegmentedOption } from '@/components/core/ui'
@@ -41,47 +28,13 @@ interface ActivityRecord {
 
 type ContributionType = 'all' | 'checkins' | 'checkouts' | 'creates' | 'reviews' | 'approvals'
 
-const ACTION_ICONS: Record<string, React.ReactNode> = {
-  checkout: <FileOutput size={14} />,
-  checkin: <FileCheck size={14} />,
-  create: <FilePlus size={14} />,
-  delete: <FileX size={14} />,
-  state_change: <GitBranch size={14} />,
-  revision_change: <ArrowRight size={14} />,
-  rename: <ArrowRight size={14} />,
-  move: <ArrowRight size={14} />,
-  rollback: <RefreshCw size={14} />,
-  roll_forward: <RefreshCw size={14} />,
-  review_approved: <CheckCircle size={14} />,
-  review_rejected: <XCircle size={14} />,
-  review_kicked_back: <Undo2 size={14} />,
-  review_requested: <Activity size={14} />,
-}
-
-const ACTION_COLORS: Record<string, string> = {
-  checkout: 'text-amber-400',
-  checkin: 'text-ui-success',
-  create: 'text-sky-400',
-  delete: 'text-ui-danger',
-  state_change: 'text-violet-400',
-  revision_change: 'text-indigo-400',
-  rename: 'text-orange-400',
-  move: 'text-orange-400',
-  rollback: 'text-rose-400',
-  roll_forward: 'text-emerald-400',
-  review_approved: 'text-ui-success',
-  review_rejected: 'text-ui-danger',
-  review_kicked_back: 'text-ui-warning',
-  review_requested: 'text-ui-accent',
-}
-
 // Heatmap cell colour per intensity level (0 = no activity, 4 = most)
 const INTENSITY_CLASSES = [
   'bg-ui-field',
-  'bg-emerald-900/50',
-  'bg-emerald-700/70',
-  'bg-emerald-500/80',
-  'bg-emerald-400',
+  'bg-ui-fg/20',
+  'bg-ui-fg/40',
+  'bg-ui-fg/65',
+  'bg-ui-fg/90',
 ]
 
 // Get the intensity level (0-4) based on activity count
@@ -467,17 +420,16 @@ export function ContributionHistory() {
     ['all', 'checkins', 'checkouts', 'creates', 'reviews', 'approvals'] as ContributionType[]
   ).map((type) => ({
     value: type,
-    label: <span className="capitalize">{type === 'all' ? 'All Activity' : type}</span>,
+    label: <span className="capitalize">{type === 'all' ? 'All activity' : type}</span>,
   }))
 
   const renderActivityRow = (activity: ActivityRecord, key: string, time: string) => (
-    <div key={key} className="flex items-center gap-3 px-4 py-2">
-      <span className={`flex-shrink-0 ${ACTION_COLORS[activity.action] || 'text-ui-fg-secondary'}`}>
-        {ACTION_ICONS[activity.action] || <Activity size={14} />}
-      </span>
+    <div key={key} className="flex items-center gap-3 py-2.5">
       <div className="min-w-0 flex-1 truncate text-[14px] text-ui-fg">
-        <span className="font-medium">{getActionLabel(activity.action)}</span>
-        {activity.file_name && <span className="text-ui-fg-secondary"> · {activity.file_name}</span>}
+        <span>{getActionLabel(activity.action)}</span>
+        {activity.file_name && (
+          <span className="text-ui-fg-secondary"> · {activity.file_name}</span>
+        )}
       </div>
       <span className="flex-shrink-0 text-[13px] text-ui-fg-secondary">{time}</span>
     </div>
@@ -490,7 +442,7 @@ export function ContributionHistory() {
         description={`${totalContributions} contributions in the last year`}
       >
         <SettingsGroup>
-          <div className="space-y-4 px-4 py-4">
+          <div className="space-y-4 py-4">
             <SegmentedControl
               size="sm"
               value={filter}
@@ -584,7 +536,10 @@ export function ContributionHistory() {
                   <span>Less</span>
                   <div className="flex gap-[2px]">
                     {INTENSITY_CLASSES.map((colorClass) => (
-                      <div key={colorClass} className={`h-[10px] w-[10px] rounded-sm ${colorClass}`} />
+                      <div
+                        key={colorClass}
+                        className={`h-[10px] w-[10px] rounded-sm ${colorClass}`}
+                      />
                     ))}
                   </div>
                   <span>More</span>
@@ -596,15 +551,15 @@ export function ContributionHistory() {
           {/* Selected day details */}
           {selectedDay && (
             <div>
-              <div className="flex items-center justify-between px-4 py-2.5">
-                <span className="text-[14px] font-medium text-ui-fg">
+              <div className="flex items-center justify-between py-3">
+                <span className="text-[14px] text-ui-fg">
                   {formatDate(new Date(selectedDay.date))}
                 </span>
                 <span className="text-[13px] text-ui-fg-secondary">
                   {selectedDay.count} contribution{selectedDay.count !== 1 ? 's' : ''}
                 </span>
               </div>
-              <div className="max-h-48 overflow-y-auto">
+              <div className="max-h-48 divide-y divide-ui-divider overflow-y-auto">
                 {selectedDay.activities.map((activity) =>
                   renderActivityRow(
                     activity,
@@ -623,7 +578,7 @@ export function ContributionHistory() {
         {/* Tooltip */}
         {hoveredDay && (
           <div
-            className="pointer-events-none fixed z-50 -translate-x-1/2 rounded border border-ui-divider bg-ui-field px-2 py-1 text-[13px] shadow-lg"
+            className="pointer-events-none fixed z-50 -translate-x-1/2 rounded-lg border border-ui-field-border bg-ui-field px-2 py-1 text-[13px] text-ui-fg shadow-lg"
             style={{ left: hoveredDay.x, top: hoveredDay.y - 30 }}
           >
             <strong>{hoveredDay.count}</strong> contribution{hoveredDay.count !== 1 ? 's' : ''} on{' '}
@@ -635,14 +590,14 @@ export function ContributionHistory() {
       <SettingsSection title="Recent Activity">
         <SettingsGroup>
           {isLoading ? (
-            <div className="flex items-center gap-2 px-4 py-3.5 text-[14px] text-ui-fg-secondary">
+            <div className="flex items-center gap-2 py-3 text-[14px] text-ui-fg-secondary">
               <Loader2 size={14} className="animate-spin" />
               Loading...
             </div>
           ) : recentActivity.length === 0 ? (
-            <div className="px-4 py-3.5 text-[14px] text-ui-fg-secondary">No recent activity</div>
+            <div className="py-3 text-[14px] text-ui-fg-secondary">No recent activity</div>
           ) : (
-            <div className="max-h-80 overflow-y-auto py-1">
+            <div className="max-h-80 divide-y divide-ui-divider overflow-y-auto">
               {recentActivity.map((activity, index) =>
                 renderActivityRow(
                   activity,

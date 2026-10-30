@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Image, ExternalLink, FolderOpen, FileInput, Loader2, Box } from 'lucide-react'
+import { FolderOpen, FileInput, Loader2 } from 'lucide-react'
 
 import { Badge, Button, Select, Switch, TextInput } from '@/components/core/ui'
 import {
@@ -53,26 +53,22 @@ export function SettingsTab() {
 
   const previewOptions: {
     mode: CadPreviewMode
-    icon: typeof Image
     label: string
     description: string
     disabled?: boolean
   }[] = [
     {
       mode: 'thumbnail',
-      icon: Image,
       label: t('solidworksSettings.embeddedThumbnail'),
       description: t('solidworksSettings.embeddedThumbnailDescription'),
     },
     {
       mode: 'edrawings',
-      icon: ExternalLink,
       label: t('solidworksSettings.externalEDrawings'),
       description: t('solidworksSettings.externalEDrawingsDescription'),
     },
     {
       mode: 'edrawings-embedded',
-      icon: Box,
       label: t('solidworksSettings.embeddedEDrawings'),
       description: embeddedPreviewAvailable
         ? t('solidworksSettings.embeddedEDrawingsAvailable')
@@ -87,7 +83,6 @@ export function SettingsTab() {
         <SettingsGroup>
           <div role="radiogroup" aria-label={t('solidworksSettings.previewMode')}>
             {previewOptions.map((option, index) => {
-              const Icon = option.icon
               const selected = cadPreviewMode === option.mode
               return (
                 <button
@@ -97,7 +92,7 @@ export function SettingsTab() {
                   aria-checked={selected}
                   onClick={() => setCadPreviewMode(option.mode)}
                   disabled={option.disabled}
-                  className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-ui-hover/50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent ${
+                  className={`flex w-full items-center gap-3 py-4 text-left disabled:cursor-not-allowed disabled:opacity-50 ${
                     index > 0 ? 'border-t border-ui-divider' : ''
                   }`}
                 >
@@ -109,15 +104,11 @@ export function SettingsTab() {
                   >
                     {selected && <span className="h-2 w-2 rounded-full bg-ui-accent" />}
                   </span>
-                  <Icon
-                    size={16}
-                    className={`flex-shrink-0 ${selected ? 'text-ui-accent' : 'text-ui-fg-secondary'}`}
-                  />
                   <span className="min-w-0">
-                    <span className="block text-[14px] font-medium text-ui-fg">
+                    <span className="block text-[14px] leading-5 text-ui-fg">
                       {option.label}
                     </span>
-                    <span className="block text-[13px] text-ui-fg-secondary">
+                    <span className="mt-1 block text-[14px] leading-[1.4] text-ui-fg-secondary">
                       {option.description}
                     </span>
                   </span>
@@ -168,7 +159,7 @@ export function SettingsTab() {
         title={
           <span className="flex items-center gap-2">
             <span>Part & Assembly Revisions</span>
-            <Badge tone="accent">Org-wide</Badge>
+            <Badge>Org-wide</Badge>
           </span>
         }
         description="Part (.sldprt) and assembly (.sldasm) revisions are typically controlled at the configuration level, driven by drawings. When disabled, file-level revision editing and workflow auto-increment are blocked for these file types."
@@ -189,7 +180,7 @@ export function SettingsTab() {
             htmlFor="sw-allow-model-revision"
           >
             {isSavingRevisionPolicy ? (
-              <Loader2 size={16} className="animate-spin text-ui-accent" />
+              <Loader2 size={16} className="animate-spin text-ui-fg-secondary" />
             ) : (
               <Switch
                 id="sw-allow-model-revision"
@@ -293,7 +284,7 @@ export function SettingsTab() {
         title="SolidWorks Installation Path"
         description="Only needed if SolidWorks is installed in a non-default location."
       >
-        <div className="flex gap-2">
+        <div className="flex gap-2 pt-3">
           <TextInput
             type="text"
             value={solidworksPath || ''}

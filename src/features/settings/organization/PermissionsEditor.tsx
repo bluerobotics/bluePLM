@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
+import { Button } from '@/components/core/ui'
 import { DEFAULT_PRESETS, PERMISSION_ACTIONS, PERMISSION_ACTION_LABELS } from '@/types/permissions'
 import type { PermissionPreset, Team } from '@/types/permissions'
 
@@ -99,24 +100,26 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
           {/* Action buttons */}
           <div className="flex items-center gap-2">
             {hasChanges && (
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={resetToOriginal}
-                className="btn btn-ghost btn-sm flex items-center gap-1.5"
                 title="Reset changes"
               >
                 <RotateCcw size={14} />
                 Reset
-              </button>
+              </Button>
             )}
 
             {isAdmin && (
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => setShowPresets(!showPresets)}
-                className="btn btn-ghost btn-sm flex items-center gap-1.5"
               >
                 <Wand2 size={14} />
                 Presets
-              </button>
+              </Button>
             )}
 
             <button
@@ -623,18 +626,18 @@ export function PermissionsEditor({ team, onClose, userId, isAdmin }: Permission
           </div>
 
           <div className="flex items-center gap-2">
-            <button onClick={onClose} className="btn btn-ghost">
+            <Button variant="ghost" onClick={onClose}>
               {hasChanges ? 'Cancel' : 'Close'}
-            </button>
+            </Button>
             {isAdmin && (
-              <button
+              <Button
+                variant="primary"
                 onClick={savePermissions}
                 disabled={!hasChanges || isSaving}
-                className="btn btn-primary flex items-center gap-2"
               >
                 {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                 Save Permissions
-              </button>
+              </Button>
             )}
           </div>
         </div>

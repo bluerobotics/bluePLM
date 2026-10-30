@@ -48,6 +48,7 @@ export function VaultsSettings() {
   return (
     <SettingsPage>
       <SettingsSection
+        title="Organization vaults"
         description="Manage vaults in your organization"
         actions={
           <>
@@ -61,12 +62,7 @@ export function VaultsSettings() {
               aria-label="Refresh vaults"
             />
             {isAdmin && (
-              <Button
-                variant="primary"
-                size="sm"
-                icon={<Plus size={14} />}
-                onClick={() => setIsCreatingVault(true)}
-              >
+              <Button size="sm" icon={<Plus size={14} />} onClick={() => setIsCreatingVault(true)}>
                 Add Vault
               </Button>
             )}
@@ -94,7 +90,7 @@ export function VaultsSettings() {
                 className="!w-72"
               />
             </SettingRow>
-            <div className="flex justify-end gap-2 px-4 py-3">
+            <div className="flex justify-end gap-2 py-3">
               <Button variant="ghost" size="sm" onClick={cancelCreateVault}>
                 Cancel
               </Button>
@@ -116,7 +112,7 @@ export function VaultsSettings() {
           </div>
         ) : orgVaults.length === 0 ? (
           <SettingsGroup>
-            <div className="flex flex-col items-center gap-3 px-4 py-8 text-center">
+            <div className="flex flex-col items-start gap-3 py-4">
               <p className="text-[14px] text-ui-fg-secondary">
                 {isAdmin
                   ? 'No vaults created yet. Add a vault to get started.'
@@ -124,7 +120,6 @@ export function VaultsSettings() {
               </p>
               {isAdmin && !isCreatingVault && (
                 <Button
-                  variant="primary"
                   size="sm"
                   icon={<Plus size={14} />}
                   onClick={() => setIsCreatingVault(true)}

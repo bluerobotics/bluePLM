@@ -39,7 +39,7 @@ export function VaultAuditConflictActionBar({ conflict, push }: VaultAuditConfli
 
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-3">
-          <p className="text-[12px] text-ui-fg-secondary">
+          <p className="text-[13px] text-ui-fg-secondary">
             {conflict.selectedCount === 0
               ? t('vaultAudit.conflict.fileSelectPrompt')
               : t('vaultAudit.conflict.fileSelectedSummary', {
@@ -65,7 +65,7 @@ export function VaultAuditConflictActionBar({ conflict, push }: VaultAuditConfli
         </div>
 
         <div className="flex items-center justify-between gap-3">
-          <p className="text-[12px] text-ui-fg-secondary">
+          <p className="text-[13px] text-ui-fg-secondary">
             {selectedFiles === 0
               ? t('vaultAudit.conflict.bluePlmSelectPrompt')
               : t('vaultAudit.conflict.bluePlmSelectedSummary', { files: selectedFiles })}

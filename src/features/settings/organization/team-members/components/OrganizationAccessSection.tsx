@@ -123,7 +123,7 @@ export function OrganizationAccessSection({
           <SettingRow label="Allowed Domains" stacked>
             <div className="space-y-2.5">
               {emailDomains.length === 0 ? (
-                <div className="text-[13px] text-ui-fg-secondary">
+                <div className="text-[14px] text-ui-fg-secondary">
                   No domains configured. Add one below.
                 </div>
               ) : (
@@ -131,7 +131,7 @@ export function OrganizationAccessSection({
                   {emailDomains.map((domain, idx) => (
                     <span
                       key={idx}
-                      className="inline-flex items-center gap-1 rounded-md border border-ui-divider bg-ui-bg py-0.5 pl-2 pr-0.5 text-[13px] text-ui-fg"
+                      className="inline-flex items-center gap-1 rounded-md bg-ui-field py-0.5 pl-2 pr-0.5 text-[13px] text-ui-fg"
                     >
                       @{domain}
                       <button

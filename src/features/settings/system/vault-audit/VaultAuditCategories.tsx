@@ -30,7 +30,7 @@ export function VaultAuditCategories({
 }: VaultAuditCategoriesProps) {
   return (
     <nav aria-label={t('vaultAudit.category.heading')} className="space-y-1">
-      <h3 className="px-2 pb-1 text-[13px] font-medium text-ui-fg-secondary">
+      <h3 className="px-2.5 pb-1 text-[13px] text-ui-fg-secondary">
         {t('vaultAudit.category.heading')}
       </h3>
 
@@ -46,14 +46,12 @@ export function VaultAuditCategories({
             disabled={empty}
             aria-pressed={isSelected}
             title={categoryDescription(category.kind)}
-            className={`w-full text-left px-2.5 py-2 rounded-md border-l-2 transition-colors ${
-              isSelected
-                ? 'border-ui-accent bg-ui-hover'
-                : 'border-transparent hover:bg-ui-field'
+            className={`w-full text-left px-2.5 py-2 rounded-lg transition-colors ${
+              isSelected ? 'bg-ui-selected' : 'hover:bg-ui-hover'
             } ${empty ? 'opacity-50 cursor-default hover:bg-transparent' : ''}`}
           >
             <div className="flex items-start justify-between gap-2">
-              <span className={`text-[13px] ${isSelected ? 'text-ui-fg' : 'text-ui-fg/90'}`}>
+              <span className={`text-[14px] text-ui-fg ${isSelected ? 'font-medium' : ''}`}>
                 {categoryLabel(category.kind)}
               </span>
               <span
@@ -65,7 +63,7 @@ export function VaultAuditCategories({
               </span>
             </div>
             {!empty && (
-              <span className="block text-[12px] text-ui-fg-secondary mt-0.5">
+              <span className="block text-[13px] text-ui-fg-secondary mt-0.5">
                 {t('vaultAudit.category.files', { count: category.fileCount })}
               </span>
             )}

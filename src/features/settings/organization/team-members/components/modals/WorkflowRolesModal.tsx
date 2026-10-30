@@ -1,6 +1,7 @@
 // Workflow Roles Modal - Manage a user's workflow role assignments
 import { useState } from 'react'
 import { Shield, Search, Plus, X, Check, Pencil, Trash2, Loader2 } from 'lucide-react'
+import { Button } from '@/components/core/ui'
 import { ColorPickerDropdown } from '@/components/shared/ColorPicker'
 import { IconGridPicker } from '@/components/shared/IconPicker'
 import { getRoleIcon } from '../../utils'
@@ -203,17 +204,19 @@ export function WorkflowRolesModal({
                         columns={8}
                       />
                       <div className="flex gap-2">
-                        <button
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="!text-ui-danger hover:!bg-ui-danger/10"
                           onClick={() => handleDeleteRole(role.id)}
                           disabled={isDeleting}
-                          className="btn btn-ghost btn-sm text-ui-danger hover:bg-ui-danger/10"
                         >
                           {isDeleting ? (
                             <Loader2 size={14} className="animate-spin" />
                           ) : (
                             <Trash2 size={14} />
                           )}
-                        </button>
+                        </Button>
                         <button
                           onClick={handleUpdateRole}
                           disabled={isUpdating || !editName.trim()}
@@ -290,17 +293,17 @@ export function WorkflowRolesModal({
 
         {/* Footer */}
         <div className="flex gap-2 justify-end p-4 border-t border-ui-divider">
-          <button onClick={onClose} className="btn btn-ghost">
+          <Button variant="ghost" onClick={onClose}>
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="primary"
             onClick={handleSave}
             disabled={isSaving || !hasChanges}
-            className="btn btn-primary flex items-center gap-2"
           >
             {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
             Save
-          </button>
+          </Button>
         </div>
       </div>
     </div>

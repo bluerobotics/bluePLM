@@ -3,7 +3,6 @@ import { Building2, Eye, Loader2, RotateCcw, User } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 
 import {
-  Badge,
   Button,
   SegmentedControl,
   Switch,
@@ -301,13 +300,17 @@ export function ExportSettings() {
   }
 
   if (!organization) {
-    return <div className="p-6 text-center text-ui-fg-secondary">No organization selected</div>
+    return (
+      <div className="py-12 text-center text-[14px] text-ui-fg-secondary">
+        No organization selected
+      </div>
+    )
   }
 
   if (loading) {
     return (
-      <div className="p-6 flex items-center justify-center gap-2">
-        <Loader2 className="animate-spin" size={20} />
+      <div className="flex items-center justify-center gap-2 py-12 text-[14px] text-ui-fg-secondary">
+        <Loader2 className="animate-spin" size={16} />
         <span>Loading export settings...</span>
       </div>
     )
@@ -317,7 +320,11 @@ export function ExportSettings() {
     <SettingsPage>
       <SettingsSection
         title="Export Settings"
-        description="Configure how exported files are named"
+        description={
+          hasUserOverride
+            ? 'Configure how exported files are named. Using your personal preference.'
+            : 'Configure how exported files are named. Using the organization default.'
+        }
         actions={
           <>
             {hasUserOverride && (
@@ -353,16 +360,6 @@ export function ExportSettings() {
           </>
         }
       >
-        <div>
-          {hasUserOverride ? (
-            <Badge tone="accent" icon={<User size={12} />}>
-              Using your personal preference
-            </Badge>
-          ) : (
-            <Badge icon={<Building2 size={12} />}>Using organization default</Badge>
-          )}
-        </div>
-
         <SettingsGroup>
           <SettingRow
             label="Filename Pattern"
@@ -386,7 +383,7 @@ export function ExportSettings() {
             <div className="mt-2 flex items-center gap-2 text-[13px] text-ui-fg-secondary">
               <Eye size={14} />
               <span>Preview</span>
-              <span className="truncate font-mono text-ui-accent">{livePreview}</span>
+              <span className="truncate font-mono text-ui-fg">{livePreview}</span>
             </div>
           </SettingRow>
 
@@ -400,10 +397,10 @@ export function ExportSettings() {
                     setSettings((prev) => ({ ...prev, filename_pattern: preset.pattern }))
                   }
                   aria-pressed={settings.filename_pattern === preset.pattern}
-                  className={`rounded-md border px-2.5 py-1 text-[13px] transition-colors ${
+                  className={`h-7 rounded-lg border px-2.5 text-[13px] text-ui-fg transition-colors ${
                     settings.filename_pattern === preset.pattern
-                      ? 'border-ui-accent/60 bg-ui-accent/15 text-ui-fg'
-                      : 'border-ui-divider bg-ui-bg text-ui-fg-secondary hover:bg-ui-hover hover:text-ui-fg'
+                      ? 'border-ui-selected-border bg-ui-selected'
+                      : 'border-ui-field-border bg-ui-field hover:bg-ui-hover'
                   }`}
                   title={preset.description}
                 >
@@ -420,10 +417,10 @@ export function ExportSettings() {
                   type="button"
                   key={token}
                   onClick={() => insertToken(token)}
-                  className="flex flex-col items-start rounded-md border border-ui-divider bg-ui-bg px-2 py-1.5 text-left transition-colors hover:border-ui-field-border hover:bg-ui-hover"
+                  className="flex flex-col items-start rounded-lg border border-ui-field-border bg-ui-field px-2.5 py-1.5 text-left transition-colors hover:bg-ui-hover"
                   title={`${description} (e.g., ${example})`}
                 >
-                  <span className="font-mono text-[13px] text-ui-accent">{token}</span>
+                  <span className="font-mono text-[13px] text-ui-fg">{token}</span>
                   <span className="w-full truncate text-[12px] text-ui-fg-secondary">{label}</span>
                 </button>
               ))}
@@ -555,20 +552,26 @@ export function ExportSettings() {
 
       <SettingsSection title="Token Reference">
         <SettingsGroup>
-          <table className="w-full text-[13px]">
+          <table className="w-full text-[14px]">
             <thead>
               <tr className="border-b border-ui-divider">
-                <th className="px-4 py-2 text-left font-medium text-ui-fg-secondary">Token</th>
-                <th className="px-4 py-2 text-left font-medium text-ui-fg-secondary">Description</th>
-                <th className="px-4 py-2 text-left font-medium text-ui-fg-secondary">Example</th>
+                <th className="pb-2 pr-4 pt-3 text-left text-[13px] font-normal text-ui-fg-secondary">
+                  Token
+                </th>
+                <th className="pb-2 pr-4 pt-3 text-left text-[13px] font-normal text-ui-fg-secondary">
+                  Description
+                </th>
+                <th className="pb-2 pt-3 text-left text-[13px] font-normal text-ui-fg-secondary">
+                  Example
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-ui-divider">
               {FILENAME_TOKENS.map(({ token, description, example }) => (
                 <tr key={token}>
-                  <td className="px-4 py-2 font-mono text-ui-accent">{token}</td>
-                  <td className="px-4 py-2 text-ui-fg-secondary">{description}</td>
-                  <td className="px-4 py-2 text-ui-fg">{example}</td>
+                  <td className="py-3 pr-4 font-mono text-ui-fg">{token}</td>
+                  <td className="py-3 pr-4 text-ui-fg-secondary">{description}</td>
+                  <td className="py-3 text-ui-fg">{example}</td>
                 </tr>
               ))}
             </tbody>

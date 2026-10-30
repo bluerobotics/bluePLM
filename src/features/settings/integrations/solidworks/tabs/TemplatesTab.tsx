@@ -1,6 +1,6 @@
 import { Check, ExternalLink, FolderOpen } from 'lucide-react'
 
-import { Badge, Button, Callout, Switch, TextInput } from '@/components/core/ui'
+import { Badge, Button, Switch, TextInput } from '@/components/core/ui'
 import {
   SettingRow,
   SettingsGroup,
@@ -114,7 +114,7 @@ export function TemplatesTab() {
                 <span className="text-ui-fg">{installedSwVersions.join(', ')}</span>
               </span>
             ) : (
-              <span className="block text-ui-warning">
+              <span className="block">
                 No SOLIDWORKS 2020+ installations detected on this computer
               </span>
             )}
@@ -202,13 +202,15 @@ export function TemplatesTab() {
         </SettingsGroup>
       </SettingsSection>
 
-      <SettingsSection>
+      <SettingsSection title="This computer">
         <SettingsGroup>
           {/* User Actions (Apply to local SOLIDWORKS) */}
           <SettingRow
             label="Apply to SOLIDWORKS"
             description={
-              orgTemplates?.lastPushedAt ? (
+              !vaultPath ? (
+                'Select a vault to apply template settings'
+              ) : orgTemplates?.lastPushedAt ? (
                 <>
                   Set these folders in your local SOLIDWORKS installation
                   <span className="block">
@@ -232,9 +234,6 @@ export function TemplatesTab() {
           </SettingRow>
         </SettingsGroup>
 
-        {!vaultPath && (
-          <Callout tone="warning">Select a vault to apply template settings</Callout>
-        )}
       </SettingsSection>
     </SettingsPage>
   )

@@ -17,6 +17,7 @@ import {
   Folder,
   Settings2,
 } from 'lucide-react'
+import { Button } from '@/components/core/ui'
 import { PERMISSION_ACTIONS, PERMISSION_ACTION_LABELS, ALL_RESOURCES } from '@/types/permissions'
 import { t } from '@/lib/i18n'
 import { isAdminUser } from '@/lib/isAdminUser'
@@ -712,9 +713,9 @@ export function ViewNetPermissionsModal({
             </div>
           </div>
 
-          <button onClick={onClose} className="btn btn-ghost">
+          <Button variant="ghost" onClick={onClose}>
             Close
-          </button>
+          </Button>
         </div>
       </div>
     </div>

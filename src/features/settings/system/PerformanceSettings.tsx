@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { Activity, Boxes, ExternalLink, Gauge, MemoryStick, Trash2 } from 'lucide-react'
 
 import { Button } from '@/components/core/ui'
 import { TelemetryDashboard } from '@/features/dev-tools/telemetry'
@@ -10,7 +9,7 @@ import { SettingRow, SettingsGroup, SettingsPage, SettingsSection } from '../com
 import { StatCard, StatGrid } from './StatCard'
 
 const RANGE_CLASS =
-  'h-1.5 w-28 cursor-pointer appearance-none rounded-full bg-ui-divider accent-ui-accent'
+  'h-1.5 w-28 cursor-pointer appearance-none rounded-full bg-ui-field-border accent-ui-accent'
 
 export function PerformanceSettings() {
   const [config, setConfig] = useState<TelemetryConfig>(telemetry.getConfig())
@@ -44,36 +43,20 @@ export function PerformanceSettings() {
       <SettingsSection
         title="Live metrics"
         actions={
-          <Button
-            size="sm"
-            onClick={handlePopOut}
-            title="Open in new window"
-            icon={<ExternalLink size={14} />}
-          >
+          <Button size="sm" onClick={handlePopOut} title="Open in new window">
             Pop Out
           </Button>
         }
       >
         <StatGrid>
-          <StatCard icon={<Gauge size={13} />} label="FPS" value={latestSnapshot?.fps ?? 0} />
-          <StatCard icon={<Boxes size={13} />} label="Tracked modules" value={modules.length} />
-          <StatCard
-            icon={<MemoryStick size={13} />}
-            label="Module heap"
-            value={formatBytes(moduleHeap)}
-          />
-          <StatCard
-            icon={<Activity size={13} />}
-            label="Buffer size"
-            value={bufferSamples.toLocaleString()}
-            detail="samples"
-          />
+          <StatCard label="FPS" value={latestSnapshot?.fps ?? 0} />
+          <StatCard label="Tracked modules" value={modules.length} />
+          <StatCard label="Module heap" value={formatBytes(moduleHeap)} />
+          <StatCard label="Buffer size" value={bufferSamples.toLocaleString()} detail="samples" />
         </StatGrid>
-        <SettingsGroup>
-          <div className="p-4">
-            <TelemetryDashboard />
-          </div>
-        </SettingsGroup>
+        <div className="border-t border-ui-divider pt-4">
+          <TelemetryDashboard />
+        </div>
       </SettingsSection>
 
       <SettingsSection title="Settings">
@@ -127,7 +110,6 @@ export function PerformanceSettings() {
             <Button
               variant="danger-subtle"
               size="sm"
-              icon={<Trash2 size={12} />}
               onClick={() => {
                 telemetry.clear()
                 setLatestSnapshot(null)
