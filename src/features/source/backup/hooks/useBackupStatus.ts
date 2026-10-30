@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { log } from '@/lib/logger'
 import {
   getBackupConfig,
+  isBackupConfigured,
   listSnapshots,
   isThisDesignatedMachine,
   isDesignatedMachineOnline,
@@ -76,11 +77,7 @@ export function useBackupStatus(
   const [isRefreshing, setIsRefreshing] = useState(false)
 
   // Derived state
-  const isConfigured = !!(
-    config?.bucket &&
-    config?.access_key_encrypted &&
-    config?.restic_password_encrypted
-  )
+  const isConfigured = isBackupConfigured(config)
   const lastSnapshot = snapshots[0] || null
   const totalSnapshots = snapshots.length
   const isBackoffActive = backoffRemainingSeconds > 0

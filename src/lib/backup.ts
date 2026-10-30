@@ -16,6 +16,8 @@ export interface BackupConfig {
   access_key_encrypted: string | null
   secret_key_encrypted: string | null
   restic_password_encrypted: string | null
+  /** From get_backup_status() (non-admins): the secrets above are withheld and this says whether they are set. */
+  credentials_set?: boolean
   retention_daily: number
   retention_weekly: number
   retention_monthly: number
@@ -127,8 +129,33 @@ export async function getBackupConfig(orgId: string): Promise<BackupConfig | nul
     log.error('[Backup]', 'Error fetching config', { error: error.message })
     return null
   }
+  if (data) return data as BackupConfig
 
-  return data as BackupConfig | null
+  // Since schema 112 only admins read the row, because it holds the storage keys and the
+  // restic password. Everyone else gets the status without them.
+  // get_backup_status is not in the generated Database type until gen:types runs against 112.
+  const untyped = supabase as unknown as {
+    rpc(fn: string): PromiseLike<{ data: unknown; error: { message: string } | null }>
+  }
+  const { data: status, error: statusError } = await untyped.rpc('get_backup_status')
+  if (statusError) {
+    log.error('[Backup]', 'Error fetching backup status', { error: statusError.message })
+    return null
+  }
+  if (!status) return null
+  return {
+    ...(status as unknown as BackupConfig),
+    access_key_encrypted: null,
+    secret_key_encrypted: null,
+    restic_password_encrypted: null,
+  }
+}
+
+/** Whether the backup repository is configured, for admins (secrets) and members (credentials_set). */
+export function isBackupConfigured(config: BackupConfig | null | undefined): boolean {
+  if (!config?.bucket) return false
+  if (config.credentials_set !== undefined) return config.credentials_set
+  return !!(config.access_key_encrypted && config.restic_password_encrypted)
 }
 
 export async function saveBackupConfig(

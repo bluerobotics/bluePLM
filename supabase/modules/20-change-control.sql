@@ -884,7 +884,9 @@ CREATE POLICY "Users can view eco checklist activity"
 DROP POLICY IF EXISTS "Engineers can log eco checklist activity" ON eco_checklist_activity;
 CREATE POLICY "Engineers can log eco checklist activity"
   ON eco_checklist_activity FOR INSERT
-  WITH CHECK (eco_id IN (SELECT id FROM ecos WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())));
+  -- Schema 112: performed_by is the caller.
+  WITH CHECK (eco_id IN (SELECT id FROM ecos WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid()))
+              AND performed_by = auth.uid());
 
 -- ===========================================
 -- HELPER FUNCTIONS
@@ -1000,6 +1002,12 @@ DECLARE
 BEGIN
   v_org_id := require_eco_access(p_eco_id);
 
+  -- Schema 112: replacing an ECO's checklist is an edit of the ECO.
+  IF NOT user_has_team_permission('module:eco', 'edit') THEN
+    RAISE EXCEPTION 'You do not have permission to edit ECOs'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
   -- The template has to belong to the same organization as the ECO, or this
   -- becomes a way to read another organization's process templates by copying
   -- one into an ECO of your own.
@@ -1097,7 +1105,13 @@ DECLARE
   v_check RECORD;
   v_user_id UUID;
 BEGIN
-  v_user_id := auth.uid();
+  -- Schema 112: this had no organization check at all, and as SECURITY DEFINER
+  -- it let any account approve a gate on any organization's ECO.
+  PERFORM require_eco_access(p_eco_id);
+  v_user_id := current_actor_id();
+  IF NOT user_has_team_permission('module:eco', 'edit') THEN
+    RETURN jsonb_build_object('success', false, 'error', 'You do not have permission to approve ECO gates');
+  END IF;
   
   -- Check requirements
   SELECT * INTO v_check FROM check_gate_requirements(p_eco_id, p_gate_name);

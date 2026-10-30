@@ -436,7 +436,8 @@ CREATE POLICY "Engineers can view sync logs"
 DROP POLICY IF EXISTS "System can insert sync logs" ON integration_sync_log;
 CREATE POLICY "System can insert sync logs"
   ON integration_sync_log FOR INSERT
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+  -- Schema 112: triggered_by is the caller.
+  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND triggered_by = auth.uid());
 
 -- Odoo Saved Configs
 DROP POLICY IF EXISTS "Org members can view odoo configs" ON odoo_saved_configs;
@@ -464,7 +465,9 @@ CREATE POLICY "Admins can delete odoo configs"
 DROP POLICY IF EXISTS "Users can view their org webhooks" ON webhooks;
 CREATE POLICY "Users can view their org webhooks"
   ON webhooks FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+  -- Schema 112: admins only; the row carries the signing secret. Every write was
+  -- already admin-only and nothing outside the admin settings page reads it.
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 DROP POLICY IF EXISTS "Admins can insert webhooks" ON webhooks;
 CREATE POLICY "Admins can insert webhooks"
@@ -485,17 +488,13 @@ CREATE POLICY "Admins can delete webhooks"
 DROP POLICY IF EXISTS "Users can view their org webhook deliveries" ON webhook_deliveries;
 CREATE POLICY "Users can view their org webhook deliveries"
   ON webhook_deliveries FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
+-- Schema 112: withdrawn. "Service" policies with TRUE applied to every role,
+-- anon included, so anyone could insert or rewrite any organization's delivery
+-- log. The service role bypasses RLS and needs no policy.
 DROP POLICY IF EXISTS "Service can insert webhook deliveries" ON webhook_deliveries;
-CREATE POLICY "Service can insert webhook deliveries"
-  ON webhook_deliveries FOR INSERT
-  WITH CHECK (TRUE);
-
 DROP POLICY IF EXISTS "Service can update webhook deliveries" ON webhook_deliveries;
-CREATE POLICY "Service can update webhook deliveries"
-  ON webhook_deliveries FOR UPDATE
-  USING (TRUE);
 
 -- ===========================================
 -- HELPER FUNCTIONS

@@ -754,7 +754,9 @@ CREATE POLICY "Users can view RFQ activity"
 DROP POLICY IF EXISTS "Engineers can log RFQ activity" ON rfq_activity;
 CREATE POLICY "Engineers can log RFQ activity"
   ON rfq_activity FOR INSERT
-  WITH CHECK (rfq_id IN (SELECT id FROM rfqs WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())));
+  -- Schema 112: performed_by is the caller.
+  WITH CHECK (rfq_id IN (SELECT id FROM rfqs WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid()))
+              AND performed_by = auth.uid());
 
 -- ===========================================
 -- HELPER FUNCTIONS

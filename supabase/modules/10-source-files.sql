@@ -1690,7 +1690,8 @@ CREATE POLICY "Users can view org activity"
 DROP POLICY IF EXISTS "Users can log activity" ON activity;
 CREATE POLICY "Users can log activity"
   ON activity FOR INSERT
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+  -- Schema 112: the row names its author, and the author is the caller.
+  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_id = auth.uid());
 
 -- Workflow Templates
 DROP POLICY IF EXISTS "Users can view org workflows" ON workflow_templates;
@@ -1831,7 +1832,8 @@ CREATE POLICY "Users can view workflow history in their org"
 DROP POLICY IF EXISTS "Users can insert workflow history in their org" ON workflow_history;
 CREATE POLICY "Users can insert workflow history in their org"
   ON workflow_history FOR INSERT
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+  -- Schema 112: performed_by is the caller (the engine writes as definer).
+  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND performed_by = auth.uid());
 
 -- File State Entries
 -- Scoped through the file, which carries the org id.
@@ -1843,12 +1845,23 @@ CREATE POLICY "Users can view file state entries"
 DROP POLICY IF EXISTS "Users can insert file state entries" ON file_state_entries;
 CREATE POLICY "Users can insert file state entries"
   ON file_state_entries FOR INSERT
-  WITH CHECK (file_id IN (SELECT id FROM files WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())));
+  -- Schema 112: entered_by is the caller.
+  WITH CHECK (
+    file_id IN (SELECT id FROM files WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid()))
+    AND entered_by = auth.uid()
+  );
 
 DROP POLICY IF EXISTS "Users can close file state entries" ON file_state_entries;
 CREATE POLICY "Users can close file state entries"
   ON file_state_entries FOR UPDATE
-  USING (file_id IN (SELECT id FROM files WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())));
+  USING (file_id IN (SELECT id FROM files WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())))
+  -- Schema 112: closing an entry records the caller, and only closes it: who
+  -- entered and when stay as written.
+  WITH CHECK (
+    file_id IN (SELECT id FROM files WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid()))
+    AND exited_by = auth.uid()
+    AND entered_by IS NOT DISTINCT FROM (SELECT e.entered_by FROM file_state_entries e WHERE e.id = file_state_entries.id)
+  );
 
 -- File Watchers
 DROP POLICY IF EXISTS "Users can view file watchers in org" ON file_watchers;
@@ -1962,7 +1975,10 @@ CREATE POLICY "Users can update own share links"
 
 DROP POLICY IF EXISTS "Users can delete share links" ON file_share_links;
 CREATE POLICY "Users can delete share links"
-  ON file_share_links FOR DELETE USING (created_by = auth.uid() OR is_org_admin());
+  ON file_share_links FOR DELETE
+  -- Schema 112: inside the caller's organization. is_org_admin() alone let an
+  -- admin of one organization delete another organization's links.
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND (created_by = auth.uid() OR is_org_admin()));
 
 -- File Comments
 DROP POLICY IF EXISTS "Users can view file comments in org" ON file_comments;
@@ -2054,10 +2070,16 @@ CREATE POLICY "Admins can delete metadata columns"
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 -- Backup Config
+-- Schema 112: admins only. The row holds the backup bucket's access key, secret
+-- key and the restic repository password in plaintext (the *_encrypted names are
+-- historical), and every member could read them - which is read and delete
+-- access to every backup of the organization. Running, designating and restoring
+-- were already admin-only (UPDATE is admin-only). Members see the status, without
+-- the secrets, through get_backup_status().
 DROP POLICY IF EXISTS "Users can view org backup config" ON backup_config;
 CREATE POLICY "Users can view org backup config"
   ON backup_config FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 DROP POLICY IF EXISTS "Admins can insert backup config" ON backup_config;
 CREATE POLICY "Admins can insert backup config"
@@ -2081,9 +2103,12 @@ CREATE POLICY "Users can view org backup history"
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
 DROP POLICY IF EXISTS "System can manage backup history" ON backup_history;
+-- Schema 112: admins only (backups are run from an admin's designated machine).
+-- Any member could rewrite or erase the record of what was backed up.
 CREATE POLICY "System can manage backup history"
   ON backup_history FOR ALL
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin())
+  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
 
 -- Backup Machines
 DROP POLICY IF EXISTS "Users can view org backup machines" ON backup_machines;
@@ -2103,9 +2128,32 @@ CREATE POLICY "Users can view backup locks"
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
 
 DROP POLICY IF EXISTS "Users can manage backup locks" ON backup_locks;
+-- Schema 112: admins only, as backup_history; a member could hold or break the lock.
 CREATE POLICY "Users can manage backup locks"
   ON backup_locks FOR ALL
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin())
+  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
+
+-- The caller's organization's backup configuration without its three secrets,
+-- plus whether they are set (schema 112). Argument-less: the organization is the
+-- caller's own. NULL when there is no configuration or no organization.
+CREATE OR REPLACE FUNCTION get_backup_status()
+RETURNS JSONB
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT to_jsonb(bc)
+           - 'access_key_encrypted' - 'secret_key_encrypted' - 'restic_password_encrypted'
+           || jsonb_build_object(
+                'credentials_set',
+                bc.access_key_encrypted IS NOT NULL AND bc.access_key_encrypted <> ''
+                AND bc.restic_password_encrypted IS NOT NULL AND bc.restic_password_encrypted <> '')
+    FROM backup_config bc
+    JOIN users u ON u.id = auth.uid() AND u.org_id = bc.org_id;
+$$;
+
+REVOKE ALL ON FUNCTION get_backup_status() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION get_backup_status() TO authenticated;
 
 -- ===========================================
 -- HELPER FUNCTIONS
@@ -2199,6 +2247,15 @@ DECLARE
   v_obsolete_state_id UUID;
 BEGIN
   PERFORM require_org_member(p_org_id);
+
+  -- Schema 112: creating a workflow is an admin act (the workflow_templates INSERT
+  -- policy says so; this function writes as definer and bypassed it), and the
+  -- author is the caller. p_created_by is kept for existing callers and ignored.
+  IF NOT is_org_admin() THEN
+    RAISE EXCEPTION 'Only admins can create workflows'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  p_created_by := current_actor_id();
 
   INSERT INTO workflow_templates (org_id, name, description, is_default, created_by)
   VALUES (p_org_id, 'Standard Release Process', 'Default workflow for releasing engineering files', true, p_created_by)
@@ -2929,6 +2986,12 @@ BEGIN
     RETURN jsonb_build_object('success', false, 'error', 'File not found');
   END;
 
+  -- Schema 112: the same permission the files UPDATE policy asks for. This
+  -- function writes files as definer, so the policy never sees the write.
+  IF NOT user_has_team_permission('module:explorer', 'edit') THEN
+    RETURN jsonb_build_object('success', false, 'error', 'You do not have permission to edit files');
+  END IF;
+
   -- Lock the row and check status atomically
   SELECT id, file_path, file_name, checked_out_by, org_id
   INTO v_file
@@ -3132,6 +3195,12 @@ BEGIN
   EXCEPTION WHEN insufficient_privilege THEN
     RETURN jsonb_build_object('success', false, 'error', 'File not found');
   END;
+
+  -- Schema 112: the same permission the files UPDATE policy asks for. This
+  -- function writes files as definer, so the policy never sees the write.
+  IF NOT user_has_team_permission('module:explorer', 'edit') THEN
+    RETURN jsonb_build_object('success', false, 'error', 'You do not have permission to edit files');
+  END IF;
 
   -- Lock and verify ownership
   SELECT * INTO v_file
@@ -3877,6 +3946,12 @@ DECLARE
 BEGIN
   PERFORM require_org_member(p_org_id);
 
+  -- Schema 112: an organization setting, saved from the admin settings page.
+  IF NOT is_org_admin() THEN
+    RAISE EXCEPTION 'Only admins can change serialization settings'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
   -- Get current settings with lock to prevent race conditions
   SELECT serialization_settings INTO current_settings
   FROM organizations WHERE id = p_org_id
@@ -3939,6 +4014,13 @@ CREATE OR REPLACE FUNCTION update_item_definition_settings(
 RETURNS BOOLEAN AS $$
 BEGIN
   PERFORM require_org_member(p_org_id);
+
+  -- Schema 112: an organization-wide definition. Admins, or members granted the
+  -- item designation permission the Item Browser already uses for the same view.
+  IF NOT (is_org_admin() OR user_has_team_permission('system:item-designations', 'edit')) THEN
+    RAISE EXCEPTION 'You do not have permission to change the item definition'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
 
   UPDATE organizations
   SET item_definition_settings = p_settings
@@ -4456,6 +4538,12 @@ BEGIN
     RETURN jsonb_build_object('success', false, 'error', 'File not found');
   END;
 
+  -- Schema 112: the same permission the files UPDATE policy asks for. This
+  -- function writes files as definer, so the policy never sees the write.
+  IF NOT user_has_team_permission('module:explorer', 'edit') THEN
+    RETURN jsonb_build_object('success', false, 'error', 'You do not have permission to edit files');
+  END IF;
+
   -- Lock the row and check status atomically
   SELECT id, file_path, file_name, checked_out_by, org_id
   INTO v_file
@@ -4667,6 +4755,13 @@ BEGIN
     END IF;
 
     p_vault_id := v_candidate_vaults[1];
+    -- Schema 112: the vault found from the path must be one the caller may see.
+    PERFORM require_vault_access(p_vault_id);
+  END IF;
+
+  -- Schema 112: as checkout_file().
+  IF NOT user_has_team_permission('module:explorer', 'edit') THEN
+    RETURN jsonb_build_object('success', false, 'error', 'You do not have permission to edit files', 'updated', 0);
   END IF;
 
   v_old_prefix := RTRIM(p_old_folder_path, '/');

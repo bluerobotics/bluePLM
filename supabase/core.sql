@@ -115,24 +115,21 @@ ON CONFLICT (id) DO NOTHING;
 -- what a database must contain to be allowed to claim it.
 
 CREATE OR REPLACE FUNCTION schema_release_version() RETURNS INTEGER
-LANGUAGE sql IMMUTABLE AS $$ SELECT 111 $$;
+LANGUAGE sql IMMUTABLE AS $$ SELECT 112 $$;
 
 CREATE OR REPLACE FUNCTION schema_release_description() RETURNS TEXT
 LANGUAGE sql IMMUTABLE AS $$ SELECT
-  'The database enforces vault access for file data. my_accessible_vault_ids() states the rule '
-  '(an organization admin reads every vault of the organization; anyone else reads the vaults '
-  'granted to them directly or through a team; no grant means no vault), and the SELECT and write '
-  'policies of files, file_versions, folders, references, drawing PDFs, release files, comments, '
-  'watchers, share links, workflow history, activity, inspection characteristics and ECO / '
-  'deviation file links follow it. user_may_access_vault() now applies the same opt-in rule (it '
-  'read no grants as unrestricted) and checks the vault is in the user''s organization. '
-  'require_file_access(), require_vault_access() and the vault load RPCs refuse a vault the caller '
-  'may not see. vaults are readable by their own organization only. The vault storage bucket gets '
-  'versioned policies: content is readable only through a readable file, version or drawing PDF, '
-  'by its uploader, or by an admin; content is never overwritten; every other storage policy is dropped. '
-  'organizations and users are readable inside the caller''s organization only. users.email is not '
-  'client-writable, and invitations, domain joins and blocks use the verified auth.users address; '
-  'join_org_by_slug needs an invitation or an email_domains match.'
+  'Security audit follow-up on top of 111. Backup storage keys and the restic password are '
+  'readable by admins only (members get get_backup_status() without them); webhooks and their '
+  'delivery log are admin-only, and the TRUE insert / update policies on webhook_deliveries are '
+  'withdrawn. Orphan functions with no source are dropped. Backup history and locks are written by '
+  'admins only. Audit rows (activity, workflow_history, file_state_entries, '
+  'eco_checklist_activity, rfq_activity, integration_sync_log, notifications) name the caller as '
+  'their actor, and user_sessions rows stay in the caller''s organization. checkout_file, '
+  'checkin_file, move_file and rename_folder_files require module:explorer edit; approve_eco_gate '
+  'checks the ECO''s organization and module:eco edit; instantiate_process_template, '
+  'create_default_workflow, update_serialization_settings_safe and update_item_definition_settings '
+  'check permission. Share links are deleted inside the caller''s organization only.'
 $$;
 
 -- One row per object this release requires, scoped to the module that creates it.
@@ -185,6 +182,8 @@ LANGUAGE sql IMMUTABLE AS $$
     ('core', NULL, 'function', 'join_org_by_slug(text)', 'verified_auth_email && pending_org_members'),
     ('core', NULL, 'function', 'apply_pending_team_memberships(uuid)', 'verified_auth_email'),
     ('core', NULL, 'function', 'handle_new_user()', 'email_confirmed_at'),
+    -- Schema 112: members read backup status without the backup secrets.
+    ('10-source-files', NULL, 'function', 'get_backup_status()', 'credentials_set'),
     -- The checks themselves are release content. A database carrying v90's
     -- copy of check_anon_reach() would look at no views at all and report a
     -- clean schema over the parts_with_pricing leak, so the manifest pins the
@@ -405,11 +404,11 @@ LANGUAGE sql IMMUTABLE AS $$
     ('10-source-files', NULL, 'function', 'get_active_file_by_path(uuid,text)', 'require_vault_access'),
     ('10-source-files', NULL, 'function', 'get_next_serial_number(uuid)', 'require_org_member'),
     ('10-source-files', NULL, 'function', 'preview_next_serial_number(uuid)', 'require_org_member'),
-    ('10-source-files', NULL, 'function', 'update_serialization_settings_safe(uuid,jsonb)', 'require_org_member'),
+    ('10-source-files', NULL, 'function', 'update_serialization_settings_safe(uuid,jsonb)', 'require_org_member && is_org_admin'),
     ('10-source-files', NULL, 'function', 'get_item_definition_settings(uuid)', 'require_org_member'),
-    ('10-source-files', NULL, 'function', 'update_item_definition_settings(uuid,jsonb)', 'require_org_member'),
+    ('10-source-files', NULL, 'function', 'update_item_definition_settings(uuid,jsonb)', 'require_org_member && user_has_team_permission'),
     ('10-source-files', NULL, 'function', 'get_item_images(uuid)', 'require_org_member'),
-    ('10-source-files', NULL, 'function', 'create_default_workflow(uuid,uuid)', 'require_org_member'),
+    ('10-source-files', NULL, 'function', 'create_default_workflow(uuid,uuid)', 'require_org_member && is_org_admin && current_actor_id'),
     -- Resolves the organization from p_file_id. It used to gate on p_org_id and
     -- then insert p_file_id without ever comparing them, so a member of any
     -- organization could mint a working token for another tenant's file.
@@ -437,7 +436,7 @@ LANGUAGE sql IMMUTABLE AS $$
     ('10-source-files', NULL, 'function', 'remediate_case_colliding_folders()', 'record_remediation'),
     -- Entity-scoped: these resolve the organization from the id they are given
     -- and gate on that. They took no p_org_id, so the old sweep never saw them.
-    ('10-source-files', NULL, 'function', 'checkout_file(uuid,uuid,text,text,text)', 'require_file_access && checked_out_file_path'),
+    ('10-source-files', NULL, 'function', 'checkout_file(uuid,uuid,text,text,text)', 'require_file_access && checked_out_file_path && user_has_team_permission'),
     ('10-source-files', NULL, 'function', 'move_file(uuid,uuid,text,text)', 'require_file_access'),
     ('10-source-files', NULL, 'function', 'rename_folder_files(text,text,uuid,uuid)', 'require_vault_access && like_escape'),
     ('10-source-files', NULL, 'function', 'get_available_transitions(uuid,uuid)', 'require_file_access'),
@@ -502,7 +501,8 @@ LANGUAGE sql IMMUTABLE AS $$
     ('20-change-control', 'ecos', 'table', 'eco_gate_approvals', NULL),
     ('20-change-control', 'ecos', 'function', 'require_eco_access(uuid)',
       'current_actor_id && u.org_id = v_org_id'),
-    ('20-change-control', 'ecos', 'function', 'instantiate_process_template(uuid,uuid)', 'require_eco_access'),
+    ('20-change-control', 'ecos', 'function', 'instantiate_process_template(uuid,uuid)', 'require_eco_access && user_has_team_permission'),
+    ('20-change-control', 'ecos', 'function', 'approve_eco_gate(uuid,text,text)', 'require_eco_access && user_has_team_permission'),
     ('20-change-control', 'ecos', 'function', 'check_gate_requirements(uuid,text)', 'require_eco_access'),
     -- Review packages (schema 107). The probe stays 'ecos': reviews are part of
     -- this module and installed with it.
@@ -2668,6 +2668,29 @@ BEGIN
     RETURN NEXT;
   END LOOP;
 
+  -- Secrets and logs that are admin-only (schema 112): the backup bucket keys and
+  -- restic password, webhook signing secrets and their delivery log. A SELECT or
+  -- ALL policy without is_org_admin() hands them to every member; any client write
+  -- policy on webhook_deliveries is a leftover of the TRUE "Service" policies.
+  FOR vault_policy IN
+    SELECT p.tablename, p.policyname, p.cmd
+      FROM pg_policies p
+     WHERE p.schemaname = 'public'
+       AND p.permissive = 'PERMISSIVE'
+       AND (
+         (p.tablename IN ('backup_config', 'webhooks', 'webhook_deliveries')
+           AND p.cmd IN ('SELECT', 'ALL')
+           AND COALESCE(p.qual, '') NOT LIKE '%is_org_admin()%')
+         OR (p.tablename = 'webhook_deliveries' AND p.cmd IN ('INSERT', 'UPDATE', 'DELETE'))
+       )
+  LOOP
+    residue := 'secret_table_policy_too_broad';
+    identity := 'public.' || vault_policy.tablename || ' / ' || vault_policy.policyname;
+    detail := 'This ' || vault_policy.cmd || ' policy exposes or lets clients write an admin-only '
+           || 'table. Re-run supabase/modules/10-source-files.sql and 40-integrations.sql.';
+    RETURN NEXT;
+  END LOOP;
+
   -- Storage (schema 111). The application's buckets are vault (module 10's four
   -- policies) and org-extensions (module 50's four). Module 10 drops every other
   -- policy on storage.objects; one that remains - such as the dashboard-made
@@ -3851,7 +3874,10 @@ CREATE POLICY "Org members can view sessions"
 DROP POLICY IF EXISTS "Users can manage their sessions" ON user_sessions;
 CREATE POLICY "Users can manage their sessions"
   ON user_sessions FOR ALL
-  USING (user_id = auth.uid());
+  USING (user_id = auth.uid())
+  -- Schema 112: a session row is filed under the caller's own organization; it
+  -- decides who appears in another organization's presence list.
+  WITH CHECK (user_id = auth.uid() AND org_id IN (SELECT u.org_id FROM users u WHERE u.id = auth.uid()));
 
 -- ===========================================
 -- NOTIFICATIONS (Generic - Module Agnostic)
@@ -3922,7 +3948,9 @@ CREATE POLICY "System can create notifications"
   WITH CHECK (
     org_id IN (SELECT org_id FROM users WHERE id = auth.uid())
     AND user_id IN (SELECT u.id FROM users u WHERE u.org_id = notifications.org_id)
-    AND (from_user_id IS NULL OR from_user_id = auth.uid())
+    -- Schema 112: the sender is always the caller. A NULL sender read as a
+    -- system notice, which any member could forge into a colleague's inbox.
+    AND from_user_id = auth.uid()
   );
 
 -- ===========================================
@@ -6470,6 +6498,54 @@ $$;
 REVOKE ALL ON FUNCTION migrate_uuid_defaults() FROM PUBLIC, anon, authenticated;
 
 SELECT migrate_uuid_defaults();
+
+-- ORPHAN FUNCTIONS (schema 112)
+--
+-- Production carried these with no source in this repository and no caller in
+-- the app, the API or the service; the callable ones took an id and checked
+-- nothing (security audit 2026-10-30, H3). Each is dropped when nothing depends
+-- on it. A trigger function still attached to a trigger is kept - a trigger
+-- function cannot be called over PostgREST, so it is no exposure - and the
+-- trigger is named, so whoever owns it can decide. Every action is printed.
+DO $$
+DECLARE
+  v_sig TEXT;
+  v_oid OID;
+  v_trigs TEXT;
+BEGIN
+  FOREACH v_sig IN ARRAY ARRAY[
+    'public.mark_all_notifications_read(uuid)',
+    'public.get_unread_notification_count(uuid)',
+    'public.get_eco_files(uuid)',
+    'public.get_file_ecos(uuid)',
+    'public.cleanup_stale_sessions()',
+    'public.handle_supplier_signup()',
+    'public.apply_pending_team_memberships_trigger()',
+    'public.update_rfq_timestamp()'
+  ]
+  LOOP
+    v_oid := to_regprocedure(v_sig);
+    CONTINUE WHEN v_oid IS NULL;
+
+    SELECT string_agg(format('%s ON %s', t.tgname, t.tgrelid::regclass), ', ')
+      INTO v_trigs
+      FROM pg_trigger t WHERE t.tgfoid = v_oid AND NOT t.tgisinternal;
+
+    IF v_trigs IS NOT NULL THEN
+      EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon, authenticated', v_sig);
+      RAISE NOTICE 'Kept orphan trigger function % (used by %); revoked EXECUTE', v_sig, v_trigs;
+      CONTINUE;
+    END IF;
+
+    BEGIN
+      EXECUTE format('DROP FUNCTION %s', v_sig);
+      RAISE NOTICE 'Dropped orphan function %', v_sig;
+    EXCEPTION WHEN dependent_objects_still_exist THEN
+      EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon, authenticated', v_sig);
+      RAISE NOTICE 'Kept orphan function % (other objects depend on it); revoked EXECUTE', v_sig;
+    END;
+  END LOOP;
+END $$;
 
 SELECT enforce_anon_execute_posture();
 

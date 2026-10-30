@@ -485,7 +485,7 @@ describe('core.sql release functions (schema 111)', () => {
         expect(row.requires).toMatch(pin)
       }
       const v = await fresh.query<{ v: number }>('SELECT schema_release_version() AS v')
-      expect(v.rows[0].v).toBe(111)
+      expect(v.rows[0].v).toBeGreaterThanOrEqual(111)
     } finally {
       await fresh.close()
     }
