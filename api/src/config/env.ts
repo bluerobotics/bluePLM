@@ -75,14 +75,27 @@ const envSchema = z.object({
   /**
    * The reverse proxies trusted for the client address (`X-Forwarded-For`), as a
    * comma-separated list of IPs, CIDRs or the names `loopback`, `linklocal` and
-   * `uniquelocal`. Railway and Render reach the container from a private address,
-   * so the default trusts private ranges only: without it every caller has the
-   * proxy's address and the per-IP rate limits become one limit shared by
-   * everyone. A hop count (API 3.0.1's `TRUST_PROXY_HOPS`) is gone: Fastify 5.12
+   * `uniquelocal`. Render reaches the container from a private address, so the
+   * default trusts private ranges only: without it every caller has the proxy's
+   * address and the per-IP rate limits become one limit shared by everyone.
+   * Railway's edge connects from a public address: see CLIENT_IP_HEADER. A hop count (API 3.0.1's `TRUST_PROXY_HOPS`) is gone: Fastify 5.12
    * refuses it because it trusts whoever connects, so a caller reaching the API
    * directly could pick its own address. `off` turns proxy trust off.
    */
   TRUST_PROXY: z.string().default('loopback,linklocal,uniquelocal,100.64.0.0/10'),
+
+  /**
+   * A header that carries the client address set by the hosting edge, used for
+   * the per-client rate limit and the request log instead of `request.ip`
+   * (first entry, trimmed, and only when it is an IP; otherwise `request.ip`).
+   * Railway's edge reaches the container from a public address no published
+   * range covers, so TRUST_PROXY cannot match it; it overwrites `X-Real-IP` on
+   * every public request, and on Railway (RAILWAY_ENVIRONMENT_NAME or
+   * RAILWAY_PROJECT_ID set) this defaults to `x-real-ip`. Unset elsewhere; set
+   * it only to a header the edge always overwrites, since a caller can send any
+   * header. `off` turns it off. See src/core/clientIp.ts.
+   */
+  CLIENT_IP_HEADER: z.string().optional(),
 
   /**
    * Extra browser origins allowed to call this API, comma-separated.

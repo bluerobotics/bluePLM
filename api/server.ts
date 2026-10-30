@@ -36,6 +36,7 @@ import { fileURLToPath } from 'url'
 import { env } from './src/config/env.js'
 import { createLoggerOptions } from './src/infrastructure/logging.js'
 import { errorHandlerPlugin, requestContextPlugin } from './src/core/plugins/index.js'
+import { clientIp, resolveClientIpHeader } from './src/core/clientIp.js'
 import { authPlugin } from './middleware/index.js'
 import { sendError } from './utils/index.js'
 import routes from './routes/index.js'
@@ -253,15 +254,21 @@ export async function buildServer(): Promise<FastifyInstance> {
   // reconstructed from the environment after someone reports a blank screen.
   fastify.log.info({ corsOrigins: CORS_ORIGINS }, 'CORS allowlist')
 
+  // The client address for rate limits and logs: request.ip, or the edge's header where request.ip
+  // is the edge itself (Railway). See src/core/clientIp.ts.
+  const clientIpHeader = resolveClientIpHeader(env.CLIENT_IP_HEADER, process.env)
+  fastify.log.info({ clientIpHeader }, 'Client address source')
+
   // Register Rate Limiting
   await fastify.register(rateLimit, {
     max: env.RATE_LIMIT_MAX,
     timeWindow: env.RATE_LIMIT_WINDOW,
     errorResponseBuilder: buildRateLimitError,
+    keyGenerator: (request) => clientIp(request, clientIpHeader),
   })
 
   // Register core plugins
-  await fastify.register(requestContextPlugin)
+  await fastify.register(requestContextPlugin, { clientIpHeader })
   await fastify.register(errorHandlerPlugin)
 
   // Register OpenAPI/Swagger

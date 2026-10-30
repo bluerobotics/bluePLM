@@ -311,7 +311,8 @@ settings — so that changing your mind later is a variable edit and a restart.
 |----------|---------|--------------|
 | `ENABLE_DOCS` | `true` | Serves browsable API documentation at `<your-api-url>/docs`. Set to `false` to keep your API's shape off the public internet. It affects nothing but the documentation page. |
 | `CORS_ORIGINS` | *(empty)* | Extra **browser** origins allowed to call the API, comma-separated. You almost certainly do not need this: Odoo, scripts and other server-to-server callers are not subject to CORS, and BluePLM is always allowed. |
-| `TRUST_PROXY` | `loopback,linklocal,uniquelocal,100.64.0.0/10` | The reverse proxies trusted for the caller's address, as a comma-separated list of addresses, CIDR ranges or the names `loopback`, `linklocal`, `uniquelocal`; `off` trusts none. The default suits Railway and Render. It replaces API 3.x's `TRUST_PROXY_HOPS`, which is no longer read. |
+| `TRUST_PROXY` | `loopback,linklocal,uniquelocal,100.64.0.0/10` | The reverse proxies trusted for the caller's address, as a comma-separated list of addresses, CIDR ranges or the names `loopback`, `linklocal`, `uniquelocal`; `off` trusts none. The default suits Render; Railway's edge connects from a public address, so on Railway the client address comes from `CLIENT_IP_HEADER` instead. It replaces API 3.x's `TRUST_PROXY_HOPS`, which is no longer read. |
+| `CLIENT_IP_HEADER` | `x-real-ip` on Railway, unset elsewhere | A header the hosting edge overwrites with the caller's address on every request, used for the per-client rate limit and the request log (first entry, and only when it is an IP; otherwise the TRUST_PROXY address). Railway is detected by `RAILWAY_ENVIRONMENT_NAME` or `RAILWAY_PROJECT_ID`. Set it only to a header your edge always overwrites, since a caller can send any header; `off` turns it off. |
 | `NODE_ENV` | `production` | Leave it alone unless you are developing BluePLM itself. |
 
 ### Configure in BluePLM

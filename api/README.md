@@ -130,6 +130,8 @@ resolve the same way whether you run from source or from the build.
 | `API_HOST` | `0.0.0.0` | Host to bind to |
 | `RATE_LIMIT_MAX` | `100` | Max requests per window |
 | `RATE_LIMIT_WINDOW` | `60000` | Time window in ms (60s) |
+| `TRUST_PROXY` | `loopback,linklocal,uniquelocal,100.64.0.0/10` | Proxies trusted for the client address (`X-Forwarded-For`): IPs, CIDRs or `loopback`/`linklocal`/`uniquelocal`; `off` trusts none |
+| `CLIENT_IP_HEADER` | `x-real-ip` on Railway, else unset | Header the edge overwrites with the client address; the rate limiter and request log use it (first entry, must be an IP, else the TRUST_PROXY address). Railway is detected by `RAILWAY_ENVIRONMENT_NAME` / `RAILWAY_PROJECT_ID`; `off` disables it |
 | `CORS_ORIGINS` | *(empty)* | Extra browser origins, comma-separated. See below |
 | `ENABLE_DOCS` | `true` | Serve the Swagger UI and OpenAPI document at `/docs` |
 | `BACKUP_WORKER` | `true` | Run scheduled and requested backups and backup tests for organizations that chose server backups (`api/src/backup/`, tools: `npm run backup -- <sandbox, dry-run, verify, list or restore>`) |
