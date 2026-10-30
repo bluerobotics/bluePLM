@@ -7,6 +7,7 @@ import type { CachedServerFile } from '@/lib/cache/vaultFileCache'
 import type { LocalFile } from '@/stores/types'
 import { isCheckoutProfileForOwner, reconcileCheckoutProfile } from '@/types/pdm'
 import type { CheckoutUserProfile, PDMFile } from '@/types/pdm'
+import { hasDesktop } from '@/lib/platform'
 
 /**
  * Inputs the cloud-file reconciliation pass needs from the merge that has already
@@ -256,7 +257,8 @@ export async function reconcileCloudFiles(
 
     // Neither move signal fired - a genuine cloud-only file (or, if I had it
     // checked out, a ghost of one I deleted/moved without either signal catching it).
-    const isDeletedByMe = isCheckedOutByMe
+    // BluePLM Web has no disk, so a file I have checked out is simply in the cloud there.
+    const isDeletedByMe = isCheckedOutByMe && hasDesktop()
 
     registerCloudFolderAncestors(pdmFile.file_path)
 

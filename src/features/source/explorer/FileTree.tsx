@@ -45,7 +45,7 @@ import { VirtualizedTreeRow } from './file-tree/VirtualizedTreeRow'
 import { TreeHoverProvider } from './file-tree/TreeHoverContext'
 import { resolveMovedAwayOpenPath } from './file-tree/movedAwayOpenPath'
 import { VaultPropertiesModal } from './file-tree/VaultPropertiesModal'
-import { hasDesktop } from '@/lib/platform'
+import { cloudOnlyTextClass, hasDesktop } from '@/lib/platform'
 // FileTree hooks
 import { useVaultTree } from './file-tree/hooks/useVaultTree'
 import { useFlattenedTree } from './file-tree/hooks/useFlattenedTree'
@@ -839,7 +839,7 @@ export function FileTree({ onRefresh }: FileTreeProps) {
             )}
             <span className="tree-item-icon">{getFileIcon()}</span>
             <span
-              className={`truncate text-sm flex-1 ${file.diffStatus === 'cloud' ? 'italic text-plm-fg-muted' : ''}`}
+              className={`truncate text-sm flex-1 ${cloudOnlyTextClass(file.diffStatus === 'cloud')}`}
             >
               {file.isDirectory || !file.extension
                 ? file.name

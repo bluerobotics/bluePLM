@@ -179,7 +179,11 @@ export function AppShell({ showWelcome, isSignInScreen, handleChangeOrg }: AppSh
       {/* 🌤️ Weather Effects - dynamic theme based on local weather */}
       <WeatherEffects />
 
-      <MenuBar onOpenVault={handleOpenVault} onRefresh={loadFiles} minimal={isSignInScreen} />
+      {/* The desktop keeps a minimal bar on the sign-in screen as its window title bar; a browser
+          tab has its own, so the web sign-in page has none. */}
+      {(hasDesktop() || !isSignInScreen) && (
+        <MenuBar onOpenVault={handleOpenVault} onRefresh={loadFiles} minimal={isSignInScreen} />
+      )}
 
       {/* Role impersonation banner (dev tools) */}
       <ImpersonationBanner />

@@ -17,3 +17,12 @@ export const IS_WEB_BUILD: boolean = import.meta.env.BLUEPLM_WEB === true
 export function hasDesktop(): boolean {
   return typeof window !== 'undefined' && !!window.electronAPI
 }
+
+/**
+ * Text style for a file or folder whose content is not on this computer. The desktop shows such
+ * rows italic and muted, which tells "in the vault" apart from "downloaded here". On the web every
+ * row is cloud-only, so the distinction carries nothing and rows read normally.
+ */
+export function cloudOnlyTextClass(isCloudOnly: boolean): string {
+  return isCloudOnly && hasDesktop() ? 'italic text-plm-fg-muted' : ''
+}

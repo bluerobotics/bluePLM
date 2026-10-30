@@ -7,6 +7,7 @@ import { FolderActionButtons } from './TreeItemActions'
 import { TREE_BASE_PADDING_PX, TREE_INDENT_PX } from './constants'
 import type { CheckoutUser } from '@/components/shared/FileItem'
 import type { FolderDiffCounts } from './types'
+import { cloudOnlyTextClass } from '@/lib/platform'
 
 interface FolderTreeItemProps {
   file: LocalFile
@@ -185,7 +186,7 @@ export const FolderTreeItem = memo(function FolderTreeItem({
         {/* Folder name - italic/muted for unsynced folders (derived from computed isSynced).
             `min-w-[5rem]` keeps the name readable: the action badges collapse before it does. */}
         <span
-          className={`truncate text-sm flex-1 min-w-[5rem] ${!isSynced ? 'italic text-plm-fg-muted' : ''}`}
+          className={`truncate text-sm flex-1 min-w-[5rem] ${cloudOnlyTextClass(!isSynced)}`}
         >
           {file.name}
         </span>

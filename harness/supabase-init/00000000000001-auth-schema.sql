@@ -28,6 +28,9 @@ CREATE TABLE auth.users (
     updated_at timestamptz NULL,
     CONSTRAINT users_pkey PRIMARY KEY (id)
 );
+-- Added by a later GoTrue migration that this vendored initial schema predates. Schema 111
+-- (verified_auth_email, handle_new_user) reads it, as hosted Supabase has it.
+ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS email_confirmed_at timestamptz NULL;
 CREATE INDEX users_instance_id_email_idx ON auth.users USING btree (instance_id, email);
 CREATE INDEX users_instance_id_idx ON auth.users USING btree (instance_id);
 comment on table auth.users is 'Auth: Stores user login data within a secure schema.';

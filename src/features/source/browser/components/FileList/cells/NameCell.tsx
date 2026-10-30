@@ -33,6 +33,7 @@ import { ListRowIcon } from '../ListRowIcon'
 import type { CellRendererBaseProps } from './types'
 import { getFolderDescendantOperations } from '../../../utils/processingStatus'
 import type { OperationType } from '@/stores/types'
+import { cloudOnlyTextClass } from '@/lib/platform'
 
 export interface NameCellProps extends CellRendererBaseProps {
   indentPx?: number
@@ -346,7 +347,7 @@ export function NameCell({
         isFolderSynced={file.isDirectory ? isFolderSynced(file.relativePath) : undefined}
       />
       <span
-        className={`truncate flex-1 transition-opacity duration-200 ${isNameDimmed ? 'opacity-50' : ''} ${file.diffStatus === 'cloud' ? 'italic text-plm-fg-muted' : ''}`}
+        className={`truncate flex-1 transition-opacity duration-200 ${isNameDimmed ? 'opacity-50' : ''} ${cloudOnlyTextClass(file.diffStatus === 'cloud')}`}
       >
         {displayFilename}
       </span>

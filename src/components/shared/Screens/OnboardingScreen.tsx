@@ -390,10 +390,12 @@ export function OnboardingScreen() {
             </button>
           </div>
 
-          {/* Footer */}
-          <div className="text-center mt-8 text-xs text-plm-fg-muted">
-            Made with 💙 by Blue Robotics
-          </div>
+          {/* Footer (desktop only; the web pages stay minimal) */}
+          {hasDesktop() && (
+            <div className="text-center mt-8 text-xs text-plm-fg-muted">
+              Made with 💙 by Blue Robotics
+            </div>
+          )}
         </div>
       </div>
     </div>

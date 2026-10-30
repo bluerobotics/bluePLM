@@ -6,6 +6,7 @@ import { CheckoutBadge, CloudStatusBadge, DiffStatusBadge } from './badges'
 import { FileCardIcon } from './FileCardIcon'
 import { FileCardActions } from './FileCardActions'
 import { FileCardMetadata } from './FileCardMetadata'
+import { cloudOnlyTextClass } from '@/lib/platform'
 
 export interface FileCardProps {
   file: LocalFile
@@ -192,7 +193,7 @@ export const FileCard = memo(
           style={{ fontSize: Math.max(10, Math.min(12, iconSize / 8)) }}
         >
           <div
-            className={`truncate ${file.diffStatus === 'cloud' ? 'italic text-plm-fg-muted' : 'text-plm-fg'}`}
+            className={`truncate ${cloudOnlyTextClass(file.diffStatus === 'cloud') || 'text-plm-fg'}`}
             title={file.name}
           >
             {file.name}

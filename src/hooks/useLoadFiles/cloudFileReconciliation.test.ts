@@ -356,13 +356,29 @@ function myGhost(filePath: string, overrides: Partial<CachedServerFile> = {}): C
 
 describe('reconcileCloudFiles placeholders', () => {
   it('marks a missing file I have checked out as deleted, and one another user holds as cloud', async () => {
+    // The desktop: the bridge is present, so a checked-out file missing from disk was removed here.
+    vi.stubGlobal('window', { electronAPI: {} })
+    try {
+      const result = await reconcile(
+        [myGhost('A/mine.sldprt'), serverFile({ id: 'theirs', file_path: 'A/theirs.sldprt', checked_out_by: 'user-2' })],
+        [],
+      )
+
+      const status = Object.fromEntries(result.localFiles.map((f) => [f.relativePath, f.diffStatus]))
+      expect(status).toEqual({ 'A/mine.sldprt': 'deleted', 'A/theirs.sldprt': 'cloud' })
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('on the web, where nothing is on disk, shows a file I have checked out as cloud', async () => {
     const result = await reconcile(
       [myGhost('A/mine.sldprt'), serverFile({ id: 'theirs', file_path: 'A/theirs.sldprt', checked_out_by: 'user-2' })],
       [],
     )
 
     const status = Object.fromEntries(result.localFiles.map((f) => [f.relativePath, f.diffStatus]))
-    expect(status).toEqual({ 'A/mine.sldprt': 'deleted', 'A/theirs.sldprt': 'cloud' })
+    expect(status).toEqual({ 'A/mine.sldprt': 'cloud', 'A/theirs.sldprt': 'cloud' })
   })
 
   it('fills a placeholder from the server row, with safe defaults for missing fields', async () => {

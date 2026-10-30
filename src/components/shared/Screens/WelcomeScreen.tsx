@@ -1731,18 +1731,23 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
             </div>
           )}
 
-          {/* Footer */}
-          <div className="text-center mt-12 text-xs text-plm-fg-muted">{t('welcome.madeWith')}</div>
+          {/* Footer and Start Fresh: desktop only. The web sign-in page stays minimal, and its
+              backend is pinned, so there is no stored session or org to start fresh from. */}
+          {hasDesktop() && (
+            <div className="text-center mt-12 text-xs text-plm-fg-muted">{t('welcome.madeWith')}</div>
+          )}
 
           {/* Start Fresh & Change Organization options */}
           <div className="text-center mt-4 space-y-2">
-            <button
-              onClick={handleStartFresh}
-              className="flex items-center justify-center gap-1.5 text-xs text-plm-fg-muted hover:text-plm-fg transition-colors mx-auto"
-            >
-              <Trash2 size={12} />
-              {t('welcome.clearSession', 'Clear session & start fresh')}
-            </button>
+            {hasDesktop() && (
+              <button
+                onClick={handleStartFresh}
+                className="flex items-center justify-center gap-1.5 text-xs text-plm-fg-muted hover:text-plm-fg transition-colors mx-auto"
+              >
+                <Trash2 size={12} />
+                {t('welcome.clearSession', 'Clear session & start fresh')}
+              </button>
+            )}
             {onChangeOrg && hasDesktop() && (
               <button
                 onClick={onChangeOrg}
@@ -2121,7 +2126,9 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
         </div>
 
         {/* Footer */}
-        <div className="text-center mt-6 text-xs text-plm-fg-muted">{t('welcome.madeWith')}</div>
+        {hasDesktop() && (
+          <div className="text-center mt-6 text-xs text-plm-fg-muted">{t('welcome.madeWith')}</div>
+        )}
       </div>
 
       {/* Logs Modal */}

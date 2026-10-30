@@ -175,7 +175,8 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
   const vaultDropdownRef = useRef<HTMLDivElement>(null)
   const zoomDropdownRef = useRef<HTMLDivElement>(null)
   const topbarConfigRef = useRef<HTMLDivElement>(null)
-  const [titleBarPadding, setTitleBarPadding] = useState(140) // Default fallback
+  // Room for the window controls Electron draws over the top right. A browser tab has none.
+  const [titleBarPadding, setTitleBarPadding] = useState(() => (hasDesktop() ? 140 : 8))
   const [platform, setPlatform] = useState<string>('win32') // Default to Windows
   const [menuBarWidth, setMenuBarWidth] = useState(1200)
   const menuRef = useRef<HTMLDivElement>(null)
