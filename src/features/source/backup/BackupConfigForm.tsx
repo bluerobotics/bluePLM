@@ -13,7 +13,6 @@ import {
   Upload,
   AlertTriangle,
 } from 'lucide-react'
-import { t } from '@/lib/i18n'
 import { TIME_SLOTS } from './constants'
 
 interface BackupConfigFormProps {
@@ -49,9 +48,6 @@ interface BackupConfigFormProps {
   retentionYearly: number
   onRetentionYearlyChange: (years: number) => void
   totalRetentionPoints: number
-  // Where backups run (schema 501)
-  runLocation: 'desktop' | 'server'
-  onRunLocationChange: (location: 'desktop' | 'server') => void
   // Schedule settings
   scheduleEnabled: boolean
   onScheduleEnabledChange: (enabled: boolean) => void
@@ -100,8 +96,6 @@ export function BackupConfigForm({
   retentionYearly,
   onRetentionYearlyChange,
   totalRetentionPoints,
-  runLocation,
-  onRunLocationChange,
   scheduleEnabled,
   onScheduleEnabledChange,
   scheduleHour,
@@ -320,36 +314,6 @@ export function BackupConfigForm({
             <p className="text-xs text-plm-fg-muted mt-2">
               ≈ {totalRetentionPoints} restore points total
             </p>
-          </div>
-
-          {/* Where backups run */}
-          <div>
-            <label className="block text-sm font-medium mb-2">{t('serverBackup.runLocationLabel')}</label>
-            <div className="space-y-2">
-              {(['server', 'desktop'] as const).map((location) => (
-                <label key={location} className="flex items-start gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="backup-run-location"
-                    checked={runLocation === location}
-                    onChange={() => onRunLocationChange(location)}
-                    className="mt-0.5 w-4 h-4 border-plm-border bg-plm-bg-primary"
-                  />
-                  <span>
-                    <span className="block text-sm">
-                      {location === 'server'
-                        ? t('serverBackup.runLocationServer')
-                        : t('serverBackup.runLocationDesktop')}
-                    </span>
-                    <span className="block text-xs text-plm-fg-muted">
-                      {location === 'server'
-                        ? t('serverBackup.runLocationServerHint')
-                        : t('serverBackup.runLocationDesktopHint')}
-                    </span>
-                  </span>
-                </label>
-              ))}
-            </div>
           </div>
 
           {/* Schedule */}

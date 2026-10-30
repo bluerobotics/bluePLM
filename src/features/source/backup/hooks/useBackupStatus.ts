@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { log } from '@/lib/logger'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import {
   getBackupConfig,
   isBackupConfigured,
@@ -43,7 +44,12 @@ interface UseBackupStatusReturn {
   // Actions
   refresh: () => Promise<void>
   refreshSnapshots: () => Promise<void>
+  /** Re-reads backup_config only: call after any change to it (designation, run location, settings). */
+  reloadConfig: () => Promise<void>
 }
+
+/** backup_config is re-read this often as well as on realtime events (members get no events: RLS). */
+const CONFIG_POLL_MS = 30_000
 
 /**
  * Hook to manage backup status loading and polling
@@ -169,6 +175,28 @@ export function useBackupStatus(
     })
   }, [orgId, loadConfig, loadSnapshots])
 
+  // Keep the configuration current without a manual refresh. Before the overhaul, actions
+  // reloaded only the restic snapshot list, so a cleared designation or a saved setting stayed
+  // on screen until the page was refreshed.
+  useEffect(() => {
+    if (!orgId) return
+    const channel = getSupabaseClient()
+      .channel(`backup_config_${orgId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'backup_config', filter: `org_id=eq.${orgId}` },
+        () => {
+          void loadConfig()
+        },
+      )
+      .subscribe()
+    const poll = setInterval(() => void loadConfig(), CONFIG_POLL_MS)
+    return () => {
+      clearInterval(poll)
+      void channel.unsubscribe()
+    }
+  }, [orgId, loadConfig])
+
   // Check designated machine status when config changes
   useEffect(() => {
     if (config) {
@@ -245,6 +273,10 @@ export function useBackupStatus(
     }
   }, [orgId, loadConfig, loadSnapshots, addToast, updateRateLimitState])
 
+  const reloadConfig = useCallback(async () => {
+    await loadConfig()
+  }, [loadConfig])
+
   // Refresh snapshots only (faster for just updating history)
   const refreshSnapshots = useCallback(async () => {
     if (!config || !isConfigured) return
@@ -281,5 +313,6 @@ export function useBackupStatus(
     // Actions
     refresh,
     refreshSnapshots,
+    reloadConfig,
   }
 }

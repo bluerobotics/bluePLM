@@ -2,9 +2,10 @@
 export { BackupPanel } from './BackupPanel'
 
 // Component exports (for potential reuse)
-export { BackupStatusCard } from './BackupStatusCard'
-export { BackupScheduleInfo } from './BackupScheduleInfo'
-export { BackupSourceSection } from './BackupSourceSection'
+export { BackupOverview } from './BackupOverview'
+export { RunLocationPicker } from './RunLocationPicker'
+export { DesktopBackupSection } from './DesktopBackupSection'
+export { ServerBackupSection } from './ServerBackupSection'
 export { BackupHistory } from './BackupHistory'
 export { BackupHistoryItem } from './BackupHistoryItem'
 export { BackupConfigForm } from './BackupConfigForm'

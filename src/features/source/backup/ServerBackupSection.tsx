@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
   AlertTriangle,
   CheckCircle2,
@@ -12,10 +12,7 @@ import {
 import { usePDMStore } from '@/stores/pdmStore'
 import { t } from '@/lib/i18n'
 import {
-  getBackupConfig,
-  getBackupRuns,
   isServerWorkerOnline,
-  nextScheduledBackup,
   requestBackup,
   requestBackupTest,
   type BackupConfig,
@@ -29,10 +26,12 @@ interface ServerBackupSectionProps {
   orgId: string
   userEmail: string
   isAdmin: boolean
+  runs: BackupRun[]
+  runsLoaded: boolean
+  lastTest: BackupRun | null
+  /** Re-read backup_config and the runs after a request. */
+  onChanged: () => Promise<void>
 }
-
-/** A successful backup older than this is called out: a nightly schedule missed a night. */
-const STALE_HOURS = 36
 const TEST_MODES: BackupTestMode[] = ['quick', 'sample', 'full']
 
 function formatBytes(bytes: number | null): string {
@@ -70,46 +69,26 @@ function statusLabel(status: string): string {
 }
 
 /**
- * Backups run by the API's backup worker (schema 501): whether a worker is alive,
- * when the next backup is due, what the last backups and tests found, and buttons
- * to back up or test now. Requests are rows in backup_config the worker picks up
- * within a minute; results are rows in backup_history.
- *
- * Polls while something is pending (15 s) and slowly otherwise (60 s), and stops
- * when unmounted.
+ * Backups run by the API's backup worker (schema 501): whether a worker is alive, what the last
+ * backups and tests found, and buttons to back up or test now. Requests are rows in backup_config
+ * the worker picks up within a minute; results are rows in backup_history. The panel owns the
+ * data (useBackupStatus, useServerBackupRuns) so the overview and this section agree.
  */
-export function ServerBackupSection({ config: initialConfig, orgId, userEmail, isAdmin }: ServerBackupSectionProps) {
+export function ServerBackupSection({
+  config,
+  orgId,
+  userEmail,
+  isAdmin,
+  runs,
+  runsLoaded,
+  lastTest,
+  onChanged,
+}: ServerBackupSectionProps) {
   const addToast = usePDMStore((s) => s.addToast)
-  const [config, setConfig] = useState<BackupConfig>(initialConfig)
-  const [runs, setRuns] = useState<BackupRun[]>([])
-  const [loaded, setLoaded] = useState(false)
   const [testMode, setTestMode] = useState<BackupTestMode>('sample')
   const [sending, setSending] = useState(false)
   const [expandedRunId, setExpandedRunId] = useState<string | null>(null)
-
-  useEffect(() => setConfig(initialConfig), [initialConfig])
-
-  const reload = useCallback(async () => {
-    const [latest, latestRuns] = await Promise.all([getBackupConfig(orgId), getBackupRuns(orgId, 10)])
-    if (latest) setConfig(latest)
-    setRuns(latestRuns)
-    setLoaded(true)
-  }, [orgId])
-
-  const pending =
-    !!config.backup_requested_at || !!config.verify_requested_at || !!config.backup_started_at
-
-  useEffect(() => {
-    void reload()
-    const timer = setInterval(() => void reload(), pending ? 15_000 : 60_000)
-    return () => clearInterval(timer)
-  }, [reload, pending])
-
   const online = isServerWorkerOnline(config)
-  const next = nextScheduledBackup(config)
-  const lastGood = runs.find((r) => r.kind === 'backup' && (r.status === 'completed' || r.status === 'warning'))
-  const lastTest = runs.find((r) => r.kind === 'verify' && r.status !== 'running')
-  const lastGoodAgeHours = lastGood ? (Date.now() - Date.parse(lastGood.started_at)) / 3_600_000 : null
 
   const send = async (action: () => Promise<{ success: boolean; error?: string }>, sent: string) => {
     setSending(true)
@@ -117,7 +96,7 @@ export function ServerBackupSection({ config: initialConfig, orgId, userEmail, i
       const result = await action()
       if (result.success) {
         addToast('success', sent)
-        await reload()
+        await onChanged()
       } else {
         addToast('error', t('serverBackup.requestFailed', { error: result.error ?? '' }))
       }
@@ -149,16 +128,8 @@ export function ServerBackupSection({ config: initialConfig, orgId, userEmail, i
         </span>
       </div>
 
-      {/* Schedule and state */}
+      {/* Test and request state */}
       <div className="text-xs text-plm-fg-muted space-y-1">
-        <div>{next ? t('serverBackup.nextRun', { when: next.toLocaleString() }) : t('serverBackup.scheduleOff')}</div>
-        {loaded && (
-          <div>
-            {lastGood
-              ? t('serverBackup.lastGood', { when: formatDate(lastGood.started_at) })
-              : t('serverBackup.lastGoodNever')}
-          </div>
-        )}
         {lastTest && (
           <div>
             {t('serverBackup.lastTest', {
@@ -177,13 +148,6 @@ export function ServerBackupSection({ config: initialConfig, orgId, userEmail, i
         {config.backup_requested_at && !config.backup_started_at && <div>{t('serverBackup.backupRequested')}</div>}
         {config.verify_requested_at && <div>{t('serverBackup.testRequested')}</div>}
       </div>
-
-      {lastGoodAgeHours !== null && lastGoodAgeHours > STALE_HOURS && config.is_schedule_enabled && (
-        <div className="flex items-start gap-2 p-2 rounded bg-plm-warning/10 text-xs text-plm-warning">
-          <AlertTriangle className="w-4 h-4 shrink-0" />
-          {t('serverBackup.staleWarning', { hours: STALE_HOURS })}
-        </div>
-      )}
 
       {/* Actions */}
       {isAdmin ? (
@@ -238,7 +202,7 @@ export function ServerBackupSection({ config: initialConfig, orgId, userEmail, i
       {/* Recent runs */}
       <div>
         <div className="text-xs font-medium mb-1">{t('serverBackup.recentRuns')}</div>
-        {loaded && runs.length === 0 && <div className="text-xs text-plm-fg-muted">{t('serverBackup.noRuns')}</div>}
+        {runsLoaded && runs.length === 0 && <div className="text-xs text-plm-fg-muted">{t('serverBackup.noRuns')}</div>}
         <ul className="space-y-1">
           {runs.map((run) => {
             const problems = run.report?.problems ?? []

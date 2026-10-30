@@ -411,6 +411,28 @@ export async function requestBackupTest(
   return { success: true }
 }
 
+/**
+ * Chooses who runs the organization's backups (schema 501): the API's backup worker or the
+ * designated desktop. Admins only, like every backup_config write. Saved on its own, so the
+ * choice takes effect without re-entering the bucket credentials.
+ */
+export async function setRunLocation(
+  orgId: string,
+  location: 'desktop' | 'server',
+): Promise<{ success: boolean; error?: string }> {
+  // run_location is not in the generated Database type until gen:types runs against 501.
+  const untyped = getSupabaseClient() as unknown as UntypedUpdate
+  const { error } = await untyped
+    .from('backup_config')
+    .update({ run_location: location, updated_at: new Date().toISOString() })
+    .eq('org_id', orgId)
+  if (error) {
+    log.error('[Backup]', 'Error setting where backups run', { error: error.message })
+    return { success: false, error: error.message }
+  }
+  return { success: true }
+}
+
 /** The organization's most recent server backups and tests, newest first. */
 export async function getBackupRuns(orgId: string, limit = 10): Promise<BackupRun[]> {
   const supabase = getSupabaseClient()
@@ -598,6 +620,11 @@ export function startBackupService(
 }
 
 // Stop the service
+/** Whether this process is running the designated machine's heartbeat and request polling. */
+export function isBackupServiceRunning(): boolean {
+  return heartbeatInterval !== null || pollingInterval !== null
+}
+
 export function stopBackupService(): void {
   const wasRunning = heartbeatInterval !== null || pollingInterval !== null
 

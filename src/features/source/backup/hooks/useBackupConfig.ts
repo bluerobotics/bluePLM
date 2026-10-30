@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { saveBackupConfig, type BackupConfig } from '@/lib/backup'
 import { DEFAULT_RETENTION } from '../constants'
 
@@ -47,9 +47,6 @@ interface UseBackupConfigReturn {
   setScheduleTimezone: (timezone: string) => void
 
   // Actions
-  // Where backups run (schema 501)
-  runLocation: 'desktop' | 'server'
-  setRunLocation: (location: 'desktop' | 'server') => void
   handleSave: () => Promise<void>
   isSaving: boolean
 
@@ -94,14 +91,16 @@ export function useBackupConfig(
   const [scheduleHour, setScheduleHour] = useState(0)
   const [scheduleMinute, setScheduleMinute] = useState(0)
   const [scheduleTimezone, setScheduleTimezone] = useState('UTC')
-  const [runLocation, setRunLocation] = useState<'desktop' | 'server'>('desktop')
 
   // Saving state
   const [isSaving, setIsSaving] = useState(false)
 
-  // Populate form with existing config
+  // Populate the form once per organization. The panel now re-reads backup_config every 30 s and
+  // on realtime events, so following every change would wipe edits an admin has not saved yet.
+  const populatedFor = useRef<string | null>(null)
   useEffect(() => {
-    if (initialConfig) {
+    if (initialConfig && populatedFor.current !== initialConfig.org_id) {
+      populatedFor.current = initialConfig.org_id
       setProvider(initialConfig.provider)
       setBucket(initialConfig.bucket || '')
       setRegion(initialConfig.region || '')
@@ -117,7 +116,6 @@ export function useBackupConfig(
       setScheduleHour(initialConfig.schedule_hour ?? 0)
       setScheduleMinute(initialConfig.schedule_minute ?? 0)
       setScheduleTimezone(initialConfig.schedule_timezone || 'UTC')
-      setRunLocation(initialConfig.run_location === 'server' ? 'server' : 'desktop')
     }
   }, [initialConfig])
 
@@ -156,7 +154,6 @@ export function useBackupConfig(
           schedule_hour: scheduleHour,
           schedule_minute: scheduleMinute,
           schedule_timezone: scheduleTimezone,
-          run_location: runLocation,
         },
         userId,
       )
@@ -190,7 +187,6 @@ export function useBackupConfig(
     scheduleHour,
     scheduleMinute,
     scheduleTimezone,
-    runLocation,
     addToast,
     onSaveSuccess,
   ])
@@ -316,8 +312,6 @@ export function useBackupConfig(
     setScheduleMinute,
     scheduleTimezone,
     setScheduleTimezone,
-    runLocation,
-    setRunLocation,
     handleSave,
     isSaving,
     exportConfig,

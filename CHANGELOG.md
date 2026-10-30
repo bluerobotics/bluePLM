@@ -6,6 +6,27 @@ All notable changes to BluePLM will be documented in this file.
 
 ## [Unreleased]
 
+Renderer only (no schema change, no API change).
+
+### Changed
+
+- **The backup page is rebuilt.** The top says whether backups are healthy and why not (no computer
+  designated, the computer or the server worker offline, no schedule, or the last good backup over 36 hours
+  old), when the last backup was and when the next one is. Below it, "Where backups run" switches between the
+  BluePLM server and a designated computer in one click, with that runner's controls under it. Restore points
+  and the bucket settings follow. The buttons are ordinary-sized.
+
+### Fixed
+
+- **A desktop schedule only ran while the backup page was open.** The designated computer's backup service
+  started inside the page and stopped when you left it, while the heartbeat kept showing the computer online.
+  It now runs at app level, starts when this computer is designated and stops when it is released, from any
+  computer, without a restart.
+- **Designating or releasing a computer, or saving settings, did not show until the page was refreshed.** The
+  page reloaded only the snapshot list after a change. It now re-reads the configuration after every action,
+  on realtime changes and every 30 seconds, and the settings form keeps unsaved edits.
+- An admin can release the designated computer from any computer, not only from the designated one.
+
 ## [5.1.0] - 2026-10-30
 
 Schemas 501 and 502 and API 4.1.0. An organization admin opens 5.1.0 and the app applies both migrations; every
