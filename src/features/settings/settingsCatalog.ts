@@ -1,8 +1,56 @@
+import {
+  Box,
+  Braces,
+  Building2,
+  ClipboardList,
+  Cloud,
+  Columns3,
+  DatabaseBackup,
+  Factory,
+  FileOutput,
+  Gauge,
+  GitBranch,
+  HardDrive,
+  Hash,
+  Info,
+  Keyboard,
+  KeyRound,
+  LifeBuoy,
+  MonitorSmartphone,
+  Palette,
+  PanelLeft,
+  Plug,
+  Puzzle,
+  ScrollText,
+  ShieldCheck,
+  SlidersHorizontal,
+  Tags,
+  Trash2,
+  User,
+  Users,
+  Webhook,
+  Wrench,
+  type LucideIcon,
+} from 'lucide-react'
+
 import type { SettingsTab } from '@/types/settings'
+
+/**
+ * How a page body is laid out in the settings modal: `default` is a readable column for forms,
+ * `wide` uses the full width for tables and editors, `full` also drops the page scroller (the
+ * page scrolls itself, like the log viewer).
+ */
+export type SettingsPageLayout = 'default' | 'wide' | 'full'
 
 export interface SettingsNavigationItem {
   id: SettingsTab
   label: string
+  icon: LucideIcon
+  /** One sentence under the page title saying what the page is for. */
+  description: string
+  layout?: SettingsPageLayout
+  /** Drawn in the error colour in the navigation (destructive pages). */
+  danger?: boolean
   /** Hidden from the navigation for everyone but an admin. The panel gates itself as well. */
   adminOnly?: boolean
   /**
@@ -25,53 +73,271 @@ export const settingsSections = (): SettingsSection[] => [
   {
     category: 'Account',
     items: [
-      { id: 'profile', label: 'Profile', keywords: ['account', 'user'] },
-      { id: 'preferences', label: 'Preferences', keywords: ['options', 'appearance'] },
-      { id: 'keybindings', label: 'Keybindings', keywords: ['shortcuts', 'hotkeys', 'keyboard'] },
-      { id: 'modules', label: 'Sidebar', keywords: ['modules', 'navigation', 'menu'] },
-      { id: 'delete-account', label: 'Delete Account', keywords: ['remove', 'close account'] },
+      {
+        id: 'profile',
+        label: 'Profile',
+        icon: User,
+        description: 'Your name, avatar and what you have been working on.',
+        keywords: ['account', 'user'],
+      },
+      {
+        id: 'appearance',
+        label: 'Appearance',
+        icon: Palette,
+        description: 'Theme, language and how the interface is laid out.',
+        keywords: ['theme', 'dark mode', 'language', 'tabs', 'look'],
+      },
+      {
+        id: 'preferences',
+        label: 'General',
+        icon: SlidersHorizontal,
+        description: 'Syncing, file handling, updates and privacy.',
+        keywords: ['preferences', 'options', 'sync', 'updates'],
+      },
+      {
+        id: 'sessions',
+        label: 'Devices',
+        icon: MonitorSmartphone,
+        description: 'The devices where you are signed in.',
+        keywords: ['sessions', 'sign out', 'logout', 'machines'],
+      },
+      {
+        id: 'keybindings',
+        label: 'Keyboard Shortcuts',
+        icon: Keyboard,
+        description: 'Keys for moving around and acting on files.',
+        keywords: ['keybindings', 'shortcuts', 'hotkeys', 'keyboard'],
+      },
+      {
+        id: 'modules',
+        label: 'Sidebar',
+        icon: PanelLeft,
+        description: 'Which modules appear in the activity bar, and in what order.',
+        keywords: ['modules', 'navigation', 'menu', 'activity bar'],
+      },
+      {
+        id: 'delete-account',
+        label: 'Delete Account',
+        icon: Trash2,
+        description: 'Permanently delete your BluePLM account.',
+        danger: true,
+        keywords: ['remove', 'close account'],
+      },
     ],
   },
   {
     category: 'Organization',
     items: [
-      { id: 'supabase', label: 'Supabase', keywords: ['database', 'backend', 'server'], desktopOnly: true },
-      { id: 'backup', label: 'Backups', keywords: ['restore', 'snapshot'], desktopOnly: true },
-      { id: 'vaults', label: 'Vaults', keywords: ['folders', 'storage'] },
-      { id: 'team-members', label: 'Members & Teams', keywords: ['users', 'people', 'invite'] },
-      { id: 'module-access', label: 'Module Access', keywords: ['permissions', 'roles'] },
-      { id: 'company-profile', label: 'Company Profile', keywords: ['organization', 'logo'] },
-      { id: 'auth-providers', label: 'Sign-In Methods', keywords: ['login', 'sso', 'auth'] },
-      { id: 'serialization', label: 'Serialization', keywords: ['serial numbers', 'numbering'] },
-      { id: 'export', label: 'Export Options', keywords: ['pdf', 'step', 'dxf'] },
-      { id: 'metadata-columns', label: 'File Metadata', keywords: ['columns', 'properties'] },
-      { id: 'file-workflows', label: 'File Workflows', keywords: ['workflow', 'review stage', 'approval'] },
-      { id: 'item-designations', label: 'Item Designations', keywords: ['part types'] },
-      { id: 'rfq', label: 'RFQ Settings', keywords: ['quote', 'request for quote'] },
-      { id: 'recovery-codes', label: 'Recovery Codes', keywords: ['admin recovery'] },
+      {
+        id: 'company-profile',
+        label: 'Company',
+        icon: Building2,
+        description: 'Your company name, logo, addresses and contact details.',
+        keywords: ['organization', 'logo', 'company profile'],
+      },
+      {
+        id: 'team-members',
+        label: 'Members & Teams',
+        icon: Users,
+        description: 'People in your organization, their teams and their permissions.',
+        layout: 'wide',
+        keywords: ['users', 'people', 'invite'],
+      },
+      {
+        id: 'module-access',
+        label: 'Module Access',
+        icon: ShieldCheck,
+        description: 'Which modules each team can open.',
+        layout: 'wide',
+        keywords: ['permissions', 'roles'],
+      },
+      {
+        id: 'auth-providers',
+        label: 'Sign-In Methods',
+        icon: KeyRound,
+        description: 'How people in your organization sign in.',
+        keywords: ['login', 'sso', 'auth'],
+      },
+      {
+        id: 'recovery-codes',
+        label: 'Recovery Codes',
+        icon: LifeBuoy,
+        description: 'Codes that restore admin access if every admin is locked out.',
+        keywords: ['admin recovery'],
+      },
+      {
+        id: 'backup',
+        label: 'Backups',
+        icon: DatabaseBackup,
+        description: 'Scheduled backups of your vaults and database.',
+        desktopOnly: true,
+        keywords: ['restore', 'snapshot'],
+      },
     ],
   },
   {
-    category: 'Extensions',
+    category: 'Files & Data',
     items: [
-      { id: 'extension-store', label: 'Extension Store', keywords: ['plugins', 'install'], desktopOnly: true },
-      { id: 'solidworks', label: 'SolidWorks', keywords: ['cad', 'sw'], desktopOnly: true },
-      { id: 'google-drive', label: 'Google Drive', keywords: ['gdrive'] },
-      { id: 'odoo', label: 'Odoo ERP', keywords: ['erp'] },
-      { id: 'api', label: 'REST API', keywords: ['tokens', 'api keys'] },
-      { id: 'webhooks', label: 'Webhooks', keywords: ['events', 'notifications'] },
+      {
+        id: 'vaults',
+        label: 'Vaults',
+        icon: HardDrive,
+        description: 'Create vaults, connect them on this computer and choose who can see them.',
+        layout: 'wide',
+        keywords: ['folders', 'storage'],
+      },
+      {
+        id: 'metadata-columns',
+        label: 'File Metadata',
+        icon: Columns3,
+        description: 'The properties BluePLM tracks for files and shows as columns.',
+        layout: 'wide',
+        keywords: ['columns', 'properties'],
+      },
+      {
+        id: 'file-workflows',
+        label: 'File Workflows',
+        icon: GitBranch,
+        description: 'Whether files move through workflow states, and how review stages behave.',
+        keywords: ['workflow', 'review stage', 'approval'],
+      },
+      {
+        id: 'item-designations',
+        label: 'Item Designations',
+        icon: Tags,
+        description: 'The kinds of item your part numbers describe.',
+        keywords: ['part types'],
+      },
+      {
+        id: 'serialization',
+        label: 'Serialization',
+        icon: Hash,
+        description: 'How part and serial numbers are generated.',
+        keywords: ['serial numbers', 'numbering'],
+      },
+      {
+        id: 'export',
+        label: 'Export',
+        icon: FileOutput,
+        description: 'File names and options for PDF, STEP, DXF and other exports.',
+        keywords: ['pdf', 'step', 'dxf', 'export options'],
+      },
+      {
+        id: 'rfq',
+        label: 'RFQ',
+        icon: ClipboardList,
+        description: 'What goes on the requests for quote you send to suppliers.',
+        keywords: ['quote', 'request for quote', 'rfq settings'],
+      },
     ],
   },
   {
-    category: 'System',
+    category: 'Integrations',
     items: [
-      { id: 'performance', label: 'Performance', keywords: ['speed', 'memory', 'cpu'], desktopOnly: true },
-      { id: 'logs', label: 'Logs', keywords: ['debug', 'errors'], desktopOnly: true },
-      { id: 'dev-tools', label: 'Dev Tools', keywords: ['developer', 'debug'], desktopOnly: true },
-      { id: 'about', label: 'About', keywords: ['version', 'update', 'license'], desktopOnly: true },
+      {
+        id: 'solidworks',
+        label: 'SOLIDWORKS',
+        icon: Box,
+        description: 'The SOLIDWORKS service, licences and file metadata on this computer.',
+        layout: 'wide',
+        desktopOnly: true,
+        keywords: ['cad', 'sw', 'solidworks'],
+      },
+      {
+        id: 'google-drive',
+        label: 'Google Drive',
+        icon: Cloud,
+        description: 'Connect Google Drive to browse and open Drive files in BluePLM.',
+        keywords: ['gdrive'],
+      },
+      {
+        id: 'odoo',
+        label: 'Odoo ERP',
+        icon: Factory,
+        description: 'Sync suppliers and items with Odoo.',
+        keywords: ['erp'],
+      },
+      {
+        id: 'api',
+        label: 'REST API',
+        icon: Braces,
+        description: 'The BluePLM API server and its access tokens.',
+        keywords: ['tokens', 'api keys'],
+      },
+      {
+        id: 'webhooks',
+        label: 'Webhooks',
+        icon: Webhook,
+        description: 'Send events to other services when things change in BluePLM.',
+        keywords: ['events', 'notifications'],
+      },
+      {
+        id: 'extension-store',
+        label: 'Extensions',
+        icon: Puzzle,
+        description: 'Browse, install and manage extensions.',
+        layout: 'wide',
+        desktopOnly: true,
+        keywords: ['plugins', 'install', 'extension store'],
+      },
+    ],
+  },
+  {
+    category: 'This Computer',
+    items: [
+      {
+        id: 'supabase',
+        label: 'Connection',
+        icon: Plug,
+        description: 'The BluePLM server this app is connected to.',
+        desktopOnly: true,
+        keywords: ['supabase', 'database', 'backend', 'server'],
+      },
+      {
+        id: 'performance',
+        label: 'Performance',
+        icon: Gauge,
+        description: 'Memory, CPU and how hard BluePLM works in the background.',
+        desktopOnly: true,
+        keywords: ['speed', 'memory', 'cpu'],
+      },
+      {
+        id: 'logs',
+        label: 'Logs',
+        icon: ScrollText,
+        description: 'What BluePLM has been doing, for troubleshooting.',
+        layout: 'full',
+        desktopOnly: true,
+        keywords: ['debug', 'errors'],
+      },
+      {
+        id: 'dev-tools',
+        label: 'Developer',
+        icon: Wrench,
+        description: 'Tools for diagnosing problems and testing BluePLM.',
+        desktopOnly: true,
+        keywords: ['developer', 'debug', 'dev tools'],
+      },
+      {
+        id: 'about',
+        label: 'About',
+        icon: Info,
+        description: 'Version, updates and licences.',
+        desktopOnly: true,
+        keywords: ['version', 'update', 'license'],
+      },
     ],
   },
 ]
+
+/** The navigation entry for `tab`, or undefined for a tab the navigation does not list. */
+export function findSettingsItem(tab: SettingsTab): SettingsNavigationItem | undefined {
+  for (const section of settingsSections()) {
+    const item = section.items.find((i) => i.id === tab)
+    if (item) return item
+  }
+  return undefined
+}
 
 export interface SettingsCatalogEntry {
   /** The setting's label as rendered in English, so its panel can be scrolled to it. */
@@ -97,35 +363,36 @@ export const settingsCatalog: SettingsCatalog = {
     { label: 'Emergency Admin Recovery', keywords: ['recovery', 'admin', 'lockout'] },
     { label: 'Recovery Code', keywords: ['code', 'admin access'] },
   ],
-  preferences: [
-    { label: 'Sessions', keywords: ['devices', 'sign out', 'logout'] },
-    { label: 'Application Updates', keywords: ['update', 'version', 'upgrade'], desktopOnly: true },
-    { label: 'Check for Updates', keywords: ['update', 'upgrade'], desktopOnly: true },
-    { label: 'Appearance', keywords: ['theme', 'dark mode', 'colors'] },
+  appearance: [
+    { label: 'Theme', keywords: ['dark mode', 'colors', 'appearance'] },
     { label: 'Dark', keywords: ['theme', 'dark mode'] },
     { label: 'Deep Blue', keywords: ['theme'] },
     { label: 'Light', keywords: ['theme', 'light mode'] },
     { label: 'System', keywords: ['theme', 'os theme'] },
     { label: 'Auto-apply seasonal themes', keywords: ['christmas', 'halloween', 'holiday'] },
-    { label: 'Language', keywords: ['locale', 'translation'] },
-    { label: 'Display Language', keywords: ['locale', 'translation', 'i18n'] },
-    { label: 'Sync Settings', keywords: ['download', 'sync'], desktopOnly: true },
+    { label: 'Display Language', keywords: ['language', 'locale', 'translation', 'i18n'] },
+    { label: 'Browser-like Tabs', keywords: ['tabs', 'multiple views', 'interface'] },
+  ],
+  preferences: [
+    { label: 'Application Updates', keywords: ['update', 'version', 'upgrade'], desktopOnly: true },
+    { label: 'Check for Updates', keywords: ['update', 'upgrade'], desktopOnly: true },
+    { label: 'Sync', keywords: ['download', 'sync settings'], desktopOnly: true },
     { label: 'Auto-download cloud files', keywords: ['sync', 'download'], desktopOnly: true },
     { label: 'Auto-download file updates', keywords: ['sync', 'download', 'newer versions'], desktopOnly: true },
     { label: 'Skip large files', keywords: ['size limit', 'max size'], desktopOnly: true },
-    { label: 'Max file size:', keywords: ['size limit'], desktopOnly: true },
     { label: 'Excluded files', keywords: ['exclude', 'skip list'], desktopOnly: true },
     { label: 'Privacy', keywords: ['analytics', 'telemetry'], desktopOnly: true },
     { label: 'Usage Statistics', keywords: ['analytics', 'telemetry', 'error reports', 'crash'], desktopOnly: true },
-    { label: 'Interface', keywords: ['ui', 'layout'] },
-    { label: 'Browser-like Tabs', keywords: ['tabs', 'multiple views'] },
-    { label: 'File Extensions', keywords: ['extension'], desktopOnly: true },
     { label: 'Lowercase Extensions on Upload', keywords: ['lowercase', 'extension', 'case'], desktopOnly: true },
     {
       label: 'Ignore Patterns (Keep Local Only)',
       keywords: ['ignore', 'gitignore', 'exclude', 'local only'],
       desktopOnly: true,
     },
+  ],
+  sessions: [
+    { label: 'Signed-in devices', keywords: ['sessions', 'devices', 'machines'] },
+    { label: 'Sign out', keywords: ['logout', 'sign out this device'] },
   ],
   keybindings: [
     { label: 'Keyboard Shortcuts', keywords: ['hotkeys', 'keys', 'shortcuts', 'bindings'] },

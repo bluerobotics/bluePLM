@@ -185,11 +185,7 @@ export function EditStateDialog({ state, onClose, onSave }: EditStateDialogProps
                 No workflow roles defined.{' '}
                 <button
                   onClick={() => {
-                    const { setActiveView } = usePDMStore.getState()
-                    setActiveView('settings')
-                    window.dispatchEvent(
-                      new CustomEvent('navigate-settings-tab', { detail: 'team-members' }),
-                    )
+                    usePDMStore.getState().openSettings('team-members')
                     setTimeout(() => {
                       window.dispatchEvent(
                         new CustomEvent('navigate-team-members-tab', { detail: 'users' }),

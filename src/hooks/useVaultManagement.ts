@@ -51,9 +51,6 @@ export function useVaultManagement() {
     })),
   )
 
-  // Get setSettingsTab from store (added by Agent 2)
-  const setSettingsTab = usePDMStore((s) => s.setSettingsTab)
-
   // Vault not found dialog state
   const [vaultNotFoundPath, setVaultNotFoundPath] = useState<string | null>(null)
   const [vaultNotFoundName, setVaultNotFoundName] = useState<string | undefined>(undefined)
@@ -128,12 +125,10 @@ export function useVaultManagement() {
 
   // Handle vault not found - open settings to vaults tab where vaults are managed
   const handleVaultNotFoundSettings = useCallback(() => {
-    const { setActiveView } = usePDMStore.getState()
-    setSettingsTab('vaults')
-    setActiveView('settings')
+    usePDMStore.getState().openSettings('vaults')
     setVaultNotFoundPath(null)
     setVaultNotFoundName(undefined)
-  }, [setSettingsTab])
+  }, [])
 
   // Close vault not found dialog
   const handleCloseVaultNotFound = useCallback(() => {

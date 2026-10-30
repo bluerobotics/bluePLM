@@ -5,13 +5,19 @@ import { usePDMStore } from '@/stores/pdmStore'
 import { ExtensionStoreView } from '@/features/extensions'
 import { SettingsSearchResults } from './SettingsSearchResults'
 import { findSettingElement, flashSettingElement } from '../revealSetting'
-import { isDesktopOnlySettingsTab } from '../settingsCatalog'
+import { findSettingsItem, isDesktopOnlySettingsTab } from '../settingsCatalog'
 import { hasDesktop } from '@/lib/platform'
 
 // Lazy loaded settings panels - only loaded when the tab is selected
 // This saves memory by not loading all settings components upfront
 const ProfileSettings = lazy(() =>
   import('../account/ProfileSettings').then((m) => ({ default: m.ProfileSettings })),
+)
+const AppearanceSettings = lazy(() =>
+  import('../account/AppearanceSettings').then((m) => ({ default: m.AppearanceSettings })),
+)
+const SessionsSettings = lazy(() =>
+  import('../account/SessionsSettings').then((m) => ({ default: m.SessionsSettings })),
 )
 const PreferencesSettings = lazy(() =>
   import('../account/PreferencesSettings').then((m) => ({ default: m.PreferencesSettings })),
@@ -162,14 +168,23 @@ export function SettingsContent({ activeTab }: SettingsContentProps) {
   const searchQuery = usePDMStore((s) => s.settingsSearchQuery)
   const containerRef = useRevealSearchedSetting(activeTab)
 
+  // Each page opens at its top, not at the previous page's scroll position.
+  useEffect(() => {
+    containerRef.current?.scrollTo({ top: 0 })
+  }, [activeTab, containerRef])
+
   const renderContent = () => {
     // A desktop-only tab (persisted or deep-linked) never renders on the web.
     if (!hasDesktop() && isDesktopOnlySettingsTab(activeTab)) return <ProfileSettings />
     switch (activeTab) {
       case 'profile':
         return <ProfileSettings />
+      case 'appearance':
+        return <AppearanceSettings />
       case 'preferences':
         return <PreferencesSettings />
+      case 'sessions':
+        return <SessionsSettings />
       case 'keybindings':
         return <KeybindingsSettings />
       case 'modules':
@@ -235,19 +250,31 @@ export function SettingsContent({ activeTab }: SettingsContentProps) {
     return <SettingsSearchResults />
   }
 
-  // Logs view needs full width for the log viewer
-  if (activeTab === 'logs') {
+  const item = findSettingsItem(activeTab)
+  const layout = item?.layout ?? 'default'
+  const header = item && (
+    <header className="mb-7 flex-shrink-0">
+      <h1 className="text-[20px] font-semibold tracking-tight text-plm-fg">{item.label}</h1>
+      <p className="mt-1 text-[13px] text-plm-fg-muted">{item.description}</p>
+    </header>
+  )
+
+  // A full page (the log viewer) fills the height and scrolls itself.
+  if (layout === 'full') {
     return (
-      <div ref={containerRef} className="flex-1 overflow-hidden bg-plm-bg p-4">
-        <Suspense fallback={<SettingsLoading />}>{renderContent()}</Suspense>
+      <div ref={containerRef} className="flex min-h-0 flex-1 flex-col px-8 pb-6 pt-7">
+        {header}
+        <div className="min-h-0 flex-1">
+          <Suspense fallback={<SettingsLoading />}>{renderContent()}</Suspense>
+        </div>
       </div>
     )
   }
 
   return (
-    <div ref={containerRef} className="flex-1 overflow-y-auto bg-plm-bg">
-      {/* SOLIDWORKS is wider for its Metadata Audit file list; its other tabs keep 6xl themselves. */}
-      <div className={`${activeTab === 'solidworks' ? 'max-w-[110rem]' : 'max-w-6xl'} mx-auto p-6`}>
+    <div ref={containerRef} className="min-h-0 flex-1 overflow-y-auto">
+      <div className={`mx-auto px-8 pb-16 pt-7 ${layout === 'wide' ? 'max-w-none' : 'max-w-[860px]'}`}>
+        {header}
         <Suspense fallback={<SettingsLoading />}>{renderContent()}</Suspense>
       </div>
     </div>

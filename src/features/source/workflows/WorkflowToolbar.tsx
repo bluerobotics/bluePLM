@@ -106,9 +106,7 @@ export function WorkflowToolbar({
   }
 
   const navigateToRoles = () => {
-    const { setActiveView } = usePDMStore.getState()
-    setActiveView('settings')
-    window.dispatchEvent(new CustomEvent('navigate-settings-tab', { detail: 'team-members' }))
+    usePDMStore.getState().openSettings('team-members')
     // Switch to users tab after a brief delay to ensure component mounts
     setTimeout(() => {
       window.dispatchEvent(new CustomEvent('navigate-team-members-tab', { detail: 'users' }))

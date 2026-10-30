@@ -43,6 +43,7 @@ export function ActivityItem({
 }: ActivityItemProps) {
   // Selective selectors: only re-render when specific values change
   const activeView = usePDMStore((s) => s.activeView)
+  const settingsOpen = usePDMStore((s) => s.settingsOpen)
   const setActiveView = usePDMStore((s) => s.setActiveView)
   const activityBarMode = usePDMStore((s) => s.activityBarMode)
   const isExpanded = useContext(ExpandedContext)
@@ -51,7 +52,8 @@ export function ActivityItem({
   const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 })
   const [showSubmenu, setShowSubmenu] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
-  const isActive = activeView === view && !isComingSoon
+  // Settings is a modal, not a view: its item is lit while the modal is open.
+  const isActive = (view === 'settings' ? settingsOpen : activeView === view) && !isComingSoon
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const submenuTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 

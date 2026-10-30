@@ -2,10 +2,11 @@ import { useEffect, useRef } from 'react'
 import { Search, X } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { useTranslation } from '@/lib/i18n'
+import { FIELD_CLASS } from '@/components/core/ui'
 import { useSettingsSearch } from '../useSettingsSearch'
 
 /**
- * The search box at the top of the settings sidebar. Typing filters live: the main view shows
+ * The search box at the top of the settings navigation. Typing filters live: the main view shows
  * the matching settings and the navigation narrows to their tabs. Arrow keys move through the
  * results, Enter opens the highlighted one, Escape clears. Ctrl/Cmd+F focuses the box.
  */
@@ -58,7 +59,7 @@ export function SettingsSearchBox() {
   }
 
   return (
-    <div className="px-3 pt-3 pb-1">
+    <div className="px-2.5 pb-1 pt-3">
       <div className="relative flex items-center">
         <Search
           size={14}
@@ -75,7 +76,7 @@ export function SettingsSearchBox() {
           aria-label={t('settings.searchPlaceholder')}
           spellCheck={false}
           autoComplete="off"
-          className="w-full h-8 pl-8 pr-7 rounded-lg bg-plm-bg border border-plm-border text-[13px] text-plm-fg placeholder:text-plm-fg-muted/70 outline-none focus:border-plm-accent focus:ring-1 focus:ring-plm-accent/40 transition-colors"
+          className={`${FIELD_CLASS} h-8 pl-8 pr-7`}
         />
         {query && (
           <button

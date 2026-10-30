@@ -596,6 +596,8 @@ export interface UISlice {
   bottomPanelTabOrder: DetailsPanelTab[]
 
   // Settings navigation
+  /** The settings modal is open. Settings is a modal over the app, never a sidebar view. */
+  settingsOpen: boolean
   settingsTab: SettingsTab
   /** Live query of the settings sidebar search box; non-empty shows results in the main view. */
   settingsSearchQuery: string
@@ -677,6 +679,9 @@ export interface UISlice {
   addTerminalHistory: (command: string) => void
 
   // Settings navigation
+  /** Open the settings modal, on `tab` when given (else the last tab shown). */
+  openSettings: (tab?: SettingsTab) => void
+  closeSettings: () => void
   setSettingsTab: (tab: SettingsTab) => void
   setSettingsSearchQuery: (query: string) => void
   setSettingsSearchActiveIndex: (index: number) => void

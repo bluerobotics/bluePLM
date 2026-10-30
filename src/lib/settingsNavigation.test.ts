@@ -6,39 +6,36 @@ import {
 } from './settingsNavigation'
 
 describe('settings navigation events', () => {
-  it.each(SETTINGS_TABS)('opens the settings view for %s', (tab) => {
-    const actions = { setActiveView: vi.fn(), setSettingsTab: vi.fn() }
+  it.each(SETTINGS_TABS)('opens the settings modal on %s', (tab) => {
+    const actions = { openSettings: vi.fn() }
     expect(
       applySettingsNavigationEvent(
         new CustomEvent('navigate-settings-tab', { detail: tab }),
         actions,
       ),
     ).toBe(true)
-    expect(actions.setSettingsTab).toHaveBeenCalledWith(tab)
-    expect(actions.setActiveView).toHaveBeenCalledWith('settings')
+    expect(actions.openSettings).toHaveBeenCalledWith(tab)
   })
 
   it.each(['unknown', null, 42])('ignores invalid tab %s', (tab) => {
-    const actions = { setActiveView: vi.fn(), setSettingsTab: vi.fn() }
+    const actions = { openSettings: vi.fn() }
     expect(
       applySettingsNavigationEvent(
         new CustomEvent('navigate-settings-tab', { detail: tab }),
         actions,
       ),
     ).toBe(false)
-    expect(actions.setActiveView).not.toHaveBeenCalled()
-    expect(actions.setSettingsTab).not.toHaveBeenCalled()
+    expect(actions.openSettings).not.toHaveBeenCalled()
   })
 
   it('registers and disposes the listener', () => {
     const target = new EventTarget() as unknown as Window
-    const actions = { setActiveView: vi.fn(), setSettingsTab: vi.fn() }
+    const actions = { openSettings: vi.fn() }
     const dispose = registerSettingsNavigationListener(target, actions)
     target.dispatchEvent(new CustomEvent('navigate-settings-tab', { detail: 'export' }))
-    expect(actions.setSettingsTab).toHaveBeenCalledWith('export')
-    expect(actions.setActiveView).toHaveBeenCalledWith('settings')
+    expect(actions.openSettings).toHaveBeenCalledWith('export')
     dispose()
     target.dispatchEvent(new CustomEvent('navigate-settings-tab', { detail: 'export' }))
-    expect(actions.setSettingsTab).toHaveBeenCalledTimes(1)
+    expect(actions.openSettings).toHaveBeenCalledTimes(1)
   })
 })

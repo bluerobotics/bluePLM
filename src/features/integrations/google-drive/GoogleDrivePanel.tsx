@@ -962,7 +962,7 @@ export function GoogleDrivePanel() {
                 Settings.
               </p>
               <button
-                onClick={() => usePDMStore.getState().setActiveView('settings')}
+                onClick={() => usePDMStore.getState().openSettings('google-drive')}
                 className="inline-flex items-center gap-2 px-6 py-3 bg-plm-accent text-white rounded-lg hover:bg-plm-accent/90 transition-colors font-medium"
               >
                 <Settings size={20} />

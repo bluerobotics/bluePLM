@@ -23,7 +23,7 @@ describe('settings catalog', () => {
 
 describe('searchSettings', () => {
   it('finds an individual setting by its label', () => {
-    expect(top('dark')).toMatchObject({ tab: 'preferences', label: 'Dark' })
+    expect(top('dark')).toMatchObject({ tab: 'appearance', label: 'Dark' })
     expect(top('keepout')).toMatchObject({ tab: 'serialization', label: 'Keepout Zones' })
   })
 

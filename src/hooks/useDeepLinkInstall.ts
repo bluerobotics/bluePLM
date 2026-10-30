@@ -20,8 +20,7 @@ import { log } from '@/lib/logger'
  * 3. Stores the pending install so ExtensionStoreView can show the install dialog
  */
 export function useDeepLinkInstall(): void {
-  const setActiveView = usePDMStore((s) => s.setActiveView)
-  const setSettingsTab = usePDMStore((s) => s.setSettingsTab)
+  const openSettings = usePDMStore((s) => s.openSettings)
   const setPendingDeepLinkInstall = usePDMStore((s) => s.setPendingDeepLinkInstall)
   const fetchStoreExtensions = usePDMStore((s) => s.fetchStoreExtensions)
   const addToast = usePDMStore((s) => s.addToast)
@@ -46,8 +45,7 @@ export function useDeepLinkInstall(): void {
       fetchStoreExtensions()
 
       // Navigate to the extension store
-      setActiveView('settings')
-      setSettingsTab('extension-store')
+      openSettings('extension-store')
 
       // Store the pending install - ExtensionStoreView will pick this up
       setPendingDeepLinkInstall({
@@ -62,5 +60,5 @@ export function useDeepLinkInstall(): void {
     return () => {
       unsubscribe()
     }
-  }, [setActiveView, setSettingsTab, setPendingDeepLinkInstall, fetchStoreExtensions, addToast])
+  }, [openSettings, setPendingDeepLinkInstall, fetchStoreExtensions, addToast])
 }

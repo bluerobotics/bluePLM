@@ -88,9 +88,7 @@ export function SolidWorksStatusIndicator() {
   }
 
   const openSettings = () => {
-    const { setActiveView, setSettingsTab } = usePDMStore.getState()
-    setActiveView('settings')
-    setSettingsTab('solidworks')
+    usePDMStore.getState().openSettings('solidworks')
     setShowPanel(false)
   }
 

@@ -32,7 +32,14 @@ export function findSettingElement(root: HTMLElement, label: string): HTMLElemen
 /** Scroll `el` into the middle of its scroller and flash the row that holds it. */
 export function flashSettingElement(el: HTMLElement, root: HTMLElement): void {
   el.scrollIntoView({ block: 'center', behavior: 'smooth' })
-  const target = el.parentElement && el.parentElement !== root ? el.parentElement : el
+  // A SettingRow flashes as a whole; other markup flashes the label's parent.
+  const row = el.closest<HTMLElement>('[data-setting-row]')
+  const target =
+    row && root.contains(row)
+      ? row
+      : el.parentElement && el.parentElement !== root
+        ? el.parentElement
+        : el
   target.classList.remove('settings-search-flash')
   // Restart the animation when the same setting is opened twice in a row.
   void target.offsetWidth

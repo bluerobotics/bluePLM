@@ -98,7 +98,6 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
     connectedVaults,
     activeVaultId,
     switchVault,
-    setActiveView,
     isOfflineMode,
     setOfflineMode,
     sidebarVisible,
@@ -125,7 +124,6 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
       connectedVaults: s.connectedVaults,
       activeVaultId: s.activeVaultId,
       switchVault: s.switchVault,
-      setActiveView: s.setActiveView,
       isOfflineMode: s.isOfflineMode,
       setOfflineMode: s.setOfflineMode,
       sidebarVisible: s.sidebarVisible,
@@ -1028,12 +1026,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
                     <button
                       onClick={() => {
                         setShowUserMenu(false)
-                        setActiveView('settings')
-                        setTimeout(() => {
-                          window.dispatchEvent(
-                            new CustomEvent('navigate-settings-tab', { detail: 'profile' }),
-                          )
-                        }, 0)
+                        usePDMStore.getState().openSettings()
                       }}
                       className="w-full flex items-center gap-3 px-4 py-2 text-sm text-plm-fg hover:bg-plm-bg-lighter transition-colors"
                     >

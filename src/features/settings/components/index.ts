@@ -1,4 +1,6 @@
 export { SettingsContent } from './SettingsContent'
+export { SettingsModal } from './SettingsModal'
 export { SettingsNavigation } from './SettingsNavigation'
 export { SettingsSearchBox } from './SettingsSearchBox'
 export { SettingsSearchResults } from './SettingsSearchResults'
+export { SettingRow, SettingsGroup, SettingsPage, SettingsSection } from './ui'

@@ -445,7 +445,12 @@ export const usePDMStore = create<PDMStoreState>()(
         const persistedActiveView = persisted.activeView as string | undefined
         const validModuleIds: Set<string> = new Set(MODULES.map((m) => m.id))
         let validActiveView: SidebarView = 'explorer'
-        if (persistedActiveView && validModuleIds.has(persistedActiveView)) {
+        // Settings used to be a sidebar view; it is a modal now, so a persisted 'settings' falls back.
+        if (
+          persistedActiveView &&
+          persistedActiveView !== 'settings' &&
+          validModuleIds.has(persistedActiveView)
+        ) {
           validActiveView = persistedActiveView as SidebarView
         } else if (persistedActiveView?.startsWith('group-')) {
           const children = getChildModules(persistedActiveView, getDefaultModuleConfig())

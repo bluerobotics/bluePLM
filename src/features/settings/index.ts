@@ -1,5 +1,5 @@
 // Main components
-export { SettingsContent, SettingsNavigation } from './components'
+export { SettingsContent, SettingsModal, SettingsNavigation } from './components'
 
 // Account settings
 export * from './account'

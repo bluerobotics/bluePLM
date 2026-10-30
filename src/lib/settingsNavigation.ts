@@ -6,12 +6,14 @@ export function isSettingsTab(value: unknown): value is SettingsTab {
   return typeof value === 'string' && SETTINGS_TAB_SET.has(value)
 }
 
+interface SettingsNavigationActions {
+  /** Open the settings modal on `tab`. */
+  openSettings: (tab: SettingsTab) => void
+}
+
 export function registerSettingsNavigationListener(
   target: Pick<Window, 'addEventListener' | 'removeEventListener'>,
-  actions: {
-    setActiveView: (view: 'settings') => void
-    setSettingsTab: (tab: SettingsTab) => void
-  },
+  actions: SettingsNavigationActions,
 ): () => void {
   const listener = (event: Event) => applySettingsNavigationEvent(event, actions)
   target.addEventListener('navigate-settings-tab', listener)
@@ -20,14 +22,10 @@ export function registerSettingsNavigationListener(
 
 export function applySettingsNavigationEvent(
   event: Event,
-  actions: {
-    setActiveView: (view: 'settings') => void
-    setSettingsTab: (tab: SettingsTab) => void
-  },
+  actions: SettingsNavigationActions,
 ): boolean {
   const tab = (event as CustomEvent<unknown>).detail
   if (!isSettingsTab(tab)) return false
-  actions.setSettingsTab(tab)
-  actions.setActiveView('settings')
+  actions.openSettings(tab)
   return true
 }

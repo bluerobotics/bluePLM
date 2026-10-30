@@ -3,7 +3,9 @@
 /** Canonical runtime list used by navigation events and SettingsTab. */
 export const SETTINGS_TABS = [
   'profile',
+  'appearance',
   'preferences',
+  'sessions',
   'keybindings',
   'modules',
   'vaults',

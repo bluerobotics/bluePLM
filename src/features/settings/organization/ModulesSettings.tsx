@@ -38,7 +38,6 @@ export function ModulesSettings() {
     forceOrgModuleDefaults,
     getEffectiveRole,
     organization,
-    setActiveView,
   } = usePDMStore(
     useShallow((s) => ({
       moduleConfig: s.moduleConfig,
@@ -49,7 +48,6 @@ export function ModulesSettings() {
       forceOrgModuleDefaults: s.forceOrgModuleDefaults,
       getEffectiveRole: s.getEffectiveRole,
       organization: s.organization,
-      setActiveView: s.setActiveView,
     })),
   )
 
@@ -242,7 +240,7 @@ export function ModulesSettings() {
               Teams with Custom Module Defaults
             </h2>
             <button
-              onClick={() => setActiveView('settings')}
+              onClick={() => usePDMStore.getState().setSettingsTab('team-members')}
               className="text-xs text-plm-accent hover:text-plm-accent/80 flex items-center gap-1"
             >
               Manage in Teams Settings

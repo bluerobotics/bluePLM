@@ -27,7 +27,6 @@ export function SuppliersView() {
   const {
     organization,
     addToast,
-    setActiveView,
     // Suppliers slice state
     suppliers,
     suppliersLoading,
@@ -39,7 +38,6 @@ export function SuppliersView() {
     useShallow((s) => ({
       organization: s.organization,
       addToast: s.addToast,
-      setActiveView: s.setActiveView,
       suppliers: s.suppliers,
       suppliersLoading: s.suppliersLoading,
       suppliersLoaded: s.suppliersLoaded,
@@ -127,7 +125,7 @@ export function SuppliersView() {
             'warning',
             'Odoo not configured. Go to Settings > Google Drive & ERP to set it up.',
           )
-          setActiveView('settings')
+          usePDMStore.getState().openSettings('odoo')
         } else {
           // Show more detailed error
           const debugInfo = data.debug

@@ -9,6 +9,7 @@ import { hasDesktop } from '@/lib/platform'
 import { Toast } from '@/components/core'
 import { ChristmasEffects, HalloweenEffects, WeatherEffects } from '@/components/effects/seasonal'
 import { ImpersonationBanner } from '@/components/shared/ImpersonationBanner'
+import { SettingsModal } from '@/features/settings'
 import {
   UpdateModal,
   OrphanedCheckoutsContainer,
@@ -103,7 +104,7 @@ export function AppShell({ showWelcome, isSignInScreen, handleChangeOrg }: AppSh
    */
   const detailOwningViews = ['items', 'workflows']
   const rightPanelOpen =
-    (reviewPackagePaneOpen && activeView !== 'settings') ||
+    reviewPackagePaneOpen ||
     extensionPanelOpen ||
     (activeView === 'items' && !!itemPanel) ||
     (!activeExtensionWorkspace &&
@@ -195,15 +196,10 @@ export function AppShell({ showWelcome, isSignInScreen, handleChangeOrg }: AppSh
         {sidebarVisible && !showWelcome && activeView !== 'workflows' && activeView !== 'items' && (
           <>
             <Sidebar />
-            {/* Resize handle for non-settings views, simple border for settings */}
-            {activeView === 'settings' ? (
-              <div className="w-px bg-plm-border flex-shrink-0" />
-            ) : (
-              <ResizeHandle
-                direction="horizontal"
-                onResizeStart={() => setIsResizingSidebar(true)}
-              />
-            )}
+            <ResizeHandle
+              direction="horizontal"
+              onResizeStart={() => setIsResizingSidebar(true)}
+            />
           </>
         )}
 
@@ -235,6 +231,9 @@ export function AppShell({ showWelcome, isSignInScreen, handleChangeOrg }: AppSh
       </div>
 
       <Toast />
+
+      {/* Settings: a modal over the current view, opened from anywhere through openSettings() */}
+      {!isSignInScreen && <SettingsModal />}
 
       {/* Desktop-only dialogs: app updates, SOLIDWORKS, and the local vault's checkouts. BluePLM
           Web has none of these. */}

@@ -1198,9 +1198,7 @@ export function FileTree({ onRefresh }: FileTreeProps) {
         <button
           onClick={() => {
             // Navigate to vault settings
-            const { setActiveView, setSettingsTab } = usePDMStore.getState()
-            setActiveView('settings')
-            setSettingsTab('vaults')
+            usePDMStore.getState().openSettings('vaults')
           }}
           className="btn btn-ghost btn-sm text-plm-accent hover:text-plm-accent"
         >

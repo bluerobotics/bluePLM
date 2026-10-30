@@ -10,7 +10,6 @@ import { isModuleVisible, type ModuleId } from '@/types/modules'
 import { Loader2, List, Lock } from 'lucide-react'
 
 // Eagerly loaded views (always needed)
-import { SettingsNavigation } from '@/features/settings'
 
 // Lazy loaded views - only loaded when the module is enabled and selected
 const FileTree = lazy(() =>
@@ -62,9 +61,6 @@ const GoogleDriveView = lazy(() =>
   import('@/features/integrations/google-drive').then((m) => ({ default: m.GoogleDriveView })),
 )
 
-// Fixed width for settings view (not resizable)
-const SETTINGS_SIDEBAR_WIDTH = 200
-
 // Loading fallback for lazy-loaded views
 function ViewLoading() {
   return (
@@ -107,8 +103,6 @@ export function Sidebar() {
   const sidebarWidth = usePDMStore((s) => s.sidebarWidth)
   const connectedVaults = usePDMStore((s) => s.connectedVaults)
   const moduleConfig = usePDMStore((s) => s.moduleConfig)
-  const settingsTab = usePDMStore((s) => s.settingsTab)
-  const setSettingsTab = usePDMStore((s) => s.setSettingsTab)
   const treeRowSize = usePDMStore((s) => s.treeRowSize)
   const setTreeRowSize = usePDMStore((s) => s.setTreeRowSize)
   const deniedModules = useDeniedModules()
@@ -118,15 +112,7 @@ export function Sidebar() {
   const { loadFiles } = useLoadFiles()
   const { handleOpenVault, handleOpenRecentVault } = useVaultManagement()
 
-  // Settings view uses fixed width, others use resizable width
-  const effectiveWidth = activeView === 'settings' ? SETTINGS_SIDEBAR_WIDTH : sidebarWidth
-
   const renderView = () => {
-    // Settings is always available
-    if (activeView === 'settings') {
-      return <SettingsNavigation activeTab={settingsTab} onTabChange={setSettingsTab} />
-    }
-
     // Native extension workspace: its own Navigator, in an error boundary
     if (extensionWorkspace) {
       if (deniedModules.has(activeView as ModuleId)) {
@@ -334,7 +320,7 @@ export function Sidebar() {
   return (
     <div
       className="bg-plm-sidebar flex flex-col overflow-hidden border-l border-plm-border"
-      style={{ width: effectiveWidth }}
+      style={{ width: sidebarWidth }}
     >
       {/* Sidebar header - compact uppercase style for all views */}
       <div className="sidebar-header h-9 flex items-center justify-between px-4 text-[11px] font-semibold text-plm-fg-dim tracking-wide border-b border-plm-border">

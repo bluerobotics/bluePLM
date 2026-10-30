@@ -5,7 +5,6 @@ import { t } from '@/lib/i18n'
 import { REACT_COMMIT_THRESHOLD_MS } from '@/lib/performanceThresholds'
 import { usePDMStore } from '@/stores/pdmStore'
 import { useLoadFiles, useVaultManagement } from '@/hooks'
-import { SettingsContent } from '@/features/settings'
 import { WelcomeScreen } from '@/components/shared/Screens'
 import {
   ExtensionWorkspaceView,
@@ -83,8 +82,6 @@ export function MainContent({
   onResizeDetailsStart,
   handleChangeOrg,
 }: MainContentProps) {
-  // Get settingsTab from store
-  const settingsTab = usePDMStore((s) => s.settingsTab)
   const activeReviewId = usePDMStore((s) => s.activeReviewId)
   const extensionWorkspace = useExtensionWorkspace(activeView)
 
@@ -114,7 +111,7 @@ export function MainContent({
       {/* Tab bar (browser-like tabs) - shown when FilePane is visible (not settings, google-drive, workflows, or reviews) */}
       {!showWelcome &&
         !extensionWorkspace &&
-        !['settings', 'google-drive', 'workflows', 'reviews', 'items'].includes(activeView) && (
+        !['google-drive', 'workflows', 'reviews', 'items'].includes(activeView) && (
           <TabBar />
         )}
 
@@ -123,9 +120,6 @@ export function MainContent({
       ) : extensionWorkspace ? (
         /* Native extension workspace - main area, in its own error boundary */
         <ExtensionWorkspaceView workspace={extensionWorkspace} />
-      ) : activeView === 'settings' ? (
-        /* Settings View - replaces entire main content area */
-        <SettingsContent activeTab={settingsTab} />
       ) : activeView === 'google-drive' ? (
         /* Google Drive View - replaces entire main content area (lazy loaded) */
         <Suspense fallback={<ContentLoading />}>

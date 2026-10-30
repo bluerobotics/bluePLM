@@ -283,6 +283,10 @@ export const en: TranslationDict = {
     searchNoResultsHint: 'Try fewer letters or a different word.',
     searchKeyboardHint: '↑ ↓ to move · Enter to open · Esc to clear',
     searchMatchedKeyword: 'matches "{{keyword}}"',
+    navigation: 'Settings sections',
+    maximize: 'Maximize',
+    restoreSize: 'Restore size',
+    close: 'Close settings (Esc)',
   },
 
   // Log viewer

@@ -75,8 +75,7 @@ export function App() {
   // Context menus dispatch this event from below the application shell.
   useEffect(() => {
     return registerSettingsNavigationListener(window, {
-      setActiveView: (view) => usePDMStore.getState().setActiveView(view),
-      setSettingsTab: (tab) => usePDMStore.getState().setSettingsTab(tab),
+      openSettings: (tab) => usePDMStore.getState().openSettings(tab),
     })
   }, [])
 
