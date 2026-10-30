@@ -7,7 +7,7 @@
  * - useWorkflowRoleDialogs for dialog state
  * - useWorkflowRoleHandlers for CRUD operations
  */
-import { Shield, Plus, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Pencil, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 
