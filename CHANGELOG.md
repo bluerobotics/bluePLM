@@ -6,11 +6,23 @@ All notable changes to BluePLM will be documented in this file.
 
 ## [Unreleased]
 
+## [5.1.0] - 2026-10-30
+
+Schemas 501 and 502 and API 4.1.0. An organization admin opens 5.1.0 and the app applies both migrations; every
+5.0 client is then asked to update (`client_min_version()` is 5.1.0, because 5.1.0 is the first client that
+reads deletes from realtime tombstones). Redeploy the API (4.1.0) at the same time.
+
 Server backups: schema 501 (`supabase/migrations/0501_server_backups.sql`, applied by the app like every
 migration) and API 4.1.0. Plan and decisions: `.cursor/plans/server-backups.plan.md`.
 
 ### Added
 
+- **Security monitoring.** Schema 502 records security events (refused sign-ups, cross-organization
+  probes, backup health) and alerts the organization's admins through notifications, with per-organization
+  settings. Where `pg_cron` is available it runs on a schedule inside your own database.
+- **Sign-ups that have nowhere to belong are refused** by a Supabase "Before User Created" auth hook
+  (`auth_hook_before_user_created`), and new organizations are created with their founder through
+  `org_create_with_founder()` and an invitation (admin setup Step 5).
 - **Backups that run on the server, with no computer on.** Settings > Backup > Where backups run:
   "BluePLM server" makes the API's backup worker run the schedule and the "Back up now" requests. It
   backs up the whole vault from storage (every version, including files nobody has downloaded) and the
@@ -28,6 +40,17 @@ migration) and API 4.1.0. Plan and decisions: `.cursor/plans/server-backups.plan
 
 ### Fixed
 
+- **Rate limits are per caller again on Railway.** API 4.0.0 saw every request as coming from Railway's
+  proxy, so all callers shared one limit. The API now takes the caller's address from `X-Real-IP` on
+  Railway (`CLIENT_IP_HEADER`, detected automatically there).
+- **Deletes no longer reach other organizations through realtime.** Realtime publishes inserts and updates
+  only; deletes arrive as tombstones that carry only what the receiving organization may see.
+- **Module access checks only answer for the caller's own organization**, email domains are unique across organizations
+  and must match the adding admin's verified address, and schema verification refuses a public function
+  missing from the release inventory.
+- **No third-party font requests.** Plus Jakarta Sans is bundled with the app; the web CSP no longer allows
+  Google Fonts.
+- The upgrade screen lists every pending migration when more than one is due.
 - **A scheduled backup missed while the designated computer was off was skipped for the day.** The
   schedule only fired if the app happened to poll inside the scheduled minute. Both runners now run the
   most recent missed slot once when they are back (`last_scheduled_slot`), and daylight-saving changes
