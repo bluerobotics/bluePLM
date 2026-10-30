@@ -45,7 +45,8 @@ describe('buildContentSecurityPolicy', () => {
   it('allows scripts and styles from this origin only, with no inline code or eval', () => {
     expect(csp.get('default-src')).toEqual(["'self'"])
     expect(csp.get('script-src')).toEqual(["'self'"])
-    expect(csp.get('style-src')).toEqual(["'self'", 'https://fonts.googleapis.com'])
+    expect(csp.get('style-src')).toEqual(["'self'"])
+    expect(csp.get('font-src')).toEqual(["'self'", 'data:'])
     const all = [...csp.values()].flat()
     expect(all).not.toContain("'unsafe-inline'")
     expect(all).not.toContain("'unsafe-eval'")
