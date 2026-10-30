@@ -70,3 +70,11 @@ numbered migrations. This work is ported as `supabase/migrations/0501_server_bac
 tables, with functions named `backup_row_export` / `backup_vault_object_list`, the table names in the
 export CASE and `BACKUP_TABLES` taken from `supabase/rename-map-5.0.json`, and the core.sql 113 bump
 dropped. The schema must not land on main before the 5.0 window (the nightly routine would apply it).
+
+## Names other work depends on (do not rename in 0501)
+
+Security release 0502 (branch `security-followup`, commit 82039950, `security_monitor_run()`) alerts org
+admins on backups and reads: `backup_config.run_location`, `server_worker_seen_at`, `is_schedule_enabled`,
+`updated_at`, `created_at`; `backup_history.kind`, `runner`, `status`, `started_at`, `completed_at`,
+`error_message`. Status values it relies on: `failed`, `warning`, `completed`; kind `backup`. Backup
+notifications therefore live in 0502, not here.
