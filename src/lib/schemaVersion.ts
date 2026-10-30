@@ -41,7 +41,7 @@ import { supabase } from './supabase'
 
 // The schema version this app version expects
 // Increment this when releasing app updates that require schema changes
-export const EXPECTED_SCHEMA_VERSION = 110
+export const EXPECTED_SCHEMA_VERSION = 111
 
 // Minimum schema version that will still work (for soft warnings vs hard errors)
 // Set this to allow some backwards compatibility
@@ -164,6 +164,8 @@ export const VERSION_DESCRIPTIONS: Record<number, string> = {
     "Shared color palette changes reach every client live. color_swatches joins the supabase_realtime publication and gets REPLICA IDENTITY FULL. Both are needed: the desktop subscribes to INSERT and DELETE filtered on org_id, and without the full identity a DELETE's old record carries only the primary key, so the org filter never matches and a removed org color stays on other clients until they reload. check_release_residue() refuses to stamp while color_swatches is missing from the publication or its relreplident is not 'f'.",
   110:
     "Reviews and file workflows work together. Files can be added to and removed from an open review (add_review_items, remove_review_items, list_open_reviews_for_files). File workflows can be turned off per organization (organizations.settings.file_workflows_enabled; execute_workflow_transition refuses WORKFLOWS_DISABLED). A review stage (workflow_states.triggers_review) names where approved files go (review_approved_state_id); an approved review moves them there automatically or holds them for the requester (advance_reviewed_files), and a package moves as one or approved files move ahead, per organizations.settings review_stage_on_approval and review_stage_package_policy. review_items records advanced_at and advanced_to_state_id.",
+  111:
+    "The database enforces vault access for file data. my_accessible_vault_ids() states the rule (an organization admin reads every vault of the organization; anyone else reads the vaults granted to them directly or through a team; no grant means no vault), and the SELECT and write policies of files, file_versions, folders, references, drawing PDFs, release files, comments, watchers, share links, workflow history, activity, inspection characteristics and ECO / deviation file links follow it. user_may_access_vault() now applies the same opt-in rule (it read no grants as unrestricted) and checks the vault is in the user's organization. require_file_access(), require_vault_access() and the vault load RPCs refuse a vault the caller may not see. vaults are readable by their own organization only. The vault storage bucket gets versioned policies: content is readable only through a readable file, version or drawing PDF, by its uploader, or by an admin; any other policy naming the bucket is dropped.",
   // Note: Process templates module (v26+) is optional - see modules/process-templates.sql
 }
 

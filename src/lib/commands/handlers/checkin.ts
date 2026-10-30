@@ -177,6 +177,7 @@ async function uploadFileContentToStorage(
 
     // Upload with retry
     let lastError: string | undefined
+    let alreadyStored = false
     for (let attempt = 1; attempt <= UPLOAD_MAX_RETRIES; attempt++) {
       const { error: uploadError } = await client.storage.from('vault').upload(storagePath, blob, {
         contentType: 'application/octet-stream',
@@ -185,6 +186,7 @@ async function uploadFileContentToStorage(
 
       if (uploadError) {
         if (uploadError.message.includes('already exists')) {
+          alreadyStored = true
           break // Content-addressable dedup -- this is fine
         }
         lastError = uploadError.message
@@ -209,6 +211,12 @@ async function uploadFileContentToStorage(
       lastError = undefined
       break
     }
+
+    // The server reported the object present. Content is deduplicated across
+    // vaults, and since schema 111 an object is listable only through a readable
+    // file row or by its uploader, so a copy uploaded from a vault this user
+    // cannot see is not listed to them: verifying by list() would fail here.
+    if (alreadyStored) return { success: true }
 
     // Post-upload verification: confirm the object exists with the expected size
     const { data: verified, error: verifyError } = await client.storage

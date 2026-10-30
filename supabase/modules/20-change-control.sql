@@ -724,16 +724,17 @@ CREATE POLICY "Admins can delete ECOs"
   ON ecos FOR DELETE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:eco', 'delete'));
 
--- File-ECO associations
+-- File-ECO associations. Schema 111: an ECO is org-wide, but its link to a
+-- file in a vault the caller may not see is not (my_accessible_vault_ids()).
 DROP POLICY IF EXISTS "Users can view file-eco associations" ON file_ecos;
 CREATE POLICY "Users can view file-eco associations"
   ON file_ecos FOR SELECT
-  USING (eco_id IN (SELECT id FROM ecos WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())));
+  USING (eco_id IN (SELECT id FROM ecos WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())) AND file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())));
 
 DROP POLICY IF EXISTS "Engineers can manage file-eco associations" ON file_ecos;
 CREATE POLICY "Engineers can manage file-eco associations"
   ON file_ecos FOR ALL
-  USING (eco_id IN (SELECT id FROM ecos WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())) AND user_has_team_permission('module:eco', 'edit'));
+  USING (eco_id IN (SELECT id FROM ecos WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())) AND file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())) AND user_has_team_permission('module:eco', 'edit'));
 
 -- Reviews (schema 107): SELECT-only for clients. Every write is a SECURITY
 -- DEFINER RPC below. The policies this replaces let a requester update every
@@ -808,16 +809,16 @@ CREATE POLICY "Admins can delete deviations"
   ON deviations FOR DELETE
   USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:deviations', 'delete'));
 
--- File-Deviation associations
+-- File-Deviation associations. Schema 111: as file_ecos.
 DROP POLICY IF EXISTS "Users can view file-deviation associations" ON file_deviations;
 CREATE POLICY "Users can view file-deviation associations"
   ON file_deviations FOR SELECT
-  USING (deviation_id IN (SELECT id FROM deviations WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())));
+  USING (deviation_id IN (SELECT id FROM deviations WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())) AND file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())));
 
 DROP POLICY IF EXISTS "Engineers can manage file-deviation associations" ON file_deviations;
 CREATE POLICY "Engineers can manage file-deviation associations"
   ON file_deviations FOR ALL
-  USING (deviation_id IN (SELECT id FROM deviations WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())) AND user_has_team_permission('module:deviations', 'edit'));
+  USING (deviation_id IN (SELECT id FROM deviations WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())) AND file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())) AND user_has_team_permission('module:deviations', 'edit'));
 
 -- Process Templates
 DROP POLICY IF EXISTS "Users can view org process templates" ON process_templates;
@@ -3651,6 +3652,13 @@ COMMENT ON TABLE eco_checklist_activity IS 'Audit trail for ECO checklist change
 -- ===========================================
 -- END OF CHANGE CONTROL MODULE
 -- ===========================================
+
+-- Schema 111 changed user_may_access_vault() to the opt-in rule: a member with no
+-- vault grant no longer sees any vault. A reviewer like that who still owes a
+-- decision is withdrawn now, at apply time, rather than at the next unrelated
+-- change to vault access. Finds nothing on a database where every reviewer has
+-- a grant; idempotent.
+SELECT review_withdraw_lost_reviewers();
 
 SELECT enforce_anon_execute_posture();
 

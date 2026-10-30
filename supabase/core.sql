@@ -115,19 +115,21 @@ ON CONFLICT (id) DO NOTHING;
 -- what a database must contain to be allowed to claim it.
 
 CREATE OR REPLACE FUNCTION schema_release_version() RETURNS INTEGER
-LANGUAGE sql IMMUTABLE AS $$ SELECT 110 $$;
+LANGUAGE sql IMMUTABLE AS $$ SELECT 111 $$;
 
 CREATE OR REPLACE FUNCTION schema_release_description() RETURNS TEXT
 LANGUAGE sql IMMUTABLE AS $$ SELECT
-  'Reviews and file workflows work together. Files can be added to and removed from an open '
-  'review (add_review_items, remove_review_items, list_open_reviews_for_files). File workflows '
-  'can be turned off per organization (organizations.settings.file_workflows_enabled; '
-  'execute_workflow_transition refuses WORKFLOWS_DISABLED). A review stage '
-  '(workflow_states.triggers_review) names where approved files go (review_approved_state_id); '
-  'an approved review moves them there automatically or holds them for the requester '
-  '(advance_reviewed_files), and a package moves as one or approved files move ahead, per '
-  'organizations.settings review_stage_on_approval and review_stage_package_policy. '
-  'review_items records advanced_at and advanced_to_state_id.'
+  'The database enforces vault access for file data. my_accessible_vault_ids() states the rule '
+  '(an organization admin reads every vault of the organization; anyone else reads the vaults '
+  'granted to them directly or through a team; no grant means no vault), and the SELECT and write '
+  'policies of files, file_versions, folders, references, drawing PDFs, release files, comments, '
+  'watchers, share links, workflow history, activity, inspection characteristics and ECO / '
+  'deviation file links follow it. user_may_access_vault() now applies the same opt-in rule (it '
+  'read no grants as unrestricted) and checks the vault is in the user''s organization. '
+  'require_file_access(), require_vault_access() and the vault load RPCs refuse a vault the caller '
+  'may not see. vaults are readable by their own organization only. The vault storage bucket gets '
+  'versioned policies: content is readable only through a readable file, version or drawing PDF, '
+  'by its uploader, or by an admin; any other policy naming the bucket is dropped.'
 $$;
 
 -- One row per object this release requires, scoped to the module that creates it.
@@ -358,10 +360,12 @@ LANGUAGE sql IMMUTABLE AS $$
     -- The two entity gates the rows below are pinned on. See the note beside
     -- is_org_admin() above for why a helper named by a `requires` clause has to
     -- be an entry in its own right.
+    -- may_access_vault since 111: membership alone admitted a file in a vault the
+    -- caller is not allowed to see.
     ('10-source-files', NULL, 'function', 'require_file_access(uuid)',
-      'current_actor_id && u.org_id = v_org_id'),
+      'current_actor_id && u.org_id = v_org_id && may_access_vault'),
     ('10-source-files', NULL, 'function', 'require_vault_access(uuid)',
-      'current_actor_id && u.org_id = v_org_id'),
+      'current_actor_id && u.org_id = v_org_id && may_access_vault'),
     ('10-source-files', NULL, 'function', 'merge_custom_properties(jsonb,jsonb)', NULL),
     ('10-source-files', NULL, 'function', 'checkin_file(uuid,uuid,text,bigint,text,text,text,text,integer,jsonb,text,text,text)', 'merge_custom_properties && checked_out_file_path'),
     -- Repairs what the pre-87 checkin_file erased, and can only add keys. Both
@@ -370,12 +374,17 @@ LANGUAGE sql IMMUTABLE AS $$
     -- ordinary member may perform an admin write. A version carrying only the
     -- first would let any member of the organization rewrite its metadata.
     ('10-source-files', NULL, 'function', 'repair_config_maps(uuid,jsonb)', 'require_org_member && is_org_admin'),
-    ('10-source-files', NULL, 'function', 'get_vault_files_fast(uuid,uuid)', 'require_org_member && checked_out_file_path'),
-    ('10-source-files', NULL, 'function', 'get_vault_files_delta(uuid,uuid,timestamptz)', 'require_org_member && checked_out_file_path'),
+    -- require_vault_access / my_accessible_vault_ids since 111: these bypass RLS,
+    -- so they must apply the vault rule themselves.
+    ('10-source-files', NULL, 'function', 'get_vault_files_fast(uuid,uuid)',
+      'require_org_member && checked_out_file_path && require_vault_access && my_accessible_vault_ids'),
+    ('10-source-files', NULL, 'function', 'get_vault_files_delta(uuid,uuid,timestamptz)',
+      'require_org_member && checked_out_file_path && require_vault_access'),
     -- Must stay SECURITY DEFINER and share get_vault_files_fast's predicate exactly -
     -- it exists only so the renderer's cache reconciliation count matches what that
     -- function and get_vault_files_delta return.
-    ('10-source-files', NULL, 'function', 'get_vault_files_count(uuid,uuid)', 'require_org_member'),
+    ('10-source-files', NULL, 'function', 'get_vault_files_count(uuid,uuid)',
+      'require_org_member && require_vault_access && my_accessible_vault_ids'),
     -- syncFile's own primary lookup stays byte-exact for speed and only
     -- reaches this, from its 23505 catch, once a differently-cased row has
     -- already proven a collision exists; getFileByPath had no
@@ -452,8 +461,18 @@ LANGUAGE sql IMMUTABLE AS $$
     ('10-source-files', NULL, 'function', 'effective_user_role(uuid)', 'is_org_admin'),
     ('10-source-files', NULL, 'function', 'gate_reviewer_user_ids(uuid,uuid)', 'effective_user_role'),
     ('10-source-files', NULL, 'function', 'gate_review_ids_awaiting(uuid)', 'may_review_gate'),
-    -- Vault visibility, by the renderer's rule (no rows = unrestricted).
-    ('10-source-files', NULL, 'function', 'user_may_access_vault(uuid,uuid)', 'is_org_admin && team_vault_access'),
+    -- Vault visibility, by the renderer's opt-in rule (schema 111: no grant means
+    -- no vault, and the vault must be in the user's organization; `u.org_id =
+    -- v.org_id` exists only in that version).
+    ('10-source-files', NULL, 'function', 'user_may_access_vault(uuid,uuid)',
+      'is_org_admin && team_vault_access && u.org_id = v.org_id'),
+    ('10-source-files', NULL, 'function', 'my_accessible_vault_ids()',
+      'is_org_admin && team_vault_access && u.org_id = v.org_id'),
+    -- The vault storage bucket's read test (schema 111), named by the bucket's
+    -- SELECT policy, which lives in the storage schema and is checked by
+    -- check_release_residue() rather than here.
+    ('10-source-files', NULL, 'function', 'may_read_vault_object(text)',
+      'my_accessible_vault_ids && file_versions && drawing_pdf_renders'),
     ('10-source-files', NULL, 'function', 'may_access_vault(uuid)', 'user_may_access_vault'),
     -- Version-accurate references and the drawing PDF cache (schema 107).
     ('10-source-files', NULL, 'table', 'file_version_references', NULL),
@@ -2267,6 +2286,7 @@ DECLARE
   color_swatches_realtime BOOLEAN;
   sw_licence_policy RECORD;
   review_write_policy RECORD;
+  vault_policy RECORD;
 BEGIN
   -- ---------------------------------------------------------------------
   -- Share links handing out a file in an organization somebody involved is not
@@ -2580,6 +2600,58 @@ BEGIN
       identity := 'public.' || sw_licence_policy.tablename || ' / ' || sw_licence_policy.policyname;
       detail := 'This policy lets a non-admin read another user''s SOLIDWORKS serial number. '
              || 'Re-run supabase/modules/40-integrations.sql, which drops it.';
+      RETURN NEXT;
+    END LOOP;
+  END IF;
+
+  -- File data follows vault access (schema 111). Every permissive policy that
+  -- lets a client read these tables (SELECT, or ALL, which includes it) must
+  -- apply my_accessible_vault_ids(), directly or through the files subquery that
+  -- names it. A leftover such as the pre-111 "Users can view org files" hands
+  -- every member every file of the organization, and policies are OR-ed.
+  FOR vault_policy IN
+    SELECT p.tablename, p.policyname
+      FROM pg_policies p
+     WHERE p.schemaname = 'public'
+       AND p.tablename IN ('files', 'file_versions', 'folders', 'file_references',
+                           'file_version_references', 'drawing_pdf_renders', 'release_files',
+                           'file_comments', 'file_watchers', 'file_share_links',
+                           'file_state_entries', 'file_workflow_assignments', 'workflow_history',
+                           'workflow_review_history', 'activity', 'inspection_characteristics',
+                           'inspection_characteristic_versions', 'file_ecos', 'file_deviations')
+       AND p.cmd IN ('SELECT', 'ALL')
+       AND p.permissive = 'PERMISSIVE'
+       AND COALESCE(p.qual, '') NOT LIKE '%my_accessible_vault_ids()%'
+  LOOP
+    residue := 'file_policy_ignores_vault_access';
+    identity := 'public.' || vault_policy.tablename || ' / ' || vault_policy.policyname;
+    detail := 'This policy lets a member read file data in a vault they have no access to. '
+           || 'Re-run supabase/modules/10-source-files.sql, 15-inspection.sql and '
+           || '20-change-control.sql, which replace it, then drop it if it is still listed.';
+    RETURN NEXT;
+  END LOOP;
+
+  -- The vault storage bucket (schema 111). Module 10 drops every policy naming
+  -- the bucket except its own four; one that remains, or a policy on
+  -- storage.objects that names no bucket at all, can hand out any object.
+  IF to_regclass('storage.objects') IS NOT NULL THEN
+    FOR vault_policy IN
+      SELECT p.tablename, p.policyname
+        FROM pg_policies p
+       WHERE p.schemaname = 'storage' AND p.tablename = 'objects'
+         AND p.permissive = 'PERMISSIVE'
+         AND p.policyname NOT IN ('Vault: read readable objects', 'Vault: upload to own organization',
+                                  'Vault: update own or org assets', 'Vault: delete own or as admin')
+         AND (
+           (COALESCE(p.qual, '') || ' ' || COALESCE(p.with_check, '')) LIKE '%''vault''%'
+           OR (COALESCE(p.qual, '') || ' ' || COALESCE(p.with_check, '')) NOT LIKE '%bucket_id%'
+         )
+    LOOP
+      residue := 'vault_storage_policy_unmanaged';
+      identity := 'storage.objects / ' || vault_policy.policyname;
+      detail := 'This storage policy can admit reads or writes of vault file content outside the '
+             || 'vault-access rule. Re-run supabase/modules/10-source-files.sql, which drops a '
+             || 'policy naming the vault bucket; a policy naming no bucket must be dropped by hand.';
       RETURN NEXT;
     END LOOP;
   END IF;

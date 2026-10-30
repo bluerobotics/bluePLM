@@ -361,9 +361,14 @@ END $$;
 -- ===========================================
 -- READ THIS BEFORE ASSUMING THE LIST IS COMPLETE
 --
--- These four names are the only ones this repository knows about, and it does
--- not know them from anything that creates them: no CREATE POLICY ... ON
--- storage.objects exists anywhere in the tree. The policies were committed once
+-- Since schema 111 modules/10-source-files.sql creates the vault bucket's
+-- policies (the four "Vault: ..." names below) and drops any other policy naming
+-- the bucket; re-applying it after a reset reinstalls them. What follows is the
+-- history from before that, kept because a database may predate 111.
+--
+-- These four legacy names were the only ones this repository knew about, and it
+-- did not know them from anything that creates them: no CREATE POLICY ... ON
+-- storage.objects existed anywhere in the tree. The policies were committed once
 -- in cbe3997 and lost when e82e19d deleted the monolithic schema.sql during
 -- modularization, before v3.0.0. Whatever a working deployment actually has was
 -- applied by hand afterwards and was never written down.
@@ -391,6 +396,10 @@ DROP POLICY IF EXISTS "Authenticated users can upload to vault" ON storage.objec
 DROP POLICY IF EXISTS "Authenticated users can read from vault" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated users can update vault files" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated users can delete from vault" ON storage.objects;
+DROP POLICY IF EXISTS "Vault: read readable objects" ON storage.objects;
+DROP POLICY IF EXISTS "Vault: upload to own organization" ON storage.objects;
+DROP POLICY IF EXISTS "Vault: update own or org assets" ON storage.objects;
+DROP POLICY IF EXISTS "Vault: delete own or as admin" ON storage.objects;
 
 -- ===========================================
 -- USAGE

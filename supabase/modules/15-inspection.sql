@@ -182,23 +182,26 @@ ALTER TABLE inspection_characteristics ENABLE ROW LEVEL SECURITY;
 ALTER TABLE inspection_characteristic_versions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE inspection_methods ENABLE ROW LEVEL SECURITY;
 
--- Live inspection rows
+-- Live inspection rows. Schema 111: they follow their file's vault
+-- (my_accessible_vault_ids(), see the files policies in 10-source-files.sql).
 DROP POLICY IF EXISTS "Users can view org inspection characteristics" ON inspection_characteristics;
 CREATE POLICY "Users can view org inspection characteristics"
   ON inspection_characteristics FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())));
 
 DROP POLICY IF EXISTS "Engineers can manage inspection characteristics" ON inspection_characteristics;
 CREATE POLICY "Engineers can manage inspection characteristics"
   ON inspection_characteristics FOR ALL
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:explorer', 'edit'))
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:explorer', 'edit'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())) AND user_has_team_permission('module:explorer', 'edit'))
+  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())) AND user_has_team_permission('module:explorer', 'edit'));
 
 -- Snapshot inspection rows (read-only history; written by checkin_file SECURITY DEFINER)
 DROP POLICY IF EXISTS "Users can view inspection characteristic versions" ON inspection_characteristic_versions;
 CREATE POLICY "Users can view inspection characteristic versions"
   ON inspection_characteristic_versions FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND file_version_id IN (
+    SELECT fv.id FROM file_versions fv WHERE fv.file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids()))
+  ));
 
 -- Inspection methods (org-level custom list)
 DROP POLICY IF EXISTS "Users can view org inspection methods" ON inspection_methods;

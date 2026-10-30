@@ -204,7 +204,8 @@ export async function checkVaultAccess(
 /**
  * Get the effective vault access for a user (combining team + individual permissions)
  * Uses the PostgreSQL get_user_vault_access function
- * Returns empty array if user has no restrictions (can access all vaults)
+ * Returns the vaults granted directly or through a team; an empty array means no
+ * vault (opt-in). The database applies the same rule (my_accessible_vault_ids, schema 111).
  */
 export async function getEffectiveUserVaultAccess(
   userId: string,

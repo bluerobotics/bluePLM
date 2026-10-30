@@ -65,6 +65,7 @@ CREATE OR REPLACE FUNCTION require_file_access(p_file_id UUID)
 RETURNS UUID AS $$
 DECLARE
   v_org_id UUID;
+  v_vault_id UUID;
 BEGIN
   IF p_file_id IS NULL THEN
     RAISE EXCEPTION 'File is required'
@@ -73,11 +74,14 @@ BEGIN
 
   PERFORM current_actor_id();
 
-  SELECT f.org_id INTO v_org_id FROM files f WHERE f.id = p_file_id;
+  SELECT f.org_id, f.vault_id INTO v_org_id, v_vault_id FROM files f WHERE f.id = p_file_id;
 
+  -- Schema 111: membership is not enough, the caller must also be allowed to see
+  -- the file's vault (may_access_vault(), the rule RLS applies to files). A file
+  -- in a vault the caller cannot see is refused exactly like a missing one.
   IF v_org_id IS NULL OR NOT EXISTS (
     SELECT 1 FROM users u WHERE u.id = auth.uid() AND u.org_id = v_org_id
-  ) THEN
+  ) OR NOT may_access_vault(v_vault_id) THEN
     RAISE EXCEPTION 'Not authorized for this file'
       USING ERRCODE = 'insufficient_privilege';
   END IF;
@@ -102,9 +106,10 @@ BEGIN
 
   SELECT v.org_id INTO v_org_id FROM vaults v WHERE v.id = p_vault_id;
 
+  -- Schema 111: and the caller must be allowed to see this vault.
   IF v_org_id IS NULL OR NOT EXISTS (
     SELECT 1 FROM users u WHERE u.id = auth.uid() AND u.org_id = v_org_id
-  ) THEN
+  ) OR NOT may_access_vault(p_vault_id) THEN
     RAISE EXCEPTION 'Not authorized for this vault'
       USING ERRCODE = 'insufficient_privilege';
   END IF;
@@ -369,6 +374,46 @@ CREATE TABLE IF NOT EXISTS team_vault_access (
 
 CREATE INDEX IF NOT EXISTS idx_team_vault_access_team_id ON team_vault_access(team_id);
 CREATE INDEX IF NOT EXISTS idx_team_vault_access_vault_id ON team_vault_access(vault_id);
+
+-- ===========================================
+-- VAULT VISIBILITY (schema 111)
+-- ===========================================
+-- The vaults whose file data the signed-in user may read, by the rule the
+-- renderer has applied since v3.20.0 (getAccessibleVaults in
+-- src/lib/supabase/vaults.ts): an organization admin (is_org_admin(), the role
+-- column or the Administrators team) reads every vault of their organization;
+-- anyone else reads exactly the vaults granted to them directly (vault_access)
+-- or through a team (team_vault_access). No grant means no vault. Only vaults of
+-- the caller's own organization are ever returned.
+--
+-- Before 111 this rule lived in the UI only: files, versions, folders and the
+-- rest were readable org-wide, and BluePLM Web exposes RLS to a browser with the
+-- user's own session. Every file-data SELECT policy now names this helper.
+--
+-- Argument-less on purpose: a SECURITY DEFINER helper taking a user or vault id
+-- is a question about somebody else (check_unbound_entity_args()). Used as
+-- `vault_id IN (SELECT my_accessible_vault_ids())`, an uncorrelated subquery the
+-- planner evaluates once per statement, so a vault load of tens of thousands of
+-- rows pays for it once, not per row.
+CREATE OR REPLACE FUNCTION my_accessible_vault_ids()
+RETURNS SETOF UUID
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT v.id
+    FROM vaults v
+    JOIN users u ON u.id = auth.uid() AND u.org_id = v.org_id
+   WHERE is_org_admin()
+      OR EXISTS (SELECT 1 FROM vault_access va WHERE va.vault_id = v.id AND va.user_id = u.id)
+      OR EXISTS (
+        SELECT 1 FROM team_vault_access tva
+        JOIN team_members tm ON tm.team_id = tva.team_id
+        WHERE tva.vault_id = v.id AND tm.user_id = u.id
+      );
+$$;
+
+REVOKE ALL ON FUNCTION my_accessible_vault_ids() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION my_accessible_vault_ids() TO authenticated;
 
 -- ===========================================
 -- WORKFLOW TEMPLATES (must come before files)
@@ -1469,8 +1514,12 @@ ALTER TABLE backup_locks ENABLE ROW LEVEL SECURITY;
 
 -- Vaults
 DROP POLICY IF EXISTS "Authenticated users can view vaults" ON vaults;
+-- Schema 111: members of the vault's organization only. USING (true) let any
+-- signed-in user of any organization list every organization's vault names.
+-- Every member still sees every vault of their own organization (names, not file
+-- data): the admin screens and getAccessibleVaults() filter that list.
 CREATE POLICY "Authenticated users can view vaults"
-  ON vaults FOR SELECT TO authenticated USING (true);
+  ON vaults FOR SELECT TO authenticated USING (is_org_member(org_id));
 
 DROP POLICY IF EXISTS "Admins can create vaults" ON vaults;
 CREATE POLICY "Admins can create vaults"
@@ -1510,15 +1559,23 @@ CREATE POLICY "Admins can manage team vault access"
   USING (team_id IN (SELECT id FROM teams WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())) AND is_org_admin());
 
 -- Files
+-- Schema 111: file data is readable only in a vault the caller may see
+-- (my_accessible_vault_ids(): admins every vault, everyone else their grants;
+-- a file with no vault is no restriction, as in user_may_access_vault()). Every
+-- policy below that exposes a file's name, path, hash or metadata names the
+-- helper, directly or through `file_id IN (SELECT f.id FROM files f ...)`, and
+-- check_release_residue() refuses to stamp while one that does not remains.
+-- Write policies carry the same term, so a file cannot be created in, moved
+-- into or changed in a vault the caller cannot see.
 DROP POLICY IF EXISTS "Users can view org files" ON files;
 CREATE POLICY "Users can view org files"
   ON files FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND (vault_id IS NULL OR vault_id IN (SELECT my_accessible_vault_ids())));
 
 DROP POLICY IF EXISTS "Engineers can insert files" ON files;
 CREATE POLICY "Engineers can insert files"
   ON files FOR INSERT
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:explorer', 'create'));
+  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND (vault_id IS NULL OR vault_id IN (SELECT my_accessible_vault_ids())) AND user_has_team_permission('module:explorer', 'create'));
 
 -- module:explorer:delete used to be decorative.
 --
@@ -1541,9 +1598,10 @@ CREATE POLICY "Engineers can insert files"
 DROP POLICY IF EXISTS "Engineers can update files" ON files;
 CREATE POLICY "Engineers can update files"
   ON files FOR UPDATE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:explorer', 'edit'))
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND (vault_id IS NULL OR vault_id IN (SELECT my_accessible_vault_ids())) AND user_has_team_permission('module:explorer', 'edit'))
   WITH CHECK (
     org_id IN (SELECT org_id FROM users WHERE id = auth.uid())
+    AND (vault_id IS NULL OR vault_id IN (SELECT my_accessible_vault_ids()))
     AND user_has_team_permission('module:explorer', 'edit')
     AND (deleted_at IS NULL OR user_has_team_permission('module:explorer', 'delete'))
   );
@@ -1551,40 +1609,40 @@ CREATE POLICY "Engineers can update files"
 DROP POLICY IF EXISTS "Admins can delete files" ON files;
 CREATE POLICY "Admins can delete files"
   ON files FOR DELETE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:explorer', 'delete'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND (vault_id IS NULL OR vault_id IN (SELECT my_accessible_vault_ids())) AND user_has_team_permission('module:explorer', 'delete'));
 
 -- File Versions
 DROP POLICY IF EXISTS "Users can view file versions" ON file_versions;
 CREATE POLICY "Users can view file versions"
   ON file_versions FOR SELECT
-  USING (file_id IN (SELECT id FROM files WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())));
+  USING (file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())));
 
 DROP POLICY IF EXISTS "Engineers can manage file versions" ON file_versions;
 CREATE POLICY "Engineers can manage file versions"
   ON file_versions FOR ALL
-  USING (file_id IN (SELECT id FROM files WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())) AND user_has_team_permission('module:explorer', 'edit'));
+  USING (file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())) AND user_has_team_permission('module:explorer', 'edit'));
 
 -- Release Files
 DROP POLICY IF EXISTS "Users can view org release files" ON release_files;
 CREATE POLICY "Users can view org release files"
   ON release_files FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())));
 
 DROP POLICY IF EXISTS "Engineers can manage release files" ON release_files;
 CREATE POLICY "Engineers can manage release files"
   ON release_files FOR ALL
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:explorer', 'edit'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())) AND user_has_team_permission('module:explorer', 'edit'));
 
 -- File References
 DROP POLICY IF EXISTS "Users can view file references" ON file_references;
 CREATE POLICY "Users can view file references"
   ON file_references FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND parent_file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())));
 
 DROP POLICY IF EXISTS "Engineers can manage references" ON file_references;
 CREATE POLICY "Engineers can manage references"
   ON file_references FOR ALL
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:explorer', 'edit'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND parent_file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())) AND user_has_team_permission('module:explorer', 'edit'));
 
 -- Per-version references and drawing PDF renders (schema 107): read-only to
 -- clients. record_version_references() and record_drawing_pdf() are the writers,
@@ -1594,40 +1652,40 @@ DROP POLICY IF EXISTS "Users can view file version references" ON file_version_r
 CREATE POLICY "Users can view file version references"
   ON file_version_references FOR SELECT
   TO authenticated
-  USING (is_org_member(org_id));
+  USING (is_org_member(org_id) AND parent_file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())));
 
 DROP POLICY IF EXISTS "Users can view drawing pdf renders" ON drawing_pdf_renders;
 CREATE POLICY "Users can view drawing pdf renders"
   ON drawing_pdf_renders FOR SELECT
   TO authenticated
-  USING (is_org_member(org_id));
+  USING (is_org_member(org_id) AND file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())));
 
 -- Folders
 DROP POLICY IF EXISTS "Users can view org folders" ON folders;
 CREATE POLICY "Users can view org folders"
   ON folders FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND vault_id IN (SELECT my_accessible_vault_ids()));
 
 DROP POLICY IF EXISTS "Engineers can insert folders" ON folders;
 CREATE POLICY "Engineers can insert folders"
   ON folders FOR INSERT
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:explorer', 'create'));
+  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND vault_id IN (SELECT my_accessible_vault_ids()) AND user_has_team_permission('module:explorer', 'create'));
 
 DROP POLICY IF EXISTS "Engineers can update folders" ON folders;
 CREATE POLICY "Engineers can update folders"
   ON folders FOR UPDATE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:explorer', 'edit'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND vault_id IN (SELECT my_accessible_vault_ids()) AND user_has_team_permission('module:explorer', 'edit'));
 
 DROP POLICY IF EXISTS "Engineers can delete folders" ON folders;
 CREATE POLICY "Engineers can delete folders"
   ON folders FOR DELETE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:explorer', 'delete'));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND vault_id IN (SELECT my_accessible_vault_ids()) AND user_has_team_permission('module:explorer', 'delete'));
 
 -- Activity
 DROP POLICY IF EXISTS "Users can view org activity" ON activity;
 CREATE POLICY "Users can view org activity"
   ON activity FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND (file_id IS NULL OR file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids()))));
 
 DROP POLICY IF EXISTS "Users can log activity" ON activity;
 CREATE POLICY "Users can log activity"
@@ -1725,12 +1783,12 @@ CREATE POLICY "Admins can manage workflow role assignments"
 DROP POLICY IF EXISTS "Users can view file workflow assignments" ON file_workflow_assignments;
 CREATE POLICY "Users can view file workflow assignments"
   ON file_workflow_assignments FOR SELECT
-  USING (file_id IN (SELECT id FROM files WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())));
+  USING (file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())));
 
 DROP POLICY IF EXISTS "Engineers can manage file workflow assignments" ON file_workflow_assignments;
 CREATE POLICY "Engineers can manage file workflow assignments"
   ON file_workflow_assignments FOR ALL
-  USING (file_id IN (SELECT id FROM files WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())) AND user_has_team_permission('module:workflows', 'edit'));
+  USING (file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())) AND user_has_team_permission('module:workflows', 'edit'));
 
 -- Pending Reviews
 DROP POLICY IF EXISTS "Users can view pending reviews" ON pending_reviews;
@@ -1755,7 +1813,7 @@ DROP POLICY IF EXISTS "Users can update pending reviews" ON pending_reviews;
 DROP POLICY IF EXISTS "Users can view workflow review history" ON workflow_review_history;
 CREATE POLICY "Users can view workflow review history"
   ON workflow_review_history FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND (file_id IS NULL OR file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids()))));
 
 -- Schema 105: the approval audit trail is written only by complete_gate_review().
 -- The INSERT policy this replaces checked organization membership alone, so any
@@ -1768,7 +1826,7 @@ DROP POLICY IF EXISTS "System can insert workflow review history" ON workflow_re
 DROP POLICY IF EXISTS "Users can view workflow history in their org" ON workflow_history;
 CREATE POLICY "Users can view workflow history in their org"
   ON workflow_history FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND (file_id IS NULL OR file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids()))));
 
 DROP POLICY IF EXISTS "Users can insert workflow history in their org" ON workflow_history;
 CREATE POLICY "Users can insert workflow history in their org"
@@ -1780,7 +1838,7 @@ CREATE POLICY "Users can insert workflow history in their org"
 DROP POLICY IF EXISTS "Users can view file state entries" ON file_state_entries;
 CREATE POLICY "Users can view file state entries"
   ON file_state_entries FOR SELECT
-  USING (file_id IN (SELECT id FROM files WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())));
+  USING (file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())));
 
 DROP POLICY IF EXISTS "Users can insert file state entries" ON file_state_entries;
 CREATE POLICY "Users can insert file state entries"
@@ -1796,7 +1854,7 @@ CREATE POLICY "Users can close file state entries"
 DROP POLICY IF EXISTS "Users can view file watchers in org" ON file_watchers;
 CREATE POLICY "Users can view file watchers in org"
   ON file_watchers FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())));
 
 DROP POLICY IF EXISTS "Users can watch files" ON file_watchers;
 CREATE POLICY "Users can watch files"
@@ -1815,7 +1873,7 @@ CREATE POLICY "Users can unwatch files"
 DROP POLICY IF EXISTS "Users can view share links in org" ON file_share_links;
 CREATE POLICY "Users can view share links in org"
   ON file_share_links FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())));
 
 -- THE ARGUMENT THAT IS CHECKED MUST BE THE ARGUMENT THAT SELECTS THE ROW
 --
@@ -1910,7 +1968,7 @@ CREATE POLICY "Users can delete share links"
 DROP POLICY IF EXISTS "Users can view file comments in org" ON file_comments;
 CREATE POLICY "Users can view file comments in org"
   ON file_comments FOR SELECT
-  USING (file_id IN (SELECT id FROM files WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())));
+  USING (file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())));
 
 -- Schema 105: the file must be in the author's organization. The INSERT check
 -- tested only user_id = auth.uid(), so a member could comment on another
@@ -2732,33 +2790,41 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 GRANT EXECUTE ON FUNCTION get_user_vault_access(UUID) TO authenticated;
 
--- Whether a user may see a vault, by the rule the renderer applies to
--- get_user_vault_access(): an administrator sees every vault, a user with no
--- vault_access or team_vault_access row is unrestricted, and anyone else sees
--- exactly the vaults those rows name. A NULL vault is no restriction.
+-- Whether a user may see a vault: the rule my_accessible_vault_ids() states for
+-- the caller, asked about any user. An administrator of the vault's organization
+-- sees it; anyone else sees it only through a vault_access or team_vault_access
+-- grant; no grant means no access (opt-in, as the renderer has applied it since
+-- v3.20.0). A NULL vault is no restriction.
+--
+-- Schema 107 to 110 read "no grant at all" as unrestricted, which disagreed with
+-- the renderer: a member the UI showed no vault to could still be added as a
+-- reviewer and read review items. Schema 111 makes the database the authority,
+-- so the two must say the same thing. The vault must also belong to the user's
+-- organization, which the old body never checked.
 --
 -- Internal: the review RPCs ask it about other users (a reviewer being added),
 -- which is not a question a client gets to ask. may_access_vault() below is the
--- caller-only form that row-level security uses.
+-- caller-only form.
 CREATE OR REPLACE FUNCTION user_may_access_vault(p_user_id UUID, p_vault_id UUID)
 RETURNS BOOLEAN
 LANGUAGE sql STABLE SECURITY DEFINER
 SET search_path = public
 AS $$
   SELECT p_vault_id IS NULL
-    OR is_org_admin(p_user_id)
-    OR NOT EXISTS (
-      SELECT 1 FROM vault_access va WHERE va.user_id = p_user_id
-      UNION ALL
-      SELECT 1 FROM team_vault_access tva
-      JOIN team_members tm ON tm.team_id = tva.team_id
-      WHERE tm.user_id = p_user_id
-    )
-    OR EXISTS (SELECT 1 FROM vault_access va WHERE va.user_id = p_user_id AND va.vault_id = p_vault_id)
     OR EXISTS (
-      SELECT 1 FROM team_vault_access tva
-      JOIN team_members tm ON tm.team_id = tva.team_id
-      WHERE tm.user_id = p_user_id AND tva.vault_id = p_vault_id
+      SELECT 1
+        FROM vaults v
+        JOIN users u ON u.id = p_user_id AND u.org_id = v.org_id
+       WHERE v.id = p_vault_id
+         AND (
+           is_org_admin(p_user_id)
+           OR EXISTS (SELECT 1 FROM vault_access va WHERE va.user_id = p_user_id AND va.vault_id = p_vault_id)
+           OR EXISTS (
+             SELECT 1 FROM team_vault_access tva
+             JOIN team_members tm ON tm.team_id = tva.team_id
+             WHERE tm.user_id = p_user_id AND tva.vault_id = p_vault_id
+           )
+         )
     );
 $$;
 
@@ -4296,9 +4362,15 @@ RETURNS TABLE (
 ) AS $$
 BEGIN
   PERFORM require_org_member(p_org_id);
+  -- Schema 111: a named vault the caller may not see is refused, not answered
+  -- empty (an empty answer reads as "the server has no files" to a client that
+  -- holds a local copy); without a vault, only visible vaults are listed.
+  IF p_vault_id IS NOT NULL THEN
+    PERFORM require_vault_access(p_vault_id);
+  END IF;
 
   RETURN QUERY
-  SELECT 
+  SELECT
     f.id, f.file_path, f.file_name, f.extension, f.file_type,
     f.part_number, f.description, f.revision, f.version,
     f.content_hash, f.file_size, f.state,
@@ -4309,6 +4381,7 @@ BEGIN
   WHERE f.org_id = p_org_id
     AND f.deleted_at IS NULL
     AND (p_vault_id IS NULL OR f.vault_id = p_vault_id)
+    AND (p_vault_id IS NOT NULL OR f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids()))
   ORDER BY f.file_path;
 END;
 $$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
@@ -4329,10 +4402,14 @@ CREATE OR REPLACE FUNCTION get_vault_files_count(
 ) RETURNS BIGINT AS $$
 BEGIN
   PERFORM require_org_member(p_org_id);
+  IF p_vault_id IS NOT NULL THEN
+    PERFORM require_vault_access(p_vault_id);
+  END IF;
   RETURN (SELECT COUNT(*) FROM files f
           WHERE f.org_id = p_org_id
             AND f.deleted_at IS NULL
-            AND (p_vault_id IS NULL OR f.vault_id = p_vault_id));
+            AND (p_vault_id IS NULL OR f.vault_id = p_vault_id)
+            AND (p_vault_id IS NOT NULL OR f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())));
 END;
 $$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
 
@@ -4483,9 +4560,15 @@ RETURNS TABLE (
 ) AS $$
 BEGIN
   PERFORM require_org_member(p_org_id);
+  -- Schema 111: a named vault the caller may not see is refused, not answered
+  -- empty (an empty answer reads as "the server has no files" to a client that
+  -- holds a local copy); without a vault, only visible vaults are listed.
+  IF p_vault_id IS NOT NULL THEN
+    PERFORM require_vault_access(p_vault_id);
+  END IF;
 
   RETURN QUERY
-  SELECT 
+  SELECT
     f.id, f.file_path, f.file_name, f.extension, f.file_type,
     f.part_number, f.description, f.revision, f.version,
     f.content_hash, f.file_size, f.state,
@@ -4950,6 +5033,12 @@ BEGIN
       'error_message', 'File belongs to another organization');
   END IF;
 
+  -- Schema 111: and to a vault the caller may see.
+  IF NOT may_access_vault(v_file.vault_id) THEN
+    RETURN jsonb_build_object('success', false, 'error_code', 'FORBIDDEN',
+      'error_message', 'No access to this file''s vault');
+  END IF;
+
   IF NOT org_file_workflows_enabled(v_file.org_id) THEN
     RETURN jsonb_build_object('success', false, 'error_code', 'WORKFLOWS_DISABLED',
       'error_message', 'File workflows are turned off for this organization');
@@ -5336,6 +5425,15 @@ BEGIN
       'error_message', 'Review belongs to another organization');
   END IF;
 
+  -- Schema 111: a reviewer must be able to see the file's vault. Without this
+  -- the decision would be recorded and the transition it completes would then
+  -- be refused by require_file_access(), rolling the whole call back.
+  IF NOT may_access_vault((SELECT f.vault_id FROM pending_reviews pr JOIN files f ON f.id = pr.file_id
+                            WHERE pr.id = p_pending_review_id)) THEN
+    RETURN jsonb_build_object('success', false, 'error_code', 'NO_VAULT_ACCESS',
+      'error_message', 'You do not have access to this file''s vault');
+  END IF;
+
   PERFORM 1 FROM pending_reviews pr
   WHERE pr.attempt_id = v_attempt_id
   ORDER BY pr.id
@@ -5550,6 +5648,8 @@ BEGIN
   LEFT JOIN users ru ON ru.id = pr.requested_by
   WHERE pr.status = 'pending'
     AND pr.org_id = v_org_id
+    -- Schema 111: only files the caller may see (complete_gate_review refuses the rest).
+    AND may_access_vault(f.vault_id)
     AND (
       pr.assigned_to = v_user_id
       OR (pr.assigned_to IS NULL AND may_review_gate(wg.id, v_user_id))
@@ -6275,6 +6375,169 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION remediate_cross_tenant_workflow_history() FROM PUBLIC, anon, authenticated;
+
+-- ===========================================
+-- VAULT STORAGE BUCKET POLICIES (schema 111)
+-- ===========================================
+-- The `vault` bucket (docs/admin-setup.md step 3) holds file content addressed by
+-- its SHA-256 as <org_id>/<hash[0:2]>/<hash> (older objects: <org_id>/<hash>),
+-- drawing PDF renders the same way, organization assets under <org_id>/_assets/
+-- (avatars, the company logo, item images), and inspection previews under
+-- <org_id>/inspection-previews/<file_id>-<time>.<ext>.
+--
+-- Until 111 the bucket's policies were not in this repository at all. The only
+-- set ever committed (cbe3997) admitted every signed-in user of every
+-- organization to read, overwrite and delete every object, and a list() of the
+-- bucket enumerated every content hash. These policies replace whatever is there:
+--
+--   read    - an object in the caller's organization, and one of: the caller is
+--             an org admin; the caller uploaded it; it is an organization asset;
+--             it is content whose hash a file, version or drawing PDF in a vault
+--             the caller may see names, or an inspection preview of such a file
+--             (may_read_vault_object()).
+--   upload  - into the caller's organization.
+--   update  - the caller's organization, and the caller is an admin, uploaded
+--             it, or it is an organization asset (upserted avatars and logo).
+--   delete  - the caller's organization, and the caller is an admin or uploaded it.
+--
+-- "The caller uploaded it" is what lets check-in verify the bytes it just wrote,
+-- before any version row names the hash. Content is deduplicated across vaults,
+-- so a user can be told an upload "already exists" for an object they cannot
+-- list; the renderer treats that answer as success (checkin.ts).
+--
+-- Any other policy on storage.objects that names the vault bucket is dropped, by
+-- whatever name it was installed under, because policies are OR-ed and one
+-- permissive leftover undoes all of this. Each one dropped is printed with its
+-- definition. check_release_residue() refuses to stamp while one remains.
+CREATE INDEX IF NOT EXISTS idx_drawing_pdf_renders_storage_hash ON drawing_pdf_renders(storage_hash);
+
+-- Whether the caller may read one object of the vault bucket by what it holds:
+-- content whose hash a file, version or drawing PDF of a vault the caller may see
+-- names, or the inspection preview of such a file. SECURITY DEFINER so each test
+-- is an index probe (files.content_hash, file_versions.content_hash,
+-- drawing_pdf_renders.storage_hash, files.id) followed by the vault rule, rather
+-- than a pass through the file_versions policy, which hashes every readable file
+-- id once per signed-URL request. It answers only for the caller (auth.uid()), and
+-- only for an object under the caller's own organization prefix.
+CREATE OR REPLACE FUNCTION may_read_vault_object(p_name TEXT)
+RETURNS BOOLEAN
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
+  WITH obj AS (
+    SELECT u.org_id,
+           substring(p_name FROM '/([0-9a-f]{64})$') AS hash,
+           CASE
+             WHEN split_part(p_name, '/', 2) = 'inspection-previews'
+              AND left(split_part(p_name, '/', 3), 36) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+             THEN left(split_part(p_name, '/', 3), 36)::uuid
+           END AS preview_file_id
+      FROM users u
+     WHERE u.id = auth.uid()
+       AND u.org_id IS NOT NULL
+       AND split_part(p_name, '/', 1) = u.org_id::text
+  ),
+  visible AS (SELECT my_accessible_vault_ids() AS id)
+  SELECT EXISTS (
+    SELECT 1 FROM obj
+     WHERE EXISTS (SELECT 1 FROM files f
+                    WHERE f.content_hash = obj.hash AND f.org_id = obj.org_id
+                      AND (f.vault_id IS NULL OR f.vault_id IN (SELECT id FROM visible)))
+        OR EXISTS (SELECT 1 FROM file_versions fv JOIN files f ON f.id = fv.file_id
+                    WHERE fv.content_hash = obj.hash AND f.org_id = obj.org_id
+                      AND (f.vault_id IS NULL OR f.vault_id IN (SELECT id FROM visible)))
+        OR EXISTS (SELECT 1 FROM drawing_pdf_renders d JOIN files f ON f.id = d.file_id
+                    WHERE d.storage_hash = obj.hash AND f.org_id = obj.org_id
+                      AND (f.vault_id IS NULL OR f.vault_id IN (SELECT id FROM visible)))
+        OR EXISTS (SELECT 1 FROM files f
+                    WHERE f.id = obj.preview_file_id AND f.org_id = obj.org_id
+                      AND (f.vault_id IS NULL OR f.vault_id IN (SELECT id FROM visible)))
+  );
+$$;
+
+REVOKE ALL ON FUNCTION may_read_vault_object(TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION may_read_vault_object(TEXT) TO authenticated;
+
+DO $$
+DECLARE
+  v_owner TEXT;
+  v_org TEXT := $e$split_part(name, '/', 1) IN (SELECT u.org_id::text FROM public.users u WHERE u.id = auth.uid() AND u.org_id IS NOT NULL)$e$;
+  r RECORD;
+BEGIN
+  IF to_regclass('storage.objects') IS NULL THEN
+    RAISE NOTICE 'storage schema not present - skipping the vault bucket policies';
+    RETURN;
+  END IF;
+
+  -- Supabase records the uploader in owner_id (text); older storage versions
+  -- only in owner (uuid).
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+              WHERE table_schema = 'storage' AND table_name = 'objects' AND column_name = 'owner_id') THEN
+    v_owner := 'owner_id = auth.uid()::text';
+  ELSE
+    v_owner := 'owner = auth.uid()';
+  END IF;
+
+  FOR r IN
+    SELECT p.policyname, p.cmd, p.qual, p.with_check
+      FROM pg_policies p
+     WHERE p.schemaname = 'storage' AND p.tablename = 'objects'
+       AND (COALESCE(p.qual, '') || ' ' || COALESCE(p.with_check, '')) LIKE '%''vault''%'
+       AND p.policyname NOT IN ('Vault: read readable objects', 'Vault: upload to own organization',
+                                'Vault: update own or org assets', 'Vault: delete own or as admin')
+  LOOP
+    RAISE NOTICE 'Dropping storage policy "%" (% USING % WITH CHECK %)', r.policyname, r.cmd, r.qual, r.with_check;
+    EXECUTE format('DROP POLICY %I ON storage.objects', r.policyname);
+  END LOOP;
+
+  EXECUTE 'DROP POLICY IF EXISTS "Vault: read readable objects" ON storage.objects';
+  EXECUTE format($p$
+    CREATE POLICY "Vault: read readable objects"
+      ON storage.objects FOR SELECT
+      TO authenticated
+      USING (
+        bucket_id = 'vault'
+        AND %1$s
+        AND (
+          public.is_org_admin()
+          OR %2$s
+          OR split_part(name, '/', 2) = '_assets'
+          OR public.may_read_vault_object(name)
+        )
+      )
+  $p$, v_org, v_owner);
+
+  EXECUTE 'DROP POLICY IF EXISTS "Vault: upload to own organization" ON storage.objects';
+  EXECUTE format($p$
+    CREATE POLICY "Vault: upload to own organization"
+      ON storage.objects FOR INSERT
+      TO authenticated
+      WITH CHECK (bucket_id = 'vault' AND %1$s)
+  $p$, v_org);
+
+  EXECUTE 'DROP POLICY IF EXISTS "Vault: update own or org assets" ON storage.objects';
+  EXECUTE format($p$
+    CREATE POLICY "Vault: update own or org assets"
+      ON storage.objects FOR UPDATE
+      TO authenticated
+      USING (
+        bucket_id = 'vault' AND %1$s
+        AND (public.is_org_admin() OR %2$s OR split_part(name, '/', 2) = '_assets')
+      )
+      WITH CHECK (bucket_id = 'vault' AND %1$s)
+  $p$, v_org, v_owner);
+
+  EXECUTE 'DROP POLICY IF EXISTS "Vault: delete own or as admin" ON storage.objects';
+  EXECUTE format($p$
+    CREATE POLICY "Vault: delete own or as admin"
+      ON storage.objects FOR DELETE
+      TO authenticated
+      USING (
+        bucket_id = 'vault' AND %1$s
+        AND (public.is_org_admin() OR %2$s)
+      )
+  $p$, v_org, v_owner);
+END $$;
 
 -- ===========================================
 -- END OF SOURCE FILES MODULE

@@ -86,6 +86,10 @@ The storage bucket must exist before running the schema SQL, or the storage poli
 4. **Uncheck** "Public bucket" (must be private)
 5. Click **Create bucket**
 
+The schema (module `10-source-files.sql`) installs the bucket's access policies and removes any
+other policy that names the `vault` bucket. File content is readable only by members who can see a
+file or version that uses it (vault access), by whoever uploaded it, and by organization admins.
+
 ## Step 4: Run Database Schema
 
 The schema creates all required tables, functions, Row Level Security policies, and storage policies.
