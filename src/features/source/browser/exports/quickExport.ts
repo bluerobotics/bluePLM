@@ -1,5 +1,5 @@
 /**
- * Quick export: the PDF and STEP export shortcuts (Settings > Keybindings).
+ * Quick export: the PDF and STEP export shortcuts (Settings > Keyboard shortcuts).
  *
  * Select files, press the shortcut, and the selection is queued for export to the quick export
  * folder (Settings > Export), or next to each file when no folder is set. PDF exports the

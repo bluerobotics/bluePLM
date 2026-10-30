@@ -18,7 +18,21 @@ All notable changes to BluePLM will be documented in this file.
 
 ### Added
 
-- **Export shortcuts and a quick export folder.** Two new shortcuts in Settings > Keybindings queue the selected
+- **Every keyboard shortcut can be changed.** Settings > Keyboard shortcuts now lists all of BluePLM's
+  shortcuts, not only the file list's: the app-wide ones (settings, search, sidebar, details, terminal,
+  refresh, open vault), the file list and file tree, review decisions (A, Shift+A, C, R, J, K), PDF zoom
+  and the workflow editor. Search by name, or press keys to see what they do. Keys show as keycaps (⌘ ⌥ ⇧
+  on macOS). Click a key to change it, add a second key, remove one, reset one action or all of them, and
+  show only the ones you changed. A key another action already uses where this one works is flagged, with
+  Reassign or Keep both. Shortcuts can be saved to and loaded from a JSON file. Your custom keys from
+  earlier versions carry over; only the keys you change are stored, so new defaults reach you. The
+  default keys are unchanged.
+- **Shortcuts behave the same everywhere.** One dispatcher now decides which shortcut a key press runs:
+  nothing fires while you type in a field (except the app-wide ones, as before), the focused part of the
+  app wins over the rest, and the file list's keys no longer act on files behind an open dialog. With the
+  file tree focused, Delete and Enter act once, on the tree, instead of also acting on the file list.
+  The arrow keys of the file list now follow the keys set for them (they were fixed before).
+- **Export shortcuts and a quick export folder.** Two new shortcuts in Settings > Keyboard shortcuts queue the selected
   files for export: Export PDF (Ctrl+Shift+P) exports the selected drawings, and Export STEP (Ctrl+Shift+S) exports
   the selected parts and assemblies, and for a selected drawing the model it references, named with the drawing's
   metadata. Exports go to the quick export folder set on this computer (Settings > Export, or under the shortcuts),

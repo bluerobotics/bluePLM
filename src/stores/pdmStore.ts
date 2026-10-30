@@ -27,7 +27,8 @@ import {
   MODULES_MOVED_TO_EXTENSIONS,
   getChildModules,
 } from '../types/modules'
-import type { KeybindingsConfig, SettingsTab } from '../types/settings'
+import type { SettingsTab } from '../types/settings'
+import { restorePersistedShortcuts } from '../lib/keybindings/bindings'
 import type {
   PDMStoreState,
   Tab,
@@ -84,7 +85,7 @@ import {
   createReviewsSlice,
   createDbUpgradeSlice,
 } from './slices'
-import { defaultCardViewFields, defaultKeybindings } from './slices/settingsSlice'
+import { defaultCardViewFields } from './slices/settingsSlice'
 
 const PERSIST_STORAGE_NAME = 'blue-plm-storage'
 
@@ -345,7 +346,7 @@ export const usePDMStore = create<PDMStoreState>()(
         logSharingEnabled: state.logSharingEnabled,
         cadPreviewMode: state.cadPreviewMode,
         topbarConfig: state.topbarConfig,
-        keybindings: state.keybindings,
+        shortcutOverrides: state.shortcutOverrides,
         quickExportFolder: state.quickExportFolder,
         pinnedFolders: state.pinnedFolders,
         pinnedSectionExpanded: state.pinnedSectionExpanded,
@@ -549,12 +550,9 @@ export const usePDMStore = create<PDMStoreState>()(
             (persisted.settingsTab as string) === 'vault-audit'
               ? 'solidworks'
               : (persisted.settingsTab as SettingsTab) || 'profile',
-          // Ensure keybindings has defaults (merge with defaults for new keybindings)
-          keybindings: Object.assign(
-            {},
-            defaultKeybindings,
-            (persisted.keybindings as KeybindingsConfig) || {},
-          ),
+          // Only changed shortcuts are stored; an older install's full `keybindings` record is
+          // migrated to overrides once.
+          shortcutOverrides: restorePersistedShortcuts(persisted.shortcutOverrides, persisted.keybindings),
           quickExportFolder: (persisted.quickExportFolder as string | null | undefined) ?? null,
           // Ensure onboarding state has defaults
           onboardingComplete: (persisted.onboardingComplete as boolean) || false,

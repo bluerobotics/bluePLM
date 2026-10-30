@@ -38,34 +38,7 @@ export const SETTINGS_TABS = [
 
 export type SettingsTab = (typeof SETTINGS_TABS)[number]
 
-// Keybinding action identifiers
-export type KeybindingAction =
-  | 'navigateUp'
-  | 'navigateDown'
-  | 'expandFolder'
-  | 'collapseFolder'
-  | 'selectAll'
-  | 'copy'
-  | 'cut'
-  | 'paste'
-  | 'delete'
-  | 'escape'
-  | 'openFile'
-  | 'toggleDetailsPanel'
-  | 'refresh'
-  | 'exportPdf'
-  | 'exportStep'
-
-// Keybinding configuration
-export interface Keybinding {
-  key: string // e.g., 'ArrowUp', 'a', 'Delete'
-  ctrlKey?: boolean
-  shiftKey?: boolean
-  altKey?: boolean
-  metaKey?: boolean
-}
-
-export type KeybindingsConfig = Record<KeybindingAction, Keybinding>
+// Keyboard shortcuts: the actions and their keys live in src/lib/keybindings (registry.ts).
 
 // ============================================
 // SOLIDWORKS Template Settings

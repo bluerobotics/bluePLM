@@ -34,6 +34,8 @@ import {
 } from 'lucide-react'
 
 import type { SettingsTab } from '@/types/settings'
+import { SHORTCUT_ACTIONS } from '@/lib/keybindings/registry'
+import { shortcutsStrings } from '@/lib/i18n/locales/shortcuts'
 
 /**
  * How a page body is laid out in the settings modal: `default` is a readable column for forms,
@@ -350,6 +352,46 @@ export interface SettingsCatalogEntry {
 export type SettingsCatalog = Partial<Record<SettingsTab, readonly SettingsCatalogEntry[]>>
 
 /**
+ * The Keyboard shortcuts page's entries: its controls, then every registry action under the
+ * English name the page shows (`shortcuts.action.*`), so search scrolls to the row.
+ */
+function shortcutCatalogEntries(): SettingsCatalogEntry[] {
+  const page: SettingsCatalogEntry[] = [
+    { label: shortcutsStrings.title, keywords: ['hotkeys', 'keys', 'shortcuts', 'bindings', 'keybindings'] },
+    { label: shortcutsStrings.searchByKeys, keywords: ['record', 'press keys', 'what is bound'] },
+    { label: shortcutsStrings.modifiedOnly, keywords: ['changed', 'custom'] },
+    { label: shortcutsStrings.resetAll, keywords: ['reset', 'restore', 'defaults'] },
+    { label: shortcutsStrings.import, keywords: ['import shortcuts', 'json'] },
+    { label: shortcutsStrings.export, keywords: ['export shortcuts', 'json', 'backup'] },
+    {
+      label: 'Quick export folder',
+      keywords: ['export location', 'default folder', 'output folder'],
+      desktopOnly: true,
+    },
+  ]
+  const actionLabels: Record<string, string> = shortcutsStrings.action
+  const seen = new Set(page.map((entry) => entry.label))
+  for (const action of SHORTCUT_ACTIONS) {
+    const label = actionLabels[action.id]
+    if (!label || seen.has(label)) continue
+    seen.add(label)
+    pushActionEntry(page, label, action.defaults, action.desktopOnly)
+  }
+  return page
+}
+
+function pushActionEntry(
+  into: SettingsCatalogEntry[],
+  label: string,
+  defaults: readonly string[],
+  desktopOnly: boolean | undefined,
+): void {
+  // The default keys as typed words ("ctrl k", "f5") find the action too.
+  const keywords = defaults.map((combo) => combo.replace(/Mod/g, 'ctrl').replace(/\+/g, ' ').toLowerCase())
+  into.push(desktopOnly ? { label, keywords, desktopOnly } : { label, keywords })
+}
+
+/**
  * The individual settings inside each tab, for the settings search. Keep a label in step with
  * its panel when the panel's text changes: a stale label still finds the tab, but the search
  * can no longer scroll to the setting.
@@ -394,29 +436,7 @@ export const settingsCatalog: SettingsCatalog = {
     { label: 'Signed-in devices', keywords: ['sessions', 'devices', 'machines'] },
     { label: 'Sign out', keywords: ['logout', 'sign out this device'] },
   ],
-  keybindings: [
-    { label: 'Keyboard Shortcuts', keywords: ['hotkeys', 'keys', 'shortcuts', 'bindings'] },
-    { label: 'Reset to Defaults', keywords: ['reset', 'restore'] },
-    { label: 'Navigate Up', keywords: ['arrow', 'move'] },
-    { label: 'Navigate Down', keywords: ['arrow', 'move'] },
-    { label: 'Expand Folder', keywords: ['open folder'] },
-    { label: 'Collapse Folder', keywords: ['close folder'] },
-    { label: 'Open File', keywords: ['enter'] },
-    { label: 'Select All', keywords: ['ctrl a'] },
-    { label: 'Copy', keywords: ['ctrl c'] },
-    { label: 'Cut', keywords: ['ctrl x'] },
-    { label: 'Paste', keywords: ['ctrl v'] },
-    { label: 'Delete', keywords: ['remove'] },
-    { label: 'Toggle Details', keywords: ['details panel'] },
-    { label: 'Refresh', keywords: ['reload', 'f5'] },
-    { label: 'Export PDF', keywords: ['pdf', 'drawing', 'quick export'], desktopOnly: true },
-    { label: 'Export STEP', keywords: ['step', 'model', 'quick export'], desktopOnly: true },
-    {
-      label: 'Quick export folder',
-      keywords: ['export location', 'default folder', 'output folder'],
-      desktopOnly: true,
-    },
-  ],
+  keybindings: shortcutCatalogEntries(),
   modules: [
     { label: 'Modules', keywords: ['features', 'enable', 'disable'] },
     { label: 'Sidebar Order', keywords: ['reorder', 'arrange'] },

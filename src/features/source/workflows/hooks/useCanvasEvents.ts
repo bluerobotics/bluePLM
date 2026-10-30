@@ -11,7 +11,8 @@
  * - handleAddWaypointToTransition - Add waypoint at click position
  * - setupKeyboardShortcuts - Effect for Escape, Delete, Ctrl+C/V/X/Z
  */
-import { useCallback, useEffect, type RefObject } from 'react'
+import { useCallback, type RefObject } from 'react'
+import { useShortcuts } from '@/lib/keybindings'
 import type { WorkflowState, WorkflowTransition } from '@/types/workflow'
 
 import type { Point, ResizingState, ContextMenuState } from '../types'
@@ -287,16 +288,14 @@ export function useCanvasEvents(params: UseCanvasEventsParams): UseCanvasEventsR
     [transitions, states, waypoints, addWaypoint],
   )
 
-  // Keyboard shortcuts effect
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // These are window-level listeners, so a shortcut must never fire while the
-      // user is typing. Copy, cut, paste and undo in particular have native
-      // behaviour inside a field that preventDefault would otherwise swallow.
-      if (isTypingTarget(e.target) || isTypingTarget(document.activeElement)) return
-
-      // Escape - cancel operations
-      if (e.key === 'Escape') {
+  // Keyboard shortcuts: the registry's workflowCanvas.* actions. The dispatcher never fires them
+  // while the user is typing, so copy, cut, paste and undo keep their native behaviour in a field.
+  // Focus in a field counts even when the key event targets something else.
+  const notTyping = () => !isTypingTarget(document.activeElement)
+  useShortcuts(
+    'workflowCanvas',
+    {
+      'workflowCanvas.cancel': () => {
         if (isCreatingTransition) {
           cancelTransitionCreation()
         } else if (floatingToolbar) {
@@ -307,64 +306,21 @@ export function useCanvasEvents(params: UseCanvasEventsParams): UseCanvasEventsR
           clearSelection()
           setFloatingToolbar(null)
         }
-        return
-      }
-
-      // Delete/Backspace - delete selected item
-      if ((e.key === 'Delete' || e.key === 'Backspace') && isAdmin) {
+      },
+      // Only admins edit workflows; for anyone else the key keeps its normal meaning.
+      'workflowCanvas.delete': () => {
+        if (!isAdmin) return false
         handleDeleteSelected()
-        return
-      }
-
-      // Ctrl/Cmd shortcuts
-      if (e.ctrlKey || e.metaKey) {
-        switch (e.key.toLowerCase()) {
-          case 'c':
-            e.preventDefault()
-            handleCopy()
-            break
-          case 'x':
-            e.preventDefault()
-            handleCut()
-            break
-          case 'v':
-            e.preventDefault()
-            handlePaste()
-            break
-          case 'z':
-            e.preventDefault()
-            if (e.shiftKey) {
-              handleRedo()
-            } else {
-              handleUndo()
-            }
-            break
-          case 'y':
-            e.preventDefault()
-            handleRedo()
-            break
-        }
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [
-    isCreatingTransition,
-    cancelTransitionCreation,
-    floatingToolbar,
-    setFloatingToolbar,
-    contextMenu,
-    closeContextMenu,
-    clearSelection,
-    isAdmin,
-    handleDeleteSelected,
-    handleCopy,
-    handleCut,
-    handlePaste,
-    handleUndo,
-    handleRedo,
-  ])
+        return true
+      },
+      'workflowCanvas.copy': () => handleCopy(),
+      'workflowCanvas.cut': () => handleCut(),
+      'workflowCanvas.paste': () => handlePaste(),
+      'workflowCanvas.undo': () => handleUndo(),
+      'workflowCanvas.redo': () => handleRedo(),
+    },
+    { isActive: notTyping },
+  )
 
   return {
     handleCanvasClick,

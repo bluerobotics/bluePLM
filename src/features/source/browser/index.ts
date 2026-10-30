@@ -145,12 +145,10 @@ export {
   getProcessingOperation,
   getFileProcessingOperation,
   getFolderProcessingOperation,
-  // Keybindings
-  matchesKeybinding,
   // Config Tree
   buildConfigTreeFlat,
 } from './utils'
-export type { FileFilter, Keybinding, ConfigInput } from './utils'
+export type { FileFilter, ConfigInput } from './utils'
 
 // Types
 export type {

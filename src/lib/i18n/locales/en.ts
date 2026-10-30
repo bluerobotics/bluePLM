@@ -3,6 +3,7 @@ import { reviewsUiStrings } from './reviewsUi'
 import { reviewPackageStrings } from './reviewPackage'
 import { dbUpgradeStrings } from './dbUpgrade'
 import { securityMonitoringStrings } from './securityMonitoring'
+import { shortcutsStrings } from './shortcuts'
 
 // English translations (default/fallback)
 export const en: TranslationDict = {
@@ -40,6 +41,7 @@ export const en: TranslationDict = {
   reviewPackage: reviewPackageStrings.en,
   dbUpgrade: dbUpgradeStrings.en,
   securityMonitoring: securityMonitoringStrings.en,
+  shortcuts: shortcutsStrings,
   app: {
     recoveredFromCrash: 'BluePLM stopped responding and reloaded. Your vault is being re-read.',
   },
@@ -1583,7 +1585,7 @@ export const en: TranslationDict = {
       toFolder: 'Export to Quick Export Folder',
       sectionTitle: 'Quick Export',
       sectionDescription:
-        'The Export PDF and Export STEP shortcuts (Settings > Keybindings) queue the selected files for export to this folder.',
+        'The Export PDF and Export STEP shortcuts (Settings > Keyboard shortcuts) queue the selected files for export to this folder.',
       folderLabel: 'Quick export folder',
       folderDescription: 'Where the export shortcuts write on this computer.',
       folderChoose: 'Choose...',

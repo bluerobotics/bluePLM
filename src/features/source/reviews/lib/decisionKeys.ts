@@ -1,5 +1,7 @@
 /**
- * Keyboard map for the review decision bar, and the "next item" rule behind auto-advance.
+ * Keyboard map for the review decision bar, and the "next item" rule behind auto-advance. The
+ * keys are the shortcut registry's `reviews.*` actions (`src/lib/keybindings/registry.ts`), which
+ * the user can rebind; the defaults are:
  *
  *   A        approve (no comment needed, decides at once)
  *   Shift+A  approve with comments (opens the comment box)
@@ -13,6 +15,9 @@
  */
 
 import type { ReviewDecision } from '@/types/reviews'
+import { comboMatches, eventToCombo } from '@/lib/keybindings/combo'
+import { resolveBindings, type ResolvedBindings } from '@/lib/keybindings/bindings'
+import { getShortcutAction } from '@/lib/keybindings/registry'
 
 export type DecisionKeyAction =
   | { kind: 'decide'; decision: ReviewDecision }
@@ -31,25 +36,34 @@ export interface DecisionKeyEvent {
   repeat?: boolean
 }
 
-export function mapDecisionKey(event: DecisionKeyEvent): DecisionKeyAction | null {
-  if (event.inEditable || event.ctrlKey || event.metaKey || event.altKey) return null
-  const decides = !event.repeat
-  switch (event.key.toLowerCase()) {
-    case 'a':
-      return decides
-        ? { kind: 'decide', decision: event.shiftKey ? 'approved_with_comments' : 'approved' }
-        : null
-    case 'c':
-      return event.shiftKey || !decides ? null : { kind: 'decide', decision: 'changes_requested' }
-    case 'r':
-      return event.shiftKey || !decides ? null : { kind: 'decide', decision: 'rejected' }
-    case 'j':
-      return event.shiftKey ? null : { kind: 'next' }
-    case 'k':
-      return event.shiftKey ? null : { kind: 'previous' }
-    default:
-      return null
+const DEFAULT_BINDINGS = resolveBindings({})
+
+/** Review shortcut action -> what it does. */
+export const REVIEW_KEY_ACTIONS = {
+  'reviews.approve': { kind: 'decide', decision: 'approved' },
+  'reviews.approveWithComments': { kind: 'decide', decision: 'approved_with_comments' },
+  'reviews.requestChanges': { kind: 'decide', decision: 'changes_requested' },
+  'reviews.reject': { kind: 'decide', decision: 'rejected' },
+  'reviews.nextItem': { kind: 'next' },
+  'reviews.previousItem': { kind: 'previous' },
+} as const satisfies Record<string, DecisionKeyAction>
+
+/**
+ * What a key press does in an open review, with the given bindings (the defaults when omitted).
+ * The dispatcher applies the same rules to live key presses; this pure form is for tests.
+ */
+export function mapDecisionKey(
+  event: DecisionKeyEvent,
+  bindings: ResolvedBindings = DEFAULT_BINDINGS,
+): DecisionKeyAction | null {
+  if (event.inEditable) return null
+  const combo = eventToCombo(event)
+  if (!combo) return null
+  for (const [id, action] of Object.entries(REVIEW_KEY_ACTIONS)) {
+    if (event.repeat && getShortcutAction(id)?.noRepeat) continue
+    if ((bindings.get(id) ?? []).some((key) => comboMatches(combo, key))) return action
   }
+  return null
 }
 
 /**

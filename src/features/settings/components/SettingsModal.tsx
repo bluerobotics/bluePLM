@@ -11,11 +11,6 @@ import { hasLayerAboveSettings, SETTINGS_MODAL_LAYER_ATTR } from './settingsModa
 
 const LAYER = { [SETTINGS_MODAL_LAYER_ATTR]: '' }
 
-/** Ctrl+, (Cmd+, on macOS) opens and closes settings, as in most desktop apps. */
-function isSettingsShortcut(e: KeyboardEvent): boolean {
-  return (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key === ','
-}
-
 /**
  * Settings, as a modal over whatever the user was doing: navigation and search on the left, the
  * page on the right. Mounted once in the app shell and opened through `openSettings(tab)`. Styled
@@ -23,7 +18,8 @@ function isSettingsShortcut(e: KeyboardEvent): boolean {
  * system UI font.
  *
  * It sits at z-[45], under every dialog (z-50 and up), so confirmations and editors opened from
- * a settings page appear above it. Escape closes it unless such a layer is open.
+ * a settings page appear above it. Escape closes it unless such a layer is open. The shortcut that
+ * opens and closes it (Ctrl+, by default) is the registry's `global.openSettings`.
  */
 export function SettingsModal() {
   const { t } = useTranslation()
@@ -32,18 +28,6 @@ export function SettingsModal() {
   const setSettingsTab = usePDMStore((s) => s.setSettingsTab)
   const closeSettings = usePDMStore((s) => s.closeSettings)
   const panelRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (!isSettingsShortcut(e)) return
-      e.preventDefault()
-      const state = usePDMStore.getState()
-      if (state.settingsOpen) state.closeSettings()
-      else state.openSettings()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
 
   useEffect(() => {
     if (!open) return

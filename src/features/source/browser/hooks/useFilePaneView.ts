@@ -21,7 +21,6 @@ import { useSorting } from './useSorting'
 import {
   getFileProcessingOperation,
   getFolderProcessingOperation,
-  matchesKeybinding,
 } from '../utils'
 import type { SortColumn, SortDirection } from '../types'
 
@@ -254,12 +253,6 @@ export function useFilePaneView() {
     }
   }, [contextMenuState.contextMenu, user?.id])
 
-  // Helper for keybinding check
-  const checkKeybinding = useCallback((e: KeyboardEvent, action: string): boolean => {
-    const keybindings = usePDMStore.getState().keybindings
-    return matchesKeybinding(e, keybindings[action as keyof typeof keybindings])
-  }, [])
-
   // Combine columns with custom metadata columns
   const allColumns = useMemo(
     () => [
@@ -323,9 +316,6 @@ export function useFilePaneView() {
     setWatchingFiles,
     isTogglingWatch,
     setIsTogglingWatch,
-
-    // Keybinding check
-    checkKeybinding,
 
     // Current path
     currentPath: currentFolder,

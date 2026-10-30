@@ -1,14 +1,16 @@
-import { useEffect, useRef } from 'react'
+import { useRef } from 'react'
 import { Search, X } from 'lucide-react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { useTranslation } from '@/lib/i18n'
 import { FIELD_CLASS } from '@/components/core/ui'
+import { useShortcuts } from '@/lib/keybindings'
 import { useSettingsSearch } from '../useSettingsSearch'
 
 /**
  * The search box at the top of the settings navigation. Typing filters live: the main view shows
  * the matching settings and the navigation narrows to their tabs. Arrow keys move through the
- * results, Enter opens the highlighted one, Escape clears. Ctrl/Cmd+F focuses the box.
+ * results, Enter opens the highlighted one, Escape clears. Ctrl/Cmd+F (`settings.focusSearch`)
+ * focuses the box.
  */
 export function SettingsSearchBox() {
   const { t } = useTranslation()
@@ -20,17 +22,12 @@ export function SettingsSearchBox() {
   const openSettingFromSearch = usePDMStore((s) => s.openSettingFromSearch)
   const { hits } = useSettingsSearch()
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'f') {
-        e.preventDefault()
-        inputRef.current?.focus()
-        inputRef.current?.select()
-      }
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
+  useShortcuts('settings', {
+    'settings.focusSearch': () => {
+      inputRef.current?.focus()
+      inputRef.current?.select()
+    },
+  })
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Escape') {

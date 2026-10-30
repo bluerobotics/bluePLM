@@ -1,7 +1,8 @@
 /**
  * Decide the current item: Approve, Approve with comments, Request changes, Reject. A comment is
- * required for every decision except Approve (decision 2). Keyboard: A, Shift+A, C, R decide;
- * Ctrl+Enter sends a comment; Escape closes it. J / K belong to the detail pane
+ * required for every decision except Approve (decision 2). Keyboard: A, Shift+A, C, R decide by
+ * default (the registry's `reviews.*` actions, rebindable); Ctrl+Enter sends a comment; Escape
+ * closes it. J / K belong to the detail pane
  * (`useReviewItemKeys`), so they work for everyone viewing the review, not only reviewers.
  */
 
@@ -11,7 +12,7 @@ import { CheckCheck, CheckCircle2, Loader2, MessageSquareMore, Undo2, XCircle } 
 import { t } from '@/lib/i18n'
 import type { ReviewDecision } from '@/types/reviews'
 
-import { isEditableTarget, isModalOpen, mapDecisionKey } from '../lib/decisionKeys'
+import { useShortcuts, type ShortcutHandler } from '@/lib/keybindings'
 
 interface DecisionBarProps {
   /** The current item is owed by me in this round. */
@@ -36,33 +37,35 @@ export function DecisionBar({
   const [comment, setComment] = useState('')
   const textRef = useRef<HTMLTextAreaElement>(null)
 
-  // Keyboard shortcuts while the review is open.
+  // Escape drops an unsent decision.
   useEffect(() => {
+    if (!pending) return
     const onKey = (event: KeyboardEvent) => {
-      if (event.defaultPrevented) return
-      if (event.key === 'Escape' && pending) {
-        setPending(null)
-        return
-      }
-      const action = mapDecisionKey({
-        key: event.key,
-        shiftKey: event.shiftKey,
-        ctrlKey: event.ctrlKey,
-        metaKey: event.metaKey,
-        altKey: event.altKey,
-        inEditable: isEditableTarget(event.target) || isModalOpen(),
-        repeat: event.repeat,
-      })
-      if (!action || action.kind !== 'decide') return
-      event.preventDefault()
-      if (canDecide && !busy) {
-        if (action.decision === 'approved') onDecide('approved', null)
-        else setPending(action.decision)
-      }
+      if (event.defaultPrevented || event.key !== 'Escape') return
+      setPending(null)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [canDecide, busy, pending, onDecide])
+  }, [pending])
+
+  // Decision shortcuts while the review is open (ignored while typing or under a dialog).
+  const decideBy =
+    (decision: ReviewDecision): ShortcutHandler =>
+    () => {
+      if (!canDecide || busy) return
+      if (decision === 'approved') onDecide('approved', null)
+      else setPending(decision)
+    }
+  useShortcuts(
+    'reviews',
+    {
+      'reviews.approve': decideBy('approved'),
+      'reviews.approveWithComments': decideBy('approved_with_comments'),
+      'reviews.requestChanges': decideBy('changes_requested'),
+      'reviews.reject': decideBy('rejected'),
+    },
+    { blockedByModal: true },
+  )
 
   useEffect(() => {
     if (pending) textRef.current?.focus()

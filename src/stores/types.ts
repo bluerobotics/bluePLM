@@ -9,12 +9,8 @@ import type {
   OrgNativeExtensionRow,
   WorkspaceRegistration,
 } from '../types/nativeExtensions'
-import type {
-  KeybindingsConfig,
-  KeybindingAction,
-  Keybinding,
-  SettingsTab,
-} from '../types/settings'
+import type { SettingsTab } from '../types/settings'
+import type { ShortcutOverrides } from '../lib/keybindings/bindings'
 import type {
   WorkflowTemplate,
   WorkflowState,
@@ -747,7 +743,8 @@ export interface SettingsSlice {
   treeRowSize: number
   theme: ThemeMode
   language: Language
-  keybindings: KeybindingsConfig
+  /** Keyboard shortcuts the user changed: action id -> its keys (empty = no key). Defaults are in the registry. */
+  shortcutOverrides: ShortcutOverrides
   /** Where the export shortcuts write on this computer; null exports next to each source file */
   quickExportFolder: string | null
 
@@ -839,8 +836,12 @@ export interface SettingsSlice {
   setTreeRowSize: (size: number) => void
   setTheme: (theme: ThemeMode) => void
   setLanguage: (language: Language) => void
-  setKeybinding: (action: KeybindingAction, keybinding: Keybinding) => void
-  resetKeybindings: () => void
+  /** Sets an action's whole key list (primary first); keys equal to the defaults clear the override. */
+  setShortcutBindings: (actionId: string, combos: readonly string[]) => void
+  resetShortcut: (actionId: string) => void
+  resetAllShortcuts: () => void
+  /** Replaces every override (import). */
+  replaceShortcutOverrides: (overrides: ShortcutOverrides) => void
   setQuickExportFolder: (folder: string | null) => void
 
   // Actions - Tree Filtering
@@ -2059,12 +2060,7 @@ export type {
   OrgModuleDefaults,
 } from '../types/modules'
 
-export type {
-  KeybindingAction,
-  KeybindingsConfig,
-  Keybinding,
-  SettingsTab,
-} from '../types/settings'
+export type { SettingsTab } from '../types/settings'
 
 /** Clears session-owned state without removing persisted vault preferences. */
 export interface UserSlice {

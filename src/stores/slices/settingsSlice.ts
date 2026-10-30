@@ -8,7 +8,7 @@ import type {
   ThemeMode,
   Language,
 } from '../types'
-import type { KeybindingAction, Keybinding, KeybindingsConfig } from '../../types/settings'
+import { withBindings, withoutOverride } from '../../lib/keybindings/bindings'
 import { supabase } from '../../lib/supabase'
 import { IS_WEB_BUILD } from '../../lib/platform'
 
@@ -41,24 +41,6 @@ const defaultCardViewFields: CardViewFieldConfig[] = [
   { id: 'size', label: 'Size', visible: false },
   { id: 'modifiedTime', label: 'Modified', visible: false },
 ]
-
-export const defaultKeybindings: KeybindingsConfig = {
-  navigateUp: { key: 'ArrowUp' },
-  navigateDown: { key: 'ArrowDown' },
-  expandFolder: { key: 'ArrowRight' },
-  collapseFolder: { key: 'ArrowLeft' },
-  selectAll: { key: 'a', ctrlKey: true },
-  copy: { key: 'c', ctrlKey: true },
-  cut: { key: 'x', ctrlKey: true },
-  paste: { key: 'v', ctrlKey: true },
-  delete: { key: 'Delete' },
-  escape: { key: 'Escape' },
-  openFile: { key: 'Enter' },
-  toggleDetailsPanel: { key: 'p', ctrlKey: true },
-  refresh: { key: 'r', ctrlKey: true },
-  exportPdf: { key: 'p', ctrlKey: true, shiftKey: true },
-  exportStep: { key: 's', ctrlKey: true, shiftKey: true },
-}
 
 export const createSettingsSlice: StateCreator<
   PDMStoreState,
@@ -108,7 +90,7 @@ export const createSettingsSlice: StateCreator<
   treeRowSize: 18,
   theme: 'dark',
   language: 'en',
-  keybindings: defaultKeybindings,
+  shortcutOverrides: {},
   quickExportFolder: null,
 
   // Initial state - Tree Filtering
@@ -201,11 +183,14 @@ export const createSettingsSlice: StateCreator<
   setTreeRowSize: (treeRowSize) => set({ treeRowSize: Math.max(16, Math.min(64, treeRowSize)) }),
   setTheme: (theme: ThemeMode) => set({ theme }),
   setLanguage: (language: Language) => set({ language }),
-  setKeybinding: (action: KeybindingAction, keybinding: Keybinding) =>
+  setShortcutBindings: (actionId, combos) =>
     set((state) => ({
-      keybindings: { ...state.keybindings, [action]: keybinding },
+      shortcutOverrides: withBindings(state.shortcutOverrides, actionId, combos),
     })),
-  resetKeybindings: () => set({ keybindings: defaultKeybindings }),
+  resetShortcut: (actionId) =>
+    set((state) => ({ shortcutOverrides: withoutOverride(state.shortcutOverrides, actionId) })),
+  resetAllShortcuts: () => set({ shortcutOverrides: {} }),
+  replaceShortcutOverrides: (shortcutOverrides) => set({ shortcutOverrides }),
   setQuickExportFolder: (quickExportFolder) => set({ quickExportFolder }),
 
   // Actions - Tree Filtering

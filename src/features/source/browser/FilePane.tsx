@@ -2,8 +2,6 @@ import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { usePDMStore, LocalFile } from '@/stores/pdmStore'
 import { log } from '@/lib/logger'
-import { hasDesktop } from '@/lib/platform'
-import type { KeybindingAction } from '@/types/settings'
 import { logExplorer } from '@/lib/userActionLogger'
 // getEffectiveExportSettings is now used in useConfigHandlers hook
 // Note: FileIcon is now used inside file-pane/ListRowIcon.tsx
@@ -56,8 +54,6 @@ import {
   FilePaneProvider,
   FilePaneHandlersProvider,
   type FilePaneHandlersContextValue,
-  // Utilities
-  matchesKeybinding,
 } from './'
 
 // Import types directly to avoid circular dependency with barrel file
@@ -115,15 +111,6 @@ interface FilePaneProps {
 // NOTE: FileIconCard and ListRowIcon components have been extracted to file-pane/
 // They are now imported at the top of this file
 
-/** File-pane shortcuts that write the local vault or need SOLIDWORKS, so do nothing on BluePLM Web. */
-const WEB_DISABLED_KEYBINDINGS: ReadonlySet<KeybindingAction> = new Set<KeybindingAction>([
-  'copy',
-  'cut',
-  'paste',
-  'delete',
-  'exportPdf',
-  'exportStep',
-])
 export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
   const { t } = useTranslation()
   const { enforcedHiddenPaths } = useHiddenFolders()
@@ -149,7 +136,6 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
   const connectedVaults = usePDMStore(useShallow((s) => s.connectedVaults))
   const expandedFolders = usePDMStore((s) => s.expandedFolders)
   const processingOperations = usePDMStore((s) => s.processingOperations)
-  const keybindings = usePDMStore(useShallow((s) => s.keybindings))
 
   // ─── Primitive Selectors (no equality function needed) ─────────────────────
   const sortColumn = usePDMStore((s) => s.sortColumn)
@@ -1348,16 +1334,6 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
     }
   }, [emptyContextMenu])
 
-  // Helper function to check if a keyboard event matches a keybinding
-  // Uses the imported matchesKeybinding utility from file-browser utils
-  // On BluePLM Web the shortcuts that act on the local vault (copy, cut, paste, delete) are off.
-  const checkKeybinding = useStableCallback(
-    (e: KeyboardEvent, action: keyof typeof keybindings): boolean => {
-      if (!hasDesktop() && WEB_DISABLED_KEYBINDINGS.has(action)) return false
-      return matchesKeybinding(e, keybindings[action])
-    },
-  )
-
   // Keyboard navigation and shortcuts (extracted to hook)
   useKeyboardNav({
     files,
@@ -1372,7 +1348,6 @@ export function FilePane({ onRefresh, onRefreshFolder }: FilePaneProps) {
     vaultPath,
     clipboard,
     setClipboard,
-    matchesKeybinding: checkKeybinding,
     navigateToFolder,
     navigateUp,
     handleCopy,

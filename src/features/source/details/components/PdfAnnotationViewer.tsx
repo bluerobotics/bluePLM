@@ -13,6 +13,7 @@ import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 
 import { log } from '@/lib/logger'
 import { t } from '@/lib/i18n'
+import { useShortcuts } from '@/lib/keybindings'
 import {
   Loader2,
   ZoomIn,
@@ -698,47 +699,35 @@ export function PdfAnnotationViewer({
     scrollEl.scrollTop = Math.max(0, target.top)
   }, [scale])
 
-  // ── Keyboard zoom (viewport-centered) ──────────────────────────────────
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+  // ── Keyboard zoom (viewport-centered): the registry's pdfViewer.* shortcuts ──
+  const zoomAroundCenter = (delta: number) => {
+    const scrollEl = scrollRef.current
+    if (!scrollEl) return
+    const cx = scrollEl.clientWidth / 2
+    const cy = scrollEl.clientHeight / 2
+    const contentX = scrollEl.scrollLeft + cx
+    const contentY = scrollEl.scrollTop + cy
+    const oldScale = scaleRef.current
+    const newScale =
+      Math.round(Math.max(MIN_SCALE, Math.min(MAX_SCALE, oldScale + delta)) * 100) / 100
+    if (newScale === oldScale) return
+    const ratio = newScale / oldScale
+    pendingScrollRef.current = { left: contentX * ratio - cx, top: contentY * ratio - cy }
+    setFitMode(null)
+    setScale(newScale)
+  }
 
-      const zoom = (delta: number) => {
-        e.preventDefault()
-        const scrollEl = scrollRef.current
-        if (scrollEl) {
-          const cx = scrollEl.clientWidth / 2
-          const cy = scrollEl.clientHeight / 2
-          const contentX = scrollEl.scrollLeft + cx
-          const contentY = scrollEl.scrollTop + cy
-          const oldScale = scaleRef.current
-          const newScale =
-            Math.round(Math.max(MIN_SCALE, Math.min(MAX_SCALE, oldScale + delta)) * 100) / 100
-          if (newScale === oldScale) return
-          const ratio = newScale / oldScale
-          pendingScrollRef.current = { left: contentX * ratio - cx, top: contentY * ratio - cy }
-          setFitMode(null)
-          setScale(newScale)
-        }
+  useShortcuts('pdfViewer', {
+    'pdfViewer.zoomIn': () => zoomAroundCenter(0.25),
+    'pdfViewer.zoomOut': () => zoomAroundCenter(-0.25),
+    'pdfViewer.fitPage': () => {
+      const s = computeFitScale('page')
+      if (s) {
+        setScale(s)
+        setFitMode('page')
       }
-
-      if ((e.ctrlKey || e.metaKey) && (e.key === '=' || e.key === '+')) {
-        zoom(0.25)
-      } else if ((e.ctrlKey || e.metaKey) && e.key === '-') {
-        zoom(-0.25)
-      } else if ((e.ctrlKey || e.metaKey) && e.key === '0') {
-        e.preventDefault()
-        const s = computeFitScale('page')
-        if (s) {
-          setScale(s)
-          setFitMode('page')
-        }
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [computeFitScale])
+    },
+  })
 
   // ── Ctrl+wheel zoom (cursor-centered) ──────────────────────────────────
   useEffect(() => {

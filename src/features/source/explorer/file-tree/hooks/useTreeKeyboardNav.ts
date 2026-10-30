@@ -1,7 +1,8 @@
-import { useEffect, useCallback, RefObject } from 'react'
+import { useCallback, useRef, RefObject } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { usePDMStore, LocalFile } from '@/stores/pdmStore'
 import { executeCommand } from '@/lib/commands'
+import { useShortcuts } from '@/lib/keybindings'
 import type { TreeMap } from '../types'
 
 interface UseTreeKeyboardNavOptions {
@@ -12,8 +13,8 @@ interface UseTreeKeyboardNavOptions {
 }
 
 /**
- * Hook for keyboard navigation in the explorer tree
- * Handles arrow keys for navigation, Enter for opening files, etc.
+ * Keyboard navigation in the explorer tree: the registry's fileTree.* shortcuts (arrows move and
+ * expand, Enter opens, F2 renames, Delete deletes by default).
  */
 export function useTreeKeyboardNav({
   containerRef,
@@ -58,147 +59,89 @@ export function useTreeKeyboardNav({
     return result
   }, [tree, expandedFolders])
 
-  useEffect(() => {
-    // Track last clicked index for range selection
-    let lastClickedIndex: number | null = null
+  // Anchor of a Shift+Arrow range selection
+  const lastClickedIndexRef = useRef<number | null>(null)
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Only handle when not typing in input fields
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        return
-      }
+  /** The single selected row, or null (several or none selected). */
+  const singleSelected = (visibleFiles: LocalFile[]): LocalFile | null =>
+    selectedFiles.length === 1 ? (visibleFiles.find((f) => f.path === selectedFiles[0]) ?? null) : null
 
-      // Only handle if the explorer view contains the active element
-      if (
-        !containerRef.current?.contains(document.activeElement) &&
-        !containerRef.current?.contains(e.target as Node)
-      ) {
-        return
-      }
+  const moveSelection = (event: KeyboardEvent, isUp: boolean): boolean => {
+    const visibleFiles = getVisibleFiles()
+    if (visibleFiles.length === 0) return false
 
-      // F2 - rename selected file/folder
-      if (e.key === 'F2' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        if (selectedFiles.length !== 1 || !onRename) return
+    const focusIndex =
+      selectedFiles.length > 0
+        ? visibleFiles.findIndex((f) => f.path === selectedFiles[selectedFiles.length - 1])
+        : -1
 
+    if (focusIndex === -1) {
+      const newIndex = isUp ? visibleFiles.length - 1 : 0
+      setSelectedFiles([visibleFiles[newIndex].path])
+      lastClickedIndexRef.current = newIndex
+      return true
+    }
+
+    const newIndex = isUp
+      ? Math.max(0, focusIndex - 1)
+      : Math.min(visibleFiles.length - 1, focusIndex + 1)
+    if (newIndex === focusIndex) return true
+
+    if (event.shiftKey) {
+      const anchorIndex = lastClickedIndexRef.current ?? focusIndex
+      const start = Math.min(anchorIndex, newIndex)
+      const end = Math.max(anchorIndex, newIndex)
+      setSelectedFiles(visibleFiles.slice(start, end + 1).map((f) => f.path))
+    } else {
+      setSelectedFiles([visibleFiles[newIndex].path])
+      lastClickedIndexRef.current = newIndex
+    }
+    return true
+  }
+
+  // The registry's fileTree.* shortcuts, while focus is in the tree. They take precedence over
+  // the file pane's actions on the same keys.
+  useShortcuts(
+    'fileTree',
+    {
+      'fileTree.navigateUp': (e) => moveSelection(e, true),
+      'fileTree.navigateDown': (e) => moveSelection(e, false),
+
+      // Expand the selected folder
+      'fileTree.expandFolder': () => {
+        const selectedFile = singleSelected(getVisibleFiles())
+        if (!selectedFile?.isDirectory) return false
+        if (!expandedFolders.has(selectedFile.relativePath)) toggleFolder(selectedFile.relativePath)
+        return true
+      },
+
+      // Collapse the selected folder, or select its parent
+      'fileTree.collapseFolder': () => {
         const visibleFiles = getVisibleFiles()
-        const selectedFile = visibleFiles.find((f) => f.path === selectedFiles[0])
-        if (!selectedFile) return
+        const selectedFile = singleSelected(visibleFiles)
+        if (!selectedFile) return false
 
-        e.preventDefault()
-        e.stopPropagation()
-        onRename(selectedFile)
-        return
-      }
-
-      // Only handle specific keys without modifiers (except shift for range selection)
-      if (e.ctrlKey || e.metaKey || e.altKey) return
-      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', 'Delete'].includes(e.key))
-        return
-
-      const visibleFiles = getVisibleFiles()
-      if (visibleFiles.length === 0) return
-
-      // ArrowUp/ArrowDown - move selection up/down
-      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-        e.preventDefault()
-        e.stopPropagation()
-
-        const isUp = e.key === 'ArrowUp'
-        const isShift = e.shiftKey
-
-        const focusIndex =
-          selectedFiles.length > 0
-            ? visibleFiles.findIndex((f) => f.path === selectedFiles[selectedFiles.length - 1])
-            : -1
-
-        if (focusIndex === -1) {
-          const newIndex = isUp ? visibleFiles.length - 1 : 0
-          setSelectedFiles([visibleFiles[newIndex].path])
-          lastClickedIndex = newIndex
-          return
-        }
-
-        let newIndex: number
-        if (isUp) {
-          newIndex = Math.max(0, focusIndex - 1)
-        } else {
-          newIndex = Math.min(visibleFiles.length - 1, focusIndex + 1)
-        }
-
-        if (newIndex !== focusIndex) {
-          if (isShift) {
-            const anchorIndex = lastClickedIndex ?? focusIndex
-            const start = Math.min(anchorIndex, newIndex)
-            const end = Math.max(anchorIndex, newIndex)
-            const rangePaths = visibleFiles.slice(start, end + 1).map((f) => f.path)
-            setSelectedFiles(rangePaths)
-          } else {
-            setSelectedFiles([visibleFiles[newIndex].path])
-            lastClickedIndex = newIndex
-          }
-        }
-        return
-      }
-
-      // ArrowRight - expand folder
-      if (e.key === 'ArrowRight') {
-        if (selectedFiles.length !== 1) return
-
-        const selectedFile = visibleFiles.find((f) => f.path === selectedFiles[0])
-        if (!selectedFile?.isDirectory) return
-
-        e.preventDefault()
-        e.stopPropagation()
-
-        if (!expandedFolders.has(selectedFile.relativePath)) {
-          toggleFolder(selectedFile.relativePath)
-        }
-        return
-      }
-
-      // ArrowLeft - collapse folder or select parent
-      if (e.key === 'ArrowLeft') {
-        if (selectedFiles.length !== 1) return
-
-        const selectedFile = visibleFiles.find((f) => f.path === selectedFiles[0])
-        if (!selectedFile) return
-
-        e.preventDefault()
-        e.stopPropagation()
-
-        // If it's an expanded folder, collapse it
         if (selectedFile.isDirectory && expandedFolders.has(selectedFile.relativePath)) {
           toggleFolder(selectedFile.relativePath)
-          return
+          return true
         }
 
-        // Otherwise, select the parent folder
         const parentPath = selectedFile.relativePath.includes('/')
           ? selectedFile.relativePath.substring(0, selectedFile.relativePath.lastIndexOf('/'))
           : ''
-
-        if (parentPath) {
-          const parentFile = visibleFiles.find(
-            (f) => f.relativePath === parentPath && f.isDirectory,
-          )
-          if (parentFile) {
-            const parentIndex = visibleFiles.indexOf(parentFile)
-            setSelectedFiles([parentFile.path])
-            lastClickedIndex = parentIndex
-          }
+        if (!parentPath) return true
+        const parentFile = visibleFiles.find((f) => f.relativePath === parentPath && f.isDirectory)
+        if (parentFile) {
+          setSelectedFiles([parentFile.path])
+          lastClickedIndexRef.current = visibleFiles.indexOf(parentFile)
         }
-        return
-      }
+        return true
+      },
 
-      // Enter - open file or toggle folder expansion
-      if (e.key === 'Enter') {
-        if (selectedFiles.length !== 1) return
-
-        const selectedFile = visibleFiles.find((f) => f.path === selectedFiles[0])
-        if (!selectedFile) return
-
-        e.preventDefault()
-        e.stopPropagation()
+      // Open the selected file, or toggle the selected folder
+      'fileTree.open': () => {
+        const selectedFile = singleSelected(getVisibleFiles())
+        if (!selectedFile) return false
 
         if (selectedFile.isDirectory) {
           toggleFolder(selectedFile.relativePath)
@@ -214,40 +157,33 @@ export function useTreeKeyboardNav({
         } else if (window.electronAPI) {
           window.electronAPI.openFile(selectedFile.path)
         }
-        return
-      }
+        return true
+      },
 
-      // Delete - delete selected files/folders
-      if (e.key === 'Delete') {
-        if (selectedFiles.length === 0) return
+      'fileTree.rename': () => {
+        if (!onRename) return false
+        const selectedFile = singleSelected(getVisibleFiles())
+        if (!selectedFile) return false
+        onRename(selectedFile)
+        return true
+      },
 
-        e.preventDefault()
-        e.stopPropagation()
-
-        // Get selected items from visible files
-        const selectedItems = visibleFiles.filter((f) => selectedFiles.includes(f.path))
-        if (selectedItems.length === 0) return
-
-        // For folders, delete directly (no confirmation dialog - unified delete behavior)
-        // For files or mixed selection, also delete directly
-        // The delete-local command handles both local deletion and server sync for folders
+      // Delete the selected files and folders. The delete-local command handles local deletion
+      // and server sync for folders, with no confirmation (unified delete behaviour).
+      'fileTree.delete': () => {
+        if (selectedFiles.length === 0) return false
+        const selectedItems = getVisibleFiles().filter((f) => selectedFiles.includes(f.path))
+        if (selectedItems.length === 0) return true
         executeCommand('delete-local', { files: selectedItems }, { onRefresh })
-        return
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [
-    getVisibleFiles,
-    selectedFiles,
-    setSelectedFiles,
-    expandedFolders,
-    toggleFolder,
-    containerRef,
-    onRename,
-    onRefresh,
-  ])
+        return true
+      },
+    },
+    {
+      isActive: (e) =>
+        !!containerRef.current?.contains(document.activeElement) ||
+        !!containerRef.current?.contains(e.target as Node),
+    },
+  )
 
   return { getVisibleFiles }
 }

@@ -42,8 +42,6 @@ export {
   getFileProcessingOperation,
   getFolderProcessingOperation,
 } from './processingStatus'
-export { matchesKeybinding } from './keybindings'
-export type { Keybinding } from './keybindings'
 export { buildConfigTreeFlat } from './configTree'
 export type { ConfigInput } from './configTree'
 

@@ -1,369 +1,345 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
-import { Edit3, Check, X } from 'lucide-react'
+import { useMemo, useRef, useState } from 'react'
+import { Download, Keyboard, Search, Upload, X } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 
-import { Button } from '@/components/core/ui'
+import { Button, FIELD_CLASS, Switch } from '@/components/core/ui'
 import { SettingsGroup, SettingsPage, SettingsSection } from '@/features/settings/components/ui'
+import { QuickExportFolderRow } from '@/features/settings/system'
+import { useTranslation } from '@/lib/i18n'
+import {
+  SHORTCUT_CATEGORIES,
+  actionsBoundTo,
+  allConflicts,
+  availableShortcutActions,
+  canonicalCombo,
+  findConflicts,
+  formatCombo,
+  getShortcutPlatform,
+  isModified,
+  useResolvedBindings,
+  withBindings,
+  type ShortcutAction,
+} from '@/lib/keybindings'
 import { hasDesktop } from '@/lib/platform'
 import { usePDMStore } from '@/stores/pdmStore'
-import { QuickExportFolderRow } from '@/features/settings/system'
-import type { KeybindingAction, Keybinding } from '@/types/settings'
 
-// Keybinding action definitions with labels and descriptions
-const keybindingDefinitions: {
-  action: KeybindingAction
-  label: string
-  description: string
-  category: string
-}[] = [
-  // Navigation
-  {
-    action: 'navigateUp',
-    label: 'Navigate Up',
-    description: 'Move selection to previous file/folder',
-    category: 'Navigation',
-  },
-  {
-    action: 'navigateDown',
-    label: 'Navigate Down',
-    description: 'Move selection to next file/folder',
-    category: 'Navigation',
-  },
-  {
-    action: 'expandFolder',
-    label: 'Expand Folder',
-    description: 'Expand selected folder or navigate into it',
-    category: 'Navigation',
-  },
-  {
-    action: 'collapseFolder',
-    label: 'Collapse Folder',
-    description: 'Collapse selected folder or navigate to parent',
-    category: 'Navigation',
-  },
-  {
-    action: 'openFile',
-    label: 'Open File',
-    description: 'Open the selected file or expand folder',
-    category: 'Navigation',
-  },
+import { HeldModifiers, Keycaps } from './keybindings/Keycaps'
+import { ShortcutRow, type CaptureSlot, type PendingConflict } from './keybindings/ShortcutRow'
+import { exportShortcutsFile, importShortcutsFile } from './keybindings/shortcutsFile'
+import { useKeyCapture } from './keybindings/useKeyCapture'
 
-  // Editing
-  {
-    action: 'selectAll',
-    label: 'Select All',
-    description: 'Select all files in the current folder',
-    category: 'Editing',
-  },
-  {
-    action: 'copy',
-    label: 'Copy',
-    description: 'Copy selected files to clipboard',
-    category: 'Editing',
-  },
-  {
-    action: 'cut',
-    label: 'Cut',
-    description: 'Cut selected files to clipboard',
-    category: 'Editing',
-  },
-  {
-    action: 'paste',
-    label: 'Paste',
-    description: 'Paste files from clipboard',
-    category: 'Editing',
-  },
-  { action: 'delete', label: 'Delete', description: 'Delete selected files', category: 'Editing' },
+interface Editing {
+  actionId: string
+  slot: CaptureSlot
+}
 
-  // General
-  {
-    action: 'escape',
-    label: 'Escape',
-    description: 'Clear selection and cancel operations',
-    category: 'General',
-  },
-  {
-    action: 'toggleDetailsPanel',
-    label: 'Toggle Details',
-    description: 'Show/hide the details panel',
-    category: 'General',
-  },
-  {
-    action: 'refresh',
-    label: 'Refresh',
-    description: 'Refresh the file list',
-    category: 'General',
-  },
+/**
+ * Settings > Keyboard shortcuts: every action of the shortcut registry (`src/lib/keybindings`),
+ * grouped by category. Search by name or by pressing keys, rebind with a capture field, add
+ * alternates, reset one or all, see and resolve conflicts, filter to modified ones, and move the
+ * set between machines as JSON. Only the user's changes are stored (`shortcutOverrides`).
+ */
+export function KeybindingsSettings() {
+  const { t } = useTranslation()
+  const { overrides, setShortcutBindings, resetShortcut, resetAllShortcuts, replaceShortcutOverrides, addToast } =
+    usePDMStore(
+      useShallow((s) => ({
+        overrides: s.shortcutOverrides,
+        setShortcutBindings: s.setShortcutBindings,
+        resetShortcut: s.resetShortcut,
+        resetAllShortcuts: s.resetAllShortcuts,
+        replaceShortcutOverrides: s.replaceShortcutOverrides,
+        addToast: s.addToast,
+      })),
+    )
+  const bindings = useResolvedBindings()
+  const platform = getShortcutPlatform()
+  const available = useMemo(() => availableShortcutActions(hasDesktop()), [])
 
-  // Export (desktop only: needs SOLIDWORKS)
-  {
-    action: 'exportPdf',
-    label: 'Export PDF',
-    description: 'Queue the selected drawings for PDF export to the quick export folder',
-    category: 'Export',
-  },
-  {
-    action: 'exportStep',
-    label: 'Export STEP',
-    description:
-      'Queue the selected parts and assemblies, or the models of selected drawings, for STEP export',
-    category: 'Export',
-  },
-]
+  const [query, setQuery] = useState('')
+  const [recording, setRecording] = useState(false)
+  const [recordedCombo, setRecordedCombo] = useState<string | null>(null)
+  const [modifiedOnly, setModifiedOnly] = useState(false)
+  const [confirmResetAll, setConfirmResetAll] = useState(false)
+  const [editing, setEditing] = useState<Editing | null>(null)
+  const [pending, setPending] = useState<(PendingConflict & { actionId: string }) | null>(null)
+  const [notice, setNotice] = useState<{ actionId: string; text: string } | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-// Helper to format a keybinding for display
-function formatKeybinding(keybinding: Keybinding): string {
-  const parts: string[] = []
-  if (keybinding.ctrlKey) parts.push('Ctrl')
-  if (keybinding.altKey) parts.push('Alt')
-  if (keybinding.shiftKey) parts.push('Shift')
-  if (keybinding.metaKey) parts.push('⌘')
+  // Search by keys: the search field records presses instead of text.
+  const recordHeld = useKeyCapture(
+    recording,
+    (combo) => setRecordedCombo(combo),
+    () => setRecording(false),
+  )
 
-  // Format the key nicely
-  let keyDisplay = keybinding.key
-  switch (keybinding.key) {
-    case 'ArrowUp':
-      keyDisplay = '↑'
-      break
-    case 'ArrowDown':
-      keyDisplay = '↓'
-      break
-    case 'ArrowLeft':
-      keyDisplay = '←'
-      break
-    case 'ArrowRight':
-      keyDisplay = '→'
-      break
-    case 'Escape':
-      keyDisplay = 'Esc'
-      break
-    case 'Delete':
-      keyDisplay = 'Del'
-      break
-    case 'Backspace':
-      keyDisplay = '⌫'
-      break
-    case 'Enter':
-      keyDisplay = '↵'
-      break
-    case 'Tab':
-      keyDisplay = 'Tab'
-      break
-    case ' ':
-      keyDisplay = 'Space'
-      break
-    default:
-      if (keybinding.key.length === 1) {
-        keyDisplay = keybinding.key.toUpperCase()
+  const conflicts = useMemo(() => allConflicts(bindings, available), [bindings, available])
+
+  const visible = useMemo(() => {
+    let list: readonly ShortcutAction[] = available
+    if (modifiedOnly) list = list.filter((action) => isModified(action.id, overrides))
+    if (recording || recordedCombo) {
+      return recordedCombo ? actionsBoundTo(recordedCombo, bindings, list) : list
+    }
+    const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
+    if (words.length === 0) return list
+    const typedCombo = canonicalCombo(query.trim())
+    return list.filter((action) => {
+      const combos = bindings.get(action.id) ?? []
+      if (typedCombo && actionsBoundTo(typedCombo, bindings, [action]).length > 0) return true
+      const haystack = [
+        t(`shortcuts.action.${action.id}`),
+        t(`shortcuts.help.${action.id}`),
+        t(`shortcuts.category.${action.category}`),
+        ...combos.flatMap((combo) => [
+          formatCombo(combo, 'other'),
+          formatCombo(combo, 'mac'),
+          combo.replace('Mod', 'Cmd'),
+        ]),
+      ]
+        .join(' ')
+        .toLowerCase()
+      return words.every((word) => haystack.includes(word))
+    })
+  }, [available, modifiedOnly, overrides, recording, recordedCombo, query, bindings, t])
+
+  const sections = SHORTCUT_CATEGORIES.map((category) => ({
+    category,
+    actions: visible.filter((action) => action.category === category),
+  })).filter(
+    // The quick export folder lives with the Export actions, so that section stays while unfiltered.
+    (section) =>
+      section.actions.length > 0 ||
+      (section.category === 'export' && hasDesktop() && !modifiedOnly && !query && !recordedCombo && !recording),
+  )
+
+  // ── Editing ───────────────────────────────────────────────────────────
+  const combosOf = (actionId: string) => [...(bindings.get(actionId) ?? [])]
+
+  const save = (actionId: string, slot: CaptureSlot, combo: string) => {
+    const next = combosOf(actionId)
+    if (slot === 'new') next.push(combo)
+    else next[slot] = combo
+    setShortcutBindings(actionId, next)
+  }
+
+  const handleCaptured = (actionId: string, slot: CaptureSlot, combo: string) => {
+    setEditing(null)
+    setNotice(null)
+    const current = combosOf(actionId)
+    const existingIndex = current.indexOf(combo)
+    if (existingIndex >= 0 && existingIndex !== slot) {
+      setNotice({ actionId, text: t('shortcuts.keysAlreadyHere', { keys: formatCombo(combo, platform) }) })
+      return
+    }
+    const found = findConflicts(actionId, combo, bindings, available)
+    if (found.length > 0) {
+      setPending({ actionId, slot, combo, conflicts: found })
+      return
+    }
+    save(actionId, slot, combo)
+  }
+
+  const resolvePending = (choice: 'reassign' | 'keepBoth' | 'cancel') => {
+    if (!pending) return
+    if (choice === 'reassign') {
+      // Take the keys away from every other action in one store write.
+      let next = overrides
+      for (const conflict of pending.conflicts) {
+        const theirs = (bindings.get(conflict.actionId) ?? []).filter((c) => c !== conflict.combo)
+        next = withBindings(next, conflict.actionId, theirs)
       }
-  }
-
-  parts.push(keyDisplay)
-  return parts.join(' + ')
-}
-
-// Parse a keyboard event into a Keybinding
-function eventToKeybinding(e: KeyboardEvent): Keybinding {
-  return {
-    key: e.key,
-    ctrlKey: e.ctrlKey || undefined,
-    altKey: e.altKey || undefined,
-    shiftKey: e.shiftKey || undefined,
-    metaKey: e.metaKey || undefined,
-  }
-}
-
-interface KeybindingRowProps {
-  action: KeybindingAction
-  label: string
-  description: string
-  keybinding: Keybinding
-  onEdit: (action: KeybindingAction) => void
-  isEditing: boolean
-  onSave: (keybinding: Keybinding) => void
-  onCancel: () => void
-}
-
-function KeybindingRow({
-  action,
-  label,
-  description,
-  keybinding,
-  onEdit,
-  isEditing,
-  onSave,
-  onCancel,
-}: KeybindingRowProps) {
-  const inputRef = useRef<HTMLButtonElement>(null)
-  const [pendingKeybinding, setPendingKeybinding] = useState<Keybinding | null>(null)
-
-  useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.focus()
+      const mine = combosOf(pending.actionId)
+      if (pending.slot === 'new') mine.push(pending.combo)
+      else mine[pending.slot] = pending.combo
+      replaceShortcutOverrides(withBindings(next, pending.actionId, mine))
+    } else if (choice === 'keepBoth') {
+      save(pending.actionId, pending.slot, pending.combo)
     }
-  }, [isEditing])
-
-  useEffect(() => {
-    if (!isEditing) return
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-
-      // Ignore modifier-only keys
-      if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) {
-        return
-      }
-
-      const newKeybinding = eventToKeybinding(e)
-      setPendingKeybinding(newKeybinding)
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isEditing])
-
-  const handleSave = () => {
-    if (pendingKeybinding) {
-      onSave(pendingKeybinding)
-      setPendingKeybinding(null)
-    }
+    setPending(null)
   }
 
-  const handleCancel = () => {
-    setPendingKeybinding(null)
-    onCancel()
+  const startCapture = (actionId: string, slot: CaptureSlot) => {
+    setRecording(false)
+    setPending(null)
+    setNotice(null)
+    setEditing({ actionId, slot })
   }
 
-  return (
-    <div className="group flex items-center justify-between gap-12 py-3">
-      <div className="min-w-0 flex-1">
-        <div className="text-[14px] text-ui-fg">{label}</div>
-        <div className="mt-0.5 truncate text-[14px] text-ui-fg-secondary">{description}</div>
-      </div>
+  const removeKey = (actionId: string, index: number) => {
+    const next = combosOf(actionId)
+    next.splice(index, 1)
+    setShortcutBindings(actionId, next)
+  }
 
-      <div className="flex items-center gap-1.5">
-        {isEditing ? (
-          <>
-            <button
-              ref={inputRef}
-              type="button"
-              className="h-7 min-w-[120px] rounded-lg border border-ui-accent bg-ui-field px-3 text-center text-[13px] text-ui-fg outline-none focus-visible:ring-2 focus-visible:ring-ui-accent/50"
-            >
-              {pendingKeybinding ? formatKeybinding(pendingKeybinding) : 'Press keys...'}
-            </button>
-            <Button
-              variant="ghost"
-              size="sm"
-              icon={<Check size={14} />}
-              onClick={handleSave}
-              disabled={!pendingKeybinding}
-              title="Save"
-              aria-label="Save"
-            />
-            <Button
-              variant="ghost"
-              size="sm"
-              icon={<X size={14} />}
-              onClick={handleCancel}
-              title="Cancel"
-              aria-label="Cancel"
-            />
-          </>
-        ) : (
-          <>
-            <kbd className="flex h-7 min-w-[120px] items-center justify-center rounded-lg border border-ui-field-border bg-ui-field px-3 font-sans text-[13px] text-ui-fg">
-              {formatKeybinding(keybinding)}
-            </kbd>
-            <Button
-              variant="ghost"
-              size="sm"
-              icon={<Edit3 size={14} />}
-              onClick={() => onEdit(action)}
-              title="Edit keybinding"
-              aria-label={`Edit ${label}`}
-              className="opacity-0 focus-visible:opacity-100 group-hover:opacity-100"
-            />
-          </>
-        )}
-      </div>
+  const handleResetAll = () => {
+    resetAllShortcuts()
+    setConfirmResetAll(false)
+    setPending(null)
+    addToast('info', t('shortcuts.resetAllDone'))
+  }
+
+  const toggleRecording = () => {
+    setEditing(null)
+    setRecordedCombo(null)
+    setRecording((on) => !on)
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────
+  const searchField = recording || recordedCombo ? (
+    <div
+      className={`${FIELD_CLASS} flex h-7 items-center gap-2 px-2.5 ${recording ? 'border-ui-accent/70 ring-2 ring-ui-accent/25' : ''}`}
+      aria-live="polite"
+    >
+      <Keyboard size={14} className="flex-shrink-0 text-ui-fg-secondary" aria-hidden />
+      {recordedCombo ? (
+        <Keycaps combo={recordedCombo} platform={platform} />
+      ) : recordHeld.length > 0 ? (
+        <HeldModifiers held={recordHeld} platform={platform} />
+      ) : (
+        <span className="truncate text-ui-fg-secondary">{t('shortcuts.searchByKeysHint')}</span>
+      )}
+      <button
+        type="button"
+        onClick={() => {
+          setRecording(false)
+          setRecordedCombo(null)
+        }}
+        aria-label={t('shortcuts.stopRecording')}
+        title={t('shortcuts.stopRecording')}
+        className="ml-auto rounded p-0.5 text-ui-fg-secondary hover:text-ui-fg"
+      >
+        <X size={14} />
+      </button>
+    </div>
+  ) : (
+    <div className="relative">
+      <Search
+        size={14}
+        className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ui-fg-secondary"
+        aria-hidden
+      />
+      <input
+        type="search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder={t('shortcuts.searchPlaceholder')}
+        aria-label={t('shortcuts.searchPlaceholder')}
+        className={`${FIELD_CLASS} h-7 pl-8 pr-2.5`}
+      />
     </div>
   )
-}
 
-export function KeybindingsSettings() {
-  const { keybindings, setKeybinding, resetKeybindings, addToast } = usePDMStore(
-    useShallow((s) => ({
-      keybindings: s.keybindings,
-      setKeybinding: s.setKeybinding,
-      resetKeybindings: s.resetKeybindings,
-      addToast: s.addToast,
-    })),
-  )
-  const [editingAction, setEditingAction] = useState<KeybindingAction | null>(null)
-
-  const handleEdit = useCallback((action: KeybindingAction) => {
-    setEditingAction(action)
-  }, [])
-
-  const handleSave = useCallback(
-    (action: KeybindingAction, keybinding: Keybinding) => {
-      setKeybinding(action, keybinding)
-      setEditingAction(null)
-      addToast('success', 'Keybinding updated')
-    },
-    [setKeybinding, addToast],
-  )
-
-  const handleCancel = useCallback(() => {
-    setEditingAction(null)
-  }, [])
-
-  const handleResetAll = useCallback(() => {
-    resetKeybindings()
-    addToast('info', 'Keybindings reset to defaults')
-  }, [resetKeybindings, addToast])
-
-  // Group keybindings by category
-  const categories = hasDesktop()
-    ? ['Navigation', 'Editing', 'General', 'Export']
-    : ['Navigation', 'Editing', 'General']
-  const keybindingsByCategory = categories.map((category) => ({
-    category,
-    items: keybindingDefinitions.filter((k) => k.category === category),
-  }))
+  const emptyText = recordedCombo
+    ? t('shortcuts.noMatchesKeys', { keys: formatCombo(recordedCombo, platform) })
+    : modifiedOnly && !query
+      ? t('shortcuts.noModified')
+      : t('shortcuts.noMatches', { query })
 
   return (
     <SettingsPage>
       <SettingsSection
-        title="Keyboard Shortcuts"
-        description="Click the edit button next to any shortcut to change it. Press the new key combination and click the checkmark to save. Shortcuts work when the file browser is focused."
+        title={t('shortcuts.title')}
+        description={t('shortcuts.description')}
         actions={
-          <Button size="sm" onClick={handleResetAll}>
-            Reset to Defaults
-          </Button>
+          confirmResetAll ? (
+            <>
+              <span className="text-[13px] text-ui-fg-secondary">{t('shortcuts.resetAllConfirm')}</span>
+              <Button size="sm" variant="danger-subtle" onClick={handleResetAll}>
+                {t('shortcuts.resetAllYes')}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setConfirmResetAll(false)}>
+                {t('shortcuts.cancel')}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button size="sm" icon={<Upload size={14} />} onClick={() => fileInputRef.current?.click()}>
+                {t('shortcuts.import')}
+              </Button>
+              <Button
+                size="sm"
+                icon={<Download size={14} />}
+                onClick={() => exportShortcutsFile(overrides, t, addToast)}
+              >
+                {t('shortcuts.export')}
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => setConfirmResetAll(true)}
+                disabled={Object.keys(overrides).length === 0}
+              >
+                {t('shortcuts.resetAll')}
+              </Button>
+            </>
+          )
         }
       >
-        {null}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".json,application/json"
+          className="hidden"
+          onChange={async (e) => {
+            const file = e.target.files?.[0]
+            e.target.value = ''
+            if (!file) return
+            const imported = await importShortcutsFile(file, t, addToast)
+            if (imported) {
+              setPending(null)
+              replaceShortcutOverrides(imported)
+            }
+          }}
+        />
+        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="min-w-[220px] flex-1">{searchField}</div>
+          <Button
+            size="sm"
+            variant={recording ? 'primary' : 'secondary'}
+            icon={<Keyboard size={14} />}
+            onClick={toggleRecording}
+            aria-pressed={recording}
+          >
+            {t('shortcuts.searchByKeys')}
+          </Button>
+          <label className="flex items-center gap-2 text-[14px] text-ui-fg">
+            <Switch checked={modifiedOnly} onChange={setModifiedOnly} size="sm" aria-label={t('shortcuts.modifiedOnly')} />
+            <span>{t('shortcuts.modifiedOnly')}</span>
+          </label>
+        </div>
       </SettingsSection>
 
-      {keybindingsByCategory.map(({ category, items }) => (
-        <SettingsSection key={category} title={category}>
+      {sections.length === 0 && (
+        <p className="text-[14px] text-ui-fg-secondary">{emptyText}</p>
+      )}
+
+      {sections.map(({ category, actions }) => (
+        <SettingsSection key={category} title={t(`shortcuts.category.${category}`)}>
           <SettingsGroup>
-            {items.map(({ action, label, description }) => (
-              <KeybindingRow
-                key={action}
-                action={action}
-                label={label}
-                description={description}
-                keybinding={keybindings[action]}
-                onEdit={handleEdit}
-                isEditing={editingAction === action}
-                onSave={(kb) => handleSave(action, kb)}
-                onCancel={handleCancel}
-              />
-            ))}
-            {category === 'Export' && <QuickExportFolderRow />}
+            {actions.map((action) => {
+              const isEditing = editing?.actionId === action.id
+              const isPending = pending?.actionId === action.id
+              return (
+                <ShortcutRow
+                  key={action.id}
+                  action={action}
+                  combos={bindings.get(action.id) ?? []}
+                  modified={isModified(action.id, overrides)}
+                  existingConflicts={conflicts.get(action.id) ?? []}
+                  platform={platform}
+                  capturing={isEditing ? editing.slot : null}
+                  pending={isPending ? pending : null}
+                  notice={notice?.actionId === action.id ? notice.text : null}
+                  onStartCapture={(slot) => startCapture(action.id, slot)}
+                  onCaptured={(slot, combo) => handleCaptured(action.id, slot, combo)}
+                  onCancelCapture={() => setEditing(null)}
+                  onRemove={(index) => removeKey(action.id, index)}
+                  onReset={() => resetShortcut(action.id)}
+                  onResolvePending={resolvePending}
+                />
+              )
+            })}
+            {category === 'export' && <QuickExportFolderRow />}
           </SettingsGroup>
         </SettingsSection>
       ))}

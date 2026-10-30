@@ -1,38 +1,42 @@
 /**
- * useKeyboardNav - Keyboard navigation and shortcuts hook
+ * useKeyboardNav - the file pane's keyboard shortcuts and type-ahead.
  *
- * Attaches global keyboard event listeners to handle:
- * - Arrow key navigation (up/down to select files)
- * - Enter to open file/folder, Backspace to navigate up
- * - Ctrl+A to select all, Escape to clear selection
- * - Ctrl+C/X/V for copy/cut/paste operations
- * - Ctrl+Z for undo, Delete/Backspace to delete
- * - F2 to rename, F5 to refresh
- * - Custom keybindings from user settings
+ * The shortcuts are the registry's `filePane.*` actions (`src/lib/keybindings/registry.ts`), with
+ * the user's keys: arrows move the selection (Shift extends it) and step into or out of folders,
+ * Enter opens, Ctrl+A/C/X/V select, copy, cut and paste, Ctrl+Z undoes, F2 renames, Delete deletes,
+ * Escape clears the selection, Ctrl+P toggles details, Ctrl+R refreshes and Ctrl+Shift+P/S export.
+ * They are ignored while typing in a field and while a modal dialog is open. Clipboard keys pass
+ * through to the browser in the details panel or when text is selected.
  *
- * All handlers respect context (e.g., disabled when input focused).
- *
- * @example
- * useKeyboardNav({
- *   selectableRows,
- *   topLevelFiles,
- *   selectedFiles,
- *   setSelectedFiles,
- *   matchesKeybinding,
- *   handleCopy,
- *   handlePaste,
- *   ...
- * })
+ * Type-ahead (jump to an item by typing its name) is not a shortcut and keeps its own listener.
  */
 import { useEffect, useCallback, useRef } from 'react'
 import { usePDMStore, type LocalFile } from '@/stores/pdmStore'
-import type { KeybindingAction } from '@/types/settings'
 import { executeCommand } from '@/lib/commands'
+import { useShortcuts, wasHandledByShortcut, type ShortcutActionId } from '@/lib/keybindings'
 import { quickExport } from '../exports/quickExport'
 import type { SelectableRow } from '../components/FileList/rowTypes'
 
 /** How long a typed character stays in the type-ahead buffer before the next key starts fresh */
 const TYPEAHEAD_RESET_MS = 600
+
+/** Actions whose keys belong to the browser in the details panel or over selected text. */
+const CLIPBOARD_ACTIONS: ReadonlySet<ShortcutActionId> = new Set<ShortcutActionId>([
+  'filePane.copy',
+  'filePane.cut',
+  'filePane.paste',
+  'filePane.undo',
+  'filePane.selectAll',
+])
+
+/** Lets native copy, paste, cut, undo and select all work in the details panel or on selected text. */
+function allowsFilePaneShortcut(e: KeyboardEvent, actionId: ShortcutActionId): boolean {
+  if (!CLIPBOARD_ACTIONS.has(actionId)) return true
+  const inDetailsPanel = (e.target as HTMLElement | null)?.closest?.(
+    '.details-panel, .sw-preview-panel, [data-allow-clipboard]',
+  )
+  return !inDetailsPanel && !window.getSelection()?.toString()
+}
 
 export interface UseKeyboardNavOptions {
   files: LocalFile[]
@@ -50,7 +54,6 @@ export interface UseKeyboardNavOptions {
   vaultPath: string | null
   clipboard: { files: LocalFile[]; operation: 'copy' | 'cut' } | null
   setClipboard: (clipboard: { files: LocalFile[]; operation: 'copy' | 'cut' } | null) => void
-  matchesKeybinding: (e: KeyboardEvent, action: KeybindingAction) => boolean
   navigateToFolder: (path: string) => void
   navigateUp: () => void
   handleCopy: () => void
@@ -63,9 +66,6 @@ export interface UseKeyboardNavOptions {
   onRefresh?: (silent?: boolean) => void
 }
 
-/**
- * Hook to manage keyboard navigation and shortcuts
- */
 export function useKeyboardNav({
   files,
   selectableRows,
@@ -78,7 +78,6 @@ export function useKeyboardNav({
   currentPath,
   clipboard: _clipboard,
   setClipboard,
-  matchesKeybinding,
   navigateToFolder,
   navigateUp,
   handleCopy,
@@ -90,151 +89,82 @@ export function useKeyboardNav({
   startRenaming,
   onRefresh,
 }: UseKeyboardNavOptions): void {
-  // Type-ahead ("jump to item by typing") buffer, Windows Explorer style. Typing letters in
-  // quick succession builds a prefix ("re" -> first item starting with "re"); repeating the same
-  // letter cycles through items that start with it.
-  const typeAheadBufferRef = useRef('')
-  const typeAheadTimeRef = useRef(0)
+  const selectedRow = (): LocalFile | null =>
+    selectedFiles.length === 1
+      ? (selectableRows.find((row) => row.path === selectedFiles[0])?.file ?? null)
+      : null
 
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      // Don't handle shortcuts when typing in input fields
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        return
-      }
+  const moveSelection = (e: KeyboardEvent, isUp: boolean) => {
+    if (selectableRows.length === 0) return
 
-      // Allow native copy/paste/cut/undo in the details panel or when text is selected
-      // This enables Ctrl+C/V/X/Z to work in the bottom pane
-      const isInDetailsPanel = (e.target as HTMLElement)?.closest?.(
-        '.details-panel, .sw-preview-panel, [data-allow-clipboard]',
-      )
-      const hasTextSelection = window.getSelection()?.toString()
+    // The keyboard cursor: the last item in the selection when extending, or the only one
+    const focusIndex =
+      selectedFiles.length > 0
+        ? lastClickedIndex !== null &&
+          selectableRows[lastClickedIndex]?.path === selectedFiles[selectedFiles.length - 1]
+          ? lastClickedIndex
+          : selectableRows.findIndex((row) => row.path === selectedFiles[selectedFiles.length - 1])
+        : -1
 
-      if (isInDetailsPanel || hasTextSelection) {
-        // Let native clipboard operations work
-        if ((e.ctrlKey || e.metaKey) && ['c', 'v', 'x', 'z', 'a'].includes(e.key.toLowerCase())) {
-          return // Don't prevent default - let browser handle it
-        }
-      }
+    // Selection not in view: select the first or last row by direction
+    if (focusIndex === -1) {
+      const newIndex = isUp ? selectableRows.length - 1 : 0
+      setSelectedFiles([selectableRows[newIndex].path])
+      setLastClickedIndex(newIndex)
+      return
+    }
 
-      // Ctrl+Z for undo (not configurable) - only for file operations, not text editing
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
-        e.preventDefault()
-        handleUndo()
-        return
-      }
+    const newIndex = isUp
+      ? Math.max(0, focusIndex - 1)
+      : Math.min(selectableRows.length - 1, focusIndex + 1)
+    if (newIndex === focusIndex) return
 
-      // F2 - rename selected file
-      if (e.key === 'F2' && !e.ctrlKey && !e.metaKey && !e.altKey && startRenaming) {
-        if (selectedFiles.length !== 1) return
+    if (e.shiftKey) {
+      // Shift held: extend the selection from the anchor (lastClickedIndex) to the new row
+      const anchorIndex = lastClickedIndex ?? focusIndex
+      const start = Math.min(anchorIndex, newIndex)
+      const end = Math.max(anchorIndex, newIndex)
+      setSelectedFiles([...new Set(selectableRows.slice(start, end + 1).map((row) => row.path))])
+      // lastClickedIndex stays: it is the anchor
+    } else {
+      setSelectedFiles([selectableRows[newIndex].path])
+      setLastClickedIndex(newIndex)
+    }
+  }
 
-        const selectedFile = selectableRows.find((row) => row.path === selectedFiles[0])?.file
-        if (!selectedFile) return
-        // A 'moved_away' stub has no local file behind it at its own path - nothing to rename.
-        if (selectedFile.diffStatus === 'moved_away') return
+  const quickExportSelection = (kind: 'pdf' | 'step') => {
+    const selected = new Set(selectedFiles)
+    quickExport(
+      kind,
+      selectableRows.filter((row) => selected.has(row.path)).map((row) => row.file),
+    )
+  }
 
-        e.preventDefault()
-        e.stopPropagation()
-        startRenaming(selectedFile)
-        return
-      }
+  useShortcuts(
+    'filePane',
+    {
+      'filePane.navigateUp': (e) => moveSelection(e, true),
+      'filePane.navigateDown': (e) => moveSelection(e, false),
 
-      // Arrow key navigation - use direct key check for reliability
-      // ArrowUp = move selection up (to lower index), ArrowDown = move selection down (to higher index)
-      // Shift+Arrow = extend selection
-      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-        // Only handle if Ctrl/Meta/Alt are not pressed (Shift is allowed for range selection)
-        if (e.ctrlKey || e.metaKey || e.altKey) return
-
-        e.preventDefault()
-        e.stopPropagation()
-        if (selectableRows.length === 0) return
-
-        const isUp = e.key === 'ArrowUp'
-        const isShift = e.shiftKey
-
-        // Find the "focus" index - where the keyboard cursor currently is
-        // This is the last item in the selection when extending, or the only selected item
-        const focusIndex =
-          selectedFiles.length > 0
-            ? lastClickedIndex !== null &&
-              selectableRows[lastClickedIndex]?.path === selectedFiles[selectedFiles.length - 1]
-              ? lastClickedIndex
-              : selectableRows.findIndex(
-                  (row) => row.path === selectedFiles[selectedFiles.length - 1],
-                )
-            : -1
-
-        // If current selection is not in view, select first or last based on direction
-        if (focusIndex === -1) {
-          const newIndex = isUp ? selectableRows.length - 1 : 0
-          setSelectedFiles([selectableRows[newIndex].path])
-          setLastClickedIndex(newIndex)
-          return
-        }
-
-        // Calculate new index based on direction
-        let newIndex: number
-        if (isUp) {
-          newIndex = Math.max(0, focusIndex - 1)
-        } else {
-          newIndex = Math.min(selectableRows.length - 1, focusIndex + 1)
-        }
-
-        // Only update if index actually changed
-        if (newIndex !== focusIndex) {
-          if (isShift) {
-            // Shift held - extend selection from anchor (lastClickedIndex) to new position
-            const anchorIndex = lastClickedIndex ?? focusIndex
-            const start = Math.min(anchorIndex, newIndex)
-            const end = Math.max(anchorIndex, newIndex)
-            const rangePaths = [
-              ...new Set(selectableRows.slice(start, end + 1).map((row) => row.path)),
-            ]
-            setSelectedFiles(rangePaths)
-            // Don't update lastClickedIndex - it's the anchor
-          } else {
-            // No shift - single selection
-            setSelectedFiles([selectableRows[newIndex].path])
-            setLastClickedIndex(newIndex)
-          }
-        }
-        return
-      }
-
-      // ArrowRight - navigate into selected folder
-      if (e.key === 'ArrowRight' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        if (selectedFiles.length !== 1) return
-
-        const selectedFile = selectableRows.find((row) => row.path === selectedFiles[0])?.file
-        if (!selectedFile?.isDirectory) return
-
-        e.preventDefault()
-        e.stopPropagation()
-        // Navigate into the folder
+      // Step into the selected folder
+      'filePane.expandFolder': () => {
+        const selectedFile = selectedRow()
+        if (!selectedFile?.isDirectory) return false
         navigateToFolder(selectedFile.relativePath)
-        return
-      }
+        return true
+      },
 
-      // ArrowLeft - navigate to parent folder
-      if (e.key === 'ArrowLeft' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        // Search results are not a folder, so there is no parent to go up to. Going up would
-        // leave search for the folder above the one searched in, which reads as a jump.
-        if (!currentPath || usePDMStore.getState().searchQuery.trim()) return
-
-        e.preventDefault()
-        e.stopPropagation()
+      // Step up to the parent folder. Search results are not a folder, so there is no parent to
+      // go up to: going up would leave search for the folder above the one searched in.
+      'filePane.collapseFolder': () => {
+        if (!currentPath || usePDMStore.getState().searchQuery.trim()) return false
         navigateUp()
-        return
-      }
+        return true
+      },
 
-      // Open File (Enter) - open selected file or navigate into folder
-      if (matchesKeybinding(e, 'openFile')) {
-        e.preventDefault()
-        e.stopPropagation()
-        if (selectedFiles.length !== 1) return
-
-        const selectedFile = selectableRows.find((row) => row.path === selectedFiles[0])?.file
+      // Open the selected file, or step into the selected folder
+      'filePane.openFile': () => {
+        const selectedFile = selectedRow()
         if (!selectedFile) return
 
         if (selectedFile.isDirectory) {
@@ -251,99 +181,58 @@ export function useKeyboardNav({
         } else if (window.electronAPI) {
           window.electronAPI.openFile(selectedFile.path)
         }
-        return
-      }
+      },
 
-      // Copy
-      if (matchesKeybinding(e, 'copy')) {
-        e.preventDefault()
-        e.stopPropagation()
-        handleCopy()
-        return
-      }
+      'filePane.selectAll': () => setSelectedFiles(topLevelFiles.map((file) => file.path)),
+      'filePane.copy': () => handleCopy(),
+      'filePane.cut': () => handleCut(),
+      'filePane.paste': () => handlePaste(),
+      // File operations only, never text editing (fields are skipped by the dispatcher)
+      'filePane.undo': () => handleUndo(),
 
-      // Cut
-      if (matchesKeybinding(e, 'cut')) {
-        e.preventDefault()
-        e.stopPropagation()
-        handleCut()
-        return
-      }
+      'filePane.rename': () => {
+        const selectedFile = selectedRow()
+        // A 'moved_away' stub has no local file behind it at its own path - nothing to rename.
+        if (!startRenaming || !selectedFile || selectedFile.diffStatus === 'moved_away') return false
+        startRenaming(selectedFile)
+        return true
+      },
 
-      // Paste
-      if (matchesKeybinding(e, 'paste')) {
-        e.preventDefault()
-        e.stopPropagation()
-        handlePaste()
-        return
-      }
-
-      // Select All
-      if (matchesKeybinding(e, 'selectAll')) {
-        e.preventDefault()
-        e.stopPropagation()
-        setSelectedFiles(topLevelFiles.map((file) => file.path))
-        return
-      }
-
-      // Delete key - for folders, delete directly (no dialog). For files, show dialog.
-      if (matchesKeybinding(e, 'delete') && selectedFiles.length > 0) {
-        e.preventDefault()
-        e.stopPropagation()
-
+      // The delete-local command handles confirmation internally if needed
+      'filePane.delete': () => {
+        if (selectedFiles.length === 0) return false
         const selectedItems = files.filter((file) => selectedFiles.includes(file.path))
-
-        // Delete files/folders using the command system
-        // The delete-local command handles confirmation internally if needed
         executeCommand('delete-local', { files: selectedItems }, { onRefresh })
-        return
-      }
+        return true
+      },
 
-      // Escape to clear selection
-      if (matchesKeybinding(e, 'escape')) {
-        e.preventDefault()
-        e.stopPropagation()
+      'filePane.clearSelection': () => {
         clearSelection()
         setClipboard(null)
-        return
-      }
-
-      // Toggle Details Panel
-      if (matchesKeybinding(e, 'toggleDetailsPanel')) {
-        e.preventDefault()
-        e.stopPropagation()
-        toggleDetailsPanel()
-        return
-      }
-
-      // Refresh
-      if (matchesKeybinding(e, 'refresh')) {
-        e.preventDefault()
-        e.stopPropagation()
+      },
+      'filePane.toggleDetailsPanel': () => toggleDetailsPanel(),
+      'filePane.refresh': () => {
         onRefresh?.()
-        return
-      }
+      },
+      // Queue the selection for PDF or STEP export to the quick export folder
+      'filePane.exportPdf': () => quickExportSelection('pdf'),
+      'filePane.exportStep': () => quickExportSelection('step'),
+    },
+    { isActive: allowsFilePaneShortcut, blockedByModal: true },
+  )
 
-      // Quick export: queue the selection for PDF or STEP export to the quick export folder
-      const exportKind = matchesKeybinding(e, 'exportPdf')
-        ? 'pdf'
-        : matchesKeybinding(e, 'exportStep')
-          ? 'step'
-          : null
-      if (exportKind) {
-        e.preventDefault()
-        e.stopPropagation()
-        const selected = new Set(selectedFiles)
-        quickExport(
-          exportKind,
-          selectableRows.filter((row) => selected.has(row.path)).map((row) => row.file),
-        )
-        return
-      }
+  // Type-ahead ("jump to item by typing") buffer, Windows Explorer style. Typing letters in
+  // quick succession builds a prefix ("re" -> first item starting with "re"); repeating the same
+  // letter cycles through items that start with it.
+  const typeAheadBufferRef = useRef('')
+  const typeAheadTimeRef = useRef(0)
 
-      // Type-ahead: a single printable character (no modifiers) jumps to the matching item.
-      // Runs last so explicit shortcuts always win.
-      //
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      // A shortcut bound to the letter wins
+      if (e.defaultPrevented || wasHandledByShortcut(e)) return
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+
       // Scope it to the file pane. The listener is on window, so without this a letter typed
       // while focus is on a <select>, an editable area, the tree, the details panel or behind a
       // modal would move the file selection (and cancel the key's normal action, breaking letter
@@ -358,77 +247,54 @@ export function useKeyboardNav({
         !typeAheadTarget.isContentEditable
 
       if (
-        isTypeAheadContext &&
-        e.key.length === 1 &&
-        e.key !== ' ' &&
-        !e.ctrlKey &&
-        !e.metaKey &&
-        !e.altKey &&
-        selectableRows.length > 0
+        !isTypeAheadContext ||
+        e.key.length !== 1 ||
+        e.key === ' ' ||
+        e.ctrlKey ||
+        e.metaKey ||
+        e.altKey ||
+        selectableRows.length === 0
       ) {
-        const char = e.key.toLowerCase()
-        const now = Date.now()
-        const withinWindow = now - typeAheadTimeRef.current < TYPEAHEAD_RESET_MS
-        typeAheadTimeRef.current = now
-
-        const buffer = withinWindow ? typeAheadBufferRef.current + char : char
-        typeAheadBufferRef.current = buffer
-
-        // Repeating one letter ("c", "cc", ...) cycles through items starting with it; a real
-        // multi-character prefix ("ca") jumps to the first match from the top.
-        const isSingleLetterCycle = buffer.split('').every((c) => c === buffer[0])
-        const prefix = isSingleLetterCycle ? buffer[0] : buffer
-
-        const currentIndex =
-          selectedFiles.length > 0
-            ? selectableRows.findIndex(
-                (row) => row.path === selectedFiles[selectedFiles.length - 1],
-              )
-            : -1
-        const startIndex = isSingleLetterCycle ? currentIndex + 1 : 0
-
-        let matchIndex = -1
-        for (let i = 0; i < selectableRows.length; i++) {
-          const idx = (startIndex + i) % selectableRows.length
-          if (selectableRows[idx].file.name.toLowerCase().startsWith(prefix)) {
-            matchIndex = idx
-            break
-          }
-        }
-
-        if (matchIndex >= 0) {
-          e.preventDefault()
-          e.stopPropagation()
-          setSelectedFiles([selectableRows[matchIndex].path])
-          setLastClickedIndex(matchIndex)
-          setPendingScrollToFile(selectableRows[matchIndex].path)
-        }
         return
       }
+
+      const char = e.key.toLowerCase()
+      const now = Date.now()
+      const withinWindow = now - typeAheadTimeRef.current < TYPEAHEAD_RESET_MS
+      typeAheadTimeRef.current = now
+
+      const buffer = withinWindow ? typeAheadBufferRef.current + char : char
+      typeAheadBufferRef.current = buffer
+
+      // Repeating one letter ("c", "cc", ...) cycles through items starting with it; a real
+      // multi-character prefix ("ca") jumps to the first match from the top.
+      const isSingleLetterCycle = buffer.split('').every((c) => c === buffer[0])
+      const prefix = isSingleLetterCycle ? buffer[0] : buffer
+
+      const currentIndex =
+        selectedFiles.length > 0
+          ? selectableRows.findIndex((row) => row.path === selectedFiles[selectedFiles.length - 1])
+          : -1
+      const startIndex = isSingleLetterCycle ? currentIndex + 1 : 0
+
+      let matchIndex = -1
+      for (let i = 0; i < selectableRows.length; i++) {
+        const idx = (startIndex + i) % selectableRows.length
+        if (selectableRows[idx].file.name.toLowerCase().startsWith(prefix)) {
+          matchIndex = idx
+          break
+        }
+      }
+
+      if (matchIndex >= 0) {
+        e.preventDefault()
+        e.stopPropagation()
+        setSelectedFiles([selectableRows[matchIndex].path])
+        setLastClickedIndex(matchIndex)
+        setPendingScrollToFile(selectableRows[matchIndex].path)
+      }
     },
-    [
-      files,
-      selectableRows,
-      topLevelFiles,
-      selectedFiles,
-      setSelectedFiles,
-      lastClickedIndex,
-      setLastClickedIndex,
-      setPendingScrollToFile,
-      currentPath,
-      setClipboard,
-      matchesKeybinding,
-      navigateToFolder,
-      navigateUp,
-      handleCopy,
-      handleCut,
-      handlePaste,
-      handleUndo,
-      clearSelection,
-      toggleDetailsPanel,
-      startRenaming,
-      onRefresh,
-    ],
+    [selectableRows, selectedFiles, setSelectedFiles, setLastClickedIndex, setPendingScrollToFile],
   )
 
   useEffect(() => {
