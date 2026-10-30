@@ -1,27 +1,20 @@
-import { useState, type FormEvent } from 'react'
-import { signInWithEmail, signInWithGoogle } from '@/lib/supabase/auth'
+import { useState } from 'react'
+import { signInWithGoogle } from '@/lib/supabase/auth'
 import { useT } from '@web/i18n'
 
+// Google only. Every member signs in with Google and none has a password, sign-up is closed, and
+// the web has no way to set one, so an email form would only be a password-guessing target.
 export function LoginPage() {
   const t = useT()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const submit = async (event: FormEvent) => {
-    event.preventDefault()
+  const google = async () => {
     setBusy(true)
     setError(null)
-    const { error: signInError } = await signInWithEmail(email.trim(), password)
-    setBusy(false)
-    // The provider's message can say whether an account exists; show one neutral message.
-    if (signInError) setError(t('auth.invalidCredentials'))
-  }
-
-  const google = async () => {
-    setError(null)
     const { error: oauthError } = await signInWithGoogle()
+    // On success the browser is already leaving for Google; only a failure comes back here.
+    setBusy(false)
     if (oauthError) setError(t('common.errorWithMessage', { message: oauthError.message }))
   }
 
@@ -31,58 +24,20 @@ export function LoginPage() {
         <img src="/icon.svg" alt="" width={36} height={36} />
         BluePLM
       </h1>
-      <div className="w-full max-w-sm rounded-lg border border-plm-border bg-plm-bg-light p-6">
+      <div className="w-full max-w-xs">
         <button
           type="button"
           onClick={google}
-          className="w-full rounded border border-plm-border-light bg-plm-bg px-3 py-2 text-sm text-plm-fg hover:bg-plm-bg-lighter"
+          disabled={busy}
+          className="w-full rounded border border-plm-border-light bg-plm-bg-light px-3 py-2 text-sm text-plm-fg hover:bg-plm-bg-lighter disabled:opacity-60"
         >
           {t('auth.signInWithGoogle')}
         </button>
-
-        <div className="my-4 flex items-center gap-2 text-xs text-plm-fg-muted">
-          <div className="h-px flex-1 bg-plm-border" />
-          {t('auth.or')}
-          <div className="h-px flex-1 bg-plm-border" />
-        </div>
-
-        <form onSubmit={submit} className="space-y-3">
-          <label className="block text-sm">
-            <span className="text-plm-fg-dim">{t('auth.email')}</span>
-            <input
-              type="email"
-              autoComplete="username"
-              required
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              className="mt-1 w-full rounded border border-plm-border bg-plm-input px-2 py-1.5 text-plm-fg outline-none focus:border-plm-accent"
-            />
-          </label>
-          <label className="block text-sm">
-            <span className="text-plm-fg-dim">{t('auth.password')}</span>
-            <input
-              type="password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              className="mt-1 w-full rounded border border-plm-border bg-plm-input px-2 py-1.5 text-plm-fg outline-none focus:border-plm-accent"
-            />
-          </label>
-          {error && (
-            <p role="alert" className="text-sm text-plm-error">
-              {error}
-            </p>
-          )}
-          <button
-            type="submit"
-            disabled={busy}
-            className="w-full rounded bg-plm-accent px-3 py-2 text-sm font-medium text-white hover:bg-plm-accent-hover disabled:opacity-60"
-          >
-            {busy ? t('auth.signingIn') : t('auth.signIn')}
-          </button>
-        </form>
-
+        {error && (
+          <p role="alert" className="mt-3 text-center text-sm text-plm-error">
+            {error}
+          </p>
+        )}
       </div>
       <a
         href="https://github.com/bluerobotics/bluePLM"

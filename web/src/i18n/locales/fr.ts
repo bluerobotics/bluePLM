@@ -19,14 +19,8 @@ export const fr: WebDict = {
     forbidden: 'Seuls les administrateurs peuvent ouvrir cette page.',
   },
   auth: {
-    email: 'E-mail',
-    password: 'Mot de passe',
-    signIn: 'Se connecter',
-    signingIn: 'Connexion…',
     signInWithGoogle: 'Continuer avec Google',
-    or: 'ou',
     signOut: 'Se déconnecter',
-    invalidCredentials: "L'e-mail ou le mot de passe est incorrect.",
     noProfile:
       "Votre compte ne fait encore partie d'aucune organisation. Demandez à un administrateur de vous inviter, puis reconnectez-vous.",
     profileFailed: 'Impossible de charger votre profil.',

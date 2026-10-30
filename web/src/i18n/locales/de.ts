@@ -19,14 +19,8 @@ export const de: WebDict = {
     forbidden: 'Nur Administratoren können diese Seite öffnen.',
   },
   auth: {
-    email: 'E-Mail',
-    password: 'Passwort',
-    signIn: 'Anmelden',
-    signingIn: 'Anmeldung läuft…',
     signInWithGoogle: 'Mit Google fortfahren',
-    or: 'oder',
     signOut: 'Abmelden',
-    invalidCredentials: 'E-Mail oder Passwort ist nicht korrekt.',
     noProfile:
       'Ihr Konto gehört noch zu keiner Organisation. Bitten Sie einen Administrator, Sie einzuladen, und melden Sie sich dann erneut an.',
     profileFailed: 'Ihr Profil konnte nicht geladen werden.',
