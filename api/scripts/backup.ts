@@ -13,6 +13,11 @@
  *       now, compared with the organization's backup bucket, plus a hash check
  *       of a sample of live vault objects. Writes nothing anywhere.
  *
+ *   npm run backup --prefix api -- probe --org <org id>
+ *       Checks the organization's bucket accepts every call a backup makes (put, multipart put,
+ *       list, get, delete) under a throwaway prefix it removes again. Run before switching an
+ *       organization to server backups.
+ *
  *   npm run backup --prefix api -- verify --org <org id> [--mode quick|sample|full]
  *   npm run backup --prefix api -- list --org <org id>
  *   npm run backup --prefix api -- restore --org <org id> --to <folder> [--snapshot <id>] [--prefix <path>] [--metadata-only]
@@ -28,6 +33,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import crypto from 'node:crypto'
+import { Readable } from 'node:stream'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
 import { runServerBackup, seriousProblems, type BackupLogger } from '../src/backup/engine.js'
@@ -287,10 +293,68 @@ async function dryRun(orgId: string): Promise<boolean> {
   return ok
 }
 
+/**
+ * Checks the organization's bucket accepts every call a backup makes: a small put, a multipart put
+ * (over the 16 MB part size), list, get, and delete, under a throwaway prefix it removes again.
+ * S3-compatible services differ (checksum headers, Content-MD5 on deletes), and this finds out
+ * before the first scheduled backup does.
+ */
+async function probe(orgId: string): Promise<boolean> {
+  const config = await orgConfig(adminClient(), orgId)
+  const prefix = `blueplm-server-backup-probe/${crypto.randomBytes(6).toString('hex')}`
+  const store = new S3ObjectStore({
+    provider: config.provider,
+    bucket: config.bucket as string,
+    region: config.region,
+    endpoint: config.endpoint,
+    accessKey: config.access_key_encrypted as string,
+    secretKey: config.secret_key_encrypted as string,
+    prefix,
+  })
+  console.log(`Probing ${store.description}`)
+  const small = crypto.randomBytes(1024)
+  const large = crypto.randomBytes(40 * 1024 * 1024)
+  const steps: Array<[string, () => Promise<void>]> = [
+    ['put small', () => store.put('small', small)],
+    ['put multipart (40 MB stream)', () => store.put('large', Readable.from(chunked(large, 1024 * 1024)))],
+    ['list', async () => {
+      const keys = (await store.list('')).map((k) => `${k.key}:${k.size}`)
+      if (keys.join(',') !== `large:${large.length},small:${small.length}`) throw new Error(`listed ${keys.join(',')}`)
+    }],
+    ['get', async () => {
+      if (!(await store.getBuffer('large')).equals(large)) throw new Error('large object came back different')
+    }],
+    ['delete', () => store.delete(['small', 'large'])],
+    ['list after delete', async () => {
+      const left = await store.list('')
+      if (left.length) throw new Error(`${left.length} object(s) left`)
+    }],
+  ]
+  for (const [name, step] of steps) {
+    try {
+      await step()
+      console.log(`PASS  ${name}`)
+    } catch (err) {
+      console.log(`FAIL  ${name}: ${err instanceof Error ? err.message : String(err)}`)
+      await store.delete(['small', 'large']).catch(() => {})
+      return false
+    }
+  }
+  return true
+}
+
+function* chunked(buffer: Buffer, size: number): Generator<Buffer> {
+  for (let i = 0; i < buffer.length; i += size) yield buffer.subarray(i, i + size)
+}
+
 async function main(): Promise<void> {
   let ok = true
   if (command === 'sandbox') ok = await sandbox()
-  else {
+  else if (command === 'probe') {
+    const orgId = flag('org')
+    if (!orgId) throw new Error('probe needs --org <org id>')
+    ok = await probe(orgId)
+  } else {
     const orgId = flag('org')
     if (!orgId) throw new Error(`Usage: see the header of api/scripts/backup.ts (--org is required for ${command ?? 'a command'}).`)
     const admin = command === 'dry-run' ? null : adminClient()
