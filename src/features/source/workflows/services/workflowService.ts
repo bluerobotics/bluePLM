@@ -10,7 +10,7 @@ import type { Database } from '@/types/database'
 import { exportPayloadAsJson } from '../utils/workflowExport'
 import type { WorkflowExport } from '../utils/workflowExport'
 
-type WorkflowTemplateRow = Database['public']['Tables']['workflow_templates']['Row']
+type WorkflowTemplateRow = Database['public']['Tables']['workflow_template']['Row']
 
 export interface WorkflowServiceResult<T> {
   data: T | null
@@ -24,7 +24,7 @@ export interface ImportGraphResult {
 }
 
 // Type-safe access to workflow_templates table
-const workflowTemplates = () => supabase.from('workflow_templates')
+const workflowTemplates = () => supabase.from('workflow_template')
 
 export const workflowService = {
   /**
@@ -59,10 +59,9 @@ export const workflowService = {
   /**
    * Create a new workflow using the default workflow function
    */
-  async createDefault(orgId: string, userId: string): Promise<WorkflowServiceResult<string>> {
-    const { data, error } = await supabase.rpc('create_default_workflow', {
+  async createDefault(orgId: string, _userId: string): Promise<WorkflowServiceResult<string>> {
+    const { data, error } = await supabase.rpc('workflow_create_default', {
       p_org_id: orgId,
-      p_created_by: userId,
     })
 
     return {
@@ -130,7 +129,7 @@ export const workflowService = {
     workflowId: string,
     payload: WorkflowExport,
   ): Promise<WorkflowServiceResult<ImportGraphResult>> {
-    const { data, error } = await supabase.rpc('import_workflow_graph', {
+    const { data, error } = await supabase.rpc('workflow_import_graph', {
       p_workflow_id: workflowId,
       p_payload: exportPayloadAsJson(payload),
     })

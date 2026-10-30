@@ -128,7 +128,7 @@ export function ViewNetPermissionsModal({
 
         // Get all permissions from user's teams (for non-source-files resources)
         const { data, error } = await supabase
-          .from('team_permissions')
+          .from('team_permission')
           .select('resource, actions')
           .in('team_id', userTeamIds)
 
@@ -187,7 +187,7 @@ export function ViewNetPermissionsModal({
 
           // Get permissions specifically from teams with vault access
           const { data: vaultTeamPerms } = await supabase
-            .from('team_permissions')
+            .from('team_permission')
             .select('resource, actions')
             .in('team_id', teamsForVault)
 

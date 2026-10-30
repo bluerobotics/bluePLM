@@ -7,11 +7,7 @@
  * (`_` is legal and common in a Windows file name), so the value has to be
  * escaped before it is used as a pattern or the comparison quietly widens.
  *
- * `api/utils/likePattern.ts` carries a copy of these two functions. The API is a
- * separate npm package with its own `node_modules` and a build whose `rootDir`
- * is `api/`, so a file outside that directory cannot be imported without either
- * breaking `npm run build` in `api/` or inventing a shared package; a duplicate
- * with tests on both sides is the cheaper trade. Change both together.
+ * The API kept a copy for its file routes until 5.0 (API 4.0.0) removed them.
  */
 
 /**

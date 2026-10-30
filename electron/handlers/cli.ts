@@ -208,17 +208,6 @@ function extractBearerToken(authHeader: string | undefined): string | null {
   return parts[1]
 }
 
-/**
- * Get CLI authentication status (whether a token is active).
- */
-export function getCliStatus(): { authenticated: boolean; serverRunning: boolean } {
-  const hasToken = !!(currentToken || loadTokenFromFile())
-  return {
-    authenticated: hasToken,
-    serverRunning: cliServer !== null,
-  }
-}
-
 // ============================================
 // CLI Server
 // ============================================
@@ -418,10 +407,6 @@ export function registerCliHandlers(window: BrowserWindow, deps: CliHandlerDepen
     return { success }
   })
 
-  // Get CLI server status
-  ipcMain.handle('cli:get-status', () => {
-    return getCliStatus()
-  })
 
   // Handle CLI command responses from renderer
   ipcMain.on(
@@ -441,7 +426,6 @@ export function registerCliHandlers(window: BrowserWindow, deps: CliHandlerDepen
 export function unregisterCliHandlers(): void {
   ipcMain.removeHandler('cli:generate-token')
   ipcMain.removeHandler('cli:revoke-token')
-  ipcMain.removeHandler('cli:get-status')
   ipcMain.removeAllListeners('cli-response')
 }
 

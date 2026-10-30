@@ -49,7 +49,7 @@ export function useWorkflowRoles(orgId: string | null) {
     try {
       // Load workflow roles
       const { data: rolesData, error: rolesError } = await supabase
-        .from('workflow_roles')
+        .from('workflow_role')
         .select('id, name, color, icon, description')
         .eq('org_id', orgId)
         .eq('is_active', true)
@@ -60,15 +60,15 @@ export function useWorkflowRoles(orgId: string | null) {
 
       // Load user role assignments
       const { data: assignmentsData, error: assignmentsError } = await supabase
-        .from('user_workflow_roles')
+        .from('user_workflow_role')
         .select(
           `
           user_id,
           workflow_role_id,
-          workflow_roles!inner (org_id)
+          workflow_role!inner (org_id)
         `,
         )
-        .eq('workflow_roles.org_id', orgId)
+        .eq('workflow_role.org_id', orgId)
 
       if (assignmentsError) throw assignmentsError
 
@@ -164,7 +164,7 @@ export function useWorkflowRoles(orgId: string | null) {
       if (!role) return false
 
       try {
-        const { error } = await supabase.from('workflow_roles').delete().eq('id', roleId)
+        const { error } = await supabase.from('workflow_role').delete().eq('id', roleId)
 
         if (error) throw error
 
@@ -201,7 +201,7 @@ export function useWorkflowRoles(orgId: string | null) {
           assignUserRoleInStore(userId, roleId)
         } else {
           const { error } = await supabase
-            .from('user_workflow_roles')
+            .from('user_workflow_role')
             .delete()
             .eq('user_id', userId)
             .eq('workflow_role_id', roleId)
@@ -232,7 +232,7 @@ export function useWorkflowRoles(orgId: string | null) {
     ): Promise<boolean> => {
       try {
         // Remove existing assignments
-        await supabase.from('user_workflow_roles').delete().eq('user_id', userId)
+        await supabase.from('user_workflow_role').delete().eq('user_id', userId)
 
         // Add new assignments
         if (roleIds.length > 0) {

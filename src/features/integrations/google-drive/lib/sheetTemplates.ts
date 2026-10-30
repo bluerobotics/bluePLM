@@ -136,7 +136,7 @@ export async function getInspectionTemplates(
   const query = `'${folderId}' in parents and mimeType='${GOOGLE_SHEET_MIME}' and trashed=false`
   const url =
     `${DRIVE_FILES_URL}?q=${encodeURIComponent(query)}` +
-    `&fields=${encodeURIComponent('files(id,name)')}` +
+    `&fields=${encodeURIComponent('file(id,name)')}` +
     `&orderBy=name&pageSize=100&supportsAllDrives=true&includeItemsFromAllDrives=true`
 
   try {

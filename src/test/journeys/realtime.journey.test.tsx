@@ -61,7 +61,7 @@ describe('in the middle of my operation', () => {
   it('another user checks out a different file while my move is on its way to the server', async () => {
     vault = await openVault(spec)
     const other = vault
-    vault.db.defineRpc('move_file', (args, db) => {
+    vault.db.defineRpc('file_move', (args, db) => {
       other.otherUserUpdates('b.sldprt', { checked_out_by: OTHER_USER_ID, checked_out_at: db.isoNow() })
       return moveFile(args, db)
     })
@@ -78,7 +78,7 @@ describe('in the middle of my operation', () => {
   it('another user checks out the very file I am moving before my server move lands: refused, put back', async () => {
     vault = await openVault(spec)
     const other = vault
-    vault.db.defineRpc('move_file', (args, db) => {
+    vault.db.defineRpc('file_move', (args, db) => {
       other.otherUserUpdates('a.sldprt', { checked_out_by: OTHER_USER_ID, checked_out_at: db.isoNow() })
       return moveFile(args, db)
     })
@@ -100,8 +100,8 @@ describe('in the middle of my operation', () => {
 
     await dragAndDrop(vault.row('a.sldprt'), vault.row('Parts'))
     // The UPDATE my move_file wrote, delivered late by realtime.
-    const row = vault.db.row('files', id)
-    vault.db.emitRealtime('files', 'UPDATE', { ...row }, { ...row, file_path: 'a.sldprt' })
+    const row = vault.db.row('file', id)
+    vault.db.emitRealtime('file', 'UPDATE', { ...row }, { ...row, file_path: 'a.sldprt' })
     await vault.settle()
     await new Promise((r) => setTimeout(r, 700))
     await vault.settle()
@@ -118,7 +118,7 @@ describe('in the middle of my operation', () => {
 
     await vault.editCell(vault.row('a.sldprt'), 'description', 'New')
     const row = vault.serverRow('a.sldprt')
-    vault.db.emitRealtime('files', 'UPDATE', { ...row }, { ...row })
+    vault.db.emitRealtime('file', 'UPDATE', { ...row }, { ...row })
     await new Promise((r) => setTimeout(r, 700))
     await vault.settle()
 

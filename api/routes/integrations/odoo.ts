@@ -3,12 +3,11 @@
  *
  * Configuration, testing, and sync with Odoo ERP.
  *
- * The Odoo API key is never returned to a client and is never written to
- * `odoo_saved_configs.api_key_encrypted` or
- * `organization_integrations.credentials_encrypted`. Both of those columns sit
- * on rows that every member of the org can read through PostgREST, so the
- * credential lives in `integration_credentials` instead, reachable only with
- * the service-role client. See api/src/integrations/credentialStore.ts.
+ * The Odoo API key is never returned to a client and never stored on a row
+ * that members can read through PostgREST: it lives in `integration_credential`,
+ * reachable only with the service-role client. See
+ * api/src/integrations/credentialStore.ts. (5.0 dropped the old always-NULL
+ * `api_key_encrypted` / `credentials_encrypted` columns.)
  */
 
 import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
@@ -152,9 +151,9 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const { data, error } = await request
-        .supabase!.from('organization_integrations')
+        .supabase!.from('org_integration')
         .select(
-          'id, settings, is_connected, last_sync_at, last_sync_status, last_sync_count, auto_sync',
+          'id, settings, is_connected, last_sync_at, last_sync_status, last_sync_count, is_auto_sync',
         )
         .eq('org_id', request.user.org_id)
         .eq('integration_type', 'odoo')
@@ -182,7 +181,7 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
         last_sync_at: data.last_sync_at,
         last_sync_status: data.last_sync_status,
         last_sync_count: data.last_sync_count,
-        auto_sync: data.auto_sync,
+        is_auto_sync: data.is_auto_sync,
       }
     }),
   )
@@ -205,7 +204,7 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
             database: { type: 'string' },
             username: { type: 'string' },
             api_key: { type: 'string' },
-            auto_sync: { type: 'boolean', default: false },
+            is_auto_sync: { type: 'boolean', default: false },
             skip_test: { type: 'boolean', default: false },
           },
         },
@@ -217,12 +216,12 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
         return sendError(reply, 403, ErrorCode.FORBIDDEN, 'Only admins can configure integrations')
       }
 
-      const { url, database, username, api_key, auto_sync, skip_test } = request.body as {
+      const { url, database, username, api_key, is_auto_sync: auto_sync, skip_test } = request.body as {
         url: string
         database: string
         username: string
         api_key?: string
-        auto_sync?: boolean
+        is_auto_sync?: boolean
         skip_test?: boolean
       }
 
@@ -234,7 +233,7 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
       const credentials = openCredentialStore()
 
       const { data: existingConfigs } = await request
-        .supabase!.from('odoo_saved_configs')
+        .supabase!.from('odoo_saved_config')
         .select('id, url, database, username')
         .eq('org_id', orgId)
         .eq('is_active', true)
@@ -246,7 +245,7 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
       })
 
       const { data: existingIntegration } = await request
-        .supabase!.from('organization_integrations')
+        .supabase!.from('org_integration')
         .select('id, settings')
         .eq('org_id', orgId)
         .eq('integration_type', 'odoo')
@@ -315,7 +314,7 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
         ]
 
         const { data: newConfig } = await request
-          .supabase!.from('odoo_saved_configs')
+          .supabase!.from('odoo_saved_config')
           .insert({
             org_id: orgId,
             name: baseName,
@@ -325,7 +324,7 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
             color: colors[(existingConfigs?.length || 0) % colors.length],
             is_active: true,
             last_tested_at: !skip_test ? new Date().toISOString() : null,
-            last_test_success: !skip_test ? isConnected : null,
+            is_last_test_successful: !skip_test ? isConnected : null,
             created_by: userId,
             updated_by: userId,
           })
@@ -344,7 +343,7 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const { data: integration, error } = await request
-        .supabase!.from('organization_integrations')
+        .supabase!.from('org_integration')
         .upsert(
           {
             org_id: orgId,
@@ -356,14 +355,11 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
               config_id: configId,
               config_name: configName,
             },
-            // Deprecated column, cleared rather than written: anything left in
-            // it would be readable by every member of the org.
-            credentials_encrypted: null,
             is_active: true,
             is_connected: isConnected,
             last_connected_at: isConnected ? new Date().toISOString() : null,
             last_error: connectionError,
-            auto_sync: auto_sync || false,
+            is_auto_sync: auto_sync || false,
             updated_by: userId,
           },
           { onConflict: 'org_id,integration_type' },
@@ -464,7 +460,7 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const { data: integration } = await request
-        .supabase!.from('organization_integrations')
+        .supabase!.from('org_integration')
         .select('id, settings')
         .eq('org_id', request.user.org_id)
         .eq('integration_type', 'odoo')
@@ -498,7 +494,7 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
 
       if (!odooSuppliers.success) {
         await request
-          .supabase!.from('organization_integrations')
+          .supabase!.from('org_integration')
           .update({
             is_connected: false,
             last_sync_at: new Date().toISOString(),
@@ -517,7 +513,7 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
       for (const odooSupplier of suppliers) {
         try {
           const { data: existing } = await request
-            .supabase!.from('suppliers')
+            .supabase!.from('supplier')
             .select('id')
             .eq('org_id', request.user.org_id)
             .eq('erp_id', String(odooSupplier.id))
@@ -545,11 +541,11 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
           }
 
           if (existing) {
-            await request.supabase!.from('suppliers').update(supplierData).eq('id', existing.id)
+            await request.supabase!.from('supplier').update(supplierData).eq('id', existing.id)
             updated++
           } else {
             await request
-              .supabase!.from('suppliers')
+              .supabase!.from('supplier')
               .insert({ ...supplierData, created_by: request.user.id })
             created++
           }
@@ -559,7 +555,7 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       await request
-        .supabase!.from('organization_integrations')
+        .supabase!.from('org_integration')
         .update({
           is_connected: true,
           last_connected_at: new Date().toISOString(),
@@ -598,7 +594,7 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const { data: integration } = await request
-        .supabase!.from('organization_integrations')
+        .supabase!.from('org_integration')
         .select('id')
         .eq('org_id', request.user.org_id)
         .eq('integration_type', 'odoo')
@@ -606,11 +602,10 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
 
       if (integration) {
         await request
-          .supabase!.from('organization_integrations')
+          .supabase!.from('org_integration')
           .update({
             is_active: false,
             is_connected: false,
-            credentials_encrypted: null,
             updated_by: request.user.id,
           })
           .eq('id', integration.id)
@@ -637,7 +632,7 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request) => {
       const { data } = await request
-        .supabase!.from('odoo_saved_configs')
+        .supabase!.from('odoo_saved_config')
         .select(SAVED_CONFIG_COLUMNS)
         .eq('org_id', request.user!.org_id)
         .eq('is_active', true)
@@ -665,7 +660,7 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
 
       const { id } = request.params as { id: string }
       const { data } = await request
-        .supabase!.from('odoo_saved_configs')
+        .supabase!.from('odoo_saved_config')
         .select('id, name, url, database, username, color')
         .eq('id', id)
         .eq('org_id', request.user!.org_id)
@@ -742,7 +737,7 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
       if (!skip_test) testResult = await testOdooConnection(normalizedUrl, database, username, apiKey)
 
       const { data, error } = await request
-        .supabase!.from('odoo_saved_configs')
+        .supabase!.from('odoo_saved_config')
         .insert({
           org_id: orgId,
           name,
@@ -751,7 +746,7 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
           username,
           color,
           last_tested_at: !skip_test ? new Date().toISOString() : null,
-          last_test_success: !skip_test ? testResult.success : null,
+          is_last_test_successful: !skip_test ? testResult.success : null,
           created_by: userId,
           updated_by: userId,
         })
@@ -810,7 +805,7 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
       // one the admin already holds.
       if (!apiKey && (body.url || body.database || body.username)) {
         const { data: current } = await request
-          .supabase!.from('odoo_saved_configs')
+          .supabase!.from('odoo_saved_config')
           .select('id, url, database, username')
           .eq('id', id)
           .eq('org_id', orgId)
@@ -846,7 +841,7 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
       if (body.color !== undefined) updateData.color = body.color
 
       const { data } = await request
-        .supabase!.from('odoo_saved_configs')
+        .supabase!.from('odoo_saved_config')
         .update(updateData)
         .eq('id', id)
         .eq('org_id', orgId)
@@ -888,7 +883,7 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
 
       const { id } = request.params as { id: string }
       const { data: deleted } = await request
-        .supabase!.from('odoo_saved_configs')
+        .supabase!.from('odoo_saved_config')
         .delete()
         .eq('id', id)
         .eq('org_id', request.user!.org_id)
@@ -925,7 +920,7 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
       const userId = request.user!.id
       const { id } = request.params as { id: string }
       const { data: config } = await request
-        .supabase!.from('odoo_saved_configs')
+        .supabase!.from('odoo_saved_config')
         .select('id, name, url, database, username')
         .eq('id', id)
         .eq('org_id', orgId)
@@ -957,7 +952,7 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
       )
 
       const { data: integration, error } = await request
-        .supabase!.from('organization_integrations')
+        .supabase!.from('org_integration')
         .upsert(
           {
             org_id: orgId,
@@ -969,8 +964,6 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
               config_id: config.id,
               config_name: config.name,
             },
-            // Deprecated column: see the note on the configure route.
-            credentials_encrypted: null,
             is_active: true,
             is_connected: testResult.success,
             last_connected_at: testResult.success ? new Date().toISOString() : null,
@@ -995,8 +988,8 @@ const odooRoutes: FastifyPluginAsync = async (fastify) => {
       )
 
       await request
-        .supabase!.from('odoo_saved_configs')
-        .update({ last_tested_at: new Date().toISOString(), last_test_success: testResult.success })
+        .supabase!.from('odoo_saved_config')
+        .update({ last_tested_at: new Date().toISOString(), is_last_test_successful: testResult.success })
         .eq('id', id)
 
       return {

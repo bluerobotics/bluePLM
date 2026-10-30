@@ -1,6 +1,7 @@
 import type { TranslationDict } from '../types'
 import { reviewsUiStrings } from './reviewsUi'
 import { reviewPackageStrings } from './reviewPackage'
+import { dbUpgradeStrings } from './dbUpgrade'
 
 // Spanish translations
 export const es: TranslationDict = {
@@ -36,6 +37,7 @@ export const es: TranslationDict = {
   },
   ...reviewsUiStrings.es,
   reviewPackage: reviewPackageStrings.es,
+  dbUpgrade: dbUpgradeStrings.es,
   checkoutDisplay: {
     you: 'Tú',
     loadingOwner: 'Cargando propietario del checkout',
@@ -185,7 +187,7 @@ export const es: TranslationDict = {
       'Ingresa tus credenciales de Supabase desde la configuración de API de tu proyecto',
     projectId: 'ID del Proyecto',
     projectIdHelp:
-      'Se encuentra en la parte superior de tu Panel de Supabase (ej. vvyhpdzqdizvorrhjhvq)',
+      'Se encuentra en la parte superior de tu Panel de Supabase (ej. abcdefghijklmnopqrst)',
     anonKey: 'Clave anónima (pública)',
     orgSlug: 'Slug de la organización',
     orgSlugHelp: 'Esto ayuda a identificar tu organización en el código generado',
@@ -1020,13 +1022,6 @@ export const es: TranslationDict = {
     statusNotLoaded: "No cargada en este equipo",
     none: "No hay extensiones de la organización instaladas.",
     error: "Error: {{message}}",
-  },
-  extensionRuntime: {
-    notice:
-      "Las extensiones de la tienda o de un archivo se guardan en este equipo pero no se ejecutan: el entorno aislado no está disponible. Las extensiones de la organización, instaladas arriba por un administrador, sí se ejecutan.",
-    installedNotRunning: 'Instalada (sin ejecutar)',
-    adminOnly: 'Solo los administradores pueden instalar o quitar extensiones.',
-    notAdminError: 'Solo los administradores pueden instalar extensiones.',
   },
   strandedEdits: {
     checkoutLost:

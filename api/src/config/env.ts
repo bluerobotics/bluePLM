@@ -73,14 +73,16 @@ const envSchema = z.object({
   RATE_LIMIT_WINDOW: z.coerce.number().default(60000),
 
   /**
-   * How many reverse-proxy hops in front of the API to trust for the client
-   * address (`X-Forwarded-For`). Railway and Render put one proxy in front, so
-   * the default is 1. Without it every caller has the proxy's address and the
-   * per-IP rate limits become one limit shared by everyone. Trusting every hop
-   * (`true`) would instead let a caller choose its own address and dodge the
-   * limits, so this is a count; 0 turns it off for a directly exposed API.
+   * The reverse proxies trusted for the client address (`X-Forwarded-For`), as a
+   * comma-separated list of IPs, CIDRs or the names `loopback`, `linklocal` and
+   * `uniquelocal`. Railway and Render reach the container from a private address,
+   * so the default trusts private ranges only: without it every caller has the
+   * proxy's address and the per-IP rate limits become one limit shared by
+   * everyone. A hop count (API 3.0.1's `TRUST_PROXY_HOPS`) is gone: Fastify 5.12
+   * refuses it because it trusts whoever connects, so a caller reaching the API
+   * directly could pick its own address. `off` turns proxy trust off.
    */
-  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(10).default(1),
+  TRUST_PROXY: z.string().default('loopback,linklocal,uniquelocal,100.64.0.0/10'),
 
   /**
    * Extra browser origins allowed to call this API, comma-separated.

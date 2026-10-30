@@ -16,6 +16,14 @@ import { log } from '@/lib/logger'
 import { useTranslation } from '@/lib/i18n'
 import { usePDMStore } from '@/stores/pdmStore'
 import { useShallow } from 'zustand/react/shallow'
+import { readClientMinVersion } from '@/features/dbUpgrade/readDbState'
+import { compareAppVersions } from '@/features/dbUpgrade/gateDecision'
+
+/**
+ * The oldest release this page offers to install: the database's client_min_version(), and never
+ * a 4.x build, which cannot read a 5.0 database at all.
+ */
+const FLOOR_WITHOUT_DATABASE_ANSWER = '5.0.0'
 
 interface GitHubRelease {
   tag_name: string
@@ -63,7 +71,10 @@ export function AboutSettings() {
         throw new Error(`GitHub API error: ${response.status}`)
       }
       const data: GitHubRelease[] = await response.json()
-      setReleases(data)
+      const floor = (await readClientMinVersion()) ?? FLOOR_WITHOUT_DATABASE_ANSWER
+      setReleases(
+        data.filter((release) => compareAppVersions(release.tag_name.replace(/^v/, ''), floor) >= 0),
+      )
     } catch (error) {
       log.error('[About]', 'Failed to fetch releases', { error: error })
       setReleasesError(error instanceof Error ? error.message : 'Failed to fetch releases')

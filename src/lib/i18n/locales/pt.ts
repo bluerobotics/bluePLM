@@ -1,6 +1,7 @@
 import type { TranslationDict } from '../types'
 import { reviewsUiStrings } from './reviewsUi'
 import { reviewPackageStrings } from './reviewPackage'
+import { dbUpgradeStrings } from './dbUpgrade'
 
 // Portuguese translations (Português)
 export const pt: TranslationDict = {
@@ -36,6 +37,7 @@ export const pt: TranslationDict = {
   },
   ...reviewsUiStrings.pt,
   reviewPackage: reviewPackageStrings.pt,
+  dbUpgrade: dbUpgradeStrings.pt,
   checkoutDisplay: {
     you: 'Você',
     loadingOwner: 'A carregar o proprietário do checkout',
@@ -183,7 +185,7 @@ export const pt: TranslationDict = {
     adminSetup: 'Configuração de Administrador',
     enterCredentials: 'Introduza as suas credenciais Supabase das definições de API do seu projeto',
     projectId: 'ID do Projeto',
-    projectIdHelp: 'Encontra-se no topo do seu Painel Supabase (ex. vvyhpdzqdizvorrhjhvq)',
+    projectIdHelp: 'Encontra-se no topo do seu Painel Supabase (ex. abcdefghijklmnopqrst)',
     anonKey: 'Chave Anónima (Pública)',
     orgSlug: 'Slug da Organização',
     orgSlugHelp: 'Isto ajuda a identificar a sua organização no código gerado',
@@ -1021,13 +1023,6 @@ export const pt: TranslationDict = {
     statusNotLoaded: "Não carregada neste computador",
     none: "Nenhuma extensão da organização instalada.",
     error: "Erro: {{message}}",
-  },
-  extensionRuntime: {
-    notice:
-      "Extensões da loja ou de um arquivo ficam neste computador, mas não são executadas: o ambiente isolado não está disponível. As extensões da organização, instaladas acima por um administrador, são executadas.",
-    installedNotRunning: 'Instalada (não executada)',
-    adminOnly: 'Somente administradores podem instalar ou remover extensões.',
-    notAdminError: 'Somente administradores podem instalar extensões.',
   },
   strandedEdits: {
     checkoutLost:

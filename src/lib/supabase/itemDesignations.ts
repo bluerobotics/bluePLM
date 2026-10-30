@@ -28,7 +28,7 @@ function toDesignation(row: ItemDesignationRow): ItemDesignation {
 export async function getItemDesignations(orgId: string): Promise<ItemDesignation[]> {
   const supabase = getSupabaseClient() as unknown as RpcClient
   try {
-    const { data, error } = await supabase.rpc('get_item_designations', { p_org_id: orgId })
+    const { data, error } = await supabase.rpc('item_designation_list', { p_org_id: orgId })
     if (error) throw error
     return ((data ?? []) as ItemDesignationRow[]).map(toDesignation)
   } catch (error) {
@@ -45,7 +45,7 @@ export async function upsertItemDesignation(
   sortOrder?: number | null,
 ): Promise<ItemDesignation> {
   const supabase = getSupabaseClient() as unknown as RpcClient
-  const { data, error } = await supabase.rpc('upsert_item_designation', {
+  const { data, error } = await supabase.rpc('item_designation_upsert', {
     p_org_id: orgId,
     p_name: name,
     p_id: id ?? null,
@@ -58,7 +58,7 @@ export async function upsertItemDesignation(
 /** Delete a designation from the org list. */
 export async function deleteItemDesignation(orgId: string, id: string): Promise<void> {
   const supabase = getSupabaseClient() as unknown as RpcClient
-  const { error } = await supabase.rpc('delete_item_designation', {
+  const { error } = await supabase.rpc('item_designation_delete', {
     p_org_id: orgId,
     p_id: id,
   })
@@ -73,7 +73,7 @@ export async function getItemDesignationAssignments(
   const supabase = getSupabaseClient() as unknown as RpcClient
   const result = new Map<string, string>()
   try {
-    const { data, error } = await supabase.rpc('get_item_designation_assignments', {
+    const { data, error } = await supabase.rpc('item_designation_assignment_list', {
       p_org_id: orgId,
       p_vault_id: vaultId,
     })
@@ -98,7 +98,7 @@ export async function setItemDesignationAssignment(
   designationId: string | null,
 ): Promise<void> {
   const supabase = getSupabaseClient() as unknown as RpcClient
-  const { error } = await supabase.rpc('set_item_designation_assignment', {
+  const { error } = await supabase.rpc('item_designation_assignment_set', {
     p_org_id: orgId,
     p_vault_id: vaultId,
     p_part_number: partNumber,

@@ -49,7 +49,7 @@ function describeChanges(paths: string[]): string {
       ? `all in ${Array.from(folders)[0]}`
       : `across ${folders.size} folders`
 
-  return `${paths.length} files (${scope}): ${sample.join(', ')}${suffix}`
+  return `${paths.length} file (${scope}): ${sample.join(', ')}${suffix}`
 }
 
 const IGNORED_PATTERNS = [

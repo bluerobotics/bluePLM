@@ -1,1 +1,0 @@
-export { SlackSettings } from './SlackSettings'

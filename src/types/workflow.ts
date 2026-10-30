@@ -44,7 +44,7 @@ export interface CanvasConfig {
   panY: number
 }
 
-export interface WorkflowTemplate extends Omit<Tables<'workflow_templates'>, 'canvas_config'> {
+export interface WorkflowTemplate extends Omit<Tables<'workflow_template'>, 'canvas_config'> {
   canvas_config: CanvasConfig | null
 }
 
@@ -52,7 +52,7 @@ export interface WorkflowTemplate extends Omit<Tables<'workflow_templates'>, 'ca
 // WORKFLOW STATE
 // ===========================================
 
-export interface WorkflowState extends Tables<'workflow_states'> {
+export interface WorkflowState extends Tables<'workflow_state'> {
   shape: StateShape
   state_type: StateType
   color: string
@@ -60,11 +60,11 @@ export interface WorkflowState extends Tables<'workflow_states'> {
   position_x: number
   position_y: number
   is_editable: boolean
-  requires_checkout: boolean
-  auto_increment_revision: boolean
-  triggers_review: boolean
+  is_checkout_required: boolean
+  is_revision_auto_incremented: boolean
+  is_review_stage: boolean
   /** Review stage only: where an approved review moves files (schema 110); null = the only exit. */
-  review_approved_state_id?: string | null
+  review_approved_state_id: string | null
   required_workflow_roles: string[]
   sort_order: number
 }
@@ -73,7 +73,7 @@ export interface WorkflowState extends Tables<'workflow_states'> {
 // WORKFLOW TRANSITION
 // ===========================================
 
-export interface WorkflowTransition extends Tables<'workflow_transitions'> {
+export interface WorkflowTransition extends Tables<'workflow_transition'> {
   line_style: TransitionLineStyle
   line_path_type: TransitionPathType
   line_arrow_head: TransitionArrowHead
@@ -86,7 +86,7 @@ export interface WorkflowTransition extends Tables<'workflow_transitions'> {
 // WORKFLOW ROLES
 // ===========================================
 
-export interface WorkflowRole extends Tables<'workflow_roles'> {
+export interface WorkflowRole extends Tables<'workflow_role'> {
   color: string
   icon: string
   // Computed by the roles view, not stored
@@ -104,7 +104,7 @@ export interface ChecklistItem {
 }
 
 // checklist_items and conditions stay raw JSONB; use parseChecklistItems to narrow
-export interface WorkflowGate extends Tables<'workflow_gates'> {
+export interface WorkflowGate extends Tables<'workflow_gate'> {
   gate_type: GateType
   approval_mode: ApprovalMode
   is_blocking: boolean
@@ -122,7 +122,7 @@ export function parseChecklistItems(value: Json): ChecklistItem[] {
   })
 }
 
-export interface GateReviewer extends Tables<'workflow_gate_reviewers'> {
+export interface GateReviewer extends Tables<'workflow_gate_reviewer'> {
   reviewer_type: ReviewerType
   user?: ReviewerSummary | null
   workflow_role?: WorkflowRole | null
@@ -139,7 +139,7 @@ interface ReviewerSummary {
 // REVIEWS
 // ===========================================
 
-export interface PendingReview extends Tables<'pending_reviews'> {
+export interface PendingReview extends Tables<'workflow_gate_review'> {
   status: ReviewStatus
   // Joined for the review inbox
   file?: { file_name: string; file_path: string } | null
@@ -152,11 +152,11 @@ export interface PendingReview extends Tables<'pending_reviews'> {
 // FILE ASSIGNMENT AND HISTORY
 // ===========================================
 
-export type FileWorkflowAssignment = Tables<'file_workflow_assignments'>
+export type FileWorkflowAssignment = Tables<'file_workflow_assignment'>
 
 export type WorkflowHistoryEntry = Tables<'workflow_history'>
 
-export type FileStateEntry = Tables<'file_state_entries'>
+export type FileStateEntry = Tables<'file_state_entry'>
 
 // ===========================================
 // ENGINE RESULTS

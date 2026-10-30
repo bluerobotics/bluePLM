@@ -476,7 +476,7 @@ export interface PDMFile {
     color: string
     icon: string
     is_editable: boolean
-    requires_checkout: boolean
+    is_checkout_required: boolean
   } | null
   state_changed_at: string | null
   state_changed_by: string | null
@@ -602,7 +602,7 @@ export interface Organization {
   postal_code?: string | null
   country?: string | null
   // Google Drive integration
-  google_drive_enabled?: boolean
+  is_google_drive_enabled?: boolean
   google_drive_client_id?: string | null
   google_drive_client_secret?: string | null
   // RFQ settings
@@ -783,7 +783,7 @@ export interface User {
   org_id: string | null
   role: 'admin' | 'engineer' | 'viewer'
   created_at: string
-  last_sign_in: string | null
+  last_sign_in_at: string | null
 }
 
 // Check-out request/lock

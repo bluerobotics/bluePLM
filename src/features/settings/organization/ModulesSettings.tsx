@@ -83,7 +83,7 @@ export function ModulesSettings() {
     setTeamsLoading(true)
     try {
       const { data, error } = await supabase
-        .from('teams')
+        .from('team')
         .select(
           `
           id,
@@ -91,7 +91,7 @@ export function ModulesSettings() {
           color,
           icon,
           module_defaults,
-          team_members(count)
+          team_member(count)
         `,
         )
         .eq('org_id', organization.id)
@@ -103,7 +103,7 @@ export function ModulesSettings() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const teamsWithCounts = (data || []).map((team: any) => ({
         ...team,
-        member_count: team.team_members?.[0]?.count || 0,
+        member_count: team.team_member?.[0]?.count || 0,
       }))
 
       setTeamsWithModules(teamsWithCounts)

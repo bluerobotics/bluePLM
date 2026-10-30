@@ -37,7 +37,7 @@ interface OdooSettingsData {
   last_sync_at: string | null
   last_sync_status: string | null
   last_sync_count: number | null
-  auto_sync: boolean
+  is_auto_sync: boolean
 }
 
 interface SavedConfig {
@@ -50,7 +50,7 @@ interface SavedConfig {
   color: string | null
   is_active: boolean
   last_tested_at: string | null
-  last_test_success: boolean | null
+  is_last_test_successful: boolean | null
   created_at: string
 }
 
@@ -853,10 +853,10 @@ export function OdooSettings() {
                                 Active
                               </span>
                             )}
-                            {config.last_test_success === true && (
+                            {config.is_last_test_successful === true && (
                               <Check size={12} className="text-plm-success flex-shrink-0" />
                             )}
-                            {config.last_test_success === false && (
+                            {config.is_last_test_successful === false && (
                               <AlertCircle size={12} className="text-plm-error flex-shrink-0" />
                             )}
                           </div>

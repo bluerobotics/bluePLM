@@ -55,7 +55,7 @@ export function RFQSettings() {
       setLoading(true)
       try {
         const { data, error } = await supabase
-          .from('organizations')
+          .from('organization')
           .select('rfq_settings')
           .eq('id', organization.id)
           .single()
@@ -100,7 +100,7 @@ export function RFQSettings() {
     savingRef.current = true
     try {
       const { error } = await supabase
-        .from('organizations')
+        .from('organization')
         .update({ rfq_settings: JSON.parse(JSON.stringify(settings)) })
         .eq('id', organization.id)
 

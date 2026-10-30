@@ -21,7 +21,6 @@ export const SETTINGS_TABS = [
   'solidworks',
   'google-drive',
   'odoo',
-  'slack',
   'webhooks',
   'api',
   'supabase',
@@ -31,7 +30,7 @@ export const SETTINGS_TABS = [
   'dev-tools',
   'about',
   'delete-account',
-  'extension-store',
+  'extensions',
 ] as const
 
 export type SettingsTab = (typeof SETTINGS_TABS)[number]

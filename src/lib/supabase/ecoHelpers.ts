@@ -7,7 +7,7 @@ export async function getActiveECOs(orgId: string): Promise<{ ecos: any[]; error
   const client = getSupabaseClient()
 
   const { data, error } = await client
-    .from('ecos')
+    .from('eco')
     .select(
       `
       id,
@@ -39,7 +39,7 @@ export async function addFileToECO(
 ): Promise<{ success: boolean; error?: string }> {
   const client = getSupabaseClient()
 
-  const { error } = await client.from('file_ecos').insert({
+  const { error } = await client.from('file_eco').insert({
     file_id: fileId,
     eco_id: ecoId,
     created_by: userId,
@@ -66,7 +66,7 @@ export async function removeFileFromECO(
   const client = getSupabaseClient()
 
   const { error } = await client
-    .from('file_ecos')
+    .from('file_eco')
     .delete()
     .eq('file_id', fileId)
     .eq('eco_id', ecoId)
@@ -85,13 +85,13 @@ export async function getFileECOs(fileId: string): Promise<{ ecos: any[]; error?
   const client = getSupabaseClient()
 
   const { data, error } = await client
-    .from('file_ecos')
+    .from('file_eco')
     .select(
       `
       id,
       notes,
       created_at,
-      eco:ecos(id, eco_number, title, status)
+      eco:eco(id, eco_number, title, status)
     `,
     )
     .eq('file_id', fileId)

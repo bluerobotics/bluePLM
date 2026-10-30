@@ -29,10 +29,6 @@ interface FileWriteResult extends OperationResult {
   size?: number
 }
 
-interface HashResult extends OperationResult {
-  hash?: string
-}
-
 interface FilesListResult extends OperationResult {
   files?: LocalFileInfo[]
 }
@@ -109,8 +105,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   reloadApp: () => ipcRenderer.invoke('app:reload'),
   requestFocus: () => ipcRenderer.invoke('app:request-focus'),
   openPerformanceWindow: () => ipcRenderer.invoke('app:open-performance-window'),
-  createTabWindow: (view: string, title: string, customData?: Record<string, unknown>) =>
-    ipcRenderer.invoke('app:create-tab-window', view, title, customData),
 
   // OAuth
   openOAuthWindow: (url: string) => ipcRenderer.invoke('auth:open-oauth-window', url),
@@ -151,7 +145,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Analytics settings
   setAnalyticsEnabled: (enabled: boolean) => ipcRenderer.invoke('analytics:set-enabled', enabled),
-  getAnalyticsEnabled: () => ipcRenderer.invoke('analytics:get-enabled'),
 
   // Clipboard operations (more reliable than navigator.clipboard in Electron)
   copyToClipboard: (text: string) => ipcRenderer.invoke('clipboard:write-text', text),
@@ -160,7 +153,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readFilePathsFromClipboard: () => ipcRenderer.invoke('clipboard:read-file-paths'),
 
   // Backup execution
-  checkResticInstalled: () => ipcRenderer.invoke('backup:check-restic'),
   isBackupRunning: () =>
     ipcRenderer.invoke('backup:is-running') as Promise<{
       running: boolean
@@ -269,7 +261,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Logging
   getLogs: () => ipcRenderer.invoke('logs:get-entries'),
-  getLogPath: () => ipcRenderer.invoke('logs:get-path'),
   exportLogs: () => ipcRenderer.invoke('logs:export'),
   log: (level: string, message: string, data?: unknown) =>
     ipcRenderer.send('logs:write', level, message, data),
@@ -304,20 +295,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   listCrashFiles: () => ipcRenderer.invoke('logs:list-crashes'),
   readCrashFile: (filePath: string) => ipcRenderer.invoke('logs:read-crash', filePath),
   openCrashesDir: () => ipcRenderer.invoke('logs:open-crashes-dir'),
-  getCrashesDir: () => ipcRenderer.invoke('logs:get-crashes-dir'),
 
   // Get file path from dropped File object (for drag & drop)
   getPathForFile: (file: File) => webUtils.getPathForFile(file),
 
   // Window controls
-  minimize: () => ipcRenderer.send('window:minimize'),
-  maximize: () => ipcRenderer.send('window:maximize'),
   close: () => ipcRenderer.send('window:close'),
-  isMaximized: () => ipcRenderer.invoke('window:is-maximized'),
 
   // Working directory
   selectWorkingDir: () => ipcRenderer.invoke('working-dir:select'),
-  getWorkingDir: () => ipcRenderer.invoke('working-dir:get'),
   setWorkingDir: (path: string) => ipcRenderer.invoke('working-dir:set', path),
   createWorkingDir: (path: string) => ipcRenderer.invoke('working-dir:create', path),
   clearWorkingDir: () => ipcRenderer.invoke('working-dir:clear'),
@@ -331,7 +317,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   downloadUrl: (url: string, destPath: string, expectedHash?: string) =>
     ipcRenderer.invoke('fs:download-url', url, destPath, expectedHash),
   fileExists: (path: string) => ipcRenderer.invoke('fs:file-exists', path),
-  getFileHash: (path: string) => ipcRenderer.invoke('fs:get-hash', path),
   // Streaming hash - more efficient for large files, use this for checkin operations
   hashFile: (path: string) => ipcRenderer.invoke('fs:hash-file', path),
   statFile: (path: string) => ipcRenderer.invoke('fs:stat-file', path),
@@ -350,14 +335,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   computeFileHashes: (
     files: Array<{ path: string; relativePath: string; size: number; mtime: number }>,
   ) => ipcRenderer.invoke('fs:compute-file-hashes', files),
-  onHashProgress: (
-    callback: (progress: { processed: number; total: number; percent: number }) => void,
-  ) => {
-    const handler = (_: unknown, progress: { processed: number; total: number; percent: number }) =>
-      callback(progress)
-    ipcRenderer.on('hash-progress', handler)
-    return () => ipcRenderer.removeListener('hash-progress', handler)
-  },
   createFolder: (path: string) => ipcRenderer.invoke('fs:create-folder', path),
   // `isAutomatic` marks a delete nobody is watching (e.g. auto-discard of orphaned
   // files): the main process will never permanently delete on that path, even if
@@ -370,7 +347,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Stops file watcher ONCE, deletes all files, restarts watcher ONCE
   deleteBatch: (paths: string[], useTrash?: boolean, isAutomatic?: boolean) =>
     ipcRenderer.invoke('fs:delete-batch', paths, useTrash ?? true, isAutomatic ?? false),
-  trashBatch: (paths: string[]) => ipcRenderer.invoke('fs:trash-batch', paths),
   // No `isAutomatic` argument here, on purpose - see the doc comment on
   // `trashEmptyDirs` in src/electron.d.ts.
   trashEmptyDirs: (paths: string[]) => ipcRenderer.invoke('fs:trash-empty-dirs', paths),
@@ -395,18 +371,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Test framework support
   getFileHashEx: (filePath: string, algorithm?: string) =>
     ipcRenderer.invoke('fs:get-file-hash', filePath, algorithm),
-  listTestScripts: (folderPath: string) => ipcRenderer.invoke('fs:list-test-scripts', folderPath),
   readTextFile: (filePath: string) => ipcRenderer.invoke('fs:read-text-file', filePath),
 
   // Download progress listener (for fs:download-url)
-  onDownloadProgress: (
-    callback: (progress: { loaded: number; total: number; speed: number }) => void,
-  ) => {
-    const handler = (_: unknown, progress: { loaded: number; total: number; speed: number }) =>
-      callback(progress)
-    ipcRenderer.on('download-progress', handler)
-    return () => ipcRenderer.removeListener('download-progress', handler)
-  },
 
   // Dialogs
   selectFiles: () => ipcRenderer.invoke('dialog:select-files'),
@@ -428,11 +395,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // eDrawings preview
   checkEDrawingsInstalled: () => ipcRenderer.invoke('edrawings:check-installed'),
   openInEDrawings: (filePath: string) => ipcRenderer.invoke('edrawings:open-file', filePath),
-  getWindowHandle: () => ipcRenderer.invoke('edrawings:get-window-handle'),
 
   // SolidWorks thumbnail extraction (low-res, for file browser icons)
-  extractSolidWorksThumbnail: (filePath: string) =>
-    ipcRenderer.invoke('solidworks:extract-thumbnail', filePath),
 
   // SolidWorks high-quality preview extraction (reads OLE stream directly)
   extractSolidWorksPreview: (filePath: string) =>
@@ -455,37 +419,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Check if SLDWORKS.exe process is running (lightweight check, no service call)
   // This is useful for detecting if SolidWorks is open BEFORE attempting file operations
-  isSolidWorksProcessRunning: () => ipcRenderer.invoke('sw:is-process-running'),
 
   // Test file locks in a folder (debugging tool for folder move failures)
-  testFileLocks: (folderPath: string, sampleSize?: number) =>
-    ipcRenderer.invoke('fs:test-file-locks', folderPath, sampleSize),
 
   // Check ALL files in a folder for locks before folder move operations
   checkFolderLocks: (folderPath: string) => ipcRenderer.invoke('fs:check-folder-locks', folderPath),
 
   // Listen for folder lock check progress events
-  onFolderLockProgress: (
-    callback: (progress: {
-      scanned: number
-      locked: number
-      folderPath: string
-      complete?: boolean
-    }) => void,
-  ) => {
-    const listener = (
-      _event: unknown,
-      progress: { scanned: number; locked: number; folderPath: string; complete?: boolean },
-    ) => callback(progress)
-    ipcRenderer.on('fs:check-folder-locks-progress', listener)
-    return () => ipcRenderer.removeListener('fs:check-folder-locks-progress', listener)
-  },
 
   // SolidWorks Service API (requires SolidWorks installed)
   solidworks: {
     // File lock detection (uses Windows Restart Manager API, does NOT require SolidWorks)
-    findLockingProcesses: (filePath: string) =>
-      ipcRenderer.invoke('solidworks:find-locking-processes', filePath),
 
     // Service management
     isInstalled: () => ipcRenderer.invoke('solidworks:is-installed'),
@@ -507,16 +451,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     warmup: () => ipcRenderer.invoke('solidworks:warmup'),
 
     // Leaked SolidWorks instance management
-    getProcessStatus: () => ipcRenderer.invoke('solidworks:get-process-status'),
-    killOrphanedProcesses: () => ipcRenderer.invoke('solidworks:kill-orphaned-processes'),
-    onOrphansCleaned: (callback: (event: { closed: number; timestamp: number }) => void) => {
-      const handler = (
-        _: Electron.IpcRendererEvent,
-        event: { closed: number; timestamp: number },
-      ) => callback(event)
-      ipcRenderer.on('solidworks:orphans-cleaned', handler)
-      return () => ipcRenderer.removeListener('solidworks:orphans-cleaned', handler)
-    },
 
     // Metadata operations
     getBom: (filePath: string, options?: { includeChildren?: boolean; configuration?: string }) =>
@@ -538,10 +472,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('solidworks:get-references', filePath, origin),
     cancelBackgroundReferences: (reason?: string) =>
       ipcRenderer.invoke('solidworks:cancel-background-references', reason),
-    getPreview: (filePath: string, configuration?: string) =>
-      ipcRenderer.invoke('solidworks:get-preview', filePath, configuration),
-    getMassProperties: (filePath: string, configuration?: string) =>
-      ipcRenderer.invoke('solidworks:get-mass-properties', filePath, configuration),
     extractDrawingCharacteristics: (filePath: string) =>
       ipcRenderer.invoke('solidworks:extract-drawing-characteristics', filePath),
     applyInspectionBalloons: (
@@ -609,14 +539,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
         }
       },
     ) => ipcRenderer.invoke('solidworks:export-stl', filePath, options),
-    exportImage: (
-      filePath: string,
-      options?: { outputPath?: string; width?: number; height?: number },
-    ) => ipcRenderer.invoke('solidworks:export-image', filePath, options),
 
     // Assembly operations
-    replaceComponent: (assemblyPath: string, oldComponent: string, newComponent: string) =>
-      ipcRenderer.invoke('solidworks:replace-component', assemblyPath, oldComponent, newComponent),
     packAndGo: (
       filePath: string,
       outputFolder: string,
@@ -641,11 +565,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('solidworks:get-open-documents', options),
     isDocumentOpen: (filePath: string) =>
       ipcRenderer.invoke('solidworks:is-document-open', filePath),
-    getDocumentInfo: (filePath: string) =>
-      ipcRenderer.invoke('solidworks:get-document-info', filePath),
     setDocumentReadOnly: (filePath: string, readOnly: boolean) =>
       ipcRenderer.invoke('solidworks:set-document-readonly', filePath, readOnly),
-    saveDocument: (filePath: string) => ipcRenderer.invoke('solidworks:save-document', filePath),
     setDocumentProperties: (
       filePath: string,
       properties: Record<string, string>,
@@ -658,7 +579,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // File Locations (Registry) - for template folder configuration
     getInstalledVersions: () => ipcRenderer.invoke('solidworks:get-installed-versions'),
-    getFileLocations: () => ipcRenderer.invoke('solidworks:get-file-locations'),
     setFileLocations: (settings: {
       documentTemplates?: string
       sheetFormats?: string
@@ -675,7 +595,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('solidworks:remove-license-registry', serialNumber),
     checkLicenseRegistry: (serialNumber: string) =>
       ipcRenderer.invoke('solidworks:check-license-registry', serialNumber),
-    openLicenseManager: () => ipcRenderer.invoke('solidworks:open-license-manager'),
   },
 
   // RFQ Release Files API
@@ -771,13 +690,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getUpdateStatus: () => ipcRenderer.invoke('updater:get-status'),
   postponeUpdate: (version: string) => ipcRenderer.invoke('updater:postpone', version),
   clearUpdateReminder: () => ipcRenderer.invoke('updater:clear-reminder'),
-  getUpdateReminder: () => ipcRenderer.invoke('updater:get-reminder'),
 
   // Update event listeners
-  onUpdateChecking: (callback: () => void) => {
-    ipcRenderer.on('updater:checking', callback)
-    return () => ipcRenderer.removeListener('updater:checking', callback)
-  },
   onUpdateAvailable: (
     callback: (info: { version: string; releaseDate?: string; releaseNotes?: string }) => void,
   ) => {
@@ -822,6 +736,28 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const handler = (_: unknown, error: { message: string }) => callback(error)
     ipcRenderer.on('updater:error', handler)
     return () => ipcRenderer.removeListener('updater:error', handler)
+  },
+
+  // Mandatory update and in-app database upgrade (5.0). Types: src/types/electron/dbUpgrade.ts
+  setMandatoryUpdate: (minVersion: string) =>
+    ipcRenderer.invoke('updater:set-mandatory', minVersion),
+  onMandatoryUpdateState: (callback: (state: unknown) => void) => {
+    const handler = (_: unknown, state: unknown) => callback(state)
+    ipcRenderer.on('updater:mandatory-state', handler)
+    return () => ipcRenderer.removeListener('updater:mandatory-state', handler)
+  },
+  dbUpgrade: {
+    getBundle: () => ipcRenderer.invoke('db-upgrade:bundle'),
+    getCredentialStatus: (ctx: unknown) => ipcRenderer.invoke('db-upgrade:credential-status', ctx),
+    setCredential: (input: unknown) => ipcRenderer.invoke('db-upgrade:set-credential', input),
+    forgetCredential: () => ipcRenderer.invoke('db-upgrade:forget-credential'),
+    plan: (ctx: unknown) => ipcRenderer.invoke('db-upgrade:plan', ctx),
+    apply: (input: unknown) => ipcRenderer.invoke('db-upgrade:apply', input),
+    onProgress: (callback: (progress: unknown) => void) => {
+      const handler = (_: unknown, progress: unknown) => callback(progress)
+      ipcRenderer.on('db-upgrade:progress', handler)
+      return () => ipcRenderer.removeListener('db-upgrade:progress', handler)
+    },
   },
 
   // Menu event listeners
@@ -934,21 +870,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // CLI token management
   generateCliToken: (userEmail: string) => ipcRenderer.invoke('cli:generate-token', userEmail),
   revokeCliToken: () => ipcRenderer.invoke('cli:revoke-token'),
-  getCliStatus: () => ipcRenderer.invoke('cli:get-status'),
 
   // Deep Link handling
-  onDeepLinkInstall: (
-    callback: (data: { extensionId: string; version?: string; timestamp: number }) => void,
-  ) => {
-    const handler = (
-      _: Electron.IpcRendererEvent,
-      data: { extensionId: string; version?: string; timestamp: number },
-    ) => callback(data)
-    ipcRenderer.on('deep-link:install-extension', handler)
-    return () => ipcRenderer.removeListener('deep-link:install-extension', handler)
-  },
-  acknowledgeDeepLink: (extensionId: string, success: boolean, error?: string) =>
-    ipcRenderer.invoke('deep-link:acknowledge', extensionId, success, error),
 
   // ═══════════════════════════════════════════════════════════════════════════════
   // EXTENSION SYSTEM API
@@ -957,32 +880,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Per-machine extension packages (store browsing, install, uninstall; never run),
   // and org-installed native extensions (prepare/prune/inspect; see native.ts).
   extensions: {
-    // ----- Queries -----
-    getAll: () => ipcRenderer.invoke('extensions:get-all'),
-    getExtension: (extensionId: string) =>
-      ipcRenderer.invoke('extensions:get-extension', extensionId),
-
-    // ----- Store Operations -----
-    fetchStore: () => ipcRenderer.invoke('extensions:fetch-store'),
-    searchStore: (request: {
-      query?: string
-      category?: string
-      verifiedOnly?: boolean
-      sort?: string
-      page?: number
-      pageSize?: number
-    }) => ipcRenderer.invoke('extensions:search-store', request),
-    getStoreExtension: (extensionId: string) =>
-      ipcRenderer.invoke('extensions:get-store-extension', extensionId),
-
-    // ----- Installation -----
-    // downloadId: database UUID for download, manifestId: expected manifest ID for validation
-    install: (downloadId: string, version?: string, manifestId?: string) =>
-      ipcRenderer.invoke('extensions:install', downloadId, version, manifestId),
-    installFromFile: (bpxPath: string, acknowledgeUnsigned?: boolean) =>
-      ipcRenderer.invoke('extensions:install-from-file', bpxPath, acknowledgeUnsigned),
-    uninstall: (extensionId: string) => ipcRenderer.invoke('extensions:uninstall', extensionId),
-
     // ----- Native extensions (org-installed, SHA-256 pinned) -----
     nativePrepare: (request: {
       extensionId: string
@@ -992,23 +889,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }) => ipcRenderer.invoke('extensions:native-prepare', request),
     nativePrune: (keepShas: string[]) => ipcRenderer.invoke('extensions:native-prune', keepShas),
     nativeInspect: () => ipcRenderer.invoke('extensions:native-inspect'),
-
-    // ----- Events -----
-    // Main sends this after an install ('installed') and an uninstall ('not-installed').
-    onStateChange: (
-      callback: (event: {
-        extensionId: string
-        state: 'installed' | 'not-installed'
-        timestamp: number
-      }) => void,
-    ) => {
-      const handler = (
-        _: Electron.IpcRendererEvent,
-        event: { extensionId: string; state: 'installed' | 'not-installed'; timestamp: number },
-      ) => callback(event)
-      ipcRenderer.on('extension:state-change', handler)
-      return () => ipcRenderer.removeListener('extension:state-change', handler)
-    },
   },
 })
 
@@ -1072,7 +952,6 @@ declare global {
       getLogs: () => Promise<
         Array<{ timestamp: string; level: string; message: string; data?: unknown }>
       >
-      getLogPath: () => Promise<string | null>
       exportLogs: () => Promise<{
         success: boolean
         path?: string
@@ -1166,17 +1045,12 @@ declare global {
         filePath: string,
       ) => Promise<{ success: boolean; content?: string; error?: string }>
       openCrashesDir: () => Promise<{ success: boolean; error?: string }>
-      getCrashesDir: () => Promise<string>
 
       // Window controls
-      minimize: () => void
-      maximize: () => void
       close: () => void
-      isMaximized: () => Promise<boolean>
 
       // Working directory
       selectWorkingDir: () => Promise<PathResult>
-      getWorkingDir: () => Promise<string | null>
       setWorkingDir: (path: string) => Promise<PathResult>
       createWorkingDir: (path: string) => Promise<PathResult>
       clearWorkingDir: () => Promise<OperationResult>
@@ -1190,7 +1064,6 @@ declare global {
         expectedHash?: string,
       ) => Promise<FileWriteResult>
       fileExists: (path: string) => Promise<boolean>
-      getFileHash: (path: string) => Promise<HashResult>
       // Streaming hash - more efficient for large files
       hashFile: (
         path: string,
@@ -1213,9 +1086,6 @@ declare global {
         results?: Array<{ relativePath: string; hash: string }>
         error?: string
       }>
-      onHashProgress: (
-        callback: (progress: { processed: number; total: number; percent: number }) => void,
-      ) => () => void
       createFolder: (path: string) => Promise<OperationResult>
       deleteItem: (
         path: string,
@@ -1227,17 +1097,6 @@ declare global {
         useTrash?: boolean,
         isAutomatic?: boolean,
       ) => Promise<{
-        success: boolean
-        results: Array<{ path: string; success: boolean; error?: string; skipped?: boolean }>
-        summary: {
-          total: number
-          succeeded: number
-          failed: number
-          skipped: number
-          duration: number
-        }
-      }>
-      trashBatch: (paths: string[]) => Promise<{
         success: boolean
         results: Array<{ path: string; success: boolean; error?: string; skipped?: boolean }>
         summary: {
@@ -1272,9 +1131,6 @@ declare global {
       isReadonly: (
         path: string,
       ) => Promise<{ success: boolean; readonly?: boolean; error?: string }>
-      onDownloadProgress: (
-        callback: (progress: { loaded: number; total: number; speed: number }) => void,
-      ) => () => void
 
       // Dialogs
       selectFiles: () => Promise<FileSelectResult>
@@ -1290,12 +1146,8 @@ declare global {
       // eDrawings preview
       checkEDrawingsInstalled: () => Promise<{ installed: boolean; path: string | null }>
       openInEDrawings: (filePath: string) => Promise<EDrawingsExternalOpenResult>
-      getWindowHandle: () => Promise<number[] | null>
 
       // SolidWorks thumbnail extraction
-      extractSolidWorksThumbnail: (
-        filePath: string,
-      ) => Promise<{ success: boolean; data?: string; error?: string }>
 
       // Cancel queued thumbnail/preview extractions for files in a folder (used before folder moves)
       cancelPreviewsForFolder: (
@@ -1313,20 +1165,8 @@ declare global {
       }>
 
       // Check if SLDWORKS.exe process is running (lightweight check, no service call)
-      isSolidWorksProcessRunning: () => Promise<boolean>
 
       // Test file locks in a folder (debugging tool for folder move failures)
-      testFileLocks: (
-        folderPath: string,
-        sampleSize?: number,
-      ) => Promise<{
-        tested: number
-        locked: number
-        unlocked: number
-        lockedFiles: string[]
-        duration?: number
-        error?: string
-      }>
 
       // Check ALL files in a folder for locks before folder move operations
       checkFolderLocks: (folderPath: string) => Promise<{
@@ -1342,14 +1182,6 @@ declare global {
       }>
 
       // Listen for folder lock check progress events
-      onFolderLockProgress: (
-        callback: (progress: {
-          scanned: number
-          locked: number
-          folderPath: string
-          complete?: boolean
-        }) => void,
-      ) => () => void
 
       // SolidWorks Service API (requires SolidWorks installed)
       solidworks: {
@@ -1389,36 +1221,6 @@ declare global {
         warmup: () => Promise<{ success: boolean; error?: string; data?: unknown }>
 
         // Leaked SolidWorks instance management
-        getProcessStatus: () => Promise<{
-          success: boolean
-          data?: {
-            total: number
-            owned: number
-            reapable: number
-            querySource: string
-            processes: Array<{
-              pid: number
-              windowTitle: string
-              startedAt: string
-              verdict: string
-              reason: string
-            }>
-          }
-        }>
-        killOrphanedProcesses: () => Promise<{
-          success: boolean
-          data?: {
-            scanned: boolean
-            found: number
-            reapable: number
-            closeRequested: number
-            abandoned: number
-            errors: string[]
-          }
-        }>
-        onOrphansCleaned: (
-          callback: (event: { closed: number; timestamp: number }) => void,
-        ) => () => void
 
         // Metadata operations
         getBom: (
@@ -1503,45 +1305,6 @@ declare global {
             filePath: string
             references: Array<{ path: string; fileName: string; exists: boolean; fileType: string }>
             count: number
-          }
-          error?: string
-        }>
-        getPreview: (
-          filePath: string,
-          configuration?: string,
-        ) => Promise<{
-          success: boolean
-          data?: {
-            filePath: string
-            configuration: string
-            imageData: string
-            mimeType: string
-            width: number
-            height: number
-            sizeBytes: number
-          }
-          error?: string
-        }>
-        getMassProperties: (
-          filePath: string,
-          configuration?: string,
-        ) => Promise<{
-          success: boolean
-          data?: {
-            filePath: string
-            configuration: string
-            mass: number
-            volume: number
-            surfaceArea: number
-            centerOfMass: { x: number; y: number; z: number }
-            momentsOfInertia: {
-              Ixx: number
-              Iyy: number
-              Izz: number
-              Ixy: number
-              Izx: number
-              Iyz: number
-            }
           }
           error?: string
         }>
@@ -1671,36 +1434,8 @@ declare global {
           data?: { inputFile: string; outputFile: string; fileSize: number }
           error?: string
         }>
-        exportImage: (
-          filePath: string,
-          options?: { outputPath?: string; width?: number; height?: number },
-        ) => Promise<{
-          success: boolean
-          data?: {
-            inputFile: string
-            outputFile: string
-            width: number
-            height: number
-            fileSize: number
-          }
-          error?: string
-        }>
 
         // Assembly operations
-        replaceComponent: (
-          assemblyPath: string,
-          oldComponent: string,
-          newComponent: string,
-        ) => Promise<{
-          success: boolean
-          data?: {
-            assemblyPath: string
-            oldComponent: string
-            newComponent: string
-            replacedCount: number
-          }
-          error?: string
-        }>
         packAndGo: (
           filePath: string,
           outputFolder: string,
@@ -1751,7 +1486,6 @@ declare global {
         checkLicenseRegistry: (
           serialNumber: string,
         ) => Promise<{ success: boolean; found: boolean; error?: string }>
-        openLicenseManager: () => Promise<{ success: boolean; error?: string }>
       }
 
       // Embedded eDrawings preview
@@ -1790,10 +1524,8 @@ declare global {
       }>
       postponeUpdate: (version: string) => Promise<{ success: boolean }>
       clearUpdateReminder: () => Promise<{ success: boolean }>
-      getUpdateReminder: () => Promise<{ version: string; postponedAt: number } | null>
 
       // Update event listeners
-      onUpdateChecking: (callback: () => void) => () => void
       onUpdateAvailable: (
         callback: (info: { version: string; releaseDate?: string; releaseNotes?: string }) => void,
       ) => () => void
@@ -1841,17 +1573,8 @@ declare global {
       // CLI token management
       generateCliToken: (userEmail: string) => Promise<{ success: boolean; token?: string }>
       revokeCliToken: () => Promise<{ success: boolean }>
-      getCliStatus: () => Promise<{ authenticated: boolean; serverRunning: boolean }>
 
       // Deep Link handling
-      onDeepLinkInstall: (
-        callback: (data: { extensionId: string; version?: string; timestamp: number }) => void,
-      ) => () => void
-      acknowledgeDeepLink: (
-        extensionId: string,
-        success: boolean,
-        error?: string,
-      ) => Promise<{ success: boolean }>
     }
   }
 }

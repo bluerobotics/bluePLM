@@ -1,6 +1,7 @@
 import type { TranslationDict } from '../types'
 import { reviewsUiStrings } from './reviewsUi'
 import { reviewPackageStrings } from './reviewPackage'
+import { dbUpgradeStrings } from './dbUpgrade'
 
 // German translations
 export const de: TranslationDict = {
@@ -36,6 +37,7 @@ export const de: TranslationDict = {
   },
   ...reviewsUiStrings.de,
   reviewPackage: reviewPackageStrings.de,
+  dbUpgrade: dbUpgradeStrings.de,
   checkoutDisplay: {
     you: 'Du',
     loadingOwner: 'Checkout-Besitzer wird geladen',
@@ -189,7 +191,7 @@ export const de: TranslationDict = {
     enterCredentials:
       'Geben Sie Ihre Supabase-Anmeldedaten aus den API-Einstellungen Ihres Projekts ein',
     projectId: 'Projekt-ID',
-    projectIdHelp: 'Zu finden oben in Ihrem Supabase Dashboard (z.B. vvyhpdzqdizvorrhjhvq)',
+    projectIdHelp: 'Zu finden oben in Ihrem Supabase Dashboard (z.B. abcdefghijklmnopqrst)',
     anonKey: 'Anonymer (öffentlicher) Schlüssel',
     orgSlug: 'Organisations-Slug',
     orgSlugHelp: 'Dies hilft, Ihre Organisation im generierten Code zu identifizieren',
@@ -1031,13 +1033,6 @@ export const de: TranslationDict = {
     statusNotLoaded: "Auf diesem Computer nicht geladen",
     none: "Keine Organisationserweiterungen installiert.",
     error: "Fehler: {{message}}",
-  },
-  extensionRuntime: {
-    notice:
-      "Erweiterungen aus dem Store oder aus einer Datei werden auf diesem Computer gespeichert, aber nicht ausgeführt: Die Sandbox-Laufzeit ist nicht verfügbar. Organisationserweiterungen, die oben von einem Administrator installiert werden, werden ausgeführt.",
-    installedNotRunning: 'Installiert (wird nicht ausgeführt)',
-    adminOnly: 'Nur Administratoren können Erweiterungen installieren oder entfernen.',
-    notAdminError: 'Nur Administratoren können Erweiterungen installieren.',
   },
   strandedEdits: {
     checkoutLost:

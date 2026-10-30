@@ -327,7 +327,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
 
             while (hasMore) {
               const { data: statsData } = await supabase
-                .from('files')
+                .from('file')
                 .select('file_size')
                 .eq('vault_id', vault.id)
                 .is('deleted_at', null) // Exclude soft-deleted files

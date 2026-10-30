@@ -46,7 +46,7 @@ interface LatestVersionRow {
  * against schema 107, so this one query goes through a narrow untyped view.
  */
 interface UntypedVersionQuery {
-  from(table: 'file_versions'): {
+  from(table: 'file_version'): {
     select(columns: string): {
       eq(
         column: 'file_id',
@@ -72,7 +72,7 @@ function isLatestVersionRow(v: unknown): v is LatestVersionRow {
 async function fetchLatestVersion(fileId: string): Promise<LatestVersionRow | null> {
   const client = getSupabaseClient() as unknown as UntypedVersionQuery
   const { data, error } = await client
-    .from('file_versions')
+    .from('file_version')
     .select('id, version, content_hash, references_recorded_at')
     .eq('file_id', fileId)
     .order('version', { ascending: false })

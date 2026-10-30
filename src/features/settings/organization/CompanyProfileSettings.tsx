@@ -110,7 +110,7 @@ export function CompanyProfileSettings() {
       setLoading(true)
       try {
         const { data, error } = await supabase
-          .from('organizations')
+          .from('organization')
           .select('logo_url, logo_storage_path, phone, website, contact_email')
           .eq('id', organization.id)
           .single()
@@ -162,7 +162,7 @@ export function CompanyProfileSettings() {
       setLoadingAddresses(true)
       try {
         const { data, error } = await supabase
-          .from('organization_addresses')
+          .from('org_address')
           .select('*')
           .eq('org_id', organization.id)
           .order('is_default', { ascending: false })
@@ -253,7 +253,7 @@ export function CompanyProfileSettings() {
       // Update organization with signed URL and storage path using RPC function
       // (Direct updates aren't allowed due to RLS policy)
       log.debug('[CompanyProfile]', 'Saving to DB via RPC', { logoStoragePath: filePath })
-      const { error: updateError } = await (supabase.rpc as any)('update_org_branding', { // TODO: type this
+      const { error: updateError } = await (supabase.rpc as any)('org_update_branding', { // TODO: type this
         p_org_id: organization.id,
         p_logo_url: signedData.signedUrl,
         p_logo_storage_path: filePath,
@@ -293,7 +293,7 @@ export function CompanyProfileSettings() {
 
       // Update organization using RPC function (direct updates not allowed due to RLS)
       // Pass empty strings to clear the values (COALESCE in function will handle nulls)
-      const { error } = await (supabase.rpc as any)('update_org_branding', { // TODO: type this
+      const { error } = await (supabase.rpc as any)('org_update_branding', { // TODO: type this
         p_org_id: organization.id,
         p_logo_url: '',
         p_logo_storage_path: '',
@@ -322,7 +322,7 @@ export function CompanyProfileSettings() {
     savingRef.current = true
     try {
       // Use RPC function (direct updates not allowed due to RLS)
-      const { error } = await (supabase.rpc as any)('update_org_branding', { // TODO: type this
+      const { error } = await (supabase.rpc as any)('org_update_branding', { // TODO: type this
         p_org_id: organization.id,
         p_phone: profile.phone || null,
         p_website: profile.website || null,
@@ -398,7 +398,7 @@ export function CompanyProfileSettings() {
       if (editingAddress) {
         // Update existing
         const { error } = await supabase
-          .from('organization_addresses')
+          .from('org_address')
           .update({
             label: addressForm.label.trim(),
             is_default: addressForm.is_default,
@@ -445,7 +445,7 @@ export function CompanyProfileSettings() {
       } else {
         // Create new
         const { data, error } = await supabase
-          .from('organization_addresses')
+          .from('org_address')
           .insert({
             org_id: organization.id,
             address_type: addressForm.address_type,
@@ -508,7 +508,7 @@ export function CompanyProfileSettings() {
     setDeletingAddressId(deleteConfirmAddress.id)
     try {
       const { error } = await supabase
-        .from('organization_addresses')
+        .from('org_address')
         .delete()
         .eq('id', deleteConfirmAddress.id)
 
@@ -560,7 +560,7 @@ export function CompanyProfileSettings() {
   const handleSetDefault = async (address: OrgAddress) => {
     try {
       const { error } = await supabase
-        .from('organization_addresses')
+        .from('org_address')
         .update({ is_default: true })
         .eq('id', address.id)
 

@@ -41,10 +41,10 @@ export function createSupabaseNativeExtensionStore(admin: SupabaseClient): Nativ
     async listNativeInstalls(orgIds) {
       if (orgIds.length === 0) return []
       const { data, error } = await admin
-        .from('org_installed_extensions')
+        .from('org_installed_extension')
         .select('org_id, extension_id, package_sha256, package_path, installed_at, manifest')
         .in('org_id', [...orgIds])
-        .eq('enabled', true)
+        .eq('is_enabled', true)
         .eq('category', 'native')
         .not('manifest->>serverMain', 'is', null)
       if (error) throw new Error(`Failed to list native extension installs: ${error.message}`)
@@ -63,15 +63,15 @@ export function createSupabaseNativeExtensionStore(admin: SupabaseClient): Nativ
 
     async getOrgInstall(orgId, extensionId) {
       const { data, error } = await admin
-        .from('org_installed_extensions')
-        .select('enabled, package_sha256')
+        .from('org_installed_extension')
+        .select('is_enabled, package_sha256')
         .eq('org_id', orgId)
         .eq('extension_id', extensionId)
         .maybeSingle()
       if (error) throw new Error(`Failed to read extension install: ${error.message}`)
       if (!data) return null
-      const row = data as { enabled: boolean | null; package_sha256: string | null }
-      return { enabled: row.enabled === true, package_sha256: row.package_sha256 }
+      const row = data as { is_enabled: boolean | null; package_sha256: string | null }
+      return { enabled: row.is_enabled === true, package_sha256: row.package_sha256 }
     },
   }
 }

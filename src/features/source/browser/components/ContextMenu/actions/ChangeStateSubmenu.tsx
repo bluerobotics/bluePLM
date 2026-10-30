@@ -27,15 +27,15 @@ import { addFilesToReviewPackage } from '@/features/source/reviewPackage/addToPa
 /** Whether a state is a review stage (`triggers_review`): files entering it go to the review package. */
 async function isReviewStage(stateId: string): Promise<boolean> {
   const { data, error } = await supabase
-    .from('workflow_states')
-    .select('triggers_review')
+    .from('workflow_state')
+    .select('is_review_stage')
     .eq('id', stateId)
     .maybeSingle()
   if (error) {
     log.warn('[Workflow]', 'Reading the target state failed', { error, stateId })
     return false
   }
-  return data?.triggers_review === true
+  return data?.is_review_stage === true
 }
 
 interface ChangeStateSubmenuProps {
@@ -82,7 +82,7 @@ export function ChangeStateSubmenu({
     // If the file already references a workflow state, assign it to that state's workflow.
     if (currentStateId) {
       const { data: stateRow } = await supabase
-        .from('workflow_states')
+        .from('workflow_state')
         .select('id, workflow_id')
         .eq('id', currentStateId)
         .single()

@@ -11,14 +11,14 @@ export async function getPartSuppliers(
 ): Promise<{ data: PartSupplier[] | null; error: string | null }> {
   try {
     const { data, error } = await supabase
-      .from('part_suppliers')
+      .from('part_supplier')
       .select(
         `
         id,
         org_id,
         file_id,
         supplier_id,
-        supplier:suppliers (
+        supplier:supplier (
           id,
           name,
           code,
@@ -46,7 +46,7 @@ export async function getPartSuppliers(
         is_qualified,
         qualified_at,
         notes,
-        last_price_update,
+        price_updated_at,
         created_at,
         updated_at
       `,
@@ -100,7 +100,7 @@ export async function addPartSupplier(
 ): Promise<{ data: PartSupplier | null; error: string | null }> {
   try {
     const { data: result, error } = await supabase
-      .from('part_suppliers')
+      .from('part_supplier')
       .insert({
         org_id: orgId,
         file_id: fileId,
@@ -120,7 +120,7 @@ export async function addPartSupplier(
         notes: data.notes || null,
         created_by: userId,
         updated_by: userId,
-        last_price_update: new Date().toISOString(),
+        price_updated_at: new Date().toISOString(),
       })
       .select(
         `
@@ -128,7 +128,7 @@ export async function addPartSupplier(
         org_id,
         file_id,
         supplier_id,
-        supplier:suppliers (
+        supplier:supplier (
           id,
           name,
           code,
@@ -156,7 +156,7 @@ export async function addPartSupplier(
         is_qualified,
         qualified_at,
         notes,
-        last_price_update,
+        price_updated_at,
         created_at,
         updated_at
       `,
@@ -216,7 +216,7 @@ export async function updatePartSupplier(
     if (data.supplier_url !== undefined) updateData.supplier_url = data.supplier_url
     if (data.unit_price !== undefined) {
       updateData.unit_price = data.unit_price
-      updateData.last_price_update = new Date().toISOString()
+      updateData.price_updated_at = new Date().toISOString()
     }
     if (data.currency !== undefined) updateData.currency = data.currency
     if (data.price_unit !== undefined) updateData.price_unit = data.price_unit
@@ -228,7 +228,7 @@ export async function updatePartSupplier(
     if (data.notes !== undefined) updateData.notes = data.notes
 
     const { error } = await supabase
-      .from('part_suppliers')
+      .from('part_supplier')
       .update(updateData)
       .eq('id', partSupplierId)
 
@@ -255,7 +255,7 @@ export async function setPreferredPartSupplier(
   try {
     // First, clear preferred status on all suppliers for this file
     const { error: clearError } = await supabase
-      .from('part_suppliers')
+      .from('part_supplier')
       .update({
         is_preferred: false,
         updated_by: userId,
@@ -270,7 +270,7 @@ export async function setPreferredPartSupplier(
 
     // Then set the new preferred supplier
     const { error: setError } = await supabase
-      .from('part_suppliers')
+      .from('part_supplier')
       .update({
         is_preferred: true,
         updated_by: userId,
@@ -299,7 +299,7 @@ export async function removePartSupplier(
 ): Promise<{ success: boolean; error: string | null }> {
   try {
     const { error } = await supabase
-      .from('part_suppliers')
+      .from('part_supplier')
       .update({
         is_active: false,
         updated_by: userId,
@@ -326,7 +326,7 @@ export async function deletePartSupplier(
   partSupplierId: string,
 ): Promise<{ success: boolean; error: string | null }> {
   try {
-    const { error } = await supabase.from('part_suppliers').delete().eq('id', partSupplierId)
+    const { error } = await supabase.from('part_supplier').delete().eq('id', partSupplierId)
 
     if (error) {
       log.error('[PartSuppliers]', 'Failed to delete part supplier', { error })

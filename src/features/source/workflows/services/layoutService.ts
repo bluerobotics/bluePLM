@@ -213,7 +213,7 @@ type PendingWrite = { timer: ReturnType<typeof setTimeout>; patch: Record<string
 const pendingWrites = new Map<string, PendingWrite>()
 
 function scheduleWrite(
-  table: 'workflow_states' | 'workflow_transitions',
+  table: 'workflow_state' | 'workflow_transition',
   id: string,
   patch: Record<string, unknown>,
   onError: (error: Error) => void,
@@ -243,7 +243,7 @@ export const layoutService = {
     patch: Partial<WorkflowState>,
     onError: (error: Error) => void,
   ) {
-    scheduleWrite('workflow_states', stateId, patch, onError)
+    scheduleWrite('workflow_state', stateId, patch, onError)
   },
 
   saveTransitionLayout(
@@ -251,13 +251,13 @@ export const layoutService = {
     patch: Record<string, unknown>,
     onError: (error: Error) => void,
   ) {
-    scheduleWrite('workflow_transitions', transitionId, patch, onError)
+    scheduleWrite('workflow_transition', transitionId, patch, onError)
   },
 
   /** Drop queued writes for rows that no longer exist, so a delete is not undone. */
   cancelPending(ids: string[]) {
     for (const id of ids) {
-      for (const table of ['workflow_states', 'workflow_transitions'] as const) {
+      for (const table of ['workflow_state', 'workflow_transition'] as const) {
         const key = `${table}:${id}`
         const pending = pendingWrites.get(key)
         if (pending) {

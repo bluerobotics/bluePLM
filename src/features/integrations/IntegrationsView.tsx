@@ -67,7 +67,7 @@ interface OdooSettings {
   last_sync_at: string | null
   last_sync_status: string | null
   last_sync_count: number | null
-  auto_sync: boolean
+  is_auto_sync: boolean
 }
 
 interface IntegrationCardProps {
@@ -643,7 +643,7 @@ export function IntegrationsView() {
             if (configsResponse.ok) {
               const configsData = await configsResponse.json()
               const hasSuccessfulConfig = configsData.configs?.some(
-                (c: { last_test_success: boolean | null }) => c.last_test_success === true,
+                (c: { is_last_test_successful: boolean | null }) => c.is_last_test_successful === true,
               )
               setOdooConnected(hasSuccessfulConfig)
             }

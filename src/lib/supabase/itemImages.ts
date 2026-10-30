@@ -56,7 +56,7 @@ export async function getItemImages(orgId: string): Promise<Map<string, ItemImag
   const supabase = getSupabaseClient() as unknown as RpcClient
   const result = new Map<string, ItemImage>()
   try {
-    const { data, error } = await supabase.rpc('get_item_images', { p_org_id: orgId })
+    const { data, error } = await supabase.rpc('item_image_list', { p_org_id: orgId })
     if (error) throw error
     const rows = (data ?? []) as ItemImageRow[]
 
@@ -84,7 +84,7 @@ export async function setItemIcon(
   iconColor?: string | null,
 ): Promise<ItemImage> {
   const supabase = getSupabaseClient() as unknown as RpcClient
-  const { data, error } = await supabase.rpc('upsert_item_image', {
+  const { data, error } = await supabase.rpc('item_image_upsert', {
     p_org_id: orgId,
     p_part_number: partNumber,
     p_image_type: 'icon',
@@ -119,7 +119,7 @@ export async function uploadItemImage(
   if (uploadError) throw uploadError
 
   const rpcClient = supabase as unknown as RpcClient
-  const { data, error } = await rpcClient.rpc('upsert_item_image', {
+  const { data, error } = await rpcClient.rpc('item_image_upsert', {
     p_org_id: orgId,
     p_part_number: partNumber,
     p_image_type: 'image',
@@ -136,7 +136,7 @@ export async function uploadItemImage(
 /** Remove an item's override, reverting to the default SolidWorks preview. */
 export async function resetItemImage(orgId: string, partNumber: string): Promise<void> {
   const supabase = getSupabaseClient() as unknown as RpcClient
-  const { error } = await supabase.rpc('reset_item_image', {
+  const { error } = await supabase.rpc('item_image_reset', {
     p_org_id: orgId,
     p_part_number: partNumber,
   })

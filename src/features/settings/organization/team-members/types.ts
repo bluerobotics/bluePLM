@@ -26,8 +26,8 @@ export interface WorkflowRoleBasic {
 export interface OrgUser extends OrgUserBase {
   custom_avatar_url: string | null
   role: string
-  last_sign_in: string | null
-  last_online: string | null
+  last_sign_in_at: string | null
+  last_online_at: string | null
   teams?: { id: string; name: string; color: string; icon: string }[]
   job_title?: { id: string; name: string; color: string; icon: string } | null
   workflow_roles?: WorkflowRoleBasic[]

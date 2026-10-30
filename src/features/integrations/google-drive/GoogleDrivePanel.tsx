@@ -215,7 +215,7 @@ export function GoogleDrivePanel() {
 
     setIsLoadingCredentials(true)
     try {
-      const { data, error } = await (supabase.rpc as any)('get_google_drive_settings', { // TODO: type this
+      const { data, error } = await (supabase.rpc as any)('org_get_google_drive_settings', { // TODO: type this
         p_org_id: organization.id,
       })
 
@@ -225,13 +225,13 @@ export function GoogleDrivePanel() {
         const settings = data[0] as {
           client_id?: string
           client_secret?: string
-          enabled?: boolean
+          is_enabled?: boolean
         }
-        if (settings.client_id && settings.client_secret && settings.enabled) {
+        if (settings.client_id && settings.client_secret && settings.is_enabled) {
           setOrgCredentials({
             clientId: settings.client_id,
             clientSecret: settings.client_secret,
-            enabled: settings.enabled,
+            enabled: settings.is_enabled,
           })
         } else {
           setOrgCredentials(null)
@@ -411,7 +411,7 @@ export function GoogleDrivePanel() {
         }
 
         const fields =
-          'files(id,name,mimeType,modifiedTime,size,starred,webViewLink,webContentLink,iconLink,thumbnailLink,shared,owners,capabilities)'
+          'file(id,name,mimeType,modifiedTime,size,starred,webViewLink,webContentLink,iconLink,thumbnailLink,shared,owners,capabilities)'
         const response = await fetch(
           `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=${fields}&orderBy=${orderBy}&pageSize=100`,
           { headers: { Authorization: `Bearer ${token}` } },
@@ -486,7 +486,7 @@ export function GoogleDrivePanel() {
         const targetFolderId = folderId || driveId
         const query = `'${targetFolderId}' in parents and trashed = false`
         const fields =
-          'files(id,name,mimeType,modifiedTime,size,starred,webViewLink,webContentLink,iconLink,thumbnailLink,shared,owners,capabilities)'
+          'file(id,name,mimeType,modifiedTime,size,starred,webViewLink,webContentLink,iconLink,thumbnailLink,shared,owners,capabilities)'
 
         const response = await fetch(
           `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=${fields}&orderBy=folder,name&pageSize=100&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=drive&driveId=${driveId}`,

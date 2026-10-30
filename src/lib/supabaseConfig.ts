@@ -122,7 +122,7 @@ export async function validateConfig(
     })
 
     // Try to make a simple query (organizations table should exist)
-    const { error } = await testClient.from('organizations').select('id').limit(1)
+    const { error } = await testClient.from('organization').select('id').limit(1)
 
     if (error) {
       // Some errors are expected (like empty results), others indicate bad config

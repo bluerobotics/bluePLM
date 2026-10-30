@@ -30,13 +30,13 @@ export interface RFQ {
   valid_until: string | null
 
   // Options
-  requires_samples: boolean
-  requires_first_article: boolean
-  requires_quality_report: boolean
-  allow_partial_quotes: boolean
+  is_samples_required: boolean
+  is_first_article_required: boolean
+  is_quality_report_required: boolean
+  is_partial_quote_allowed: boolean
 
   // File generation
-  release_files_generated: boolean
+  is_release_files_generated: boolean
   release_files_generated_at: string | null
   release_folder_path: string | null
 

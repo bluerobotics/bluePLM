@@ -1,6 +1,7 @@
 import type { TranslationDict } from '../types'
 import { reviewsUiStrings } from './reviewsUi'
 import { reviewPackageStrings } from './reviewPackage'
+import { dbUpgradeStrings } from './dbUpgrade'
 
 // Traditional Chinese translations (繁體中文)
 export const zhTW: TranslationDict = {
@@ -33,6 +34,7 @@ export const zhTW: TranslationDict = {
   },
   ...reviewsUiStrings.zhTW,
   reviewPackage: reviewPackageStrings.zhTW,
+  dbUpgrade: dbUpgradeStrings.zhTW,
   checkoutDisplay: {
     you: '你',
     loadingOwner: '正在載入簽出者',
@@ -177,7 +179,7 @@ export const zhTW: TranslationDict = {
     adminSetup: '管理員設定',
     enterCredentials: '從專案的 API 設定中輸入您的 Supabase 憑證',
     projectId: '專案 ID',
-    projectIdHelp: '在 Supabase 控制台頂部找到（例如 vvyhpdzqdizvorrhjhvq）',
+    projectIdHelp: '在 Supabase 控制台頂部找到（例如 abcdefghijklmnopqrst）',
     anonKey: '匿名（公開）金鑰',
     orgSlug: '組織識別碼',
     orgSlugHelp: '這有助於在產生的代碼中識別您的組織',
@@ -979,13 +981,6 @@ export const zhTW: TranslationDict = {
     statusNotLoaded: "未在此電腦上載入",
     none: "尚未安裝組織擴充功能。",
     error: "錯誤：{{message}}",
-  },
-  extensionRuntime: {
-    notice:
-      "來自商店或檔案的擴充功能保存在此電腦上但不會執行：沙箱執行環境無法使用。由管理員在上方安裝的組織擴充功能會執行。",
-    installedNotRunning: '已安裝（未執行）',
-    adminOnly: '只有管理員可以安裝或移除擴充功能。',
-    notAdminError: '只有管理員可以安裝擴充功能。',
   },
   strandedEdits: {
     checkoutLost:

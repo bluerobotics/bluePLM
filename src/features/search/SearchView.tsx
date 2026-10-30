@@ -74,7 +74,7 @@ export function SearchView() {
 
         // First find ECOs matching the search
         const { data: ecos, error: ecoError } = await client
-          .from('ecos')
+          .from('eco')
           .select('id, eco_number, title')
           .eq('org_id', organization.id)
           .ilike('eco_number', `%${ecoSearchTerm}%`)
@@ -92,11 +92,11 @@ export function SearchView() {
         // Get files for matching ECOs
         const ecoIds = ecos.map((e) => e.id)
         const { data: fileEcos, error: fileError } = await client
-          .from('file_ecos')
+          .from('file_eco')
           .select(
             `
             eco_id,
-            file:files!file_id(
+            file:file!file_id(
               id,
               file_name,
               file_path,

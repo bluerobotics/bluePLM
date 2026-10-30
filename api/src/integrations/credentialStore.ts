@@ -18,7 +18,7 @@ import { encryptSecret, looksEncrypted, decryptSecret } from '../crypto/secretBo
 
 export type CredentialOwnerType = 'odoo_saved_config' | 'organization_integration'
 
-const TABLE = 'integration_credentials'
+const TABLE = 'integration_credential'
 
 export class CredentialKeyMissingError extends Error {
   constructor() {

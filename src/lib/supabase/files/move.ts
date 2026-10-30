@@ -21,16 +21,15 @@ import { CONCURRENT_OPERATIONS, processWithConcurrency } from '../../concurrency
  */
 export async function moveFileOnServer(
   fileId: string,
-  userId: string,
+  _userId: string, // Unused - the RPC takes the actor from the JWT (5.0)
   newFilePath: string,
   newFileName?: string,
 ): Promise<{ success: boolean; file?: unknown; error?: string }> {
   const client = getSupabaseClient()
 
   // Use atomic RPC to prevent race conditions and ensure proper validation
-  const { data, error } = await client.rpc('move_file', {
+  const { data, error } = await client.rpc('file_move', {
     p_file_id: fileId,
-    p_user_id: userId,
     p_new_file_path: newFilePath,
     p_new_file_name: newFileName,
   })

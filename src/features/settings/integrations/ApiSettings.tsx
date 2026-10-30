@@ -232,7 +232,7 @@ export function ApiSettings() {
           // IMPORTANT: Fetch current settings from database first to avoid overwriting
           // other fields that may have been set by other components
           const { data: currentOrg, error: fetchError } = await db
-            .from('organizations')
+            .from('organization')
             .select('settings')
             .eq('id', organization.id)
             .single()
@@ -246,7 +246,7 @@ export function ApiSettings() {
           const newSettings = { ...currentSettings, api_url: url }
 
           const { error } = await db
-            .from('organizations')
+            .from('organization')
             .update({ settings: newSettings })
             .eq('id', organization.id)
 
@@ -565,7 +565,7 @@ export function ApiSettings() {
             Quick Test
           </label>
           <div className="flex flex-wrap gap-2">
-            {['/vaults', '/files?limit=5', '/checkouts', '/activity?limit=5'].map((endpoint) => (
+            {['/health', '/webhooks', '/integrations/odoo'].map((endpoint) => (
               <button
                 key={endpoint}
                 onClick={() => testApiEndpoint(endpoint)}

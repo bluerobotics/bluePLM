@@ -46,7 +46,6 @@ export const createUISlice: StateCreator<
   terminalHistory: [],
 
   // Initial state - Deep Link
-  pendingDeepLinkInstall: null,
 
   // Initial state - Clipboard (unified across FilePane and FileTree)
   clipboard: null,
@@ -257,8 +256,6 @@ export const createUISlice: StateCreator<
   clearSettingsFocusTarget: () => set({ settingsFocusTarget: null }),
 
   // Actions - Deep Link
-  setPendingDeepLinkInstall: (data) => set({ pendingDeepLinkInstall: data }),
-  clearPendingDeepLinkInstall: () => set({ pendingDeepLinkInstall: null }),
 
   // Actions - Command confirmation dialog
   setPendingCommandConfirm: (confirm) => set({ pendingCommandConfirm: confirm }),

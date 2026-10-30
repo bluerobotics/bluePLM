@@ -1,6 +1,6 @@
 {
   "name": "bluepdm-api",
-  "version": "3.0.1",
+  "version": "4.0.0",
   "description": "BluePLM REST API",
   "type": "module",
   "main": "dist/server.js",
@@ -8,18 +8,18 @@
     "build": "tsc -p tsconfig.build.json && node --input-type=commonjs -e \"require('fs').copyFileSync('package.json','dist/package.json')\"",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "start": "tsx server.ts",
-    "dev": "tsx --watch server.ts",
-    "test": "tsx test-api.ts"
+    "dev": "tsx --watch server.ts"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.2",
     "@fastify/helmet": "^13.0.2",
     "@fastify/rate-limit": "^10.2.1",
+    "@fastify/static": "10.1.6",
     "@fastify/swagger": "^9.4.2",
-    "@fastify/swagger-ui": "^5.2.1",
+    "@fastify/swagger-ui": "^6.1.2",
     "@sinclair/typebox": "^0.34.46",
     "@supabase/supabase-js": "^2.39.0",
-    "fastify": "^5.2.1",
+    "fastify": "^5.12.7",
     "fastify-plugin": "^5.1.0",
     "jszip": "^3.10.2",
     "pino": "^10.1.0",

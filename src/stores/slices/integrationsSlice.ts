@@ -7,7 +7,7 @@
  * - Google Drive connection status
  * - Odoo ERP connection status
  * - REST API server status
- * - Other integrations (Slack, Webhooks)
+ * - Other integrations (Webhooks)
  *
  * The slice provides:
  * - Centralized status state (no more race conditions)
@@ -41,7 +41,6 @@ const initialIntegrations: Record<IntegrationId, IntegrationState> = {
   solidworks: { ...defaultIntegrationState },
   'google-drive': { ...defaultIntegrationState },
   odoo: { ...defaultIntegrationState },
-  slack: { ...defaultIntegrationState, status: 'coming-soon' },
   webhooks: { ...defaultIntegrationState },
   api: { ...defaultIntegrationState },
 }
@@ -175,9 +174,6 @@ export const createIntegrationsSlice: StateCreator<
       case 'odoo':
         await checkOdooStatus(get, setIntegrationStatus)
         break
-      case 'slack':
-        setIntegrationStatus('slack', 'coming-soon')
-        break
       case 'webhooks':
         await checkWebhooksStatus(get, setIntegrationStatus)
         break
@@ -204,7 +200,6 @@ export const createIntegrationsSlice: StateCreator<
         checkIntegration('google-drive', silent),
         checkIntegration('api', silent),
         checkIntegration('odoo', silent),
-        checkIntegration('slack', silent),
         checkIntegration('webhooks', silent),
       ])
 
@@ -251,7 +246,7 @@ async function checkSupabaseStatus(
   }
 
   try {
-    const { error } = await supabase.from('organizations').select('id').limit(1)
+    const { error } = await supabase.from('organization').select('id').limit(1)
     if (error && (error.message.includes('Invalid API key') || error.code === 'PGRST301')) {
       setStatus('supabase', 'offline', error.message)
     } else {
@@ -362,13 +357,13 @@ async function checkGoogleDriveStatus(
       supabase.rpc as unknown as (
         name: string,
         params: { p_org_id: string },
-      ) => Promise<{ data: Array<{ enabled?: boolean; client_id?: string }> | null }>
-    )('get_google_drive_settings', {
+      ) => Promise<{ data: Array<{ is_enabled?: boolean; client_id?: string }> | null }>
+    )('org_get_google_drive_settings', {
       p_org_id: organization.id,
     })
     if (data && Array.isArray(data) && data.length > 0) {
       const settings = data[0]
-      if (settings.enabled && settings.client_id) {
+      if (settings.is_enabled && settings.client_id) {
         setStatus('google-drive', 'online')
       } else if (settings.client_id) {
         setStatus('google-drive', 'offline')
@@ -475,10 +470,10 @@ async function checkOdooStatus(
           })
           if (configsResponse.ok) {
             const configsData = (await configsResponse.json()) as {
-              configs?: Array<{ last_test_success: boolean | null }>
+              configs?: Array<{ is_last_test_successful: boolean | null }>
             }
             const hasSuccessfulConfig = configsData.configs?.some(
-              (c) => c.last_test_success === true,
+              (c) => c.is_last_test_successful === true,
             )
             setStatus('odoo', hasSuccessfulConfig ? 'online' : 'offline')
           } else {

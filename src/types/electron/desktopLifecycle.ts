@@ -21,15 +21,7 @@ export interface DesktopLifecycleAPI {
   reloadApp: () => Promise<{ success: boolean; error?: string }>
   requestFocus: () => Promise<{ success: boolean; error?: string }>
   openPerformanceWindow: () => Promise<{ success: boolean; error?: string }>
-  createTabWindow: (
-    view: string,
-    title: string,
-    customData?: Record<string, unknown>,
-  ) => Promise<{ success: boolean; error?: string }>
 
   // Window controls
-  minimize: () => void
-  maximize: () => void
   close: () => void
-  isMaximized: () => Promise<boolean>
 }

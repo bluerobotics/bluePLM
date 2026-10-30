@@ -29,7 +29,7 @@ function secondVault(v: Vault) {
   const prefix = `${OTHER_VAULT_PATH.toLowerCase()}\\`
   return {
     server: v.db
-      .rows('files')
+      .rows('file')
       .filter((r) => r.vault_id === OTHER_VAULT_ID && r.deleted_at == null)
       .map((r) => String(r.file_path))
       .sort((a, b) => a.localeCompare(b)),

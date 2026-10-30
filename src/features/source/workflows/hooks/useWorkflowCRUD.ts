@@ -106,8 +106,8 @@ export function useWorkflowCRUD(options: UseWorkflowCRUDOptions) {
       position_x: 250 + states.length * 50,
       position_y: 200,
       is_editable: true,
-      requires_checkout: true,
-      auto_increment_revision: false,
+      is_checkout_required: true,
+      is_revision_auto_incremented: false,
       sort_order: states.length,
     }
 

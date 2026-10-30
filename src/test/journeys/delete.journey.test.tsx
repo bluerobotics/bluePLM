@@ -55,7 +55,7 @@ describe('delete', () => {
     await vault.contextMenu(vault.row('a.sldprt'), /^Delete from Server/)
     await vault.confirm('Delete from Server')
 
-    await waitFor(() => expect(vault!.db.row('files', id).deleted_at).not.toBeNull())
+    await waitFor(() => expect(vault!.db.row('file', id).deleted_at).not.toBeNull())
     expect(diskPaths(vault)).toContain('a.sldprt')
     expect(store(vault, 'a.sldprt')?.status).toBe('added')
     vault.expectConsistent()
@@ -128,7 +128,7 @@ describe('restore from the trash', () => {
     const id = vault.serverRow('b.sldprt').id
     await vault.contextMenu(vault.row('b.sldprt'), /^Delete Local & Server/)
     await vault.confirm(/delete/i).catch(() => {})
-    await waitFor(() => expect(vault!.db.row('files', id).deleted_at).not.toBeNull())
+    await waitFor(() => expect(vault!.db.row('file', id).deleted_at).not.toBeNull())
     expect(diskPaths(vault)).not.toContain('b.sldprt')
 
     const trash = within(await vault.openTrash())
@@ -139,10 +139,10 @@ describe('restore from the trash', () => {
     await vault.user.click(trash.getByRole('button', { name: /restore/i }))
     await vault.settle()
 
-    await waitFor(() => expect(vault!.db.row('files', id).deleted_at).toBeNull())
+    await waitFor(() => expect(vault!.db.row('file', id).deleted_at).toBeNull())
     expect(livePaths(vault)).toContain('b.sldprt')
     // Restored on the server: cloud-only here until downloaded, never a duplicate row.
-    expect(vault.db.rows('files').filter((r) => r.file_path === 'b.sldprt')).toHaveLength(1)
+    expect(vault.db.rows('file').filter((r) => r.file_path === 'b.sldprt')).toHaveLength(1)
     await vault.expectStableAcrossReload()
   })
 })

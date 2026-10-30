@@ -26,7 +26,7 @@ export async function getItemDefinitionSettings(
 ): Promise<ItemDefinitionSettings> {
   const supabase = getSupabaseClient()
   try {
-    const { data, error } = await supabase.rpc('get_item_definition_settings', {
+    const { data, error } = await supabase.rpc('org_get_item_definition_settings', {
       p_org_id: orgId,
     })
     if (error) throw error
@@ -44,7 +44,7 @@ export async function updateItemDefinitionSettings(
 ): Promise<{ error: Error | null }> {
   const supabase = getSupabaseClient()
   try {
-    const { error } = await supabase.rpc('update_item_definition_settings', {
+    const { error } = await supabase.rpc('org_update_item_definition_settings', {
       p_org_id: orgId,
       p_settings: settings as unknown as Json,
     })
@@ -61,9 +61,9 @@ export async function getOrgWorkflowStages(orgId: string): Promise<ItemWorkflowS
   const supabase = getSupabaseClient()
   try {
     const { data, error } = await supabase
-      .from('workflow_states')
-      .select('id, name, label, color, workflow_templates!inner(org_id)')
-      .eq('workflow_templates.org_id', orgId)
+      .from('workflow_state')
+      .select('id, name, label, color, workflow_template!inner(org_id)')
+      .eq('workflow_template.org_id', orgId)
       .order('sort_order', { ascending: true })
 
     if (error) throw error

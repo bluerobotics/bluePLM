@@ -695,7 +695,7 @@ export async function getStorageUsage(orgId: string): Promise<{
     // This only lists directories at first level, need to go deeper
     // For accurate count, query the database instead
     const { data: dbData, error: dbError } = await supabase
-      .from('file_versions')
+      .from('file_version')
       .select('file_size')
       .eq('org_id', orgId)
 

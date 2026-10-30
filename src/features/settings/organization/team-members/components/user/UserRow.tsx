@@ -99,10 +99,10 @@ export function UserRow({
             {user.email}
           </div>
           {/* Last online - on its own line */}
-          {!compact && formatLastOnline(user.last_online) && (
+          {!compact && formatLastOnline(user.last_online_at) && (
             <div className="flex items-center gap-1 text-plm-fg-dim text-xs mt-0.5">
               <Clock size={10} />
-              {formatLastOnline(user.last_online)}
+              {formatLastOnline(user.last_online_at)}
             </div>
           )}
           {/* Vault access badge */}

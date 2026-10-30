@@ -24,7 +24,7 @@ export async function rollbackToVersion(
 
   // Get current file
   const { data: file, error: fetchError } = await client
-    .from('files')
+    .from('file')
     .select('*')
     .eq('id', fileId)
     .single()
@@ -40,7 +40,7 @@ export async function rollbackToVersion(
 
   // Get target version
   const { data: targetVersionRecord, error: versionError } = await client
-    .from('file_versions')
+    .from('file_version')
     .select('*')
     .eq('file_id', fileId)
     .eq('version', targetVersion)
@@ -52,7 +52,7 @@ export async function rollbackToVersion(
 
   // Get max version for reference
   const { data: maxVersionData } = await client
-    .from('file_versions')
+    .from('file_version')
     .select('version')
     .eq('file_id', fileId)
     .order('version', { ascending: false })
@@ -96,7 +96,7 @@ export async function updateVersionNote(
 
   // Verify file is checked out by user
   const { data: file, error: fetchError } = await client
-    .from('files')
+    .from('file')
     .select('checked_out_by')
     .eq('id', fileId)
     .single()
@@ -111,7 +111,7 @@ export async function updateVersionNote(
 
   // Update the version's comment
   const { error: updateError } = await client
-    .from('file_versions')
+    .from('file_version')
     .update({ comment: note.trim() || null })
     .eq('id', versionId)
     .eq('file_id', fileId) // Extra safety: ensure version belongs to this file
@@ -139,8 +139,8 @@ export async function transitionFileState(
 
   // Get current file
   const { data: file, error: fetchError } = await client
-    .from('files')
-    .select('*, workflow_state:workflow_states(*)')
+    .from('file')
+    .select('*, workflow_state:workflow_state(*)')
     .eq('id', fileId)
     .single()
 
@@ -150,7 +150,7 @@ export async function transitionFileState(
 
   // Get the target state
   const { data: targetState, error: targetError } = await client
-    .from('workflow_states')
+    .from('workflow_state')
     .select('*')
     .eq('id', targetStateId)
     .single()
@@ -167,7 +167,7 @@ export async function transitionFileState(
   if (isModelFile) {
     // Fetch org settings to check allow_file_level_revision_for_models
     const { data: org } = await client
-      .from('organizations')
+      .from('organization')
       .select('settings')
       .eq('id', file.org_id)
       .single()
@@ -179,13 +179,13 @@ export async function transitionFileState(
   // Calculate new revision if auto-increment is enabled on target state
   // Skip for model files when file-level revision is disabled by org policy
   const shouldIncrementRevision =
-    (options.incrementRevision || targetState.auto_increment_revision) && revisionAllowed
+    (options.incrementRevision || targetState.is_revision_auto_incremented) && revisionAllowed
   const newRevision = shouldIncrementRevision
     ? getNextRevision(file.revision, 'letter')
     : file.revision
 
   const { data: updated, error: updateError } = await client
-    .from('files')
+    .from('file')
     .update({
       workflow_state_id: targetStateId,
       state_changed_at: new Date().toISOString(),
@@ -195,7 +195,7 @@ export async function transitionFileState(
       updated_by: userId,
     })
     .eq('id', fileId)
-    .select('*, workflow_state:workflow_states(*)')
+    .select('*, workflow_state:workflow_state(*)')
     .single()
 
   if (updateError) {
@@ -213,7 +213,7 @@ export async function transitionFileState(
           color: updated.workflow_state.color ?? '#888888',
           icon: updated.workflow_state.icon ?? 'file',
           is_editable: updated.workflow_state.is_editable ?? true,
-          requires_checkout: updated.workflow_state.requires_checkout ?? false,
+          is_checkout_required: updated.workflow_state.is_checkout_required ?? false,
         }
       : null,
     // Cast configuration_revisions from Json to expected type
@@ -221,7 +221,7 @@ export async function transitionFileState(
   }
 
   // Check if the target workflow state triggers a review request
-  const triggersReview: boolean = targetState.triggers_review === true
+  const triggersReview: boolean = targetState.is_review_stage === true
 
   return { success: true, file: mappedFile, triggersReview }
 }

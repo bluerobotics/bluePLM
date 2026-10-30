@@ -1,7 +1,7 @@
 /**
  * Syncing a file onto a path that is already taken in another case.
  *
- * `idx_files_vault_path_unique_active` is unique on `(vault_id,
+ * `file_vault_id_file_path_idx` is unique on `(vault_id,
  * LOWER(file_path))` where `deleted_at IS NULL`, but syncFile's existence check
  * is byte-exact and stays that way: the check runs once per file at
  * CONCURRENT_OPERATIONS concurrency during a first check-in of a whole vault,
@@ -48,19 +48,15 @@ const VAULT = '00000000-0000-0000-0000-000000000002'
 const USER = '00000000-0000-0000-0000-000000000003'
 const NO_ROWS = 'PGRST116'
 const UNIQUE_VIOLATION = '23505'
-/** PostgREST: the RPC's target function does not exist - the schema-99 window. */
-const RPC_FUNCTION_NOT_FOUND = 'PGRST202'
 
 let table: FileRow[] = []
 /** Makes the next files insert raise 23505 with nothing in the table to find. */
 let phantomConflict = false
-/** Makes `get_active_file_by_path` answer PGRST202, as it does on a schema-99 database. */
-let rpcMissing = false
 /** Every `get_active_file_by_path` call the run made, so the hot path can be shown to avoid it. */
 let activeFileByPathCalls: Array<{ vaultId: string; filePath: string }> = []
 /** file_path values passed to `.eq()`, i.e. the byte-exact lookups. */
 let exactPathLookups: string[] = []
-/** file_path patterns passed to `.ilike()`, i.e. the schema-99 fallback scans. */
+/** file_path patterns passed to `.ilike()` (5.0 removed the schema-99 ilike fallback). */
 let ilikeLookups: string[] = []
 let filesInsertAttempts = 0
 /** Whether storage already holds the content for the hash being synced. */
@@ -179,7 +175,7 @@ class FilesInsertQuery {
     return this
   }
 
-  /** The insert PostgREST would perform, under idx_files_vault_path_unique_active. */
+  /** The insert PostgREST would perform, under file_vault_id_file_path_idx. */
   async single(): Promise<{ data: FileRow | null; error: QueryError | null }> {
     filesInsertAttempts++
     if (insertError) {
@@ -200,7 +196,7 @@ class FilesInsertQuery {
         data: null,
         error: {
           code: UNIQUE_VIOLATION,
-          message: 'duplicate key value violates unique constraint "idx_files_vault_path_unique_active"',
+          message: 'duplicate key value violates unique constraint "file_vault_id_file_path_idx"',
         },
       }
     }
@@ -273,7 +269,7 @@ const fakeClient = {
     }),
   },
   from(name: string) {
-    if (name === 'file_versions') {
+    if (name === 'file_version') {
       return {
         insert: (values: Row) => {
           versionInserts.push(values)
@@ -281,7 +277,7 @@ const fakeClient = {
         },
       }
     }
-    expect(name).toBe('files')
+    expect(name).toBe('file')
     return {
       select: () => new SelectQuery(),
       insert: (values: Row) => {
@@ -293,25 +289,13 @@ const fakeClient = {
   },
   /**
    * `get_active_file_by_path`'s server-side semantics: the active row whose
-   * (vault_id, LOWER(file_path)) matches, per idx_files_vault_path_unique_active.
+   * (vault_id, LOWER(file_path)) matches, per file_vault_id_file_path_idx.
    */
   async rpc(name: string, params: Record<string, unknown>) {
-    expect(name).toBe('get_active_file_by_path')
+    expect(name).toBe('file_get_active_by_path')
     const vaultId = String(params.p_vault_id)
     const filePath = String(params.p_file_path)
     activeFileByPathCalls.push({ vaultId, filePath })
-
-    // Schema 99: the function this RPC targets does not exist yet.
-    if (rpcMissing) {
-      return {
-        data: null,
-        error: {
-          code: RPC_FUNCTION_NOT_FOUND,
-          message:
-            'Could not find the function public.get_active_file_by_path(p_file_path, p_vault_id) in the schema cache',
-        },
-      }
-    }
 
     const match = table.find(
       (row) =>
@@ -365,7 +349,6 @@ function warnings(): Array<{ message: string; data?: unknown }> {
 beforeEach(() => {
   table = []
   phantomConflict = false
-  rpcMissing = false
   activeFileByPathCalls = []
   exactPathLookups = []
   ilikeLookups = []
@@ -486,60 +469,6 @@ describe('a unique violation with no file behind it', () => {
   })
 })
 
-describe('a 4.3.1 client against a schema-99 database', () => {
-  it('falls back to the ilike scan and still recovers the collision when the RPC is missing', async () => {
-    // get_active_file_by_path does not exist until schema 100 is applied.
-    // PostgREST answers that with PGRST202, not a query failure, so this must
-    // degrade to the pre-4.3.1 recovery rather than fail the check-in.
-    rpcMissing = true
-    table.push(existingFile('Parts/BRACKET.SLDPRT'))
-
-    const result = await sync('Parts/Bracket.SLDPRT')
-
-    expect(result.error).toBeNull()
-    expect(result.isNew).toBe(false)
-    expect(table).toHaveLength(1)
-    expect(table[0].version).toBe(4)
-    expect(table[0].content_hash).toBe('new-hash')
-    expect(table[0].file_path).toBe('Parts/BRACKET.SLDPRT')
-    // The RPC is still tried first - the fallback is a degrade, not a skip.
-    expect(activeFileByPathCalls).toEqual([{ vaultId: VAULT, filePath: 'Parts/Bracket.SLDPRT' }])
-    expect(ilikeLookups).toEqual(['Parts/Bracket.SLDPRT'])
-    expect(warnings()).toHaveLength(0)
-  })
-
-  it('escapes LIKE metacharacters in the fallback so underscore is not a wildcard', async () => {
-    rpcMissing = true
-    table.push(existingFile('PartXFiles.sldprt', { created_at: '2026-01-01T00:00:00.000Z' }))
-    table.push(
-      existingFile('PART_FILES.SLDPRT', { created_at: '2026-02-01T00:00:00.000Z', version: 7 }),
-    )
-
-    const result = await sync('Part_Files.sldprt')
-
-    expect(result.error).toBeNull()
-    expect(result.isNew).toBe(false)
-    expect(table.find((row) => row.file_path === 'PART_FILES.SLDPRT')?.version).toBe(8)
-    expect(table.find((row) => row.file_path === 'PartXFiles.sldprt')?.content_hash).toBe(
-      'old-hash',
-    )
-  })
-
-  it('still reports a real error when the fallback also finds nothing', async () => {
-    // Same failure mode as the healthy-schema case: 23505 said an active row
-    // exists, and neither recovery path found it.
-    rpcMissing = true
-    phantomConflict = true
-
-    const result = await sync('Parts/Bracket.SLDPRT')
-
-    expect(result.file).toBeNull()
-    expect(result.error).not.toBeNull()
-    expect((result.error as QueryError).code).toBe(UNIQUE_VIOLATION)
-    expect(warnings()).toHaveLength(1)
-  })
-})
-
 describe('uploading onto a row that already holds a part number and description', () => {
   // The upload command passes the overlay's value for every field, and for a row the client
   // never matched to the server that value is null: the client has nothing to say. The update
@@ -654,16 +583,6 @@ describe('creating a row only (insertOnly)', () => {
     expect(table).toHaveLength(1)
     expect(table[0].version).toBe(3)
     expect(table[0].content_hash).toBe('old-hash')
-  })
-
-  it('refuses the collision on a schema-99 database as well', async () => {
-    rpcMissing = true
-    table.push(existingFile('Parts/BRACKET.SLDPRT'))
-
-    const result = await syncInsertOnly('Parts/Bracket.SLDPRT')
-
-    expect(isSyncFileExistsError(result.error)).toBe(true)
-    expect(table[0].version).toBe(3)
   })
 
   it('does not call its refusal a failure worth a warning', async () => {

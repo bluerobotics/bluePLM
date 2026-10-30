@@ -72,7 +72,7 @@ export async function getNextSerialNumber(orgId: string): Promise<string | null>
   try {
     // Supabase v2 RPC type inference incomplete for custom functions
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase.rpc as any)('get_next_serial_number', { // TODO: type this
+    const { data, error } = await (supabase.rpc as any)('serial_number_get_next', { // TODO: type this
       p_org_id: orgId,
     })
 
@@ -99,7 +99,7 @@ export async function previewNextSerialNumber(orgId: string): Promise<string | n
   try {
     // Supabase v2 RPC type inference incomplete for custom functions
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase.rpc as any)('preview_next_serial_number', { // TODO: type this
+    const { data, error } = await (supabase.rpc as any)('serial_number_preview_next', { // TODO: type this
       p_org_id: orgId,
     })
 
@@ -124,7 +124,7 @@ export async function previewNextSerialNumber(orgId: string): Promise<string | n
 export async function getSerializationSettings(orgId: string): Promise<SerializationSettings> {
   try {
     const { data, error } = await supabase
-      .from('organizations')
+      .from('organization')
       .select('serialization_settings')
       .eq('id', orgId)
       .single()
@@ -170,7 +170,7 @@ export async function updateSerializationSettings(
 
     // Supabase v2 type inference incomplete for JSONB column updates
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase.from('organizations') as any) // TODO: type this
+    const { error } = await (supabase.from('organization') as any) // TODO: type this
       .update({ serialization_settings: updated })
       .eq('id', orgId)
 
@@ -312,7 +312,7 @@ export function matchesSerialFormat(
 export async function serialNumberExists(orgId: string, serialNumber: string): Promise<boolean> {
   try {
     const { data, error } = await supabase
-      .from('files')
+      .from('file')
       .select('id')
       .eq('org_id', orgId)
       .eq('part_number', serialNumber)
@@ -619,7 +619,7 @@ export interface HighestSerialScanResult {
  */
 async function getAdminOnlyFolders(orgId: string): Promise<string[]> {
   const { data, error } = await supabase
-    .from('organizations')
+    .from('organization')
     .select('settings')
     .eq('id', orgId)
     .single()
@@ -649,7 +649,7 @@ export async function detectHighestSerialNumber(
 
     // Fetch all part numbers from the organization
     const { data, error } = await supabase
-      .from('files')
+      .from('file')
       .select('part_number, file_path')
       .eq('org_id', orgId)
       .not('part_number', 'is', null)

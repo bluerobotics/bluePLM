@@ -351,13 +351,6 @@ let thumbnailsInProgress: Set<string> = new Set()
 let restoreMainWindowFocus: () => void = () => {}
 
 // Calculate SHA-256 hash of a file (synchronous - use only for small files or when sync is required)
-function hashFileSync(filePath: string): string {
-  const fileBuffer = fs.readFileSync(filePath)
-  const hashSum = crypto.createHash('sha256')
-  hashSum.update(fileBuffer)
-  return hashSum.digest('hex')
-}
-
 /**
  * Calculate SHA-256 hash of a file using streaming (async)
  * This is much more memory-efficient for large files as it doesn't load
@@ -778,7 +771,6 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
     return { success: false, canceled: true }
   })
 
-  ipcMain.handle('working-dir:get', () => workingDirectory)
 
   ipcMain.handle('working-dir:clear', async () => {
     log('Clearing working directory and stopping file watcher')
@@ -1462,14 +1454,6 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
     return fs.existsSync(filePath)
   })
 
-  ipcMain.handle('fs:get-hash', async (_, filePath: string) => {
-    try {
-      const hash = hashFileSync(filePath)
-      return { success: true, hash }
-    } catch (error) {
-      return { success: false, error: String(error) }
-    }
-  })
 
   // Size + mtime for a single path. Lets callers refresh the on-disk facts for one
   // file after writing it, instead of triggering a full vault rescan.
@@ -2317,95 +2301,6 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
     },
   )
 
-  /**
-   * Batch trash files - optimized for moving multiple files to recycle bin.
-   * Similar to delete-batch but always uses shell.trashItem.
-   *
-   * No `isAutomatic` parameter here: this handler never had a permanent-delete
-   * fallback, so the "an automatic discard can always be undone" invariant already
-   * holds unconditionally - a failure here always means the file was left on disk
-   * untouched. Reported below as `skipped: true` for the same reason it is on the
-   * other delete handlers, so callers get one consistent shape regardless of which
-   * handler they used.
-   *
-   * @param paths - Array of absolute file paths to trash
-   * @returns Object with overall success status and per-file results
-   */
-  ipcMain.handle('fs:trash-batch', async (_, paths: string[]) => {
-    const batchId = ++deleteOperationCounter
-    const startTime = Date.now()
-
-    log(`[TrashBatch #${batchId}] START: ${paths.length} files`)
-
-    if (!paths || paths.length === 0) {
-      return { success: true, results: [] }
-    }
-
-    const results: Array<{ path: string; success: boolean; error?: string; skipped?: boolean }> =
-      []
-
-    // Check if any path is within working directory
-    const watchedRoot = workingDirectory
-    const needsWatcherPause =
-      !!watchedRoot &&
-      paths.some(
-        (targetPath) =>
-          targetPath === watchedRoot ||
-          watchedRoot.startsWith(targetPath) ||
-          targetPath.startsWith(watchedRoot),
-      )
-
-    // Stop watcher ONCE for the entire batch
-    if (needsWatcherPause && vaultWatcher.current()) {
-      log(`[TrashBatch #${batchId}] Stopping file watcher for batch operation`)
-      await stopFileWatcher()
-      await new Promise((resolve) => setTimeout(resolve, FS_EVENT_SETTLE_MS))
-    }
-
-    try {
-      // Process all files
-      for (const targetPath of paths) {
-        const fileName = path.basename(targetPath)
-
-        try {
-          if (!fs.existsSync(targetPath)) {
-            forgetScanCacheEntry(targetPath)
-            results.push({ path: targetPath, success: true })
-            continue
-          }
-
-          await shell.trashItem(targetPath)
-          forgetScanCacheEntry(targetPath)
-          results.push({ path: targetPath, success: true })
-        } catch (error) {
-          const errorMsg = String(error)
-          results.push({ path: targetPath, success: false, error: errorMsg, skipped: true })
-          log(`[TrashBatch #${batchId}] Failed to trash (left on disk): ${fileName} - ${errorMsg}`)
-        }
-      }
-    } finally {
-      // Restart watcher ONCE after all operations complete
-      if (needsWatcherPause && workingDirectory && fs.existsSync(workingDirectory)) {
-        log(`[TrashBatch #${batchId}] Restarting file watcher after batch operation`)
-        await startFileWatcher(workingDirectory)
-      }
-    }
-
-    const succeeded = results.filter((r) => r.success).length
-    const failed = results.filter((r) => !r.success).length
-    const skipped = results.filter((r) => r.skipped).length
-    const duration = Date.now() - startTime
-
-    log(
-      `[TrashBatch #${batchId}] END: ${succeeded}/${paths.length} succeeded, ${failed} failed, ${duration}ms`,
-    )
-
-    return {
-      success: failed === 0,
-      results,
-      summary: { total: paths.length, succeeded, failed, skipped, duration },
-    }
-  })
 
   // Native file drag - enables dragging files from BluePLM to external applications
   // Note: When dragging to SolidWorks, the smart drag detection in handleDragEnd
@@ -2732,85 +2627,6 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
   })
 
   // Test file locks in a folder - useful for debugging move failures
-  // Note: This now scans ALL files (no sampling) and properly distinguishes read-only vs locked
-  ipcMain.handle('fs:test-file-locks', async (_, folderPath: string, _sampleSize: number = 10) => {
-    log(`[LockTest] Testing file locks in: ${folderPath}`)
-
-    const startTime = Date.now()
-
-    try {
-      const stats = fs.statSync(folderPath)
-      if (!stats.isDirectory()) {
-        log(`[LockTest] Path is not a directory`)
-        return { tested: 0, locked: 0, unlocked: 0, lockedFiles: [], error: 'Not a directory' }
-      }
-    } catch (error) {
-      log(`[LockTest] Error accessing path: ${error}`)
-      return { tested: 0, locked: 0, unlocked: 0, lockedFiles: [], error: String(error) }
-    }
-
-    // Inline lock detection - scans ALL files, distinguishes read-only vs truly locked
-    const lockedFiles: Array<{ name: string; path: string }> = []
-    let totalFiles = 0
-
-    function scanDir(dir: string): void {
-      try {
-        const entries = fs.readdirSync(dir, { withFileTypes: true })
-        for (const entry of entries) {
-          const fullPath = path.join(dir, entry.name)
-          if (entry.isDirectory()) {
-            scanDir(fullPath)
-          } else {
-            totalFiles++
-            try {
-              const fd = fs.openSync(fullPath, fs.constants.O_RDWR)
-              fs.closeSync(fd)
-              // File is not locked
-            } catch (error: unknown) {
-              const nodeErr = error as NodeJS.ErrnoException
-              if (
-                nodeErr.code === 'EBUSY' ||
-                nodeErr.code === 'EACCES' ||
-                nodeErr.code === 'EPERM'
-              ) {
-                // Check if read-only vs truly locked
-                try {
-                  const fileStats = fs.statSync(fullPath)
-                  const isReadOnly = (fileStats.mode & 0o200) === 0
-                  if (!isReadOnly) {
-                    lockedFiles.push({ name: entry.name, path: fullPath })
-                  }
-                } catch {
-                  lockedFiles.push({ name: entry.name, path: fullPath })
-                }
-              }
-            }
-          }
-        }
-      } catch (readErr) {
-        log(`[LockTest] Cannot read directory: ${dir} - ${readErr}`)
-      }
-    }
-
-    scanDir(folderPath)
-
-    const duration = Date.now() - startTime
-
-    const result = {
-      tested: totalFiles,
-      locked: lockedFiles.length,
-      unlocked: totalFiles - lockedFiles.length,
-      lockedFiles: lockedFiles.map((f) => f.name),
-      duration,
-    }
-
-    log(`[LockTest] Result: ${result.locked}/${result.tested} locked (${duration}ms)`)
-    if (result.locked > 0) {
-      log(`[LockTest] Locked files: ${result.lockedFiles.join(', ')}`)
-    }
-
-    return result
-  })
 
   // Check ALL files in a folder for locks (no sampling) - used before folder moves
   // Returns detailed info about each locked file including process name
@@ -3252,61 +3068,6 @@ ipcMain.handle('fs:get-file-hash', async (_, filePath: string, algorithm?: strin
   }
 })
 
-/**
- * List all .bptest files in a folder (recursively).
- * Used by the self-test framework to discover test scripts.
- *
- * @param folderPath - Absolute path to the folder to scan
- * @returns Object with success status, array of absolute file paths, or error
- */
-ipcMain.handle('fs:list-test-scripts', async (_, folderPath: string) => {
-  try {
-    if (!folderPath) {
-      return { success: false, files: [], error: 'Missing folder path' }
-    }
-
-    if (!fs.existsSync(folderPath)) {
-      return { success: false, files: [], error: 'Folder not found' }
-    }
-
-    const stats = fs.statSync(folderPath)
-    if (!stats.isDirectory()) {
-      return { success: false, files: [], error: 'Path is not a directory' }
-    }
-
-    const testFiles: string[] = []
-
-    function scanDir(dir: string): void {
-      try {
-        const entries = fs.readdirSync(dir, { withFileTypes: true })
-        for (const entry of entries) {
-          // Skip hidden files/folders and common non-test directories
-          if (entry.name.startsWith('.') || entry.name === 'node_modules') continue
-
-          const fullPath = path.join(dir, entry.name)
-          if (entry.isDirectory()) {
-            scanDir(fullPath)
-          } else if (entry.name.endsWith('.bptest')) {
-            testFiles.push(fullPath)
-          }
-        }
-      } catch (error) {
-        logWarn('Error scanning directory for test scripts', { dir, error: String(error) })
-      }
-    }
-
-    scanDir(folderPath)
-
-    // Sort alphabetically for deterministic output
-    testFiles.sort((a, b) => a.localeCompare(b))
-
-    return { success: true, files: testFiles }
-  } catch (error) {
-    const errMsg = error instanceof Error ? error.message : String(error)
-    logError('Failed to list test scripts', { folderPath, error: errMsg })
-    return { success: false, files: [], error: errMsg }
-  }
-})
 
 /**
  * Read a file as UTF-8 text (no base64 encoding).
@@ -3352,7 +3113,6 @@ ipcMain.handle('fs:read-text-file', async (_, filePath: string) => {
 export function unregisterFsHandlers(): void {
   const handlers = [
     'working-dir:select',
-    'working-dir:get',
     'working-dir:clear',
     'working-dir:set',
     'working-dir:create',
@@ -3360,7 +3120,6 @@ export function unregisterFsHandlers(): void {
     'fs:write-file',
     'fs:download-url',
     'fs:file-exists',
-    'fs:get-hash',
     'fs:hash-file',
     'fs:list-dir-files',
     'fs:list-working-files',
@@ -3370,7 +3129,6 @@ export function unregisterFsHandlers(): void {
     'fs:is-directory',
     'fs:delete',
     'fs:delete-batch',
-    'fs:trash-batch',
     'fs:rename',
     'fs:copy-file',
     'fs:move-file',
@@ -3380,7 +3138,6 @@ export function unregisterFsHandlers(): void {
     'fs:is-readonly',
     'fs:set-readonly-batch',
     'fs:get-file-hash',
-    'fs:list-test-scripts',
     'fs:read-text-file',
   ]
 

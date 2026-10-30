@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { decodeXmlEntities, parseXmlRpcResponse, parseXmlValue, valueToXml } from './odoo.js'
+import * as odoo from './odoo.js'
+import { decodeXmlEntities, odooXmlRpc, parseXmlRpcResponse, parseXmlValue, valueToXml } from './odoo.js'
 
 /** Wrap a value payload in a full XML-RPC response envelope. */
 function methodResponse(valueXml: string): string {
@@ -88,5 +89,23 @@ describe('valueToXml / parse round trip', () => {
   it('round trips a struct of company names', () => {
     const record = { name: 'Smith & Sons', ref: '<A&B>' }
     expect(parseXmlRpcResponse(methodResponse(valueToXml(record)))).toEqual(record)
+  })
+})
+
+describe('raw XML debug samples (5.0 audit O2)', () => {
+  const reply = (body: string) => (() => Promise.resolve(new Response(methodResponse(body)))) as unknown as typeof fetch
+
+  it('go only to the log of the request that made the call', async () => {
+    const mine: string[] = []
+    const theirs: string[] = []
+    await odooXmlRpc('https://a.example', 'common', 'version', [], { fetch: reply('<value><string>org-a</string></value>'), xmlLog: mine })
+    await odooXmlRpc('https://b.example', 'common', 'version', [], { fetch: reply('<value><string>org-b</string></value>'), xmlLog: theirs })
+    expect(mine.join()).toContain('org-a')
+    expect(mine.join()).not.toContain('org-b')
+    expect(theirs.join()).not.toContain('org-a')
+  })
+
+  it('has no module-wide buffer left to read', () => {
+    expect(Object.keys(odoo)).not.toContain('getLastXmlResponses')
   })
 })

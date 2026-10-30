@@ -33,7 +33,7 @@ import {
 } from './solidworksErrors'
 import type { ExtractedImage, ThumbnailTier } from './thumbnails/types'
 import { TIER_MAX_EDGE_PX } from './thumbnails/types'
-import { classifySwProcess, planSwClose, type SwProcessVerdict } from './swProcess/classify'
+import { classifySwProcess, planSwClose } from './swProcess/classify'
 import {
   proveSwLaunch,
   readSwOwnershipMarker,
@@ -57,7 +57,7 @@ import {
   querySwProcessStartTime,
   requestSwProcessClose,
 } from './swProcess/query'
-import type { LiveSwProcess, SwProcessQuerySource } from './swProcess/types'
+import type { LiveSwProcess } from './swProcess/types'
 import {
   formatSerialForRegistry,
   parseSerialNumbersRegistry,
@@ -648,49 +648,6 @@ async function reapLeakedSolidWorksProcesses(): Promise<SwReapResult> {
   }
 
   return result
-}
-
-interface SwProcessStatusEntry {
-  pid: number
-  windowTitle: string
-  startedAt: string
-  verdict: SwProcessVerdict
-  reason: string
-}
-
-/**
- * Reports every SLDWORKS.exe with the verdict the watchdog would reach for it,
- * so the same reasoning can be inspected without waiting for an incident.
- */
-async function getSolidWorksProcessStatus(): Promise<{
-  total: number
-  owned: number
-  reapable: number
-  querySource: SwProcessQuerySource
-  processes: SwProcessStatusEntry[]
-}> {
-  ensureSwOwnershipStore()
-
-  const { processes, source } = await querySwProcesses()
-
-  const entries: SwProcessStatusEntry[] = processes.map((proc) => {
-    const classification = classifySwProcess(proc, getSwOwnershipRecord(proc.pid))
-    return {
-      pid: proc.pid,
-      windowTitle: proc.windowTitle,
-      startedAt: describeInstant(proc.startedAt),
-      verdict: classification.verdict,
-      reason: classification.reason,
-    }
-  })
-
-  return {
-    total: entries.length,
-    owned: entries.filter((entry) => entry.verdict !== 'keep-unowned').length,
-    reapable: entries.filter((entry) => entry.verdict === 'reap').length,
-    querySource: source,
-    processes: entries,
-  }
 }
 
 // ============================================
@@ -2152,27 +2109,6 @@ export async function extractThumbnailBytes(
 }
 
 // Extract SolidWorks thumbnail from file as a data URL (legacy IPC surface)
-async function extractSolidWorksThumbnail(
-  filePath: string,
-): Promise<{ success: boolean; data?: string; error?: string }> {
-  const ext = path.extname(filePath).toLowerCase()
-  if (!SW_THUMBNAIL_EXTENSIONS.includes(ext)) {
-    return { success: false, error: 'Not a SolidWorks file' }
-  }
-
-  try {
-    const image = await extractThumbnailBytes(filePath)
-    if (!image) return { success: false, error: 'No thumbnail found' }
-
-    return {
-      success: true,
-      data: `data:${image.mimeType};base64,${image.buffer.toString('base64')}`,
-    }
-  } catch (error) {
-    return { success: false, error: String(error) }
-  }
-}
-
 /** OLE2 / Compound File Binary header signature. */
 const OLE_MAGIC = Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1])
 
@@ -2330,20 +2266,6 @@ interface SolidWorksVersion {
   registryPath: string
 }
 
-interface FileLocationsResult {
-  success: boolean
-  versions?: SolidWorksVersion[]
-  locations?: {
-    version: string
-    documentTemplates: string[]
-    sheetFormats: string[]
-    bomTemplates: string[]
-    customPropertyFolders: string[]
-    promptForTemplate: boolean
-  }[]
-  error?: string
-}
-
 /**
  * Get all installed SOLIDWORKS versions by scanning the registry.
  * Supports SOLIDWORKS 2020 and newer.
@@ -2463,32 +2385,6 @@ function writeRegistryValue(keyPath: string, valueName: string, paths: string[])
 }
 
 /**
- * Read a DWORD registry value
- */
-function readRegistryDword(keyPath: string, valueName: string): number | null {
-  try {
-    const result = execSync(`reg query "${keyPath}" /v "${valueName}"`, {
-      encoding: 'utf8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-    })
-
-    // Parse the output - format is: ValueName    REG_DWORD    0x1
-    const lines = result.split('\n')
-    for (const line of lines) {
-      if (line.includes(valueName)) {
-        const match = line.match(/REG_DWORD\s+0x([0-9a-fA-F]+)/i)
-        if (match) {
-          return parseInt(match[1], 16)
-        }
-      }
-    }
-    return null
-  } catch {
-    return null // Value doesn't exist
-  }
-}
-
-/**
  * Write a DWORD registry value
  */
 function writeRegistryDword(keyPath: string, valueName: string, value: number): boolean {
@@ -2522,51 +2418,6 @@ function registryKeyExists(keyPath: string): boolean {
  */
 function getDocumentTemplatesRegistryPath(version: string): string {
   return `HKEY_CURRENT_USER\\Software\\SolidWorks\\${version}\\Document Templates`
-}
-
-/**
- * Get current SOLIDWORKS file locations from registry for all installed versions.
- * Template paths are stored in ExtReferences with these value names:
- * - Document Template Folders
- * - Sheet Format Folders
- * - BOM Template Folders
- * - Custom Property Folders
- *
- * The "Prompt for template" setting is stored in Document Templates:
- * - Use Default Document Templates (0 = prompt, 1 = use default)
- */
-function getSolidWorksFileLocations(): FileLocationsResult {
-  const versionsResult = getInstalledSolidWorksVersions()
-  if (!versionsResult.success || !versionsResult.versions) {
-    return versionsResult as FileLocationsResult
-  }
-
-  const locations = versionsResult.versions
-    .filter((v) => registryKeyExists(v.registryPath)) // Only include versions with ExtReferences
-    .map((v) => {
-      const docTemplates = readRegistryValue(v.registryPath, 'Document Template Folders')
-      const sheetFormats = readRegistryValue(v.registryPath, 'Sheet Format Folders')
-      const bomTemplates = readRegistryValue(v.registryPath, 'BOM Template Folders')
-      const customProps = readRegistryValue(v.registryPath, 'Custom Property Folders')
-
-      // Read the "Use Default Document Templates" setting
-      // Value 0 = prompt user, Value 1 = use default (don't prompt)
-      const docTemplatesPath = getDocumentTemplatesRegistryPath(v.version)
-      const useDefaultValue = readRegistryDword(docTemplatesPath, 'Use Default Document Templates')
-      const promptForTemplate = useDefaultValue === 0 // 0 means prompt, 1 means use default
-
-      return {
-        version: v.version,
-        documentTemplates: docTemplates,
-        sheetFormats: sheetFormats,
-        bomTemplates: bomTemplates,
-        customPropertyFolders: customProps,
-        promptForTemplate: promptForTemplate,
-      }
-    })
-
-  log('[SolidWorks Registry] Read file locations for ' + locations.length + ' versions')
-  return { success: true, versions: versionsResult.versions, locations }
 }
 
 /**
@@ -3004,10 +2855,6 @@ export function registerSolidWorksHandlers(
   ensureSwOwnershipStore()
   startOrphanWatchdog()
 
-  // Thumbnail extraction
-  ipcMain.handle('solidworks:extract-thumbnail', async (_, filePath: string) => {
-    return extractSolidWorksThumbnail(filePath)
-  })
 
   // Preview extraction
   ipcMain.handle('solidworks:extract-preview', async (_, filePath: string) => {
@@ -3296,21 +3143,7 @@ export function registerSolidWorksHandlers(
     }
   })
 
-  // Leaked SolidWorks instance management
-  ipcMain.handle('solidworks:get-process-status', async () => {
-    log('[SolidWorks] IPC: get-process-status received')
-    const status = await getSolidWorksProcessStatus()
-    return { success: true, data: status }
-  })
 
-  ipcMain.handle('solidworks:kill-orphaned-processes', async () => {
-    log('[SolidWorks] IPC: cleanup of leaked SolidWorks instances requested')
-    const result = await reapLeakedSolidWorksProcesses()
-    return {
-      success: result.errors.length === 0,
-      data: result,
-    }
-  })
 
   // Cancel queued previews for folder move
   ipcMain.handle('sw:cancel-previews-for-folder', async (_, folderPath: string) => {
@@ -3331,23 +3164,6 @@ export function registerSolidWorksHandlers(
   })
 
   // Check if SLDWORKS.exe process is running (lightweight, no service call)
-  // This is useful for detecting if SolidWorks is open BEFORE attempting file operations
-  ipcMain.handle('sw:is-process-running', async () => {
-    try {
-      const result = execSync('tasklist /FI "IMAGENAME eq SLDWORKS.exe" /FO CSV /NH', {
-        encoding: 'utf8',
-        timeout: 5000,
-        windowsHide: true,
-      })
-      const isRunning = result.toLowerCase().includes('sldworks.exe')
-      log(`[SolidWorks] Process check: SLDWORKS.exe ${isRunning ? 'IS running' : 'is NOT running'}`)
-      return isRunning
-    } catch (error) {
-      // If tasklist fails, assume SW is not running
-      logWarn(`[SolidWorks] Process check failed: ${error}`)
-      return false
-    }
-  })
 
   // Document operations
   ipcMain.handle(
@@ -3450,12 +3266,6 @@ export function registerSolidWorksHandlers(
     return sendSWCommand({ action: 'getPreview', filePath, configuration })
   })
 
-  ipcMain.handle(
-    'solidworks:get-mass-properties',
-    async (_, filePath: string, configuration?: string) => {
-      return sendSWCommand({ action: 'getMassProperties', filePath, configuration })
-    },
-  )
 
   // Native inspection: read characteristics through the plain SOLIDWORKS API (no Inspection
   // licence) and write BluePLM's balloons. Shapes: src/lib/inspection/types.ts.
@@ -3566,28 +3376,7 @@ export function registerSolidWorksHandlers(
     },
   )
 
-  ipcMain.handle(
-    'solidworks:export-image',
-    async (
-      _,
-      filePath: string,
-      options?: { outputPath?: string; width?: number; height?: number },
-    ) => {
-      return sendSWCommand({ action: 'exportImage', filePath, ...options })
-    },
-  )
 
-  ipcMain.handle(
-    'solidworks:replace-component',
-    async (_, assemblyPath: string, oldComponent: string, newComponent: string) => {
-      return sendSWCommand({
-        action: 'replaceComponent',
-        filePath: assemblyPath,
-        oldComponent,
-        newComponent,
-      })
-    },
-  )
 
   ipcMain.handle(
     'solidworks:pack-and-go',
@@ -3667,10 +3456,6 @@ export function registerSolidWorksHandlers(
     },
   )
 
-  // File lock detection (uses Windows Restart Manager API, does NOT require SolidWorks)
-  ipcMain.handle('solidworks:find-locking-processes', async (_, filePath: string) => {
-    return sendSWCommand({ action: 'findLockingProcesses', filePath }, { timeoutMs: 5000 })
-  })
 
   // Open document management
   ipcMain.handle(
@@ -3688,10 +3473,6 @@ export function registerSolidWorksHandlers(
   })
 
   // Document management commands use shorter timeouts to avoid blocking check-in
-  // These should complete quickly - if they don't, the service is likely stuck
-  ipcMain.handle('solidworks:get-document-info', async (_, filePath: string) => {
-    return sendSWCommand({ action: 'getDocumentInfo', filePath }, { timeoutMs: 10000 }) // 10 sec timeout
-  })
 
   ipcMain.handle(
     'solidworks:set-document-readonly',
@@ -3703,9 +3484,6 @@ export function registerSolidWorksHandlers(
     },
   )
 
-  ipcMain.handle('solidworks:save-document', async (_, filePath: string) => {
-    return sendSWCommand({ action: 'saveDocument', filePath }, { timeoutMs: 30000 }) // 30 sec timeout for saves
-  })
 
   ipcMain.handle(
     'solidworks:set-document-properties',
@@ -3730,9 +3508,6 @@ export function registerSolidWorksHandlers(
     return getInstalledSolidWorksVersions()
   })
 
-  ipcMain.handle('solidworks:get-file-locations', async () => {
-    return getSolidWorksFileLocations()
-  })
 
   ipcMain.handle(
     'solidworks:set-file-locations',
@@ -3770,88 +3545,10 @@ export function registerSolidWorksHandlers(
     return checkLicenseInRegistry(serialNumber)
   })
 
-  // Open SOLIDWORKS License Manager
-  ipcMain.handle('solidworks:open-license-manager', async () => {
-    if (process.platform !== 'win32') {
-      return { success: false, error: 'SOLIDWORKS License Manager is only available on Windows' }
-    }
-
-    // Build list of possible paths including year-specific versions
-    const possiblePaths: string[] = []
-
-    // Check for year-specific installations (2020-2030)
-    for (let year = 2030; year >= 2020; year--) {
-      possiblePaths.push(
-        `C:\\Program Files\\SOLIDWORKS Corp\\SOLIDWORKS ${year}\\swlmwiz.exe`,
-        `C:\\Program Files\\SolidWorks Corp\\SolidWorks ${year}\\swlmwiz.exe`,
-      )
-    }
-
-    // Generic paths (no year)
-    possiblePaths.push(
-      'C:\\Program Files\\SOLIDWORKS Corp\\SOLIDWORKS\\swlmwiz.exe',
-      'C:\\Program Files\\SolidWorks Corp\\SolidWorks\\swlmwiz.exe',
-      'C:\\Program Files (x86)\\SOLIDWORKS Corp\\SOLIDWORKS\\swlmwiz.exe',
-      'C:\\Program Files\\SOLIDWORKS Corp\\SOLIDWORKS SolidNetWork License Manager\\SolidNetWork License Manager.exe',
-      'C:\\Program Files\\SOLIDWORKS Corp\\SolidNetWork License Manager\\SolidNetWork License Manager.exe',
-    )
-
-    let licenseMgrPath: string | null = null
-    for (const lmPath of possiblePaths) {
-      if (fs.existsSync(lmPath)) {
-        licenseMgrPath = lmPath
-        log(`[SolidWorks] Found License Manager at: ${lmPath}`)
-        break
-      }
-    }
-
-    // If not found in common paths, try to find SOLIDWORKS installation from registry
-    if (!licenseMgrPath) {
-      try {
-        const regResult = execSync(
-          'reg query "HKEY_LOCAL_MACHINE\\SOFTWARE\\SolidWorks\\SOLIDWORKS" /v "SolidWorks Folder" 2>nul',
-          { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] },
-        )
-        const match = regResult.match(/SolidWorks Folder\s+REG_SZ\s+(.+)/i)
-        if (match) {
-          const swFolder = match[1].trim()
-          const swlmPath = path.join(swFolder, 'swlmwiz.exe')
-          if (fs.existsSync(swlmPath)) {
-            licenseMgrPath = swlmPath
-            log(`[SolidWorks] Found License Manager via registry at: ${swlmPath}`)
-          }
-        }
-      } catch {
-        // Registry query failed, continue with fallback
-      }
-    }
-
-    if (!licenseMgrPath) {
-      log('[SolidWorks] License Manager not found in any known location')
-      return {
-        success: false,
-        error:
-          'SOLIDWORKS License Manager not found. Open it from Start Menu -> SOLIDWORKS Tools -> SOLIDWORKS License Manager.',
-      }
-    }
-
-    try {
-      log(`[SolidWorks] Opening License Manager: ${licenseMgrPath}`)
-      spawn(licenseMgrPath, [], {
-        detached: true,
-        stdio: 'ignore',
-      }).unref()
-      return { success: true }
-    } catch (error) {
-      logError(`[SolidWorks] Failed to open License Manager: ${String(error)}`)
-      return { success: false, error: String(error) }
-    }
-  })
 }
 
 export function unregisterSolidWorksHandlers(): void {
   const handlers = [
-    'solidworks:extract-thumbnail',
     'solidworks:extract-preview',
     'solidworks:start-service',
     'solidworks:set-autostart-config',
@@ -3860,8 +3557,6 @@ export function unregisterSolidWorksHandlers(): void {
     'solidworks:reset-com-connection',
     'solidworks:service-status',
     'solidworks:is-installed',
-    'solidworks:get-process-status',
-    'solidworks:kill-orphaned-processes',
     'sw:cancel-previews-for-folder',
     'sw:cancel-previews',
     'sw:release-handles',
@@ -3873,33 +3568,26 @@ export function unregisterSolidWorksHandlers(): void {
     'solidworks:get-configurations',
     'solidworks:get-references',
     'solidworks:get-preview',
-    'solidworks:get-mass-properties',
     'solidworks:export-pdf',
     'solidworks:export-step',
     'solidworks:export-dxf',
     'solidworks:export-iges',
     'solidworks:export-stl',
-    'solidworks:export-image',
-    'solidworks:replace-component',
     'solidworks:pack-and-go',
     'solidworks:duplicate-with-references',
     'solidworks:retarget-references',
     'solidworks:get-open-documents',
     'solidworks:is-document-open',
-    'solidworks:get-document-info',
     'solidworks:set-document-readonly',
-    'solidworks:save-document',
     'solidworks:set-document-properties',
     'solidworks:get-selected-files',
     'solidworks:get-installed-versions',
     'solidworks:get-com-installs',
-    'solidworks:get-file-locations',
     'solidworks:set-file-locations',
     'solidworks:get-license-registry',
     'solidworks:set-license-registry',
     'solidworks:remove-license-registry',
     'solidworks:check-license-registry',
-    'solidworks:open-license-manager',
   ]
 
   for (const handler of handlers) {

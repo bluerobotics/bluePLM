@@ -38,7 +38,7 @@ function text(value: unknown): string | null {
 }
 
 function fileRow(db: FakeSupabase, id: unknown): Row | undefined {
-  return db.rows('files').find((row) => row.id === id)
+  return db.rows('file').find((row) => row.id === id)
 }
 
 function logActivity(db: FakeSupabase, file: Row, action: string, details: Row): void {
@@ -84,7 +84,7 @@ export function checkinFile(args: Row, db: FakeSupabase): unknown {
   const newPath = text(args.p_new_file_path)
   if (newPath !== null && newPath.toLowerCase() !== String(file.file_path).toLowerCase()) {
     const clash = db
-      .rows('files')
+      .rows('file')
       .some(
         (row) =>
           row.vault_id === file.vault_id &&
@@ -112,7 +112,7 @@ export function checkinFile(args: Row, db: FakeSupabase): unknown {
   const localActive = typeof args.p_local_active_version === 'number' ? args.p_local_active_version : null
   const versionSwitched = localActive !== null && localActive !== file.version
 
-  const versions = db.rows('file_versions').filter((v) => v.file_id === file.id)
+  const versions = db.rows('file_version').filter((v) => v.file_id === file.id)
   let restoringExact = false
   let newVersion = Number(file.version)
   if (versionSwitched) {
@@ -161,7 +161,7 @@ export function checkinFile(args: Row, db: FakeSupabase): unknown {
   })
 
   if (shouldIncrement) {
-    db.insertRow('file_versions', {
+    db.insertRow('file_version', {
       file_id: file.id,
       version: newVersion,
       revision: revision ?? previous.revision,
@@ -211,7 +211,7 @@ const VAULT_FILE_COLUMNS = [
 
 export function getVaultFilesFast(args: Row, db: FakeSupabase): unknown {
   return db
-    .rows('files')
+    .rows('file')
     .filter(
       (row) =>
         row.org_id === args.p_org_id &&
@@ -225,7 +225,7 @@ export function getVaultFilesFast(args: Row, db: FakeSupabase): unknown {
 export function getActiveFileByPath(args: Row, db: FakeSupabase): unknown {
   const path = String(args.p_file_path).toLowerCase()
   return db
-    .rows('files')
+    .rows('file')
     .filter(
       (row) =>
         row.vault_id === args.p_vault_id &&
@@ -247,7 +247,7 @@ export function moveFile(args: Row, db: FakeSupabase): unknown {
   const oldPath = file.file_path
   const oldName = file.file_name
   const newName = text(args.p_new_file_name) ?? oldName
-  const failure = db.applyUpdate('files', file, {
+  const failure = db.applyUpdate('file', file, {
     file_path: args.p_new_file_path,
     file_name: newName,
     updated_by: db.actorId,
@@ -270,12 +270,12 @@ export function renameFolderFiles(args: Row, db: FakeSupabase): unknown {
   const newPrefix = String(args.p_new_folder_path).replace(/\/+$/, '')
   const under = `${oldPrefix.toLowerCase()}/`
   let updated = 0
-  for (const row of db.rows('files')) {
+  for (const row of db.rows('file')) {
     if (row.deleted_at != null) continue
     if (args.p_vault_id != null && row.vault_id !== args.p_vault_id) continue
     const path = String(row.file_path)
     if (!path.toLowerCase().startsWith(under)) continue
-    const failure = db.applyUpdate('files', row, {
+    const failure = db.applyUpdate('file', row, {
       file_path: newPrefix + path.slice(oldPrefix.length),
       updated_by: db.actorId,
       updated_at: db.isoNow(),
@@ -288,13 +288,13 @@ export function renameFolderFiles(args: Row, db: FakeSupabase): unknown {
 
 /** Register every RPC above on a fake. */
 export function defineFileRpcs(db: FakeSupabase): void {
-  db.defineRpc('checkout_file', checkoutFile)
-  db.defineRpc('checkin_file', checkinFile)
-  db.defineRpc('move_file', moveFile)
-  db.defineRpc('rename_folder_files', renameFolderFiles)
+  db.defineRpc('file_checkout', checkoutFile)
+  db.defineRpc('file_checkin', checkinFile)
+  db.defineRpc('file_move', moveFile)
+  db.defineRpc('folder_rename', renameFolderFiles)
   // Both are called through `(client.rpc as any)`: missing from the generated types.
-  db.defineRpc('get_vault_files_fast', getVaultFilesFast, { untyped: !db.schema.functions.has('get_vault_files_fast') })
-  db.defineRpc('get_active_file_by_path', getActiveFileByPath, {
-    untyped: !db.schema.functions.has('get_active_file_by_path'),
+  db.defineRpc('vault_file_list', getVaultFilesFast, { untyped: !db.schema.functions.has('vault_file_list') })
+  db.defineRpc('file_get_active_by_path', getActiveFileByPath, {
+    untyped: !db.schema.functions.has('file_get_active_by_path'),
   })
 }

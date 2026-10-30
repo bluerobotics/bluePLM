@@ -15,7 +15,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { applyConfigMapRepair, ConfigMapRepairNotInstalledError } from './configMapRepair'
+import { applyConfigMapRepair } from './configMapRepair'
 
 const rpc = vi.fn()
 
@@ -37,37 +37,8 @@ beforeEach(() => {
   rpc.mockReset()
 })
 
-describe('deciding that the repair is not installed', () => {
-  it('believes PostgREST when it says the routine is not in its schema cache', async () => {
-    // What an older database actually answers: PostgREST resolves the routine before PostgreSQL
-    // sees the request, so `undefined_function` is never raised at all.
-    answers({
-      error: {
-        code: 'PGRST202',
-        message: 'Could not find the function public.repair_config_maps(p_org_id, p_repairs)',
-      },
-    })
-
-    await expect(applyConfigMapRepair(ORG, [])).rejects.toBeInstanceOf(
-      ConfigMapRepairNotInstalledError,
-    )
-  })
-
-  it('believes 42883 when the message names the repair itself', async () => {
-    answers({
-      error: { code: '42883', message: 'function repair_config_maps(uuid, jsonb) does not exist' },
-    })
-
-    await expect(applyConfigMapRepair(ORG, [])).rejects.toBeInstanceOf(
-      ConfigMapRepairNotInstalledError,
-    )
-  })
-
-  it('does not believe 42883 when the missing function is one the repair calls', async () => {
-    // The defect. `require_org_member` is present in schema 85 and absent in nothing, but
-    // `emergency-lockdown.sql` records `anon_revoke_grantors(oid)` going missing exactly this way
-    // on a partially applied schema. The repair is installed; a dependency is not; and telling the
-    // operator to apply schema 94 is advice that cannot work.
+describe('a failing repair', () => {
+  it('passes a missing dependency through with the database message', async () => {
     answers({
       error: { code: '42883', message: 'function anon_revoke_grantors(oid) does not exist' },
     })
@@ -75,7 +46,6 @@ describe('deciding that the repair is not installed', () => {
     const failure = await applyConfigMapRepair(ORG, []).catch((error: unknown) => error)
 
     expect(failure).toBeInstanceOf(Error)
-    expect(failure).not.toBeInstanceOf(ConfigMapRepairNotInstalledError)
     expect((failure as Error).message).toBe('function anon_revoke_grantors(oid) does not exist')
   })
 
@@ -89,7 +59,7 @@ describe('deciding that the repair is not installed', () => {
 
     const failure = await applyConfigMapRepair(ORG, []).catch((error: unknown) => error)
 
-    expect(failure).not.toBeInstanceOf(ConfigMapRepairNotInstalledError)
+    expect(failure).toBeInstanceOf(Error)
     expect((failure as Error).message).toBe('Only organization admins can repair configuration maps')
   })
 })

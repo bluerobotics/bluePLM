@@ -43,7 +43,7 @@ export function useVaultAccess(orgId: string | null) {
     setOrgVaultsLoading(true)
     try {
       const { data, error } = await supabase
-        .from('vaults')
+        .from('vault')
         .select('*')
         .eq('org_id', orgId)
         .order('is_default', { ascending: false })

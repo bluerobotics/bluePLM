@@ -203,13 +203,13 @@ export function ContributionHistory() {
 
         // Fetch reviews where user was a reviewer
         const { data: reviewsAsReviewer, error: reviewerError } = await client
-          .from('review_responses')
+          .from('review_response')
           .select(
             `
             id,
             status,
             responded_at,
-            reviews!inner (
+            review!inner (
               id,
               title,
               created_at
@@ -226,7 +226,7 @@ export function ContributionHistory() {
 
         // Fetch reviews user requested
         const { data: reviewsRequested, error: requestedError } = await client
-          .from('reviews')
+          .from('review')
           .select('id, title, created_at, status')
           .eq('requested_by', user.id)
           .eq('org_id', organization.id)
@@ -260,7 +260,7 @@ export function ContributionHistory() {
         // Process reviews as reviewer (Supabase v2 nested select type incomplete)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const reviewActivities: ActivityRecord[] = (reviewsAsReviewer || []).map((r: any) => {
-          const review = r.reviews as { id: string; title?: string; created_at: string }
+          const review = r.review as { id: string; title?: string; created_at: string }
           return {
             id: r.id,
             action:
@@ -312,14 +312,14 @@ export function ContributionHistory() {
           .gte('created_at', oneYearAgo.toISOString())
 
         const { count: reviewResponseCount } = await client
-          .from('review_responses')
+          .from('review_response')
           .select('id', { count: 'exact', head: true })
           .eq('reviewer_id', user.id)
           .gte('responded_at', oneYearAgo.toISOString())
           .not('responded_at', 'is', null)
 
         const { count: reviewRequestCount } = await client
-          .from('reviews')
+          .from('review')
           .select('id', { count: 'exact', head: true })
           .eq('requested_by', user.id)
           .eq('org_id', organization.id)

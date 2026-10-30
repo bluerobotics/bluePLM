@@ -214,12 +214,12 @@ describe('public authentication backend path', () => {
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      'https://saved.example.test/rest/v1/users?select=id,email,role,org_id,full_name,avatar_url,custom_avatar_url&id=eq.user-1',
+      'https://saved.example.test/rest/v1/app_user?select=id,email,role,org_id,full_name,avatar_url,custom_avatar_url&id=eq.user-1',
       expect.any(Object),
     )
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      'https://saved.example.test/rest/v1/organizations?select=*&id=eq.org-1',
+      'https://saved.example.test/rest/v1/organization?select=*&id=eq.org-1',
       expect.any(Object),
     )
     expect(fixture.store.setUser).toHaveBeenCalledWith(

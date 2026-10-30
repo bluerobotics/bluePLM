@@ -28,6 +28,8 @@ export type {
 export { createAnnotationsSlice } from './annotationsSlice'
 export { createItemBrowserSlice } from './itemBrowserSlice'
 export { createVaultAuditSlice } from './vaultAuditSlice'
+export { createDbUpgradeSlice } from './dbUpgradeSlice'
+export type { DbUpgradeSlice } from './dbUpgradeSlice'
 export type { VaultAuditSlice, VaultAuditRun } from './vaultAuditSlice'
 export { createReviewsSlice, selectReviewPackageDraft } from './reviewsSlice'
 export type { ReviewsSlice } from './reviewsSlice'

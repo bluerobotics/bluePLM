@@ -42,7 +42,7 @@ export { ORG_ID, OTHER_USER_ID, USER_ID, VAULT_ID, VAULT_PATH }
 export const OTHER_VAULT_ID = 'vault-2'
 export const OTHER_VAULT_PATH = 'C:\\vault2'
 
-type FileType = RowOf<'files'>['file_type']
+type FileType = RowOf<'file'>['file_type']
 
 export interface SeedFile {
   /** Vault-relative, forward slashes. */
@@ -130,14 +130,14 @@ export interface VaultState {
 export interface Vault extends Harness {
   user: UserEvent
   /** Seed one more file (disk and/or server) after the vault is open; call `reload()` after. */
-  seed(file: SeedFile, vault?: { id: string; root: string }): RowOf<'files'> | null
+  seed(file: SeedFile, vault?: { id: string; root: string }): RowOf<'file'> | null
   /**
    * Another user checks in new content for a synced file: new bytes in storage, the row's hash
    * and version move, a version row is added. My disk copy is now outdated.
    */
-  otherUserChecksIn(relativePath: string, body: string): RowOf<'files'>
+  otherUserChecksIn(relativePath: string, body: string): RowOf<'file'>
   /** Another user changes a file row on the server; the change reaches me over realtime. */
-  otherUserUpdates(relativePath: string, patch: Partial<RowOf<'files'>>): RowOf<'files'>
+  otherUserUpdates(relativePath: string, patch: Partial<RowOf<'file'>>): RowOf<'file'>
   /** The four places, normalized and sorted, for comparison. */
   state(): VaultState
   /** Reload from disk and server as a fresh start does, and assert nothing changed. */
@@ -186,27 +186,27 @@ export async function openVault(spec: VaultSpec): Promise<Vault> {
   const h = await createHarness()
   const { db, electron } = h
 
-  db.seed('users', {
+  db.seed('app_user', {
     id: USER_ID,
     email: 'me@example.com',
     full_name: 'Test User',
     org_id: ORG_ID,
     role: 'engineer',
-  } as RowOf<'users'>)
-  db.seed('users', {
+  } as RowOf<'app_user'>)
+  db.seed('app_user', {
     id: OTHER_USER_ID,
     email: 'other@example.com',
     full_name: 'Other User',
     org_id: ORG_ID,
     role: 'engineer',
-  } as RowOf<'users'>)
-  db.seed('vaults', { id: VAULT_ID, org_id: ORG_ID, name: 'Main', slug: 'main' } as RowOf<'vaults'>)
+  } as RowOf<'app_user'>)
+  db.seed('vault', { id: VAULT_ID, org_id: ORG_ID, name: 'Main', slug: 'main' } as RowOf<'vault'>)
   // Vault access is opt-in: the user is granted every vault in the org.
-  db.defineRpc('get_user_vault_access', (_args, fake) => fake.rows('vaults').map((v) => ({ vault_id: v.id })))
+  db.defineRpc('user_vault_access_list', (_args, fake) => fake.rows('vault').map((v) => ({ vault_id: v.id })))
 
   const connectedVaults = [{ id: VAULT_ID, name: 'Main', localPath: VAULT_PATH, isExpanded: true, hasCompletedSetup: true }]
   if (spec.secondVault) {
-    db.seed('vaults', { id: OTHER_VAULT_ID, org_id: ORG_ID, name: 'Second', slug: 'second' } as RowOf<'vaults'>)
+    db.seed('vault', { id: OTHER_VAULT_ID, org_id: ORG_ID, name: 'Second', slug: 'second' } as RowOf<'vault'>)
     connectedVaults.push({
       id: OTHER_VAULT_ID,
       name: 'Second',
@@ -229,7 +229,7 @@ export async function openVault(spec: VaultSpec): Promise<Vault> {
     userPermissions,
   } as never)
 
-  const seed = (file: SeedFile, vault = { id: VAULT_ID, root: VAULT_PATH }): RowOf<'files'> | null => {
+  const seed = (file: SeedFile, vault = { id: VAULT_ID, root: VAULT_PATH }): RowOf<'file'> | null => {
     const absolute = `${vault.root}\\${file.path.replace(/\//g, '\\')}`
     const body = `bytes of ${file.path}`
     const document = file.document ?? (fileTypeOf(file.path) === 'other' ? undefined : swDocument())
@@ -249,7 +249,7 @@ export async function openVault(spec: VaultSpec): Promise<Vault> {
     const hash = hashText(bytes)
     db.storeObject(`vault/${ORG_ID}/${hash.slice(0, 2)}/${hash}`, new TextEncoder().encode(bytes))
     const version = file.version ?? 1
-    const row = db.seed('files', {
+    const row = db.seed('file', {
       org_id: ORG_ID,
       vault_id: vault.id,
       file_path: file.path,
@@ -262,14 +262,14 @@ export async function openVault(spec: VaultSpec): Promise<Vault> {
       revision: file.revision ?? 'A',
       part_number: file.partNumber ?? null,
       description: file.description ?? null,
-      custom_properties: {} as RowOf<'files'>['custom_properties'],
+      custom_properties: {} as RowOf<'file'>['custom_properties'],
       checked_out_by: file.checkedOutBy ?? null,
       checked_out_at: file.checkedOutBy ? db.isoNow() : null,
       created_by: OTHER_USER_ID,
       updated_by: OTHER_USER_ID,
     })
     for (let v = 1; v <= version; v++) {
-      db.seed('file_versions', {
+      db.seed('file_version', {
         file_id: row.id,
         version: v,
         revision: row.revision,
@@ -282,7 +282,7 @@ export async function openVault(spec: VaultSpec): Promise<Vault> {
 
   for (const folder of spec.folders ?? []) electron.disk.mkdir(h.absolute(folder))
   for (const folder of spec.serverFolders ?? []) {
-    db.seed('folders', { org_id: ORG_ID, vault_id: VAULT_ID, folder_path: folder, created_by: OTHER_USER_ID })
+    db.seed('folder', { org_id: ORG_ID, vault_id: VAULT_ID, folder_path: folder, created_by: OTHER_USER_ID })
   }
   for (const file of spec.files) seed(file)
   await h.reload()
@@ -328,7 +328,7 @@ export async function openVault(spec: VaultSpec): Promise<Vault> {
       }
     }
     const server = db
-      .rows('files')
+      .rows('file')
       .filter((r) => r.vault_id === VAULT_ID && r.deleted_at == null)
       .map((r) => ({
         path: String(r.file_path),
@@ -425,34 +425,34 @@ export async function openVault(spec: VaultSpec): Promise<Vault> {
   }
   const queryRow = (relativePath: string) => byPath('pane', 'tr[data-path]', relativePath)
 
-  const otherUserChecksIn = (relativePath: string, body: string): RowOf<'files'> => {
+  const otherUserChecksIn = (relativePath: string, body: string): RowOf<'file'> => {
     const row = h.serverRow(relativePath)
     const bytes = body
     const hash = hashText(bytes)
     db.storeObject(`vault/${ORG_ID}/${hash.slice(0, 2)}/${hash}`, new TextEncoder().encode(bytes))
     db.tick()
     const version = Number(row.version) + 1
-    db.updateAndEmit('files', row.id, {
+    db.updateAndEmit('file', row.id, {
       content_hash: hash,
       file_size: bytes.length,
       version,
       updated_by: OTHER_USER_ID,
       updated_at: db.isoNow(),
     })
-    db.seed('file_versions', {
+    db.seed('file_version', {
       file_id: row.id,
       version,
       revision: row.revision,
       content_hash: hash,
       created_by: OTHER_USER_ID,
     })
-    return db.row('files', row.id)
+    return db.row('file', row.id)
   }
 
-  const otherUserUpdates = (relativePath: string, patch: Partial<RowOf<'files'>>): RowOf<'files'> => {
+  const otherUserUpdates = (relativePath: string, patch: Partial<RowOf<'file'>>): RowOf<'file'> => {
     const row = h.serverRow(relativePath)
     db.tick()
-    return db.updateAndEmit('files', row.id, { ...patch, updated_by: OTHER_USER_ID, updated_at: db.isoNow() })
+    return db.updateAndEmit('file', row.id, { ...patch, updated_by: OTHER_USER_ID, updated_at: db.isoNow() })
   }
 
   const vault: Vault = {

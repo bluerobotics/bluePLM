@@ -26,7 +26,7 @@ interface FileCommentRow {
   position: AnnotationPosition | null
   annotation_type: string | null
   parent_id: string | null
-  resolved: boolean
+  is_resolved: boolean
   resolved_by: string | null
   resolved_at: string | null
   file_version: number | null
@@ -48,7 +48,7 @@ function toFileAnnotation(row: FileCommentRow): FileAnnotation {
     position: row.position,
     annotation_type: (row.annotation_type ?? 'text') as AnnotationType,
     parent_id: row.parent_id,
-    resolved: row.resolved,
+    resolved: row.is_resolved,
     resolved_by: row.resolved_by,
     resolved_at: row.resolved_at,
     file_version: row.file_version,
@@ -127,7 +127,7 @@ export async function getFileAnnotations(
   const client = getSupabaseClient()
 
   // Type assertion needed: new columns not yet in auto-generated types (see note at top)
-  let query = (client.from('file_comments') as any) // TODO: type this
+  let query = (client.from('file_comment') as any) // TODO: type this
     .select(
       `
       id,
@@ -138,13 +138,13 @@ export async function getFileAnnotations(
       position,
       annotation_type,
       parent_id,
-      resolved,
+      is_resolved,
       resolved_by,
       resolved_at,
       file_version,
       edited_at,
       created_at,
-      user:users!user_id(email, full_name, avatar_url)
+      user:app_user!user_id(email, full_name, avatar_url)
     `,
     )
     .eq('file_id', fileId)
@@ -189,10 +189,10 @@ export async function getAnnotationCount(
   const client = getSupabaseClient()
 
   // Type assertion needed: resolved/parent_id not yet in auto-generated types (see note at top)
-  const { count, error } = await (client.from('file_comments') as any) // TODO: type this
+  const { count, error } = await (client.from('file_comment') as any) // TODO: type this
     .select('id', { count: 'exact', head: true })
     .eq('file_id', fileId)
-    .eq('resolved', false)
+    .eq('is_resolved', false)
     .is('parent_id', null)
 
   if (error) {
@@ -254,7 +254,7 @@ export async function createAnnotation(
       : {}),
   }
 
-  const { data, error } = await (client.from('file_comments') as any) // TODO: type this
+  const { data, error } = await (client.from('file_comment') as any) // TODO: type this
     .insert(insertPayload)
     .select(
       `
@@ -266,13 +266,13 @@ export async function createAnnotation(
       position,
       annotation_type,
       parent_id,
-      resolved,
+      is_resolved,
       resolved_by,
       resolved_at,
       file_version,
       edited_at,
       created_at,
-      user:users!user_id(email, full_name, avatar_url)
+      user:app_user!user_id(email, full_name, avatar_url)
     `,
     )
     .single()
@@ -309,7 +309,7 @@ export async function updateAnnotation(
     edited_at: new Date().toISOString(),
   }
 
-  const { data, error } = await (client.from('file_comments') as any) // TODO: type this
+  const { data, error } = await (client.from('file_comment') as any) // TODO: type this
     .update(updatePayload)
     .eq('id', annotationId)
     .select(
@@ -322,13 +322,13 @@ export async function updateAnnotation(
       position,
       annotation_type,
       parent_id,
-      resolved,
+      is_resolved,
       resolved_by,
       resolved_at,
       file_version,
       edited_at,
       created_at,
-      user:users!user_id(email, full_name, avatar_url)
+      user:app_user!user_id(email, full_name, avatar_url)
     `,
     )
     .single()
@@ -357,7 +357,7 @@ export async function deleteAnnotation(
 ): Promise<{ success: boolean; error: string | null }> {
   const client = getSupabaseClient()
 
-  const { error } = await client.from('file_comments').delete().eq('id', annotationId)
+  const { error } = await client.from('file_comment').delete().eq('id', annotationId)
 
   if (error) {
     log.error('[Annotations]', 'Failed to delete annotation', {
@@ -390,12 +390,12 @@ export async function resolveAnnotation(
 
   // Type assertion needed: resolve columns not yet in auto-generated types (see note at top)
   const resolvePayload: Record<string, unknown> = {
-    resolved: true,
+    is_resolved: true,
     resolved_by: userId,
     resolved_at: new Date().toISOString(),
   }
 
-  const { data, error } = await (client.from('file_comments') as any) // TODO: type this
+  const { data, error } = await (client.from('file_comment') as any) // TODO: type this
     .update(resolvePayload)
     .eq('id', annotationId)
     .select(
@@ -408,13 +408,13 @@ export async function resolveAnnotation(
       position,
       annotation_type,
       parent_id,
-      resolved,
+      is_resolved,
       resolved_by,
       resolved_at,
       file_version,
       edited_at,
       created_at,
-      user:users!user_id(email, full_name, avatar_url)
+      user:app_user!user_id(email, full_name, avatar_url)
     `,
     )
     .single()
@@ -445,12 +445,12 @@ export async function unresolveAnnotation(
 
   // Type assertion needed: resolve columns not yet in auto-generated types (see note at top)
   const unresolvePayload: Record<string, unknown> = {
-    resolved: false,
+    is_resolved: false,
     resolved_by: null,
     resolved_at: null,
   }
 
-  const { data, error } = await (client.from('file_comments') as any) // TODO: type this
+  const { data, error } = await (client.from('file_comment') as any) // TODO: type this
     .update(unresolvePayload)
     .eq('id', annotationId)
     .select(
@@ -463,13 +463,13 @@ export async function unresolveAnnotation(
       position,
       annotation_type,
       parent_id,
-      resolved,
+      is_resolved,
       resolved_by,
       resolved_at,
       file_version,
       edited_at,
       created_at,
-      user:users!user_id(email, full_name, avatar_url)
+      user:app_user!user_id(email, full_name, avatar_url)
     `,
     )
     .single()

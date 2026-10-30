@@ -38,7 +38,7 @@ export function useGoogleDriveSearch(searchTerm: string, filter: SearchFilter) {
     try {
       // Use Google Drive API's fullText search
       const query = `name contains '${term.replace(/'/g, "\\'")}' and trashed = false`
-      const fields = 'files(id,name,mimeType,webViewLink,iconLink,modifiedTime,owners)'
+      const fields = 'file(id,name,mimeType,webViewLink,iconLink,modifiedTime,owners)'
       const response = await fetch(
         `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=${fields}&pageSize=10&orderBy=modifiedTime desc`,
         { headers: { Authorization: `Bearer ${token}` } },

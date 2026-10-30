@@ -109,11 +109,11 @@ type PermissionChangeCallback = (
   changeType:
     | 'vault_access'
     | 'team_vault_access'
-    | 'team_members'
-    | 'user_permissions'
+    | 'team_member'
+    | 'user_permission'
     | 'teams'
-    | 'workflow_roles'
-    | 'job_titles',
+    | 'workflow_role'
+    | 'job_title',
   eventType: 'INSERT' | 'UPDATE' | 'DELETE',
   userId?: string,
 ) => void
@@ -167,7 +167,7 @@ export function subscribeToFiles(
       {
         event: '*', // INSERT, UPDATE, DELETE
         schema: 'public',
-        table: 'files',
+        table: 'file',
         filter: `org_id=eq.${orgId}`,
       },
       (payload: RealtimePostgresChangesPayload<PDMFile>) => {
@@ -220,7 +220,7 @@ export function subscribeToFolders(
       {
         event: '*', // INSERT, UPDATE, DELETE
         schema: 'public',
-        table: 'folders',
+        table: 'folder',
         filter: `org_id=eq.${orgId}`,
       },
       (payload: RealtimePostgresChangesPayload<FolderRealtimeRow>) => {
@@ -318,7 +318,7 @@ export function subscribeToOrganization(
       {
         event: 'UPDATE',
         schema: 'public',
-        table: 'organizations',
+        table: 'organization',
         filter: `id=eq.${orgId}`,
       },
       (payload: RealtimePostgresChangesPayload<Organization>) => {
@@ -352,7 +352,7 @@ export function subscribeToColorSwatches(
   orgId: string,
   onSwatchChange: ColorSwatchChangeCallback,
 ): () => void {
-  rebuilders.set('color_swatches', () => subscribeToColorSwatches(orgId, onSwatchChange))
+  rebuilders.set('color_swatch', () => subscribeToColorSwatches(orgId, onSwatchChange))
   // Unsubscribe from previous channel if exists
   if (colorSwatchesChannel) {
     colorSwatchesChannel.unsubscribe()
@@ -365,7 +365,7 @@ export function subscribeToColorSwatches(
       {
         event: 'INSERT',
         schema: 'public',
-        table: 'color_swatches',
+        table: 'color_swatch',
         filter: `org_id=eq.${orgId}`,
       },
       (payload) => {
@@ -386,7 +386,7 @@ export function subscribeToColorSwatches(
       {
         event: 'DELETE',
         schema: 'public',
-        table: 'color_swatches',
+        table: 'color_swatch',
         filter: `org_id=eq.${orgId}`,
       },
       (payload) => {
@@ -406,7 +406,7 @@ export function subscribeToColorSwatches(
 
   // Return unsubscribe function
   return () => {
-    rebuilders.delete('color_swatches')
+    rebuilders.delete('color_swatch')
     if (colorSwatchesChannel) {
       colorSwatchesChannel.unsubscribe()
       colorSwatchesChannel = null
@@ -439,7 +439,7 @@ export function subscribeToVaults(orgId: string, onVaultChange: VaultChangeCallb
       {
         event: '*',
         schema: 'public',
-        table: 'vaults',
+        table: 'vault',
         filter: `org_id=eq.${orgId}`,
       },
       (payload) => {
@@ -499,7 +499,7 @@ export function subscribeToMemberChanges(
       {
         event: '*',
         schema: 'public',
-        table: 'team_members',
+        table: 'team_member',
       },
       (payload) => {
         const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE'
@@ -515,7 +515,7 @@ export function subscribeToMemberChanges(
       {
         event: '*',
         schema: 'public',
-        table: 'user_workflow_roles',
+        table: 'user_workflow_role',
       },
       (payload) => {
         const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE'
@@ -531,7 +531,7 @@ export function subscribeToMemberChanges(
       {
         event: '*',
         schema: 'public',
-        table: 'user_job_titles',
+        table: 'user_job_title',
       },
       (payload) => {
         const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE'
@@ -623,12 +623,12 @@ export function subscribeToPermissions(
       {
         event: '*',
         schema: 'public',
-        table: 'team_members',
+        table: 'team_member',
         filter: `user_id=eq.${userId}`,
       },
       (payload) => {
         const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE'
-        onPermissionChange('team_members', eventType, userId)
+        onPermissionChange('team_member', eventType, userId)
       },
     )
     // Individual permission changes for this user
@@ -637,12 +637,12 @@ export function subscribeToPermissions(
       {
         event: '*',
         schema: 'public',
-        table: 'user_permissions',
+        table: 'user_permission',
         filter: `user_id=eq.${userId}`,
       },
       (payload) => {
         const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE'
-        onPermissionChange('user_permissions', eventType, userId)
+        onPermissionChange('user_permission', eventType, userId)
       },
     )
     // Workflow role assignment changes for this user
@@ -651,12 +651,12 @@ export function subscribeToPermissions(
       {
         event: '*',
         schema: 'public',
-        table: 'user_workflow_roles',
+        table: 'user_workflow_role',
         filter: `user_id=eq.${userId}`,
       },
       (payload) => {
         const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE'
-        onPermissionChange('workflow_roles', eventType, userId)
+        onPermissionChange('workflow_role', eventType, userId)
       },
     )
     // Job title assignment changes for this user
@@ -665,12 +665,12 @@ export function subscribeToPermissions(
       {
         event: '*',
         schema: 'public',
-        table: 'user_job_titles',
+        table: 'user_job_title',
         filter: `user_id=eq.${userId}`,
       },
       (payload) => {
         const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE'
-        onPermissionChange('job_titles', eventType, userId)
+        onPermissionChange('job_title', eventType, userId)
       },
     )
     // Also listen for user role changes (admin making someone engineer, etc)
@@ -679,14 +679,14 @@ export function subscribeToPermissions(
       {
         event: 'UPDATE',
         schema: 'public',
-        table: 'users',
+        table: 'app_user',
         filter: `id=eq.${userId}`,
       },
       (payload) => {
         const newUser = payload.new as { role?: string }
         const oldUser = payload.old as { role?: string }
         if (newUser?.role !== oldUser?.role) {
-          onPermissionChange('user_permissions', 'UPDATE', userId)
+          onPermissionChange('user_permission', 'UPDATE', userId)
         }
       },
     )
@@ -696,7 +696,7 @@ export function subscribeToPermissions(
       {
         event: '*',
         schema: 'public',
-        table: 'teams',
+        table: 'team',
         filter: `org_id=eq.${orgId}`,
       },
       (payload) => {
@@ -744,7 +744,7 @@ export function subscribeToNotifications(
       {
         event: 'INSERT',
         schema: 'public',
-        table: 'notifications',
+        table: 'notification',
         filter: `user_id=eq.${userId}`,
       },
       (payload) => {
@@ -769,7 +769,7 @@ export function realtimeChannelStates(): Array<{ kind: string; state: string }> 
     ['folders', foldersChannel],
     ['activity', activityChannel],
     ['organization', organizationChannel],
-    ['color_swatches', colorSwatchesChannel],
+    ['color_swatch', colorSwatchesChannel],
     ['vaults', vaultsChannel],
     ['member_changes', memberChangesChannel],
     ['permissions', permissionsChannel],

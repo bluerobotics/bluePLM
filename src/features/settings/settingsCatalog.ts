@@ -54,7 +54,7 @@ export const settingsSections = (): SettingsSection[] => [
   {
     category: 'Extensions',
     items: [
-      { id: 'extension-store', label: 'Extension Store', keywords: ['plugins', 'install'], desktopOnly: true },
+      { id: 'extensions', label: 'Extensions', keywords: ['plugins', 'install', 'bpx', 'organization'], desktopOnly: true },
       { id: 'solidworks', label: 'SolidWorks', keywords: ['cad', 'sw'], desktopOnly: true },
       { id: 'google-drive', label: 'Google Drive', keywords: ['gdrive'] },
       { id: 'odoo', label: 'Odoo ERP', keywords: ['erp'] },
@@ -425,11 +425,6 @@ export const settingsCatalog: SettingsCatalog = {
     { label: 'Report Issues', keywords: ['bug', 'issue', 'feedback'] },
   ],
   'delete-account': [{ label: 'I want to delete my account', keywords: ['delete'] }],
-  'extension-store': [
-    { label: 'Browse Store', keywords: ['browse', 'discover', 'marketplace'] },
-    { label: 'Installed', keywords: ['installed extensions'] },
-    { label: 'Sideload', keywords: ['install from file', 'local extension'] },
-  ],
 }
 
 /** Whether a settings tab shows for this user on this host (admin-only and desktop-only gates). */

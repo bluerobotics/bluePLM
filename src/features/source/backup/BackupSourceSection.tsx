@@ -79,9 +79,9 @@ export function BackupSourceSection({
               <div className="text-xs text-plm-fg-muted">
                 {config.designated_machine_platform} • {config.designated_machine_user_email}
               </div>
-              {!isThisDesignated && config.designated_machine_last_seen && (
+              {!isThisDesignated && config.designated_machine_last_seen_at && (
                 <div className="text-xs text-plm-fg-muted">
-                  Last seen: {formatRelativeTime(config.designated_machine_last_seen)}
+                  Last seen: {formatRelativeTime(config.designated_machine_last_seen_at)}
                 </div>
               )}
             </div>
@@ -105,12 +105,12 @@ export function BackupSourceSection({
       )}
 
       {/* Backup request/running status */}
-      {config?.backup_requested_at && !config?.backup_running_since && (
+      {config?.backup_requested_at && !config?.backup_started_at && (
         <div className="p-2 rounded bg-blue-500/10 border border-blue-500/30 text-xs text-blue-300">
           ⏳ Backup requested by {config.backup_requested_by}...
         </div>
       )}
-      {config?.backup_running_since && (
+      {config?.backup_started_at && (
         <div className="p-2 rounded bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300">
           🔄 Backup in progress...
         </div>

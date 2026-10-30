@@ -21,7 +21,7 @@ let versionInserts: Row[] = []
 vi.mock('../client', () => ({
   getSupabaseClient: () => ({
     from(table: string) {
-      if (table === 'file_versions') {
+      if (table === 'file_version') {
         return {
           select: () => ({
             eq: () => ({

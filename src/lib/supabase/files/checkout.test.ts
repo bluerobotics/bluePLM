@@ -55,7 +55,7 @@ const UNIQUE_VIOLATION = '23505'
 function rpcArguments(): Record<string, unknown> {
   expect(rpc).toHaveBeenCalledTimes(1)
   const [name, args] = rpc.mock.calls[0] as [string, Record<string, unknown>]
-  expect(name).toBe('checkin_file')
+  expect(name).toBe('file_checkin')
   return args
 }
 

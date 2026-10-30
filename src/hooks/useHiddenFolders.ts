@@ -61,7 +61,7 @@ export function useHiddenFolders(): UseHiddenFoldersResult {
       try {
         // Re-read settings first so a concurrent admin edit to another key is not clobbered.
         const { data: currentOrg } = await supabase
-          .from('organizations')
+          .from('organization')
           .select('settings')
           .eq('id', organization.id)
           .single()
@@ -77,7 +77,7 @@ export function useHiddenFolders(): UseHiddenFoldersResult {
         }
 
         const { data: updateResult, error } = await supabase
-          .from('organizations')
+          .from('organization')
           .update({ settings: newSettings as unknown as Json })
           .eq('id', organization.id)
           .select('settings')

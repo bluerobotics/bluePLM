@@ -1,6 +1,7 @@
 import type { TranslationDict } from '../types'
 import { reviewsUiStrings } from './reviewsUi'
 import { reviewPackageStrings } from './reviewPackage'
+import { dbUpgradeStrings } from './dbUpgrade'
 
 // Simplified Chinese translations (简体中文)
 export const zhCN: TranslationDict = {
@@ -33,6 +34,7 @@ export const zhCN: TranslationDict = {
   },
   ...reviewsUiStrings.zhCN,
   reviewPackage: reviewPackageStrings.zhCN,
+  dbUpgrade: dbUpgradeStrings.zhCN,
   checkoutDisplay: {
     you: '你',
     loadingOwner: '正在加载签出者',
@@ -177,7 +179,7 @@ export const zhCN: TranslationDict = {
     adminSetup: '管理员设置',
     enterCredentials: '从项目的 API 设置中输入您的 Supabase 凭据',
     projectId: '项目 ID',
-    projectIdHelp: '在 Supabase 控制台顶部找到（例如 vvyhpdzqdizvorrhjhvq）',
+    projectIdHelp: '在 Supabase 控制台顶部找到（例如 abcdefghijklmnopqrst）',
     anonKey: '匿名（公开）密钥',
     orgSlug: '组织标识',
     orgSlugHelp: '这有助于在生成的代码中识别您的组织',
@@ -979,13 +981,6 @@ export const zhCN: TranslationDict = {
     statusNotLoaded: "未在此计算机上加载",
     none: "尚未安装组织扩展。",
     error: "错误：{{message}}",
-  },
-  extensionRuntime: {
-    notice:
-      "来自商店或文件的扩展保存在此计算机上但不会运行：沙盒运行时不可用。由管理员在上方安装的组织扩展会运行。",
-    installedNotRunning: '已安装（未运行）',
-    adminOnly: '只有管理员可以安装或移除扩展。',
-    notAdminError: '只有管理员可以安装扩展。',
   },
   strandedEdits: {
     checkoutLost:

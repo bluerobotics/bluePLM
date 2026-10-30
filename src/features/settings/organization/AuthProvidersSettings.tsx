@@ -97,7 +97,7 @@ export function AuthProvidersSettings() {
       setLoading(true)
       try {
         const { data, error } = await supabase
-          .from('organizations')
+          .from('organization')
           .select('auth_providers')
           .eq('id', organization.id)
           .single()
@@ -169,7 +169,7 @@ export function AuthProvidersSettings() {
     savingRef.current = true
     try {
       const { error } = await supabase
-        .from('organizations')
+        .from('organization')
         .update({ auth_providers: JSON.parse(JSON.stringify(settings)) })
         .eq('id', organization.id)
 

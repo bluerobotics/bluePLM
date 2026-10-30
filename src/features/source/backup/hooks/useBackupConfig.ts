@@ -109,7 +109,7 @@ export function useBackupConfig(
       setRetentionWeekly(initialConfig.retention_weekly ?? DEFAULT_RETENTION.weekly)
       setRetentionMonthly(initialConfig.retention_monthly ?? DEFAULT_RETENTION.monthly)
       setRetentionYearly(initialConfig.retention_yearly ?? DEFAULT_RETENTION.yearly)
-      setScheduleEnabled(initialConfig.schedule_enabled ?? false)
+      setScheduleEnabled(initialConfig.is_schedule_enabled ?? false)
       setScheduleHour(initialConfig.schedule_hour ?? 0)
       setScheduleMinute(initialConfig.schedule_minute ?? 0)
       setScheduleTimezone(initialConfig.schedule_timezone || 'UTC')
@@ -147,7 +147,7 @@ export function useBackupConfig(
           retention_weekly: retentionWeekly,
           retention_monthly: retentionMonthly,
           retention_yearly: retentionYearly,
-          schedule_enabled: scheduleEnabled,
+          is_schedule_enabled: scheduleEnabled,
           schedule_hour: scheduleHour,
           schedule_minute: scheduleMinute,
           schedule_timezone: scheduleTimezone,

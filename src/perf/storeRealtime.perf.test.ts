@@ -113,10 +113,10 @@ describe('store, folder index and realtime performance gate', () => {
       removeEventListener: () => undefined,
     })
     recordingSupabase.setResponder((query) => {
-      if (query.kind === 'table' && query.name === 'users') {
+      if (query.kind === 'table' && query.name === 'app_user') {
         return { data: { id: OTHER_USER, email: 'other@example.test', full_name: 'Other', avatar_url: null } }
       }
-      if (query.kind === 'table' && query.name === 'files') return { data: { checked_out_by: OTHER_USER } }
+      if (query.kind === 'table' && query.name === 'file') return { data: { checked_out_by: OTHER_USER } }
       return { data: null }
     })
     store = (await import('@/stores/pdmStore')).usePDMStore

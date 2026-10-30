@@ -68,12 +68,12 @@ export interface Harness {
   electron: FakeElectron
   absolute(relativePath: string): string
   /** A file on disk and its row on the server, in sync: the row's hash is the disk's. */
-  seedSolidWorksFile(relativePath: string, options?: SeedOptions): RowOf<'files'>
+  seedSolidWorksFile(relativePath: string, options?: SeedOptions): RowOf<'file'>
   /** Check the file out through the real `checkoutFile`, make it writable, and reload. */
   checkOut(relativePath: string): Promise<void>
   reload(): Promise<LocalFile[]>
   file(relativePath: string): LocalFile
-  serverRow(relativePath: string): RowOf<'files'>
+  serverRow(relativePath: string): RowOf<'file'>
 }
 
 function installWindow(electron: FakeElectron): void {
@@ -104,11 +104,11 @@ export async function createHarness(): Promise<Harness> {
   db.actorId = USER_ID
   db.actorEmail = 'me@example.com'
   setActiveFakeSupabase(db)
-  db.seed('organizations', {
+  db.seed('organization', {
     id: ORG_ID,
     name: 'Test Org',
     slug: 'test-org',
-    serialization_settings: SERIALIZATION as unknown as RowOf<'organizations'>['serialization_settings'],
+    serialization_settings: SERIALIZATION as unknown as RowOf<'organization'>['serialization_settings'],
   })
 
   const electron = createFakeElectron(undefined, {
@@ -272,12 +272,12 @@ export async function createHarness(): Promise<Harness> {
     return usePDMStore.getState().files
   }
 
-  const serverRow = (relativePath: string): RowOf<'files'> => {
+  const serverRow = (relativePath: string): RowOf<'file'> => {
     const row = db
-      .rows('files')
+      .rows('file')
       .find((r) => String(r.file_path).toLowerCase() === relativePath.toLowerCase() && r.deleted_at == null)
     if (!row) throw new Error(`no server row for ${relativePath}`)
-    return row as unknown as RowOf<'files'>
+    return row as unknown as RowOf<'file'>
   }
 
   return {
@@ -290,7 +290,7 @@ export async function createHarness(): Promise<Harness> {
       electron.disk.require(path).readonly = options.checked_out_by !== USER_ID
       const hash = electron.disk.hash(path)
       db.storeObject(`vault/${ORG_ID}/${hash.slice(0, 2)}/${hash}`, new TextEncoder().encode(electron.disk.bytes(path)))
-      const row = db.seed('files', {
+      const row = db.seed('file', {
         org_id: ORG_ID,
         vault_id: VAULT_ID,
         file_path: relativePath,
@@ -303,12 +303,12 @@ export async function createHarness(): Promise<Harness> {
         revision: options.revision ?? 'A',
         part_number: options.part_number ?? null,
         description: options.description ?? null,
-        custom_properties: (options.custom_properties ?? {}) as RowOf<'files'>['custom_properties'],
+        custom_properties: (options.custom_properties ?? {}) as RowOf<'file'>['custom_properties'],
         checked_out_by: options.checked_out_by ?? null,
         created_by: OTHER_USER_ID,
         updated_by: OTHER_USER_ID,
       })
-      db.seed('file_versions', {
+      db.seed('file_version', {
         file_id: row.id,
         version: 1,
         revision: row.revision,

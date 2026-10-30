@@ -310,7 +310,7 @@ function logCheckin(
 
 function translateCheckinError(error: string | null | undefined, fileName: string): string {
   if (!error) return `${fileName}: Check in failed`
-  if (error.includes('idx_files_vault_path_unique_active') || error.includes('duplicate key')) {
+  if (error.includes('file_vault_id_file_path_idx') || error.includes('duplicate key')) {
     return `${fileName}: A file already exists at this path on the server. The local rename conflicts with an existing file. Delete or rename the conflicting file first.`
   }
   return `${fileName}: ${error}`

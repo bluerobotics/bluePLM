@@ -113,7 +113,7 @@ function compare(a: unknown, b: unknown): number {
 
 /** Unique indexes the app relies on. Partial on `deleted_at IS NULL`, like the real ones. */
 const UNIQUE_INDEXES: Partial<Record<TableName, Array<(row: Row) => string | null>>> = {
-  files: [
+  file: [
     (row) =>
       row.deleted_at == null
         ? `${String(row.vault_id)}|${String(row.file_path).toLowerCase()}`
@@ -123,7 +123,7 @@ const UNIQUE_INDEXES: Partial<Record<TableName, Array<(row: Row) => string | nul
 
 /** Column defaults the real tables apply, for the columns tests read back. */
 const DEFAULTS: Partial<Record<TableName, Row>> = {
-  files: {
+  file: {
     version: 1,
     revision: 'A',
     state: 'not_tracked',

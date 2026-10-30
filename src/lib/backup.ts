@@ -23,7 +23,7 @@ export interface BackupConfig {
   retention_monthly: number
   retention_yearly: number
   // Schedule
-  schedule_enabled: boolean
+  is_schedule_enabled: boolean
   schedule_hour: number
   schedule_minute: number
   schedule_timezone: string
@@ -32,11 +32,11 @@ export interface BackupConfig {
   designated_machine_name: string | null
   designated_machine_platform: string | null
   designated_machine_user_email: string | null
-  designated_machine_last_seen: string | null
+  designated_machine_last_seen_at: string | null
   // Backup request state
   backup_requested_at: string | null
   backup_requested_by: string | null
-  backup_running_since: string | null
+  backup_started_at: string | null
   // Timestamps
   created_at: string
   updated_at: string
@@ -137,7 +137,7 @@ export async function getBackupConfig(orgId: string): Promise<BackupConfig | nul
   const untyped = supabase as unknown as {
     rpc(fn: string): PromiseLike<{ data: unknown; error: { message: string } | null }>
   }
-  const { data: status, error: statusError } = await untyped.rpc('get_backup_status')
+  const { data: status, error: statusError } = await untyped.rpc('backup_get_status')
   if (statusError) {
     log.error('[Backup]', 'Error fetching backup status', { error: statusError.message })
     return null
@@ -205,7 +205,7 @@ export async function designateThisMachine(
       designated_machine_name: machineName,
       designated_machine_platform: platform,
       designated_machine_user_email: userEmail,
-      designated_machine_last_seen: new Date().toISOString(),
+      designated_machine_last_seen_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
     .eq('org_id', orgId)
@@ -232,7 +232,7 @@ export async function clearDesignatedMachine(
       designated_machine_name: null,
       designated_machine_platform: null,
       designated_machine_user_email: null,
-      designated_machine_last_seen: null,
+      designated_machine_last_seen_at: null,
       updated_at: new Date().toISOString(),
     })
     .eq('org_id', orgId)
@@ -254,7 +254,7 @@ export async function updateHeartbeat(orgId: string): Promise<boolean> {
   const { error } = await supabase
     .from('backup_config')
     .update({
-      designated_machine_last_seen: new Date().toISOString(),
+      designated_machine_last_seen_at: new Date().toISOString(),
     })
     .eq('org_id', orgId)
     .eq('designated_machine_id', machineId)
@@ -269,9 +269,9 @@ export async function updateHeartbeat(orgId: string): Promise<boolean> {
 
 // Check if designated machine is online (seen within last 2 minutes)
 export function isDesignatedMachineOnline(config: BackupConfig | null): boolean {
-  if (!config?.designated_machine_last_seen) return false
+  if (!config?.designated_machine_last_seen_at) return false
 
-  const lastSeen = new Date(config.designated_machine_last_seen).getTime()
+  const lastSeen = new Date(config.designated_machine_last_seen_at).getTime()
   const twoMinutesAgo = Date.now() - 2 * 60 * 1000
   return lastSeen > twoMinutesAgo
 }
@@ -320,7 +320,7 @@ export async function requestBackup(
 
 // Check if there's a pending backup request (called by designated machine)
 export function hasPendingBackupRequest(config: BackupConfig | null): boolean {
-  return !!config?.backup_requested_at && !config?.backup_running_since
+  return !!config?.backup_requested_at && !config?.backup_started_at
 }
 
 // Mark backup as started (called by designated machine)
@@ -332,7 +332,7 @@ export async function markBackupStarted(orgId: string): Promise<boolean> {
   const { error } = await supabase
     .from('backup_config')
     .update({
-      backup_running_since: new Date().toISOString(),
+      backup_started_at: new Date().toISOString(),
       backup_requested_at: null,
       backup_requested_by: null,
     })
@@ -356,7 +356,7 @@ export async function markBackupComplete(orgId: string): Promise<boolean> {
   const { error } = await supabase
     .from('backup_config')
     .update({
-      backup_running_since: null,
+      backup_started_at: null,
     })
     .eq('org_id', orgId)
     .eq('designated_machine_id', machineId)
@@ -396,7 +396,7 @@ export function setBackupRunningLocally(running: boolean): void {
 
 // Check if it's time for a scheduled backup
 function shouldRunScheduledBackup(config: BackupConfig): boolean {
-  if (!config.schedule_enabled) return false
+  if (!config.is_schedule_enabled) return false
 
   const now = new Date()
 
@@ -473,12 +473,12 @@ export function startBackupService(
       }
 
       // Skip if already running, but auto-clear if stuck for over 2 hours
-      if (config.backup_running_since) {
-        const runningSince = new Date(config.backup_running_since).getTime()
+      if (config.backup_started_at) {
+        const runningSince = new Date(config.backup_started_at).getTime()
         const TWO_HOURS_MS = 2 * 60 * 60 * 1000
         if (Date.now() - runningSince > TWO_HOURS_MS) {
           log.warn('[Backup]', 'backup_running_since stuck for >2 hours, auto-clearing', {
-            runningSince: config.backup_running_since,
+            runningSince: config.backup_started_at,
             ageMinutes: Math.round((Date.now() - runningSince) / 60000),
           })
           await markBackupComplete(orgId)
@@ -1025,7 +1025,7 @@ export async function exportDatabaseMetadata(
 
   try {
     const { data: org, error: orgError } = await supabase
-      .from('organizations')
+      .from('organization')
       .select('id, name')
       .eq('id', orgId)
       .single()
@@ -1035,7 +1035,7 @@ export async function exportDatabaseMetadata(
     }
 
     const { data: vault, error: vaultError } = await supabase
-      .from('vaults')
+      .from('vault')
       .select('id, name')
       .eq('id', vaultId)
       .single()
@@ -1045,7 +1045,7 @@ export async function exportDatabaseMetadata(
     }
 
     const { data: files, error: filesError } = await supabase
-      .from('files')
+      .from('file')
       .select(
         'id, file_path, file_name, extension, file_type, content_hash, file_size, state, checked_out_by, checked_out_at, version, created_at, updated_at, deleted_at',
       )
@@ -1066,7 +1066,7 @@ export async function exportDatabaseMetadata(
       for (let i = 0; i < fileIds.length; i += BATCH_SIZE) {
         const batch = fileIds.slice(i, i + BATCH_SIZE)
         const { data: versions, error: versionsError } = await supabase
-          .from('file_versions')
+          .from('file_version')
           .select(
             'id, file_id, version, revision, content_hash, file_size, state, created_by, created_at',
           )
@@ -1099,7 +1099,7 @@ export async function exportDatabaseMetadata(
     const fileComments: unknown[] = []
 
     const { data: users } = await supabase
-      .from('users')
+      .from('app_user')
       .select('id, email, full_name, role')
       .eq('org_id', orgId)
 
@@ -1153,7 +1153,7 @@ export async function importDatabaseMetadata(
       }
 
       const { data: existing } = await supabase
-        .from('files')
+        .from('file')
         .select('id')
         .eq('id', file.id)
         .single()
@@ -1171,7 +1171,7 @@ export async function importDatabaseMetadata(
 
       // Use any to bypass type restrictions during restore
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase.from('files') as any).upsert( // TODO: type this
+      const { error } = await (supabase.from('file') as any).upsert( // TODO: type this
         {
           id: file.id,
           org_id: exportData._orgId,
@@ -1199,14 +1199,14 @@ export async function importDatabaseMetadata(
 
     for (const version of exportData.fileVersions) {
       const { data: existing } = await supabase
-        .from('file_versions')
+        .from('file_version')
         .select('id')
         .eq('id', version.id)
         .single()
 
       if (existing && !overwriteExisting) continue
 
-      const { error } = await supabase.from('file_versions').upsert(
+      const { error } = await supabase.from('file_version').upsert(
         {
           id: version.id,
           file_id: version.file_id,
@@ -1233,14 +1233,14 @@ export async function importDatabaseMetadata(
         created_at: string
       }
       const { data: existing } = await supabase
-        .from('file_comments')
+        .from('file_comment')
         .select('id')
         .eq('id', comment.id)
         .single()
 
       if (existing && !overwriteExisting) continue
 
-      await supabase.from('file_comments').upsert(
+      await supabase.from('file_comment').upsert(
         {
           id: comment.id,
           file_id: comment.file_id,

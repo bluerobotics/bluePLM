@@ -31,7 +31,6 @@ import {
   Loader2,
   ClipboardList,
   Lock,
-  Database,
   FileSpreadsheet,
   ChevronDown,
   ArrowUp,
@@ -78,7 +77,6 @@ export function InspectionTab({ file }: InspectionTabProps) {
   const [rows, setRows] = useState<InspectionRowInput[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  const [notInstalled, setNotInstalled] = useState(false)
   const [versions, setVersions] = useState<VersionOption[]>([])
   const [selectedVersion, setSelectedVersion] = useState<string>(CURRENT_VERSION)
   const [sortKey, setSortKey] = useState<keyof InspectionRowValues>('balloon_number')
@@ -173,17 +171,10 @@ export function InspectionTab({ file }: InspectionTabProps) {
       .then((result) => {
         if (cancelled) return
         if (!result.success) {
-          if (result.notInstalled) {
-            // Schema module not applied yet — surface a friendly state, not an error toast
-            setNotInstalled(true)
-            setRows([])
-            return
-          }
           addToast('error', result.error || t('common.error'))
           setRows([])
           return
         }
-        setNotInstalled(false)
         const mapped = (result.rows ?? []).map((r) => toRowInput(r))
         const sorted = sortByBalloonAsc(mapped)
         setRows(sorted)
@@ -556,20 +547,6 @@ export function InspectionTab({ file }: InspectionTabProps) {
       <div className="flex flex-col items-center justify-center h-full text-plm-fg/60 p-6 text-center">
         <ClipboardList size={28} className="mb-2 opacity-60" />
         <div className="text-sm">{t('source.inspection.notSynced')}</div>
-      </div>
-    )
-  }
-
-  if (notInstalled) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full text-plm-fg/60 p-6 text-center gap-2">
-        <Database size={28} className="opacity-60" />
-        <div className="text-sm font-medium text-plm-fg/80">
-          {t('source.inspection.notInstalledTitle')}
-        </div>
-        <div className="text-xs max-w-sm leading-relaxed">
-          {t('source.inspection.notInstalledBody')}
-        </div>
       </div>
     )
   }

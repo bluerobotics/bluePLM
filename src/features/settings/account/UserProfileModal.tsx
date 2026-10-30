@@ -50,8 +50,8 @@ interface UserData {
   full_name: string | null
   avatar_url: string | null
   custom_avatar_url: string | null
-  last_sign_in: string | null
-  last_online: string | null
+  last_sign_in_at: string | null
+  last_online_at: string | null
   teams: { id: string; name: string; color: string; icon: string }[]
   workflow_roles: { id: string; name: string; color: string }[]
   job_title: { id: string; name: string; color: string; icon: string } | null
@@ -204,8 +204,8 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
       try {
         // Load user info
         const { data: user, error: userError } = await client
-          .from('users')
-          .select('id, email, full_name, avatar_url, custom_avatar_url, last_sign_in, last_online')
+          .from('app_user')
+          .select('id, email, full_name, avatar_url, custom_avatar_url, last_sign_in_at, last_online_at')
           .eq('id', userId)
           .single()
 
@@ -214,20 +214,20 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
         } else {
           // Load teams
           const { data: membershipsData } = await client
-            .from('team_members')
-            .select('team:teams(id, name, color, icon)')
+            .from('team_member')
+            .select('team:team(id, name, color, icon)')
             .eq('user_id', userId)
 
           // Load workflow roles
           const { data: rolesData } = await client
-            .from('user_workflow_roles')
-            .select('role:workflow_roles(id, name, color)')
+            .from('user_workflow_role')
+            .select('role:workflow_role(id, name, color)')
             .eq('user_id', userId)
 
           // Load job title
           const { data: titleData } = await client
-            .from('user_job_titles')
-            .select('title:job_titles(id, name, color, icon)')
+            .from('user_job_title')
+            .select('title:job_title(id, name, color, icon)')
             .eq('user_id', userId)
             .single()
 
@@ -266,7 +266,7 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
         // Load activity for heatmap and recent list (limited for performance)
         const { data: activityRows, error: activityError } = await client
           .from('activity')
-          .select('id, action, created_at, file_id, details, file:files(file_name, file_path)')
+          .select('id, action, created_at, file_id, details, file:file(file_name, file_path)')
           .eq('user_id', userId)
           .eq('org_id', organization.id)
           .gte('created_at', oneYearAgo.toISOString())
@@ -289,7 +289,7 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
 
         // Load ECOs
         const { data: ecos, error: ecoError } = await client
-          .from('ecos')
+          .from('eco')
           .select('id, eco_number, title, status, created_at')
           .eq('org_id', organization.id)
           .eq('created_by', userId)
@@ -302,7 +302,7 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
 
         // Load RFQs
         const { data: rfqs, error: rfqError } = await client
-          .from('rfqs')
+          .from('rfq')
           .select('id, rfq_number, title, status, created_at')
           .eq('org_id', organization.id)
           .eq('created_by', userId)
@@ -469,10 +469,10 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
                   </div>
 
                   {/* Last Online */}
-                  {userData.last_online && (
+                  {userData.last_online_at && (
                     <div className="text-sm text-plm-fg-dim flex items-center gap-1.5 mt-1">
                       <Clock size={14} />
-                      Last online {formatRelativeTime(userData.last_online)}
+                      Last online {formatRelativeTime(userData.last_online_at)}
                     </div>
                   )}
 

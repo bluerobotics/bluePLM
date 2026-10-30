@@ -201,7 +201,7 @@ export function installControl(
           checked_out_by: i % 10 === 0 ? PERF_OTHER_USER_ID : old.checked_out_by,
           __probe: `p${probeSeq++}f${index}`,
         }
-        delivered += backend.db.emitRealtime('files', 'UPDATE', next, old)
+        delivered += backend.db.emitRealtime('file', 'UPDATE', next, old)
       }
       burstCursor = (burstCursor + count) % total
       await twoFrames()

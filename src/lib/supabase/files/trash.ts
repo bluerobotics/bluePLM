@@ -42,7 +42,7 @@ export async function softDeleteFile(
 
   // Get current file to validate
   const { data: file, error: fetchError } = await client
-    .from('files')
+    .from('file')
     .select('id, org_id, file_name, file_path, checked_out_by')
     .eq('id', fileId)
     .single()
@@ -64,7 +64,7 @@ export async function softDeleteFile(
   // surfaces the deletion to other clients even if the deployed RPC keys off
   // updated_at. Without this, other machines keep the row cached as a "ghost".
   const { data: deletedFile, error } = await client
-    .from('files')
+    .from('file')
     .update({
       deleted_at: new Date().toISOString(),
       deleted_by: userId,
@@ -139,7 +139,7 @@ export async function restoreFile(
 
   // Get current file to validate
   const { data: file, error: fetchError } = await client
-    .from('files')
+    .from('file')
     .select('id, org_id, file_name, file_path, deleted_at, vault_id')
     .eq('id', fileId)
     .single()
@@ -158,7 +158,7 @@ export async function restoreFile(
 
   // Check if a file with the same path already exists (case-insensitive: Windows paths are case-insensitive)
   const { data: existingFile } = await client
-    .from('files')
+    .from('file')
     .select('id')
     .eq('vault_id', file.vault_id)
     .ilike('file_path', escapeLikePattern(file.file_path))
@@ -178,7 +178,7 @@ export async function restoreFile(
   // updated_at. Without this, other machines keep the row cached as trashed.
   // Select full PDMFile-compatible data including workflow_state for addCloudFile()
   const { data: restoredFile, error } = await client
-    .from('files')
+    .from('file')
     .update({
       deleted_at: null,
       deleted_by: null,
@@ -188,7 +188,7 @@ export async function restoreFile(
     .select(
       `
       *,
-      workflow_state:workflow_states(id, name, label, color, icon, is_editable, requires_checkout)
+      workflow_state:workflow_state(id, name, label, color, icon, is_editable, is_checkout_required)
     `,
     )
     .single()
@@ -253,7 +253,7 @@ export async function permanentlyDeleteFile(
 
   // Get current file to validate
   const { data: file, error: fetchError } = await client
-    .from('files')
+    .from('file')
     .select('id, org_id, file_name, file_path, deleted_at')
     .eq('id', fileId)
     .single()
@@ -285,16 +285,16 @@ export async function permanentlyDeleteFile(
   }
 
   // Delete file versions
-  await client.from('file_versions').delete().eq('file_id', fileId)
+  await client.from('file_version').delete().eq('file_id', fileId)
 
   // Delete file references
   await client
-    .from('file_references')
+    .from('file_reference')
     .delete()
     .or(`parent_file_id.eq.${fileId},child_file_id.eq.${fileId}`)
 
   // Permanently delete the file
-  const { error } = await client.from('files').delete().eq('id', fileId)
+  const { error } = await client.from('file').delete().eq('id', fileId)
 
   if (error) {
     return { success: false, error: error.message }
@@ -366,7 +366,7 @@ export async function getDeletedFiles(
 
     while (hasMore) {
       let query = client
-        .from('files')
+        .from('file')
         .select(
           `
           id,
@@ -386,7 +386,7 @@ export async function getDeletedFiles(
           vault_id,
           org_id,
           updated_at,
-          deleted_by_user:users!deleted_by(email, full_name, avatar_url)
+          deleted_by_user:app_user!deleted_by(email, full_name, avatar_url)
         `,
         )
         .eq('org_id', orgId)
@@ -444,7 +444,7 @@ export async function getDeletedFilesCount(
 
   try {
     let query = client
-      .from('files')
+      .from('file')
       .select('id', { count: 'exact', head: true })
       .eq('org_id', orgId)
       .not('deleted_at', 'is', null)
@@ -490,7 +490,7 @@ export async function emptyTrash(
 
   while (hasMore) {
     let query = client
-      .from('files')
+      .from('file')
       .select('id')
       .eq('org_id', orgId)
       .not('deleted_at', 'is', null)

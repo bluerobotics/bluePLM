@@ -13,8 +13,8 @@
  *
  * Use:
  *   const harness = await createRouteHarness()
- *   await harness.inject({ method: 'GET', url: '/files', persona: 'engineer' })
- *   harness.fake.rows('files')
+ *   await harness.inject({ method: 'GET', url: '/webhooks', persona: 'engineer' })
+ *   harness.fake.rows('webhook')
  *   await harness.close()
  */
 
@@ -160,14 +160,14 @@ function loadModules(): Promise<LoadedModules> {
 function isOrgAdmin(db: FakeSupabase): boolean {
   const persona = db.actorId ? personaById.get(db.actorId) : undefined
   if (persona?.adminCheckFails) throw new Error('is_org_admin: simulated failure')
-  const user = db.rows('users').find((row) => row.id === db.actorId)
+  const user = db.rows('app_user').find((row) => row.id === db.actorId)
   if (!user?.org_id) return false
   if (user.role === 'admin') return true
   const adminTeams = db
-    .rows('teams')
+    .rows('team')
     .filter((team) => team.org_id === user.org_id && team.name === 'Administrators')
     .map((team) => team.id)
-  return db.rows('team_members').some((m) => m.user_id === user.id && adminTeams.includes(m.team_id))
+  return db.rows('team_member').some((m) => m.user_id === user.id && adminTeams.includes(m.team_id))
 }
 
 export interface RegisteredRoute {
@@ -198,7 +198,7 @@ export interface RouteHarness {
   close(): Promise<void>
 }
 
-const READ_ONLY_RPCS = new Set(['is_org_admin', 'user_has_team_permission'])
+const READ_ONLY_RPCS = new Set(['is_org_admin', 'has_team_permission'])
 
 export async function createRouteHarness(): Promise<RouteHarness> {
   const modules = await loadModules()
@@ -210,15 +210,15 @@ export async function createRouteHarness(): Promise<RouteHarness> {
     untyped: !fake.schema.functions.has('is_org_admin'),
   })
   // Admins pass, as in SQL; no team grants are seeded, so everyone else is refused.
-  fake.defineRpc('user_has_team_permission', (_args, db) => isOrgAdmin(db))
+  fake.defineRpc('has_team_permission', (_args, db) => isOrgAdmin(db))
 
-  fake.seed('organizations', { id: ORG_ID, name: 'Acme', slug: 'acme' })
-  fake.seed('vaults', { id: VAULT_ID, org_id: ORG_ID, name: 'Main', slug: 'main' })
-  fake.seed('teams', { id: ADMINISTRATORS_TEAM_ID, org_id: ORG_ID, name: 'Administrators' })
+  fake.seed('organization', { id: ORG_ID, name: 'Acme', slug: 'acme' })
+  fake.seed('vault', { id: VAULT_ID, org_id: ORG_ID, name: 'Main', slug: 'main' })
+  fake.seed('team', { id: ADMINISTRATORS_TEAM_ID, org_id: ORG_ID, name: 'Administrators' })
   for (const persona of Object.values(PERSONAS)) {
-    fake.seed('users', { id: persona.id, email: persona.email, role: persona.role, org_id: ORG_ID })
+    fake.seed('app_user', { id: persona.id, email: persona.email, role: persona.role, org_id: ORG_ID })
     if (persona.inAdministratorsTeam) {
-      fake.seed('team_members', { team_id: ADMINISTRATORS_TEAM_ID, user_id: persona.id })
+      fake.seed('team_member', { team_id: ADMINISTRATORS_TEAM_ID, user_id: persona.id })
     }
   }
   activeFake = fake

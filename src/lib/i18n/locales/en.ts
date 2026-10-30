@@ -1,6 +1,7 @@
 import type { TranslationDict } from '../types'
 import { reviewsUiStrings } from './reviewsUi'
 import { reviewPackageStrings } from './reviewPackage'
+import { dbUpgradeStrings } from './dbUpgrade'
 
 // English translations (default/fallback)
 export const en: TranslationDict = {
@@ -36,6 +37,7 @@ export const en: TranslationDict = {
   },
   ...reviewsUiStrings.en,
   reviewPackage: reviewPackageStrings.en,
+  dbUpgrade: dbUpgradeStrings.en,
   app: {
     recoveredFromCrash: 'BluePLM stopped responding and reloaded. Your vault is being re-read.',
   },
@@ -226,7 +228,7 @@ export const en: TranslationDict = {
     adminSetup: 'Admin Setup',
     enterCredentials: "Enter your Supabase credentials from your project's API settings",
     projectId: 'Project ID',
-    projectIdHelp: 'Found at the top of your Supabase Dashboard (e.g., vvyhpdzqdizvorrhjhvq)',
+    projectIdHelp: 'Found at the top of your Supabase Dashboard (e.g., abcdefghijklmnopqrst)',
     anonKey: 'Anon (Public) Key',
     orgSlug: 'Organization Slug',
     orgSlugHelp: 'This helps identify your organization in the generated code',
@@ -696,9 +698,6 @@ export const en: TranslationDict = {
     inspection: {
       title: 'Inspection Table',
       notSynced: 'Sync this drawing to bluePLM to manage its inspection table.',
-      notInstalledTitle: 'Inspection tables not set up',
-      notInstalledBody:
-        'Your database does not have the inspection module yet. Ask your admin to run the latest schema (modules/15-inspection.sql) to enable inspection tables.',
       version: 'Version',
       current: 'Current',
       saving: 'Saving…',
@@ -1861,8 +1860,6 @@ export const en: TranslationDict = {
     repair: {
       guarantee:
         'This can only add entries your record is missing. Every value BluePLM already holds wins over the one proposed here, including entries added since the scan, and entries for configurations that no longer exist are left alone. That is enforced by the database, not by this screen — the merge puts your record on the winning side, so an overwrite or a deletion cannot be expressed.',
-      notInstalled:
-        'Your database does not have the repair function yet. It ships in schema 94; ask your admin to apply the latest schema (core.sql, then the modules, then tools/verify-schema.sql) and the repair appears here. The audit above works either way.',
       noOrganization: 'No organization is loaded, so there is nothing to repair against.',
 
       includeDerived: 'Also reconstruct tabs from each configuration’s Number',
@@ -2310,13 +2307,6 @@ export const en: TranslationDict = {
     statusNotLoaded: "Not loaded on this computer",
     none: "No organization extensions installed.",
     error: "Error: {{message}}",
-  },
-  extensionRuntime: {
-    notice:
-      "Extensions from the store or a file are kept on this computer but not run: the sandboxed runtime is not available. Organization extensions, installed by an administrator above, do run.",
-    installedNotRunning: 'Installed (not running)',
-    adminOnly: 'Only administrators can install or remove extensions.',
-    notAdminError: 'Only administrators can install extensions.',
   },
   strandedEdits: {
     checkoutLost:

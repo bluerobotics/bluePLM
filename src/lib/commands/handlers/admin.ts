@@ -31,8 +31,8 @@ export async function handleMembers(addOutput: OutputFn): Promise<void> {
 
   try {
     const { data: members, error } = await supabase
-      .from('users')
-      .select('id, email, full_name, role, last_sign_in, org_id')
+      .from('app_user')
+      .select('id, email, full_name, role, last_sign_in_at, org_id')
       .eq('org_id', organization.id)
       .order('full_name')
 
@@ -49,8 +49,8 @@ export async function handleMembers(addOutput: OutputFn): Promise<void> {
       lines.push(`  ${name}`)
       lines.push(`     Email: ${u.email}`)
       lines.push(`     Role: ${u.role}`)
-      if (u.last_sign_in) {
-        lines.push(`     Last seen: ${new Date(u.last_sign_in).toLocaleDateString()}`)
+      if (u.last_sign_in_at) {
+        lines.push(`     Last seen: ${new Date(u.last_sign_in_at).toLocaleDateString()}`)
       }
     }
 
@@ -81,7 +81,7 @@ export async function handleInvite(parsed: ParsedCommand, addOutput: OutputFn): 
   try {
     // Check if user already exists
     const { data: existing } = await supabase
-      .from('pending_org_members')
+      .from('pending_org_member')
       .select('id')
       .eq('org_id', organization.id)
       .eq('email', email.toLowerCase())
@@ -97,7 +97,7 @@ export async function handleInvite(parsed: ParsedCommand, addOutput: OutputFn): 
     const teamName = (parsed.flags['team'] as string) || (parsed.flags['t'] as string)
     if (teamName) {
       const { data: team } = await supabase
-        .from('teams')
+        .from('team')
         .select('id')
         .eq('org_id', organization.id)
         .ilike('name', teamName)
@@ -106,7 +106,7 @@ export async function handleInvite(parsed: ParsedCommand, addOutput: OutputFn): 
     }
 
     // Create pending member
-    const { error } = await supabase.from('pending_org_members').insert({
+    const { error } = await supabase.from('pending_org_member').insert({
       org_id: organization.id,
       email: email.toLowerCase(),
       role: role as 'admin' | 'engineer' | 'viewer',
@@ -149,21 +149,21 @@ export async function handleRemoveMember(
   try {
     // First try to remove from pending
     const { data: pending } = await supabase
-      .from('pending_org_members')
+      .from('pending_org_member')
       .select('id')
       .eq('org_id', organization.id)
       .eq('email', email.toLowerCase())
       .single()
 
     if (pending) {
-      await supabase.from('pending_org_members').delete().eq('id', pending.id)
+      await supabase.from('pending_org_member').delete().eq('id', pending.id)
       addOutput('success', `Removed pending invite for ${email}`)
       return
     }
 
     // Find the user
     const { data: userData } = await supabase
-      .from('users')
+      .from('app_user')
       .select('id')
       .eq('email', email.toLowerCase())
       .single()
@@ -245,7 +245,7 @@ export async function handleCreateTeam(parsed: ParsedCommand, addOutput: OutputF
   }
 
   try {
-    const { error } = await supabase.from('teams').insert({
+    const { error } = await supabase.from('team').insert({
       org_id: organization.id,
       name,
       color,
@@ -282,7 +282,7 @@ export async function handleDeleteTeam(parsed: ParsedCommand, addOutput: OutputF
 
   try {
     const { data: team } = await supabase
-      .from('teams')
+      .from('team')
       .select('id, is_system')
       .eq('org_id', organization.id)
       .ilike('name', name)
@@ -298,7 +298,7 @@ export async function handleDeleteTeam(parsed: ParsedCommand, addOutput: OutputF
       return
     }
 
-    const { error } = await supabase.from('teams').delete().eq('id', team.id)
+    const { error } = await supabase.from('team').delete().eq('id', team.id)
     if (error) throw error
 
     addOutput('success', `Deleted team: ${name}`)
@@ -328,7 +328,7 @@ export async function handleAddToTeam(parsed: ParsedCommand, addOutput: OutputFn
   try {
     // Find user
     const { data: targetUser } = await supabase
-      .from('users')
+      .from('app_user')
       .select('id')
       .eq('email', email.toLowerCase())
       .single()
@@ -340,7 +340,7 @@ export async function handleAddToTeam(parsed: ParsedCommand, addOutput: OutputFn
 
     // Find team
     const { data: team } = await supabase
-      .from('teams')
+      .from('team')
       .select('id')
       .eq('org_id', organization.id)
       .ilike('name', teamName)
@@ -352,7 +352,7 @@ export async function handleAddToTeam(parsed: ParsedCommand, addOutput: OutputFn
     }
 
     // Add to team
-    const { error } = await supabase.from('team_members').insert({
+    const { error } = await supabase.from('team_member').insert({
       team_id: team.id,
       user_id: targetUser.id,
       added_by: user.id,
@@ -396,7 +396,7 @@ export async function handleRemoveFromTeam(
   try {
     // Find user
     const { data: targetUser } = await supabase
-      .from('users')
+      .from('app_user')
       .select('id')
       .eq('email', email.toLowerCase())
       .single()
@@ -408,7 +408,7 @@ export async function handleRemoveFromTeam(
 
     // Find team
     const { data: team } = await supabase
-      .from('teams')
+      .from('team')
       .select('id')
       .eq('org_id', organization.id)
       .ilike('name', teamName)
@@ -421,7 +421,7 @@ export async function handleRemoveFromTeam(
 
     // Remove from team
     const { error } = await supabase
-      .from('team_members')
+      .from('team_member')
       .delete()
       .eq('team_id', team.id)
       .eq('user_id', targetUser.id)
@@ -453,12 +453,12 @@ export async function handleTeamInfo(parsed: ParsedCommand, addOutput: OutputFn)
 
   try {
     const { data: team } = await supabase
-      .from('teams')
+      .from('team')
       .select(
         `
         *,
-        team_members(user_id, users(email, full_name)),
-        team_permissions(resource, actions)
+        team_member(user_id, app_user(email, full_name)),
+        team_permission(resource, actions)
       `,
       )
       .eq('org_id', organization.id)
@@ -477,17 +477,17 @@ export async function handleTeamInfo(parsed: ParsedCommand, addOutput: OutputFn)
     lines.push(`   Default: ${team.is_default ? 'Yes' : 'No'}`)
     lines.push(`   System: ${team.is_system ? 'Yes' : 'No'}`)
 
-    const members = (team.team_members as any[]) || [] // TODO: type this
+    const members = (team.team_member as any[]) || [] // TODO: type this
     lines.push(`\n   Members (${members.length}):`)
     for (const m of members.slice(0, 10)) {
-      const u = m.users
+      const u = m.app_user
       lines.push(`     • ${u.full_name || u.email}`)
     }
     if (members.length > 10) {
       lines.push(`     ... and ${members.length - 10} more`)
     }
 
-    const perms = (team.team_permissions as any[]) || [] // TODO: type this
+    const perms = (team.team_permission as any[]) || [] // TODO: type this
     lines.push(`\n   Permissions (${perms.length}):`)
     for (const p of perms.slice(0, 10)) {
       lines.push(`     • ${p.resource}: ${p.actions.join(', ')}`)
@@ -514,7 +514,7 @@ export async function handleRoles(addOutput: OutputFn): Promise<void> {
 
   try {
     const { data: roles, error } = await supabase
-      .from('workflow_roles')
+      .from('workflow_role')
       .select('*')
       .eq('org_id', organization.id)
       .order('name')
@@ -564,7 +564,7 @@ export async function handleCreateRole(parsed: ParsedCommand, addOutput: OutputF
   }
 
   try {
-    const { error } = await supabase.from('workflow_roles').insert({
+    const { error } = await supabase.from('workflow_role').insert({
       org_id: organization.id,
       name,
       color,
@@ -600,7 +600,7 @@ export async function handleDeleteRole(parsed: ParsedCommand, addOutput: OutputF
 
   try {
     const { data: role } = await supabase
-      .from('workflow_roles')
+      .from('workflow_role')
       .select('id')
       .eq('org_id', organization.id)
       .ilike('name', name)
@@ -611,7 +611,7 @@ export async function handleDeleteRole(parsed: ParsedCommand, addOutput: OutputF
       return
     }
 
-    const { error } = await supabase.from('workflow_roles').delete().eq('id', role.id)
+    const { error } = await supabase.from('workflow_role').delete().eq('id', role.id)
     if (error) throw error
 
     addOutput('success', `Deleted workflow role: ${name}`)
@@ -641,7 +641,7 @@ export async function handleAssignRole(parsed: ParsedCommand, addOutput: OutputF
   try {
     // Find user
     const { data: targetUser } = await supabase
-      .from('users')
+      .from('app_user')
       .select('id')
       .eq('email', email.toLowerCase())
       .single()
@@ -653,7 +653,7 @@ export async function handleAssignRole(parsed: ParsedCommand, addOutput: OutputF
 
     // Find role
     const { data: role } = await supabase
-      .from('workflow_roles')
+      .from('workflow_role')
       .select('id')
       .eq('org_id', organization.id)
       .ilike('name', roleName)
@@ -665,7 +665,7 @@ export async function handleAssignRole(parsed: ParsedCommand, addOutput: OutputF
     }
 
     // Assign role
-    const { error } = await supabase.from('user_workflow_roles').insert({
+    const { error } = await supabase.from('user_workflow_role').insert({
       user_id: targetUser.id,
       workflow_role_id: role.id,
       assigned_by: user.id,
@@ -709,7 +709,7 @@ export async function handleUnassignRole(
   try {
     // Find user
     const { data: targetUser } = await supabase
-      .from('users')
+      .from('app_user')
       .select('id')
       .eq('email', email.toLowerCase())
       .single()
@@ -721,7 +721,7 @@ export async function handleUnassignRole(
 
     // Find role
     const { data: role } = await supabase
-      .from('workflow_roles')
+      .from('workflow_role')
       .select('id')
       .eq('org_id', organization.id)
       .ilike('name', roleName)
@@ -734,7 +734,7 @@ export async function handleUnassignRole(
 
     // Remove role
     const { error } = await supabase
-      .from('user_workflow_roles')
+      .from('user_workflow_role')
       .delete()
       .eq('user_id', targetUser.id)
       .eq('role_id', role.id)
@@ -759,7 +759,7 @@ export async function handleTitles(addOutput: OutputFn): Promise<void> {
 
   try {
     const { data: titles, error } = await supabase
-      .from('job_titles')
+      .from('job_title')
       .select('*')
       .eq('org_id', organization.id)
       .order('name')
@@ -809,7 +809,7 @@ export async function handleCreateTitle(parsed: ParsedCommand, addOutput: Output
   }
 
   try {
-    const { error } = await supabase.from('job_titles').insert({
+    const { error } = await supabase.from('job_title').insert({
       org_id: organization.id,
       name,
       color,
@@ -847,7 +847,7 @@ export async function handleSetTitle(parsed: ParsedCommand, addOutput: OutputFn)
   try {
     // Find user
     const { data: targetUser } = await supabase
-      .from('users')
+      .from('app_user')
       .select('id')
       .eq('email', email.toLowerCase())
       .single()
@@ -859,7 +859,7 @@ export async function handleSetTitle(parsed: ParsedCommand, addOutput: OutputFn)
 
     // Find title
     const { data: title } = await supabase
-      .from('job_titles')
+      .from('job_title')
       .select('id')
       .eq('org_id', organization.id)
       .ilike('name', titleName)
@@ -871,10 +871,10 @@ export async function handleSetTitle(parsed: ParsedCommand, addOutput: OutputFn)
     }
 
     // Remove any existing title assignments
-    await supabase.from('user_job_titles').delete().eq('user_id', targetUser.id)
+    await supabase.from('user_job_title').delete().eq('user_id', targetUser.id)
 
     // Set new title
-    const { error } = await supabase.from('user_job_titles').insert({
+    const { error } = await supabase.from('user_job_title').insert({
       user_id: targetUser.id,
       title_id: title.id,
       assigned_by: user.id,
@@ -908,7 +908,7 @@ export async function handleDeleteTitle(parsed: ParsedCommand, addOutput: Output
   try {
     // Find the title
     const { data: title, error: findError } = await supabase
-      .from('job_titles')
+      .from('job_title')
       .select('id, name')
       .eq('org_id', organization.id)
       .ilike('name', name)
@@ -921,7 +921,7 @@ export async function handleDeleteTitle(parsed: ParsedCommand, addOutput: Output
 
     // Check if anyone is using this title
     const { count } = await supabase
-      .from('user_job_titles')
+      .from('user_job_title')
       .select('*', { count: 'exact', head: true })
       .eq('title_id', title.id)
 
@@ -936,11 +936,11 @@ export async function handleDeleteTitle(parsed: ParsedCommand, addOutput: Output
       }
 
       // Remove all assignments first
-      await supabase.from('user_job_titles').delete().eq('title_id', title.id)
+      await supabase.from('user_job_title').delete().eq('title_id', title.id)
     }
 
     // Delete the title
-    const { error } = await supabase.from('job_titles').delete().eq('id', title.id)
+    const { error } = await supabase.from('job_title').delete().eq('id', title.id)
 
     if (error) throw error
 
@@ -970,8 +970,8 @@ export async function handlePermissions(parsed: ParsedCommand, addOutput: Output
 
   try {
     const { data: team } = await supabase
-      .from('teams')
-      .select('id, name, team_permissions(resource, actions)')
+      .from('team')
+      .select('id, name, team_permission(resource, actions)')
       .eq('org_id', organization.id)
       .ilike('name', teamName)
       .single()
@@ -981,7 +981,7 @@ export async function handlePermissions(parsed: ParsedCommand, addOutput: Output
       return
     }
 
-    const perms = (team.team_permissions as any[]) || [] // TODO: type this
+    const perms = (team.team_permission as any[]) || [] // TODO: type this
 
     if (perms.length === 0) {
       addOutput('info', `Team "${team.name}" has no permissions configured`)
@@ -1023,7 +1023,7 @@ export async function handleGrant(parsed: ParsedCommand, addOutput: OutputFn): P
   try {
     // Find team
     const { data: team } = await supabase
-      .from('teams')
+      .from('team')
       .select('id')
       .eq('org_id', organization.id)
       .ilike('name', teamName)
@@ -1036,7 +1036,7 @@ export async function handleGrant(parsed: ParsedCommand, addOutput: OutputFn): P
 
     // Check if permission already exists
     const { data: existing } = await supabase
-      .from('team_permissions')
+      .from('team_permission')
       .select('id, actions')
       .eq('team_id', team.id)
       .eq('resource', resource)
@@ -1051,12 +1051,12 @@ export async function handleGrant(parsed: ParsedCommand, addOutput: OutputFn): P
       const currentActions = existing.actions || []
       const newActions = [...new Set([...currentActions, typedAction])]
       await supabase
-        .from('team_permissions')
+        .from('team_permission')
         .update({ actions: newActions, updated_by: user.id })
         .eq('id', existing.id)
     } else {
       // Create new permission
-      await supabase.from('team_permissions').insert({
+      await supabase.from('team_permission').insert({
         team_id: team.id,
         resource,
         actions: [typedAction],
@@ -1093,7 +1093,7 @@ export async function handleRevoke(parsed: ParsedCommand, addOutput: OutputFn): 
   try {
     // Find team
     const { data: team } = await supabase
-      .from('teams')
+      .from('team')
       .select('id')
       .eq('org_id', organization.id)
       .ilike('name', teamName)
@@ -1107,7 +1107,7 @@ export async function handleRevoke(parsed: ParsedCommand, addOutput: OutputFn): 
     if (!action) {
       // Remove all permissions for this resource
       await supabase
-        .from('team_permissions')
+        .from('team_permission')
         .delete()
         .eq('team_id', team.id)
         .eq('resource', resource)
@@ -1116,7 +1116,7 @@ export async function handleRevoke(parsed: ParsedCommand, addOutput: OutputFn): 
     } else {
       // Remove specific action
       const { data: existing } = await supabase
-        .from('team_permissions')
+        .from('team_permission')
         .select('id, actions')
         .eq('team_id', team.id)
         .eq('resource', resource)
@@ -1126,10 +1126,10 @@ export async function handleRevoke(parsed: ParsedCommand, addOutput: OutputFn): 
         const currentActions = existing.actions || []
         const newActions = currentActions.filter((a) => a !== action)
         if (newActions.length === 0) {
-          await supabase.from('team_permissions').delete().eq('id', existing.id)
+          await supabase.from('team_permission').delete().eq('id', existing.id)
         } else {
           await supabase
-            .from('team_permissions')
+            .from('team_permission')
             .update({ actions: newActions, updated_by: user.id })
             .eq('id', existing.id)
         }
@@ -1162,7 +1162,7 @@ export async function handleUserInfo(parsed: ParsedCommand, addOutput: OutputFn)
   try {
     // Get user info
     const { data: userData } = await supabase
-      .from('users')
+      .from('app_user')
       .select('*')
       .eq('email', email.toLowerCase())
       .single()
@@ -1181,8 +1181,8 @@ export async function handleUserInfo(parsed: ParsedCommand, addOutput: OutputFn)
     const lines = [`User: ${userData.full_name || userData.email}`]
     lines.push(`   Email: ${userData.email}`)
     lines.push(`   Role: ${userData.role}`)
-    if (userData.last_sign_in) {
-      lines.push(`   Last sign in: ${new Date(userData.last_sign_in).toLocaleString()}`)
+    if (userData.last_sign_in_at) {
+      lines.push(`   Last sign in: ${new Date(userData.last_sign_in_at).toLocaleString()}`)
     }
 
     if (teams && teams.length > 0) {
@@ -1218,7 +1218,7 @@ export async function handlePendingInvites(addOutput: OutputFn): Promise<void> {
 
   try {
     const { data: pending, error } = await supabase
-      .from('pending_org_members')
+      .from('pending_org_member')
       .select('*')
       .eq('org_id', organization.id)
       .order('created_at', { ascending: false })

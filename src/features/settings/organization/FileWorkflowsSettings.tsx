@@ -82,7 +82,7 @@ export function FileWorkflowsSettings() {
     try {
       // Read the current settings first so a concurrent change to another key is not overwritten.
       const { data: current } = await supabase
-        .from('organizations')
+        .from('organization')
         .select('settings')
         .eq('id', organization.id)
         .single()
@@ -90,7 +90,7 @@ export function FileWorkflowsSettings() {
       const settings: OrgSettings = { ...base, ...patch }
 
       const { data, error } = await supabase
-        .from('organizations')
+        .from('organization')
         .update({ settings: settings as never })
         .eq('id', organization.id)
         .select('settings')

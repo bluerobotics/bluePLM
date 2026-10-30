@@ -413,7 +413,7 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
                   type="text"
                   value={projectId}
                   onChange={(e) => setProjectId(e.target.value)}
-                  placeholder="vvyhpdzqdizvorrhjhvq"
+                  placeholder="abcdefghijklmnopqrst"
                   className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-4 py-3 text-plm-fg placeholder-plm-fg-dim focus:border-plm-accent focus:outline-none font-mono"
                 />
                 <p className="text-xs text-plm-fg-dim mt-1">{t('setup.projectIdHelp')}</p>

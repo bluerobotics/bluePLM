@@ -91,7 +91,7 @@ export async function generateAdminRecoveryCode(
 
   // Insert into database (RLS will enforce admin-only)
   const { data, error } = await client
-    .from('admin_recovery_codes')
+    .from('admin_recovery_code')
     .insert({
       org_id: orgId,
       code_hash: codeHash,
@@ -125,7 +125,7 @@ export async function listAdminRecoveryCodes(
   const client = getSupabaseClient()
 
   const { data, error } = await client
-    .from('admin_recovery_codes')
+    .from('admin_recovery_code')
     .select(
       `
       id,
@@ -166,7 +166,7 @@ export async function revokeAdminRecoveryCode(
   const client = getSupabaseClient()
 
   const { error } = await client
-    .from('admin_recovery_codes')
+    .from('admin_recovery_code')
     .update({
       is_revoked: true,
       revoked_by: revokedBy,
@@ -193,7 +193,7 @@ export async function deleteAdminRecoveryCode(
 ): Promise<{ success: boolean; error?: string }> {
   const client = getSupabaseClient()
 
-  const { error } = await client.from('admin_recovery_codes').delete().eq('id', codeId)
+  const { error } = await client.from('admin_recovery_code').delete().eq('id', codeId)
 
   if (error) {
     log.error('[RecoveryCode]', 'Failed to delete', { error: error.message })
@@ -217,7 +217,7 @@ export async function useAdminRecoveryCode(
   const codeHash = await hashRecoveryCode(code)
 
   // Call the database function that handles everything
-  const { data, error } = await client.rpc('use_admin_recovery_code', {
+  const { data, error } = await client.rpc('admin_recovery_code_use', {
     p_code: codeHash,
   })
 

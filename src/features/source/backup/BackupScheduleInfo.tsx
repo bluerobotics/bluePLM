@@ -36,7 +36,7 @@ export function BackupScheduleInfo({ status }: BackupScheduleInfoProps) {
           <Calendar className="w-4 h-4 text-plm-fg-muted" />
           <span className="text-xs text-plm-fg-muted">Next Backup</span>
         </div>
-        {status.config?.schedule_enabled &&
+        {status.config?.is_schedule_enabled &&
         status.config?.designated_machine_id &&
         status.config.schedule_hour != null &&
         status.config.schedule_minute != null ? (

@@ -1108,7 +1108,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
                             ) : (
                               <>
                                 <span className="text-[9px] text-plm-fg-dim">
-                                  {formatLastSeen(session.last_seen)}
+                                  {formatLastSeen(session.last_seen_at)}
                                 </span>
                                 <button
                                   onClick={(e) => {

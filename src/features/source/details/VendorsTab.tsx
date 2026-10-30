@@ -115,7 +115,7 @@ export function VendorsTab({ file }: VendorsTabProps) {
     setSuppliersLoading(true)
     try {
       const { data, error } = await supabase
-        .from('suppliers')
+        .from('supplier')
         .select('*')
         .eq('org_id', organization.id)
         .eq('is_active', true)
@@ -167,7 +167,7 @@ export function VendorsTab({ file }: VendorsTabProps) {
     setIsCreatingVendor(true)
     try {
       const { data, error } = await supabase
-        .from('suppliers')
+        .from('supplier')
         .insert({
           org_id: organization.id,
           name: newVendorName.trim(),

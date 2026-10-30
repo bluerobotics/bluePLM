@@ -359,7 +359,7 @@ async function fetchRows(options: DivergenceScanOptions): Promise<ScanRow[]> {
 
   for (let page = 0; ; page++) {
     let query = client
-      .from('files')
+      .from('file')
       .select('id, file_path, file_name, extension, part_number, description, revision, custom_properties')
       .eq('org_id', options.orgId)
       .is('deleted_at', null)

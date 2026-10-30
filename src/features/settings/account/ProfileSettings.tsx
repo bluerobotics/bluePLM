@@ -114,7 +114,7 @@ export function ProfileSettings() {
 
       // Update user's custom avatar via RPC (RPC types not inferred in Supabase v2)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: updateError } = await (supabase as any).rpc('update_user_avatar', { // TODO: type this
+      const { error: updateError } = await (supabase as any).rpc('user_update_avatar', { // TODO: type this
         p_custom_avatar_url: signedData.signedUrl,
       })
 
@@ -158,7 +158,7 @@ export function ProfileSettings() {
 
       // Clear custom avatar URL via RPC (RPC types not inferred in Supabase v2)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: updateError } = await (supabase as any).rpc('update_user_avatar', { // TODO: type this
+      const { error: updateError } = await (supabase as any).rpc('user_update_avatar', { // TODO: type this
         p_custom_avatar_url: '', // Empty string clears it
       })
 
@@ -186,7 +186,7 @@ export function ProfileSettings() {
 
         // Get ECOs where user is creator or involved (via file_ecos)
         const { data: createdECOs, error: createdError } = await client
-          .from('ecos')
+          .from('eco')
           .select('id, eco_number, title, status, created_at, created_by')
           .eq('org_id', organization.id)
           .eq('created_by', user.id)
@@ -199,11 +199,11 @@ export function ProfileSettings() {
 
         // Get ECOs where user has files attached
         const { data: involvedECOs, error: involvedError } = await client
-          .from('file_ecos')
+          .from('file_eco')
           .select(
             `
             eco_id,
-            ecos!inner (
+            eco!inner (
               id,
               eco_number,
               title,
@@ -226,7 +226,7 @@ export function ProfileSettings() {
 
         if (involvedECOs) {
           for (const item of involvedECOs) {
-            const eco = item.ecos as unknown as ECORecord
+            const eco = item.eco as unknown as ECORecord
             if (eco && !involvedIds.has(eco.id)) {
               allECOs.push(eco)
               involvedIds.add(eco.id)
@@ -257,7 +257,7 @@ export function ProfileSettings() {
         const client = getSupabaseClient()
 
         const { data, error } = await client
-          .from('rfqs')
+          .from('rfq')
           .select('id, rfq_number, title, status, created_at, created_by')
           .eq('org_id', organization.id)
           .eq('created_by', user.id)

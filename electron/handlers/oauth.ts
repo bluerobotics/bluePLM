@@ -1,5 +1,6 @@
 // OAuth handlers for Electron main process
-import { ipcMain, BrowserWindow, shell } from 'electron'
+import { ipcMain, BrowserWindow } from 'electron'
+import { openExternalSafely } from '../navigationGuard'
 import http from 'http'
 import type { AddressInfo } from 'net'
 
@@ -164,7 +165,11 @@ export function registerOAuthHandlers(window: BrowserWindow, deps: OAuthHandlerD
           const finalUrl = oauthUrl.toString()
           log('[OAuth] Opening system browser with OAuth URL')
 
-          shell.openExternal(finalUrl)
+          if (!openExternalSafely(finalUrl, log)) {
+            cleanupOAuthServer()
+            safeResolve({ success: false, error: 'Sign-in URL must use https.' })
+            return
+          }
 
           oauthTimeout = setTimeout(
             () => {
@@ -318,7 +323,7 @@ export function registerOAuthHandlers(window: BrowserWindow, deps: OAuthHandlerD
           authUrl.searchParams.set('prompt', 'consent')
 
           log('[GoogleDrive] Opening auth URL in browser')
-          shell.openExternal(authUrl.toString())
+          openExternalSafely(authUrl.toString(), log)
         })
 
         gdAuthServer.on('error', (error) => {

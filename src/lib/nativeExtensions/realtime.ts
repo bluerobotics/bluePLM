@@ -44,7 +44,7 @@ export function subscribeToOrgExtensionChanges(
       {
         event: '*',
         schema: 'public',
-        table: 'org_installed_extensions',
+        table: 'org_installed_extension',
         filter: `org_id=eq.${orgId}`,
       },
       () => debouncer.notify(),

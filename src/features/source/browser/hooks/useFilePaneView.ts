@@ -223,7 +223,7 @@ export function useFilePaneView() {
 
       try {
         const { data, error } = await supabase
-          .from('file_metadata_columns')
+          .from('file_metadata_column')
           .select('*')
           .eq('org_id', organization.id)
           .order('sort_order')
@@ -265,13 +265,13 @@ export function useFilePaneView() {
     () => [
       ...columns,
       ...customMetadataColumns
-        .filter((c) => c.visible)
+        .filter((c) => c.is_visible)
         .map((c) => ({
           id: `custom_${c.name}`,
           label: c.label,
           width: c.width,
-          visible: c.visible,
-          sortable: c.sortable,
+          visible: c.is_visible,
+          sortable: c.is_sortable,
         })),
     ],
     [columns, customMetadataColumns],

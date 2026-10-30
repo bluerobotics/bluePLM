@@ -119,7 +119,7 @@ export async function fillEmptyFileMetadata(
   if (fields.length === 0) return result
 
   const { data: file, error: fileError } = await client
-    .from('files')
+    .from('file')
     .select('org_id, checked_out_by, deleted_at')
     .eq('id', fileId)
     .maybeSingle()
@@ -136,7 +136,7 @@ export async function fillEmptyFileMetadata(
       field === 'part_number' ? { part_number: value, ...stamp } : { description: value, ...stamp }
 
     const { data, error } = await client
-      .from('files')
+      .from('file')
       .update(payload)
       .eq('id', fileId)
       .is('deleted_at', null)
@@ -155,7 +155,7 @@ export async function fillEmptyFileMetadata(
     // No row came back: either the column was no longer empty, or row-level security hid the row
     // from the update. Reading it tells the two apart, and the answer decides what gets reported.
     const { data: current, error: readError } = await client
-      .from('files')
+      .from('file')
       .select(ROW_COLUMNS)
       .eq('id', fileId)
       .maybeSingle()

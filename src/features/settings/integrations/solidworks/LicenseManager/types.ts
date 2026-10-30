@@ -2,14 +2,14 @@ import type { Database } from '@/types/supabase'
 import type { OrgUser as OrgUserBase } from '@/types/database'
 
 // Database row types
-export type SolidWorksLicense = Database['public']['Tables']['solidworks_licenses']['Row']
-export type SolidWorksLicenseInsert = Database['public']['Tables']['solidworks_licenses']['Insert']
-export type SolidWorksLicenseUpdate = Database['public']['Tables']['solidworks_licenses']['Update']
+export type SolidWorksLicense = Database['public']['Tables']['solidworks_license']['Row']
+export type SolidWorksLicenseInsert = Database['public']['Tables']['solidworks_license']['Insert']
+export type SolidWorksLicenseUpdate = Database['public']['Tables']['solidworks_license']['Update']
 
 export type SolidWorksLicenseAssignment =
-  Database['public']['Tables']['solidworks_license_assignments']['Row']
+  Database['public']['Tables']['solidworks_license_assignment']['Row']
 export type SolidWorksLicenseAssignmentInsert =
-  Database['public']['Tables']['solidworks_license_assignments']['Insert']
+  Database['public']['Tables']['solidworks_license_assignment']['Insert']
 
 export type SolidWorksLicenseType = Database['public']['Enums']['solidworks_license_type']
 

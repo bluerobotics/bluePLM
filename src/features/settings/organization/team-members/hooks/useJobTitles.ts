@@ -47,7 +47,7 @@ export function useJobTitles(orgId: string | null) {
     setJobTitlesLoading(true)
     try {
       const { data, error } = await supabase
-        .from('job_titles')
+        .from('job_title')
         .select('id, name, color, icon')
         .eq('org_id', orgId)
         .order('name')
@@ -168,7 +168,7 @@ export function useJobTitles(orgId: string | null) {
       if (!title) return false
 
       try {
-        const { error } = await supabase.from('job_titles').delete().eq('id', titleId)
+        const { error } = await supabase.from('job_title').delete().eq('id', titleId)
 
         if (error) throw error
 
@@ -222,7 +222,7 @@ export function useJobTitles(orgId: string | null) {
         } else {
           // Remove title
           const { error } = await supabase
-            .from('user_job_titles')
+            .from('user_job_title')
             .delete()
             .eq('user_id', targetUser.id)
 

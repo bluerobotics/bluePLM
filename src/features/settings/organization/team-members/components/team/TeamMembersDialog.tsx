@@ -20,7 +20,7 @@ interface TeamMemberQueryResult {
   is_team_admin: boolean
   added_at: string
   added_by: string | null
-  users: {
+  app_user: {
     id: string
     email: string
     full_name: string | null
@@ -45,11 +45,11 @@ export function TeamMembersDialog({ team, orgUsers, onClose, userId }: TeamMembe
     setIsLoading(true)
     try {
       const { data, error } = await supabase
-        .from('team_members')
+        .from('team_member')
         .select(
           `
           id, team_id, user_id, is_team_admin, added_at, added_by,
-          users!user_id (id, email, full_name, avatar_url, custom_avatar_url, role)
+          app_user!user_id (id, email, full_name, avatar_url, custom_avatar_url, role)
         `,
         )
         .eq('team_id', team.id)
@@ -65,14 +65,14 @@ export function TeamMembersDialog({ team, orgUsers, onClose, userId }: TeamMembe
         is_team_admin: m.is_team_admin,
         added_at: m.added_at,
         added_by: m.added_by,
-        user: m.users
+        user: m.app_user
           ? {
-              id: m.users.id,
-              email: m.users.email,
-              full_name: m.users.full_name,
-              avatar_url: m.users.avatar_url,
-              custom_avatar_url: m.users.custom_avatar_url,
-              role: m.users.role as 'admin' | 'engineer' | 'viewer',
+              id: m.app_user.id,
+              email: m.app_user.email,
+              full_name: m.app_user.full_name,
+              avatar_url: m.app_user.avatar_url,
+              custom_avatar_url: m.app_user.custom_avatar_url,
+              role: m.app_user.role as 'admin' | 'engineer' | 'viewer',
             }
           : undefined,
       }))
@@ -117,7 +117,7 @@ export function TeamMembersDialog({ team, orgUsers, onClose, userId }: TeamMembe
 
   const removeMember = async (member: TeamMember) => {
     try {
-      const { error } = await supabase.from('team_members').delete().eq('id', member.id)
+      const { error } = await supabase.from('team_member').delete().eq('id', member.id)
       if (error) throw error
 
       addToast('success', `Removed ${member.user?.full_name || member.user?.email} from team`)

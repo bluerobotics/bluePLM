@@ -51,9 +51,9 @@ export interface ExportedState {
   width: number
   height: number
   is_editable: boolean
-  requires_checkout: boolean
-  auto_increment_revision: boolean
-  triggers_review: boolean
+  is_checkout_required: boolean
+  is_revision_auto_incremented: boolean
+  is_review_stage: boolean
   /** Review stage: the key of the state an approval moves files to (schema 110). */
   review_approved?: string | null
   sort_order: number
@@ -125,9 +125,9 @@ export function buildExportPayload(
       width: s.width,
       height: s.height,
       is_editable: s.is_editable,
-      requires_checkout: s.requires_checkout,
-      auto_increment_revision: s.auto_increment_revision,
-      triggers_review: s.triggers_review,
+      is_checkout_required: s.is_checkout_required,
+      is_revision_auto_incremented: s.is_revision_auto_incremented,
+      is_review_stage: s.is_review_stage,
       review_approved: s.review_approved_state_id ?? null,
       sort_order: s.sort_order,
     })),
@@ -295,9 +295,13 @@ function normaliseState(state: Record<string, unknown>): ExportedState {
     width: num(state.width, 120),
     height: num(state.height, 60),
     is_editable: bool(state.is_editable, true),
-    requires_checkout: bool(state.requires_checkout, true),
-    auto_increment_revision: bool(state.auto_increment_revision, false),
-    triggers_review: bool(state.triggers_review, false),
+    // Files exported before 5.0 carry the old column names; both are read.
+    is_checkout_required: bool(state.is_checkout_required ?? state.requires_checkout, true),
+    is_revision_auto_incremented: bool(
+      state.is_revision_auto_incremented ?? state.auto_increment_revision,
+      false,
+    ),
+    is_review_stage: bool(state.is_review_stage ?? state.triggers_review, false),
     review_approved: nullableStr(state.review_approved),
     sort_order: num(state.sort_order, 0),
   }

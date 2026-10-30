@@ -59,7 +59,7 @@ export function parseOrgNativeRow(raw: unknown): { row: OrgNativeExtensionRow } 
       orgId: r.org_id,
       extensionId,
       version: r.version,
-      enabled: r.enabled !== false,
+      enabled: r.is_enabled !== false,
       sha256: r.package_sha256,
       packagePath: r.package_path,
       manifest,
@@ -76,7 +76,7 @@ export async function fetchOrgNativeExtensions(
   orgId: string,
 ): Promise<{ rows: OrgNativeExtensionRow[]; invalid: string[] }> {
   const { data, error } = await db()
-    .from('org_installed_extensions')
+    .from('org_installed_extension')
     .select(ROW_COLUMNS)
     .eq('org_id', orgId)
     .eq('category', 'native')
@@ -129,14 +129,14 @@ export async function installOrgNativeExtension(
   if (upload.error) throw new Error(`Upload failed: ${upload.error.message}`)
 
   const { data: row, error } = await client
-    .from('org_installed_extensions')
+    .from('org_installed_extension')
     .upsert(
       {
         org_id: orgId,
         extension_id: manifest.id,
         version: manifest.version,
         manifest,
-        enabled: true,
+        is_enabled: true,
         installed_at: new Date().toISOString(),
         installed_by: userId,
         category: 'native',
@@ -159,8 +159,8 @@ export async function setOrgNativeExtensionEnabled(
   enabled: boolean,
 ): Promise<void> {
   const { error } = await db()
-    .from('org_installed_extensions')
-    .update({ enabled })
+    .from('org_installed_extension')
+    .update({ is_enabled: enabled })
     .eq('org_id', orgId)
     .eq('extension_id', extensionId)
   if (error) throw new Error(error.message)
@@ -170,7 +170,7 @@ export async function setOrgNativeExtensionEnabled(
 export async function uninstallOrgNativeExtension(row: OrgNativeExtensionRow): Promise<void> {
   const client = db()
   const { error } = await client
-    .from('org_installed_extensions')
+    .from('org_installed_extension')
     .delete()
     .eq('org_id', row.orgId)
     .eq('extension_id', row.extensionId)

@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.18"
   }
   public: {
     Tables: {
@@ -50,33 +50,33 @@ export type Database = {
             foreignKeyName: "activity_file_id_fkey"
             columns: ["file_id"]
             isOneToOne: false
-            referencedRelation: "files"
+            referencedRelation: "file"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "activity_file_id_fkey"
             columns: ["file_id"]
             isOneToOne: false
-            referencedRelation: "parts_with_pricing"
+            referencedRelation: "part_with_pricing"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "activity_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "activity_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
         ]
       }
-      admin_recovery_codes: {
+      admin_recovery_code: {
         Row: {
           code_hash: string
           created_at: string | null
@@ -130,31 +130,84 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "admin_recovery_codes_created_by_fkey"
+            foreignKeyName: "admin_recovery_code_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "admin_recovery_codes_org_id_fkey"
+            foreignKeyName: "admin_recovery_code_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "admin_recovery_codes_revoked_by_fkey"
+            foreignKeyName: "admin_recovery_code_revoked_by_fkey"
             columns: ["revoked_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "admin_recovery_codes_used_by_fkey"
+            foreignKeyName: "admin_recovery_code_used_by_fkey"
             columns: ["used_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      app_user: {
+        Row: {
+          avatar_url: string | null
+          column_defaults: Json | null
+          created_at: string | null
+          custom_avatar_url: string | null
+          email: string
+          full_name: string | null
+          id: string
+          job_title: string | null
+          last_online_at: string | null
+          last_sign_in_at: string | null
+          org_id: string | null
+          role: Database["public"]["Enums"]["user_role"]
+        }
+        Insert: {
+          avatar_url?: string | null
+          column_defaults?: Json | null
+          created_at?: string | null
+          custom_avatar_url?: string | null
+          email: string
+          full_name?: string | null
+          id: string
+          job_title?: string | null
+          last_online_at?: string | null
+          last_sign_in_at?: string | null
+          org_id?: string | null
+          role?: Database["public"]["Enums"]["user_role"]
+        }
+        Update: {
+          avatar_url?: string | null
+          column_defaults?: Json | null
+          created_at?: string | null
+          custom_avatar_url?: string | null
+          email?: string
+          full_name?: string | null
+          id?: string
+          job_title?: string | null
+          last_online_at?: string | null
+          last_sign_in_at?: string | null
+          org_id?: string | null
+          role?: Database["public"]["Enums"]["user_role"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_user_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
         ]
@@ -164,16 +217,17 @@ export type Database = {
           access_key_encrypted: string | null
           backup_requested_at: string | null
           backup_requested_by: string | null
-          backup_running_since: string | null
+          backup_started_at: string | null
           bucket: string | null
           created_at: string | null
           designated_machine_id: string | null
-          designated_machine_last_seen: string | null
+          designated_machine_last_seen_at: string | null
           designated_machine_name: string | null
           designated_machine_platform: string | null
           designated_machine_user_email: string | null
           endpoint: string | null
           id: string
+          is_schedule_enabled: boolean | null
           org_id: string
           provider: string
           region: string | null
@@ -183,7 +237,6 @@ export type Database = {
           retention_weekly: number | null
           retention_yearly: number | null
           schedule_cron: string | null
-          schedule_enabled: boolean | null
           schedule_hour: number | null
           schedule_minute: number | null
           schedule_timezone: string | null
@@ -195,16 +248,17 @@ export type Database = {
           access_key_encrypted?: string | null
           backup_requested_at?: string | null
           backup_requested_by?: string | null
-          backup_running_since?: string | null
+          backup_started_at?: string | null
           bucket?: string | null
           created_at?: string | null
           designated_machine_id?: string | null
-          designated_machine_last_seen?: string | null
+          designated_machine_last_seen_at?: string | null
           designated_machine_name?: string | null
           designated_machine_platform?: string | null
           designated_machine_user_email?: string | null
           endpoint?: string | null
           id?: string
+          is_schedule_enabled?: boolean | null
           org_id: string
           provider?: string
           region?: string | null
@@ -214,7 +268,6 @@ export type Database = {
           retention_weekly?: number | null
           retention_yearly?: number | null
           schedule_cron?: string | null
-          schedule_enabled?: boolean | null
           schedule_hour?: number | null
           schedule_minute?: number | null
           schedule_timezone?: string | null
@@ -226,16 +279,17 @@ export type Database = {
           access_key_encrypted?: string | null
           backup_requested_at?: string | null
           backup_requested_by?: string | null
-          backup_running_since?: string | null
+          backup_started_at?: string | null
           bucket?: string | null
           created_at?: string | null
           designated_machine_id?: string | null
-          designated_machine_last_seen?: string | null
+          designated_machine_last_seen_at?: string | null
           designated_machine_name?: string | null
           designated_machine_platform?: string | null
           designated_machine_user_email?: string | null
           endpoint?: string | null
           id?: string
+          is_schedule_enabled?: boolean | null
           org_id?: string
           provider?: string
           region?: string | null
@@ -245,7 +299,6 @@ export type Database = {
           retention_weekly?: number | null
           retention_yearly?: number | null
           schedule_cron?: string | null
-          schedule_enabled?: boolean | null
           schedule_hour?: number | null
           schedule_minute?: number | null
           schedule_timezone?: string | null
@@ -258,14 +311,14 @@ export type Database = {
             foreignKeyName: "backup_config_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: true
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "backup_config_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
         ]
@@ -333,12 +386,12 @@ export type Database = {
             foreignKeyName: "backup_history_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
         ]
       }
-      backup_locks: {
+      backup_lock: {
         Row: {
           backup_history_id: string | null
           expires_at: string
@@ -368,28 +421,28 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "backup_locks_backup_history_id_fkey"
+            foreignKeyName: "backup_lock_backup_history_id_fkey"
             columns: ["backup_history_id"]
             isOneToOne: false
             referencedRelation: "backup_history"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "backup_locks_org_id_fkey"
+            foreignKeyName: "backup_lock_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: true
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
         ]
       }
-      backup_machines: {
+      backup_machine: {
         Row: {
           app_version: string | null
           created_at: string | null
           id: string
           is_designated: boolean | null
-          last_seen: string
+          last_seen_at: string
           machine_id: string
           machine_name: string
           org_id: string
@@ -402,7 +455,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           is_designated?: boolean | null
-          last_seen?: string
+          last_seen_at?: string
           machine_id: string
           machine_name: string
           org_id: string
@@ -415,7 +468,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           is_designated?: boolean | null
-          last_seen?: string
+          last_seen_at?: string
           machine_id?: string
           machine_name?: string
           org_id?: string
@@ -425,22 +478,22 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "backup_machines_org_id_fkey"
+            foreignKeyName: "backup_machine_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "backup_machines_user_id_fkey"
+            foreignKeyName: "backup_machine_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
         ]
       }
-      blocked_users: {
+      blocked_user: {
         Row: {
           blocked_at: string | null
           blocked_by: string | null
@@ -467,22 +520,22 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "blocked_users_blocked_by_fkey"
+            foreignKeyName: "blocked_user_blocked_by_fkey"
             columns: ["blocked_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "blocked_users_org_id_fkey"
+            foreignKeyName: "blocked_user_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
         ]
       }
-      color_swatches: {
+      color_swatch: {
         Row: {
           color: string
           created_at: string | null
@@ -515,24 +568,24 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "color_swatches_created_by_fkey"
+            foreignKeyName: "color_swatch_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "color_swatches_org_id_fkey"
+            foreignKeyName: "color_swatch_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "color_swatches_user_id_fkey"
+            foreignKeyName: "color_swatch_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
         ]
@@ -591,28 +644,28 @@ export type Database = {
             foreignKeyName: "customer_accounts_channel_set_by_fkey"
             columns: ["channel_set_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "customer_accounts_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "customer_accounts_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "customer_accounts_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
         ]
@@ -665,7 +718,7 @@ export type Database = {
             foreignKeyName: "customer_addresses_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
         ]
@@ -712,7 +765,7 @@ export type Database = {
             foreignKeyName: "customer_categories_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
         ]
@@ -760,7 +813,7 @@ export type Database = {
             foreignKeyName: "customer_enrichment_run_items_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
@@ -832,14 +885,14 @@ export type Database = {
             foreignKeyName: "customer_enrichment_runs_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "customer_enrichment_runs_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
         ]
@@ -884,7 +937,7 @@ export type Database = {
             foreignKeyName: "customer_enrichment_sources_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
         ]
@@ -968,14 +1021,14 @@ export type Database = {
             foreignKeyName: "customer_enrichments_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "customer_enrichments_researched_by_fkey"
             columns: ["researched_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
         ]
@@ -1032,7 +1085,7 @@ export type Database = {
             foreignKeyName: "customer_order_lines_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
         ]
@@ -1123,7 +1176,7 @@ export type Database = {
             foreignKeyName: "customer_orders_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
@@ -1259,26 +1312,26 @@ export type Database = {
             foreignKeyName: "customers_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "customers_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "customers_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
         ]
       }
-      deviations: {
+      deviation: {
         Row: {
           affected_part_numbers: string[] | null
           approved_at: string | null
@@ -1289,8 +1342,8 @@ export type Database = {
           description: string | null
           deviation_number: string
           deviation_type: string | null
-          effective_date: string | null
-          expiration_date: string | null
+          effective_at: string | null
+          expires_at: string | null
           id: string
           org_id: string
           rejection_reason: string | null
@@ -1309,8 +1362,8 @@ export type Database = {
           description?: string | null
           deviation_number: string
           deviation_type?: string | null
-          effective_date?: string | null
-          expiration_date?: string | null
+          effective_at?: string | null
+          expires_at?: string | null
           id?: string
           org_id: string
           rejection_reason?: string | null
@@ -1329,8 +1382,8 @@ export type Database = {
           description?: string | null
           deviation_number?: string
           deviation_type?: string | null
-          effective_date?: string | null
-          expiration_date?: string | null
+          effective_at?: string | null
+          expires_at?: string | null
           id?: string
           org_id?: string
           rejection_reason?: string | null
@@ -1341,314 +1394,108 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "deviations_approved_by_fkey"
+            foreignKeyName: "deviation_approved_by_fkey"
             columns: ["approved_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "deviations_created_by_fkey"
+            foreignKeyName: "deviation_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "deviations_org_id_fkey"
+            foreignKeyName: "deviation_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "deviations_updated_by_fkey"
+            foreignKeyName: "deviation_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
         ]
       }
-      eco_checklist_activity: {
+      drawing_pdf_render: {
         Row: {
-          action: string
-          checklist_item_id: string | null
-          eco_id: string
-          gate_approval_id: string | null
+          file_id: string
+          file_size: number
+          file_version_id: string
+          generated_at: string
+          generated_by: string | null
           id: string
-          new_value: string | null
-          notes: string | null
-          old_value: string | null
-          performed_at: string | null
-          performed_by: string | null
+          is_closure_exact: boolean | null
+          org_id: string
+          storage_hash: string
         }
         Insert: {
-          action: string
-          checklist_item_id?: string | null
-          eco_id: string
-          gate_approval_id?: string | null
+          file_id: string
+          file_size: number
+          file_version_id: string
+          generated_at?: string
+          generated_by?: string | null
           id?: string
-          new_value?: string | null
-          notes?: string | null
-          old_value?: string | null
-          performed_at?: string | null
-          performed_by?: string | null
+          is_closure_exact?: boolean | null
+          org_id: string
+          storage_hash: string
         }
         Update: {
-          action?: string
-          checklist_item_id?: string | null
-          eco_id?: string
-          gate_approval_id?: string | null
+          file_id?: string
+          file_size?: number
+          file_version_id?: string
+          generated_at?: string
+          generated_by?: string | null
           id?: string
-          new_value?: string | null
-          notes?: string | null
-          old_value?: string | null
-          performed_at?: string | null
-          performed_by?: string | null
+          is_closure_exact?: boolean | null
+          org_id?: string
+          storage_hash?: string
         }
         Relationships: [
           {
-            foreignKeyName: "eco_checklist_activity_checklist_item_id_fkey"
-            columns: ["checklist_item_id"]
+            foreignKeyName: "drawing_pdf_render_file_id_fkey"
+            columns: ["file_id"]
             isOneToOne: false
-            referencedRelation: "eco_checklist_items"
+            referencedRelation: "file"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "eco_checklist_activity_eco_id_fkey"
-            columns: ["eco_id"]
+            foreignKeyName: "drawing_pdf_render_file_id_fkey"
+            columns: ["file_id"]
             isOneToOne: false
-            referencedRelation: "ecos"
+            referencedRelation: "part_with_pricing"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "eco_checklist_activity_gate_approval_id_fkey"
-            columns: ["gate_approval_id"]
-            isOneToOne: false
-            referencedRelation: "eco_gate_approvals"
+            foreignKeyName: "drawing_pdf_render_file_version_id_fkey"
+            columns: ["file_version_id"]
+            isOneToOne: true
+            referencedRelation: "file_version"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "eco_checklist_activity_performed_by_fkey"
-            columns: ["performed_by"]
+            foreignKeyName: "drawing_pdf_render_generated_by_fkey"
+            columns: ["generated_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "drawing_pdf_render_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
         ]
       }
-      eco_checklist_items: {
-        Row: {
-          accountable_text: string | null
-          accountable_user_id: string | null
-          completed_at: string | null
-          completed_by: string | null
-          consulted_text: string | null
-          consulted_user_ids: string[] | null
-          created_at: string | null
-          description: string | null
-          doc_number: string | null
-          eco_id: string
-          gate_name: string | null
-          id: string
-          informed_text: string | null
-          informed_user_ids: string[] | null
-          link_file_id: string | null
-          link_url: string | null
-          name: string
-          notes: string | null
-          phase_name: string
-          phase_sort_order: number | null
-          required_for_gate: boolean | null
-          responsible_text: string | null
-          responsible_user_id: string | null
-          sort_order: number
-          started_at: string | null
-          status: Database["public"]["Enums"]["checklist_item_status"] | null
-          target_date: string | null
-          template_item_id: string | null
-          uid: string | null
-          updated_at: string | null
-          updated_by: string | null
-        }
-        Insert: {
-          accountable_text?: string | null
-          accountable_user_id?: string | null
-          completed_at?: string | null
-          completed_by?: string | null
-          consulted_text?: string | null
-          consulted_user_ids?: string[] | null
-          created_at?: string | null
-          description?: string | null
-          doc_number?: string | null
-          eco_id: string
-          gate_name?: string | null
-          id?: string
-          informed_text?: string | null
-          informed_user_ids?: string[] | null
-          link_file_id?: string | null
-          link_url?: string | null
-          name: string
-          notes?: string | null
-          phase_name: string
-          phase_sort_order?: number | null
-          required_for_gate?: boolean | null
-          responsible_text?: string | null
-          responsible_user_id?: string | null
-          sort_order?: number
-          started_at?: string | null
-          status?: Database["public"]["Enums"]["checklist_item_status"] | null
-          target_date?: string | null
-          template_item_id?: string | null
-          uid?: string | null
-          updated_at?: string | null
-          updated_by?: string | null
-        }
-        Update: {
-          accountable_text?: string | null
-          accountable_user_id?: string | null
-          completed_at?: string | null
-          completed_by?: string | null
-          consulted_text?: string | null
-          consulted_user_ids?: string[] | null
-          created_at?: string | null
-          description?: string | null
-          doc_number?: string | null
-          eco_id?: string
-          gate_name?: string | null
-          id?: string
-          informed_text?: string | null
-          informed_user_ids?: string[] | null
-          link_file_id?: string | null
-          link_url?: string | null
-          name?: string
-          notes?: string | null
-          phase_name?: string
-          phase_sort_order?: number | null
-          required_for_gate?: boolean | null
-          responsible_text?: string | null
-          responsible_user_id?: string | null
-          sort_order?: number
-          started_at?: string | null
-          status?: Database["public"]["Enums"]["checklist_item_status"] | null
-          target_date?: string | null
-          template_item_id?: string | null
-          uid?: string | null
-          updated_at?: string | null
-          updated_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "eco_checklist_items_accountable_user_id_fkey"
-            columns: ["accountable_user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "eco_checklist_items_completed_by_fkey"
-            columns: ["completed_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "eco_checklist_items_eco_id_fkey"
-            columns: ["eco_id"]
-            isOneToOne: false
-            referencedRelation: "ecos"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "eco_checklist_items_link_file_id_fkey"
-            columns: ["link_file_id"]
-            isOneToOne: false
-            referencedRelation: "files"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "eco_checklist_items_link_file_id_fkey"
-            columns: ["link_file_id"]
-            isOneToOne: false
-            referencedRelation: "parts_with_pricing"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "eco_checklist_items_responsible_user_id_fkey"
-            columns: ["responsible_user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "eco_checklist_items_template_item_id_fkey"
-            columns: ["template_item_id"]
-            isOneToOne: false
-            referencedRelation: "process_template_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "eco_checklist_items_updated_by_fkey"
-            columns: ["updated_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      eco_gate_approvals: {
-        Row: {
-          approved_at: string | null
-          approved_by: string | null
-          created_at: string | null
-          eco_id: string
-          gate_name: string
-          id: string
-          is_approved: boolean | null
-          notes: string | null
-          phase_name: string | null
-        }
-        Insert: {
-          approved_at?: string | null
-          approved_by?: string | null
-          created_at?: string | null
-          eco_id: string
-          gate_name: string
-          id?: string
-          is_approved?: boolean | null
-          notes?: string | null
-          phase_name?: string | null
-        }
-        Update: {
-          approved_at?: string | null
-          approved_by?: string | null
-          created_at?: string | null
-          eco_id?: string
-          gate_name?: string
-          id?: string
-          is_approved?: boolean | null
-          notes?: string | null
-          phase_name?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "eco_gate_approvals_approved_by_fkey"
-            columns: ["approved_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "eco_gate_approvals_eco_id_fkey"
-            columns: ["eco_id"]
-            isOneToOne: false
-            referencedRelation: "ecos"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      ecos: {
+      eco: {
         Row: {
           completed_at: string | null
           created_at: string | null
@@ -1696,942 +1543,314 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "ecos_created_by_fkey"
+            foreignKeyName: "eco_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "ecos_org_id_fkey"
+            foreignKeyName: "eco_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "ecos_updated_by_fkey"
-            columns: ["updated_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fk_ecos_process_template"
+            foreignKeyName: "eco_process_template_id_fkey"
             columns: ["process_template_id"]
             isOneToOne: false
-            referencedRelation: "process_templates"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      extension_http_log: {
-        Row: {
-          duration_ms: number
-          error: string | null
-          extension_id: string
-          id: string
-          method: string
-          org_id: string
-          request_size: number | null
-          response_size: number | null
-          status: number
-          timestamp: string | null
-          url: string
-        }
-        Insert: {
-          duration_ms: number
-          error?: string | null
-          extension_id: string
-          id?: string
-          method: string
-          org_id: string
-          request_size?: number | null
-          response_size?: number | null
-          status: number
-          timestamp?: string | null
-          url: string
-        }
-        Update: {
-          duration_ms?: number
-          error?: string | null
-          extension_id?: string
-          id?: string
-          method?: string
-          org_id?: string
-          request_size?: number | null
-          response_size?: number | null
-          status?: number
-          timestamp?: string | null
-          url?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "extension_http_log_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      extension_secret_access: {
-        Row: {
-          accessed_at: string | null
-          accessed_by: string
-          action: string
-          extension_id: string
-          id: string
-          org_id: string
-          secret_name: string
-        }
-        Insert: {
-          accessed_at?: string | null
-          accessed_by: string
-          action: string
-          extension_id: string
-          id?: string
-          org_id: string
-          secret_name: string
-        }
-        Update: {
-          accessed_at?: string | null
-          accessed_by?: string
-          action?: string
-          extension_id?: string
-          id?: string
-          org_id?: string
-          secret_name?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "extension_secret_access_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      extension_secret_versions: {
-        Row: {
-          archived_at: string | null
-          encrypted_value: string
-          extension_id: string
-          id: string
-          name: string
-          org_id: string
-        }
-        Insert: {
-          archived_at?: string | null
-          encrypted_value: string
-          extension_id: string
-          id?: string
-          name: string
-          org_id: string
-        }
-        Update: {
-          archived_at?: string | null
-          encrypted_value?: string
-          extension_id?: string
-          id?: string
-          name?: string
-          org_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "extension_secret_versions_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      extension_secrets: {
-        Row: {
-          created_at: string | null
-          encrypted_value: string
-          extension_id: string
-          name: string
-          org_id: string
-          updated_at: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          encrypted_value: string
-          extension_id: string
-          name: string
-          org_id: string
-          updated_at?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          encrypted_value?: string
-          extension_id?: string
-          name?: string
-          org_id?: string
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "extension_secrets_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      extension_storage: {
-        Row: {
-          extension_id: string
-          key: string
-          org_id: string
-          updated_at: string | null
-          value: Json | null
-        }
-        Insert: {
-          extension_id: string
-          key: string
-          org_id: string
-          updated_at?: string | null
-          value?: Json | null
-        }
-        Update: {
-          extension_id?: string
-          key?: string
-          org_id?: string
-          updated_at?: string | null
-          value?: Json | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "extension_storage_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      file_comments: {
-        Row: {
-          annotation_type: string | null
-          comment: string
-          created_at: string | null
-          edited_at: string | null
-          file_id: string
-          file_version: number | null
-          id: string
-          page_number: number | null
-          parent_id: string | null
-          position: Json | null
-          resolved: boolean | null
-          resolved_at: string | null
-          resolved_by: string | null
-          user_id: string
-        }
-        Insert: {
-          annotation_type?: string | null
-          comment: string
-          created_at?: string | null
-          edited_at?: string | null
-          file_id: string
-          file_version?: number | null
-          id?: string
-          page_number?: number | null
-          parent_id?: string | null
-          position?: Json | null
-          resolved?: boolean | null
-          resolved_at?: string | null
-          resolved_by?: string | null
-          user_id: string
-        }
-        Update: {
-          annotation_type?: string | null
-          comment?: string
-          created_at?: string | null
-          edited_at?: string | null
-          file_id?: string
-          file_version?: number | null
-          id?: string
-          page_number?: number | null
-          parent_id?: string | null
-          position?: Json | null
-          resolved?: boolean | null
-          resolved_at?: string | null
-          resolved_by?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "file_comments_file_id_fkey"
-            columns: ["file_id"]
-            isOneToOne: false
-            referencedRelation: "files"
+            referencedRelation: "process_template"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "file_comments_file_id_fkey"
-            columns: ["file_id"]
-            isOneToOne: false
-            referencedRelation: "parts_with_pricing"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "file_comments_parent_id_fkey"
-            columns: ["parent_id"]
-            isOneToOne: false
-            referencedRelation: "file_comments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "file_comments_resolved_by_fkey"
-            columns: ["resolved_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "file_comments_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      file_deviations: {
-        Row: {
-          created_at: string | null
-          created_by: string
-          deviation_id: string
-          file_id: string
-          file_revision: string | null
-          file_version: number | null
-          id: string
-          notes: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          created_by: string
-          deviation_id: string
-          file_id: string
-          file_revision?: string | null
-          file_version?: number | null
-          id?: string
-          notes?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          created_by?: string
-          deviation_id?: string
-          file_id?: string
-          file_revision?: string | null
-          file_version?: number | null
-          id?: string
-          notes?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "file_deviations_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "file_deviations_deviation_id_fkey"
-            columns: ["deviation_id"]
-            isOneToOne: false
-            referencedRelation: "deviations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "file_deviations_file_id_fkey"
-            columns: ["file_id"]
-            isOneToOne: false
-            referencedRelation: "files"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "file_deviations_file_id_fkey"
-            columns: ["file_id"]
-            isOneToOne: false
-            referencedRelation: "parts_with_pricing"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      file_ecos: {
-        Row: {
-          created_at: string | null
-          created_by: string
-          eco_id: string
-          file_id: string
-          id: string
-          notes: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          created_by: string
-          eco_id: string
-          file_id: string
-          id?: string
-          notes?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          created_by?: string
-          eco_id?: string
-          file_id?: string
-          id?: string
-          notes?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "file_ecos_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "file_ecos_eco_id_fkey"
-            columns: ["eco_id"]
-            isOneToOne: false
-            referencedRelation: "ecos"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "file_ecos_file_id_fkey"
-            columns: ["file_id"]
-            isOneToOne: false
-            referencedRelation: "files"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "file_ecos_file_id_fkey"
-            columns: ["file_id"]
-            isOneToOne: false
-            referencedRelation: "parts_with_pricing"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      file_metadata_columns: {
-        Row: {
-          created_at: string | null
-          created_by: string | null
-          data_type: Database["public"]["Enums"]["metadata_column_type"]
-          default_value: string | null
-          id: string
-          label: string
-          name: string
-          org_id: string
-          required: boolean
-          select_options: string[]
-          sort_order: number
-          sortable: boolean
-          updated_at: string | null
-          updated_by: string | null
-          visible: boolean
-          width: number
-        }
-        Insert: {
-          created_at?: string | null
-          created_by?: string | null
-          data_type?: Database["public"]["Enums"]["metadata_column_type"]
-          default_value?: string | null
-          id?: string
-          label: string
-          name: string
-          org_id: string
-          required?: boolean
-          select_options?: string[]
-          sort_order?: number
-          sortable?: boolean
-          updated_at?: string | null
-          updated_by?: string | null
-          visible?: boolean
-          width?: number
-        }
-        Update: {
-          created_at?: string | null
-          created_by?: string | null
-          data_type?: Database["public"]["Enums"]["metadata_column_type"]
-          default_value?: string | null
-          id?: string
-          label?: string
-          name?: string
-          org_id?: string
-          required?: boolean
-          select_options?: string[]
-          sort_order?: number
-          sortable?: boolean
-          updated_at?: string | null
-          updated_by?: string | null
-          visible?: boolean
-          width?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "file_metadata_columns_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "file_metadata_columns_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "file_metadata_columns_updated_by_fkey"
+            foreignKeyName: "eco_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
         ]
       }
-      file_references: {
+      eco_checklist_activity: {
         Row: {
-          child_file_id: string
-          configuration: string | null
-          created_at: string | null
+          action: string
+          checklist_item_id: string | null
+          eco_id: string
+          gate_approval_id: string | null
           id: string
-          org_id: string
-          parent_file_id: string
-          quantity: number | null
-          reference_type: Database["public"]["Enums"]["reference_type"] | null
-          updated_at: string | null
+          new_value: string | null
+          notes: string | null
+          old_value: string | null
+          performed_at: string | null
+          performed_by: string | null
         }
         Insert: {
-          child_file_id: string
-          configuration?: string | null
-          created_at?: string | null
+          action: string
+          checklist_item_id?: string | null
+          eco_id: string
+          gate_approval_id?: string | null
           id?: string
-          org_id: string
-          parent_file_id: string
-          quantity?: number | null
-          reference_type?: Database["public"]["Enums"]["reference_type"] | null
-          updated_at?: string | null
+          new_value?: string | null
+          notes?: string | null
+          old_value?: string | null
+          performed_at?: string | null
+          performed_by?: string | null
         }
         Update: {
-          child_file_id?: string
-          configuration?: string | null
-          created_at?: string | null
+          action?: string
+          checklist_item_id?: string | null
+          eco_id?: string
+          gate_approval_id?: string | null
           id?: string
-          org_id?: string
-          parent_file_id?: string
-          quantity?: number | null
-          reference_type?: Database["public"]["Enums"]["reference_type"] | null
-          updated_at?: string | null
+          new_value?: string | null
+          notes?: string | null
+          old_value?: string | null
+          performed_at?: string | null
+          performed_by?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "file_references_child_file_id_fkey"
-            columns: ["child_file_id"]
+            foreignKeyName: "eco_checklist_activity_checklist_item_id_fkey"
+            columns: ["checklist_item_id"]
             isOneToOne: false
-            referencedRelation: "files"
+            referencedRelation: "eco_checklist_item"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "file_references_child_file_id_fkey"
-            columns: ["child_file_id"]
+            foreignKeyName: "eco_checklist_activity_eco_id_fkey"
+            columns: ["eco_id"]
             isOneToOne: false
-            referencedRelation: "parts_with_pricing"
+            referencedRelation: "eco"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "file_references_org_id_fkey"
-            columns: ["org_id"]
+            foreignKeyName: "eco_checklist_activity_gate_approval_id_fkey"
+            columns: ["gate_approval_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "eco_gate_approval"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "file_references_parent_file_id_fkey"
-            columns: ["parent_file_id"]
+            foreignKeyName: "eco_checklist_activity_performed_by_fkey"
+            columns: ["performed_by"]
             isOneToOne: false
-            referencedRelation: "files"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "file_references_parent_file_id_fkey"
-            columns: ["parent_file_id"]
-            isOneToOne: false
-            referencedRelation: "parts_with_pricing"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
         ]
       }
-      file_share_links: {
+      eco_checklist_item: {
         Row: {
-          allow_download: boolean | null
+          accountable_text: string | null
+          accountable_user_id: string | null
+          completed_at: string | null
+          completed_by: string | null
+          consulted_text: string | null
+          consulted_user_ids: string[] | null
           created_at: string | null
-          created_by: string
-          download_count: number | null
-          expires_at: string | null
-          file_id: string
-          file_version: number | null
-          id: string
-          is_active: boolean | null
-          last_accessed_at: string | null
-          max_downloads: number | null
-          org_id: string
-          password_hash: string | null
-          require_auth: boolean | null
-          token: string
-        }
-        Insert: {
-          allow_download?: boolean | null
-          created_at?: string | null
-          created_by: string
-          download_count?: number | null
-          expires_at?: string | null
-          file_id: string
-          file_version?: number | null
-          id?: string
-          is_active?: boolean | null
-          last_accessed_at?: string | null
-          max_downloads?: number | null
-          org_id: string
-          password_hash?: string | null
-          require_auth?: boolean | null
-          token: string
-        }
-        Update: {
-          allow_download?: boolean | null
-          created_at?: string | null
-          created_by?: string
-          download_count?: number | null
-          expires_at?: string | null
-          file_id?: string
-          file_version?: number | null
-          id?: string
-          is_active?: boolean | null
-          last_accessed_at?: string | null
-          max_downloads?: number | null
-          org_id?: string
-          password_hash?: string | null
-          require_auth?: boolean | null
-          token?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "file_share_links_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "file_share_links_file_id_fkey"
-            columns: ["file_id"]
-            isOneToOne: false
-            referencedRelation: "files"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "file_share_links_file_id_fkey"
-            columns: ["file_id"]
-            isOneToOne: false
-            referencedRelation: "parts_with_pricing"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "file_share_links_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      file_state_entries: {
-        Row: {
-          duration_seconds: number | null
-          entered_at: string | null
-          entered_by: string | null
-          exited_at: string | null
-          exited_by: string | null
-          file_id: string
-          id: string
-          state_id: string
-        }
-        Insert: {
-          duration_seconds?: number | null
-          entered_at?: string | null
-          entered_by?: string | null
-          exited_at?: string | null
-          exited_by?: string | null
-          file_id: string
-          id?: string
-          state_id: string
-        }
-        Update: {
-          duration_seconds?: number | null
-          entered_at?: string | null
-          entered_by?: string | null
-          exited_at?: string | null
-          exited_by?: string | null
-          file_id?: string
-          id?: string
-          state_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "file_state_entries_entered_by_fkey"
-            columns: ["entered_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "file_state_entries_exited_by_fkey"
-            columns: ["exited_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "file_state_entries_file_id_fkey"
-            columns: ["file_id"]
-            isOneToOne: false
-            referencedRelation: "files"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "file_state_entries_file_id_fkey"
-            columns: ["file_id"]
-            isOneToOne: false
-            referencedRelation: "parts_with_pricing"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "file_state_entries_state_id_fkey"
-            columns: ["state_id"]
-            isOneToOne: false
-            referencedRelation: "workflow_states"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      file_versions: {
-        Row: {
-          comment: string | null
-          content_hash: string
-          created_at: string | null
-          created_by: string
           description: string | null
-          file_id: string
-          file_size: number | null
+          doc_number: string | null
+          eco_id: string
+          gate_name: string | null
           id: string
-          inspection_hash: string | null
-          part_number: string | null
-          revision: string
-          state: string
-          version: number
-          workflow_state_id: string | null
+          informed_text: string | null
+          informed_user_ids: string[] | null
+          is_required_for_gate: boolean | null
+          link_file_id: string | null
+          link_url: string | null
+          name: string
+          notes: string | null
+          phase_name: string
+          phase_sort_order: number | null
+          responsible_text: string | null
+          responsible_user_id: string | null
+          sort_order: number
+          started_at: string | null
+          status: Database["public"]["Enums"]["checklist_item_status"] | null
+          target_date: string | null
+          template_item_id: string | null
+          uid: string | null
+          updated_at: string | null
+          updated_by: string | null
         }
         Insert: {
-          comment?: string | null
-          content_hash: string
+          accountable_text?: string | null
+          accountable_user_id?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          consulted_text?: string | null
+          consulted_user_ids?: string[] | null
           created_at?: string | null
-          created_by: string
           description?: string | null
-          file_id: string
-          file_size?: number | null
+          doc_number?: string | null
+          eco_id: string
+          gate_name?: string | null
           id?: string
-          inspection_hash?: string | null
-          part_number?: string | null
-          revision: string
-          state?: string
-          version: number
-          workflow_state_id?: string | null
+          informed_text?: string | null
+          informed_user_ids?: string[] | null
+          is_required_for_gate?: boolean | null
+          link_file_id?: string | null
+          link_url?: string | null
+          name: string
+          notes?: string | null
+          phase_name: string
+          phase_sort_order?: number | null
+          responsible_text?: string | null
+          responsible_user_id?: string | null
+          sort_order?: number
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["checklist_item_status"] | null
+          target_date?: string | null
+          template_item_id?: string | null
+          uid?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
         }
         Update: {
-          comment?: string | null
-          content_hash?: string
+          accountable_text?: string | null
+          accountable_user_id?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          consulted_text?: string | null
+          consulted_user_ids?: string[] | null
           created_at?: string | null
-          created_by?: string
           description?: string | null
-          file_id?: string
-          file_size?: number | null
+          doc_number?: string | null
+          eco_id?: string
+          gate_name?: string | null
           id?: string
-          inspection_hash?: string | null
-          part_number?: string | null
-          revision?: string
-          state?: string
-          version?: number
-          workflow_state_id?: string | null
+          informed_text?: string | null
+          informed_user_ids?: string[] | null
+          is_required_for_gate?: boolean | null
+          link_file_id?: string | null
+          link_url?: string | null
+          name?: string
+          notes?: string | null
+          phase_name?: string
+          phase_sort_order?: number | null
+          responsible_text?: string | null
+          responsible_user_id?: string | null
+          sort_order?: number
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["checklist_item_status"] | null
+          target_date?: string | null
+          template_item_id?: string | null
+          uid?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "file_versions_created_by_fkey"
-            columns: ["created_by"]
+            foreignKeyName: "eco_checklist_item_accountable_user_id_fkey"
+            columns: ["accountable_user_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "file_versions_file_id_fkey"
-            columns: ["file_id"]
+            foreignKeyName: "eco_checklist_item_completed_by_fkey"
+            columns: ["completed_by"]
             isOneToOne: false
-            referencedRelation: "files"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "file_versions_file_id_fkey"
-            columns: ["file_id"]
+            foreignKeyName: "eco_checklist_item_eco_id_fkey"
+            columns: ["eco_id"]
             isOneToOne: false
-            referencedRelation: "parts_with_pricing"
+            referencedRelation: "eco"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "file_versions_workflow_state_id_fkey"
-            columns: ["workflow_state_id"]
+            foreignKeyName: "eco_checklist_item_link_file_id_fkey"
+            columns: ["link_file_id"]
             isOneToOne: false
-            referencedRelation: "workflow_states"
+            referencedRelation: "file"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eco_checklist_item_link_file_id_fkey"
+            columns: ["link_file_id"]
+            isOneToOne: false
+            referencedRelation: "part_with_pricing"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eco_checklist_item_responsible_user_id_fkey"
+            columns: ["responsible_user_id"]
+            isOneToOne: false
+            referencedRelation: "app_user"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eco_checklist_item_template_item_id_fkey"
+            columns: ["template_item_id"]
+            isOneToOne: false
+            referencedRelation: "process_template_item"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eco_checklist_item_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
         ]
       }
-      file_watchers: {
+      eco_gate_approval: {
         Row: {
+          approved_at: string | null
+          approved_by: string | null
           created_at: string | null
-          file_id: string
+          eco_id: string
+          gate_name: string
           id: string
-          notify_on_checkin: boolean | null
-          notify_on_checkout: boolean | null
-          notify_on_review: boolean | null
-          notify_on_state_change: boolean | null
-          org_id: string
-          user_id: string
+          is_approved: boolean | null
+          notes: string | null
+          phase_name: string | null
         }
         Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
           created_at?: string | null
-          file_id: string
+          eco_id: string
+          gate_name: string
           id?: string
-          notify_on_checkin?: boolean | null
-          notify_on_checkout?: boolean | null
-          notify_on_review?: boolean | null
-          notify_on_state_change?: boolean | null
-          org_id: string
-          user_id: string
+          is_approved?: boolean | null
+          notes?: string | null
+          phase_name?: string | null
         }
         Update: {
+          approved_at?: string | null
+          approved_by?: string | null
           created_at?: string | null
-          file_id?: string
+          eco_id?: string
+          gate_name?: string
           id?: string
-          notify_on_checkin?: boolean | null
-          notify_on_checkout?: boolean | null
-          notify_on_review?: boolean | null
-          notify_on_state_change?: boolean | null
-          org_id?: string
-          user_id?: string
+          is_approved?: boolean | null
+          notes?: string | null
+          phase_name?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "file_watchers_file_id_fkey"
-            columns: ["file_id"]
+            foreignKeyName: "eco_gate_approval_approved_by_fkey"
+            columns: ["approved_by"]
             isOneToOne: false
-            referencedRelation: "files"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "file_watchers_file_id_fkey"
-            columns: ["file_id"]
+            foreignKeyName: "eco_gate_approval_eco_id_fkey"
+            columns: ["eco_id"]
             isOneToOne: false
-            referencedRelation: "parts_with_pricing"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "file_watchers_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "file_watchers_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "eco"
             referencedColumns: ["id"]
           },
         ]
       }
-      file_workflow_assignments: {
-        Row: {
-          assigned_at: string | null
-          assigned_by: string | null
-          current_state_id: string | null
-          file_id: string
-          id: string
-          workflow_id: string
-        }
-        Insert: {
-          assigned_at?: string | null
-          assigned_by?: string | null
-          current_state_id?: string | null
-          file_id: string
-          id?: string
-          workflow_id: string
-        }
-        Update: {
-          assigned_at?: string | null
-          assigned_by?: string | null
-          current_state_id?: string | null
-          file_id?: string
-          id?: string
-          workflow_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "file_workflow_assignments_assigned_by_fkey"
-            columns: ["assigned_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "file_workflow_assignments_current_state_id_fkey"
-            columns: ["current_state_id"]
-            isOneToOne: false
-            referencedRelation: "workflow_states"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "file_workflow_assignments_file_id_fkey"
-            columns: ["file_id"]
-            isOneToOne: true
-            referencedRelation: "files"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "file_workflow_assignments_file_id_fkey"
-            columns: ["file_id"]
-            isOneToOne: true
-            referencedRelation: "parts_with_pricing"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "file_workflow_assignments_workflow_id_fkey"
-            columns: ["workflow_id"]
-            isOneToOne: false
-            referencedRelation: "workflow_templates"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      files: {
+      file: {
         Row: {
           checked_out_at: string | null
           checked_out_by: string | null
@@ -2664,7 +1883,7 @@ export type Database = {
           state_changed_by: string | null
           updated_at: string | null
           updated_by: string | null
-          vault_id: string | null
+          vault_id: string
           version: number
           workflow_state_id: string | null
         }
@@ -2700,7 +1919,7 @@ export type Database = {
           state_changed_by?: string | null
           updated_at?: string | null
           updated_by?: string | null
-          vault_id?: string | null
+          vault_id: string
           version?: number
           workflow_state_id?: string | null
         }
@@ -2736,70 +1955,907 @@ export type Database = {
           state_changed_by?: string | null
           updated_at?: string | null
           updated_by?: string | null
-          vault_id?: string | null
+          vault_id?: string
           version?: number
           workflow_state_id?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "files_checked_out_by_fkey"
+            foreignKeyName: "file_checked_out_by_fkey"
             columns: ["checked_out_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "files_created_by_fkey"
+            foreignKeyName: "file_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "files_deleted_by_fkey"
+            foreignKeyName: "file_deleted_by_fkey"
             columns: ["deleted_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "files_org_id_fkey"
+            foreignKeyName: "file_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "files_state_changed_by_fkey"
+            foreignKeyName: "file_state_changed_by_fkey"
             columns: ["state_changed_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "files_updated_by_fkey"
+            foreignKeyName: "file_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "files_vault_id_fkey"
+            foreignKeyName: "file_vault_id_fkey"
             columns: ["vault_id"]
             isOneToOne: false
-            referencedRelation: "vaults"
+            referencedRelation: "vault"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "files_workflow_state_id_fkey"
+            foreignKeyName: "file_workflow_state_id_fkey"
             columns: ["workflow_state_id"]
             isOneToOne: false
-            referencedRelation: "workflow_states"
+            referencedRelation: "workflow_state"
             referencedColumns: ["id"]
           },
         ]
       }
-      folders: {
+      file_comment: {
+        Row: {
+          annotation_type: string | null
+          comment: string
+          created_at: string | null
+          edited_at: string | null
+          file_id: string
+          file_version: number | null
+          id: string
+          is_resolved: boolean | null
+          page_number: number | null
+          parent_id: string | null
+          position: Json | null
+          resolved_at: string | null
+          resolved_by: string | null
+          review_id: string | null
+          review_item_id: string | null
+          review_round: number | null
+          user_id: string
+        }
+        Insert: {
+          annotation_type?: string | null
+          comment: string
+          created_at?: string | null
+          edited_at?: string | null
+          file_id: string
+          file_version?: number | null
+          id?: string
+          is_resolved?: boolean | null
+          page_number?: number | null
+          parent_id?: string | null
+          position?: Json | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          review_id?: string | null
+          review_item_id?: string | null
+          review_round?: number | null
+          user_id: string
+        }
+        Update: {
+          annotation_type?: string | null
+          comment?: string
+          created_at?: string | null
+          edited_at?: string | null
+          file_id?: string
+          file_version?: number | null
+          id?: string
+          is_resolved?: boolean | null
+          page_number?: number | null
+          parent_id?: string | null
+          position?: Json | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          review_id?: string | null
+          review_item_id?: string | null
+          review_round?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "file_comment_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "file"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_comment_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "part_with_pricing"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_comment_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "file_comment"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_comment_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "app_user"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_comment_review_id_fkey"
+            columns: ["review_id"]
+            isOneToOne: false
+            referencedRelation: "review"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_comment_review_item_id_fkey"
+            columns: ["review_item_id"]
+            isOneToOne: false
+            referencedRelation: "review_item"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_comment_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "app_user"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      file_deviation: {
+        Row: {
+          created_at: string | null
+          created_by: string
+          deviation_id: string
+          file_id: string
+          file_revision: string | null
+          file_version: number | null
+          id: string
+          notes: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by: string
+          deviation_id: string
+          file_id: string
+          file_revision?: string | null
+          file_version?: number | null
+          id?: string
+          notes?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string
+          deviation_id?: string
+          file_id?: string
+          file_revision?: string | null
+          file_version?: number | null
+          id?: string
+          notes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "file_deviation_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_user"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_deviation_deviation_id_fkey"
+            columns: ["deviation_id"]
+            isOneToOne: false
+            referencedRelation: "deviation"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_deviation_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "file"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_deviation_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "part_with_pricing"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      file_eco: {
+        Row: {
+          created_at: string | null
+          created_by: string
+          eco_id: string
+          file_id: string
+          id: string
+          notes: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by: string
+          eco_id: string
+          file_id: string
+          id?: string
+          notes?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string
+          eco_id?: string
+          file_id?: string
+          id?: string
+          notes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "file_eco_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_user"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_eco_eco_id_fkey"
+            columns: ["eco_id"]
+            isOneToOne: false
+            referencedRelation: "eco"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_eco_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "file"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_eco_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "part_with_pricing"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      file_metadata_column: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          data_type: Database["public"]["Enums"]["metadata_column_type"]
+          default_value: string | null
+          id: string
+          is_required: boolean
+          is_sortable: boolean
+          is_visible: boolean
+          label: string
+          name: string
+          org_id: string
+          select_options: string[]
+          sort_order: number
+          updated_at: string | null
+          updated_by: string | null
+          width: number
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          data_type?: Database["public"]["Enums"]["metadata_column_type"]
+          default_value?: string | null
+          id?: string
+          is_required?: boolean
+          is_sortable?: boolean
+          is_visible?: boolean
+          label: string
+          name: string
+          org_id: string
+          select_options?: string[]
+          sort_order?: number
+          updated_at?: string | null
+          updated_by?: string | null
+          width?: number
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          data_type?: Database["public"]["Enums"]["metadata_column_type"]
+          default_value?: string | null
+          id?: string
+          is_required?: boolean
+          is_sortable?: boolean
+          is_visible?: boolean
+          label?: string
+          name?: string
+          org_id?: string
+          select_options?: string[]
+          sort_order?: number
+          updated_at?: string | null
+          updated_by?: string | null
+          width?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "file_metadata_column_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_user"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_metadata_column_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organization"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_metadata_column_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "app_user"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      file_reference: {
+        Row: {
+          child_file_id: string
+          configuration: string | null
+          created_at: string | null
+          id: string
+          org_id: string
+          parent_file_id: string
+          quantity: number | null
+          reference_type: Database["public"]["Enums"]["reference_type"] | null
+          updated_at: string | null
+        }
+        Insert: {
+          child_file_id: string
+          configuration?: string | null
+          created_at?: string | null
+          id?: string
+          org_id: string
+          parent_file_id: string
+          quantity?: number | null
+          reference_type?: Database["public"]["Enums"]["reference_type"] | null
+          updated_at?: string | null
+        }
+        Update: {
+          child_file_id?: string
+          configuration?: string | null
+          created_at?: string | null
+          id?: string
+          org_id?: string
+          parent_file_id?: string
+          quantity?: number | null
+          reference_type?: Database["public"]["Enums"]["reference_type"] | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "file_reference_child_file_id_fkey"
+            columns: ["child_file_id"]
+            isOneToOne: false
+            referencedRelation: "file"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_reference_child_file_id_fkey"
+            columns: ["child_file_id"]
+            isOneToOne: false
+            referencedRelation: "part_with_pricing"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_reference_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organization"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_reference_parent_file_id_fkey"
+            columns: ["parent_file_id"]
+            isOneToOne: false
+            referencedRelation: "file"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_reference_parent_file_id_fkey"
+            columns: ["parent_file_id"]
+            isOneToOne: false
+            referencedRelation: "part_with_pricing"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      file_share_link: {
+        Row: {
+          can_download: boolean | null
+          created_at: string | null
+          created_by: string
+          download_count: number | null
+          expires_at: string | null
+          file_id: string
+          file_version: number | null
+          id: string
+          is_active: boolean | null
+          is_auth_required: boolean | null
+          last_accessed_at: string | null
+          max_downloads: number | null
+          org_id: string
+          password_hash: string | null
+          token: string
+        }
+        Insert: {
+          can_download?: boolean | null
+          created_at?: string | null
+          created_by: string
+          download_count?: number | null
+          expires_at?: string | null
+          file_id: string
+          file_version?: number | null
+          id?: string
+          is_active?: boolean | null
+          is_auth_required?: boolean | null
+          last_accessed_at?: string | null
+          max_downloads?: number | null
+          org_id: string
+          password_hash?: string | null
+          token: string
+        }
+        Update: {
+          can_download?: boolean | null
+          created_at?: string | null
+          created_by?: string
+          download_count?: number | null
+          expires_at?: string | null
+          file_id?: string
+          file_version?: number | null
+          id?: string
+          is_active?: boolean | null
+          is_auth_required?: boolean | null
+          last_accessed_at?: string | null
+          max_downloads?: number | null
+          org_id?: string
+          password_hash?: string | null
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "file_share_link_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_user"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_share_link_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "file"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_share_link_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "part_with_pricing"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_share_link_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organization"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      file_state_entry: {
+        Row: {
+          duration_seconds: number | null
+          entered_at: string | null
+          entered_by: string | null
+          exited_at: string | null
+          exited_by: string | null
+          file_id: string
+          id: string
+          state_id: string
+        }
+        Insert: {
+          duration_seconds?: number | null
+          entered_at?: string | null
+          entered_by?: string | null
+          exited_at?: string | null
+          exited_by?: string | null
+          file_id: string
+          id?: string
+          state_id: string
+        }
+        Update: {
+          duration_seconds?: number | null
+          entered_at?: string | null
+          entered_by?: string | null
+          exited_at?: string | null
+          exited_by?: string | null
+          file_id?: string
+          id?: string
+          state_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "file_state_entry_entered_by_fkey"
+            columns: ["entered_by"]
+            isOneToOne: false
+            referencedRelation: "app_user"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_state_entry_exited_by_fkey"
+            columns: ["exited_by"]
+            isOneToOne: false
+            referencedRelation: "app_user"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_state_entry_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "file"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_state_entry_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "part_with_pricing"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_state_entry_state_id_fkey"
+            columns: ["state_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_state"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      file_version: {
+        Row: {
+          comment: string | null
+          content_hash: string
+          created_at: string | null
+          created_by: string
+          description: string | null
+          file_id: string
+          file_size: number | null
+          id: string
+          inspection_hash: string | null
+          part_number: string | null
+          references_recorded_at: string | null
+          revision: string
+          state: string
+          version: number
+          workflow_state_id: string | null
+        }
+        Insert: {
+          comment?: string | null
+          content_hash: string
+          created_at?: string | null
+          created_by: string
+          description?: string | null
+          file_id: string
+          file_size?: number | null
+          id?: string
+          inspection_hash?: string | null
+          part_number?: string | null
+          references_recorded_at?: string | null
+          revision: string
+          state?: string
+          version: number
+          workflow_state_id?: string | null
+        }
+        Update: {
+          comment?: string | null
+          content_hash?: string
+          created_at?: string | null
+          created_by?: string
+          description?: string | null
+          file_id?: string
+          file_size?: number | null
+          id?: string
+          inspection_hash?: string | null
+          part_number?: string | null
+          references_recorded_at?: string | null
+          revision?: string
+          state?: string
+          version?: number
+          workflow_state_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "file_version_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_user"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_version_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "file"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_version_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "part_with_pricing"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_version_workflow_state_id_fkey"
+            columns: ["workflow_state_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_state"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      file_version_reference: {
+        Row: {
+          child_file_id: string | null
+          child_path: string
+          child_version_id: string | null
+          configuration: string | null
+          created_at: string
+          id: string
+          is_exact: boolean
+          org_id: string
+          parent_file_id: string
+          parent_version_id: string
+          quantity: number
+          reference_type: Database["public"]["Enums"]["reference_type"]
+        }
+        Insert: {
+          child_file_id?: string | null
+          child_path: string
+          child_version_id?: string | null
+          configuration?: string | null
+          created_at?: string
+          id?: string
+          is_exact?: boolean
+          org_id: string
+          parent_file_id: string
+          parent_version_id: string
+          quantity?: number
+          reference_type?: Database["public"]["Enums"]["reference_type"]
+        }
+        Update: {
+          child_file_id?: string | null
+          child_path?: string
+          child_version_id?: string | null
+          configuration?: string | null
+          created_at?: string
+          id?: string
+          is_exact?: boolean
+          org_id?: string
+          parent_file_id?: string
+          parent_version_id?: string
+          quantity?: number
+          reference_type?: Database["public"]["Enums"]["reference_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "file_version_reference_child_file_id_fkey"
+            columns: ["child_file_id"]
+            isOneToOne: false
+            referencedRelation: "file"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_version_reference_child_file_id_fkey"
+            columns: ["child_file_id"]
+            isOneToOne: false
+            referencedRelation: "part_with_pricing"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_version_reference_child_version_id_fkey"
+            columns: ["child_version_id"]
+            isOneToOne: false
+            referencedRelation: "file_version"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_version_reference_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organization"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_version_reference_parent_file_id_fkey"
+            columns: ["parent_file_id"]
+            isOneToOne: false
+            referencedRelation: "file"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_version_reference_parent_file_id_fkey"
+            columns: ["parent_file_id"]
+            isOneToOne: false
+            referencedRelation: "part_with_pricing"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_version_reference_parent_version_id_fkey"
+            columns: ["parent_version_id"]
+            isOneToOne: false
+            referencedRelation: "file_version"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      file_watcher: {
+        Row: {
+          created_at: string | null
+          file_id: string
+          id: string
+          is_notified_on_checkin: boolean | null
+          is_notified_on_checkout: boolean | null
+          is_notified_on_review: boolean | null
+          is_notified_on_state_change: boolean | null
+          org_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          file_id: string
+          id?: string
+          is_notified_on_checkin?: boolean | null
+          is_notified_on_checkout?: boolean | null
+          is_notified_on_review?: boolean | null
+          is_notified_on_state_change?: boolean | null
+          org_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          file_id?: string
+          id?: string
+          is_notified_on_checkin?: boolean | null
+          is_notified_on_checkout?: boolean | null
+          is_notified_on_review?: boolean | null
+          is_notified_on_state_change?: boolean | null
+          org_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "file_watcher_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "file"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_watcher_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "part_with_pricing"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_watcher_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organization"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_watcher_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "app_user"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      file_workflow_assignment: {
+        Row: {
+          assigned_at: string | null
+          assigned_by: string | null
+          current_state_id: string | null
+          file_id: string
+          id: string
+          workflow_id: string
+        }
+        Insert: {
+          assigned_at?: string | null
+          assigned_by?: string | null
+          current_state_id?: string | null
+          file_id: string
+          id?: string
+          workflow_id: string
+        }
+        Update: {
+          assigned_at?: string | null
+          assigned_by?: string | null
+          current_state_id?: string | null
+          file_id?: string
+          id?: string
+          workflow_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "file_workflow_assignment_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "app_user"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_workflow_assignment_current_state_id_fkey"
+            columns: ["current_state_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_state"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_workflow_assignment_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: true
+            referencedRelation: "file"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_workflow_assignment_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: true
+            referencedRelation: "part_with_pricing"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_workflow_assignment_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_template"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      folder: {
         Row: {
           created_at: string | null
           created_by: string | null
@@ -2832,138 +2888,36 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "folders_created_by_fkey"
+            foreignKeyName: "folder_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "folders_deleted_by_fkey"
+            foreignKeyName: "folder_deleted_by_fkey"
             columns: ["deleted_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "folders_org_id_fkey"
+            foreignKeyName: "folder_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "folders_vault_id_fkey"
+            foreignKeyName: "folder_vault_id_fkey"
             columns: ["vault_id"]
             isOneToOne: false
-            referencedRelation: "vaults"
+            referencedRelation: "vault"
             referencedColumns: ["id"]
           },
         ]
       }
-      inspection_characteristic_versions: {
-        Row: {
-          aql: string | null
-          balloon_number: string | null
-          char_id: string | null
-          char_type: string | null
-          classification: string | null
-          comments: string | null
-          created_at: string | null
-          file_version_id: string
-          id: string
-          inspection_method: string | null
-          internal_inspection_rate: number | null
-          is_key: boolean
-          lower_limit: string | null
-          minus_tolerance: string | null
-          nominal_value: string | null
-          operation: string | null
-          org_id: string
-          plus_tolerance: string | null
-          reference: string | null
-          sample_size: number | null
-          sort_order: number
-          sub_type: string | null
-          supplier_inspection_rate: number | null
-          unit: string | null
-          upper_limit: string | null
-          zone: string | null
-        }
-        Insert: {
-          aql?: string | null
-          balloon_number?: string | null
-          char_id?: string | null
-          char_type?: string | null
-          classification?: string | null
-          comments?: string | null
-          created_at?: string | null
-          file_version_id: string
-          id?: string
-          inspection_method?: string | null
-          internal_inspection_rate?: number | null
-          is_key?: boolean
-          lower_limit?: string | null
-          minus_tolerance?: string | null
-          nominal_value?: string | null
-          operation?: string | null
-          org_id: string
-          plus_tolerance?: string | null
-          reference?: string | null
-          sample_size?: number | null
-          sort_order?: number
-          sub_type?: string | null
-          supplier_inspection_rate?: number | null
-          unit?: string | null
-          upper_limit?: string | null
-          zone?: string | null
-        }
-        Update: {
-          aql?: string | null
-          balloon_number?: string | null
-          char_id?: string | null
-          char_type?: string | null
-          classification?: string | null
-          comments?: string | null
-          created_at?: string | null
-          file_version_id?: string
-          id?: string
-          inspection_method?: string | null
-          internal_inspection_rate?: number | null
-          is_key?: boolean
-          lower_limit?: string | null
-          minus_tolerance?: string | null
-          nominal_value?: string | null
-          operation?: string | null
-          org_id?: string
-          plus_tolerance?: string | null
-          reference?: string | null
-          sample_size?: number | null
-          sort_order?: number
-          sub_type?: string | null
-          supplier_inspection_rate?: number | null
-          unit?: string | null
-          upper_limit?: string | null
-          zone?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "inspection_characteristic_versions_file_version_id_fkey"
-            columns: ["file_version_id"]
-            isOneToOne: false
-            referencedRelation: "file_versions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "inspection_characteristic_versions_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      inspection_characteristics: {
+      inspection_characteristic: {
         Row: {
           aql: string | null
           balloon_number: string | null
@@ -2987,6 +2941,9 @@ export type Database = {
           reference: string | null
           sample_size: number | null
           sort_order: number
+          source_key: string | null
+          source_sheet: string | null
+          source_view: string | null
           sub_type: string | null
           supplier_inspection_rate: number | null
           unit: string | null
@@ -3018,6 +2975,9 @@ export type Database = {
           reference?: string | null
           sample_size?: number | null
           sort_order?: number
+          source_key?: string | null
+          source_sheet?: string | null
+          source_view?: string | null
           sub_type?: string | null
           supplier_inspection_rate?: number | null
           unit?: string | null
@@ -3049,6 +3009,9 @@ export type Database = {
           reference?: string | null
           sample_size?: number | null
           sort_order?: number
+          source_key?: string | null
+          source_sheet?: string | null
+          source_view?: string | null
           sub_type?: string | null
           supplier_inspection_rate?: number | null
           unit?: string | null
@@ -3059,43 +3022,154 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "inspection_characteristics_created_by_fkey"
+            foreignKeyName: "inspection_characteristic_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "inspection_characteristics_file_id_fkey"
+            foreignKeyName: "inspection_characteristic_file_id_fkey"
             columns: ["file_id"]
             isOneToOne: false
-            referencedRelation: "files"
+            referencedRelation: "file"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "inspection_characteristics_file_id_fkey"
+            foreignKeyName: "inspection_characteristic_file_id_fkey"
             columns: ["file_id"]
             isOneToOne: false
-            referencedRelation: "parts_with_pricing"
+            referencedRelation: "part_with_pricing"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "inspection_characteristics_org_id_fkey"
+            foreignKeyName: "inspection_characteristic_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "inspection_characteristics_updated_by_fkey"
+            foreignKeyName: "inspection_characteristic_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
         ]
       }
-      inspection_methods: {
+      inspection_characteristic_version: {
+        Row: {
+          aql: string | null
+          balloon_number: string | null
+          char_id: string | null
+          char_type: string | null
+          classification: string | null
+          comments: string | null
+          created_at: string | null
+          file_version_id: string
+          id: string
+          inspection_method: string | null
+          internal_inspection_rate: number | null
+          is_key: boolean
+          lower_limit: string | null
+          minus_tolerance: string | null
+          nominal_value: string | null
+          operation: string | null
+          org_id: string
+          plus_tolerance: string | null
+          reference: string | null
+          sample_size: number | null
+          sort_order: number
+          source_key: string | null
+          source_sheet: string | null
+          source_view: string | null
+          sub_type: string | null
+          supplier_inspection_rate: number | null
+          unit: string | null
+          upper_limit: string | null
+          zone: string | null
+        }
+        Insert: {
+          aql?: string | null
+          balloon_number?: string | null
+          char_id?: string | null
+          char_type?: string | null
+          classification?: string | null
+          comments?: string | null
+          created_at?: string | null
+          file_version_id: string
+          id?: string
+          inspection_method?: string | null
+          internal_inspection_rate?: number | null
+          is_key?: boolean
+          lower_limit?: string | null
+          minus_tolerance?: string | null
+          nominal_value?: string | null
+          operation?: string | null
+          org_id: string
+          plus_tolerance?: string | null
+          reference?: string | null
+          sample_size?: number | null
+          sort_order?: number
+          source_key?: string | null
+          source_sheet?: string | null
+          source_view?: string | null
+          sub_type?: string | null
+          supplier_inspection_rate?: number | null
+          unit?: string | null
+          upper_limit?: string | null
+          zone?: string | null
+        }
+        Update: {
+          aql?: string | null
+          balloon_number?: string | null
+          char_id?: string | null
+          char_type?: string | null
+          classification?: string | null
+          comments?: string | null
+          created_at?: string | null
+          file_version_id?: string
+          id?: string
+          inspection_method?: string | null
+          internal_inspection_rate?: number | null
+          is_key?: boolean
+          lower_limit?: string | null
+          minus_tolerance?: string | null
+          nominal_value?: string | null
+          operation?: string | null
+          org_id?: string
+          plus_tolerance?: string | null
+          reference?: string | null
+          sample_size?: number | null
+          sort_order?: number
+          source_key?: string | null
+          source_sheet?: string | null
+          source_view?: string | null
+          sub_type?: string | null
+          supplier_inspection_rate?: number | null
+          unit?: string | null
+          upper_limit?: string | null
+          zone?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inspection_characteristic_version_file_version_id_fkey"
+            columns: ["file_version_id"]
+            isOneToOne: false
+            referencedRelation: "file_version"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inspection_characteristic_version_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organization"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inspection_method: {
         Row: {
           created_at: string | null
           created_by: string | null
@@ -3119,22 +3193,22 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "inspection_methods_created_by_fkey"
+            foreignKeyName: "inspection_method_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "inspection_methods_org_id_fkey"
+            foreignKeyName: "inspection_method_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
         ]
       }
-      integration_credentials: {
+      integration_credential: {
         Row: {
           created_at: string | null
           id: string
@@ -3167,24 +3241,23 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "integration_credentials_org_id_fkey"
+            foreignKeyName: "integration_credential_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "integration_credentials_updated_by_fkey"
+            foreignKeyName: "integration_credential_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
         ]
       }
       integration_sync_log: {
         Row: {
-          cancel_requested: boolean
           cancel_requested_by: string | null
           completed_at: string | null
           error_details: Json | null
@@ -3192,6 +3265,7 @@ export type Database = {
           heartbeat_at: string | null
           id: string
           integration_id: string
+          is_cancel_requested: boolean
           org_id: string
           phase: string | null
           phase_count: number | null
@@ -3207,12 +3281,11 @@ export type Database = {
           status: string
           sync_direction: string
           sync_type: string
-          sync_watermark: string | null
+          sync_watermark_at: string | null
           trigger_type: string | null
           triggered_by: string | null
         }
         Insert: {
-          cancel_requested?: boolean
           cancel_requested_by?: string | null
           completed_at?: string | null
           error_details?: Json | null
@@ -3220,6 +3293,7 @@ export type Database = {
           heartbeat_at?: string | null
           id?: string
           integration_id: string
+          is_cancel_requested?: boolean
           org_id: string
           phase?: string | null
           phase_count?: number | null
@@ -3235,12 +3309,11 @@ export type Database = {
           status: string
           sync_direction?: string
           sync_type: string
-          sync_watermark?: string | null
+          sync_watermark_at?: string | null
           trigger_type?: string | null
           triggered_by?: string | null
         }
         Update: {
-          cancel_requested?: boolean
           cancel_requested_by?: string | null
           completed_at?: string | null
           error_details?: Json | null
@@ -3248,6 +3321,7 @@ export type Database = {
           heartbeat_at?: string | null
           id?: string
           integration_id?: string
+          is_cancel_requested?: boolean
           org_id?: string
           phase?: string | null
           phase_count?: number | null
@@ -3263,7 +3337,7 @@ export type Database = {
           status?: string
           sync_direction?: string
           sync_type?: string
-          sync_watermark?: string | null
+          sync_watermark_at?: string | null
           trigger_type?: string | null
           triggered_by?: string | null
         }
@@ -3272,33 +3346,75 @@ export type Database = {
             foreignKeyName: "integration_sync_log_cancel_requested_by_fkey"
             columns: ["cancel_requested_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "integration_sync_log_integration_id_fkey"
             columns: ["integration_id"]
             isOneToOne: false
-            referencedRelation: "organization_integrations"
+            referencedRelation: "org_integration"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "integration_sync_log_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "integration_sync_log_triggered_by_fkey"
             columns: ["triggered_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
         ]
       }
-      item_designation_assignments: {
+      item_designation: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          id: string
+          name: string
+          org_id: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          name: string
+          org_id: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          name?: string
+          org_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "item_designation_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_user"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "item_designation_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organization"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      item_designation_assignment: {
         Row: {
           designation_id: string
           id: string
@@ -3328,78 +3444,36 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "item_designation_assignments_designation_id_fkey"
+            foreignKeyName: "item_designation_assignment_designation_id_fkey"
             columns: ["designation_id"]
             isOneToOne: false
-            referencedRelation: "item_designations"
+            referencedRelation: "item_designation"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "item_designation_assignments_org_id_fkey"
+            foreignKeyName: "item_designation_assignment_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "item_designation_assignments_updated_by_fkey"
+            foreignKeyName: "item_designation_assignment_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "item_designation_assignments_vault_id_fkey"
+            foreignKeyName: "item_designation_assignment_vault_id_fkey"
             columns: ["vault_id"]
             isOneToOne: false
-            referencedRelation: "vaults"
+            referencedRelation: "vault"
             referencedColumns: ["id"]
           },
         ]
       }
-      item_designations: {
-        Row: {
-          created_at: string | null
-          created_by: string | null
-          id: string
-          name: string
-          org_id: string
-          sort_order: number
-        }
-        Insert: {
-          created_at?: string | null
-          created_by?: string | null
-          id?: string
-          name: string
-          org_id: string
-          sort_order?: number
-        }
-        Update: {
-          created_at?: string | null
-          created_by?: string | null
-          id?: string
-          name?: string
-          org_id?: string
-          sort_order?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "item_designations_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "item_designations_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      item_images: {
+      item_image: {
         Row: {
           icon_color: string | null
           icon_name: string | null
@@ -3435,22 +3509,22 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "item_images_org_id_fkey"
+            foreignKeyName: "item_image_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "item_images_updated_by_fkey"
+            foreignKeyName: "item_image_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
         ]
       }
-      job_titles: {
+      job_title: {
         Row: {
           color: string | null
           created_at: string | null
@@ -3492,24 +3566,24 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "job_titles_created_by_fkey"
+            foreignKeyName: "job_title_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "job_titles_org_id_fkey"
+            foreignKeyName: "job_title_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "job_titles_updated_by_fkey"
+            foreignKeyName: "job_title_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
         ]
@@ -3547,35 +3621,34 @@ export type Database = {
             foreignKeyName: "module_access_granted_by_fkey"
             columns: ["granted_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "module_access_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "module_access_team_id_fkey"
             columns: ["team_id"]
             isOneToOne: false
-            referencedRelation: "teams"
+            referencedRelation: "team"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "module_access_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
         ]
       }
-      notifications: {
+      notification: {
         Row: {
-          action_completed: boolean | null
           action_completed_at: string | null
           action_type: string | null
           action_url: string | null
@@ -3586,17 +3659,17 @@ export type Database = {
           expires_at: string | null
           from_user_id: string | null
           id: string
+          is_action_completed: boolean | null
+          is_read: boolean | null
           message: string | null
           org_id: string
           priority: string | null
-          read: boolean | null
           read_at: string | null
           title: string
           type: string
           user_id: string
         }
         Insert: {
-          action_completed?: boolean | null
           action_completed_at?: string | null
           action_type?: string | null
           action_url?: string | null
@@ -3607,17 +3680,17 @@ export type Database = {
           expires_at?: string | null
           from_user_id?: string | null
           id?: string
+          is_action_completed?: boolean | null
+          is_read?: boolean | null
           message?: string | null
           org_id: string
           priority?: string | null
-          read?: boolean | null
           read_at?: string | null
           title: string
           type: string
           user_id: string
         }
         Update: {
-          action_completed?: boolean | null
           action_completed_at?: string | null
           action_type?: string | null
           action_url?: string | null
@@ -3628,10 +3701,11 @@ export type Database = {
           expires_at?: string | null
           from_user_id?: string | null
           id?: string
+          is_action_completed?: boolean | null
+          is_read?: boolean | null
           message?: string | null
           org_id?: string
           priority?: string | null
-          read?: boolean | null
           read_at?: string | null
           title?: string
           type?: string
@@ -3639,31 +3713,30 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "notifications_from_user_id_fkey"
+            foreignKeyName: "notification_from_user_id_fkey"
             columns: ["from_user_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "notifications_org_id_fkey"
+            foreignKeyName: "notification_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "notifications_user_id_fkey"
+            foreignKeyName: "notification_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
         ]
       }
-      odoo_saved_configs: {
+      odoo_saved_config: {
         Row: {
-          api_key_encrypted: string | null
           color: string | null
           created_at: string | null
           created_by: string | null
@@ -3671,8 +3744,8 @@ export type Database = {
           description: string | null
           id: string
           is_active: boolean | null
+          is_last_test_successful: boolean | null
           last_test_error: string | null
-          last_test_success: boolean | null
           last_tested_at: string | null
           name: string
           org_id: string
@@ -3682,7 +3755,6 @@ export type Database = {
           username: string
         }
         Insert: {
-          api_key_encrypted?: string | null
           color?: string | null
           created_at?: string | null
           created_by?: string | null
@@ -3690,8 +3762,8 @@ export type Database = {
           description?: string | null
           id?: string
           is_active?: boolean | null
+          is_last_test_successful?: boolean | null
           last_test_error?: string | null
-          last_test_success?: boolean | null
           last_tested_at?: string | null
           name: string
           org_id: string
@@ -3701,7 +3773,6 @@ export type Database = {
           username: string
         }
         Update: {
-          api_key_encrypted?: string | null
           color?: string | null
           created_at?: string | null
           created_by?: string | null
@@ -3709,8 +3780,8 @@ export type Database = {
           description?: string | null
           id?: string
           is_active?: boolean | null
+          is_last_test_successful?: boolean | null
           last_test_error?: string | null
-          last_test_success?: boolean | null
           last_tested_at?: string | null
           name?: string
           org_id?: string
@@ -3721,122 +3792,29 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "odoo_saved_configs_created_by_fkey"
+            foreignKeyName: "odoo_saved_config_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "odoo_saved_configs_org_id_fkey"
+            foreignKeyName: "odoo_saved_config_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "odoo_saved_configs_updated_by_fkey"
+            foreignKeyName: "odoo_saved_config_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
         ]
       }
-      org_extension_config: {
-        Row: {
-          config: Json | null
-          extension_id: string
-          org_id: string
-          updated_at: string | null
-          updated_by: string | null
-        }
-        Insert: {
-          config?: Json | null
-          extension_id: string
-          org_id: string
-          updated_at?: string | null
-          updated_by?: string | null
-        }
-        Update: {
-          config?: Json | null
-          extension_id?: string
-          org_id?: string
-          updated_at?: string | null
-          updated_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "org_extension_config_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "org_extension_config_updated_by_fkey"
-            columns: ["updated_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      org_installed_extensions: {
-        Row: {
-          allowed_domains: string[]
-          enabled: boolean | null
-          extension_id: string
-          handlers: Json
-          installed_at: string | null
-          installed_by: string | null
-          manifest: Json
-          org_id: string
-          pinned_version: string | null
-          version: string
-        }
-        Insert: {
-          allowed_domains?: string[]
-          enabled?: boolean | null
-          extension_id: string
-          handlers?: Json
-          installed_at?: string | null
-          installed_by?: string | null
-          manifest: Json
-          org_id: string
-          pinned_version?: string | null
-          version: string
-        }
-        Update: {
-          allowed_domains?: string[]
-          enabled?: boolean | null
-          extension_id?: string
-          handlers?: Json
-          installed_at?: string | null
-          installed_by?: string | null
-          manifest?: Json
-          org_id?: string
-          pinned_version?: string | null
-          version?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "org_installed_extensions_installed_by_fkey"
-            columns: ["installed_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "org_installed_extensions_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      organization_addresses: {
+      org_address: {
         Row: {
           address_line1: string
           address_line2: string | null
@@ -3896,23 +3874,76 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "organization_addresses_org_id_fkey"
+            foreignKeyName: "org_address_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
         ]
       }
-      organization_integrations: {
+      org_installed_extension: {
         Row: {
-          auto_sync: boolean | null
+          category: string | null
+          extension_id: string
+          installed_at: string | null
+          installed_by: string | null
+          is_enabled: boolean | null
+          manifest: Json
+          org_id: string
+          package_path: string | null
+          package_sha256: string | null
+          version: string
+        }
+        Insert: {
+          category?: string | null
+          extension_id: string
+          installed_at?: string | null
+          installed_by?: string | null
+          is_enabled?: boolean | null
+          manifest: Json
+          org_id: string
+          package_path?: string | null
+          package_sha256?: string | null
+          version: string
+        }
+        Update: {
+          category?: string | null
+          extension_id?: string
+          installed_at?: string | null
+          installed_by?: string | null
+          is_enabled?: boolean | null
+          manifest?: Json
+          org_id?: string
+          package_path?: string | null
+          package_sha256?: string | null
+          version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_installed_extension_installed_by_fkey"
+            columns: ["installed_by"]
+            isOneToOne: false
+            referencedRelation: "app_user"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_installed_extension_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organization"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      org_integration: {
+        Row: {
           created_at: string | null
           created_by: string | null
-          credentials_encrypted: string | null
           id: string
           integration_type: string
           is_active: boolean | null
+          is_auto_sync: boolean | null
           is_connected: boolean | null
           last_connected_at: string | null
           last_error: string | null
@@ -3927,13 +3958,12 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
-          auto_sync?: boolean | null
           created_at?: string | null
           created_by?: string | null
-          credentials_encrypted?: string | null
           id?: string
           integration_type: string
           is_active?: boolean | null
+          is_auto_sync?: boolean | null
           is_connected?: boolean | null
           last_connected_at?: string | null
           last_error?: string | null
@@ -3948,13 +3978,12 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
-          auto_sync?: boolean | null
           created_at?: string | null
           created_by?: string | null
-          credentials_encrypted?: string | null
           id?: string
           integration_type?: string
           is_active?: boolean | null
+          is_auto_sync?: boolean | null
           is_connected?: boolean | null
           last_connected_at?: string | null
           last_error?: string | null
@@ -3970,29 +3999,29 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "organization_integrations_created_by_fkey"
+            foreignKeyName: "org_integration_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "organization_integrations_org_id_fkey"
+            foreignKeyName: "org_integration_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "organization_integrations_updated_by_fkey"
+            foreignKeyName: "org_integration_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
         ]
       }
-      organizations: {
+      organization: {
         Row: {
           address_line1: string | null
           address_line2: string | null
@@ -4006,9 +4035,9 @@ export type Database = {
           email_domains: string[]
           google_drive_client_id: string | null
           google_drive_client_secret: string | null
-          google_drive_enabled: boolean | null
           google_drive_inspection_template_folder_id: string | null
           id: string
+          is_google_drive_enabled: boolean | null
           item_definition_settings: Json | null
           logo_storage_path: string | null
           logo_url: string | null
@@ -4038,9 +4067,9 @@ export type Database = {
           email_domains?: string[]
           google_drive_client_id?: string | null
           google_drive_client_secret?: string | null
-          google_drive_enabled?: boolean | null
           google_drive_inspection_template_folder_id?: string | null
           id?: string
+          is_google_drive_enabled?: boolean | null
           item_definition_settings?: Json | null
           logo_storage_path?: string | null
           logo_url?: string | null
@@ -4072,9 +4101,9 @@ export type Database = {
           email_domains?: string[]
           google_drive_client_id?: string | null
           google_drive_client_secret?: string | null
-          google_drive_enabled?: boolean | null
           google_drive_inspection_template_folder_id?: string | null
           id?: string
+          is_google_drive_enabled?: boolean | null
           item_definition_settings?: Json | null
           logo_storage_path?: string | null
           logo_url?: string | null
@@ -4093,9 +4122,17 @@ export type Database = {
           state?: string | null
           website?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "organization_default_new_user_team_id_fkey"
+            columns: ["default_new_user_team_id"]
+            isOneToOne: false
+            referencedRelation: "team"
+            referencedColumns: ["id"]
+          },
+        ]
       }
-      part_suppliers: {
+      part_supplier: {
         Row: {
           created_at: string | null
           created_by: string | null
@@ -4107,7 +4144,6 @@ export type Database = {
           is_active: boolean | null
           is_preferred: boolean | null
           is_qualified: boolean | null
-          last_price_update: string | null
           lead_time_days: number | null
           min_order_qty: number | null
           notes: string | null
@@ -4115,6 +4151,7 @@ export type Database = {
           org_id: string
           price_breaks: Json | null
           price_unit: string | null
+          price_updated_at: string | null
           qualified_at: string | null
           qualified_by: string | null
           supplier_description: string | null
@@ -4136,7 +4173,6 @@ export type Database = {
           is_active?: boolean | null
           is_preferred?: boolean | null
           is_qualified?: boolean | null
-          last_price_update?: string | null
           lead_time_days?: number | null
           min_order_qty?: number | null
           notes?: string | null
@@ -4144,6 +4180,7 @@ export type Database = {
           org_id: string
           price_breaks?: Json | null
           price_unit?: string | null
+          price_updated_at?: string | null
           qualified_at?: string | null
           qualified_by?: string | null
           supplier_description?: string | null
@@ -4165,7 +4202,6 @@ export type Database = {
           is_active?: boolean | null
           is_preferred?: boolean | null
           is_qualified?: boolean | null
-          last_price_update?: string | null
           lead_time_days?: number | null
           min_order_qty?: number | null
           notes?: string | null
@@ -4173,6 +4209,7 @@ export type Database = {
           org_id?: string
           price_breaks?: Json | null
           price_unit?: string | null
+          price_updated_at?: string | null
           qualified_at?: string | null
           qualified_by?: string | null
           supplier_description?: string | null
@@ -4185,57 +4222,57 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "part_suppliers_created_by_fkey"
+            foreignKeyName: "part_supplier_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "part_suppliers_file_id_fkey"
+            foreignKeyName: "part_supplier_file_id_fkey"
             columns: ["file_id"]
             isOneToOne: false
-            referencedRelation: "files"
+            referencedRelation: "file"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "part_suppliers_file_id_fkey"
+            foreignKeyName: "part_supplier_file_id_fkey"
             columns: ["file_id"]
             isOneToOne: false
-            referencedRelation: "parts_with_pricing"
+            referencedRelation: "part_with_pricing"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "part_suppliers_org_id_fkey"
+            foreignKeyName: "part_supplier_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "part_suppliers_qualified_by_fkey"
+            foreignKeyName: "part_supplier_qualified_by_fkey"
             columns: ["qualified_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "part_suppliers_supplier_id_fkey"
+            foreignKeyName: "part_supplier_supplier_id_fkey"
             columns: ["supplier_id"]
             isOneToOne: false
-            referencedRelation: "suppliers"
+            referencedRelation: "supplier"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "part_suppliers_updated_by_fkey"
+            foreignKeyName: "part_supplier_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
         ]
       }
-      pending_org_members: {
+      pending_org_member: {
         Row: {
           claimed_at: string | null
           claimed_by: string | null
@@ -4289,140 +4326,29 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "pending_org_members_claimed_by_fkey"
+            foreignKeyName: "pending_org_member_claimed_by_fkey"
             columns: ["claimed_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "pending_org_members_invited_by_fkey"
+            foreignKeyName: "pending_org_member_invited_by_fkey"
             columns: ["invited_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "pending_org_members_org_id_fkey"
+            foreignKeyName: "pending_org_member_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
         ]
       }
-      pending_reviews: {
-        Row: {
-          assigned_to: string | null
-          checklist_responses: Json | null
-          created_at: string | null
-          expires_at: string | null
-          file_id: string
-          gate_id: string
-          id: string
-          org_id: string
-          requested_at: string | null
-          requested_by: string
-          review_comment: string | null
-          reviewed_at: string | null
-          reviewed_by: string | null
-          status: Database["public"]["Enums"]["review_status"]
-          transition_id: string
-        }
-        Insert: {
-          assigned_to?: string | null
-          checklist_responses?: Json | null
-          created_at?: string | null
-          expires_at?: string | null
-          file_id: string
-          gate_id: string
-          id?: string
-          org_id: string
-          requested_at?: string | null
-          requested_by: string
-          review_comment?: string | null
-          reviewed_at?: string | null
-          reviewed_by?: string | null
-          status?: Database["public"]["Enums"]["review_status"]
-          transition_id: string
-        }
-        Update: {
-          assigned_to?: string | null
-          checklist_responses?: Json | null
-          created_at?: string | null
-          expires_at?: string | null
-          file_id?: string
-          gate_id?: string
-          id?: string
-          org_id?: string
-          requested_at?: string | null
-          requested_by?: string
-          review_comment?: string | null
-          reviewed_at?: string | null
-          reviewed_by?: string | null
-          status?: Database["public"]["Enums"]["review_status"]
-          transition_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "pending_reviews_assigned_to_fkey"
-            columns: ["assigned_to"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "pending_reviews_file_id_fkey"
-            columns: ["file_id"]
-            isOneToOne: false
-            referencedRelation: "files"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "pending_reviews_file_id_fkey"
-            columns: ["file_id"]
-            isOneToOne: false
-            referencedRelation: "parts_with_pricing"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "pending_reviews_gate_id_fkey"
-            columns: ["gate_id"]
-            isOneToOne: false
-            referencedRelation: "workflow_gates"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "pending_reviews_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "pending_reviews_requested_by_fkey"
-            columns: ["requested_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "pending_reviews_reviewed_by_fkey"
-            columns: ["reviewed_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "pending_reviews_transition_id_fkey"
-            columns: ["transition_id"]
-            isOneToOne: false
-            referencedRelation: "workflow_transitions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      permission_presets: {
+      permission_preset: {
         Row: {
           color: string | null
           created_at: string | null
@@ -4467,138 +4393,29 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "permission_presets_created_by_fkey"
+            foreignKeyName: "permission_preset_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "permission_presets_org_id_fkey"
+            foreignKeyName: "permission_preset_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "permission_presets_updated_by_fkey"
+            foreignKeyName: "permission_preset_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
         ]
       }
-      process_template_items: {
-        Row: {
-          created_at: string | null
-          default_accountable: string | null
-          default_consulted: string | null
-          default_duration_days: number | null
-          default_informed: string | null
-          default_offset_days: number | null
-          default_responsible: string | null
-          description: string | null
-          doc_number: string | null
-          id: string
-          name: string
-          phase_id: string
-          required_for_gate: boolean | null
-          sort_order: number
-          uid: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          default_accountable?: string | null
-          default_consulted?: string | null
-          default_duration_days?: number | null
-          default_informed?: string | null
-          default_offset_days?: number | null
-          default_responsible?: string | null
-          description?: string | null
-          doc_number?: string | null
-          id?: string
-          name: string
-          phase_id: string
-          required_for_gate?: boolean | null
-          sort_order?: number
-          uid?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          default_accountable?: string | null
-          default_consulted?: string | null
-          default_duration_days?: number | null
-          default_informed?: string | null
-          default_offset_days?: number | null
-          default_responsible?: string | null
-          description?: string | null
-          doc_number?: string | null
-          id?: string
-          name?: string
-          phase_id?: string
-          required_for_gate?: boolean | null
-          sort_order?: number
-          uid?: string | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "process_template_items_phase_id_fkey"
-            columns: ["phase_id"]
-            isOneToOne: false
-            referencedRelation: "process_template_phases"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      process_template_phases: {
-        Row: {
-          created_at: string | null
-          description: string | null
-          gate_description: string | null
-          gate_name: string | null
-          id: string
-          name: string
-          sort_order: number
-          template_id: string
-          updated_at: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          description?: string | null
-          gate_description?: string | null
-          gate_name?: string | null
-          id?: string
-          name: string
-          sort_order?: number
-          template_id: string
-          updated_at?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          description?: string | null
-          gate_description?: string | null
-          gate_name?: string | null
-          id?: string
-          name?: string
-          sort_order?: number
-          template_id?: string
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "process_template_phases_template_id_fkey"
-            columns: ["template_id"]
-            isOneToOne: false
-            referencedRelation: "process_templates"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      process_templates: {
+      process_template: {
         Row: {
           created_at: string | null
           created_by: string | null
@@ -4637,29 +4454,138 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "process_templates_created_by_fkey"
+            foreignKeyName: "process_template_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "process_templates_org_id_fkey"
+            foreignKeyName: "process_template_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "process_templates_updated_by_fkey"
+            foreignKeyName: "process_template_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
         ]
       }
-      release_files: {
+      process_template_item: {
+        Row: {
+          created_at: string | null
+          default_accountable: string | null
+          default_consulted: string | null
+          default_duration_days: number | null
+          default_informed: string | null
+          default_offset_days: number | null
+          default_responsible: string | null
+          description: string | null
+          doc_number: string | null
+          id: string
+          is_required_for_gate: boolean | null
+          name: string
+          phase_id: string
+          sort_order: number
+          uid: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          default_accountable?: string | null
+          default_consulted?: string | null
+          default_duration_days?: number | null
+          default_informed?: string | null
+          default_offset_days?: number | null
+          default_responsible?: string | null
+          description?: string | null
+          doc_number?: string | null
+          id?: string
+          is_required_for_gate?: boolean | null
+          name: string
+          phase_id: string
+          sort_order?: number
+          uid?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          default_accountable?: string | null
+          default_consulted?: string | null
+          default_duration_days?: number | null
+          default_informed?: string | null
+          default_offset_days?: number | null
+          default_responsible?: string | null
+          description?: string | null
+          doc_number?: string | null
+          id?: string
+          is_required_for_gate?: boolean | null
+          name?: string
+          phase_id?: string
+          sort_order?: number
+          uid?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "process_template_item_phase_id_fkey"
+            columns: ["phase_id"]
+            isOneToOne: false
+            referencedRelation: "process_template_phase"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      process_template_phase: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          gate_description: string | null
+          gate_name: string | null
+          id: string
+          name: string
+          sort_order: number
+          template_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          gate_description?: string | null
+          gate_name?: string | null
+          id?: string
+          name: string
+          sort_order?: number
+          template_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          gate_description?: string | null
+          gate_name?: string | null
+          id?: string
+          name?: string
+          sort_order?: number
+          template_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "process_template_phase_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "process_template"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      release_file: {
         Row: {
           created_at: string | null
           file_id: string
@@ -4722,176 +4648,72 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "release_files_file_id_fkey"
+            foreignKeyName: "release_file_file_id_fkey"
             columns: ["file_id"]
             isOneToOne: false
-            referencedRelation: "files"
+            referencedRelation: "file"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "release_files_file_id_fkey"
+            foreignKeyName: "release_file_file_id_fkey"
             columns: ["file_id"]
             isOneToOne: false
-            referencedRelation: "parts_with_pricing"
+            referencedRelation: "part_with_pricing"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "release_files_file_version_id_fkey"
+            foreignKeyName: "release_file_file_version_id_fkey"
             columns: ["file_version_id"]
             isOneToOne: false
-            referencedRelation: "file_versions"
+            referencedRelation: "file_version"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "release_files_generated_by_fkey"
+            foreignKeyName: "release_file_generated_by_fkey"
             columns: ["generated_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "release_files_org_id_fkey"
+            foreignKeyName: "release_file_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "release_file_rfq_id_fkey"
+            columns: ["rfq_id"]
+            isOneToOne: false
+            referencedRelation: "rfq"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "release_file_rfq_item_id_fkey"
+            columns: ["rfq_item_id"]
+            isOneToOne: false
+            referencedRelation: "rfq_item"
             referencedColumns: ["id"]
           },
         ]
       }
-      review_history: {
+      review: {
         Row: {
-          checklist_responses: Json | null
-          comment: string | null
-          created_at: string | null
-          decision: string
-          file_id: string | null
-          file_name: string
-          file_path: string
-          from_state_name: string
-          gate_id: string | null
-          gate_name: string
-          id: string
-          org_id: string
-          requested_at: string
-          requested_by: string | null
-          requested_by_email: string
-          reviewed_at: string
-          reviewed_by: string | null
-          reviewed_by_email: string
-          to_state_name: string
-          transition_id: string | null
-          workflow_id: string | null
-          workflow_name: string
-        }
-        Insert: {
-          checklist_responses?: Json | null
-          comment?: string | null
-          created_at?: string | null
-          decision: string
-          file_id?: string | null
-          file_name: string
-          file_path: string
-          from_state_name: string
-          gate_id?: string | null
-          gate_name: string
-          id?: string
-          org_id: string
-          requested_at: string
-          requested_by?: string | null
-          requested_by_email: string
-          reviewed_at: string
-          reviewed_by?: string | null
-          reviewed_by_email: string
-          to_state_name: string
-          transition_id?: string | null
-          workflow_id?: string | null
-          workflow_name: string
-        }
-        Update: {
-          checklist_responses?: Json | null
-          comment?: string | null
-          created_at?: string | null
-          decision?: string
-          file_id?: string | null
-          file_name?: string
-          file_path?: string
-          from_state_name?: string
-          gate_id?: string | null
-          gate_name?: string
-          id?: string
-          org_id?: string
-          requested_at?: string
-          requested_by?: string | null
-          requested_by_email?: string
-          reviewed_at?: string
-          reviewed_by?: string | null
-          reviewed_by_email?: string
-          to_state_name?: string
-          transition_id?: string | null
-          workflow_id?: string | null
-          workflow_name?: string
-        }
-        Relationships: []
-      }
-      review_responses: {
-        Row: {
-          comment: string | null
-          created_at: string | null
-          id: string
-          responded_at: string | null
-          review_id: string
-          reviewer_id: string
-          status: Database["public"]["Enums"]["review_status"] | null
-          updated_at: string | null
-        }
-        Insert: {
-          comment?: string | null
-          created_at?: string | null
-          id?: string
-          responded_at?: string | null
-          review_id: string
-          reviewer_id: string
-          status?: Database["public"]["Enums"]["review_status"] | null
-          updated_at?: string | null
-        }
-        Update: {
-          comment?: string | null
-          created_at?: string | null
-          id?: string
-          responded_at?: string | null
-          review_id?: string
-          reviewer_id?: string
-          status?: Database["public"]["Enums"]["review_status"] | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "review_responses_review_id_fkey"
-            columns: ["review_id"]
-            isOneToOne: false
-            referencedRelation: "reviews"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "review_responses_reviewer_id_fkey"
-            columns: ["reviewer_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      reviews: {
-        Row: {
+          cancel_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
           completed_at: string | null
           created_at: string | null
+          current_round: number
           due_date: string | null
-          file_id: string
-          file_version: number
+          file_id: string | null
+          file_version: number | null
           id: string
           message: string | null
+          mode: string
           org_id: string
-          priority: string | null
+          priority: string
           requested_at: string | null
           requested_by: string
           status: Database["public"]["Enums"]["review_status"]
@@ -4901,15 +4723,20 @@ export type Database = {
           vault_id: string | null
         }
         Insert: {
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           completed_at?: string | null
           created_at?: string | null
+          current_round?: number
           due_date?: string | null
-          file_id: string
-          file_version: number
+          file_id?: string | null
+          file_version?: number | null
           id?: string
           message?: string | null
+          mode?: string
           org_id: string
-          priority?: string | null
+          priority?: string
           requested_at?: string | null
           requested_by: string
           status?: Database["public"]["Enums"]["review_status"]
@@ -4919,15 +4746,20 @@ export type Database = {
           vault_id?: string | null
         }
         Update: {
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           completed_at?: string | null
           created_at?: string | null
+          current_round?: number
           due_date?: string | null
-          file_id?: string
-          file_version?: number
+          file_id?: string | null
+          file_version?: number | null
           id?: string
           message?: string | null
+          mode?: string
           org_id?: string
-          priority?: string | null
+          priority?: string
           requested_at?: string | null
           requested_by?: string
           status?: Database["public"]["Enums"]["review_status"]
@@ -4938,45 +4770,573 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "reviews_file_id_fkey"
-            columns: ["file_id"]
+            foreignKeyName: "review_cancelled_by_fkey"
+            columns: ["cancelled_by"]
             isOneToOne: false
-            referencedRelation: "files"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "reviews_file_id_fkey"
+            foreignKeyName: "review_file_id_fkey"
             columns: ["file_id"]
             isOneToOne: false
-            referencedRelation: "parts_with_pricing"
+            referencedRelation: "file"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "reviews_org_id_fkey"
+            foreignKeyName: "review_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "part_with_pricing"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "reviews_requested_by_fkey"
+            foreignKeyName: "review_requested_by_fkey"
             columns: ["requested_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "reviews_team_id_fkey"
+            foreignKeyName: "review_team_id_fkey"
             columns: ["team_id"]
             isOneToOne: false
-            referencedRelation: "teams"
+            referencedRelation: "team"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "reviews_vault_id_fkey"
+            foreignKeyName: "review_vault_id_fkey"
             columns: ["vault_id"]
             isOneToOne: false
-            referencedRelation: "vaults"
+            referencedRelation: "vault"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      review_decision: {
+        Row: {
+          comment: string | null
+          decided_at: string
+          decision: string
+          id: string
+          is_legacy: boolean
+          item_id: string
+          org_id: string
+          review_id: string
+          reviewer_id: string
+          round_number: number
+        }
+        Insert: {
+          comment?: string | null
+          decided_at?: string
+          decision: string
+          id?: string
+          is_legacy?: boolean
+          item_id: string
+          org_id: string
+          review_id: string
+          reviewer_id: string
+          round_number: number
+        }
+        Update: {
+          comment?: string | null
+          decided_at?: string
+          decision?: string
+          id?: string
+          is_legacy?: boolean
+          item_id?: string
+          org_id?: string
+          review_id?: string
+          reviewer_id?: string
+          round_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "review_decision_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "review_item"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_decision_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organization"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_decision_review_id_fkey"
+            columns: ["review_id"]
+            isOneToOne: false
+            referencedRelation: "review"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_decision_reviewer_id_fkey"
+            columns: ["reviewer_id"]
+            isOneToOne: false
+            referencedRelation: "app_user"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      review_item: {
+        Row: {
+          added_in_round: number
+          advanced_at: string | null
+          advanced_to_state_id: string | null
+          created_at: string
+          file_id: string
+          file_version_id: string
+          id: string
+          org_id: string
+          outcome: string
+          review_id: string
+          sort_order: number
+          vault_id: string | null
+        }
+        Insert: {
+          added_in_round?: number
+          advanced_at?: string | null
+          advanced_to_state_id?: string | null
+          created_at?: string
+          file_id: string
+          file_version_id: string
+          id?: string
+          org_id: string
+          outcome?: string
+          review_id: string
+          sort_order?: number
+          vault_id?: string | null
+        }
+        Update: {
+          added_in_round?: number
+          advanced_at?: string | null
+          advanced_to_state_id?: string | null
+          created_at?: string
+          file_id?: string
+          file_version_id?: string
+          id?: string
+          org_id?: string
+          outcome?: string
+          review_id?: string
+          sort_order?: number
+          vault_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "review_item_advanced_to_state_id_fkey"
+            columns: ["advanced_to_state_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_state"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_item_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "file"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_item_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "part_with_pricing"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_item_file_version_id_fkey"
+            columns: ["file_version_id"]
+            isOneToOne: false
+            referencedRelation: "file_version"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_item_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organization"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_item_review_id_fkey"
+            columns: ["review_id"]
+            isOneToOne: false
+            referencedRelation: "review"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_item_vault_id_fkey"
+            columns: ["vault_id"]
+            isOneToOne: false
+            referencedRelation: "vault"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      review_response: {
+        Row: {
+          comment: string | null
+          created_at: string | null
+          id: string
+          org_id: string
+          responded_at: string | null
+          review_id: string
+          reviewer_id: string
+          round_number: number
+          status: Database["public"]["Enums"]["review_status"]
+          updated_at: string | null
+          via_team_id: string | null
+          withdrawn_at: string | null
+          withdrawn_reason: string | null
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string | null
+          id?: string
+          org_id: string
+          responded_at?: string | null
+          review_id: string
+          reviewer_id: string
+          round_number?: number
+          status?: Database["public"]["Enums"]["review_status"]
+          updated_at?: string | null
+          via_team_id?: string | null
+          withdrawn_at?: string | null
+          withdrawn_reason?: string | null
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string | null
+          id?: string
+          org_id?: string
+          responded_at?: string | null
+          review_id?: string
+          reviewer_id?: string
+          round_number?: number
+          status?: Database["public"]["Enums"]["review_status"]
+          updated_at?: string | null
+          via_team_id?: string | null
+          withdrawn_at?: string | null
+          withdrawn_reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "review_response_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organization"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_response_review_id_fkey"
+            columns: ["review_id"]
+            isOneToOne: false
+            referencedRelation: "review"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_response_reviewer_id_fkey"
+            columns: ["reviewer_id"]
+            isOneToOne: false
+            referencedRelation: "app_user"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_response_via_team_id_fkey"
+            columns: ["via_team_id"]
+            isOneToOne: false
+            referencedRelation: "team"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      review_round: {
+        Row: {
+          closed_at: string | null
+          id: string
+          note: string | null
+          opened_at: string
+          opened_by: string | null
+          org_id: string
+          outcome: string | null
+          review_id: string
+          round_number: number
+        }
+        Insert: {
+          closed_at?: string | null
+          id?: string
+          note?: string | null
+          opened_at?: string
+          opened_by?: string | null
+          org_id: string
+          outcome?: string | null
+          review_id: string
+          round_number: number
+        }
+        Update: {
+          closed_at?: string | null
+          id?: string
+          note?: string | null
+          opened_at?: string
+          opened_by?: string | null
+          org_id?: string
+          outcome?: string | null
+          review_id?: string
+          round_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "review_round_opened_by_fkey"
+            columns: ["opened_by"]
+            isOneToOne: false
+            referencedRelation: "app_user"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_round_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organization"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_round_review_id_fkey"
+            columns: ["review_id"]
+            isOneToOne: false
+            referencedRelation: "review"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      review_round_item: {
+        Row: {
+          decided_at: string | null
+          file_version_id: string
+          id: string
+          is_carried_forward: boolean
+          item_id: string
+          org_id: string
+          outcome: string
+          review_id: string
+          round_number: number
+        }
+        Insert: {
+          decided_at?: string | null
+          file_version_id: string
+          id?: string
+          is_carried_forward?: boolean
+          item_id: string
+          org_id: string
+          outcome?: string
+          review_id: string
+          round_number: number
+        }
+        Update: {
+          decided_at?: string | null
+          file_version_id?: string
+          id?: string
+          is_carried_forward?: boolean
+          item_id?: string
+          org_id?: string
+          outcome?: string
+          review_id?: string
+          round_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "review_round_item_file_version_id_fkey"
+            columns: ["file_version_id"]
+            isOneToOne: false
+            referencedRelation: "file_version"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_round_item_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "review_item"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_round_item_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organization"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_round_item_review_id_fkey"
+            columns: ["review_id"]
+            isOneToOne: false
+            referencedRelation: "review"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rfq: {
+        Row: {
+          award_notes: string | null
+          awarded_at: string | null
+          awarded_by: string | null
+          awarded_supplier_id: string | null
+          billing_address_id: string | null
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          due_date: string | null
+          id: string
+          incoterms: string | null
+          internal_notes: string | null
+          is_first_article_required: boolean | null
+          is_partial_quote_allowed: boolean | null
+          is_quality_report_required: boolean | null
+          is_release_files_generated: boolean | null
+          is_samples_required: boolean | null
+          org_id: string
+          pdf_generated_at: string | null
+          pdf_url: string | null
+          release_files_generated_at: string | null
+          release_folder_path: string | null
+          required_date: string | null
+          rfq_number: string
+          shipping_address: string | null
+          shipping_address_id: string | null
+          shipping_notes: string | null
+          status: Database["public"]["Enums"]["rfq_status"]
+          supplier_notes: string | null
+          title: string
+          updated_at: string | null
+          updated_by: string | null
+          valid_until: string | null
+        }
+        Insert: {
+          award_notes?: string | null
+          awarded_at?: string | null
+          awarded_by?: string | null
+          awarded_supplier_id?: string | null
+          billing_address_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          incoterms?: string | null
+          internal_notes?: string | null
+          is_first_article_required?: boolean | null
+          is_partial_quote_allowed?: boolean | null
+          is_quality_report_required?: boolean | null
+          is_release_files_generated?: boolean | null
+          is_samples_required?: boolean | null
+          org_id: string
+          pdf_generated_at?: string | null
+          pdf_url?: string | null
+          release_files_generated_at?: string | null
+          release_folder_path?: string | null
+          required_date?: string | null
+          rfq_number: string
+          shipping_address?: string | null
+          shipping_address_id?: string | null
+          shipping_notes?: string | null
+          status?: Database["public"]["Enums"]["rfq_status"]
+          supplier_notes?: string | null
+          title: string
+          updated_at?: string | null
+          updated_by?: string | null
+          valid_until?: string | null
+        }
+        Update: {
+          award_notes?: string | null
+          awarded_at?: string | null
+          awarded_by?: string | null
+          awarded_supplier_id?: string | null
+          billing_address_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          incoterms?: string | null
+          internal_notes?: string | null
+          is_first_article_required?: boolean | null
+          is_partial_quote_allowed?: boolean | null
+          is_quality_report_required?: boolean | null
+          is_release_files_generated?: boolean | null
+          is_samples_required?: boolean | null
+          org_id?: string
+          pdf_generated_at?: string | null
+          pdf_url?: string | null
+          release_files_generated_at?: string | null
+          release_folder_path?: string | null
+          required_date?: string | null
+          rfq_number?: string
+          shipping_address?: string | null
+          shipping_address_id?: string | null
+          shipping_notes?: string | null
+          status?: Database["public"]["Enums"]["rfq_status"]
+          supplier_notes?: string | null
+          title?: string
+          updated_at?: string | null
+          updated_by?: string | null
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rfq_awarded_by_fkey"
+            columns: ["awarded_by"]
+            isOneToOne: false
+            referencedRelation: "app_user"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfq_awarded_supplier_id_fkey"
+            columns: ["awarded_supplier_id"]
+            isOneToOne: false
+            referencedRelation: "supplier"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfq_billing_address_id_fkey"
+            columns: ["billing_address_id"]
+            isOneToOne: false
+            referencedRelation: "org_address"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfq_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_user"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfq_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organization"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfq_shipping_address_id_fkey"
+            columns: ["shipping_address_id"]
+            isOneToOne: false
+            referencedRelation: "org_address"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfq_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
         ]
@@ -5014,26 +5374,26 @@ export type Database = {
             foreignKeyName: "rfq_activity_performed_by_fkey"
             columns: ["performed_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "rfq_activity_rfq_id_fkey"
             columns: ["rfq_id"]
             isOneToOne: false
-            referencedRelation: "rfqs"
+            referencedRelation: "rfq"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "rfq_activity_supplier_contact_id_fkey"
             columns: ["supplier_contact_id"]
             isOneToOne: false
-            referencedRelation: "supplier_contacts"
+            referencedRelation: "supplier_contact"
             referencedColumns: ["id"]
           },
         ]
       }
-      rfq_items: {
+      rfq_item: {
         Row: {
           created_at: string | null
           description: string | null
@@ -5093,29 +5453,29 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "rfq_items_file_id_fkey"
+            foreignKeyName: "rfq_item_file_id_fkey"
             columns: ["file_id"]
             isOneToOne: false
-            referencedRelation: "files"
+            referencedRelation: "file"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "rfq_items_file_id_fkey"
+            foreignKeyName: "rfq_item_file_id_fkey"
             columns: ["file_id"]
             isOneToOne: false
-            referencedRelation: "parts_with_pricing"
+            referencedRelation: "part_with_pricing"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "rfq_items_rfq_id_fkey"
+            foreignKeyName: "rfq_item_rfq_id_fkey"
             columns: ["rfq_id"]
             isOneToOne: false
-            referencedRelation: "rfqs"
+            referencedRelation: "rfq"
             referencedColumns: ["id"]
           },
         ]
       }
-      rfq_number_counters: {
+      rfq_number_counter: {
         Row: {
           last_number: number
           org_id: string
@@ -5136,15 +5496,15 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "rfq_number_counters_org_id_fkey"
+            foreignKeyName: "rfq_number_counter_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
         ]
       }
-      rfq_quotes: {
+      rfq_quote: {
         Row: {
           created_at: string | null
           currency: string | null
@@ -5189,29 +5549,29 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "rfq_quotes_rfq_id_fkey"
+            foreignKeyName: "rfq_quote_rfq_id_fkey"
             columns: ["rfq_id"]
             isOneToOne: false
-            referencedRelation: "rfqs"
+            referencedRelation: "rfq"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "rfq_quotes_rfq_item_id_fkey"
+            foreignKeyName: "rfq_quote_rfq_item_id_fkey"
             columns: ["rfq_item_id"]
             isOneToOne: false
-            referencedRelation: "rfq_items"
+            referencedRelation: "rfq_item"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "rfq_quotes_supplier_id_fkey"
+            foreignKeyName: "rfq_quote_supplier_id_fkey"
             columns: ["supplier_id"]
             isOneToOne: false
-            referencedRelation: "suppliers"
+            referencedRelation: "supplier"
             referencedColumns: ["id"]
           },
         ]
       }
-      rfq_suppliers: {
+      rfq_supplier: {
         Row: {
           contact_email: string | null
           contact_id: string | null
@@ -5256,192 +5616,88 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "rfq_suppliers_contact_id_fkey"
+            foreignKeyName: "rfq_supplier_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
-            referencedRelation: "supplier_contacts"
+            referencedRelation: "supplier_contact"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "rfq_suppliers_rfq_id_fkey"
+            foreignKeyName: "rfq_supplier_rfq_id_fkey"
             columns: ["rfq_id"]
             isOneToOne: false
-            referencedRelation: "rfqs"
+            referencedRelation: "rfq"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "rfq_suppliers_sent_by_fkey"
+            foreignKeyName: "rfq_supplier_sent_by_fkey"
             columns: ["sent_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "rfq_suppliers_supplier_id_fkey"
+            foreignKeyName: "rfq_supplier_supplier_id_fkey"
             columns: ["supplier_id"]
             isOneToOne: false
-            referencedRelation: "suppliers"
+            referencedRelation: "supplier"
             referencedColumns: ["id"]
           },
         ]
       }
-      rfqs: {
+      schema_manifest_entry: {
         Row: {
-          allow_partial_quotes: boolean | null
-          award_notes: string | null
-          awarded_at: string | null
-          awarded_by: string | null
-          awarded_supplier_id: string | null
-          billing_address_id: string | null
-          created_at: string | null
-          created_by: string | null
-          description: string | null
-          due_date: string | null
-          id: string
-          incoterms: string | null
-          internal_notes: string | null
-          org_id: string
-          pdf_generated_at: string | null
-          pdf_url: string | null
-          release_files_generated: boolean | null
-          release_files_generated_at: string | null
-          release_folder_path: string | null
-          required_date: string | null
-          requires_first_article: boolean | null
-          requires_quality_report: boolean | null
-          requires_samples: boolean | null
-          rfq_number: string
-          shipping_address: string | null
-          shipping_address_id: string | null
-          shipping_notes: string | null
-          status: Database["public"]["Enums"]["rfq_status"]
-          supplier_notes: string | null
-          title: string
-          updated_at: string | null
-          updated_by: string | null
-          valid_until: string | null
+          kind: string
+          module: string
+          name: string
+          probe: string | null
+          requires: string | null
+          since_version: number
         }
         Insert: {
-          allow_partial_quotes?: boolean | null
-          award_notes?: string | null
-          awarded_at?: string | null
-          awarded_by?: string | null
-          awarded_supplier_id?: string | null
-          billing_address_id?: string | null
-          created_at?: string | null
-          created_by?: string | null
-          description?: string | null
-          due_date?: string | null
-          id?: string
-          incoterms?: string | null
-          internal_notes?: string | null
-          org_id: string
-          pdf_generated_at?: string | null
-          pdf_url?: string | null
-          release_files_generated?: boolean | null
-          release_files_generated_at?: string | null
-          release_folder_path?: string | null
-          required_date?: string | null
-          requires_first_article?: boolean | null
-          requires_quality_report?: boolean | null
-          requires_samples?: boolean | null
-          rfq_number: string
-          shipping_address?: string | null
-          shipping_address_id?: string | null
-          shipping_notes?: string | null
-          status?: Database["public"]["Enums"]["rfq_status"]
-          supplier_notes?: string | null
-          title: string
-          updated_at?: string | null
-          updated_by?: string | null
-          valid_until?: string | null
+          kind: string
+          module: string
+          name: string
+          probe?: string | null
+          requires?: string | null
+          since_version: number
         }
         Update: {
-          allow_partial_quotes?: boolean | null
-          award_notes?: string | null
-          awarded_at?: string | null
-          awarded_by?: string | null
-          awarded_supplier_id?: string | null
-          billing_address_id?: string | null
-          created_at?: string | null
-          created_by?: string | null
-          description?: string | null
-          due_date?: string | null
-          id?: string
-          incoterms?: string | null
-          internal_notes?: string | null
-          org_id?: string
-          pdf_generated_at?: string | null
-          pdf_url?: string | null
-          release_files_generated?: boolean | null
-          release_files_generated_at?: string | null
-          release_folder_path?: string | null
-          required_date?: string | null
-          requires_first_article?: boolean | null
-          requires_quality_report?: boolean | null
-          requires_samples?: boolean | null
-          rfq_number?: string
-          shipping_address?: string | null
-          shipping_address_id?: string | null
-          shipping_notes?: string | null
-          status?: Database["public"]["Enums"]["rfq_status"]
-          supplier_notes?: string | null
-          title?: string
-          updated_at?: string | null
-          updated_by?: string | null
-          valid_until?: string | null
+          kind?: string
+          module?: string
+          name?: string
+          probe?: string | null
+          requires?: string | null
+          since_version?: number
         }
-        Relationships: [
-          {
-            foreignKeyName: "rfqs_awarded_by_fkey"
-            columns: ["awarded_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "rfqs_awarded_supplier_id_fkey"
-            columns: ["awarded_supplier_id"]
-            isOneToOne: false
-            referencedRelation: "suppliers"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "rfqs_billing_address_id_fkey"
-            columns: ["billing_address_id"]
-            isOneToOne: false
-            referencedRelation: "organization_addresses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "rfqs_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "rfqs_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "rfqs_shipping_address_id_fkey"
-            columns: ["shipping_address_id"]
-            isOneToOne: false
-            referencedRelation: "organization_addresses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "rfqs_updated_by_fkey"
-            columns: ["updated_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
+      }
+      schema_migration: {
+        Row: {
+          app_version: string | null
+          applied_at: string
+          applied_by: string | null
+          checksum: string
+          name: string
+          version: number
+        }
+        Insert: {
+          app_version?: string | null
+          applied_at?: string
+          applied_by?: string | null
+          checksum: string
+          name: string
+          version: number
+        }
+        Update: {
+          app_version?: string | null
+          applied_at?: string
+          applied_by?: string | null
+          checksum?: string
+          name?: string
+          version?: number
+        }
+        Relationships: []
       }
       schema_remediation_log: {
         Row: {
@@ -5500,68 +5756,7 @@ export type Database = {
         }
         Relationships: []
       }
-      solidworks_license_assignments: {
-        Row: {
-          activated_at: string | null
-          assigned_at: string | null
-          assigned_by: string | null
-          deactivated_at: string | null
-          id: string
-          is_active: boolean | null
-          license_id: string
-          machine_id: string | null
-          machine_name: string | null
-          user_id: string
-        }
-        Insert: {
-          activated_at?: string | null
-          assigned_at?: string | null
-          assigned_by?: string | null
-          deactivated_at?: string | null
-          id?: string
-          is_active?: boolean | null
-          license_id: string
-          machine_id?: string | null
-          machine_name?: string | null
-          user_id: string
-        }
-        Update: {
-          activated_at?: string | null
-          assigned_at?: string | null
-          assigned_by?: string | null
-          deactivated_at?: string | null
-          id?: string
-          is_active?: boolean | null
-          license_id?: string
-          machine_id?: string | null
-          machine_name?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "solidworks_license_assignments_assigned_by_fkey"
-            columns: ["assigned_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "solidworks_license_assignments_license_id_fkey"
-            columns: ["license_id"]
-            isOneToOne: false
-            referencedRelation: "solidworks_licenses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "solidworks_license_assignments_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      solidworks_licenses: {
+      solidworks_license: {
         Row: {
           created_at: string | null
           created_by: string | null
@@ -5615,184 +5810,83 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "solidworks_licenses_created_by_fkey"
+            foreignKeyName: "solidworks_license_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "solidworks_licenses_org_id_fkey"
+            foreignKeyName: "solidworks_license_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
         ]
       }
-      supplier_contacts: {
+      solidworks_license_assignment: {
         Row: {
-          auth_method:
-            | Database["public"]["Enums"]["supplier_auth_method"]
-            | null
-          auth_user_id: string | null
-          avatar_url: string | null
-          can_manage_catalog: boolean | null
-          can_submit_quotes: boolean | null
-          can_update_pricing: boolean | null
-          can_view_orders: boolean | null
-          can_view_rfqs: boolean | null
-          created_at: string | null
-          email: string | null
-          email_verified: boolean | null
-          full_name: string
+          activated_at: string | null
+          assigned_at: string | null
+          assigned_by: string | null
+          deactivated_at: string | null
           id: string
           is_active: boolean | null
-          is_primary: boolean | null
-          job_title: string | null
-          last_sign_in: string | null
-          phone: string | null
-          phone_country_code: string | null
-          phone_verified: boolean | null
-          supplier_id: string
-          updated_at: string | null
-          wechat_openid: string | null
+          license_id: string
+          machine_id: string | null
+          machine_name: string | null
+          user_id: string
         }
         Insert: {
-          auth_method?:
-            | Database["public"]["Enums"]["supplier_auth_method"]
-            | null
-          auth_user_id?: string | null
-          avatar_url?: string | null
-          can_manage_catalog?: boolean | null
-          can_submit_quotes?: boolean | null
-          can_update_pricing?: boolean | null
-          can_view_orders?: boolean | null
-          can_view_rfqs?: boolean | null
-          created_at?: string | null
-          email?: string | null
-          email_verified?: boolean | null
-          full_name: string
+          activated_at?: string | null
+          assigned_at?: string | null
+          assigned_by?: string | null
+          deactivated_at?: string | null
           id?: string
           is_active?: boolean | null
-          is_primary?: boolean | null
-          job_title?: string | null
-          last_sign_in?: string | null
-          phone?: string | null
-          phone_country_code?: string | null
-          phone_verified?: boolean | null
-          supplier_id: string
-          updated_at?: string | null
-          wechat_openid?: string | null
+          license_id: string
+          machine_id?: string | null
+          machine_name?: string | null
+          user_id: string
         }
         Update: {
-          auth_method?:
-            | Database["public"]["Enums"]["supplier_auth_method"]
-            | null
-          auth_user_id?: string | null
-          avatar_url?: string | null
-          can_manage_catalog?: boolean | null
-          can_submit_quotes?: boolean | null
-          can_update_pricing?: boolean | null
-          can_view_orders?: boolean | null
-          can_view_rfqs?: boolean | null
-          created_at?: string | null
-          email?: string | null
-          email_verified?: boolean | null
-          full_name?: string
+          activated_at?: string | null
+          assigned_at?: string | null
+          assigned_by?: string | null
+          deactivated_at?: string | null
           id?: string
           is_active?: boolean | null
-          is_primary?: boolean | null
-          job_title?: string | null
-          last_sign_in?: string | null
-          phone?: string | null
-          phone_country_code?: string | null
-          phone_verified?: boolean | null
-          supplier_id?: string
-          updated_at?: string | null
-          wechat_openid?: string | null
+          license_id?: string
+          machine_id?: string | null
+          machine_name?: string | null
+          user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "supplier_contacts_supplier_id_fkey"
-            columns: ["supplier_id"]
+            foreignKeyName: "solidworks_license_assignment_assigned_by_fkey"
+            columns: ["assigned_by"]
             isOneToOne: false
-            referencedRelation: "suppliers"
+            referencedRelation: "app_user"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "solidworks_license_assignment_license_id_fkey"
+            columns: ["license_id"]
+            isOneToOne: false
+            referencedRelation: "solidworks_license"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "solidworks_license_assignment_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
         ]
       }
-      supplier_invitations: {
-        Row: {
-          accepted_at: string | null
-          accepted_by: string | null
-          created_at: string | null
-          email: string | null
-          expires_at: string
-          full_name: string
-          id: string
-          invited_at: string | null
-          invited_by: string | null
-          org_id: string
-          phone: string | null
-          supplier_id: string
-          token: string
-        }
-        Insert: {
-          accepted_at?: string | null
-          accepted_by?: string | null
-          created_at?: string | null
-          email?: string | null
-          expires_at: string
-          full_name: string
-          id?: string
-          invited_at?: string | null
-          invited_by?: string | null
-          org_id: string
-          phone?: string | null
-          supplier_id: string
-          token: string
-        }
-        Update: {
-          accepted_at?: string | null
-          accepted_by?: string | null
-          created_at?: string | null
-          email?: string | null
-          expires_at?: string
-          full_name?: string
-          id?: string
-          invited_at?: string | null
-          invited_by?: string | null
-          org_id?: string
-          phone?: string | null
-          supplier_id?: string
-          token?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "supplier_invitations_invited_by_fkey"
-            columns: ["invited_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "supplier_invitations_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "supplier_invitations_supplier_id_fkey"
-            columns: ["supplier_id"]
-            isOneToOne: false
-            referencedRelation: "suppliers"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      suppliers: {
+      supplier: {
         Row: {
           address_line1: string | null
           address_line2: string | null
@@ -5891,244 +5985,198 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "suppliers_approved_by_fkey"
+            foreignKeyName: "supplier_approved_by_fkey"
             columns: ["approved_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "suppliers_created_by_fkey"
+            foreignKeyName: "supplier_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "suppliers_org_id_fkey"
+            foreignKeyName: "supplier_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "suppliers_updated_by_fkey"
+            foreignKeyName: "supplier_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
         ]
       }
-      team_members: {
+      supplier_contact: {
         Row: {
-          added_at: string | null
-          added_by: string | null
+          auth_method:
+            | Database["public"]["Enums"]["supplier_auth_method"]
+            | null
+          auth_user_id: string | null
+          avatar_url: string | null
+          can_manage_catalog: boolean | null
+          can_submit_quotes: boolean | null
+          can_update_pricing: boolean | null
+          can_view_orders: boolean | null
+          can_view_rfqs: boolean | null
+          created_at: string | null
+          email: string | null
+          full_name: string
           id: string
-          is_team_admin: boolean | null
-          team_id: string
-          user_id: string
-        }
-        Insert: {
-          added_at?: string | null
-          added_by?: string | null
-          id?: string
-          is_team_admin?: boolean | null
-          team_id: string
-          user_id: string
-        }
-        Update: {
-          added_at?: string | null
-          added_by?: string | null
-          id?: string
-          is_team_admin?: boolean | null
-          team_id?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "team_members_added_by_fkey"
-            columns: ["added_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "team_members_team_id_fkey"
-            columns: ["team_id"]
-            isOneToOne: false
-            referencedRelation: "teams"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "team_members_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      team_permissions: {
-        Row: {
-          actions: Database["public"]["Enums"]["permission_action"][] | null
-          granted_at: string | null
-          granted_by: string | null
-          id: string
-          resource: string
-          team_id: string
+          is_active: boolean | null
+          is_email_verified: boolean | null
+          is_phone_verified: boolean | null
+          is_primary: boolean | null
+          job_title: string | null
+          last_sign_in_at: string | null
+          phone: string | null
+          phone_country_code: string | null
+          supplier_id: string
           updated_at: string | null
-          updated_by: string | null
-          vault_id: string | null
+          wechat_openid: string | null
         }
         Insert: {
-          actions?: Database["public"]["Enums"]["permission_action"][] | null
-          granted_at?: string | null
-          granted_by?: string | null
+          auth_method?:
+            | Database["public"]["Enums"]["supplier_auth_method"]
+            | null
+          auth_user_id?: string | null
+          avatar_url?: string | null
+          can_manage_catalog?: boolean | null
+          can_submit_quotes?: boolean | null
+          can_update_pricing?: boolean | null
+          can_view_orders?: boolean | null
+          can_view_rfqs?: boolean | null
+          created_at?: string | null
+          email?: string | null
+          full_name: string
           id?: string
-          resource: string
-          team_id: string
+          is_active?: boolean | null
+          is_email_verified?: boolean | null
+          is_phone_verified?: boolean | null
+          is_primary?: boolean | null
+          job_title?: string | null
+          last_sign_in_at?: string | null
+          phone?: string | null
+          phone_country_code?: string | null
+          supplier_id: string
           updated_at?: string | null
-          updated_by?: string | null
-          vault_id?: string | null
+          wechat_openid?: string | null
         }
         Update: {
-          actions?: Database["public"]["Enums"]["permission_action"][] | null
-          granted_at?: string | null
-          granted_by?: string | null
+          auth_method?:
+            | Database["public"]["Enums"]["supplier_auth_method"]
+            | null
+          auth_user_id?: string | null
+          avatar_url?: string | null
+          can_manage_catalog?: boolean | null
+          can_submit_quotes?: boolean | null
+          can_update_pricing?: boolean | null
+          can_view_orders?: boolean | null
+          can_view_rfqs?: boolean | null
+          created_at?: string | null
+          email?: string | null
+          full_name?: string
           id?: string
-          resource?: string
-          team_id?: string
+          is_active?: boolean | null
+          is_email_verified?: boolean | null
+          is_phone_verified?: boolean | null
+          is_primary?: boolean | null
+          job_title?: string | null
+          last_sign_in_at?: string | null
+          phone?: string | null
+          phone_country_code?: string | null
+          supplier_id?: string
           updated_at?: string | null
-          updated_by?: string | null
-          vault_id?: string | null
+          wechat_openid?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "team_permissions_granted_by_fkey"
-            columns: ["granted_by"]
+            foreignKeyName: "supplier_contact_supplier_id_fkey"
+            columns: ["supplier_id"]
             isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "team_permissions_team_id_fkey"
-            columns: ["team_id"]
-            isOneToOne: false
-            referencedRelation: "teams"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "team_permissions_updated_by_fkey"
-            columns: ["updated_by"]
-            isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "supplier"
             referencedColumns: ["id"]
           },
         ]
       }
-      team_reviewers: {
+      supplier_invitation: {
         Row: {
-          added_at: string | null
-          added_by: string | null
+          accepted_at: string | null
+          accepted_by: string | null
+          created_at: string | null
+          email: string | null
+          expires_at: string
+          full_name: string
           id: string
-          reviewer_type: string
-          role: Database["public"]["Enums"]["user_role"] | null
-          team_id: string
-          user_id: string | null
-          workflow_role_id: string | null
+          invited_at: string | null
+          invited_by: string | null
+          org_id: string
+          phone: string | null
+          supplier_id: string
+          token: string
         }
         Insert: {
-          added_at?: string | null
-          added_by?: string | null
+          accepted_at?: string | null
+          accepted_by?: string | null
+          created_at?: string | null
+          email?: string | null
+          expires_at: string
+          full_name: string
           id?: string
-          reviewer_type: string
-          role?: Database["public"]["Enums"]["user_role"] | null
-          team_id: string
-          user_id?: string | null
-          workflow_role_id?: string | null
+          invited_at?: string | null
+          invited_by?: string | null
+          org_id: string
+          phone?: string | null
+          supplier_id: string
+          token: string
         }
         Update: {
-          added_at?: string | null
-          added_by?: string | null
+          accepted_at?: string | null
+          accepted_by?: string | null
+          created_at?: string | null
+          email?: string | null
+          expires_at?: string
+          full_name?: string
           id?: string
-          reviewer_type?: string
-          role?: Database["public"]["Enums"]["user_role"] | null
-          team_id?: string
-          user_id?: string | null
-          workflow_role_id?: string | null
+          invited_at?: string | null
+          invited_by?: string | null
+          org_id?: string
+          phone?: string | null
+          supplier_id?: string
+          token?: string
         }
         Relationships: [
           {
-            foreignKeyName: "team_reviewers_added_by_fkey"
-            columns: ["added_by"]
+            foreignKeyName: "supplier_invitation_invited_by_fkey"
+            columns: ["invited_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "team_reviewers_team_id_fkey"
-            columns: ["team_id"]
+            foreignKeyName: "supplier_invitation_org_id_fkey"
+            columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "teams"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "team_reviewers_user_id_fkey"
-            columns: ["user_id"]
+            foreignKeyName: "supplier_invitation_supplier_id_fkey"
+            columns: ["supplier_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "supplier"
             referencedColumns: ["id"]
           },
         ]
       }
-      team_vault_access: {
-        Row: {
-          granted_at: string | null
-          granted_by: string | null
-          id: string
-          team_id: string
-          vault_id: string
-        }
-        Insert: {
-          granted_at?: string | null
-          granted_by?: string | null
-          id?: string
-          team_id: string
-          vault_id: string
-        }
-        Update: {
-          granted_at?: string | null
-          granted_by?: string | null
-          id?: string
-          team_id?: string
-          vault_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "team_vault_access_granted_by_fkey"
-            columns: ["granted_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "team_vault_access_team_id_fkey"
-            columns: ["team_id"]
-            isOneToOne: false
-            referencedRelation: "teams"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "team_vault_access_vault_id_fkey"
-            columns: ["vault_id"]
-            isOneToOne: false
-            referencedRelation: "vaults"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      teams: {
+      team: {
         Row: {
           color: string
           created_at: string | null
@@ -6179,36 +6227,258 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "teams_created_by_fkey"
+            foreignKeyName: "team_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "teams_org_id_fkey"
+            foreignKeyName: "team_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "teams_parent_team_id_fkey"
+            foreignKeyName: "team_parent_team_id_fkey"
             columns: ["parent_team_id"]
             isOneToOne: false
-            referencedRelation: "teams"
+            referencedRelation: "team"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "teams_updated_by_fkey"
+            foreignKeyName: "team_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
         ]
       }
-      user_job_titles: {
+      team_member: {
+        Row: {
+          added_at: string | null
+          added_by: string | null
+          id: string
+          is_team_admin: boolean | null
+          team_id: string
+          user_id: string
+        }
+        Insert: {
+          added_at?: string | null
+          added_by?: string | null
+          id?: string
+          is_team_admin?: boolean | null
+          team_id: string
+          user_id: string
+        }
+        Update: {
+          added_at?: string | null
+          added_by?: string | null
+          id?: string
+          is_team_admin?: boolean | null
+          team_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_member_added_by_fkey"
+            columns: ["added_by"]
+            isOneToOne: false
+            referencedRelation: "app_user"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_member_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_member_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "app_user"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_permission: {
+        Row: {
+          actions: Database["public"]["Enums"]["permission_action"][] | null
+          granted_at: string | null
+          granted_by: string | null
+          id: string
+          resource: string
+          team_id: string
+          updated_at: string | null
+          updated_by: string | null
+          vault_id: string | null
+        }
+        Insert: {
+          actions?: Database["public"]["Enums"]["permission_action"][] | null
+          granted_at?: string | null
+          granted_by?: string | null
+          id?: string
+          resource: string
+          team_id: string
+          updated_at?: string | null
+          updated_by?: string | null
+          vault_id?: string | null
+        }
+        Update: {
+          actions?: Database["public"]["Enums"]["permission_action"][] | null
+          granted_at?: string | null
+          granted_by?: string | null
+          id?: string
+          resource?: string
+          team_id?: string
+          updated_at?: string | null
+          updated_by?: string | null
+          vault_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_permission_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "app_user"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_permission_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_permission_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "app_user"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_permission_vault_id_fkey"
+            columns: ["vault_id"]
+            isOneToOne: false
+            referencedRelation: "vault"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_reviewer: {
+        Row: {
+          added_at: string | null
+          added_by: string | null
+          id: string
+          reviewer_type: string
+          role: Database["public"]["Enums"]["user_role"] | null
+          team_id: string
+          user_id: string | null
+          workflow_role_id: string | null
+        }
+        Insert: {
+          added_at?: string | null
+          added_by?: string | null
+          id?: string
+          reviewer_type: string
+          role?: Database["public"]["Enums"]["user_role"] | null
+          team_id: string
+          user_id?: string | null
+          workflow_role_id?: string | null
+        }
+        Update: {
+          added_at?: string | null
+          added_by?: string | null
+          id?: string
+          reviewer_type?: string
+          role?: Database["public"]["Enums"]["user_role"] | null
+          team_id?: string
+          user_id?: string | null
+          workflow_role_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_reviewer_added_by_fkey"
+            columns: ["added_by"]
+            isOneToOne: false
+            referencedRelation: "app_user"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_reviewer_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_reviewer_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "app_user"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_reviewer_workflow_role_id_fkey"
+            columns: ["workflow_role_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_role"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_vault_access: {
+        Row: {
+          granted_at: string | null
+          granted_by: string | null
+          id: string
+          team_id: string
+          vault_id: string
+        }
+        Insert: {
+          granted_at?: string | null
+          granted_by?: string | null
+          id?: string
+          team_id: string
+          vault_id: string
+        }
+        Update: {
+          granted_at?: string | null
+          granted_by?: string | null
+          id?: string
+          team_id?: string
+          vault_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_vault_access_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "app_user"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_vault_access_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "team"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_vault_access_vault_id_fkey"
+            columns: ["vault_id"]
+            isOneToOne: false
+            referencedRelation: "vault"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_job_title: {
         Row: {
           assigned_at: string | null
           assigned_by: string | null
@@ -6232,29 +6502,29 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "user_job_titles_assigned_by_fkey"
+            foreignKeyName: "user_job_title_assigned_by_fkey"
             columns: ["assigned_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "user_job_titles_title_id_fkey"
+            foreignKeyName: "user_job_title_title_id_fkey"
             columns: ["title_id"]
             isOneToOne: false
-            referencedRelation: "job_titles"
+            referencedRelation: "job_title"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "user_job_titles_user_id_fkey"
+            foreignKeyName: "user_job_title_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: true
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
         ]
       }
-      user_permissions: {
+      user_permission: {
         Row: {
           actions: Database["public"]["Enums"]["permission_action"][] | null
           granted_at: string | null
@@ -6290,36 +6560,43 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "user_permissions_granted_by_fkey"
+            foreignKeyName: "user_permission_granted_by_fkey"
             columns: ["granted_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "user_permissions_updated_by_fkey"
+            foreignKeyName: "user_permission_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "user_permissions_user_id_fkey"
+            foreignKeyName: "user_permission_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_permission_vault_id_fkey"
+            columns: ["vault_id"]
+            isOneToOne: false
+            referencedRelation: "vault"
             referencedColumns: ["id"]
           },
         ]
       }
-      user_sessions: {
+      user_session: {
         Row: {
           app_version: string | null
           created_at: string | null
           id: string
           is_active: boolean | null
-          last_active: string | null
-          last_seen: string | null
+          last_active_at: string | null
+          last_seen_at: string | null
           machine_id: string
           machine_name: string | null
           org_id: string
@@ -6332,8 +6609,8 @@ export type Database = {
           created_at?: string | null
           id?: string
           is_active?: boolean | null
-          last_active?: string | null
-          last_seen?: string | null
+          last_active_at?: string | null
+          last_seen_at?: string | null
           machine_id: string
           machine_name?: string | null
           org_id: string
@@ -6346,8 +6623,8 @@ export type Database = {
           created_at?: string | null
           id?: string
           is_active?: boolean | null
-          last_active?: string | null
-          last_seen?: string | null
+          last_active_at?: string | null
+          last_seen_at?: string | null
           machine_id?: string
           machine_name?: string | null
           org_id?: string
@@ -6357,22 +6634,22 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "user_sessions_org_id_fkey"
+            foreignKeyName: "user_session_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "user_sessions_user_id_fkey"
+            foreignKeyName: "user_session_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
         ]
       }
-      user_workflow_roles: {
+      user_workflow_role: {
         Row: {
           assigned_at: string | null
           assigned_by: string | null
@@ -6396,128 +6673,29 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "user_workflow_roles_assigned_by_fkey"
+            foreignKeyName: "user_workflow_role_assigned_by_fkey"
             columns: ["assigned_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "user_workflow_roles_user_id_fkey"
+            foreignKeyName: "user_workflow_role_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "user_workflow_roles_workflow_role_id_fkey"
+            foreignKeyName: "user_workflow_role_workflow_role_id_fkey"
             columns: ["workflow_role_id"]
             isOneToOne: false
-            referencedRelation: "workflow_roles"
+            referencedRelation: "workflow_role"
             referencedColumns: ["id"]
           },
         ]
       }
-      users: {
-        Row: {
-          avatar_url: string | null
-          column_defaults: Json | null
-          created_at: string | null
-          custom_avatar_url: string | null
-          email: string
-          full_name: string | null
-          id: string
-          job_title: string | null
-          last_online: string | null
-          last_sign_in: string | null
-          org_id: string | null
-          role: Database["public"]["Enums"]["user_role"]
-        }
-        Insert: {
-          avatar_url?: string | null
-          column_defaults?: Json | null
-          created_at?: string | null
-          custom_avatar_url?: string | null
-          email: string
-          full_name?: string | null
-          id: string
-          job_title?: string | null
-          last_online?: string | null
-          last_sign_in?: string | null
-          org_id?: string | null
-          role?: Database["public"]["Enums"]["user_role"]
-        }
-        Update: {
-          avatar_url?: string | null
-          column_defaults?: Json | null
-          created_at?: string | null
-          custom_avatar_url?: string | null
-          email?: string
-          full_name?: string | null
-          id?: string
-          job_title?: string | null
-          last_online?: string | null
-          last_sign_in?: string | null
-          org_id?: string | null
-          role?: Database["public"]["Enums"]["user_role"]
-        }
-        Relationships: [
-          {
-            foreignKeyName: "users_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      vault_access: {
-        Row: {
-          granted_at: string | null
-          granted_by: string | null
-          id: string
-          user_id: string
-          vault_id: string
-        }
-        Insert: {
-          granted_at?: string | null
-          granted_by?: string | null
-          id?: string
-          user_id: string
-          vault_id: string
-        }
-        Update: {
-          granted_at?: string | null
-          granted_by?: string | null
-          id?: string
-          user_id?: string
-          vault_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "vault_access_granted_by_fkey"
-            columns: ["granted_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vault_access_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vault_access_vault_id_fkey"
-            columns: ["vault_id"]
-            isOneToOne: false
-            referencedRelation: "vaults"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      vaults: {
+      vault: {
         Row: {
           color: string | null
           created_at: string | null
@@ -6562,91 +6740,68 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "vaults_created_by_fkey"
+            foreignKeyName: "vault_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "vaults_org_id_fkey"
+            foreignKeyName: "vault_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
         ]
       }
-      webhook_deliveries: {
+      vault_access: {
         Row: {
-          attempt_count: number | null
-          created_at: string | null
-          delivered_at: string | null
-          event_id: string | null
-          event_type: Database["public"]["Enums"]["webhook_event"]
+          granted_at: string | null
+          granted_by: string | null
           id: string
-          last_error: string | null
-          next_retry_at: string | null
-          org_id: string
-          payload: Json
-          response_body: string | null
-          response_headers: Json | null
-          response_status: number | null
-          status: Database["public"]["Enums"]["webhook_delivery_status"] | null
-          webhook_id: string
+          user_id: string
+          vault_id: string
         }
         Insert: {
-          attempt_count?: number | null
-          created_at?: string | null
-          delivered_at?: string | null
-          event_id?: string | null
-          event_type: Database["public"]["Enums"]["webhook_event"]
+          granted_at?: string | null
+          granted_by?: string | null
           id?: string
-          last_error?: string | null
-          next_retry_at?: string | null
-          org_id: string
-          payload: Json
-          response_body?: string | null
-          response_headers?: Json | null
-          response_status?: number | null
-          status?: Database["public"]["Enums"]["webhook_delivery_status"] | null
-          webhook_id: string
+          user_id: string
+          vault_id: string
         }
         Update: {
-          attempt_count?: number | null
-          created_at?: string | null
-          delivered_at?: string | null
-          event_id?: string | null
-          event_type?: Database["public"]["Enums"]["webhook_event"]
+          granted_at?: string | null
+          granted_by?: string | null
           id?: string
-          last_error?: string | null
-          next_retry_at?: string | null
-          org_id?: string
-          payload?: Json
-          response_body?: string | null
-          response_headers?: Json | null
-          response_status?: number | null
-          status?: Database["public"]["Enums"]["webhook_delivery_status"] | null
-          webhook_id?: string
+          user_id?: string
+          vault_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "webhook_deliveries_org_id_fkey"
-            columns: ["org_id"]
+            foreignKeyName: "vault_access_granted_by_fkey"
+            columns: ["granted_by"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "webhook_deliveries_webhook_id_fkey"
-            columns: ["webhook_id"]
+            foreignKeyName: "vault_access_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "webhooks"
+            referencedRelation: "app_user"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vault_access_vault_id_fkey"
+            columns: ["vault_id"]
+            isOneToOne: false
+            referencedRelation: "vault"
             referencedColumns: ["id"]
           },
         ]
       }
-      webhooks: {
+      webhook: {
         Row: {
           created_at: string | null
           created_by: string | null
@@ -6721,267 +6876,98 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "webhooks_created_by_fkey"
+            foreignKeyName: "webhook_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "webhooks_org_id_fkey"
+            foreignKeyName: "webhook_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "webhooks_updated_by_fkey"
+            foreignKeyName: "webhook_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
         ]
       }
-      woocommerce_product_mappings: {
+      webhook_delivery: {
         Row: {
-          config_id: string
+          attempt_count: number | null
           created_at: string | null
-          file_id: string
+          delivered_at: string | null
+          event_id: string | null
+          event_type: Database["public"]["Enums"]["webhook_event"]
           id: string
-          last_synced_at: string | null
-          last_synced_revision: string | null
-          last_synced_version: number | null
+          last_error: string | null
+          next_retry_at: string | null
           org_id: string
-          sync_error: string | null
-          sync_status: string | null
-          updated_at: string | null
-          wc_product_id: number
-          wc_product_name: string | null
-          wc_product_sku: string | null
-          wc_product_status: string | null
-          wc_product_type: string | null
+          payload: Json
+          response_body: string | null
+          response_headers: Json | null
+          response_status: number | null
+          status: Database["public"]["Enums"]["webhook_delivery_status"] | null
+          webhook_id: string
         }
         Insert: {
-          config_id: string
+          attempt_count?: number | null
           created_at?: string | null
-          file_id: string
+          delivered_at?: string | null
+          event_id?: string | null
+          event_type: Database["public"]["Enums"]["webhook_event"]
           id?: string
-          last_synced_at?: string | null
-          last_synced_revision?: string | null
-          last_synced_version?: number | null
+          last_error?: string | null
+          next_retry_at?: string | null
           org_id: string
-          sync_error?: string | null
-          sync_status?: string | null
-          updated_at?: string | null
-          wc_product_id: number
-          wc_product_name?: string | null
-          wc_product_sku?: string | null
-          wc_product_status?: string | null
-          wc_product_type?: string | null
+          payload: Json
+          response_body?: string | null
+          response_headers?: Json | null
+          response_status?: number | null
+          status?: Database["public"]["Enums"]["webhook_delivery_status"] | null
+          webhook_id: string
         }
         Update: {
-          config_id?: string
+          attempt_count?: number | null
           created_at?: string | null
-          file_id?: string
+          delivered_at?: string | null
+          event_id?: string | null
+          event_type?: Database["public"]["Enums"]["webhook_event"]
           id?: string
-          last_synced_at?: string | null
-          last_synced_revision?: string | null
-          last_synced_version?: number | null
+          last_error?: string | null
+          next_retry_at?: string | null
           org_id?: string
-          sync_error?: string | null
-          sync_status?: string | null
-          updated_at?: string | null
-          wc_product_id?: number
-          wc_product_name?: string | null
-          wc_product_sku?: string | null
-          wc_product_status?: string | null
-          wc_product_type?: string | null
+          payload?: Json
+          response_body?: string | null
+          response_headers?: Json | null
+          response_status?: number | null
+          status?: Database["public"]["Enums"]["webhook_delivery_status"] | null
+          webhook_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "woocommerce_product_mappings_config_id_fkey"
-            columns: ["config_id"]
-            isOneToOne: false
-            referencedRelation: "woocommerce_saved_configs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "woocommerce_product_mappings_file_id_fkey"
-            columns: ["file_id"]
-            isOneToOne: false
-            referencedRelation: "files"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "woocommerce_product_mappings_file_id_fkey"
-            columns: ["file_id"]
-            isOneToOne: false
-            referencedRelation: "parts_with_pricing"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "woocommerce_product_mappings_org_id_fkey"
+            foreignKeyName: "webhook_delivery_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "webhook_delivery_webhook_id_fkey"
+            columns: ["webhook_id"]
+            isOneToOne: false
+            referencedRelation: "webhook"
             referencedColumns: ["id"]
           },
         ]
       }
-      woocommerce_saved_configs: {
-        Row: {
-          color: string | null
-          consumer_key_encrypted: string | null
-          consumer_secret_encrypted: string | null
-          created_at: string | null
-          created_by: string | null
-          description: string | null
-          id: string
-          is_active: boolean | null
-          last_sync_at: string | null
-          last_sync_count: number | null
-          last_sync_status: string | null
-          last_test_error: string | null
-          last_test_success: boolean | null
-          last_tested_at: string | null
-          name: string
-          org_id: string
-          store_name: string | null
-          store_url: string
-          sync_settings: Json | null
-          updated_at: string | null
-          updated_by: string | null
-          wc_version: string | null
-        }
-        Insert: {
-          color?: string | null
-          consumer_key_encrypted?: string | null
-          consumer_secret_encrypted?: string | null
-          created_at?: string | null
-          created_by?: string | null
-          description?: string | null
-          id?: string
-          is_active?: boolean | null
-          last_sync_at?: string | null
-          last_sync_count?: number | null
-          last_sync_status?: string | null
-          last_test_error?: string | null
-          last_test_success?: boolean | null
-          last_tested_at?: string | null
-          name: string
-          org_id: string
-          store_name?: string | null
-          store_url: string
-          sync_settings?: Json | null
-          updated_at?: string | null
-          updated_by?: string | null
-          wc_version?: string | null
-        }
-        Update: {
-          color?: string | null
-          consumer_key_encrypted?: string | null
-          consumer_secret_encrypted?: string | null
-          created_at?: string | null
-          created_by?: string | null
-          description?: string | null
-          id?: string
-          is_active?: boolean | null
-          last_sync_at?: string | null
-          last_sync_count?: number | null
-          last_sync_status?: string | null
-          last_test_error?: string | null
-          last_test_success?: boolean | null
-          last_tested_at?: string | null
-          name?: string
-          org_id?: string
-          store_name?: string | null
-          store_url?: string
-          sync_settings?: Json | null
-          updated_at?: string | null
-          updated_by?: string | null
-          wc_version?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "woocommerce_saved_configs_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "woocommerce_saved_configs_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "woocommerce_saved_configs_updated_by_fkey"
-            columns: ["updated_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      workflow_gate_reviewers: {
-        Row: {
-          created_at: string | null
-          gate_id: string
-          group_name: string | null
-          id: string
-          reviewer_type: Database["public"]["Enums"]["reviewer_type"]
-          role: Database["public"]["Enums"]["user_role"] | null
-          user_id: string | null
-          workflow_role_id: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          gate_id: string
-          group_name?: string | null
-          id?: string
-          reviewer_type: Database["public"]["Enums"]["reviewer_type"]
-          role?: Database["public"]["Enums"]["user_role"] | null
-          user_id?: string | null
-          workflow_role_id?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          gate_id?: string
-          group_name?: string | null
-          id?: string
-          reviewer_type?: Database["public"]["Enums"]["reviewer_type"]
-          role?: Database["public"]["Enums"]["user_role"] | null
-          user_id?: string | null
-          workflow_role_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "fk_workflow_gate_reviewers_workflow_role"
-            columns: ["workflow_role_id"]
-            isOneToOne: false
-            referencedRelation: "workflow_roles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "workflow_gate_reviewers_gate_id_fkey"
-            columns: ["gate_id"]
-            isOneToOne: false
-            referencedRelation: "workflow_gates"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "workflow_gate_reviewers_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      workflow_gates: {
+      workflow_gate: {
         Row: {
           approval_mode: Database["public"]["Enums"]["approval_mode"] | null
           can_be_skipped_by: Database["public"]["Enums"]["user_role"][] | null
@@ -7029,10 +7015,179 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "workflow_gates_transition_id_fkey"
+            foreignKeyName: "workflow_gate_transition_id_fkey"
             columns: ["transition_id"]
             isOneToOne: false
-            referencedRelation: "workflow_transitions"
+            referencedRelation: "workflow_transition"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflow_gate_review: {
+        Row: {
+          assignee_id: string | null
+          attempt_id: string
+          checklist_responses: Json | null
+          created_at: string | null
+          expires_at: string | null
+          file_id: string
+          gate_id: string
+          id: string
+          org_id: string
+          requested_at: string | null
+          requested_by: string
+          review_comment: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: Database["public"]["Enums"]["review_status"]
+          transition_id: string
+        }
+        Insert: {
+          assignee_id?: string | null
+          attempt_id: string
+          checklist_responses?: Json | null
+          created_at?: string | null
+          expires_at?: string | null
+          file_id: string
+          gate_id: string
+          id?: string
+          org_id: string
+          requested_at?: string | null
+          requested_by: string
+          review_comment?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["review_status"]
+          transition_id: string
+        }
+        Update: {
+          assignee_id?: string | null
+          attempt_id?: string
+          checklist_responses?: Json | null
+          created_at?: string | null
+          expires_at?: string | null
+          file_id?: string
+          gate_id?: string
+          id?: string
+          org_id?: string
+          requested_at?: string | null
+          requested_by?: string
+          review_comment?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["review_status"]
+          transition_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_gate_review_assignee_id_fkey"
+            columns: ["assignee_id"]
+            isOneToOne: false
+            referencedRelation: "app_user"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_gate_review_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "file"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_gate_review_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "part_with_pricing"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_gate_review_gate_id_fkey"
+            columns: ["gate_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_gate"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_gate_review_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organization"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_gate_review_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "app_user"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_gate_review_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "app_user"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_gate_review_transition_id_fkey"
+            columns: ["transition_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_transition"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflow_gate_reviewer: {
+        Row: {
+          created_at: string | null
+          gate_id: string
+          group_name: string | null
+          id: string
+          reviewer_type: Database["public"]["Enums"]["reviewer_type"]
+          role: Database["public"]["Enums"]["user_role"] | null
+          user_id: string | null
+          workflow_role_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          gate_id: string
+          group_name?: string | null
+          id?: string
+          reviewer_type: Database["public"]["Enums"]["reviewer_type"]
+          role?: Database["public"]["Enums"]["user_role"] | null
+          user_id?: string | null
+          workflow_role_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          gate_id?: string
+          group_name?: string | null
+          id?: string
+          reviewer_type?: Database["public"]["Enums"]["reviewer_type"]
+          role?: Database["public"]["Enums"]["user_role"] | null
+          user_id?: string | null
+          workflow_role_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_gate_reviewer_gate_id_fkey"
+            columns: ["gate_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_gate"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_gate_reviewer_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "app_user"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_gate_reviewer_workflow_role_id_fkey"
+            columns: ["workflow_role_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_role"
             referencedColumns: ["id"]
           },
         ]
@@ -7112,56 +7267,56 @@ export type Database = {
             foreignKeyName: "workflow_history_file_id_fkey"
             columns: ["file_id"]
             isOneToOne: false
-            referencedRelation: "files"
+            referencedRelation: "file"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "workflow_history_file_id_fkey"
             columns: ["file_id"]
             isOneToOne: false
-            referencedRelation: "parts_with_pricing"
+            referencedRelation: "part_with_pricing"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "workflow_history_from_state_id_fkey"
             columns: ["from_state_id"]
             isOneToOne: false
-            referencedRelation: "workflow_states"
+            referencedRelation: "workflow_state"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "workflow_history_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "workflow_history_performed_by_fkey"
             columns: ["performed_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "workflow_history_to_state_id_fkey"
             columns: ["to_state_id"]
             isOneToOne: false
-            referencedRelation: "workflow_states"
+            referencedRelation: "workflow_state"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "workflow_history_transition_id_fkey"
             columns: ["transition_id"]
             isOneToOne: false
-            referencedRelation: "workflow_transitions"
+            referencedRelation: "workflow_transition"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "workflow_history_workflow_id_fkey"
             columns: ["workflow_id"]
             isOneToOne: false
-            referencedRelation: "workflow_templates"
+            referencedRelation: "workflow_template"
             referencedColumns: ["id"]
           },
         ]
@@ -7244,61 +7399,61 @@ export type Database = {
             foreignKeyName: "workflow_review_history_file_id_fkey"
             columns: ["file_id"]
             isOneToOne: false
-            referencedRelation: "files"
+            referencedRelation: "file"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "workflow_review_history_file_id_fkey"
             columns: ["file_id"]
             isOneToOne: false
-            referencedRelation: "parts_with_pricing"
+            referencedRelation: "part_with_pricing"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "workflow_review_history_gate_id_fkey"
             columns: ["gate_id"]
             isOneToOne: false
-            referencedRelation: "workflow_gates"
+            referencedRelation: "workflow_gate"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "workflow_review_history_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "workflow_review_history_requested_by_fkey"
             columns: ["requested_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "workflow_review_history_reviewed_by_fkey"
             columns: ["reviewed_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "workflow_review_history_transition_id_fkey"
             columns: ["transition_id"]
             isOneToOne: false
-            referencedRelation: "workflow_transitions"
+            referencedRelation: "workflow_transition"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "workflow_review_history_workflow_id_fkey"
             columns: ["workflow_id"]
             isOneToOne: false
-            referencedRelation: "workflow_templates"
+            referencedRelation: "workflow_template"
             referencedColumns: ["id"]
           },
         ]
       }
-      workflow_roles: {
+      workflow_role: {
         Row: {
           color: string | null
           created_at: string | null
@@ -7343,31 +7498,30 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "workflow_roles_created_by_fkey"
+            foreignKeyName: "workflow_role_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "workflow_roles_org_id_fkey"
+            foreignKeyName: "workflow_role_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "workflow_roles_updated_by_fkey"
+            foreignKeyName: "workflow_role_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
         ]
       }
-      workflow_states: {
+      workflow_state: {
         Row: {
-          auto_increment_revision: boolean | null
           border_color: string | null
           border_opacity: number | null
           border_thickness: number | null
@@ -7380,22 +7534,23 @@ export type Database = {
           height: number
           icon: string | null
           id: string
+          is_checkout_required: boolean | null
           is_editable: boolean | null
+          is_review_stage: boolean | null
+          is_revision_auto_incremented: boolean | null
           label: string | null
           name: string
           position_x: number | null
           position_y: number | null
           required_workflow_roles: string[] | null
-          requires_checkout: boolean | null
+          review_approved_state_id: string | null
           shape: Database["public"]["Enums"]["state_shape"] | null
           sort_order: number | null
           state_type: Database["public"]["Enums"]["state_type"] | null
-          triggers_review: boolean | null
           width: number
           workflow_id: string
         }
         Insert: {
-          auto_increment_revision?: boolean | null
           border_color?: string | null
           border_opacity?: number | null
           border_thickness?: number | null
@@ -7408,22 +7563,23 @@ export type Database = {
           height?: number
           icon?: string | null
           id?: string
+          is_checkout_required?: boolean | null
           is_editable?: boolean | null
+          is_review_stage?: boolean | null
+          is_revision_auto_incremented?: boolean | null
           label?: string | null
           name: string
           position_x?: number | null
           position_y?: number | null
           required_workflow_roles?: string[] | null
-          requires_checkout?: boolean | null
+          review_approved_state_id?: string | null
           shape?: Database["public"]["Enums"]["state_shape"] | null
           sort_order?: number | null
           state_type?: Database["public"]["Enums"]["state_type"] | null
-          triggers_review?: boolean | null
           width?: number
           workflow_id: string
         }
         Update: {
-          auto_increment_revision?: boolean | null
           border_color?: string | null
           border_opacity?: number | null
           border_thickness?: number | null
@@ -7436,31 +7592,40 @@ export type Database = {
           height?: number
           icon?: string | null
           id?: string
+          is_checkout_required?: boolean | null
           is_editable?: boolean | null
+          is_review_stage?: boolean | null
+          is_revision_auto_incremented?: boolean | null
           label?: string | null
           name?: string
           position_x?: number | null
           position_y?: number | null
           required_workflow_roles?: string[] | null
-          requires_checkout?: boolean | null
+          review_approved_state_id?: string | null
           shape?: Database["public"]["Enums"]["state_shape"] | null
           sort_order?: number | null
           state_type?: Database["public"]["Enums"]["state_type"] | null
-          triggers_review?: boolean | null
           width?: number
           workflow_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "workflow_states_workflow_id_fkey"
+            foreignKeyName: "workflow_state_review_approved_state_id_fkey"
+            columns: ["review_approved_state_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_state"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_state_workflow_id_fkey"
             columns: ["workflow_id"]
             isOneToOne: false
-            referencedRelation: "workflow_templates"
+            referencedRelation: "workflow_template"
             referencedColumns: ["id"]
           },
         ]
       }
-      workflow_templates: {
+      workflow_template: {
         Row: {
           canvas_config: Json | null
           created_at: string | null
@@ -7502,29 +7667,29 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "workflow_templates_created_by_fkey"
+            foreignKeyName: "workflow_template_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "workflow_templates_org_id_fkey"
+            foreignKeyName: "workflow_template_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "workflow_templates_updated_by_fkey"
+            foreignKeyName: "workflow_template_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "app_user"
             referencedColumns: ["id"]
           },
         ]
       }
-      workflow_transitions: {
+      workflow_transition: {
         Row: {
           allowed_workflow_roles: string[] | null
           auto_conditions: Json | null
@@ -7614,31 +7779,31 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "workflow_transitions_from_state_id_fkey"
+            foreignKeyName: "workflow_transition_from_state_id_fkey"
             columns: ["from_state_id"]
             isOneToOne: false
-            referencedRelation: "workflow_states"
+            referencedRelation: "workflow_state"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "workflow_transitions_to_state_id_fkey"
+            foreignKeyName: "workflow_transition_to_state_id_fkey"
             columns: ["to_state_id"]
             isOneToOne: false
-            referencedRelation: "workflow_states"
+            referencedRelation: "workflow_state"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "workflow_transitions_workflow_id_fkey"
+            foreignKeyName: "workflow_transition_workflow_id_fkey"
             columns: ["workflow_id"]
             isOneToOne: false
-            referencedRelation: "workflow_templates"
+            referencedRelation: "workflow_template"
             referencedColumns: ["id"]
           },
         ]
       }
     }
     Views: {
-      parts_with_pricing: {
+      part_with_pricing: {
         Row: {
           created_at: string | null
           description: string | null
@@ -7695,84 +7860,50 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "files_org_id_fkey"
+            foreignKeyName: "file_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "organization"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "files_vault_id_fkey"
+            foreignKeyName: "file_vault_id_fkey"
             columns: ["vault_id"]
             isOneToOne: false
-            referencedRelation: "vaults"
+            referencedRelation: "vault"
             referencedColumns: ["id"]
           },
         ]
       }
     }
     Functions: {
-      activate_solidworks_license: {
-        Args: {
-          p_assignment_id: string
-          p_machine_id: string
-          p_machine_name?: string
-        }
+      admin_recovery_code_use: {
+        Args: { p_code: string; p_ip_address?: string }
         Returns: Json
       }
-      add_pending_license_assignment: {
-        Args: { p_license_id: string; p_pending_member_id: string }
-        Returns: Json
-      }
-      admin_remove_user: { Args: { p_user_email: string }; Returns: Json }
-      anon_admitting_policies: { Args: { p_oid: unknown }; Returns: string[] }
-      anon_execute_allowlist: {
+      anon_enforce_execute_posture: { Args: never; Returns: number }
+      anon_get_execute_allowlist: {
         Args: never
         Returns: {
           reason: string
           signature: string
         }[]
       }
-      anon_read_allowlist: {
+      anon_get_read_allowlist: {
         Args: never
         Returns: {
           reason: string
           relname: string
         }[]
       }
-      anon_read_grantors: { Args: { p_oid: unknown }; Returns: string[] }
-      anon_revoke_grantors: { Args: { p_oid: unknown }; Returns: string[] }
-      apply_pending_license_assignments: {
-        Args: { p_user_id: string }
-        Returns: undefined
+      anon_list_admitting_policies: {
+        Args: { p_oid: unknown }
+        Returns: string[]
       }
-      apply_pending_team_memberships: {
-        Args: { p_user_id: string }
-        Returns: undefined
-      }
-      apply_workflow_transition: {
-        Args: {
-          p_approvals: Json
-          p_comment: string
-          p_file_id: string
-          p_transition_id: string
-          p_user_id: string
-        }
-        Returns: Json
-      }
-      approve_eco_gate: {
-        Args: { p_eco_id: string; p_gate_name: string; p_notes?: string }
-        Returns: Json
-      }
-      assign_solidworks_license: {
-        Args: { p_license_id: string; p_user_id: string }
-        Returns: Json
-      }
-      block_user: {
-        Args: { p_email: string; p_reason?: string }
-        Returns: Json
-      }
-      calculate_bom_cost: {
+      anon_list_read_grantors: { Args: { p_oid: unknown }; Returns: string[] }
+      anon_list_revoke_grantors: { Args: { p_oid: unknown }; Returns: string[] }
+      backup_get_status: { Args: never; Returns: Json }
+      bom_calculate_cost: {
         Args: { p_assembly_id: string; p_quantity?: number }
         Returns: {
           assembly_id: string
@@ -7784,6 +7915,24 @@ export type Database = {
           total_cost: number
         }[]
       }
+      can_access_module: {
+        Args: { p_module_id: string; p_user_id?: string }
+        Returns: boolean
+      }
+      can_access_vault: { Args: { p_vault_id: string }; Returns: boolean }
+      can_read_vault_object: { Args: { p_name: string }; Returns: boolean }
+      can_review_gate: {
+        Args: { p_gate_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      can_run_transition: {
+        Args: { p_transition_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      can_user_access_vault: {
+        Args: { p_user_id: string; p_vault_id: string }
+        Returns: boolean
+      }
       check_anon_reach: {
         Args: never
         Returns: {
@@ -7791,6 +7940,13 @@ export type Database = {
           identity: string
           kind: string
           severity: string
+        }[]
+      }
+      check_definer_search_path: {
+        Args: never
+        Returns: {
+          detail: string
+          signature: string
         }[]
       }
       check_gate_requirements: {
@@ -7850,95 +8006,11 @@ export type Database = {
           status: string
         }[]
       }
-      checkin_file: {
-        Args: {
-          p_comment?: string
-          p_custom_properties?: Json
-          p_description?: string
-          p_file_id: string
-          p_inspection_hash?: string
-          p_local_active_version?: number
-          p_new_content_hash?: string
-          p_new_file_name?: string
-          p_new_file_path?: string
-          p_new_file_size?: number
-          p_part_number?: string
-          p_revision?: string
-          p_user_id: string
-        }
+      client_min_version: { Args: never; Returns: string }
+      custom_properties_merge: {
+        Args: { p_existing: Json; p_incoming: Json }
         Returns: Json
       }
-      checkout_file: {
-        Args: {
-          p_file_id: string
-          p_lock_message?: string
-          p_machine_id?: string
-          p_machine_name?: string
-          p_user_id: string
-        }
-        Returns: Json
-      }
-      cleanup_extension_http_logs: {
-        Args: { p_retention_days?: number }
-        Returns: number
-      }
-      cleanup_extension_secret_access_logs: {
-        Args: { p_retention_days?: number }
-        Returns: number
-      }
-      cleanup_stale_sessions: { Args: never; Returns: number }
-      clear_team_module_defaults: { Args: { p_team_id: string }; Returns: Json }
-      complete_gate_review: {
-        Args: {
-          p_checklist_responses?: Json
-          p_comment?: string
-          p_decision: Database["public"]["Enums"]["review_status"]
-          p_pending_review_id: string
-        }
-        Returns: Json
-      }
-      consume_share_link: { Args: { p_token: string }; Returns: boolean }
-      create_default_job_titles: {
-        Args: { p_created_by?: string; p_org_id: string }
-        Returns: undefined
-      }
-      create_default_permission_teams: {
-        Args: { p_created_by?: string; p_org_id: string }
-        Returns: undefined
-      }
-      create_default_workflow: {
-        Args: { p_created_by: string; p_org_id: string }
-        Returns: string
-      }
-      create_file_share_link: {
-        Args: {
-          p_created_by: string
-          p_expires_in_days?: number
-          p_file_id: string
-          p_max_downloads?: number
-          p_org_id: string
-          p_require_auth?: boolean
-        }
-        Returns: {
-          expires_at: string
-          link_id: string
-          token: string
-        }[]
-      }
-      create_review_request: {
-        Args: {
-          p_file_id: string
-          p_file_version?: number
-          p_message?: string
-          p_org_id: string
-          p_requested_by: string
-          p_reviewer_ids: string[]
-          p_title?: string
-          p_vault_id: string
-        }
-        Returns: string
-      }
-      current_actor_id: { Args: never; Returns: string }
       customer_analytics_summary: {
         Args: { p_from: string; p_org_id: string; p_to: string }
         Returns: {
@@ -8138,198 +8210,222 @@ export type Database = {
           revenue: number
         }[]
       }
-      deactivate_solidworks_license: {
-        Args: { p_assignment_id: string }
-        Returns: Json
-      }
-      delete_item_designation: {
-        Args: { p_id: string; p_org_id: string }
-        Returns: boolean
-      }
-      delete_user_account: { Args: never; Returns: Json }
-      drop_function_overloads: {
-        Args: { func_name: string }
-        Returns: undefined
-      }
-      enforce_anon_execute_posture: { Args: never; Returns: number }
-      ensure_user_org_id: { Args: never; Returns: Json }
-      execute_transition_to_legacy_state: {
-        Args: { p_comment?: string; p_file_id: string; p_target_state: string }
-        Returns: Json
-      }
-      execute_workflow_transition: {
-        Args: { p_comment?: string; p_file_id: string; p_transition_id: string }
-        Returns: Json
-      }
-      extend_backup_lock: {
-        Args: {
-          p_additional_minutes?: number
-          p_machine_id: string
-          p_org_id: string
-        }
-        Returns: boolean
-      }
-      force_org_column_defaults: {
-        Args: { p_column_defaults: Json; p_org_id: string }
-        Returns: Json
-      }
-      force_org_module_defaults: {
-        Args: {
-          p_custom_groups?: Json
-          p_dividers: Json
-          p_enabled_groups: Json
-          p_enabled_modules: Json
-          p_module_icon_colors?: Json
-          p_module_order: Json
-          p_module_parents?: Json
-          p_org_id: string
-        }
-        Returns: Json
-      }
-      generate_rfq_number: { Args: { p_org_id: string }; Returns: string }
-      generate_share_token: { Args: never; Returns: string }
-      get_available_transitions: {
-        Args: { p_file_id: string; p_user_id: string }
-        Returns: {
-          has_gates: boolean
-          to_state_color: string
-          to_state_id: string
-          to_state_name: string
-          transition_id: string
-          transition_name: string
-          user_can_transition: boolean
-        }[]
-      }
-      get_best_price: {
-        Args: { p_file_id: string; p_quantity?: number }
-        Returns: {
-          currency: string
-          is_preferred: boolean
-          lead_time_days: number
-          supplier_code: string
-          supplier_id: string
-          supplier_name: string
-          supplier_part_number: string
-          total_price: number
-          unit_price: number
-        }[]
-      }
-      get_denied_modules: { Args: never; Returns: string[] }
-      get_eco_files: {
-        Args: { p_eco_id: string }
+      customers_extension_schema_version: { Args: never; Returns: number }
+      drawing_pdf_render_get: {
+        Args: { p_file_version_id: string }
         Returns: {
           file_id: string
+          file_size: number
+          file_version_id: string
+          generated_at: string
+          generated_by: string
+          is_closure_exact: boolean
+          storage_hash: string
+        }[]
+      }
+      drawing_pdf_render_record: {
+        Args: {
+          p_closure_exact?: boolean
+          p_file_size: number
+          p_file_version_id: string
+          p_storage_hash: string
+        }
+        Returns: Json
+      }
+      eco_gate_approve: {
+        Args: { p_eco_id: string; p_gate_name: string; p_notes?: string }
+        Returns: Json
+      }
+      eco_require_access: { Args: { p_eco_id: string }; Returns: string }
+      file_checkin: {
+        Args: {
+          p_comment?: string
+          p_custom_properties?: Json
+          p_description?: string
+          p_file_id: string
+          p_inspection_hash?: string
+          p_local_active_version?: number
+          p_new_content_hash?: string
+          p_new_file_name?: string
+          p_new_file_path?: string
+          p_new_file_size?: number
+          p_part_number?: string
+          p_revision?: string
+        }
+        Returns: Json
+      }
+      file_checkout: {
+        Args: {
+          p_file_id: string
+          p_lock_message?: string
+          p_machine_id?: string
+          p_machine_name?: string
+        }
+        Returns: Json
+      }
+      file_get_active_by_path: {
+        Args: { p_file_path: string; p_vault_id: string }
+        Returns: {
+          checked_out_at: string | null
+          checked_out_by: string | null
+          checked_out_by_machine_id: string | null
+          checked_out_by_machine_name: string | null
+          checked_out_file_name: string | null
+          checked_out_file_path: string | null
+          configuration_revisions: Json | null
+          content_hash: string | null
+          created_at: string | null
+          created_by: string
+          custom_properties: Json | null
+          deleted_at: string | null
+          deleted_by: string | null
+          description: string | null
+          eco_tags: string[] | null
+          extension: string
           file_name: string
           file_path: string
-          notes: string
-          part_number: string
-          revision: string
-          tagged_at: string
-          tagged_by: string
-        }[]
-      }
-      get_extension_config: {
-        Args: { p_extension_id: string; p_org_id: string }
-        Returns: Json
-      }
-      get_extension_stats: {
-        Args: { p_extension_id: string; p_org_id: string }
-        Returns: {
-          http_requests_24h: number
-          last_http_request: string
-          secrets_count: number
-          storage_keys_count: number
-        }[]
-      }
-      get_file_ecos: {
-        Args: { p_file_id: string }
-        Returns: {
-          created_at: string
-          eco_id: string
-          eco_number: string
-          notes: string
-          status: string
-          tagged_at: string
-          title: string
-        }[]
-      }
-      get_google_drive_settings: {
-        Args: { p_org_id: string }
-        Returns: {
-          client_id: string
-          client_secret: string
-          enabled: boolean
-          inspection_template_folder_id: string
-        }[]
-      }
-      get_item_definition_settings: {
-        Args: { p_org_id: string }
-        Returns: Json
-      }
-      get_item_designation_assignments: {
-        Args: { p_org_id: string; p_vault_id: string }
-        Returns: {
-          designation_id: string
+          file_size: number | null
+          file_type: Database["public"]["Enums"]["file_type"]
           id: string
+          inspection_hash: string | null
+          lock_message: string | null
           org_id: string
-          part_number: string
+          part_number: string | null
+          revision: string
+          state: string | null
+          state_changed_at: string | null
+          state_changed_by: string | null
           updated_at: string | null
           updated_by: string | null
           vault_id: string
+          version: number
+          workflow_state_id: string | null
         }[]
         SetofOptions: {
           from: "*"
-          to: "item_designation_assignments"
+          to: "file"
           isOneToOne: false
           isSetofReturn: true
         }
       }
-      get_item_designations: {
-        Args: { p_org_id: string }
+      file_get_legacy_state: { Args: { p_state_name: string }; Returns: string }
+      file_move: {
+        Args: {
+          p_file_id: string
+          p_new_file_name?: string
+          p_new_file_path: string
+        }
+        Returns: Json
+      }
+      file_repair_config_maps: {
+        Args: { p_org_id: string; p_repairs: Json }
+        Returns: Json
+      }
+      file_require_access: { Args: { p_file_id: string }; Returns: string }
+      file_share_link_admit: {
+        Args: { p_token: string }
         Returns: {
-          created_at: string | null
-          created_by: string | null
-          id: string
-          name: string
+          error_message: string
+          file_id: string
+          file_version: number
+          is_valid: boolean
           org_id: string
-          sort_order: number
         }[]
-        SetofOptions: {
-          from: "*"
-          to: "item_designations"
-          isOneToOne: false
-          isSetofReturn: true
-        }
       }
-      get_item_images: {
-        Args: { p_org_id: string }
+      file_share_link_consume: { Args: { p_token: string }; Returns: boolean }
+      file_share_link_create: {
+        Args: {
+          p_created_by: string
+          p_expires_in_days?: number
+          p_file_id: string
+          p_max_downloads?: number
+          p_org_id: string
+          p_require_auth?: boolean
+        }
         Returns: {
-          icon_color: string | null
-          icon_name: string | null
-          id: string
-          image_storage_path: string | null
-          image_type: string
+          expires_at: string
+          link_id: string
+          token: string
+        }[]
+      }
+      file_share_link_generate_token: { Args: never; Returns: string }
+      file_share_link_remediate_cross_tenant: { Args: never; Returns: number }
+      file_share_link_validate: {
+        Args: { p_token: string }
+        Returns: {
+          error_message: string
+          file_id: string
+          file_version: number
+          is_valid: boolean
           org_id: string
-          part_number: string
-          updated_at: string | null
-          updated_by: string | null
         }[]
-        SetofOptions: {
-          from: "*"
-          to: "item_images"
-          isOneToOne: false
-          isSetofReturn: true
-        }
       }
-      get_module_access_config: {
-        Args: never
+      file_version_get_dependency_closure: {
+        Args: { p_file_version_id: string }
         Returns: {
-          module_id: string
-          team_id: string
-          user_id: string
+          configuration: string
+          content_hash: string
+          deleted: boolean
+          depth: number
+          edge_source: string
+          extension: string
+          file_id: string
+          file_name: string
+          file_path: string
+          file_size: number
+          file_version_id: string
+          is_exact: boolean
+          missing: boolean
+          parent_version_id: string
+          quantity: number
+          reference_path: string
+          reference_type: string
+          revision: string
+          vault_id: string
+          version: number
         }[]
       }
-      get_my_pending_reviews: {
+      file_version_reference_list_edges: {
+        Args: { p_org_id: string; p_parent_version_ids: string[] }
+        Returns: {
+          child_file_id: string
+          child_path: string
+          child_version_id: string
+          configuration: string
+          edge_source: string
+          is_exact: boolean
+          parent_version_id: string
+          quantity: number
+          reference_type: string
+        }[]
+      }
+      file_version_reference_record: {
+        Args: { p_file_version_id: string; p_refs: Json }
+        Returns: Json
+      }
+      folder_remediate_case_collisions: { Args: never; Returns: number }
+      folder_rename: {
+        Args: {
+          p_new_folder_path: string
+          p_old_folder_path: string
+          p_vault_id?: string
+        }
+        Returns: Json
+      }
+      gate_review_complete: {
+        Args: {
+          p_checklist_responses?: Json
+          p_comment?: string
+          p_decision: Database["public"]["Enums"]["review_status"]
+          p_pending_review_id: string
+        }
+        Returns: Json
+      }
+      gate_review_list_awaiting_ids: {
+        Args: { p_user_id: string }
+        Returns: string[]
+      }
+      gate_review_list_mine: {
         Args: never
         Returns: {
           checklist_items: Json
@@ -8349,22 +8445,215 @@ export type Database = {
           transition_name: string
         }[]
       }
-      get_next_serial_number: { Args: { p_org_id: string }; Returns: string }
-      get_odoo_integration: {
+      gate_reviewer_list_user_ids: {
+        Args: { p_gate_id: string; p_org_id: string }
+        Returns: string[]
+      }
+      has_team_permission: {
+        Args: {
+          p_action: Database["public"]["Enums"]["permission_action"]
+          p_resource: string
+          p_vault_id?: string
+        }
+        Returns: boolean
+      }
+      has_user_permission: {
+        Args: {
+          p_action: Database["public"]["Enums"]["permission_action"]
+          p_resource: string
+          p_user_id: string
+          p_vault_id?: string
+        }
+        Returns: boolean
+      }
+      is_org_admin:
+        | { Args: never; Returns: boolean }
+        | { Args: { p_user_id: string }; Returns: boolean }
+      is_org_file_workflows_enabled: {
+        Args: { p_org_id: string }
+        Returns: boolean
+      }
+      is_org_gate_status_blocking: {
+        Args: { p_status: string }
+        Returns: boolean
+      }
+      is_org_member: { Args: { p_org_id: string }; Returns: boolean }
+      item_designation_assignment_list: {
+        Args: { p_org_id: string; p_vault_id: string }
+        Returns: {
+          designation_id: string
+          id: string
+          org_id: string
+          part_number: string
+          updated_at: string | null
+          updated_by: string | null
+          vault_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "item_designation_assignment"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      item_designation_assignment_set: {
+        Args: {
+          p_designation_id?: string
+          p_org_id: string
+          p_part_number: string
+          p_vault_id: string
+        }
+        Returns: {
+          designation_id: string
+          id: string
+          org_id: string
+          part_number: string
+          updated_at: string | null
+          updated_by: string | null
+          vault_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "item_designation_assignment"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      item_designation_delete: {
+        Args: { p_id: string; p_org_id: string }
+        Returns: boolean
+      }
+      item_designation_list: {
         Args: { p_org_id: string }
         Returns: {
-          auto_sync: boolean
-          database: string
+          created_at: string | null
+          created_by: string | null
           id: string
-          is_connected: boolean
-          last_sync_at: string
-          last_sync_count: number
-          last_sync_status: string
-          url: string
-          username: string
+          name: string
+          org_id: string
+          sort_order: number
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "item_designation"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      item_designation_upsert: {
+        Args: {
+          p_id?: string
+          p_name: string
+          p_org_id: string
+          p_sort_order?: number
+        }
+        Returns: {
+          created_at: string | null
+          created_by: string | null
+          id: string
+          name: string
+          org_id: string
+          sort_order: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "item_designation"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      item_image_list: {
+        Args: { p_org_id: string }
+        Returns: {
+          icon_color: string | null
+          icon_name: string | null
+          id: string
+          image_storage_path: string | null
+          image_type: string
+          org_id: string
+          part_number: string
+          updated_at: string | null
+          updated_by: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "item_image"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      item_image_reset: {
+        Args: { p_org_id: string; p_part_number: string }
+        Returns: boolean
+      }
+      item_image_upsert: {
+        Args: {
+          p_icon_color?: string
+          p_icon_name?: string
+          p_image_storage_path?: string
+          p_image_type: string
+          p_org_id: string
+          p_part_number: string
+        }
+        Returns: {
+          icon_color: string | null
+          icon_name: string | null
+          id: string
+          image_storage_path: string | null
+          image_type: string
+          org_id: string
+          part_number: string
+          updated_at: string | null
+          updated_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "item_image"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      job_title_create_defaults: {
+        Args: { p_created_by?: string; p_org_id: string }
+        Returns: undefined
+      }
+      known_partner_channel_for_key: {
+        Args: { p_account_key: string }
+        Returns: string
+      }
+      known_partners: {
+        Args: never
+        Returns: {
+          account_keys: string[]
+          channel: string
+          country: string
+          name: string
+          website: string
         }[]
       }
-      get_odoo_saved_configs: {
+      like_pattern_escape: { Args: { p_text: string }; Returns: string }
+      module_access_get_config: {
+        Args: never
+        Returns: {
+          module_id: string
+          team_id: string
+          user_id: string
+        }[]
+      }
+      module_access_set: {
+        Args: {
+          p_module_id: string
+          p_team_ids?: string[]
+          p_user_ids?: string[]
+        }
+        Returns: Json
+      }
+      module_list_denied: { Args: never; Returns: string[] }
+      my_accessible_vault_ids: { Args: never; Returns: string[] }
+      my_actor_id: { Args: never; Returns: string }
+      my_solidworks_license_ids: { Args: never; Returns: string[] }
+      my_verified_email: { Args: never; Returns: string }
+      odoo_saved_config_list: {
         Args: { p_org_id: string }
         Returns: {
           color: string
@@ -8373,22 +8662,56 @@ export type Database = {
           description: string
           id: string
           is_active: boolean
-          last_test_success: boolean
+          is_last_test_successful: boolean
           last_tested_at: string
           name: string
           url: string
-          username: string
         }[]
       }
-      get_org_auth_providers: { Args: { p_org_slug: string }; Returns: Json }
-      get_org_column_defaults: { Args: { p_org_id: string }; Returns: Json }
-      get_org_integration_status: {
+      org_force_column_defaults: {
+        Args: { p_column_defaults: Json; p_org_id: string }
+        Returns: Json
+      }
+      org_force_module_defaults: {
+        Args: {
+          p_custom_groups?: Json
+          p_dividers: Json
+          p_enabled_groups: Json
+          p_enabled_modules: Json
+          p_module_icon_colors?: Json
+          p_module_order: Json
+          p_module_parents?: Json
+          p_org_id: string
+        }
+        Returns: Json
+      }
+      org_gate_get_exclusion_reason: {
+        Args: { p_oid: unknown }
+        Returns: string
+      }
+      org_get_auth_providers: { Args: { p_org_slug: string }; Returns: Json }
+      org_get_column_defaults: { Args: { p_org_id: string }; Returns: Json }
+      org_get_google_drive_settings: {
+        Args: { p_org_id: string }
+        Returns: {
+          client_id: string
+          client_secret: string
+          inspection_template_folder_id: string
+          is_enabled: boolean
+        }[]
+      }
+      org_get_item_definition_settings: {
+        Args: { p_org_id: string }
+        Returns: Json
+      }
+      org_get_module_defaults: { Args: { p_org_id: string }; Returns: Json }
+      org_integration_get_status: {
         Args: { p_integration_type: string; p_org_id: string }
         Returns: {
-          auto_sync: boolean
           id: string
           integration_type: string
           is_active: boolean
+          is_auto_sync: boolean
           is_connected: boolean
           last_connected_at: string
           last_sync_at: string
@@ -8396,32 +8719,328 @@ export type Database = {
           last_sync_status: string
         }[]
       }
-      get_org_module_defaults: { Args: { p_org_id: string }; Returns: Json }
-      get_org_odoo_configs: {
-        Args: { p_org_id: string }
+      org_join_by_slug: { Args: { p_org_slug: string }; Returns: Json }
+      org_regenerate_slug: { Args: never; Returns: Json }
+      org_remove_user: { Args: { p_user_email: string }; Returns: Json }
+      org_require_member: { Args: { p_org_id: string }; Returns: undefined }
+      org_rpc_revoke_public_execute: { Args: never; Returns: number }
+      org_set_column_defaults: {
+        Args: { p_column_defaults: Json; p_org_id: string }
+        Returns: Json
+      }
+      org_set_module_defaults: {
+        Args: {
+          p_custom_groups?: Json
+          p_dividers: Json
+          p_enabled_groups: Json
+          p_enabled_modules: Json
+          p_module_icon_colors?: Json
+          p_module_order: Json
+          p_module_parents?: Json
+          p_org_id: string
+        }
+        Returns: Json
+      }
+      org_update_branding: {
+        Args: {
+          p_contact_email?: string
+          p_logo_storage_path?: string
+          p_logo_url?: string
+          p_org_id: string
+          p_phone?: string
+          p_website?: string
+        }
+        Returns: Json
+      }
+      org_update_google_drive_settings: {
+        Args: {
+          p_client_id: string
+          p_client_secret: string
+          p_enabled: boolean
+          p_inspection_template_folder_id?: string
+          p_org_id: string
+        }
+        Returns: boolean
+      }
+      org_update_item_definition_settings: {
+        Args: { p_org_id: string; p_settings: Json }
+        Returns: boolean
+      }
+      org_update_serialization_settings: {
+        Args: { p_org_id: string; p_settings: Json }
+        Returns: boolean
+      }
+      part_supplier_get_best_price: {
+        Args: { p_file_id: string; p_quantity?: number }
         Returns: {
-          color: string
-          created_at: string
-          database: string
-          description: string
-          id: string
-          is_active: boolean
-          last_test_success: boolean
-          last_tested_at: string
-          name: string
-          url: string
+          currency: string
+          is_preferred: boolean
+          lead_time_days: number
+          supplier_code: string
+          supplier_id: string
+          supplier_name: string
+          supplier_part_number: string
+          total_price: number
+          unit_price: number
         }[]
       }
-      get_team_module_defaults: { Args: { p_team_id: string }; Returns: Json }
-      get_unread_notification_count: {
+      pending_license_assignment_add: {
+        Args: { p_license_id: string; p_pending_member_id: string }
+        Returns: Json
+      }
+      pending_license_assignment_apply: {
         Args: { p_user_id: string }
+        Returns: undefined
+      }
+      pending_license_assignment_remove: {
+        Args: { p_license_id: string; p_pending_member_id: string }
+        Returns: Json
+      }
+      probe_get_literal: { Args: { p_type: string }; Returns: string }
+      probe_get_literal_for_arg: {
+        Args: { p_arg: string; p_oid: unknown; p_type: string }
+        Returns: string
+      }
+      process_template_instantiate: {
+        Args: { p_eco_id: string; p_template_id: string }
+        Returns: undefined
+      }
+      review_advance_files: {
+        Args: { p_only_approved?: boolean; p_review_id: string }
+        Returns: Json
+      }
+      review_advance_items: {
+        Args: { p_only_approved: boolean; p_review_id: string }
+        Returns: Json
+      }
+      review_apply_workflow_after_settle: {
+        Args: { p_review_id: string; p_status: string }
+        Returns: undefined
+      }
+      review_approve_all_remaining: {
+        Args: { p_comment?: string; p_review_id: string }
+        Returns: Json
+      }
+      review_cancel: {
+        Args: { p_reason?: string; p_review_id: string }
+        Returns: Json
+      }
+      review_count_badge: { Args: never; Returns: number }
+      review_get_detail: { Args: { p_review_id: string }; Returns: Json }
+      review_get_display_title: {
+        Args: { p_review_id: string }
+        Returns: string
+      }
+      review_get_user_json: { Args: { p_user_id: string }; Returns: Json }
+      review_get_workflow_status: {
+        Args: { p_review_id: string }
+        Returns: Json
+      }
+      review_item_add: {
+        Args: { p_file_version_ids: string[]; p_review_id: string }
+        Returns: Json
+      }
+      review_item_list_owed_ids: {
+        Args: { p_review_id: string; p_user_id: string }
+        Returns: string[]
+      }
+      review_item_remove: {
+        Args: { p_file_ids: string[]; p_review_id: string }
+        Returns: Json
+      }
+      review_item_respond: {
+        Args: { p_decisions: Json; p_review_id: string }
+        Returns: Json
+      }
+      review_list_open_for_files: {
+        Args: { p_file_ids?: string[] }
+        Returns: Json
+      }
+      review_list_queue: {
+        Args: {
+          p_bucket?: string
+          p_cursor?: string
+          p_limit?: number
+          p_search?: string
+          p_team_id?: string
+        }
+        Returns: Json
+      }
+      review_notify: {
+        Args: {
+          p_actor: string
+          p_message: string
+          p_org_id: string
+          p_priority?: string
+          p_recipients: string[]
+          p_review_id: string
+          p_title: string
+          p_type: string
+        }
         Returns: number
       }
-      get_user_column_defaults: { Args: never; Returns: Json }
-      get_user_module_defaults:
-        | { Args: never; Returns: Json }
-        | { Args: { p_user_id?: string }; Returns: Json }
-      get_user_permissions: {
+      review_notify_overdue: { Args: never; Returns: number }
+      review_priority_get_rank: {
+        Args: { p_priority: string }
+        Returns: number
+      }
+      review_request: {
+        Args: {
+          p_due_date?: string
+          p_file_version_ids: string[]
+          p_message?: string
+          p_mode?: string
+          p_priority?: string
+          p_reviewer_ids?: string[]
+          p_team_ids?: string[]
+          p_title?: string
+        }
+        Returns: Json
+      }
+      review_require_access: { Args: { p_review_id: string }; Returns: string }
+      review_resubmit: {
+        Args: { p_items: Json; p_note?: string; p_review_id: string }
+        Returns: Json
+      }
+      review_settle: {
+        Args: { p_actor: string; p_notify?: boolean; p_review_id: string }
+        Returns: string
+      }
+      review_stage_get_exit_transition: {
+        Args: { p_state_id: string }
+        Returns: string
+      }
+      review_status_get_label: {
+        Args: { p_status: Database["public"]["Enums"]["review_status"] }
+        Returns: string
+      }
+      review_update_meta: {
+        Args: {
+          p_clear_due_date?: boolean
+          p_due_date?: string
+          p_priority?: string
+          p_review_id: string
+        }
+        Returns: Json
+      }
+      review_withdraw_lost_reviewers: { Args: never; Returns: number }
+      revision_get_next: {
+        Args: {
+          p_current: string
+          p_scheme: Database["public"]["Enums"]["revision_scheme"]
+        }
+        Returns: string
+      }
+      rfq_generate_number: { Args: { p_org_id: string }; Returns: string }
+      routine_list_row_selecting_id_args: {
+        Args: { p_oid: unknown }
+        Returns: string[]
+      }
+      schema_get_release_manifest: {
+        Args: never
+        Returns: {
+          identity: string
+          kind: string
+          module: string
+          probe: string
+          requires: string
+        }[]
+      }
+      schema_get_withdrawn_execute_manifest: {
+        Args: never
+        Returns: {
+          module: string
+          signature: string
+        }[]
+      }
+      schema_release_description: { Args: never; Returns: string }
+      schema_release_version: { Args: never; Returns: number }
+      schema_remediation_record: {
+        Args: {
+          p_detail: string
+          p_name: string
+          p_rows: number
+          p_subjects: Json
+        }
+        Returns: number
+      }
+      schema_stamp_quiet: { Args: never; Returns: undefined }
+      schema_version_update: {
+        Args: { new_description?: string; new_version: number }
+        Returns: undefined
+      }
+      seed_customer_categories: {
+        Args: { p_org_id: string }
+        Returns: undefined
+      }
+      seed_known_partners: { Args: { p_org_id: string }; Returns: number }
+      serial_number_get_next: { Args: { p_org_id: string }; Returns: string }
+      serial_number_preview_next: {
+        Args: { p_org_id: string }
+        Returns: string
+      }
+      solidworks_license_activate: {
+        Args: {
+          p_assignment_id: string
+          p_machine_id: string
+          p_machine_name?: string
+        }
+        Returns: Json
+      }
+      solidworks_license_assign: {
+        Args: { p_license_id: string; p_user_id: string }
+        Returns: Json
+      }
+      solidworks_license_deactivate: {
+        Args: { p_assignment_id: string }
+        Returns: Json
+      }
+      solidworks_license_unassign: {
+        Args: { p_assignment_id: string }
+        Returns: Json
+      }
+      sql_strip_noise: { Args: { p_src: string }; Returns: string }
+      team_clear_module_defaults: { Args: { p_team_id: string }; Returns: Json }
+      team_create_defaults: {
+        Args: { p_created_by?: string; p_org_id: string }
+        Returns: undefined
+      }
+      team_get_module_defaults: { Args: { p_team_id: string }; Returns: Json }
+      team_member_apply_pending: {
+        Args: { p_user_id: string }
+        Returns: undefined
+      }
+      team_reviewer_list_user_ids: {
+        Args: { p_team_id: string }
+        Returns: string[]
+      }
+      team_set_module_defaults: {
+        Args: {
+          p_custom_groups?: Json
+          p_dividers: Json
+          p_enabled_groups: Json
+          p_enabled_modules: Json
+          p_module_icon_colors?: Json
+          p_module_order: Json
+          p_module_parents?: Json
+          p_team_id: string
+        }
+        Returns: Json
+      }
+      user_block: {
+        Args: { p_email: string; p_reason?: string }
+        Returns: Json
+      }
+      user_delete_account: { Args: never; Returns: Json }
+      user_ensure_org_id: { Args: never; Returns: Json }
+      user_get_column_defaults: { Args: never; Returns: Json }
+      user_get_effective_role: {
+        Args: { p_user_id: string }
+        Returns: Database["public"]["Enums"]["user_role"]
+      }
+      user_get_module_defaults: { Args: { p_user_id?: string }; Returns: Json }
+      user_get_verified_email: { Args: { p_user_id: string }; Returns: string }
+      user_permission_list: {
         Args: { p_user_id: string; p_vault_id?: string }
         Returns: {
           actions: Database["public"]["Enums"]["permission_action"][]
@@ -8429,17 +9048,51 @@ export type Database = {
           vault_id: string
         }[]
       }
-      get_user_vault_access: {
+      user_require_same_org: { Args: { p_user_id: string }; Returns: undefined }
+      user_set_column_defaults: {
+        Args: { p_column_defaults: Json }
+        Returns: Json
+      }
+      user_unblock: { Args: { p_email: string }; Returns: Json }
+      user_update_avatar: {
+        Args: { p_avatar_storage_path?: string; p_custom_avatar_url?: string }
+        Returns: Json
+      }
+      user_update_last_online: { Args: never; Returns: Json }
+      user_vault_access_list: {
         Args: { p_user_id: string }
         Returns: {
           vault_id: string
         }[]
       }
-      get_vault_files_count: {
+      vault_file_count: {
         Args: { p_org_id: string; p_vault_id?: string }
         Returns: number
       }
-      get_vault_files_delta: {
+      vault_file_list: {
+        Args: { p_org_id: string; p_vault_id?: string }
+        Returns: {
+          checked_out_at: string
+          checked_out_by: string
+          checked_out_file_name: string
+          checked_out_file_path: string
+          content_hash: string
+          custom_properties: Json
+          description: string
+          extension: string
+          file_name: string
+          file_path: string
+          file_size: number
+          file_type: Database["public"]["Enums"]["file_type"]
+          id: string
+          part_number: string
+          revision: string
+          state: string
+          updated_at: string
+          version: number
+        }[]
+      }
+      vault_file_list_delta: {
         Args: { p_org_id: string; p_since: string; p_vault_id: string }
         Returns: {
           checked_out_at: string
@@ -8464,30 +9117,9 @@ export type Database = {
           version: number
         }[]
       }
-      get_vault_files_fast: {
-        Args: { p_org_id: string; p_vault_id?: string }
-        Returns: {
-          checked_out_at: string
-          checked_out_by: string
-          checked_out_file_name: string
-          checked_out_file_path: string
-          content_hash: string
-          custom_properties: Json
-          description: string
-          extension: string
-          file_name: string
-          file_path: string
-          file_size: number
-          file_type: Database["public"]["Enums"]["file_type"]
-          id: string
-          part_number: string
-          revision: string
-          state: string
-          updated_at: string
-          version: number
-        }[]
-      }
-      get_webhooks_for_event: {
+      vault_require_access: { Args: { p_vault_id: string }; Returns: string }
+      verify_and_stamp_schema: { Args: never; Returns: Json }
+      webhook_list_for_event: {
         Args: {
           p_event_type: Database["public"]["Enums"]["webhook_event"]
           p_org_id: string
@@ -8518,379 +9150,44 @@ export type Database = {
         }[]
         SetofOptions: {
           from: "*"
-          to: "webhooks"
+          to: "webhook"
           isOneToOne: false
           isSetofReturn: true
         }
       }
-      get_woocommerce_saved_configs: {
-        Args: { p_org_id: string }
-        Returns: {
-          color: string
-          created_at: string
-          description: string
-          id: string
-          is_active: boolean
-          last_sync_at: string
-          last_sync_count: number
-          last_sync_status: string
-          last_test_success: boolean
-          last_tested_at: string
-          name: string
-          store_name: string
-          store_url: string
-        }[]
-      }
-      import_workflow_graph: {
+      workflow_create_default: { Args: { p_org_id: string }; Returns: string }
+      workflow_history_remediate_cross_tenant: { Args: never; Returns: number }
+      workflow_import_graph: {
         Args: { p_payload: Json; p_workflow_id: string }
         Returns: Json
       }
-      instantiate_process_template: {
-        Args: { p_eco_id: string; p_template_id: string }
-        Returns: undefined
-      }
-      is_org_admin:
-        | { Args: never; Returns: boolean }
-        | { Args: { p_user_id: string }; Returns: boolean }
-      is_org_member: { Args: { p_org_id: string }; Returns: boolean }
-      join_org_by_slug: { Args: { p_org_slug: string }; Returns: Json }
-      known_partner_channel_for_key: {
-        Args: { p_account_key: string }
-        Returns: string
-      }
-      known_partners: {
-        Args: never
-        Returns: {
-          account_keys: string[]
-          channel: string
-          country: string
-          name: string
-          website: string
-        }[]
-      }
-      legacy_file_state: { Args: { p_state_name: string }; Returns: string }
-      like_escape: { Args: { p_text: string }; Returns: string }
-      mark_all_notifications_read: {
-        Args: { p_user_id: string }
-        Returns: number
-      }
-      mark_notifications_read: {
-        Args: { p_notification_ids: string[] }
-        Returns: number
-      }
-      may_review_gate: {
-        Args: { p_gate_id: string; p_user_id: string }
-        Returns: boolean
-      }
-      merge_custom_properties: {
-        Args: { p_existing: Json; p_incoming: Json }
-        Returns: Json
-      }
-      migrate_uuid_defaults: { Args: never; Returns: number }
-      move_file: {
+      workflow_transition_apply: {
         Args: {
+          p_approvals: Json
+          p_comment: string
           p_file_id: string
-          p_new_file_name?: string
-          p_new_file_path: string
-          p_user_id: string
+          p_transition_id: string
         }
         Returns: Json
       }
-      next_revision_value: {
-        Args: {
-          p_current: string
-          p_scheme: Database["public"]["Enums"]["revision_scheme"]
-        }
-        Returns: string
-      }
-      notify_overdue_reviews: { Args: never; Returns: number }
-      org_gate_exclusion_reason: { Args: { p_oid: unknown }; Returns: string }
-      org_gate_status_blocks: { Args: { p_status: string }; Returns: boolean }
-      preview_next_serial_number: {
-        Args: { p_org_id: string }
-        Returns: string
-      }
-      probe_literal_for: { Args: { p_type: string }; Returns: string }
-      probe_literal_for_arg: {
-        Args: { p_arg: string; p_oid: unknown; p_type: string }
-        Returns: string
-      }
-      record_remediation: {
-        Args: {
-          p_detail: string
-          p_name: string
-          p_rows: number
-          p_subjects: Json
-        }
-        Returns: number
-      }
-      regenerate_org_slug: { Args: never; Returns: Json }
-      remediate_case_colliding_folders: { Args: never; Returns: number }
-      remediate_cross_tenant_share_links: { Args: never; Returns: number }
-      remediate_cross_tenant_workflow_history: { Args: never; Returns: number }
-      remove_pending_license_assignment: {
-        Args: { p_license_id: string; p_pending_member_id: string }
+      workflow_transition_execute: {
+        Args: { p_comment?: string; p_file_id: string; p_transition_id: string }
         Returns: Json
       }
-      rename_folder_files: {
-        Args: {
-          p_new_folder_path: string
-          p_old_folder_path: string
-          p_user_id: string
-          p_vault_id?: string
-        }
+      workflow_transition_execute_to_legacy_state: {
+        Args: { p_comment?: string; p_file_id: string; p_target_state: string }
         Returns: Json
       }
-      repair_config_maps: {
-        Args: { p_org_id: string; p_repairs: Json }
-        Returns: Json
-      }
-      require_eco_access: { Args: { p_eco_id: string }; Returns: string }
-      require_file_access: { Args: { p_file_id: string }; Returns: string }
-      require_org_member: { Args: { p_org_id: string }; Returns: undefined }
-      require_same_org_user: { Args: { p_user_id: string }; Returns: undefined }
-      require_vault_access: { Args: { p_vault_id: string }; Returns: string }
-      reset_item_image: {
-        Args: { p_org_id: string; p_part_number: string }
-        Returns: boolean
-      }
-      revoke_public_execute_on_org_rpcs: { Args: never; Returns: number }
-      row_selecting_id_args: { Args: { p_oid: unknown }; Returns: string[] }
-      schema_release_description: { Args: never; Returns: string }
-      schema_release_manifest: {
-        Args: never
+      workflow_transition_list_available: {
+        Args: { p_file_id: string }
         Returns: {
-          identity: string
-          kind: string
-          module: string
-          probe: string
-          requires: string
-        }[]
-      }
-      schema_release_version: { Args: never; Returns: number }
-      seed_customer_categories: {
-        Args: { p_org_id: string }
-        Returns: undefined
-      }
-      seed_known_partners: { Args: { p_org_id: string }; Returns: number }
-      set_item_designation_assignment: {
-        Args: {
-          p_designation_id?: string
-          p_org_id: string
-          p_part_number: string
-          p_vault_id: string
-        }
-        Returns: {
-          designation_id: string
-          id: string
-          org_id: string
-          part_number: string
-          updated_at: string | null
-          updated_by: string | null
-          vault_id: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "item_designation_assignments"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      set_module_access: {
-        Args: {
-          p_module_id: string
-          p_team_ids?: string[]
-          p_user_ids?: string[]
-        }
-        Returns: Json
-      }
-      set_org_column_defaults: {
-        Args: { p_column_defaults: Json; p_org_id: string }
-        Returns: Json
-      }
-      set_org_module_defaults: {
-        Args: {
-          p_custom_groups?: Json
-          p_dividers: Json
-          p_enabled_groups: Json
-          p_enabled_modules: Json
-          p_module_icon_colors?: Json
-          p_module_order: Json
-          p_module_parents?: Json
-          p_org_id: string
-        }
-        Returns: Json
-      }
-      set_team_module_defaults: {
-        Args: {
-          p_custom_groups?: Json
-          p_dividers: Json
-          p_enabled_groups: Json
-          p_enabled_modules: Json
-          p_module_icon_colors?: Json
-          p_module_order: Json
-          p_module_parents?: Json
-          p_team_id: string
-        }
-        Returns: Json
-      }
-      set_user_column_defaults: {
-        Args: { p_column_defaults: Json }
-        Returns: Json
-      }
-      share_link_admission: {
-        Args: { p_token: string }
-        Returns: {
-          error_message: string
-          file_id: string
-          file_version: number
-          is_valid: boolean
-          org_id: string
-        }[]
-      }
-      strip_sql_noise: { Args: { p_src: string }; Returns: string }
-      try_stamp_schema: { Args: never; Returns: undefined }
-      unassign_solidworks_license: {
-        Args: { p_assignment_id: string }
-        Returns: Json
-      }
-      unblock_user: { Args: { p_email: string }; Returns: Json }
-      update_extension_config: {
-        Args: { p_config: Json; p_extension_id: string; p_org_id: string }
-        Returns: boolean
-      }
-      update_google_drive_settings: {
-        Args: {
-          p_client_id: string
-          p_client_secret: string
-          p_enabled: boolean
-          p_inspection_template_folder_id?: string
-          p_org_id: string
-        }
-        Returns: boolean
-      }
-      update_item_definition_settings: {
-        Args: { p_org_id: string; p_settings: Json }
-        Returns: boolean
-      }
-      update_last_online: { Args: never; Returns: Json }
-      update_org_branding: {
-        Args: {
-          p_contact_email?: string
-          p_logo_storage_path?: string
-          p_logo_url?: string
-          p_org_id: string
-          p_phone?: string
-          p_website?: string
-        }
-        Returns: Json
-      }
-      update_schema_version: {
-        Args: { new_description?: string; new_version: number }
-        Returns: undefined
-      }
-      update_serialization_settings_safe: {
-        Args: { p_org_id: string; p_settings: Json }
-        Returns: boolean
-      }
-      update_user_avatar: {
-        Args: { p_avatar_storage_path?: string; p_custom_avatar_url?: string }
-        Returns: Json
-      }
-      upsert_item_designation: {
-        Args: {
-          p_id?: string
-          p_name: string
-          p_org_id: string
-          p_sort_order?: number
-        }
-        Returns: {
-          created_at: string | null
-          created_by: string | null
-          id: string
-          name: string
-          org_id: string
-          sort_order: number
-        }
-        SetofOptions: {
-          from: "*"
-          to: "item_designations"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      upsert_item_image: {
-        Args: {
-          p_icon_color?: string
-          p_icon_name?: string
-          p_image_storage_path?: string
-          p_image_type: string
-          p_org_id: string
-          p_part_number: string
-        }
-        Returns: {
-          icon_color: string | null
-          icon_name: string | null
-          id: string
-          image_storage_path: string | null
-          image_type: string
-          org_id: string
-          part_number: string
-          updated_at: string | null
-          updated_by: string | null
-        }
-        SetofOptions: {
-          from: "*"
-          to: "item_images"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      use_admin_recovery_code: {
-        Args: { p_code: string; p_ip_address?: string }
-        Returns: Json
-      }
-      user_can_access_module: {
-        Args: { p_module_id: string; p_user_id?: string }
-        Returns: boolean
-      }
-      user_can_run_transition: {
-        Args: { p_transition_id: string; p_user_id: string }
-        Returns: boolean
-      }
-      user_has_permission: {
-        Args: {
-          p_action: Database["public"]["Enums"]["permission_action"]
-          p_resource: string
-          p_user_id: string
-          p_vault_id?: string
-        }
-        Returns: boolean
-      }
-      user_has_team_permission: {
-        Args: {
-          p_action: Database["public"]["Enums"]["permission_action"]
-          p_resource: string
-          p_vault_id?: string
-        }
-        Returns: boolean
-      }
-      validate_share_link: {
-        Args: { p_token: string }
-        Returns: {
-          error_message: string
-          file_id: string
-          file_version: number
-          is_valid: boolean
-          org_id: string
-        }[]
-      }
-      verify_and_stamp_schema: { Args: never; Returns: Json }
-      withdrawn_execute_manifest: {
-        Args: never
-        Returns: {
-          module: string
-          signature: string
+          has_gates: boolean
+          to_state_color: string
+          to_state_id: string
+          to_state_name: string
+          transition_id: string
+          transition_name: string
+          user_can_transition: boolean
         }[]
       }
     }

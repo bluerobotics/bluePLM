@@ -53,7 +53,7 @@ describe('drag and drop in the file pane', () => {
 
     expect(diskPaths(vault)).toContain('Parts/a.sldprt')
     expect(diskPaths(vault)).not.toContain('a.sldprt')
-    expect(vault.db.row('files', id).file_path).toBe('Parts/a.sldprt')
+    expect(vault.db.row('file', id).file_path).toBe('Parts/a.sldprt')
     expect(moveActivity(vault)).toEqual(['Parts/a.sldprt'])
     expect(vault.queryRow('a.sldprt')).toBeNull()
     await vault.openFolder('Parts')
@@ -209,7 +209,7 @@ describe('cut, copy and paste', () => {
     await vault.select(vault.row('Parts/existing.sldprt'))
     await vault.keyboard('{Control>}v{/Control}')
 
-    await waitFor(() => expect(vault!.db.row('files', id).file_path).toBe('Parts/a.sldprt'))
+    await waitFor(() => expect(vault!.db.row('file', id).file_path).toBe('Parts/a.sldprt'))
     expect(diskPaths(vault)).not.toContain('a.sldprt')
     vault.expectConsistent()
     await vault.expectStableAcrossReload()

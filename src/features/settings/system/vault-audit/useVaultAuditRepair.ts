@@ -32,7 +32,6 @@ import {
 } from '@/lib/metadata/configMapRepairProposal'
 import {
   applyConfigMapRepair,
-  ConfigMapRepairNotInstalledError,
 } from '@/lib/supabase/configMapRepair'
 import { usePDMStore } from '@/stores/pdmStore'
 import type { VaultAuditRepairCandidate, VaultAuditRepairOutcome } from '@/types/vaultAudit'
@@ -55,8 +54,6 @@ export interface UseVaultAuditRepairResult {
   applying: boolean
   outcome: VaultAuditRepairOutcome | null
   error: string | null
-  /** The database predates the release the repair function ships in. */
-  notInstalled: boolean
   /** False when nothing is ticked, a repair is already running, or there is no organization. */
   canApply: boolean
   toggle: (id: string) => void
@@ -167,10 +164,6 @@ export function useVaultAuditRepair(): UseVaultAuditRepairResult {
         }),
       )
     } catch (error) {
-      if (error instanceof ConfigMapRepairNotInstalledError) {
-        finishRepair({ notInstalled: true })
-        return
-      }
       const message = error instanceof Error ? error.message : String(error)
       finishRepair({ error: message })
       log.error('[VaultAudit]', 'Configuration-map repair failed', { error: message })
@@ -188,7 +181,6 @@ export function useVaultAuditRepair(): UseVaultAuditRepairResult {
     applying: repair.applying,
     outcome: repair.outcome,
     error: repair.error,
-    notInstalled: repair.notInstalled,
     canApply: Boolean(organization?.id) && !repair.applying && selectedCandidates.length > 0,
     toggle,
     setMany,

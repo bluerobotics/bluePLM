@@ -147,14 +147,14 @@ describe('load pipeline performance gate', () => {
     })
 
     recordingSupabase.setResponder((query) => {
-      if (query.kind === 'rpc' && query.name === 'get_vault_files_fast') {
+      if (query.kind === 'rpc' && query.name === 'vault_file_list') {
         return { data: structuredClone(serverRows) }
       }
-      if (query.kind === 'rpc' && query.name === 'get_vault_files_delta') {
+      if (query.kind === 'rpc' && query.name === 'vault_file_list_delta') {
         return { data: structuredClone(deltaRows).map((row) => ({ ...row, is_deleted: false, deleted_at: null })) }
       }
-      if (query.kind === 'rpc' && query.name === 'get_vault_files_count') return { data: serverRows.length }
-      if (query.kind === 'table' && query.name === 'users') {
+      if (query.kind === 'rpc' && query.name === 'vault_file_count') return { data: serverRows.length }
+      if (query.kind === 'table' && query.name === 'app_user') {
         const ids = (query.filters.find(([method]) => method === 'in')?.[1][1] as string[] | undefined) ?? []
         return { data: ids.map((id) => ({ id, email: `${id}@example.test`, full_name: id, avatar_url: null })) }
       }
@@ -303,9 +303,9 @@ describe('load pipeline performance gate', () => {
         expect(counts.storeSets).toBeLessThanOrEqual(30)
         expect(counts.persistWrites).toBeLessThanOrEqual(2)
       }
-      expect(cold.supabase['rpc:get_vault_files_fast']).toBe(1)
-      expect(warm.supabase['rpc:get_vault_files_fast'] ?? 0).toBe(0)
-      expect(warm.supabase['rpc:get_vault_files_delta']).toBe(1)
+      expect(cold.supabase['rpc:vault_file_list']).toBe(1)
+      expect(warm.supabase['rpc:vault_file_list'] ?? 0).toBe(0)
+      expect(warm.supabase['rpc:vault_file_list_delta']).toBe(1)
 
       // Hashing: everything once when nothing is known, nothing on a restart with valid stamps,
       // and only the changed files after a save.

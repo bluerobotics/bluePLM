@@ -241,7 +241,7 @@ export function ExportSettings() {
         export_settings: settings,
       }
 
-      const { error } = await (supabase.from('organizations') as any) // TODO: type this
+      const { error } = await (supabase.from('organization') as any) // TODO: type this
         .update({ settings: newSettings })
         .eq('id', organization.id)
         .select()

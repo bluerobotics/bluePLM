@@ -25,7 +25,7 @@ afterEach(() => {
 const WEB_HIDDEN_TABS: readonly SettingsTab[] = [
   'supabase',
   'backup',
-  'extension-store',
+  'extensions',
   'solidworks',
   'performance',
   'logs',

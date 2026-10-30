@@ -2,22 +2,13 @@
  * Calling the configuration-map repair, and nothing else.
  *
  * This module is the only thing in the application that can change a reserved per-configuration
- * map, and all it does is hand an approved set to `repair_config_maps` and translate the receipt.
+ * map, and all it does is hand an approved set to `file_repair_config_maps` and translate the receipt.
  * It performs no merge of its own: the merge is `computed || existing` inside the database
  * function, where the row is on the right and the key set can only grow, so there is no argument
  * this module could construct that would overwrite or delete an entry.
  *
- * ## The function may not be installed
- *
- * It arrives in schema 94 and production has been running 85 - which is also the release the wipe
- * this repairs is still live in. A caller that hits an older database is told "not installed yet"
- * rather than shown a failure, because it is a fact about the database rather than about the
- * request. Saying so plainly is the difference between an administrator applying the schema and an
- * administrator filing a bug.
- *
- * Which errors mean that is narrower than it looks, and `meansRepairAbsent` below is where the
- * line is drawn. A missing *helper* the repair calls raises the same SQLSTATE as a missing repair,
- * and reading the two as one told an operator to wait for a release that had already shipped.
+ * Every 5.0 database has the function (schema 94 added it), so any error is a real failure and is
+ * passed on with the database's own message.
  */
 
 import { getSupabaseClient } from '@/lib/supabase/client'
@@ -30,52 +21,6 @@ import type {
   VaultAuditRepairOutcome,
 } from '@/types/vaultAudit'
 
-/** The function this module calls, and the only name that means "the repair itself is missing". */
-const REPAIR_FUNCTION = 'repair_config_maps'
-
-/**
- * PostgREST's own code for a routine that is not in its schema cache.
- *
- * This, rather than `42883`, is what an older database actually answers for an RPC it has never
- * had: PostgREST resolves the routine before it reaches PostgreSQL, so the request never gets far
- * enough to raise `undefined_function`. Confirmed by the harness, which scores a dropped RPC on
- * this code (finding E8).
- */
-const FUNCTION_NOT_IN_SCHEMA_CACHE = 'PGRST202'
-
-/**
- * PostgreSQL's `undefined_function`, raised from *inside* a function body.
- *
- * A partially installed schema - the repair present, a helper it calls absent - answers with this
- * and a message naming the helper, as `supabase/tools/emergency-lockdown.sql` records happening to
- * `anon_revoke_grantors(oid)`. Reading every `42883` as "the repair is not installed yet" tells an
- * operator to apply a release that already shipped, and they wait for it.
- */
-const UNDEFINED_FUNCTION = '42883'
-
-/** Raised when the database predates schema 94. Carries no blame for the request. */
-export class ConfigMapRepairNotInstalledError extends Error {
-  constructor() {
-    super(`${REPAIR_FUNCTION} is not installed`)
-    this.name = 'ConfigMapRepairNotInstalledError'
-  }
-}
-
-/**
- * Whether this error means the repair itself is absent, as opposed to something it depends on.
- *
- * `PGRST202` can only ever be about the routine the request named, so it needs no further test.
- * `42883` came from inside a function body and names the missing routine in its message, so the
- * name is what decides: `repair_config_maps` means the schema does not have the repair, anything
- * else means the repair is there and its dependency is not - a real failure with a real cause,
- * and not something applying schema 94 again would settle.
- */
-function meansRepairAbsent(error: { message: string; code?: string }): boolean {
-  if (error.code === FUNCTION_NOT_IN_SCHEMA_CACHE) return true
-  if (error.code !== UNDEFINED_FUNCTION) return false
-  return error.message.includes(REPAIR_FUNCTION)
-}
-
 const RESERVED_MAPS: readonly ConfigMapKey[] = [CONFIG_TABS_KEY, CONFIG_DESCRIPTIONS_KEY]
 
 /**
@@ -87,7 +32,7 @@ const RESERVED_MAPS: readonly ConfigMapKey[] = [CONFIG_TABS_KEY, CONFIG_DESCRIPT
  */
 interface RepairRpcClient {
   rpc: (
-    name: 'repair_config_maps',
+    name: 'file_repair_config_maps',
     args: { p_org_id: string; p_repairs: unknown },
   ) => Promise<{ data: unknown; error: { message: string; code?: string } | null }>
 }
@@ -172,8 +117,7 @@ function toPayload(files: readonly VaultAuditRepairFile[]): unknown[] {
 /**
  * Apply an approved set of repairs.
  *
- * Throws `ConfigMapRepairNotInstalledError` when the database predates schema 94, and a plain
- * `Error` carrying the database's own message otherwise - including the two refusals the function
+ * Throws an `Error` carrying the database's own message on failure - including the two refusals the function
  * raises for itself, which are an authorization answer and a malformed request rather than
  * anything the caller should retry.
  */
@@ -183,15 +127,12 @@ export async function applyConfigMapRepair(
 ): Promise<VaultAuditRepairOutcome> {
   const client = getSupabaseClient() as unknown as RepairRpcClient
 
-  const { data, error } = await client.rpc('repair_config_maps', {
+  const { data, error } = await client.rpc('file_repair_config_maps', {
     p_org_id: orgId,
     p_repairs: toPayload(files),
   })
 
-  if (error) {
-    if (meansRepairAbsent(error)) throw new ConfigMapRepairNotInstalledError()
-    throw new Error(error.message)
-  }
+  if (error) throw new Error(error.message)
 
   const outcome = readOutcome(data)
 

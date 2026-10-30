@@ -21,8 +21,8 @@ export interface UserSession {
   os_version: string | null
   app_version: string | null
   platform: string | null
-  last_active: string | null
-  last_seen: string | null
+  last_active_at: string | null
+  last_seen_at: string | null
   is_active: boolean | null
   created_at: string | null
 }
@@ -56,7 +56,7 @@ export async function registerDeviceSession(
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     const { data, error } = await client
-      .from('user_sessions')
+      .from('user_session')
       .upsert(
         {
           user_id: userId,
@@ -65,7 +65,7 @@ export async function registerDeviceSession(
           machine_name: machineName,
           platform,
           app_version: appVersion,
-          last_seen: new Date().toISOString(),
+          last_seen_at: new Date().toISOString(),
           is_active: true,
         },
         {
@@ -113,7 +113,7 @@ export async function syncUserSessionsOrgId(userId: string, orgId: string): Prom
 
   // Update ALL active sessions for this user to have the correct org_id
   const { error } = await client
-    .from('user_sessions')
+    .from('user_session')
     .update({ org_id: orgId })
     .eq('user_id', userId)
     .select('id')
@@ -146,7 +146,7 @@ export async function ensureUserOrgId(): Promise<{
 
   // Wrap in a timeout since client.rpc() can hang
   try {
-    const rpcPromise = client.rpc('ensure_user_org_id' as never)
+    const rpcPromise = client.rpc('user_ensure_org_id' as never)
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error('RPC timeout after 5s')), ENSURE_ORG_TIMEOUT_MS),
     )
@@ -202,7 +202,7 @@ export async function sendSessionHeartbeat(
 
   // First check if our session is still active (also get current org_id for logging)
   const { data: session, error: checkError } = await client
-    .from('user_sessions')
+    .from('user_session')
     .select('is_active, org_id')
     .eq('user_id', userId)
     .eq('machine_id', machineId)
@@ -222,7 +222,7 @@ export async function sendSessionHeartbeat(
   // Session is active, update the heartbeat
   // Also update org_id to keep it in sync (handles case where user joins/changes org)
   const updateData: Record<string, unknown> = {
-    last_seen: new Date().toISOString(),
+    last_seen_at: new Date().toISOString(),
     is_active: true,
   }
 
@@ -232,7 +232,7 @@ export async function sendSessionHeartbeat(
   }
 
   const { error } = await client
-    .from('user_sessions')
+    .from('user_session')
     .update(updateData)
     .eq('user_id', userId)
     .eq('machine_id', machineId)
@@ -327,7 +327,7 @@ export async function endDeviceSession(userId: string): Promise<void> {
   const machineId = await getMachineId()
 
   await client
-    .from('user_sessions')
+    .from('user_session')
     .update({ is_active: false })
     .eq('user_id', userId)
     .eq('machine_id', machineId)
@@ -344,7 +344,7 @@ export async function endRemoteSession(
   const client = getSupabaseClient()
 
   const { error } = await client
-    .from('user_sessions')
+    .from('user_session')
     .update({ is_active: false })
     .eq('id', sessionId)
 
@@ -368,12 +368,12 @@ export async function getActiveSessions(
   const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
 
   const { data, error } = await client
-    .from('user_sessions')
+    .from('user_session')
     .select('*')
     .eq('user_id', userId)
     .eq('is_active', true)
-    .gte('last_seen', fiveMinutesAgo)
-    .order('last_seen', { ascending: false })
+    .gte('last_seen_at', fiveMinutesAgo)
+    .order('last_seen_at', { ascending: false })
 
   if (error) {
     return { sessions: [], error: error.message }
@@ -395,12 +395,12 @@ export async function isMachineOnline(userId: string, machineId: string): Promis
   const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString()
 
   const { data, error } = await client
-    .from('user_sessions')
+    .from('user_session')
     .select('id')
     .eq('user_id', userId)
     .eq('machine_id', machineId)
     .eq('is_active', true)
-    .gte('last_seen', twoMinutesAgo)
+    .gte('last_seen_at', twoMinutesAgo)
     .limit(1)
 
   if (error) {
@@ -427,7 +427,7 @@ export function subscribeToSessions(
       {
         event: '*',
         schema: 'public',
-        table: 'user_sessions',
+        table: 'user_session',
         filter: `user_id=eq.${userId}`,
       },
       async () => {
@@ -456,7 +456,7 @@ export interface OnlineUser {
   role: string
   machine_name: string
   platform: string | null
-  last_seen: string
+  last_seen_at: string
 }
 
 /**
@@ -477,14 +477,14 @@ export async function getOrgOnlineUsers(
   const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
 
   const { data, error } = await client
-    .from('user_sessions')
+    .from('user_session')
     .select(
       `
       user_id,
       machine_name,
       platform,
-      last_seen,
-      users!inner (
+      last_seen_at,
+      app_user!inner (
         email,
         full_name,
         avatar_url,
@@ -494,10 +494,10 @@ export async function getOrgOnlineUsers(
     `,
     )
     .eq('org_id', orgId)
-    .eq('users.org_id', orgId)
+    .eq('app_user.org_id', orgId)
     .eq('is_active', true)
-    .gte('last_seen', fiveMinutesAgo)
-    .order('last_seen', { ascending: false })
+    .gte('last_seen_at', fiveMinutesAgo)
+    .order('last_seen_at', { ascending: false })
 
   if (error) {
     log.error('[OnlineUsers]', 'Failed to fetch online users', { error: error.message })
@@ -509,14 +509,14 @@ export async function getOrgOnlineUsers(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const users: OnlineUser[] = (data || []).map((session: any) => ({
     user_id: session.user_id,
-    email: session.users.email,
-    full_name: session.users.full_name,
-    avatar_url: session.users.avatar_url,
-    custom_avatar_url: session.users.custom_avatar_url,
-    role: session.users.role,
+    email: session.app_user.email,
+    full_name: session.app_user.full_name,
+    avatar_url: session.app_user.avatar_url,
+    custom_avatar_url: session.app_user.custom_avatar_url,
+    role: session.app_user.role,
     machine_name: session.machine_name,
     platform: session.platform,
-    last_seen: session.last_seen,
+    last_seen_at: session.last_seen_at,
   }))
 
   // Deduplicate by user_id (keep most recent session per user)
@@ -546,7 +546,7 @@ export function subscribeToOrgOnlineUsers(
       {
         event: '*',
         schema: 'public',
-        table: 'user_sessions',
+        table: 'user_session',
         filter: `org_id=eq.${orgId}`,
       },
       async () => {
@@ -573,7 +573,7 @@ export async function updateLastOnline(): Promise<{ success: boolean; error?: st
   const client = getSupabaseClient()
 
   try {
-    const { error } = await client.rpc('update_last_online')
+    const { error } = await client.rpc('user_update_last_online')
 
     if (error) {
       log.error('[LastOnline]', 'Failed to update', { error: error.message })

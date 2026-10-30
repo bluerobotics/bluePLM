@@ -68,12 +68,12 @@ export function useTeams(orgId: string | null) {
     setTeamsLoading(true)
     try {
       const { data: teamsData, error } = await supabase
-        .from('teams')
+        .from('team')
         .select(
           `
           *,
-          team_members(count),
-          team_permissions(count)
+          team_member(count),
+          team_permission(count)
         `,
         )
         .eq('org_id', orgId)
@@ -86,8 +86,8 @@ export function useTeams(orgId: string | null) {
 
       const teamsWithCounts: TeamWithDetails[] = typedData.map((team) => ({
         ...team,
-        member_count: team.team_members?.[0]?.count || 0,
-        permissions_count: team.team_permissions?.[0]?.count || 0,
+        member_count: team.team_member?.[0]?.count || 0,
+        permissions_count: team.team_permission?.[0]?.count || 0,
       }))
 
       setTeams(teamsWithCounts)
@@ -119,7 +119,7 @@ export function useTeams(orgId: string | null) {
         // If copying from an existing team, copy its permissions and vault access
         if (copyFromTeamId && data) {
           const { data: sourcePerms } = await supabase
-            .from('team_permissions')
+            .from('team_permission')
             .select('resource, actions')
             .eq('team_id', copyFromTeamId)
 
@@ -218,7 +218,7 @@ export function useTeams(orgId: string | null) {
       if (!team) return false
 
       try {
-        const { error } = await supabase.from('teams').delete().eq('id', teamId)
+        const { error } = await supabase.from('team').delete().eq('id', teamId)
 
         if (error) throw error
 

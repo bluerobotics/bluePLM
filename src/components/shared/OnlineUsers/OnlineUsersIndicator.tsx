@@ -97,7 +97,7 @@ export function OnlineUsersIndicator({ orgLogoUrl }: OnlineUsersIndicatorProps) 
   const sortedUsers = [...onlineUsers].sort((a, b) => {
     if (a.user_id === user?.id) return -1
     if (b.user_id === user?.id) return 1
-    return new Date(b.last_seen).getTime() - new Date(a.last_seen).getTime()
+    return new Date(b.last_seen_at).getTime() - new Date(a.last_seen_at).getTime()
   })
 
   // Don't render if no organization
@@ -211,7 +211,7 @@ export function OnlineUsersIndicator({ orgLogoUrl }: OnlineUsersIndicatorProps) 
                             </span>
                           </span>
                           <span className="text-plm-fg-dim">•</span>
-                          <span>{formatLastSeen(onlineUser.last_seen)}</span>
+                          <span>{formatLastSeen(onlineUser.last_seen_at)}</span>
                         </div>
                       </div>
                     </button>

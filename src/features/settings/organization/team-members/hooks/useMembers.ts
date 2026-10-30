@@ -68,9 +68,9 @@ export function useMembers(orgId: string | null) {
     setMembersLoading(true)
     try {
       const { data: usersData, error } = await supabase
-        .from('users')
+        .from('app_user')
         .select(
-          'id, email, full_name, avatar_url, custom_avatar_url, job_title, role, last_sign_in, last_online',
+          'id, email, full_name, avatar_url, custom_avatar_url, job_title, role, last_sign_in_at, last_online_at',
         )
         .eq('org_id', orgId)
         .order('full_name')
@@ -81,7 +81,7 @@ export function useMembers(orgId: string | null) {
 
       // Load pending org members (unclaimed) to filter them out from the user list
       const { data: pendingData } = await supabase
-        .from('pending_org_members')
+        .from('pending_org_member')
         .select('email')
         .eq('org_id', orgId)
         .is('claimed_at', null)
@@ -95,11 +95,11 @@ export function useMembers(orgId: string | null) {
 
       // Load team memberships for active users only
       const { data: membershipsData } = await supabase
-        .from('team_members')
+        .from('team_member')
         .select(
           `
           user_id,
-          team:teams(id, name, color, icon)
+          team:team(id, name, color, icon)
         `,
         )
         .in(
@@ -111,11 +111,11 @@ export function useMembers(orgId: string | null) {
 
       // Load job title assignments for active users only
       const { data: titleAssignmentsData } = await supabase
-        .from('user_job_titles')
+        .from('user_job_title')
         .select(
           `
           user_id,
-          title:job_titles(id, name, color, icon)
+          title:job_title(id, name, color, icon)
         `,
         )
         .in(
@@ -178,7 +178,7 @@ export function useMembers(orgId: string | null) {
 
       try {
         const { error } = await supabase
-          .from('team_members')
+          .from('team_member')
           .delete()
           .eq('user_id', memberId)
           .eq('team_id', teamId)
@@ -208,7 +208,7 @@ export function useMembers(orgId: string | null) {
           if (error) throw error
         } else {
           const { error } = await supabase
-            .from('team_members')
+            .from('team_member')
             .delete()
             .eq('user_id', memberId)
             .eq('team_id', teamId)
@@ -246,7 +246,7 @@ export function useMembers(orgId: string | null) {
 
         // Remove from teams
         for (const teamId of toRemove) {
-          await supabase.from('team_members').delete().eq('user_id', memberId).eq('team_id', teamId)
+          await supabase.from('team_member').delete().eq('user_id', memberId).eq('team_id', teamId)
         }
 
         // Add to teams

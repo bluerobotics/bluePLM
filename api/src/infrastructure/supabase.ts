@@ -51,7 +51,11 @@ export function createSupabaseAdminClient(): SupabaseClient {
 }
 
 /**
- * Check database connectivity by running a simple query
+ * Check database connectivity.
+ *
+ * Never reads a table with the anon key: 5.0 revokes anon's table grants (security baseline I6). With the service
+ * key configured it calls `schema_release_version()`, a round trip through PostgREST to Postgres that reads no
+ * table; without it, it asks the auth service, which shares the same database, for its own health.
  */
 export async function checkDatabaseHealth(): Promise<{
   status: 'healthy' | 'unhealthy'
@@ -60,10 +64,15 @@ export async function checkDatabaseHealth(): Promise<{
 }> {
   const start = Date.now()
   try {
-    const client = createSupabaseClient()
-    const { error } = await client.from('organizations').select('id').limit(1)
-    if (error) {
-      return { status: 'unhealthy', error: error.message }
+    if (env.SUPABASE_SERVICE_KEY) {
+      const { error } = await createSupabaseAdminClient().rpc('schema_release_version')
+      if (error) return { status: 'unhealthy', error: error.message }
+    } else {
+      const response = await fetch(`${env.SUPABASE_URL}/auth/v1/health`, {
+        headers: { apikey: env.SUPABASE_KEY },
+        signal: AbortSignal.timeout(10_000),
+      })
+      if (!response.ok) return { status: 'unhealthy', error: `auth health ${response.status}` }
     }
     return { status: 'healthy', latencyMs: Date.now() - start }
   } catch (error) {

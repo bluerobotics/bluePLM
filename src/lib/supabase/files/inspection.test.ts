@@ -24,8 +24,8 @@ function selectQuery(table: string) {
   const eqs: [string, unknown][] = []
   let range: [number, number] | null = null
   const resolve = () => {
-    if (table === 'files') return { data: { checked_out_by: USER_ID }, error: null }
-    if (table === 'inspection_characteristics') return { data: liveRows, error: null }
+    if (table === 'file') return { data: { checked_out_by: USER_ID }, error: null }
+    if (table === 'inspection_characteristic') return { data: liveRows, error: null }
     snapshotCalls.push({ eq: eqs, range })
     const [from, to] = range ?? [0, snapshotRows.length - 1]
     return { data: snapshotRows.slice(from, to + 1), error: null }
@@ -106,7 +106,7 @@ describe('getHighestUsedBalloonNumber', () => {
     const result = await getHighestUsedBalloonNumber(FILE_ID)
 
     expect(result).toEqual({ success: true, highest: 9 })
-    expect(snapshotCalls[0].eq).toEqual([['file_versions.file_id', FILE_ID]])
+    expect(snapshotCalls[0].eq).toEqual([['file_version.file_id', FILE_ID]])
   })
 
   it('pages through snapshot history past the row cap', async () => {
