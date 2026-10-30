@@ -38,7 +38,7 @@ import { usePDMStore } from '../stores/pdmStore'
 
 // The API version this app version expects
 // Uses semver: MAJOR.MINOR.PATCH
-export const EXPECTED_API_VERSION = '4.0.0'
+export const EXPECTED_API_VERSION = '4.1.0'
 
 // Minimum API version that will still work (for soft warnings vs hard errors)
 // Breaking changes should bump the major version and update this
@@ -84,6 +84,8 @@ export const API_VERSION_DESCRIPTIONS: Record<string, string> = {
     'Rate limits count per client again. Behind the Railway or Render proxy every request arrived from the proxy address, so the global limit and the /auth/login limit were one bucket shared by every caller and one client could exhaust it for all. The API now trusts TRUST_PROXY_HOPS proxy hops (default 1) for the client address in X-Forwarded-For. It trusts a count, not every hop, so a caller cannot pick its own address; 0 turns it off for an API exposed directly',
   '4.0.0':
     'BluePLM 5.0. Every query uses the 5.0 schema names (organization, app_user, file, org_integration, ...), so 4.0.0 needs a 5.0 database and a 5.0 database needs 4.0.0; it is also the minimum version. Removed: the REST duplicates of what the app does through Supabase RPCs (/files/*, /vaults, /trash, /parts, /bom, /suppliers, /activity, /checkouts, /auth/login, /auth/refresh, /auth/me) and the sandbox extension system (/extensions/*, GET/POST/PATCH/DELETE /admin/extensions); kept: /health, /docs, /auth/invite, /integrations/odoo/*, /webhooks, /ext/* and POST /admin/extensions/reload. The Odoo connection settings take and return is_auto_sync, and the dropped always-NULL credential columns are no longer written. The Odoo supplier sync returns only its own raw XML samples (a module-wide buffer could hand one organization the responses of another). /health no longer reads a table with the anon key. Fastify 5.12 and @fastify/static 10.1: proxies are trusted by address (TRUST_PROXY, default the private ranges) instead of a hop count (TRUST_PROXY_HOPS is gone)',
+  '4.1.0':
+    'Server backups: a backup worker runs scheduled and requested backups and backup tests for organizations that choose server backups (backup_config.run_location, schema 501), with no desktop on. Needs SUPABASE_SERVICE_KEY; BACKUP_WORKER=false turns it off.',
 }
 
 export interface ApiVersionCheckResult {

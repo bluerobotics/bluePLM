@@ -105,6 +105,17 @@ const envSchema = z.object({
    */
   ENABLE_DOCS: booleanEnv(true),
 
+  /**
+   * Whether this API runs the backup worker (api/src/backup/worker.ts): the
+   * scheduled and requested backups, and backup tests, of every organization
+   * whose backup_config.run_location is 'server'. It needs SUPABASE_SERVICE_KEY
+   * and does nothing for an organization that has not chosen server backups,
+   * so it is on by default. Turn it off on all but one API when several share a
+   * database and only one should spend the bandwidth; the per-organization lock
+   * keeps two from running the same backup either way.
+   */
+  BACKUP_WORKER: booleanEnv(true),
+
   // Extension system encryption key for secrets
   EXTENSION_ENCRYPTION_KEY: z.string().min(32).optional(),
 

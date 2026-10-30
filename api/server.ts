@@ -39,6 +39,7 @@ import { errorHandlerPlugin, requestContextPlugin } from './src/core/plugins/ind
 import { authPlugin } from './middleware/index.js'
 import { sendError } from './utils/index.js'
 import routes from './routes/index.js'
+import { startBackupWorker, type BackupWorker } from './src/backup/index.js'
 
 // Import types to ensure Fastify extensions are available
 import './types.js'
@@ -334,10 +335,15 @@ export async function buildServer(): Promise<FastifyInstance> {
 }
 
 // Graceful shutdown handler
+let backupWorker: BackupWorker | null = null
+
 function setupGracefulShutdown(fastify: FastifyInstance): void {
   const shutdown = async (signal: string) => {
     fastify.log.info({ signal }, 'Shutdown signal received')
     try {
+      // A backup in flight is not awaited: the platform's kill timer is shorter than a
+      // backup. On the next start the worker closes its history row and resumes it.
+      backupWorker?.halt()
       await fastify.close()
       fastify.log.info('Server closed gracefully')
       process.exit(0)
@@ -362,6 +368,7 @@ buildServer()
         process.exit(1)
       }
       fastify.log.info(`\n🚀 BluePLM API v${API_VERSION} running at ${address}`)
+      backupWorker = startBackupWorker(env, fastify.log, API_VERSION)
       fastify.log.info(
         env.ENABLE_DOCS
           ? `📚 API Documentation: ${address}/docs\n`
