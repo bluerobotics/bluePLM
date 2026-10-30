@@ -6,9 +6,13 @@ All notable changes to BluePLM will be documented in this file.
 
 ## [Unreleased]
 
-Schema 110 (no API or SolidWorks service change). Apply `supabase/core.sql`, then modules 10 to 50
-in order. Until it is applied, the new review menu entries, the File Workflows settings and the
-review workflow bar fail with "function not found"; everything else keeps working.
+## [4.9.0] - 2026-10-29
+
+Schema 110 (no API or SolidWorks service change, so it runs on API 3.0.0 and service 1.26.0 like
+4.8.1). Apply `supabase/core.sql`, then modules 10 to 50 in order. Until it is applied, the new
+review menu entries, the File Workflows settings and the review workflow bar fail with "function
+not found", and saving a workflow state in Edit State fails; everything else keeps working. 4.8.1
+keeps working against schema 110.
 
 ### Added
 
@@ -45,21 +49,6 @@ review workflow bar fail with "function not found"; everything else keeps workin
   "hotkeys", and typos such as "seiral"). Arrow keys and Enter open a result, which jumps to the
   setting and flashes it; Esc clears, Ctrl+F focuses the box.
 
-### Fixed
-
-- Every notification in vault settings is translated
-  in all seven languages (#94).
-- Sign-out from Account, Delete Account and Preferences, the welcome screen's sign-in messages
-  and the session heartbeat's "signed out" notice go through the same backend sign-out path and are
-  translated (#91).
-- The top-bar right-pane button hides and shows the comment sidebar in the Reviews view. It used to
-  toggle the file panel, which the Reviews view does not show, so it did nothing there.
-
-## [4.8.1] - 2026-10-29
-
-App only: no schema, API or SolidWorks service change, so it runs on schema 109, API 3.0.0 and
-service 1.26.0 like 4.8.0.
-
 ### Changed
 
 - **Metadata Audit is a file list.** The SOLIDWORKS > Metadata Audit results are now laid out like
@@ -77,6 +66,21 @@ service 1.26.0 like 4.8.0.
   (Wilson, 2026-10-29). The scan knows the vault root, so a path inside it is now cut back to its
   vault-relative part; a path outside the vault still matches nothing and says so. Also applies to
   `scan-divergence --path` and `restore-metadata-from-files --path`.
+- Every notification in vault settings is translated
+  in all seven languages (#94).
+- Sign-out from Account, Delete Account and Preferences, the welcome screen's sign-in messages
+  and the session heartbeat's "signed out" notice go through the same backend sign-out path and are
+  translated (#91).
+- The top-bar right-pane button hides and shows the comment sidebar in the Reviews view. It used to
+  toggle the file panel, which the Reviews view does not show, so it did nothing there.
+
+## [4.8.1] - 2026-10-29
+
+App only: no schema, API or SolidWorks service change, so it runs on schema 109, API 3.0.0 and
+service 1.26.0 like 4.8.0.
+
+### Fixed
+
 - Context-menu links into Settings (for example "open settings tab") work again: the app shell
   listens for the navigation event once more (#87).
 - The installer packages the SolidWorks service once, from the staged `resources/bin/win32`
