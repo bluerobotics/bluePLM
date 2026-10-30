@@ -4,7 +4,7 @@
 
 [![Version](https://img.shields.io/github/v/release/bluerobotics/bluePLM)](https://github.com/bluerobotics/bluePLM/releases)
 [![Build](https://img.shields.io/github/actions/workflow/status/bluerobotics/bluePLM/release.yml)](https://github.com/bluerobotics/bluePLM/actions)
-[![Downloads](https://img.shields.io/github/downloads/bluerobotics/bluePLM/total)](https://github.com/bluerobotics/bluePLM/releases)
+[![Downloads](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/bluerobotics/bluePLM/main/.github/badges/downloads.json)](https://github.com/bluerobotics/bluePLM/releases)
 [![License](https://img.shields.io/github/license/bluerobotics/bluePLM)](LICENSE)
 [![Docs](https://img.shields.io/badge/docs-blueplm.io-blue)](https://docs.blueplm.io)
 

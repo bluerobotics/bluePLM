@@ -1,0 +1,47 @@
+name: Download Badge
+
+# The stock shields.io downloads badge sums every release asset, and almost all of that is
+# `latest.yml` / `latest-mac.yml`, which every installed copy fetches on each update check (319k of
+# 325k in October 2026). This counts installers only: the Windows .exe and the macOS .dmg. The .exe
+# count still includes Windows auto-updates, which download the same file; the macOS updater uses the
+# .zip, which is left out. The README badge reads the JSON this writes.
+on:
+  release:
+    types: [published]
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: download-badge
+  cancel-in-progress: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Count installer downloads
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          total=$(gh api --paginate "repos/${{ github.repository }}/releases" \
+            --jq '.[].assets[] | select(.name | endswith(".exe") or endswith(".dmg")) | .download_count' \
+            | awk '{s+=$1} END {print s+0}')
+          mkdir -p .github/badges
+          printf '{"schemaVersion":1,"label":"installer downloads","message":"%s","color":"blue"}\n' \
+            "$total" > .github/badges/downloads.json
+          cat .github/badges/downloads.json
+
+      - name: Commit if changed
+        run: |
+          git diff --quiet -- .github/badges/downloads.json && exit 0
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898+github-actions[bot]@users.noreply.github.com'
+          git add .github/badges/downloads.json
+          git commit -m 'chore: update installer download count [skip ci]'
+          git push
