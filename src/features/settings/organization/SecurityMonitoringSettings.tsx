@@ -22,6 +22,8 @@ export interface SecuritySettings {
   auth_event_threshold: number
   is_domain_join_alert_enabled: boolean
   is_daily_summary_enabled: boolean
+  is_backup_alert_enabled: boolean
+  backup_overdue_hours: number
   summary_hour_utc: number
 }
 
@@ -33,13 +35,19 @@ export const SECURITY_SETTING_DEFAULTS: SecuritySettings = {
   auth_event_threshold: 20,
   is_domain_join_alert_enabled: true,
   is_daily_summary_enabled: true,
+  is_backup_alert_enabled: true,
+  backup_overdue_hours: 36,
   summary_hour_utc: 14,
 }
 
-const THRESHOLD_LIMITS: Record<'file_delete_threshold' | 'storage_delete_threshold' | 'auth_event_threshold', number> = {
+const THRESHOLD_LIMITS: Record<
+  'file_delete_threshold' | 'storage_delete_threshold' | 'auth_event_threshold' | 'backup_overdue_hours',
+  number
+> = {
   file_delete_threshold: 1_000_000,
   storage_delete_threshold: 10_000_000,
   auth_event_threshold: 100_000,
+  backup_overdue_hours: 720,
 }
 
 /** A threshold the database will accept: a whole number from 1 to the column's CHECK limit. */
@@ -139,7 +147,8 @@ export function SecurityMonitoringSettings() {
     </label>
   )
 
-  const toggle = (key: 'is_enabled' | 'is_domain_join_alert_enabled' | 'is_daily_summary_enabled', label: string, hint: string) => (
+  const toggle = (
+    key: 'is_enabled' | 'is_domain_join_alert_enabled' | 'is_daily_summary_enabled' | 'is_backup_alert_enabled', label: string, hint: string) => (
     <label className={`flex items-start gap-3 p-3 rounded border border-plm-border ${disabled ? 'opacity-60' : 'cursor-pointer'}`}>
       <input
         type="checkbox"
@@ -182,6 +191,9 @@ export function SecurityMonitoringSettings() {
             <h3 className="text-sm font-semibold text-plm-fg">{t('securityMonitoring.alertsTitle')}</h3>
             <p className="text-xs text-plm-fg-muted">{t('securityMonitoring.alwaysAlerted')}</p>
             {toggle('is_domain_join_alert_enabled', t('securityMonitoring.domainJoins'), t('securityMonitoring.domainJoinsHint'))}
+            {toggle('is_backup_alert_enabled', t('securityMonitoring.backupAlerts'), t('securityMonitoring.backupAlertsHint'))}
+            {settings.is_backup_alert_enabled &&
+              threshold('backup_overdue_hours', t('securityMonitoring.backupOverdue'), t('securityMonitoring.backupOverdueHint'))}
             {toggle('is_daily_summary_enabled', t('securityMonitoring.dailySummary'), t('securityMonitoring.dailySummaryHint'))}
             <label className="block space-y-1 pl-3">
               <span className="block text-sm text-plm-fg">{t('securityMonitoring.summaryHour')}</span>

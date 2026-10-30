@@ -13,7 +13,7 @@
 --      provider, and a domain added by a signed-in admin must be that admin's own verified domain.
 --   4. check_function_inventory(): the stamp refuses a public function that is SECURITY DEFINER
 --      or executable by anon / authenticated and that no release registered.
---   5. Security monitoring: triggers record admin grants and email-domain joins in security_event;
+--   5. Security monitoring (and backup health, for 0501's server backups): triggers record admin grants and email-domain joins in security_event;
 --      security_monitor_run() (pg_cron, every 10 minutes) adds rate signals, turns new events into
 --      notification rows for the organization's admins, sends a daily summary and runs the
 --      release checks once a day. Thresholds are per organization (org_security_setting).
@@ -751,6 +751,10 @@ CREATE TABLE IF NOT EXISTS org_security_setting (
   -- Alert on each member who joined through email_domains (they are always in the summary).
   is_domain_join_alert_enabled BOOLEAN NOT NULL DEFAULT true,
   is_daily_summary_enabled BOOLEAN NOT NULL DEFAULT true,
+  -- Backups (0501): alert on a failed or warning run, on no successful scheduled server backup
+  -- within this many hours, and on a silent server worker.
+  is_backup_alert_enabled BOOLEAN NOT NULL DEFAULT true,
+  backup_overdue_hours INTEGER NOT NULL DEFAULT 36 CHECK (backup_overdue_hours BETWEEN 1 AND 720),
   summary_hour_utc INTEGER NOT NULL DEFAULT 14 CHECK (summary_hour_utc BETWEEN 0 AND 23),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_by UUID REFERENCES app_user(id) ON DELETE SET NULL
@@ -811,7 +815,8 @@ CREATE TABLE IF NOT EXISTS security_event (
   org_id UUID REFERENCES organization(id) ON DELETE CASCADE,
   kind TEXT NOT NULL CHECK (kind IN (
     'admin_granted', 'domain_join', 'file_delete_spike', 'storage_delete_spike',
-    'auth_event_spike', 'orgless_signup_spike', 'schema_drift'
+    'auth_event_spike', 'orgless_signup_spike', 'schema_drift',
+    'backup_failed', 'backup_overdue', 'backup_worker_silent'
   )),
   severity TEXT NOT NULL DEFAULT 'normal' CHECK (severity IN ('normal', 'high')),
   summary TEXT NOT NULL,
@@ -1156,7 +1161,9 @@ BEGIN
            COALESCE(s.is_enabled, true) AS is_enabled,
            COALESCE(s.file_delete_threshold, 200) AS file_delete_threshold,
            COALESCE(s.storage_delete_threshold, 500) AS storage_delete_threshold,
-           COALESCE(s.auth_event_threshold, 20) AS auth_event_threshold
+           COALESCE(s.auth_event_threshold, 20) AS auth_event_threshold,
+           COALESCE(s.is_backup_alert_enabled, true) AS is_backup_alert_enabled,
+           COALESCE(s.backup_overdue_hours, 36) AS backup_overdue_hours
     FROM organization org
     LEFT JOIN org_security_setting s ON s.org_id = org.id
   LOOP
@@ -1210,6 +1217,42 @@ BEGIN
           format('%s password recovery or repeated sign-up requests for your domains in the last hour', v_count),
           jsonb_build_object('count', v_count, 'threshold', o.auth_event_threshold,
                              'dedup_key', format('auth_event_spike:%s:%s', o.org_id, v_hour)));
+      END IF;
+    END IF;
+
+    -- Backups (columns from 0501). A failed or warning run is reported once (keyed by its row);
+    -- only runs that finished in the last two days are looked at, so the scan stays small.
+    IF o.is_backup_alert_enabled THEN
+      PERFORM security_event_record(o.org_id, 'backup_failed',
+        CASE WHEN h.status = 'failed' THEN 'high' ELSE 'normal' END,
+        format('A %s %s ended with status %s%s', COALESCE(h.runner, 'desktop'), h.kind, h.status,
+               COALESCE(': ' || left(h.error_message, 200), '')),
+        jsonb_build_object('backup_history_id', h.id, 'status', h.status, 'kind', h.kind,
+                           'dedup_key', format('backup_failed:%s', h.id)))
+      FROM backup_history h
+      WHERE h.org_id = o.org_id AND h.status IN ('failed', 'warning')
+        AND COALESCE(h.completed_at, h.started_at) > v_now - INTERVAL '2 days';
+
+      -- Scheduled server backups: one succeeded within the window, and the worker is alive.
+      -- A configuration changed less than the window ago is not overdue yet.
+      IF EXISTS (SELECT 1 FROM backup_config c
+                 WHERE c.org_id = o.org_id AND c.is_schedule_enabled AND c.run_location = 'server'
+                   AND COALESCE(c.updated_at, c.created_at) <= v_now - make_interval(hours => o.backup_overdue_hours))
+         AND NOT EXISTS (SELECT 1 FROM backup_history h
+                         WHERE h.org_id = o.org_id AND h.kind = 'backup' AND h.status IN ('completed', 'warning')
+                           AND h.started_at > v_now - make_interval(hours => o.backup_overdue_hours)) THEN
+        PERFORM security_event_record(o.org_id, 'backup_overdue', 'high',
+          format('No scheduled backup has succeeded in the last %s hours', o.backup_overdue_hours),
+          jsonb_build_object('hours', o.backup_overdue_hours, 'dedup_key', format('backup_overdue:%s:%s', o.org_id, v_day)));
+      END IF;
+
+      IF EXISTS (SELECT 1 FROM backup_config c
+                 WHERE c.org_id = o.org_id AND c.run_location = 'server'
+                   AND COALESCE(c.server_worker_seen_at, c.updated_at, c.created_at) < v_now - INTERVAL '10 minutes') THEN
+        PERFORM security_event_record(o.org_id, 'backup_worker_silent', 'high',
+          'The server backup worker has not checked in for more than 10 minutes',
+          jsonb_build_object('last_seen_at', (SELECT c.server_worker_seen_at FROM backup_config c WHERE c.org_id = o.org_id),
+                             'dedup_key', format('backup_worker_silent:%s:%s', o.org_id, v_hour)));
       END IF;
     END IF;
   END LOOP;
@@ -1289,6 +1332,9 @@ BEGIN
              WHEN 'auth_event_spike' THEN 'Security: unusual sign-in activity'
              WHEN 'orgless_signup_spike' THEN 'Security: sign-up spike'
              WHEN 'schema_drift' THEN 'Security: database drift'
+             WHEN 'backup_failed' THEN 'Backups: a run failed'
+             WHEN 'backup_overdue' THEN 'Backups: overdue'
+             WHEN 'backup_worker_silent' THEN 'Backups: server worker silent'
            END,
            CASE WHEN e.n > 1 THEN format('%s (and %s more)', e.latest, e.n - 1) ELSE e.latest END,
            CASE WHEN e.severity = 'high' THEN 'high' ELSE 'normal' END,

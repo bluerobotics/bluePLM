@@ -72,6 +72,16 @@ CREATE TABLE schema_version (id int PRIMARY KEY, version int, description text, 
 INSERT INTO schema_version VALUES (1, 500, '5.0', now(), 'test');
 CREATE TABLE schema_remediation_log (remediation text, rows_acted_on int, subjects jsonb, detail text);
 
+CREATE TABLE backup_config (
+  org_id uuid PRIMARY KEY, is_schedule_enabled boolean DEFAULT false, run_location text NOT NULL DEFAULT 'desktop',
+  server_worker_seen_at timestamptz, created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now()
+);
+CREATE TABLE backup_history (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), org_id uuid NOT NULL, started_at timestamptz DEFAULT now(),
+  completed_at timestamptz, status text NOT NULL DEFAULT 'running', kind text NOT NULL DEFAULT 'backup',
+  runner text, error_message text
+);
+
 CREATE SCHEMA storage;
 CREATE TABLE storage.objects (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), bucket_id text, name text);
 
@@ -474,6 +484,37 @@ describe('5. security monitoring', () => {
       { org_id: ORG_A, kind: 'file_delete_spike' },
       { org_id: ORG_A, kind: 'storage_delete_spike' },
     ])
+  })
+
+  it('alerts on failed backups, an overdue schedule and a silent server worker', async () => {
+    await as(null)
+    await db.exec(`
+      INSERT INTO backup_config (org_id, is_schedule_enabled, run_location, server_worker_seen_at, created_at, updated_at)
+      VALUES ('${ORG_A}', true, 'server', now() - interval '1 hour', now() - interval '3 days', now() - interval '3 days'),
+             ('${ORG_B}', true, 'server', now(), now() - interval '3 days', now() - interval '3 days');
+      INSERT INTO backup_history (org_id, status, kind, runner, error_message, started_at, completed_at) VALUES
+        ('${ORG_A}', 'failed', 'backup', 'server', 'bucket unreachable', now() - interval '50 hours', now() - interval '1 hour'),
+        ('${ORG_A}', 'completed', 'backup', 'server', NULL, now() - interval '40 hours', now() - interval '39 hours'),
+        ('${ORG_B}', 'completed', 'backup', 'server', NULL, now() - interval '2 hours', now() - interval '1 hour'),
+        ('${ORG_B}', 'failed', 'backup', 'server', 'old', now() - interval '9 days', now() - interval '9 days');
+    `)
+    await db.exec(`SELECT security_monitor_run()`)
+    await db.exec(`SELECT security_monitor_run()`)
+    const ev = await rows<{ org_id: string; kind: string }>(
+      `SELECT org_id, kind FROM security_event WHERE kind LIKE 'backup%' ORDER BY org_id, kind`,
+    )
+    // B succeeded recently and its worker is alive; its failure is older than the two-day window.
+    expect(ev).toEqual([
+      { org_id: ORG_A, kind: 'backup_failed' },
+      { org_id: ORG_A, kind: 'backup_overdue' },
+      { org_id: ORG_A, kind: 'backup_worker_silent' },
+    ])
+    const titles = (
+      await rows<{ title: string }>(
+        `SELECT DISTINCT title FROM notification WHERE user_id = '${ADMIN_A}' AND title LIKE 'Backups:%' ORDER BY title`,
+      )
+    ).map((r) => r.title)
+    expect(titles).toEqual(['Backups: a run failed', 'Backups: overdue', 'Backups: server worker silent'])
   })
 
   it('sends deployment-wide events to the operators and runs the drift check daily', async () => {
