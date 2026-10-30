@@ -1,1 +1,1 @@
-DROP FUNCTION IF EXISTS extension_config_get(UUID, TEXT, BOOLEAN);
+DROP FUNCTION IF EXISTS org_get_google_drive_settings(UUID, BOOLEAN);

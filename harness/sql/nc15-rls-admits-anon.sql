@@ -22,6 +22,11 @@ CREATE TABLE nc_rls_but_open (
 
 ALTER TABLE nc_rls_but_open ENABLE ROW LEVEL SECURITY;
 
+-- Since 5.0 a new table is born with no anon grant (the posture sweep withdraws
+-- the default privilege), so the hole also needs the grant an author would add
+-- by hand to make the policy reachable.
+GRANT SELECT ON nc_rls_but_open TO anon;
+
 CREATE POLICY "anyone can read nc_rls_but_open"
   ON nc_rls_but_open FOR SELECT TO anon
   USING (true);
