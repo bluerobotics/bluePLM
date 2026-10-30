@@ -19,6 +19,7 @@ import { checkSchemaCompatibility } from '@/lib/schemaVersion'
 import { checkApiVersion } from '@/lib/apiVersion'
 import { registerSettingsNavigationListener } from '@/lib/settingsNavigation'
 import { getAccessibleVaults } from '@/lib/supabase'
+import { JoinLinkGate } from '@/components/shared/Screens/JoinLinkGate'
 import { useVaultWatchers } from '@/hooks/useVaultWatchers'
 import { hashCheckoutIdentifier } from '@/types/pdm'
 import {
@@ -630,14 +631,18 @@ export function App() {
     )
   }
 
+  // A BluePLM Web join link (blueplm.io/join#<org code>) is confirmed before the app shows, and the
+  // backend it names is then checked for a schema this app can use.
   return (
-    <DbUpgradeGate>
-      <AppShell
-        showWelcome={showWelcome}
-        isSignInScreen={isSignInScreen}
-        handleChangeOrg={handleChangeOrg}
-      />
-    </DbUpgradeGate>
+    <JoinLinkGate onConfigured={handleSupabaseConfigured}>
+      <DbUpgradeGate>
+        <AppShell
+          showWelcome={showWelcome}
+          isSignInScreen={isSignInScreen}
+          handleChangeOrg={handleChangeOrg}
+        />
+      </DbUpgradeGate>
+    </JoinLinkGate>
   )
 }
 

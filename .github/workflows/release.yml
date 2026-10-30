@@ -322,3 +322,47 @@ jobs:
             dist/macos/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # BluePLM Web (blueplm.io) moves with releases, not with every push to main, so the browser app
+  # only ever runs released code. It goes out after the release is published, so the sign-in
+  # page's "Download the desktop app" button finds this release's installers. Same build as
+  # `npm run deploy:web`: the renderer built for the browser, served by the Workers static-assets
+  # service in web/wrangler.jsonc on the route blueplm.io/*. The repository variables carry the
+  # public build values (Supabase URL, anon key, the org's API URL for connect-src).
+  deploy-web:
+    needs: [release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    concurrency:
+      group: deploy-web
+      cancel-in-progress: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      # --ignore-scripts: the web build needs none of the desktop's install scripts (electron,
+      # native modules), and none of them should run on a machine holding the Cloudflare token.
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Build BluePLM Web
+        run: npm run build:web
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+          BLUEPLM_WEB_API_URLS: ${{ vars.BLUEPLM_WEB_API_URLS }}
+
+      - name: Deploy to blueplm.io
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: '4.156.0'
+          command: deploy --config web/wrangler.jsonc

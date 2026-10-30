@@ -111,6 +111,8 @@ export const pt: TranslationDict = {
   },
 
   welcome: {
+    downloadDesktop: 'Baixar o aplicativo para desktop',
+    downloadDesktopFor: 'Baixar o aplicativo para desktop ({{os}})',
     signedOutFromAnotherDevice: 'A sua sessão foi terminada a partir de outro dispositivo',
     credentialsRequired: 'Introduza o e-mail e a palavra-passe',
     confirmEmail: 'Confirme a sua conta através do e-mail',
@@ -121,23 +123,14 @@ export const pt: TranslationDict = {
     verificationFailed: 'Falha na verificação. Tente novamente.',
     title: 'BluePLM',
     tagline: 'Gestão de ciclo de vida de produto open source',
-    selectAccountType: 'Selecione o tipo de conta',
-    teamMember: 'Membro da Equipa',
-    teamMemberDesc: 'Engenheiros, administradores e visualizadores',
-    supplier: 'Fornecedor',
-    supplierDesc: 'Acesso ao portal de fornecedores',
     workOffline: 'Trabalhar Offline',
     offlineMode: 'Modo Offline',
 
-    teamSignIn: 'Início de Sessão de Membro da Equipa',
-    signInWithOrg: 'Inicie sessão com a sua conta da organização',
     signInWithGoogle: 'Iniciar sessão com Google',
     tryAgain: 'Tentar novamente',
     connecting: 'A ligar...',
     roleSetByOrg: 'O seu papel (Admin, Engenheiro, Visualizador) é definido pela sua organização',
 
-    supplierPortal: 'Portal do Fornecedor',
-    createAccount: 'Crie a sua conta de fornecedor',
     signInToAccount: 'Inicie sessão na sua conta',
     email: 'Email',
     password: 'Palavra-passe',
@@ -158,8 +151,6 @@ export const pt: TranslationDict = {
     useDifferentNumber: 'Usar outro número',
     verificationSent: 'Foi enviado um código de verificação para',
     includeCountryCode: 'Inclua o código do país (ex: +351 para Portugal, +55 para Brasil)',
-    supplierInviteNote:
-      'Os fornecedores são convidados pelas organizações. Contacte o seu comprador se precisar de acesso.',
 
     connectingToOrg: 'A ligar à sua organização...',
     organizationVaults: 'Cofres da Organização',
@@ -173,6 +164,15 @@ export const pt: TranslationDict = {
   },
 
   setup: {
+    joinTarget:
+      'Este link conecta o BluePLM a {{org}} ({{host}}). Conecte-se somente se confiar em quem o enviou.',
+    webJoinLink: 'Link web para entrar',
+    webJoinLinkDesc: 'Abre o BluePLM em um navegador, conectado a esta organização',
+    copyWebJoinLink: 'Copiar o link web para entrar',
+    webHostedOnly:
+      'O BluePLM Web conecta-se apenas a projetos Supabase hospedados (*.supabase.co). Use o aplicativo para desktop para um backend auto-hospedado.',
+    webRedirectHint:
+      'O login com Google só volta para cá se o seu projeto Supabase listar https://blueplm.io em Authentication > URL Configuration > Redirect URLs. Peça ao seu administrador para adicioná-lo.',
     welcome: 'Bem-vindo ao BluePLM',
     connectToBackend: 'Ligue-se ao backend Supabase da sua organização para começar',
     imAdmin: 'Sou Administrador da Organização',

@@ -150,6 +150,8 @@ export const en: TranslationDict = {
 
   // Welcome/Auth Screen
   welcome: {
+    downloadDesktop: 'Download the desktop app',
+    downloadDesktopFor: 'Download the desktop app ({{os}})',
     signedOutFromAnotherDevice: 'You were signed out from another device',
     credentialsRequired: 'Please enter email and password',
     confirmEmail: 'Please check your email to confirm your account',
@@ -160,25 +162,16 @@ export const en: TranslationDict = {
     verificationFailed: 'Verification failed. Please try again.',
     title: 'BluePLM',
     tagline: 'Open-source Product Lifecycle Management',
-    selectAccountType: 'Select your account type',
-    teamMember: 'Team Member',
-    teamMemberDesc: 'Engineers, admins, and viewers',
-    supplier: 'Supplier',
-    supplierDesc: 'Vendor portal access',
     workOffline: 'Work Offline',
     offlineMode: 'Offline Mode',
 
     // Team member auth
-    teamSignIn: 'Team Member Sign In',
-    signInWithOrg: 'Sign in with your organization account',
     signInWithGoogle: 'Sign In with Google',
     tryAgain: 'Try Again',
     connecting: 'Connecting...',
     roleSetByOrg: 'Your role (Admin, Engineer, Viewer) is set by your organization',
 
     // Supplier auth
-    supplierPortal: 'Supplier Portal',
-    createAccount: 'Create your supplier account',
     signInToAccount: 'Sign in to your account',
     email: 'Email',
     password: 'Password',
@@ -199,8 +192,6 @@ export const en: TranslationDict = {
     useDifferentNumber: 'Use a different number',
     verificationSent: 'A verification code was sent to',
     includeCountryCode: 'Include country code (e.g., +86 for China, +1 for US)',
-    supplierInviteNote:
-      'Suppliers are invited by organizations. Contact your buyer if you need access.',
 
     // Vault connection
     connectingToOrg: 'Connecting to your organization...',
@@ -216,6 +207,15 @@ export const en: TranslationDict = {
 
   // Setup Screen
   setup: {
+    joinTarget:
+      'This link connects BluePLM to {{org}} ({{host}}). Connect only if you trust whoever sent it.',
+    webJoinLink: 'Web join link',
+    webJoinLinkDesc: 'Opens BluePLM in a browser, connected to this organization',
+    copyWebJoinLink: 'Copy the web join link',
+    webHostedOnly:
+      'BluePLM Web connects to hosted Supabase projects (*.supabase.co) only. Use the desktop app for a self-hosted backend.',
+    webRedirectHint:
+      'Google sign-in returns here only if your Supabase project lists https://blueplm.io under Authentication > URL Configuration > Redirect URLs. Ask your administrator to add it.',
     welcome: 'Welcome to BluePLM',
     connectToBackend: "Connect to your organization's Supabase backend to get started",
     imAdmin: 'Set Up an Organization',
@@ -465,9 +465,10 @@ export const en: TranslationDict = {
     downloadSkippedNoHash_one: '1 file had no downloadable hash',
     downloadSkippedNoHash_other: '{{count}} files had no downloadable hash',
     webDownloadTooMany:
-      '{{count}} files selected. The browser downloads files one at a time, so select {{max}} or fewer.',
-    webDownloadStarted_one: 'Downloading 1 file',
-    webDownloadStarted_other: 'Downloading {{count}} files',
+      '{{count}} files selected. A browser download holds at most {{max}} files; select fewer.',
+    webDownloadTooLarge:
+      'The selection is {{size}} GB. A browser download holds at most {{max}} GB; select less, or use the desktop app.',
+    webDownloadZipping: 'Zipping {{count}} files...',
     webDownloadFailed: 'Could not download {{name}}: {{error}}',
     downloadVersion: 'Download this version',
     getLatest: 'Get Latest',

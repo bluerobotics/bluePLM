@@ -113,7 +113,7 @@ keeps working against schema 110.
 
 - **Metadata Audit accepts a full folder path.** A folder scope pasted from the browser's Copy Path
   (for example `C:\BluePLM\br-vault\POWERMODULE\development\`) matched nothing and came back blank
-  (Wilson, 2026-10-29). The scan knows the vault root, so a path inside it is now cut back to its
+  (user report, 2026-10-29). The scan knows the vault root, so a path inside it is now cut back to its
   vault-relative part; a path outside the vault still matches nothing and says so. Also applies to
   `scan-divergence --path` and `restore-metadata-from-files --path`.
 - Every notification in vault settings is translated
@@ -616,12 +616,12 @@ Renderer and Electron main only - no schema change, no API change, SolidWorks se
 
 - **Fewer pauses from saving app state.** Every change to the app's state re-serialized and
   rewrote the whole saved-state blob in local storage, even when nothing that gets saved had
-  changed. Wilson's blob was 700 KB (about 13x larger than ours), so each write was a large
+  changed. One user's blob was 700 KB (about 13x larger than ours), so each write was a large
   allocation, and a burst of writes during load and refocus could stall the window for seconds. The
   adapter (`src/stores/persistStorage.ts`) now skips writes when the saved slices are unchanged,
   batches the rest (500 ms) and flushes on window hide and close. Saved slices that were rebuilt
   on every write are now referentially stable. A hard crash can lose up to 500 ms of changes.
-  The cause of Wilson's lag is not yet proven; the diagnostics below are there to confirm it.
+  The cause of that user's lag is not yet proven; the diagnostics below are there to confirm it.
 - **A broken IndexedDB repairs itself.** Blake's vault cache stopped working at 20:07 with
   `Internal error opening backing store for indexedDB.open`, and every load after that was a full
   fetch: the failed open was remembered for the life of the window and never retried. A failed open
@@ -695,7 +695,7 @@ Renderer, API 2.8.2 and schema 102.
   that still tested the role alone (`update_extension_config`, `update_google_drive_settings`).
   Removing someone from the team removes the access, since nothing writes their role column.
   **Apply `supabase/core.sql` and the two modules, and redeploy the API, for the server-side gates
-  to open for team members.** Reported by Wilson.
+  to open for team members.** Reported by a user.
 
 ## [4.7.0] - 2026-10-08
 
@@ -896,7 +896,7 @@ Renderer-only release — no schema change, no API change.
   metadata, so they showed as local-only. A later full vault load was the only thing that put
   the badges right. Download now leaves the folder in the store and clears its cloud status in
   the same update as the files, including nested cloud directories that the download just gave
-  local content. Reported from doris: Burn Wire Release, 33 files.
+  local content. Reported from a user's machine: a 33-file folder.
 
 ## [4.4.2] - 2026-09-11
 
@@ -1632,7 +1632,7 @@ These entries were written for a 3.24.0 that was prepared and then not released;
 ### Fixed
 
 - **Ghost server-only files after move/delete** — moving a file into a subfolder (e.g. `CELSIUS-2/foo.SLDPRT` → `CELSIUS-2/Archive/foo.SLDPRT`) succeeded on disk but the next Refresh resurrected the original location as a synthetic cloud-only entry; an app restart was needed to clear it. Same family of bug caused `delete-server` files to reappear on Refresh. Root cause: the store kept two parallel views of server state (`state.files` with per-file `pdmData`, and a flat `state.serverFiles` array used by `refreshCurrentFolder` to detect cloud-only paths) and only `state.files` was updated on local mutations or realtime echoes — the stale `serverFiles` list still referenced the old path, so step 6 of the refresh pushed a synthetic `diffStatus: 'cloud'` row. Every mutator that touches `state.files` now mirrors the same shape change onto `state.serverFiles`: `renameFileInStore` (file + directory-prefix cases), `batchUpdateFileLocationsFromServer` (realtime move echoes), `updateFileLocationFromServer` (single-file realtime echoes), `removeCloudFile` (drop by id), `removeFilesFromStore` (drop by relative path with directory-prefix support), and `addCloudFile` (idempotent insert by id).
-- **`localHash` / `localVersion` drift causing files to falsely appear "synced"** — Wilson's intermittent symptom (BluePLM showed v2 while disk actually held v1, only fixable by deleting local and repulling) traced to several places where the trust chain for `localHash` and `localVersion` could drift from disk reality:
+- **`localHash` / `localVersion` drift causing files to falsely appear "synced"** — A user's intermittent symptom (BluePLM showed v2 while disk actually held v1, only fixable by deleting local and repulling) traced to several places where the trust chain for `localHash` and `localVersion` could drift from disk reality:
   - `useLoadFiles`: `existingLocalHashes` was seeded by full path but looked up by either full or relative path; IndexedDB hashes from prior sessions never reached the merge. Now seeded and looked up by both.
   - `useLoadFiles`: when a file appeared synced via path/extension match but had no on-disk hash evidence, the merge stamped `localVersion = pdmData.version` optimistically, so a file that was never opened locally was reported as the cloud version. Removed the optimistic fallback — `localVersion` now only advances when we actually have disk evidence.
   - `useLoadFiles`: "first-sight" files (a path that already has `pdmData.content_hash` but no `localHash`/`localVersion`) skipped hash computation when `skipHashComputation` was true, so the file's status was determined by missing data. They now force a single hash on first sight even in the skip path.

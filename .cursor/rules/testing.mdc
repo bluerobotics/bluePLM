@@ -9,7 +9,7 @@ Several agents work on this machine at once, and none sees the others. Parallel 
 so the suites run on Modal through the shared cloud test runner (the same one br-motor-builder uses), set by the user
 on 2026-10-24.
 
-The runner is `C:/Users/emill/Documents/GitHub/br-mission-wt/tools/cloud-test/run.mjs`; its README has the flags,
+The runner is the `run.mjs` named in the user's global cloud-tests rule (`~/.claude/rules/cloud-tests.md`); its README has the flags,
 sizing, exit codes and costs. It packs the working tree as it is, uncommitted edits included, and picks Node 22 from
 `engines.node`.
 

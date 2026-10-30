@@ -2229,3 +2229,16 @@ tr.selected.diff-cloud {
   0%, 100% { opacity: 0.8; }
   50% { opacity: 1; }
 }
+
+/* BluePLM Web (html[data-host='web'], set in src/app/main.tsx): every file is cloud-only there, so
+   the desktop's "not downloaded" dimming would grey out the whole vault. Rows read normally. */
+html[data-host='web'] .diff-cloud,
+html[data-host='web'] .diff-cloud:hover:not(.selected) {
+  opacity: 1;
+}
+
+html[data-host='web'] .diff-cloud td,
+html[data-host='web'] .sidebar-diff-cloud span:not(.tree-item-icon) {
+  color: inherit;
+  font-style: normal;
+}

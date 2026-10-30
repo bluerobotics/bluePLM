@@ -148,6 +148,18 @@ The `email_domains` array enables auto-detection. When users with matching email
 The Organization Code contains your Supabase anon key encoded. Share it only with trusted team members.
 :::
 
+### Using BluePLM in a browser (blueplm.io)
+
+Your team can also use BluePLM at [blueplm.io](https://blueplm.io) with the same Organization Code:
+on the sign-in page choose **Change organization** and paste the code. Before that:
+
+- In Supabase, go to **Authentication > URL Configuration > Redirect URLs** and add
+  `https://blueplm.io` and `https://blueplm.io/**`. Without them, Google sign-in cannot return to
+  the browser app. Your Google OAuth client needs no change.
+- The browser app reaches hosted Supabase projects (`*.supabase.co`) only. A self-hosted Supabase
+  works in the desktop app but not at blueplm.io.
+- Checking files in and out and everything that touches SOLIDWORKS stays in the desktop app.
+
 ## Optimize Performance (Windows)
 
 On Windows, antivirus software (especially Windows Defender) can significantly slow down file operations by scanning files every time they're opened for writing. For CAD files like SolidWorks parts and assemblies, this can add 10-15 seconds to operations that should take 1-2 seconds.

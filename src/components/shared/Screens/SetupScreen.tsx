@@ -16,16 +16,23 @@ import {
   generateOrgCode,
   parseOrgCode,
   validateConfig,
+  isHostedSupabaseUrl,
   type SupabaseConfig,
 } from '@/lib/supabaseConfig'
 import { reconfigureSupabase } from '@/lib/supabase'
 import { LanguageSelector } from '@/components/shared/LanguageSelector'
 import { useTranslation } from '@/lib/i18n'
+import { hasDesktop } from '@/lib/platform'
+import { describeJoinTarget } from '@/lib/joinLink'
 import { copyToClipboard } from '@/lib/clipboard'
 import { log } from '@/lib/logger'
 
 interface SetupScreenProps {
   onConfigured: () => void
+  /** From a web join link (src/lib/joinLink.ts): opens the member step with this code filled in. */
+  initialOrgCode?: string
+  /** Leave the join link and keep the current backend. */
+  onCancel?: () => void
 }
 
 type SetupMode = 'select' | 'admin' | 'member'
@@ -93,9 +100,11 @@ function SetupTitleBar() {
   )
 }
 
-export function SetupScreen({ onConfigured }: SetupScreenProps) {
+export function SetupScreen({ onConfigured, initialOrgCode, onCancel }: SetupScreenProps) {
   const { t } = useTranslation()
-  const [mode, setMode] = useState<SetupMode>('select')
+  const [mode, setMode] = useState<SetupMode>(initialOrgCode ? 'member' : 'select')
+  // Where a join link leads. Shown before connecting: the link alone never switches the backend.
+  const joinTarget = initialOrgCode ? describeJoinTarget(initialOrgCode) : null
   const [isValidating, setIsValidating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -108,7 +117,7 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
   const [codeCopied, setCodeCopied] = useState(false)
 
   // Member mode state
-  const [orgCode, setOrgCode] = useState('')
+  const [orgCode, setOrgCode] = useState(initialOrgCode ?? '')
 
   const handleAdminSetup = async () => {
     if (!projectId.trim() || !anonKey.trim()) {
@@ -181,6 +190,12 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
 
     if (!config) {
       setError('Invalid Organization Code. Please check and try again.')
+      setIsValidating(false)
+      return
+    }
+
+    if (!hasDesktop() && !isHostedSupabaseUrl(config.url)) {
+      setError(t('setup.webHostedOnly'))
       setIsValidating(false)
       return
     }
@@ -499,11 +514,18 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
         <div className="flex-1 flex items-center justify-center p-8">
           <div className="max-w-xl w-full">
             <button
-              onClick={() => setMode('select')}
+              onClick={() => (onCancel ? onCancel() : setMode('select'))}
               className="mb-6 text-sm text-plm-fg-muted hover:text-plm-fg transition-colors"
             >
               ← {t('common.back')}
             </button>
+
+            {/* Join link: say where it leads before anything connects */}
+            {joinTarget && (
+              <div className="mb-6 p-3 rounded-lg border border-plm-border bg-plm-bg-light text-sm text-plm-fg">
+                {t('setup.joinTarget', { org: joinTarget.orgSlug ?? joinTarget.host, host: joinTarget.host })}
+              </div>
+            )}
 
             <div className="text-center mb-8">
               <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-green-500/20 flex items-center justify-center">
@@ -527,6 +549,9 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
                   className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-4 py-3 text-plm-fg placeholder-plm-fg-dim focus:border-plm-accent focus:outline-none font-mono text-sm resize-none"
                 />
               </div>
+
+              {/* BluePLM Web: Google sign-in returns here only if the org's Supabase allows it */}
+              {!hasDesktop() && <p className="text-xs text-plm-fg-muted">{t('setup.webRedirectHint')}</p>}
 
               {/* Error Message */}
               {error && (

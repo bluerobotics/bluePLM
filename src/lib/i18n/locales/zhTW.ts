@@ -107,6 +107,8 @@ export const zhTW: TranslationDict = {
   },
 
   welcome: {
+    downloadDesktop: '下載桌面應用程式',
+    downloadDesktopFor: '下載桌面應用程式（{{os}}）',
     signedOutFromAnotherDevice: '您的帳戶已從另一台裝置登出',
     credentialsRequired: '請輸入電子郵件和密碼',
     confirmEmail: '請透過電子郵件確認您的帳戶',
@@ -117,23 +119,14 @@ export const zhTW: TranslationDict = {
     verificationFailed: '驗證失敗，請重試。',
     title: 'BluePLM',
     tagline: '開源產品生命週期管理',
-    selectAccountType: '選擇您的帳戶類型',
-    teamMember: '團隊成員',
-    teamMemberDesc: '工程師、管理員和檢視者',
-    supplier: '供應商',
-    supplierDesc: '供應商入口存取',
     workOffline: '離線工作',
     offlineMode: '離線模式',
 
-    teamSignIn: '團隊成員登入',
-    signInWithOrg: '使用您的組織帳戶登入',
     signInWithGoogle: '使用 Google 登入',
     tryAgain: '重試',
     connecting: '連線中...',
     roleSetByOrg: '您的角色（管理員、工程師、檢視者）由您的組織設定',
 
-    supplierPortal: '供應商入口',
-    createAccount: '建立您的供應商帳戶',
     signInToAccount: '登入您的帳戶',
     email: '電子郵件',
     password: '密碼',
@@ -154,7 +147,6 @@ export const zhTW: TranslationDict = {
     useDifferentNumber: '使用其他號碼',
     verificationSent: '驗證碼已傳送至',
     includeCountryCode: '請包含國碼（例如：+886 台灣，+1 美國）',
-    supplierInviteNote: '供應商由組織邀請。如需存取權限，請聯繫您的採購方。',
 
     connectingToOrg: '正在連線到您的組織...',
     organizationVaults: '組織保險庫',
@@ -168,6 +160,15 @@ export const zhTW: TranslationDict = {
   },
 
   setup: {
+    joinTarget:
+      '此連結會將 BluePLM 連線到 {{org}}（{{host}}）。僅在信任傳送者時連線。',
+    webJoinLink: '網頁加入連結',
+    webJoinLinkDesc: '在瀏覽器中開啟已連線到此組織的 BluePLM',
+    copyWebJoinLink: '複製網頁加入連結',
+    webHostedOnly:
+      'BluePLM Web 只能連線到託管的 Supabase 專案（*.supabase.co）。自架後端請使用桌面應用程式。',
+    webRedirectHint:
+      '只有當您的 Supabase 專案在 Authentication > URL Configuration > Redirect URLs 中列出 https://blueplm.io 時，Google 登入才會返回此處。請管理員新增。',
     welcome: '歡迎使用 BluePLM',
     connectToBackend: '連線到您組織的 Supabase 後端以開始使用',
     imAdmin: '我是組織管理員',

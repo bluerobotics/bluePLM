@@ -8,11 +8,8 @@ import {
   Check,
   Database,
   Link,
-  User,
-  Truck,
   Mail,
   Phone,
-  ArrowLeft,
   Eye,
   EyeOff,
   RotateCw,
@@ -36,10 +33,14 @@ import { LanguageSelector } from '@/components/shared/LanguageSelector'
 import { VaultSetupDialog, type VaultSyncStats } from '@/components/shared/Dialogs'
 import { calculateVaultSyncStats } from '@/lib/vaultHealthCheck'
 import { useTranslation } from '@/lib/i18n'
+import { DownloadDesktopButton } from './DownloadDesktopButton'
 import { log } from '@/lib/logger'
-import type { AccountType } from '@/types/database'
 
-import { createWelcomeCredentialAuthHandlers } from './welcomeCredentialAuth'
+import {
+  createWelcomeCredentialAuthHandlers,
+  signInMethods,
+  type SignInMethod,
+} from './welcomeCredentialAuth'
 import { WorkOfflineButton } from './WorkOfflineButton'
 import { hasDesktop } from '@/lib/platform'
 import { connectWebVault } from '@/lib/webVault'
@@ -140,11 +141,8 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
   const signInTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const signInAbortControllerRef = useRef<AbortController | null>(null)
 
-  // Account type selection state
-  const [accountType, setAccountType] = useState<AccountType | null>(null)
-
-  // Auth state (shared between supplier and team member email/phone auth)
-  const [authMethod, setAuthMethod] = useState<'google' | 'email' | 'phone'>('google')
+  // Auth state for the one sign-in page (members and supplier contacts alike)
+  const [authMethod, setAuthMethod] = useState<SignInMethod>('google')
   const [authEmail, setAuthEmail] = useState('')
   const [authPassword, setAuthPassword] = useState('')
   const [authPasswordConfirm, setAuthPasswordConfirm] = useState('')
@@ -200,35 +198,24 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
     fetchAuthProviders()
   }, [user, isOfflineMode])
 
-  // Auto-select an enabled auth method when providers are loaded
-  // This handles cases where Google is disabled but authMethod defaults to 'google'
+  // Methods allowed for either audience; the org decides member vs supplier after sign-in
+  const {
+    google: googleAllowed,
+    email: emailAllowed,
+    phone: phoneAllowed,
+  } = signInMethods(orgAuthProviders, hasDesktop())
+
+  // If the current method is not allowed (e.g. Google disabled), switch to one that is
   useEffect(() => {
-    if (!orgAuthProviders) return
-
-    const isUser = accountType === 'user'
-    const providers = isUser ? orgAuthProviders.users : orgAuthProviders.suppliers
-
-    // If current method is disabled, switch to an enabled one
-    if (authMethod === 'google' && providers?.google === false) {
-      if (providers?.email !== false) {
-        setAuthMethod('email')
-      } else if (providers?.phone !== false) {
-        setAuthMethod('phone')
-      }
-    } else if (authMethod === 'email' && providers?.email === false) {
-      if (providers?.google !== false && isUser) {
-        setAuthMethod('google')
-      } else if (providers?.phone !== false) {
-        setAuthMethod('phone')
-      }
-    } else if (authMethod === 'phone' && providers?.phone === false) {
-      if (providers?.google !== false && isUser) {
-        setAuthMethod('google')
-      } else if (providers?.email !== false) {
-        setAuthMethod('email')
-      }
+    const allowed: Record<SignInMethod, boolean> = {
+      google: googleAllowed,
+      email: emailAllowed,
+      phone: phoneAllowed,
     }
-  }, [orgAuthProviders, accountType, authMethod])
+    if (allowed[authMethod]) return
+    const next = (['google', 'email', 'phone'] as const).find((method) => allowed[method])
+    if (next) setAuthMethod(next)
+  }, [googleAllowed, emailAllowed, phoneAllowed, authMethod])
 
   // Log user/org state changes for debugging
   useEffect(() => {
@@ -618,7 +605,6 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
 
   const { handleEmailAuth, handleSendPhoneOTP, handleVerifyPhoneOTP } =
     createWelcomeCredentialAuthHandlers({
-      accountType,
       authEmail,
       authPassword,
       authPasswordConfirm,
@@ -656,7 +642,6 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
     setVaultPath(null)
     setVaultConnected(false)
     resetAuth()
-    setAccountType(null)
 
     // Sign out if there's any session
     try {
@@ -973,13 +958,15 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
             >
               {t('common.cancel')}
             </button>
-            <button
-              onClick={handleStartFresh}
-              className="inline-flex items-center gap-1.5 text-sm text-plm-fg-muted hover:text-plm-fg transition-colors"
-            >
-              <Trash2 size={14} />
-              {t('welcome.startFresh', 'Clear saved data & start fresh')}
-            </button>
+            {hasDesktop() && (
+              <button
+                onClick={handleStartFresh}
+                className="inline-flex items-center gap-1.5 text-sm text-plm-fg-muted hover:text-plm-fg transition-colors"
+              >
+                <Trash2 size={14} />
+                {t('welcome.startFresh', 'Clear saved data & start fresh')}
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -1035,462 +1022,97 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
             <p className="text-plm-fg-dim">{t('welcome.tagline')}</p>
           </div>
 
-          {/* ============================================ */}
-          {/* STEP 1: Account Type Selection */}
-          {/* ============================================ */}
-          {!accountType && (
-            <div className="space-y-4">
-              <p className="text-center text-sm text-plm-fg-muted mb-6">
-                {t('welcome.selectAccountType')}
-              </p>
+          {/* One sign-in page for everyone. Whether an account is an org member or a supplier
+              contact is decided by the org after sign-in, not picked here. */}
+          <div className="space-y-4">
+            <p className="text-center text-sm text-plm-fg-muted mb-6">
+              {t('welcome.signInToAccount')}
+            </p>
 
-              <button
-                onClick={() => {
-                  logClick('Account type: User selected')
-                  setAccountType('user')
-                  setAuthMethod('google')
-                }}
-                className="w-full bg-plm-bg-light border-2 border-plm-border hover:border-plm-accent rounded-xl p-6 transition-colors group"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-xl bg-plm-accent/20 flex items-center justify-center group-hover:bg-plm-accent/30 transition-colors">
-                    <User size={28} className="text-plm-accent" />
-                  </div>
-                  <div className="text-left flex-1">
-                    <h3 className="font-semibold text-plm-fg text-lg">{t('welcome.teamMember')}</h3>
-                    <p className="text-sm text-plm-fg-muted">{t('welcome.teamMemberDesc')}</p>
-                  </div>
-                </div>
-              </button>
-
-              <button
-                onClick={() => {
-                  logClick('Account type: Supplier selected')
-                  setAccountType('supplier')
-                  setAuthMethod('email')
-                }}
-                className="w-full bg-plm-bg-light border-2 border-plm-border hover:border-amber-500 rounded-xl p-6 transition-colors group"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-xl bg-amber-500/20 flex items-center justify-center group-hover:bg-amber-500/30 transition-colors">
-                    <Truck size={28} className="text-amber-500" />
-                  </div>
-                  <div className="text-left flex-1">
-                    <h3 className="font-semibold text-plm-fg text-lg">{t('welcome.supplier')}</h3>
-                    <p className="text-sm text-plm-fg-muted">{t('welcome.supplierDesc')}</p>
-                  </div>
-                </div>
-              </button>
-            </div>
-          )}
-
-          {/* ============================================ */}
-          {/* STEP 2a: User Sign In (Google OAuth or Email/Phone) */}
-          {/* ============================================ */}
-          {accountType === 'user' && (
-            <div className="space-y-4">
-              <button
-                onClick={() => {
-                  setAccountType(null)
-                  resetAuth()
-                }}
-                className="flex items-center gap-2 text-sm text-plm-fg-muted hover:text-plm-fg transition-colors mb-4"
-              >
-                <ArrowLeft size={16} />
-                {t('common.back')}
-              </button>
-
-              <div className="text-center mb-6">
-                <div className="w-12 h-12 rounded-xl bg-plm-accent/20 flex items-center justify-center mx-auto mb-3">
-                  <User size={24} className="text-plm-accent" />
-                </div>
-                <h2 className="text-xl font-semibold text-plm-fg">{t('welcome.teamSignIn')}</h2>
-                <p className="text-sm text-plm-fg-muted mt-1">
-                  {isNewAccount ? t('welcome.createAccount') : t('welcome.signInWithOrg')}
-                </p>
-              </div>
-
-              {/* Google OAuth (default) - only show if Google is enabled */}
-              {authMethod === 'google' && orgAuthProviders?.users?.google !== false && (
-                <>
-                  {/* Error message for Google sign-in */}
-                  {authError && !isSigningIn && (
-                    <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
-                      <div className="flex items-start gap-2">
-                        <X size={16} className="text-red-400 flex-shrink-0 mt-0.5" />
-                        <div className="flex-1">
-                          <p className="text-sm text-red-400">{authError}</p>
-                        </div>
+            {/* Google OAuth (default) - only show if Google is enabled */}
+            {authMethod === 'google' && googleAllowed && (
+              <>
+                {/* Error message for Google sign-in */}
+                {authError && !isSigningIn && (
+                  <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                    <div className="flex items-start gap-2">
+                      <X size={16} className="text-red-400 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-sm text-red-400">{authError}</p>
                       </div>
                     </div>
-                  )}
+                  </div>
+                )}
 
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleSignIn}
-                      disabled={isSigningIn || resolveBackend().status !== 'ready'}
-                      className="flex-1 btn btn-primary btn-lg gap-3 justify-center py-4"
-                    >
-                      {isSigningIn ? (
-                        <Loader2 size={20} className="animate-spin" />
-                      ) : authError ? (
-                        <RotateCw size={20} />
-                      ) : (
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                        </svg>
-                      )}
-                      {isSigningIn
-                        ? t('welcome.connecting')
-                        : authError
-                          ? t('welcome.tryAgain')
-                          : t('welcome.signInWithGoogle')}
-                    </button>
-
-                    {/* Cancel button when signing in */}
-                    {isSigningIn && (
-                      <button
-                        onClick={cancelSignIn}
-                        className="px-4 btn btn-secondary"
-                        title={t('common.cancel')}
-                      >
-                        <X size={20} />
-                      </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleSignIn}
+                    disabled={isSigningIn || resolveBackend().status !== 'ready'}
+                    className="flex-1 btn btn-primary btn-lg gap-3 justify-center py-4"
+                  >
+                    {isSigningIn ? (
+                      <Loader2 size={20} className="animate-spin" />
+                    ) : authError ? (
+                      <RotateCw size={20} />
+                    ) : (
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                      </svg>
                     )}
-                  </div>
+                    {isSigningIn
+                      ? t('welcome.connecting')
+                      : authError
+                        ? t('welcome.tryAgain')
+                        : t('welcome.signInWithGoogle')}
+                  </button>
 
-                  {/* Only show Email/Password option if email or phone is enabled */}
-                  {(orgAuthProviders?.users?.email !== false ||
-                    orgAuthProviders?.users?.phone !== false) && (
-                    <>
-                      <div className="relative my-4">
-                        <div className="absolute inset-0 flex items-center">
-                          <div className="w-full border-t border-plm-border"></div>
-                        </div>
-                        <div className="relative flex justify-center text-xs">
-                          <span className="px-2 bg-plm-bg text-plm-fg-muted">{t('common.or')}</span>
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={() =>
-                          setAuthMethod(
-                            orgAuthProviders?.users?.email !== false ? 'email' : 'phone',
-                          )
-                        }
-                        className="w-full btn btn-secondary gap-3 justify-center py-3"
-                      >
-                        <Mail size={18} />
-                        {t('welcome.useEmailPassword')}
-                      </button>
-                    </>
-                  )}
-                </>
-              )}
-
-              {/* Email/Phone Auth */}
-              {authMethod !== 'google' && (
-                <>
-                  {/* Auth Method Tabs - only show if both are enabled, otherwise just show the enabled one */}
-                  {orgAuthProviders?.users?.email !== false &&
-                    orgAuthProviders?.users?.phone !== false && (
-                      <div className="flex rounded-lg bg-plm-bg-light p-1 mb-4">
-                        <button
-                          onClick={() => {
-                            setAuthMethod('email')
-                            setIsOtpSent(false)
-                          }}
-                          className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-                            authMethod === 'email'
-                              ? 'bg-plm-bg text-plm-fg shadow-sm'
-                              : 'text-plm-fg-muted hover:text-plm-fg'
-                          }`}
-                        >
-                          <Mail size={16} />
-                          {t('welcome.email')}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setAuthMethod('phone')
-                            setIsNewAccount(false)
-                          }}
-                          className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-                            authMethod === 'phone'
-                              ? 'bg-plm-bg text-plm-fg shadow-sm'
-                              : 'text-plm-fg-muted hover:text-plm-fg'
-                          }`}
-                        >
-                          <Phone size={16} />
-                          {t('welcome.phone')}
-                        </button>
-                      </div>
-                    )}
-
-                  {/* Error Message */}
-                  {authError && (
-                    <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
-                      <p className="text-sm text-red-400">{authError}</p>
-                    </div>
-                  )}
-
-                  {/* Email Auth Form - only show if email auth is enabled */}
-                  {authMethod === 'email' && orgAuthProviders?.users?.email !== false && (
-                    <div className="space-y-4">
-                      {isNewAccount && (
-                        <div>
-                          <label className="block text-sm font-medium text-plm-fg-muted mb-1.5">
-                            {t('welcome.fullName')}
-                          </label>
-                          <input
-                            type="text"
-                            value={authName}
-                            onChange={(e) => setAuthName(e.target.value)}
-                            placeholder="Your name"
-                            className="w-full px-4 py-3 bg-plm-bg-light border border-plm-border rounded-lg text-plm-fg placeholder-plm-fg-muted focus:outline-none focus:border-plm-accent transition-colors"
-                          />
-                        </div>
-                      )}
-
-                      <div>
-                        <label className="block text-sm font-medium text-plm-fg-muted mb-1.5">
-                          {t('welcome.email')}
-                        </label>
-                        <input
-                          type="email"
-                          value={authEmail}
-                          onChange={(e) => setAuthEmail(e.target.value)}
-                          placeholder="you@company.com"
-                          className="w-full px-4 py-3 bg-plm-bg-light border border-plm-border rounded-lg text-plm-fg placeholder-plm-fg-muted focus:outline-none focus:border-plm-accent transition-colors"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-plm-fg-muted mb-1.5">
-                          {t('welcome.password')}
-                        </label>
-                        <div className="relative">
-                          <input
-                            type={showPassword ? 'text' : 'password'}
-                            value={authPassword}
-                            onChange={(e) => setAuthPassword(e.target.value)}
-                            placeholder="••••••••"
-                            className="w-full px-4 py-3 pr-12 bg-plm-bg-light border border-plm-border rounded-lg text-plm-fg placeholder-plm-fg-muted focus:outline-none focus:border-plm-accent transition-colors"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-plm-fg-muted hover:text-plm-fg transition-colors"
-                          >
-                            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Password Confirmation for new accounts */}
-                      {isNewAccount && (
-                        <div>
-                          <label className="block text-sm font-medium text-plm-fg-muted mb-1.5">
-                            {t('welcome.confirmPassword')}
-                          </label>
-                          <div className="relative">
-                            <input
-                              type={showPasswordConfirm ? 'text' : 'password'}
-                              value={authPasswordConfirm}
-                              onChange={(e) => setAuthPasswordConfirm(e.target.value)}
-                              placeholder="••••••••"
-                              className={`w-full px-4 py-3 pr-12 bg-plm-bg-light border rounded-lg text-plm-fg placeholder-plm-fg-muted focus:outline-none transition-colors ${
-                                authPasswordConfirm && authPassword !== authPasswordConfirm
-                                  ? 'border-red-500 focus:border-red-500'
-                                  : 'border-plm-border focus:border-plm-accent'
-                              }`}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShowPasswordConfirm(!showPasswordConfirm)}
-                              className="absolute right-3 top-1/2 -translate-y-1/2 text-plm-fg-muted hover:text-plm-fg transition-colors"
-                            >
-                              {showPasswordConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
-                            </button>
-                          </div>
-                          {authPasswordConfirm && authPassword !== authPasswordConfirm && (
-                            <p className="text-xs text-red-400 mt-1">
-                              {t('welcome.passwordMismatch')}
-                            </p>
-                          )}
-                        </div>
-                      )}
-
-                      <button
-                        onClick={handleEmailAuth}
-                        disabled={
-                          isSigningIn || (isNewAccount && authPassword !== authPasswordConfirm)
-                        }
-                        className="w-full py-3 bg-plm-accent hover:bg-plm-accent-hover disabled:bg-plm-accent/50 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
-                      >
-                        {isSigningIn ? (
-                          <Loader2 size={20} className="animate-spin" />
-                        ) : (
-                          <LogIn size={20} />
-                        )}
-                        {isNewAccount ? t('welcome.createAccountBtn') : t('welcome.signIn')}
-                      </button>
-
-                      <div className="text-center">
-                        <button
-                          onClick={() => {
-                            setIsNewAccount(!isNewAccount)
-                            setAuthError(null)
-                            setAuthPasswordConfirm('')
-                          }}
-                          className="text-sm text-plm-fg-muted hover:text-plm-fg transition-colors"
-                        >
-                          {isNewAccount ? t('welcome.alreadyHaveAccount') : t('welcome.noAccount')}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Phone Auth Form - only show if phone auth is enabled */}
-                  {authMethod === 'phone' && orgAuthProviders?.users?.phone !== false && (
-                    <div className="space-y-4">
-                      {!isOtpSent ? (
-                        <>
-                          <div>
-                            <label className="block text-sm font-medium text-plm-fg-muted mb-1.5">
-                              {t('welcome.phoneNumber')}
-                            </label>
-                            <input
-                              type="tel"
-                              value={authPhone}
-                              onChange={(e) => setAuthPhone(e.target.value)}
-                              placeholder="+1 555 000 0000"
-                              className="w-full px-4 py-3 bg-plm-bg-light border border-plm-border rounded-lg text-plm-fg placeholder-plm-fg-muted focus:outline-none focus:border-plm-accent transition-colors"
-                            />
-                            <p className="text-xs text-plm-fg-muted mt-1.5">
-                              {t('welcome.includeCountryCode')}
-                            </p>
-                          </div>
-
-                          <button
-                            onClick={handleSendPhoneOTP}
-                            disabled={isSigningIn}
-                            className="w-full py-3 bg-plm-accent hover:bg-plm-accent-hover disabled:bg-plm-accent/50 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
-                          >
-                            {isSigningIn ? (
-                              <Loader2 size={20} className="animate-spin" />
-                            ) : (
-                              <Phone size={20} />
-                            )}
-                            {t('welcome.sendVerificationCode')}
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <div className="text-center text-sm text-plm-fg-muted mb-4">
-                            {t('welcome.verificationSent')}{' '}
-                            <span className="text-plm-fg font-medium">{authPhone}</span>
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-plm-fg-muted mb-1.5">
-                              {t('welcome.verificationCode')}
-                            </label>
-                            <input
-                              type="text"
-                              value={phoneOtp}
-                              onChange={(e) => setPhoneOtp(e.target.value)}
-                              placeholder="123456"
-                              maxLength={6}
-                              className="w-full px-4 py-3 bg-plm-bg-light border border-plm-border rounded-lg text-plm-fg placeholder-plm-fg-muted focus:outline-none focus:border-plm-accent transition-colors text-center text-2xl tracking-widest"
-                            />
-                          </div>
-
-                          <button
-                            onClick={handleVerifyPhoneOTP}
-                            disabled={isSigningIn}
-                            className="w-full py-3 bg-plm-accent hover:bg-plm-accent-hover disabled:bg-plm-accent/50 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
-                          >
-                            {isSigningIn ? (
-                              <Loader2 size={20} className="animate-spin" />
-                            ) : (
-                              <Check size={20} />
-                            )}
-                            {t('welcome.verifyAndSignIn')}
-                          </button>
-
-                          <button
-                            onClick={() => {
-                              setIsOtpSent(false)
-                              setPhoneOtp('')
-                            }}
-                            className="w-full text-sm text-plm-fg-muted hover:text-plm-fg transition-colors"
-                          >
-                            {t('welcome.useDifferentNumber')}
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Back to Google option */}
-                  <div className="text-center pt-2">
+                  {/* Cancel button when signing in */}
+                  {isSigningIn && (
                     <button
-                      onClick={() => {
-                        setAuthMethod('google')
-                        setAuthError(null)
-                      }}
-                      className="text-sm text-plm-fg-muted hover:text-plm-fg transition-colors"
+                      onClick={cancelSignIn}
+                      className="px-4 btn btn-secondary"
+                      title={t('common.cancel')}
                     >
-                      {t('welcome.useGoogleInstead')}
+                      <X size={20} />
                     </button>
-                  </div>
-                </>
-              )}
-
-              <div className="text-center text-xs text-plm-fg-muted mt-4">
-                {t('welcome.roleSetByOrg')}
-              </div>
-
-              <WorkOfflineButton
-                withDivider
-                onClick={handleOfflineMode}
-                className="w-full btn btn-secondary gap-3 justify-center py-3"
-              />
-            </div>
-          )}
-
-          {/* ============================================ */}
-          {/* STEP 2b: Supplier Sign In */}
-          {/* ============================================ */}
-          {accountType === 'supplier' && (
-            <div className="space-y-4">
-              <button
-                onClick={() => {
-                  setAccountType(null)
-                  resetAuth()
-                }}
-                className="flex items-center gap-2 text-sm text-plm-fg-muted hover:text-plm-fg transition-colors mb-4"
-              >
-                <ArrowLeft size={16} />
-                {t('common.back')}
-              </button>
-
-              <div className="text-center mb-6">
-                <div className="w-12 h-12 rounded-xl bg-amber-500/20 flex items-center justify-center mx-auto mb-3">
-                  <Truck size={24} className="text-amber-500" />
+                  )}
                 </div>
-                <h2 className="text-xl font-semibold text-plm-fg">{t('welcome.supplierPortal')}</h2>
-                <p className="text-sm text-plm-fg-muted mt-1">
-                  {isNewAccount ? t('welcome.createAccount') : t('welcome.signInToAccount')}
-                </p>
-              </div>
 
-              {/* Auth Method Tabs - only show if both email and phone are enabled for suppliers */}
-              {orgAuthProviders?.suppliers?.email !== false &&
-                orgAuthProviders?.suppliers?.phone !== false && (
+                {/* BluePLM Web: get the desktop app for this computer */}
+                {!hasDesktop() && <DownloadDesktopButton />}
+
+                {/* Email/phone entry: desktop only (signInMethods), when the org allows either */}
+                {(emailAllowed || phoneAllowed) && (
+                  <>
+                    <div className="relative my-4">
+                      <div className="absolute inset-0 flex items-center">
+                        <div className="w-full border-t border-plm-border"></div>
+                      </div>
+                      <div className="relative flex justify-center text-xs">
+                        <span className="px-2 bg-plm-bg text-plm-fg-muted">{t('common.or')}</span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => setAuthMethod(emailAllowed ? 'email' : 'phone')}
+                      className="w-full btn btn-secondary gap-3 justify-center py-3"
+                    >
+                      <Mail size={18} />
+                      {t('welcome.useEmailPassword')}
+                    </button>
+                  </>
+                )}
+              </>
+            )}
+
+            {/* Email/Phone Auth */}
+            {authMethod !== 'google' && (
+              <>
+                {/* Auth Method Tabs - only show if both are enabled, otherwise just show the enabled one */}
+                {emailAllowed && phoneAllowed && (
                   <div className="flex rounded-lg bg-plm-bg-light p-1 mb-4">
                     <button
                       onClick={() => {
@@ -1523,218 +1145,248 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                   </div>
                 )}
 
-              {/* Error Message */}
-              {authError && (
-                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
-                  <p className="text-sm text-red-400">{authError}</p>
-                </div>
-              )}
-
-              {/* Email Auth Form - only show if email auth is enabled for suppliers */}
-              {authMethod === 'email' && orgAuthProviders?.suppliers?.email !== false && (
-                <div className="space-y-4">
-                  {isNewAccount && (
-                    <div>
-                      <label className="block text-sm font-medium text-plm-fg-muted mb-1.5">
-                        {t('welcome.fullName')}
-                      </label>
-                      <input
-                        type="text"
-                        value={authName}
-                        onChange={(e) => setAuthName(e.target.value)}
-                        placeholder="Your name"
-                        className="w-full px-4 py-3 bg-plm-bg-light border border-plm-border rounded-lg text-plm-fg placeholder-plm-fg-muted focus:outline-none focus:border-amber-500 transition-colors"
-                      />
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="block text-sm font-medium text-plm-fg-muted mb-1.5">
-                      {t('welcome.email')}
-                    </label>
-                    <input
-                      type="email"
-                      value={authEmail}
-                      onChange={(e) => setAuthEmail(e.target.value)}
-                      placeholder="you@company.com"
-                      className="w-full px-4 py-3 bg-plm-bg-light border border-plm-border rounded-lg text-plm-fg placeholder-plm-fg-muted focus:outline-none focus:border-amber-500 transition-colors"
-                    />
+                {/* Error Message */}
+                {authError && (
+                  <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                    <p className="text-sm text-red-400">{authError}</p>
                   </div>
+                )}
 
-                  <div>
-                    <label className="block text-sm font-medium text-plm-fg-muted mb-1.5">
-                      {t('welcome.password')}
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showPassword ? 'text' : 'password'}
-                        value={authPassword}
-                        onChange={(e) => setAuthPassword(e.target.value)}
-                        placeholder="••••••••"
-                        className="w-full px-4 py-3 pr-12 bg-plm-bg-light border border-plm-border rounded-lg text-plm-fg placeholder-plm-fg-muted focus:outline-none focus:border-amber-500 transition-colors"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-plm-fg-muted hover:text-plm-fg transition-colors"
-                      >
-                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Password Confirmation for new accounts */}
-                  {isNewAccount && (
-                    <div>
-                      <label className="block text-sm font-medium text-plm-fg-muted mb-1.5">
-                        {t('welcome.confirmPassword')}
-                      </label>
-                      <div className="relative">
-                        <input
-                          type={showPasswordConfirm ? 'text' : 'password'}
-                          value={authPasswordConfirm}
-                          onChange={(e) => setAuthPasswordConfirm(e.target.value)}
-                          placeholder="••••••••"
-                          className={`w-full px-4 py-3 pr-12 bg-plm-bg-light border rounded-lg text-plm-fg placeholder-plm-fg-muted focus:outline-none transition-colors ${
-                            authPasswordConfirm && authPassword !== authPasswordConfirm
-                              ? 'border-red-500 focus:border-red-500'
-                              : 'border-plm-border focus:border-amber-500'
-                          }`}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPasswordConfirm(!showPasswordConfirm)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-plm-fg-muted hover:text-plm-fg transition-colors"
-                        >
-                          {showPasswordConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
-                        </button>
-                      </div>
-                      {authPasswordConfirm && authPassword !== authPasswordConfirm && (
-                        <p className="text-xs text-red-400 mt-1">{t('welcome.passwordMismatch')}</p>
-                      )}
-                    </div>
-                  )}
-
-                  <button
-                    onClick={handleEmailAuth}
-                    disabled={isSigningIn || (isNewAccount && authPassword !== authPasswordConfirm)}
-                    className="w-full py-3 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-500/50 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
-                  >
-                    {isSigningIn ? (
-                      <Loader2 size={20} className="animate-spin" />
-                    ) : (
-                      <LogIn size={20} />
-                    )}
-                    {isNewAccount ? t('welcome.createAccountBtn') : t('welcome.signIn')}
-                  </button>
-
-                  <div className="text-center">
-                    <button
-                      onClick={() => {
-                        setIsNewAccount(!isNewAccount)
-                        setAuthError(null)
-                        setAuthPasswordConfirm('')
-                      }}
-                      className="text-sm text-plm-fg-muted hover:text-plm-fg transition-colors"
-                    >
-                      {isNewAccount ? t('welcome.alreadyHaveAccount') : t('welcome.noAccount')}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Phone Auth Form - only show if phone auth is enabled for suppliers */}
-              {authMethod === 'phone' && orgAuthProviders?.suppliers?.phone !== false && (
-                <div className="space-y-4">
-                  {!isOtpSent ? (
-                    <>
+                {/* Email Auth Form - only show if email auth is enabled */}
+                {authMethod === 'email' && emailAllowed && (
+                  <div className="space-y-4">
+                    {isNewAccount && (
                       <div>
                         <label className="block text-sm font-medium text-plm-fg-muted mb-1.5">
-                          {t('welcome.phoneNumber')}
-                        </label>
-                        <input
-                          type="tel"
-                          value={authPhone}
-                          onChange={(e) => setAuthPhone(e.target.value)}
-                          placeholder="+86 138 0000 0000"
-                          className="w-full px-4 py-3 bg-plm-bg-light border border-plm-border rounded-lg text-plm-fg placeholder-plm-fg-muted focus:outline-none focus:border-amber-500 transition-colors"
-                        />
-                        <p className="text-xs text-plm-fg-muted mt-1.5">
-                          {t('welcome.includeCountryCode')}
-                        </p>
-                      </div>
-
-                      <button
-                        onClick={handleSendPhoneOTP}
-                        disabled={isSigningIn}
-                        className="w-full py-3 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-500/50 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
-                      >
-                        {isSigningIn ? (
-                          <Loader2 size={20} className="animate-spin" />
-                        ) : (
-                          <Phone size={20} />
-                        )}
-                        {t('welcome.sendVerificationCode')}
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <div className="text-center text-sm text-plm-fg-muted mb-4">
-                        {t('welcome.verificationSent')}{' '}
-                        <span className="text-plm-fg font-medium">{authPhone}</span>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-plm-fg-muted mb-1.5">
-                          {t('welcome.verificationCode')}
+                          {t('welcome.fullName')}
                         </label>
                         <input
                           type="text"
-                          value={phoneOtp}
-                          onChange={(e) => setPhoneOtp(e.target.value)}
-                          placeholder="123456"
-                          maxLength={6}
-                          className="w-full px-4 py-3 bg-plm-bg-light border border-plm-border rounded-lg text-plm-fg placeholder-plm-fg-muted focus:outline-none focus:border-amber-500 transition-colors text-center text-2xl tracking-widest"
+                          value={authName}
+                          onChange={(e) => setAuthName(e.target.value)}
+                          placeholder="Your name"
+                          className="w-full px-4 py-3 bg-plm-bg-light border border-plm-border rounded-lg text-plm-fg placeholder-plm-fg-muted focus:outline-none focus:border-plm-accent transition-colors"
                         />
                       </div>
+                    )}
 
-                      <button
-                        onClick={handleVerifyPhoneOTP}
-                        disabled={isSigningIn}
-                        className="w-full py-3 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-500/50 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
-                      >
-                        {isSigningIn ? (
-                          <Loader2 size={20} className="animate-spin" />
-                        ) : (
-                          <Check size={20} />
+                    <div>
+                      <label className="block text-sm font-medium text-plm-fg-muted mb-1.5">
+                        {t('welcome.email')}
+                      </label>
+                      <input
+                        type="email"
+                        value={authEmail}
+                        onChange={(e) => setAuthEmail(e.target.value)}
+                        placeholder="you@company.com"
+                        className="w-full px-4 py-3 bg-plm-bg-light border border-plm-border rounded-lg text-plm-fg placeholder-plm-fg-muted focus:outline-none focus:border-plm-accent transition-colors"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-plm-fg-muted mb-1.5">
+                        {t('welcome.password')}
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          value={authPassword}
+                          onChange={(e) => setAuthPassword(e.target.value)}
+                          placeholder="••••••••"
+                          className="w-full px-4 py-3 pr-12 bg-plm-bg-light border border-plm-border rounded-lg text-plm-fg placeholder-plm-fg-muted focus:outline-none focus:border-plm-accent transition-colors"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-plm-fg-muted hover:text-plm-fg transition-colors"
+                        >
+                          {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Password Confirmation for new accounts */}
+                    {isNewAccount && (
+                      <div>
+                        <label className="block text-sm font-medium text-plm-fg-muted mb-1.5">
+                          {t('welcome.confirmPassword')}
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showPasswordConfirm ? 'text' : 'password'}
+                            value={authPasswordConfirm}
+                            onChange={(e) => setAuthPasswordConfirm(e.target.value)}
+                            placeholder="••••••••"
+                            className={`w-full px-4 py-3 pr-12 bg-plm-bg-light border rounded-lg text-plm-fg placeholder-plm-fg-muted focus:outline-none transition-colors ${
+                              authPasswordConfirm && authPassword !== authPasswordConfirm
+                                ? 'border-red-500 focus:border-red-500'
+                                : 'border-plm-border focus:border-plm-accent'
+                            }`}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPasswordConfirm(!showPasswordConfirm)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-plm-fg-muted hover:text-plm-fg transition-colors"
+                          >
+                            {showPasswordConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
+                          </button>
+                        </div>
+                        {authPasswordConfirm && authPassword !== authPasswordConfirm && (
+                          <p className="text-xs text-red-400 mt-1">
+                            {t('welcome.passwordMismatch')}
+                          </p>
                         )}
-                        {t('welcome.verifyAndSignIn')}
-                      </button>
+                      </div>
+                    )}
 
+                    <button
+                      onClick={handleEmailAuth}
+                      disabled={
+                        isSigningIn || (isNewAccount && authPassword !== authPasswordConfirm)
+                      }
+                      className="w-full py-3 bg-plm-accent hover:bg-plm-accent-hover disabled:bg-plm-accent/50 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                    >
+                      {isSigningIn ? (
+                        <Loader2 size={20} className="animate-spin" />
+                      ) : (
+                        <LogIn size={20} />
+                      )}
+                      {isNewAccount ? t('welcome.createAccountBtn') : t('welcome.signIn')}
+                    </button>
+
+                    <div className="text-center">
                       <button
                         onClick={() => {
-                          setIsOtpSent(false)
-                          setPhoneOtp('')
+                          setIsNewAccount(!isNewAccount)
+                          setAuthError(null)
+                          setAuthPasswordConfirm('')
                         }}
-                        className="w-full text-sm text-plm-fg-muted hover:text-plm-fg transition-colors"
+                        className="text-sm text-plm-fg-muted hover:text-plm-fg transition-colors"
                       >
-                        {t('welcome.useDifferentNumber')}
+                        {isNewAccount ? t('welcome.alreadyHaveAccount') : t('welcome.noAccount')}
                       </button>
-                    </>
-                  )}
-                </div>
-              )}
+                    </div>
+                  </div>
+                )}
 
-              <div className="text-center text-xs text-plm-fg-muted mt-4 pt-4 border-t border-plm-border">
-                {t('welcome.supplierInviteNote')}
+                {/* Phone Auth Form - only show if phone auth is enabled */}
+                {authMethod === 'phone' && phoneAllowed && (
+                  <div className="space-y-4">
+                    {!isOtpSent ? (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-plm-fg-muted mb-1.5">
+                            {t('welcome.phoneNumber')}
+                          </label>
+                          <input
+                            type="tel"
+                            value={authPhone}
+                            onChange={(e) => setAuthPhone(e.target.value)}
+                            placeholder="+1 555 000 0000"
+                            className="w-full px-4 py-3 bg-plm-bg-light border border-plm-border rounded-lg text-plm-fg placeholder-plm-fg-muted focus:outline-none focus:border-plm-accent transition-colors"
+                          />
+                          <p className="text-xs text-plm-fg-muted mt-1.5">
+                            {t('welcome.includeCountryCode')}
+                          </p>
+                        </div>
+
+                        <button
+                          onClick={handleSendPhoneOTP}
+                          disabled={isSigningIn}
+                          className="w-full py-3 bg-plm-accent hover:bg-plm-accent-hover disabled:bg-plm-accent/50 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                        >
+                          {isSigningIn ? (
+                            <Loader2 size={20} className="animate-spin" />
+                          ) : (
+                            <Phone size={20} />
+                          )}
+                          {t('welcome.sendVerificationCode')}
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-center text-sm text-plm-fg-muted mb-4">
+                          {t('welcome.verificationSent')}{' '}
+                          <span className="text-plm-fg font-medium">{authPhone}</span>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-plm-fg-muted mb-1.5">
+                            {t('welcome.verificationCode')}
+                          </label>
+                          <input
+                            type="text"
+                            value={phoneOtp}
+                            onChange={(e) => setPhoneOtp(e.target.value)}
+                            placeholder="123456"
+                            maxLength={6}
+                            className="w-full px-4 py-3 bg-plm-bg-light border border-plm-border rounded-lg text-plm-fg placeholder-plm-fg-muted focus:outline-none focus:border-plm-accent transition-colors text-center text-2xl tracking-widest"
+                          />
+                        </div>
+
+                        <button
+                          onClick={handleVerifyPhoneOTP}
+                          disabled={isSigningIn}
+                          className="w-full py-3 bg-plm-accent hover:bg-plm-accent-hover disabled:bg-plm-accent/50 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                        >
+                          {isSigningIn ? (
+                            <Loader2 size={20} className="animate-spin" />
+                          ) : (
+                            <Check size={20} />
+                          )}
+                          {t('welcome.verifyAndSignIn')}
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setIsOtpSent(false)
+                            setPhoneOtp('')
+                          }}
+                          className="w-full text-sm text-plm-fg-muted hover:text-plm-fg transition-colors"
+                        >
+                          {t('welcome.useDifferentNumber')}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* Back to Google option */}
+                {googleAllowed && (
+                  <div className="text-center pt-2">
+                    <button
+                      onClick={() => {
+                        setAuthMethod('google')
+                        setAuthError(null)
+                      }}
+                      className="text-sm text-plm-fg-muted hover:text-plm-fg transition-colors"
+                    >
+                      {t('welcome.useGoogleInstead')}
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+
+            {hasDesktop() && (
+              <div className="text-center text-xs text-plm-fg-muted mt-4">
+                {t('welcome.roleSetByOrg')}
               </div>
-            </div>
-          )}
+            )}
+
+            <WorkOfflineButton
+              withDivider
+              onClick={handleOfflineMode}
+              className="w-full btn btn-secondary gap-3 justify-center py-3"
+            />
+          </div>
 
           {/* Footer and Start Fresh: desktop only. The web sign-in page stays minimal, and its
               backend is pinned, so there is no stored session or org to start fresh from. */}
           {hasDesktop() && (
-            <div className="text-center mt-12 text-xs text-plm-fg-muted">{t('welcome.madeWith')}</div>
+            <div className="text-center mt-12 text-xs text-plm-fg-muted">
+              {t('welcome.madeWith')}
+            </div>
           )}
 
           {/* Start Fresh & Change Organization options */}
@@ -1748,7 +1400,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                 {t('welcome.clearSession', 'Clear session & start fresh')}
               </button>
             )}
-            {onChangeOrg && hasDesktop() && (
+            {onChangeOrg && (
               <button
                 onClick={onChangeOrg}
                 className="text-xs text-plm-fg-muted hover:text-plm-fg transition-colors underline"

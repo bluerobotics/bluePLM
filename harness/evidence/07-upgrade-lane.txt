@@ -150,7 +150,7 @@ OK: every attack reproduced against the current code, with all positive controls
 DO
 docker : psql:/sql/residue-report.sql:147: NOTICE:  RESIDUE PRESENT: 1 active cross-tenant share link(s), 1 
 cross-tenant workflow_history row(s), 0 cross-tenant workflow assignment(s)
-At C:\Users\emill\Documents\GitHub\bluePLM\harness\upgrade.ps1:48 char:5
+At <repo>\harness\upgrade.ps1:48 char:5
 +     docker compose exec -T -e PGPASSWORD=postgres db `
 +     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     + CategoryInfo          : NotSpecified: (psql:/sql/resid...w assignment(s):String) [], RemoteException
@@ -187,7 +187,7 @@ install complete
 DO
 docker : psql:/sql/residue-report.sql:147: NOTICE:  No residue: no active cross-tenant share link, no cross-tenant 
 workflow history, no cross-tenant workflow assignment.
-At C:\Users\emill\Documents\GitHub\bluePLM\harness\upgrade.ps1:48 char:5
+At <repo>\harness\upgrade.ps1:48 char:5
 +     docker compose exec -T -e PGPASSWORD=postgres db `
 +     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     + CategoryInfo          : NotSpecified: (psql:/sql/resid...low assignment.:String) [], RemoteException

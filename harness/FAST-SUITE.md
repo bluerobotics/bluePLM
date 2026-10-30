@@ -240,7 +240,7 @@ Three checks, in order. The first is the one that matters.
 **(a) The two implementations reach the same verdicts.**
 
 ```powershell
-cd C:\Users\emill\Documents\GitHub\bluePLM\harness
+cd <repo>\harness
 .\reset.ps1
 .\negative-controls.ps1      *>&1 | Tee-Object -FilePath ..\evidence\nc-original.txt
 .\reset.ps1
