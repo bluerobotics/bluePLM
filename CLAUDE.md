@@ -28,7 +28,7 @@ Native inspection ballooning (schema 103, service 1.23.0, renderer): the Inspect
 Copy to Vault / Move to Vault: 4.5.0 adds both to the file context menus (renderer only - no schema change, no API change). The menu only picks a mode, a destination vault and keep-path; `VaultTransferDialog` (mounted once in `AppShell` through `pendingVaultTransfer`) previews and confirms, then the `copy-to-vault` / `move-to-vault` commands run. The planner, engine, removal and report are in `src/lib/vaultTransfer/`; the command is `src/lib/commands/handlers/vaultTransfer.ts`. Rules that must not loosen: skip-only conflicts (`syncFile` with `insertOnly`, never an overwrite), a Move verifies the destination and re-checks the source row before the Recycle Bin and soft delete, cloud-only files transfer as a row only, workflow state / reviews / ECO tags are not carried. Not yet covered by tests: the Supabase/Electron wrappers in `deps.ts` and `serverOps.ts`.
 
 4.4.5 shipped (renderer and preload only — no schema change, no API change,
-service untouched). It answers Wilson's FATHOM-X-ELEC-PCB-R1 report and the ~130 files
+service untouched). It answers a user's report of blanked metadata and the ~130 files
 `scan-divergence` showed with an empty item number or description in BluePLM while the file
 still holds one. Two writers silently wrote `null` over populated columns: `syncFile` updating an
 existing row from a local entry with no metadata, and `syncSolidWorksFileMetadata` on a file read
@@ -47,11 +47,11 @@ user's checkout goes away while edits are pending, and re-checkout lists the edi
 discard and asks first (`confirmDroppingStrandedEdits`; cancel aborts, no confirm refuses). They
 are never restored, because a colleague may have checked in newer values. The divergence report
 saves again through a dedicated IPC, and the terminal parser now accepts quoted paths with
-spaces. FATHOM's own cause is not proven: no logs from Wilson's machine exist. Report:
+spaces. The reported file's own cause is not proven: no logs from that machine exist. Report:
 `.cursor/plans/metadata-blank-in-db-report.md`.
 
 4.4.4 shipped (renderer and SolidWorks service 1.21.2 — no schema change, no API change):
-everything in beta.1 below, plus two follow-ups from Quinlan's BR-107599 push, where BluePLM
+everything in beta.1 below, plus two follow-ups from a user's metadata push, where BluePLM
 showed the file as checked out while the attribute was still set. Sync Metadata now reads the
 attribute before pushing and names read-only files instead of spending a minute on refused
 saves; it does not clear the attribute, because checkout owns that and Check Out on a held file
@@ -69,8 +69,8 @@ nothing is reported as failed, and Document Manager open error 4 is logged as re
 
 4.4.3 shipped (renderer only — no schema change, no API change): downloading
 a server-only folder no longer prefix-prunes that folder's files and cached server rows out of
-the store. The incremental download updates used to match nothing (`matchCount: 0` in the doris
-Burn Wire Release log), the folder vanished, and a file-pane Refresh rematerialized the files
+the store. The incremental download updates used to match nothing (`matchCount: 0` in a user's
+folder download log), the folder vanished, and a file-pane Refresh rematerialized the files
 as local-only until a full vault load rematched them. Download now clears cloud status on the
 folder (and nested cloud dirs that just got local content) in the same store write as the files.
 Plan: `.cursor/plans/download_folder_status_race_34bf65c6.plan.md`.
@@ -78,7 +78,7 @@ Plan: `.cursor/plans/download_folder_status_race_34bf65c6.plan.md`.
 4.4.2 shipped the same day (renderer only — no schema change, no API change), two
 independent efforts that went out together without coordinating in the same working tree.
 
-The first closes the barxt600 incident (`.cursor/plans/barxt-move-download-incident-report.md`):
+The first closes a move-then-download incident:
 `syncFile` (First Check-In) has no move awareness and keys only on the exact path it is given, so
 uploading a file that had already been moved locally, before the move itself was reconciled,
 created a duplicate row at the new path instead of recognizing it — the old path's row was left
@@ -101,7 +101,7 @@ confirmation" message for Re-align's own hang-avoidance line from 4.4.1's fix, w
 that release but never shipped because it was amended into the local commit after the tag had
 already been cut.
 
-Working the same tree without coordinating left a real seam, not a functional bug: the barxt
+Working the same tree without coordinating left a real seam, not a functional bug: the move-incident
 commit was made first and, because both efforts' changes were sitting uncommitted in the same
 files at that point, its diff to `src/lib/commands/types.ts` and the locale files ended up
 carrying some of the second effort's content too (the `fileIds` parameter additions and the
@@ -164,7 +164,7 @@ check, not a change to what that check does or costs.
 
 **Closed, do not reopen without new evidence:** cleaning up "orphaned" `files` rows from the
 pre-4.3.0 move handling. The diagnosis was finally run against production and the premise did
-not survive it — the 1,324 rows its `superseded_high_confidence` bucket flagged in `br-vault`
+not survive it — the 1,324 rows its `superseded_high_confidence` bucket flagged in the production vault
 are archive snapshots, revision branches, design variants, release copies, RFQ packages and
 vendored firmware trees, all backed by files really on disk, and its survivor rule would have
 kept `_ARCHIVE` over live `DEVELOPMENT`. Content hashing cannot distinguish a stale row from
@@ -175,6 +175,9 @@ now does. Full verdict and the disproof at the top of
 `.cursor/plans/orphaned-file-rows-runbook.sql`.
 
 Plans and agent reports live in `.cursor/plans/`. Never create a plan outside the repository.
+The folder is gitignored and this repository is public: never force-add a plan or report. Tracked
+files (this one, the CHANGELOG, code comments) never name colleagues, customers, machines or
+private repositories, and never carry production counts, ids or open security findings.
 
 ## Commands
 

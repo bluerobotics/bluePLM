@@ -174,7 +174,7 @@ harness ready
 
 docker : psql:/sql/uuid-default-census.sql:108: NOTICE:  UUID-OSSP DROPPABLE: NO - cannot drop extension uuid-ossp 
 because other objects depend on it
-At C:\Users\emill\Documents\GitHub\bluePLM\harness\upgrade.ps1:80 char:5
+At <repo>\harness\upgrade.ps1:80 char:5
 +     docker compose exec -T -e PGPASSWORD=postgres db `
 +     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     + CategoryInfo          : NotSpecified: (psql:/sql/uuid-...ts depend on it:String) [], RemoteException
@@ -288,7 +288,7 @@ OK: every attack that this baseline is old enough to have reproduced, with all a
 DO
 docker : psql:/sql/residue-report.sql:147: NOTICE:  RESIDUE PRESENT: 1 active cross-tenant share link(s), 0 
 cross-tenant workflow_history row(s), 0 cross-tenant workflow assignment(s)
-At C:\Users\emill\Documents\GitHub\bluePLM\harness\upgrade.ps1:80 char:5
+At <repo>\harness\upgrade.ps1:80 char:5
 +     docker compose exec -T -e PGPASSWORD=postgres db `
 +     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     + CategoryInfo          : NotSpecified: (psql:/sql/resid...w assignment(s):String) [], RemoteException
@@ -325,7 +325,7 @@ install complete
 DO
 docker : psql:/sql/residue-report.sql:147: NOTICE:  No residue: no active cross-tenant share link, no cross-tenant 
 workflow history, no cross-tenant workflow assignment.
-At C:\Users\emill\Documents\GitHub\bluePLM\harness\upgrade.ps1:80 char:5
+At <repo>\harness\upgrade.ps1:80 char:5
 +     docker compose exec -T -e PGPASSWORD=postgres db `
 +     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     + CategoryInfo          : NotSpecified: (psql:/sql/resid...low assignment.:String) [], RemoteException
@@ -359,7 +359,7 @@ At C:\Users\emill\Documents\GitHub\bluePLM\harness\upgrade.ps1:80 char:5
 
 docker : psql:/sql/uuid-default-census.sql:108: NOTICE:  UUID-OSSP DROPPABLE: yes - nothing in the database still 
 depends on it
-At C:\Users\emill\Documents\GitHub\bluePLM\harness\upgrade.ps1:80 char:5
+At <repo>\harness\upgrade.ps1:80 char:5
 +     docker compose exec -T -e PGPASSWORD=postgres db `
 +     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     + CategoryInfo          : NotSpecified: (psql:/sql/uuid-...l depends on it:String) [], RemoteException
