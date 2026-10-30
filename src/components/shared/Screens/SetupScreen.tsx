@@ -16,11 +16,13 @@ import {
   generateOrgCode,
   parseOrgCode,
   validateConfig,
+  isHostedSupabaseUrl,
   type SupabaseConfig,
 } from '@/lib/supabaseConfig'
 import { reconfigureSupabase } from '@/lib/supabase'
 import { LanguageSelector } from '@/components/shared/LanguageSelector'
 import { useTranslation } from '@/lib/i18n'
+import { hasDesktop } from '@/lib/platform'
 import { copyToClipboard } from '@/lib/clipboard'
 import { log } from '@/lib/logger'
 
@@ -181,6 +183,12 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
 
     if (!config) {
       setError('Invalid Organization Code. Please check and try again.')
+      setIsValidating(false)
+      return
+    }
+
+    if (!hasDesktop() && !isHostedSupabaseUrl(config.url)) {
+      setError(t('setup.webHostedOnly'))
       setIsValidating(false)
       return
     }
@@ -527,6 +535,9 @@ export function SetupScreen({ onConfigured }: SetupScreenProps) {
                   className="w-full bg-plm-bg-light border border-plm-border rounded-lg px-4 py-3 text-plm-fg placeholder-plm-fg-dim focus:border-plm-accent focus:outline-none font-mono text-sm resize-none"
                 />
               </div>
+
+              {/* BluePLM Web: Google sign-in returns here only if the org's Supabase allows it */}
+              {!hasDesktop() && <p className="text-xs text-plm-fg-muted">{t('setup.webRedirectHint')}</p>}
 
               {/* Error Message */}
               {error && (

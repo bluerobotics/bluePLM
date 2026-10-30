@@ -147,3 +147,17 @@ export async function validateConfig(
     return { valid: false, error: error?.message || 'Failed to connect to Supabase' }
   }
 }
+
+/**
+ * Whether BluePLM Web can reach this backend: a hosted Supabase project (https, *.supabase.co).
+ * The site's Content-Security-Policy (web/src/app/securityHeaders.ts) allows only those hosts, so a
+ * self-hosted Supabase on another domain works on the desktop but not in the browser.
+ */
+export function isHostedSupabaseUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'https:' && parsed.hostname.endsWith('.supabase.co')
+  } catch {
+    return false
+  }
+}

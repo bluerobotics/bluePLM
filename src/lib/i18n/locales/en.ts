@@ -205,6 +205,10 @@ export const en: TranslationDict = {
 
   // Setup Screen
   setup: {
+    webHostedOnly:
+      'BluePLM Web connects to hosted Supabase projects (*.supabase.co) only. Use the desktop app for a self-hosted backend.',
+    webRedirectHint:
+      'Google sign-in returns here only if your Supabase project lists https://blueplm.io under Authentication > URL Configuration > Redirect URLs. Ask your administrator to add it.',
     welcome: 'Welcome to BluePLM',
     connectToBackend: "Connect to your organization's Supabase backend to get started",
     imAdmin: 'Set Up an Organization',

@@ -158,6 +158,10 @@ export const zhTW: TranslationDict = {
   },
 
   setup: {
+    webHostedOnly:
+      'BluePLM Web 只能連線到託管的 Supabase 專案（*.supabase.co）。自架後端請使用桌面應用程式。',
+    webRedirectHint:
+      '只有當您的 Supabase 專案在 Authentication > URL Configuration > Redirect URLs 中列出 https://blueplm.io 時，Google 登入才會返回此處。請管理員新增。',
     welcome: '歡迎使用 BluePLM',
     connectToBackend: '連線到您組織的 Supabase 後端以開始使用',
     imAdmin: '我是組織管理員',

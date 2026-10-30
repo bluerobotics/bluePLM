@@ -1400,7 +1400,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                 {t('welcome.clearSession', 'Clear session & start fresh')}
               </button>
             )}
-            {onChangeOrg && hasDesktop() && (
+            {onChangeOrg && (
               <button
                 onClick={onChangeOrg}
                 className="text-xs text-plm-fg-muted hover:text-plm-fg transition-colors underline"

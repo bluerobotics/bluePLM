@@ -53,13 +53,22 @@ describe('buildContentSecurityPolicy', () => {
   })
 
   it('connects only to this origin and the pinned Supabase host', () => {
-    expect(csp.get('connect-src')).toEqual(["'self'", URL_, 'wss://abcdefgh.supabase.co', 'https://api.github.com'])
+    expect(csp.get('connect-src')).toEqual([
+      "'self'",
+      URL_,
+      'wss://abcdefgh.supabase.co',
+      'https://*.supabase.co',
+      'wss://*.supabase.co',
+      'https://api.github.com',
+    ])
     // The org's API server, by origin, when the build is given one.
     const withApi = directives(buildContentSecurityPolicy(URL_, ['https://api.example.com/v1/', ' ', 'https://API.example.com']))
     expect(withApi.get('connect-src')).toEqual([
       "'self'",
       URL_,
       'wss://abcdefgh.supabase.co',
+      'https://*.supabase.co',
+      'wss://*.supabase.co',
       'https://api.example.com',
       'https://api.github.com',
     ])
@@ -67,7 +76,14 @@ describe('buildContentSecurityPolicy', () => {
   })
 
   it('limits images and frames to this origin, the Supabase host and local blob: URLs', () => {
-    expect(csp.get('img-src')).toEqual(["'self'", URL_, 'https://*.googleusercontent.com', 'blob:', 'data:'])
+    expect(csp.get('img-src')).toEqual([
+      "'self'",
+      URL_,
+      'https://*.supabase.co',
+      'https://*.googleusercontent.com',
+      'blob:',
+      'data:',
+    ])
     expect(csp.get('frame-src')).toEqual(['blob:'])
     // data: is for images and pdf.js fonts, never for frames.
     expect(csp.get('frame-src')).not.toContain('data:')
