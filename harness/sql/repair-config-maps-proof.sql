@@ -1,5 +1,5 @@
 -- ===========================================
--- PROOF: repair_config_maps() can only add keys
+-- PROOF: file_repair_config_maps() can only add keys
 -- ===========================================
 --
 -- The offline script this replaces could prove it never wrote by showing you its import list. A
@@ -13,7 +13,7 @@
 -- discriminate rather than pass vacuously.
 --
 -- HOW TO RUN
---   Against a throwaway database with core.sql, the modules (repair_config_maps lands in
+--   Against a throwaway database with core.sql, the modules (file_repair_config_maps lands in
 --   10-source-files.sql at schema 94) and harness/sql/seed.sql installed:
 --
 --     docker compose exec -T db psql -v ON_ERROR_STOP=1 -U postgres -d postgres \
@@ -69,17 +69,17 @@ INSERT INTO auth.users (id, email, aud, role, created_at, updated_at)
 VALUES (:carol, 'carol@acme.test', 'authenticated', 'authenticated', NOW(), NOW())
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO users (id, email, full_name, org_id, role)
+INSERT INTO app_user (id, email, full_name, org_id, role)
 VALUES (:carol, 'carol@acme.test', 'Carol Acme', :acme, 'engineer')
 ON CONFLICT (id) DO UPDATE SET org_id = EXCLUDED.org_id, role = EXCLUDED.role;
 
-DELETE FROM files WHERE id IN (:buna, :fkm, :cleared, :nomap, :badmap, :gone, :strict,
+DELETE FROM file WHERE id IN (:buna, :fkm, :cleared, :nomap, :badmap, :gone, :strict,
                                :sentinel, :multi_a, :multi_b);
 
 -- ORING-BUNA-70A, as the census measured it: 68 configurations in the document, one surviving
 -- entry in each map. The survivor's value disagrees with what the repair will propose for it, and
 -- the tab map also carries a key for a configuration the document no longer has.
-INSERT INTO files (id, org_id, vault_id, file_path, file_name, extension,
+INSERT INTO file (id, org_id, vault_id, file_path, file_name, extension,
                    part_number, description, revision, version, state, created_by, custom_properties)
 VALUES (:buna, :acme, :vault,
         'Acme/Seals/ORING-BUNA-70A.SLDPRT', 'ORING-BUNA-70A.SLDPRT', 'sldprt',
@@ -93,7 +93,7 @@ VALUES (:buna, :acme, :vault,
 -- ORING-FKM-75A, the trap. 26 entries against 15 configurations: 11 of the keys name
 -- configurations that have since been deleted. By entry count this row has lost eleven things. By
 -- name it describes every configuration the file has and is intact.
-INSERT INTO files (id, org_id, vault_id, file_path, file_name, extension,
+INSERT INTO file (id, org_id, vault_id, file_path, file_name, extension,
                    part_number, description, revision, version, state, created_by, custom_properties)
 SELECT :fkm, :acme, :vault,
        'Acme/Seals/ORING-FKM-75A.SLDPRT', 'ORING-FKM-75A.SLDPRT', 'sldprt',
@@ -109,7 +109,7 @@ FROM (
 ) stale_keys;
 
 -- A configuration whose entry someone deliberately cleared. Present, and empty.
-INSERT INTO files (id, org_id, vault_id, file_path, file_name, extension,
+INSERT INTO file (id, org_id, vault_id, file_path, file_name, extension,
                    part_number, description, revision, version, state, created_by, custom_properties)
 VALUES (:cleared, :acme, :vault,
         'Acme/Seals/CLEARED.SLDPRT', 'CLEARED.SLDPRT', 'sldprt',
@@ -140,7 +140,7 @@ VALUES (:cleared, :acme, :vault,
         'STRICT', 'Untouched by a rejected request', 'A', 1, 'WIP', :alice,
         jsonb_build_object('_config_tabs', jsonb_build_object('Config-A', 'A')));
 
-UPDATE files SET deleted_at = NOW() WHERE id = :gone;
+UPDATE file SET deleted_at = NOW() WHERE id = :gone;
 
 -- Scratch rows for cases 23 and 24. All three carry the same minimal shape: one
 -- surviving entry whose value DISAGREES with what the request will propose for
@@ -148,7 +148,7 @@ UPDATE files SET deleted_at = NOW() WHERE id = :gone;
 -- single call discriminate against two different mutants at once - see case 23.
 -- They are scratch precisely so the sentinel cannot be satisfied, or broken, by
 -- something another case did to a shared fixture.
-INSERT INTO files (id, org_id, vault_id, file_path, file_name, extension,
+INSERT INTO file (id, org_id, vault_id, file_path, file_name, extension,
                    part_number, description, revision, version, state, created_by, custom_properties)
 VALUES (:sentinel, :acme, :vault,
         'Acme/Scratch/SENTINEL.SLDPRT', 'SENTINEL.SLDPRT', 'sldprt',
@@ -194,12 +194,12 @@ BEGIN
   PERFORM set_config('request.jwt.claims',
                      '{"sub":"aaaaaaaa-1111-4000-8000-000000000001"}', true);
 
-  SELECT repair_config_maps('aaaaaaaa-0000-4000-8000-000000000001'::uuid, payload)
+  SELECT file_repair_config_maps('aaaaaaaa-0000-4000-8000-000000000001'::uuid, payload)
     INTO v_receipt
     FROM buna_request;
 
   SELECT custom_properties INTO v_props
-    FROM files WHERE id = 'aaaaaaaa-9000-4000-8000-000000000001';
+    FROM file WHERE id = 'aaaaaaaa-9000-4000-8000-000000000001';
   v_tabs  := v_props -> '_config_tabs';
   v_descs := v_props -> '_config_descriptions';
 
@@ -262,7 +262,7 @@ BEGIN
   PERFORM set_config('request.jwt.claims',
                      '{"sub":"aaaaaaaa-1111-4000-8000-000000000001"}', true);
 
-  SELECT repair_config_maps(
+  SELECT file_repair_config_maps(
            'aaaaaaaa-0000-4000-8000-000000000001'::uuid,
            jsonb_build_array(jsonb_build_object(
              'file_id', 'aaaaaaaa-9000-4000-8000-000000000002',
@@ -273,7 +273,7 @@ BEGIN
     INTO v_receipt;
 
   SELECT custom_properties -> '_config_tabs' INTO v_tabs
-    FROM files WHERE id = 'aaaaaaaa-9000-4000-8000-000000000002';
+    FROM file WHERE id = 'aaaaaaaa-9000-4000-8000-000000000002';
 
   INSERT INTO proof_results VALUES (
     8, 'an intact row is not modified, however loudly the request disagrees',
@@ -310,7 +310,7 @@ BEGIN
                      '{"sub":"aaaaaaaa-1111-4000-8000-000000000001"}', true);
 
   -- Present and empty: cleared on purpose, and overwriting it is the modification this refuses.
-  SELECT repair_config_maps(
+  SELECT file_repair_config_maps(
            'aaaaaaaa-0000-4000-8000-000000000001'::uuid,
            jsonb_build_array(jsonb_build_object(
              'file_id', 'aaaaaaaa-9000-4000-8000-000000000003',
@@ -321,12 +321,12 @@ BEGIN
   INSERT INTO proof_results VALUES (
     11, 'an entry someone deliberately cleared stays cleared',
     (SELECT custom_properties #>> '{_config_tabs,Config-A}'
-       FROM files WHERE id = 'aaaaaaaa-9000-4000-8000-000000000003') = '',
+       FROM file WHERE id = 'aaaaaaaa-9000-4000-8000-000000000003') = '',
     NULL);
 
   -- A row with no map never described its configurations, so there is nothing to restore and
   -- creating one would invent database state.
-  SELECT repair_config_maps(
+  SELECT file_repair_config_maps(
            'aaaaaaaa-0000-4000-8000-000000000001'::uuid,
            jsonb_build_array(jsonb_build_object(
              'file_id', 'aaaaaaaa-9000-4000-8000-000000000004',
@@ -337,12 +337,12 @@ BEGIN
   INSERT INTO proof_results VALUES (
     12, 'a map that never existed is not created',
     NOT (SELECT custom_properties ? '_config_tabs'
-           FROM files WHERE id = 'aaaaaaaa-9000-4000-8000-000000000004')
+           FROM file WHERE id = 'aaaaaaaa-9000-4000-8000-000000000004')
       AND v_receipt #>> '{files,0,maps,_config_tabs,refused}' = 'map-absent',
     v_receipt #>> '{files,0,maps,_config_tabs}');
 
   -- A reserved key holding something that is not a map is not a shape this application writes.
-  SELECT repair_config_maps(
+  SELECT file_repair_config_maps(
            'aaaaaaaa-0000-4000-8000-000000000001'::uuid,
            jsonb_build_array(jsonb_build_object(
              'file_id', 'aaaaaaaa-9000-4000-8000-000000000005',
@@ -353,11 +353,11 @@ BEGIN
   INSERT INTO proof_results VALUES (
     13, 'a reserved key that is not an object is left exactly as it is',
     (SELECT custom_properties ->> '_config_tabs'
-       FROM files WHERE id = 'aaaaaaaa-9000-4000-8000-000000000005') = 'oops',
+       FROM file WHERE id = 'aaaaaaaa-9000-4000-8000-000000000005') = 'oops',
     NULL);
 
   -- A deleted row is out of reach.
-  SELECT repair_config_maps(
+  SELECT file_repair_config_maps(
            'aaaaaaaa-0000-4000-8000-000000000001'::uuid,
            jsonb_build_array(jsonb_build_object(
              'file_id', 'aaaaaaaa-9000-4000-8000-000000000006',
@@ -369,7 +369,7 @@ BEGIN
     14, 'a deleted row is refused rather than repaired',
     v_receipt #>> '{files,0,refused}' = 'row-not-found'
       AND NOT (SELECT custom_properties -> '_config_tabs' ? 'Config-B'
-                 FROM files WHERE id = 'aaaaaaaa-9000-4000-8000-000000000006'),
+                 FROM file WHERE id = 'aaaaaaaa-9000-4000-8000-000000000006'),
     v_receipt #>> '{files,0,refused}');
 END $$;
 
@@ -386,7 +386,7 @@ BEGIN
   PERFORM set_config('request.jwt.claims',
                      '{"sub":"aaaaaaaa-1111-4000-8000-000000000001"}', true);
 
-  SELECT repair_config_maps(
+  SELECT file_repair_config_maps(
            'aaaaaaaa-0000-4000-8000-000000000001'::uuid,
            jsonb_build_array(jsonb_build_object(
              'file_id', 'aaaaaaaa-9000-4000-8000-000000000001',
@@ -397,7 +397,7 @@ BEGIN
     INTO v_receipt;
 
   SELECT custom_properties, part_number INTO v_props, v_pn
-    FROM files WHERE id = 'aaaaaaaa-9000-4000-8000-000000000001';
+    FROM file WHERE id = 'aaaaaaaa-9000-4000-8000-000000000001';
 
   INSERT INTO proof_results VALUES (
     15, 'a key outside the reserved list is not written',
@@ -427,7 +427,7 @@ BEGIN
   BEGIN
     -- The first element is a perfectly good repair; the second carries a nested object where a
     -- string belongs. Neither may be applied.
-    PERFORM repair_config_maps(
+    PERFORM file_repair_config_maps(
       'aaaaaaaa-0000-4000-8000-000000000001'::uuid,
       jsonb_build_array(
         jsonb_build_object(
@@ -447,7 +447,7 @@ BEGIN
     v_raised
       AND v_state = '22023'
       AND NOT (SELECT custom_properties -> '_config_tabs' ? 'Config-B'
-                 FROM files WHERE id = 'aaaaaaaa-9000-4000-8000-000000000007'),
+                 FROM file WHERE id = 'aaaaaaaa-9000-4000-8000-000000000007'),
     format('raised=%s sqlstate=%s', v_raised, v_state));
 END $$;
 
@@ -471,7 +471,7 @@ BEGIN
                      '{"sub":"bbbbbbbb-1111-4000-8000-000000000001"}', true);
   v_raised := FALSE;
   BEGIN
-    PERFORM repair_config_maps('aaaaaaaa-0000-4000-8000-000000000001'::uuid, c_request);
+    PERFORM file_repair_config_maps('aaaaaaaa-0000-4000-8000-000000000001'::uuid, c_request);
   EXCEPTION WHEN OTHERS THEN v_raised := TRUE; v_state := SQLSTATE;
   END;
   INSERT INTO proof_results VALUES (
@@ -480,13 +480,13 @@ BEGIN
 
   -- The same person naming their own organization, but reaching for Acme's file. The gate passes;
   -- the row does not resolve, because org_id is in the WHERE and not only in the gate.
-  SELECT repair_config_maps('bbbbbbbb-0000-4000-8000-000000000001'::uuid, c_request)
+  SELECT file_repair_config_maps('bbbbbbbb-0000-4000-8000-000000000001'::uuid, c_request)
     INTO v_receipt;
   INSERT INTO proof_results VALUES (
     19, 'a file in another organization does not resolve',
     v_receipt #>> '{files,0,refused}' = 'row-not-found'
       AND NOT (SELECT custom_properties -> '_config_tabs' ? 'Config-X'
-                 FROM files WHERE id = 'aaaaaaaa-9000-4000-8000-000000000007'),
+                 FROM file WHERE id = 'aaaaaaaa-9000-4000-8000-000000000007'),
     v_receipt #>> '{files,0,refused}');
 
   -- A member of Acme who is not an admin.
@@ -494,7 +494,7 @@ BEGIN
                      '{"sub":"aaaaaaaa-1111-4000-8000-000000000009"}', true);
   v_raised := FALSE;
   BEGIN
-    PERFORM repair_config_maps('aaaaaaaa-0000-4000-8000-000000000001'::uuid, c_request);
+    PERFORM file_repair_config_maps('aaaaaaaa-0000-4000-8000-000000000001'::uuid, c_request);
   EXCEPTION WHEN OTHERS THEN v_raised := TRUE; v_state := SQLSTATE;
   END;
   INSERT INTO proof_results VALUES (
@@ -506,7 +506,7 @@ BEGIN
                      '{"sub":"cccccccc-1111-4000-8000-000000000001"}', true);
   v_raised := FALSE;
   BEGIN
-    PERFORM repair_config_maps('aaaaaaaa-0000-4000-8000-000000000001'::uuid, c_request);
+    PERFORM file_repair_config_maps('aaaaaaaa-0000-4000-8000-000000000001'::uuid, c_request);
   EXCEPTION WHEN OTHERS THEN v_raised := TRUE; v_state := SQLSTATE;
   END;
   INSERT INTO proof_results VALUES (
@@ -517,7 +517,7 @@ BEGIN
   PERFORM set_config('request.jwt.claims', '', true);
   v_raised := FALSE;
   BEGIN
-    PERFORM repair_config_maps('aaaaaaaa-0000-4000-8000-000000000001'::uuid, c_request);
+    PERFORM file_repair_config_maps('aaaaaaaa-0000-4000-8000-000000000001'::uuid, c_request);
   EXCEPTION WHEN OTHERS THEN v_raised := TRUE; v_state := SQLSTATE;
   END;
   INSERT INTO proof_results VALUES (
@@ -535,7 +535,7 @@ END $$;
 --
 -- The version of this case that shipped did not. It built two JSONB literals locally and asserted
 -- that `(computed || row) ->> 'Config-07'` was the row's value - which is a property of the ||
--- operator and would hold on a database where repair_config_maps had been deleted. It was named the
+-- operator and would hold on a database where file_repair_config_maps had been deleted. It was named the
 -- sentinel, documented as the case that proves the suite discriminates, and executed against
 -- nothing. With the merge deliberately written backwards it still passed; cases 1, 8 and 11 were
 -- what actually failed.
@@ -564,7 +564,7 @@ BEGIN
   PERFORM set_config('request.jwt.claims',
                      '{"sub":"aaaaaaaa-1111-4000-8000-000000000001"}', true);
 
-  SELECT repair_config_maps(
+  SELECT file_repair_config_maps(
            'aaaaaaaa-0000-4000-8000-000000000001'::uuid,
            jsonb_build_array(jsonb_build_object(
              'file_id', 'aaaaaaaa-9000-4000-8000-000000000008',
@@ -574,7 +574,7 @@ BEGIN
     INTO v_receipt;
 
   SELECT custom_properties -> '_config_tabs' INTO v_tabs
-    FROM files WHERE id = 'aaaaaaaa-9000-4000-8000-000000000008';
+    FROM file WHERE id = 'aaaaaaaa-9000-4000-8000-000000000008';
 
   INSERT INTO proof_results VALUES (
     23, 'SENTINEL: one call to the function keeps the row''s value AND fills the gap',
@@ -609,7 +609,7 @@ BEGIN
   PERFORM set_config('request.jwt.claims',
                      '{"sub":"aaaaaaaa-1111-4000-8000-000000000001"}', true);
 
-  SELECT repair_config_maps(
+  SELECT file_repair_config_maps(
            'aaaaaaaa-0000-4000-8000-000000000001'::uuid,
            jsonb_build_array(
              jsonb_build_object(
@@ -625,9 +625,9 @@ BEGIN
     INTO v_receipt;
 
   SELECT custom_properties -> '_config_tabs' INTO v_a
-    FROM files WHERE id = 'aaaaaaaa-9000-4000-8000-000000000009';
+    FROM file WHERE id = 'aaaaaaaa-9000-4000-8000-000000000009';
   SELECT custom_properties -> '_config_tabs' INTO v_b
-    FROM files WHERE id = 'aaaaaaaa-9000-4000-8000-00000000000a';
+    FROM file WHERE id = 'aaaaaaaa-9000-4000-8000-00000000000a';
 
   INSERT INTO proof_results VALUES (
     24, 'a request naming two files repairs both of them, not just the first',
@@ -664,8 +664,8 @@ BEGIN
   END IF;
 
   IF v_failed > 0 THEN
-    RAISE EXCEPTION E'repair_config_maps: % case(s) failed:\n  %', v_failed, v_names;
+    RAISE EXCEPTION E'file_repair_config_maps: % case(s) failed:\n  %', v_failed, v_names;
   END IF;
 
-  RAISE NOTICE 'ALL % CASES PASSED - repair_config_maps can only add keys', v_total;
+  RAISE NOTICE 'ALL % CASES PASSED - file_repair_config_maps can only add keys', v_total;
 END $$;

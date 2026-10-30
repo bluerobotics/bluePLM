@@ -2,7 +2,7 @@
 -- of a function, with a different argument list, left behind because modules
 -- drop by exact signature. PostgREST chooses an overload by the argument names
 -- in the request body, so a client can ask for the old one on purpose.
-CREATE OR REPLACE FUNCTION get_extension_config(p_org_id UUID, p_extension_id TEXT, p_legacy BOOLEAN)
+CREATE OR REPLACE FUNCTION extension_config_get(p_org_id UUID, p_extension_id TEXT, p_legacy BOOLEAN)
 RETURNS JSONB AS $$
 BEGIN
   RETURN (SELECT config FROM extension_configs

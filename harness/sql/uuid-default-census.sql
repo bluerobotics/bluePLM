@@ -2,7 +2,7 @@
 -- WHAT STILL DEPENDS ON uuid-ossp
 -- ===========================================
 --
--- migrate_uuid_defaults() was written against, and verified against, the 93 columns a v90
+-- schema_migrate_uuid_defaults() was written against, and verified against, the 93 columns a v90
 -- database happens to have. 93 is a fact about one baseline and not about the function, which
 -- walks the catalogue rather than a list - but "walks the catalogue" is a claim about the code
 -- and the owner's database is not a v90 database. An 81 database carries ten never-wired
@@ -16,7 +16,7 @@
 -- Three questions, because moving the defaults is only worth anything if all three answer well:
 --
 --   1. How many defaults call uuid_generate_v4(), and in what kind of relation? relkind matters:
---      migrate_uuid_defaults() filters on 'r', so a default sitting on a partitioned table would
+--      schema_migrate_uuid_defaults() filters on 'r', so a default sitting on a partitioned table would
 --      be counted here and not moved there. Counting by kind is what makes that visible instead
 --      of leaving the two numbers to agree by luck.
 --   2. Is the extension actually droppable? That is the only end state in which the dependency
@@ -32,7 +32,7 @@
 SELECT 'uuid_generate_v4 defaults, by relation kind' AS census;
 
 SELECT c.relkind,
-       CASE c.relkind WHEN 'r' THEN 'ordinary table (migrate_uuid_defaults reaches these)'
+       CASE c.relkind WHEN 'r' THEN 'ordinary table (schema_migrate_uuid_defaults reaches these)'
                       WHEN 'p' THEN 'PARTITIONED TABLE - NOT REACHED'
                       ELSE 'other - NOT REACHED' END AS reachable,
        count(*) AS columns
@@ -112,7 +112,7 @@ END $$;
 --
 -- PROBED AND ROLLED BACK, BECAUSE THIS FILE IS A CENSUS
 --
--- This block used to call `SELECT migrate_uuid_defaults() INTO v_second` for real - a write, in a
+-- This block used to call `SELECT schema_migrate_uuid_defaults() INTO v_second` for real - a write, in a
 -- file named a census, run as part of measuring an upgrade lane. It was harmless at baselines of
 -- 81, 86 and 90 only because the release had already moved everything by the time it ran, so the
 -- call found nothing to do. At `-BaselineVersion 92` or later the function exists on the baseline
@@ -121,7 +121,7 @@ END $$;
 -- itself changed.
 --
 -- The droppability probe above already had the right idiom for this and it is reused verbatim: do
--- the thing inside a subtransaction, then raise to undo it. Everything migrate_uuid_defaults()
+-- the thing inside a subtransaction, then raise to undo it. Everything schema_migrate_uuid_defaults()
 -- issues is transactional DDL, so the rollback is complete. v_second survives the rollback because
 -- PL/pgSQL reverts database state on a trapped error and not local variables.
 DO $$
@@ -130,13 +130,13 @@ DECLARE
   v_probe_ok BOOLEAN := FALSE;
   v_err      TEXT;
 BEGIN
-  IF to_regprocedure('migrate_uuid_defaults()') IS NULL THEN
-    RAISE NOTICE 'SECOND RUN: n/a - migrate_uuid_defaults() does not exist on this database';
+  IF to_regprocedure('schema_migrate_uuid_defaults()') IS NULL THEN
+    RAISE NOTICE 'SECOND RUN: n/a - schema_migrate_uuid_defaults() does not exist on this database';
     RETURN;
   END IF;
 
   BEGIN
-    SELECT migrate_uuid_defaults() INTO v_second;
+    SELECT schema_migrate_uuid_defaults() INTO v_second;
     RAISE EXCEPTION 'BLUEPLM_PROBE_UNDO';
   EXCEPTION WHEN OTHERS THEN
     IF SQLERRM = 'BLUEPLM_PROBE_UNDO' THEN

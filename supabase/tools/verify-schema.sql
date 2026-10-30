@@ -1,117 +1,27 @@
--- BluePLM Schema Verification
+-- BluePLM Schema Verification (5.0)
 --
--- Run this LAST, after core.sql and every module you intend to install, and run
--- it again after re-running any single file. It is the only thing that writes
--- schema_version, and it writes it only if the release manifest in core.sql
--- holds, so the number the app reads can never describe a database that does
--- not exist.
+-- The migration runner runs this after the baseline (a fresh database) or after
+-- the last migration it applied; it can also be pasted into the Supabase SQL
+-- editor. It is the only thing that writes schema_version, and it writes it only
+-- if the release manifest (schema_manifest_entry, read through
+-- schema_get_release_manifest()) holds, so the number the app reads can never
+-- describe a database that does not exist.
 --
--- Safe to run at any time and as often as you like: everything here is a read
--- except the one UPDATE of schema_version, and that only happens on success.
--- Paste the whole file into the Supabase SQL editor.
---
--- If it reports a problem, fix it by running the file it names and run this
--- again. Until it passes, the recorded version stays where it was - which is
--- what makes the app's "database out of date" warning worth acting on.
+-- Safe to run at any time: everything here is a read except the one UPDATE of
+-- schema_version, and that only happens on success.
 --
 -- These withhold the stamp and end this script with an error: a manifest object
 -- missing, stale or duplicated by a leftover overload; an org-scoped RPC that
 -- acted on an organization the caller does not belong to, or that anon or
 -- authenticated can reach and could not be shown to refuse one; a membership test
 -- that admits an account with no organization; a function that selects rows by
--- more ids than it checks; anything in public reachable without authentication
--- THAT THE CALLER IS PERMITTED TO REVOKE. The table, function and RLS
--- inventories near the top are advisory - the manifest covers the same ground
--- and is the one that blocks.
+-- more ids than it checks; a SECURITY DEFINER function without a pinned
+-- search_path; anything in public reachable without authentication THAT THE
+-- CALLER IS PERMITTED TO REVOKE (since 5.0 that includes any table privilege
+-- held by anon). The RLS inventory near the top is advisory.
 --
--- Nothing here can reach a state you cannot clear. That is a property this
--- script has had to be given twice: v90 withheld the stamp for a default
--- privilege owned by supabase_admin that no project role can cancel, and v91
--- moved the same defect rather than fixing it - a PROCEDURE in public was
--- graded blocking while the remedy it printed only looked at functions. The
--- rule now is one sentence: if the caller could not change it, it is reported
--- loudly and does not block. If they could, it blocks.
-
--- ===========================================
--- CHECK TABLES
--- ===========================================
-DO $$
-DECLARE
-  expected_tables TEXT[] := ARRAY[
-    -- Core
-    'organizations', 'users', 'teams', 'team_members', 'permission_presets',
-    'team_permissions', 'user_permissions', 'job_titles', 'user_job_titles',
-    'notifications', 'blocked_users', 'pending_org_members', 'schema_version',
-    -- Source files
-    'vaults', 'vault_access', 'team_vault_access', 'files', 'file_versions',
-    'file_references', 'activity', 'release_files', 'file_watchers',
-    'file_share_links', 'file_comments', 'workflow_templates', 'workflow_states',
-    'workflow_transitions', 'workflow_gates', 'workflow_gate_reviewers',
-    'file_workflow_assignments', 'pending_reviews', 'workflow_review_history',
-    'workflow_history', 'file_state_entries', 'workflow_roles',
-    'user_workflow_roles', 'backup_config', 'backup_history', 'backup_machines',
-    'backup_locks', 'user_sessions', 'file_metadata_columns',
-    'file_version_references', 'drawing_pdf_renders',
-    -- Change control
-    'ecos', 'file_ecos', 'reviews', 'review_responses', 'review_items',
-    'review_rounds', 'review_round_items', 'review_decisions', 'deviations',
-    'file_deviations', 'process_templates', 'process_template_phases',
-    'process_template_items', 'eco_checklist_items', 'eco_gate_approvals',
-    -- Supply chain
-    'suppliers', 'part_suppliers', 'rfqs', 'rfq_items', 'rfq_suppliers', 'rfq_quotes',
-    'rfq_number_counters',
-    -- Integration credentials
-    'integration_credentials',
-    -- Integrations
-    'organization_integrations', 'integration_sync_log', 'odoo_saved_configs',
-    'webhooks',
-    'webhook_deliveries'
-  ];
-  missing_tables TEXT[] := '{}';
-  t TEXT;
-BEGIN
-  FOREACH t IN ARRAY expected_tables LOOP
-    IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = t) THEN
-      missing_tables := array_append(missing_tables, t);
-    END IF;
-  END LOOP;
-  
-  IF array_length(missing_tables, 1) > 0 THEN
-    RAISE NOTICE '❌ Missing tables: %', array_to_string(missing_tables, ', ');
-  ELSE
-    RAISE NOTICE '✅ All % expected tables exist', array_length(expected_tables, 1);
-  END IF;
-END $$;
-
--- ===========================================
--- CHECK KEY FUNCTIONS
--- ===========================================
-DO $$
-DECLARE
-  expected_functions TEXT[] := ARRAY[
-    'handle_new_user', 'handle_new_organization', 'log_file_activity',
-    'create_default_workflow', 'get_available_transitions', 'is_org_admin',
-    'user_has_permission', 'get_best_price', 'calculate_bom_cost',
-    'generate_rfq_number', 'instantiate_process_template', 'approve_eco_gate',
-    'execute_workflow_transition', 'complete_gate_review', 'get_my_pending_reviews',
-    'import_workflow_graph', 'require_org_member', 'verify_and_stamp_schema',
-    'try_stamp_schema'
-  ];
-  missing_funcs TEXT[] := '{}';
-  f TEXT;
-BEGIN
-  FOREACH f IN ARRAY expected_functions LOOP
-    IF NOT EXISTS (SELECT 1 FROM information_schema.routines WHERE routine_schema = 'public' AND routine_name = f) THEN
-      missing_funcs := array_append(missing_funcs, f);
-    END IF;
-  END LOOP;
-  
-  IF array_length(missing_funcs, 1) > 0 THEN
-    RAISE NOTICE '❌ Missing functions: %', array_to_string(missing_funcs, ', ');
-  ELSE
-    RAISE NOTICE '✅ All % key functions exist', array_length(expected_functions, 1);
-  END IF;
-END $$;
+-- Nothing here can reach a state you cannot clear: if the caller could not
+-- change it, it is reported loudly and does not block. If they could, it blocks.
 
 -- ===========================================
 -- CHECK RLS IS ENABLED
@@ -144,13 +54,14 @@ BEGIN
   END IF;
 END $$;
 
+
 -- ===========================================
 -- CHECK THE VAULT BUCKET IS NOT WIDE OPEN
 -- ===========================================
 -- Every check in this file used to stop at the public schema, and the file
 -- contained no occurrence of the word storage at all. The vault - the actual
 -- CAD files, which is what BluePLM exists to hold - lives in storage.objects,
--- under paths of the form {org_id}/{hash[0:2]}/{hash}, and files.content_hash
+-- under paths of the form {org_id}/{hash[0:2]}/{hash}, and file.content_hash
 -- is readable org-wide. So a policy on that table with no organization term
 -- makes the bucket enumerable and downloadable across tenants, and nothing here
 -- or in the harness would have said a word about it.
@@ -200,7 +111,7 @@ BEGIN
   IF v_policies = 0 THEN
     RAISE WARNING '⚠️  storage.objects has row-level security enabled and NO policies, which denies everything. If the vault is in use, uploads and downloads are failing for every user right now.';
   ELSE
-    RAISE NOTICE 'ℹ️  % polic(ies) on storage.objects, listed below. None of them is in version control. Read each qual/with_check for an organization term - without one such as (storage.foldername(name))[1] = (select org_id::text from public.users where id = auth.uid()), the bucket is enumerable across tenants.', v_policies;
+    RAISE NOTICE 'ℹ️  % polic(ies) on storage.objects, listed below. None of them is in version control. Read each qual/with_check for an organization term - without one such as (storage.foldername(name))[1] = (select org_id::text from public.app_user where id = auth.uid()), the bucket is enumerable across tenants.', v_policies;
     FOR r IN
       SELECT policyname, cmd, roles::TEXT AS roles, COALESCE(qual, '(none)') AS qual,
              COALESCE(with_check, '(none)') AS with_check
@@ -213,12 +124,14 @@ BEGIN
   END IF;
 END $$;
 
+
 -- The same inventory as a result set, because the notices above scroll and this
 -- is the thing to paste into a review.
 SELECT policyname, cmd, roles, qual, with_check
 FROM pg_policies
 WHERE schemaname = 'storage' AND tablename = 'objects'
 ORDER BY cmd, policyname;
+
 
 -- ===========================================
 -- CHECK ORG-SCOPED RPCs ARE GATED
@@ -228,7 +141,7 @@ ORDER BY cmd, policyname;
 -- acts on. Unless the body consults the caller's identity, that decision belongs
 -- to the caller.
 --
--- This used to read the function's source for the words 'require_org_member' or
+-- This used to read the function's source for the words 'org_require_member' or
 -- 'auth.uid()'. Reading the source proves the words are present, not that they
 -- run: a check inside `IF false THEN ... END IF;` passed. check_org_gates()
 -- calls each function instead, with an organization id the caller has nothing to
@@ -252,7 +165,7 @@ ORDER BY cmd, policyname;
 -- an all-clear.
 --
 -- So the list is gone. An exclusion is now computed per database by
--- org_gate_exclusion_reason(): 'withdrawn' means the ACL was read just now and
+-- org_gate_get_exclusion_reason(): 'withdrawn' means the ACL was read just now and
 -- neither anon nor authenticated may execute the function, and 'predicate'
 -- means the function IS one of the gates. Both are printed below rather than
 -- omitted, with the ACL that justifies the first, so an excuse can be read and
@@ -268,6 +181,7 @@ SELECT signature, status, detail
 FROM check_org_gates()
 WHERE status <> 'gated'
 ORDER BY CASE status WHEN 'ungated' THEN 0 WHEN 'unverifiable' THEN 1 ELSE 2 END, signature;
+
 
 DO $$
 DECLARE
@@ -307,6 +221,7 @@ BEGIN
   END IF;
 END $$;
 
+
 -- ===========================================
 -- CHECK NOTHING IS REACHABLE UNAUTHENTICATED
 -- ===========================================
@@ -317,7 +232,7 @@ END $$;
 -- function anon could call.
 --
 -- Views are included now. They were not before - every inventory filtered
--- relkind = 'r' - and parts_with_pricing, a view, was returning every
+-- relkind = 'r' - and part_with_pricing, a view, was returning every
 -- organization's parts and prices to unauthenticated callers the whole time
 -- this script was reporting the schema clean.
 --
@@ -330,6 +245,7 @@ END $$;
 
 SELECT kind, identity, severity, detail FROM check_anon_reach()
 ORDER BY CASE severity WHEN 'blocking' THEN 0 ELSE 1 END, kind, identity;
+
 
 DO $$
 DECLARE
@@ -374,24 +290,27 @@ BEGIN
   END IF;
 END $$;
 
+
 -- What anon is deliberately allowed, so the list above can be read against it.
-SELECT signature, reason FROM anon_execute_allowlist() ORDER BY signature;
+SELECT signature, reason FROM anon_get_execute_allowlist() ORDER BY signature;
+
 
 -- ===========================================
 -- CHECK NO MEMBERSHIP TEST IS NULL-UNSAFE
 -- ===========================================
 -- `p_org_id NOT IN (SELECT org_id FROM users WHERE id = auth.uid())` is NULL,
--- not true, when the caller's users.org_id is NULL - which is every account
+-- not true, when the caller's app_user.org_id is NULL - which is every account
 -- that has signed up and not yet joined an organization. The IF is not taken
 -- and the function proceeds against the organization it was handed.
 --
 -- check_org_gates() cannot find these: it probes as postgres with auth.uid()
--- NULL, and require_org_member() refuses that case for an unrelated reason, so
+-- NULL, and org_require_member() refuses that case for an unrelated reason, so
 -- the probe sees a refusal and scores the function gated. The one caller that
 -- triggers the bug is the one the probe cannot impersonate. Hence a source
 -- check.
 
 SELECT signature, detail FROM check_null_unsafe_org_gates() ORDER BY signature;
+
 
 DO $$
 DECLARE
@@ -406,10 +325,11 @@ BEGIN
   END IF;
 END $$;
 
+
 -- ===========================================
 -- CHECK THE GATED ARGUMENT IS THE ONE THAT SELECTS THE ROW
 -- ===========================================
--- create_file_share_link() checked p_org_id, which was genuinely the caller's
+-- file_share_link_create() checked p_org_id, which was genuinely the caller's
 -- own organization, and then acted on p_file_id, which was not. Both existing
 -- checks passed it: it refuses an unauthenticated caller, and the roles allowed
 -- to execute it were correct. What was wrong was the relationship between two
@@ -418,10 +338,11 @@ END $$;
 -- The first version of this check only considered functions taking a p_org_id,
 -- which is the finding restated rather than the rule behind it: a function that
 -- gates on an entity and then acts on a second, unchecked id has the identical
--- defect and no p_org_id anywhere. apply_workflow_transition was exactly that,
+-- defect and no p_org_id anywhere. workflow_transition_apply was exactly that,
 -- and shipped in the release whose manifest names it. It is covered now.
 
 SELECT signature, detail FROM check_unbound_entity_args() ORDER BY signature;
+
 
 DO $$
 DECLARE
@@ -436,24 +357,26 @@ BEGIN
   END IF;
 END $$;
 
+
 -- ===========================================
 -- CHECK THE UNGATEABLE FUNCTIONS ARE STILL UNREACHABLE
 -- ===========================================
 -- Every check above asks a function to refuse something. A handful cannot be
 -- asked: they take no organization argument, so there is no foreign id to hand
--- them and no refusal to require. cleanup_extension_http_logs(integer) deletes
+-- them and no refusal to require. extension_http_log_cleanup(integer) deletes
 -- from extension_http_log filtered by age alone - every tenant, one statement -
 -- and an org-less signed-in caller took another tenant's log from 1 row to 0
 -- over PostgREST before this check existed. check_org_gates() returned no row
 -- for it, correctly and uselessly.
 --
 -- For these the ACL is the control, so the ACL is what gets asserted. The list
--- is in withdrawn_execute_manifest(); 'reachable' withholds the stamp.
+-- is in schema_get_withdrawn_execute_manifest(); 'reachable' withholds the stamp.
 
 SELECT signature, status, detail
 FROM check_withdrawn_execute()
 WHERE status <> 'withdrawn'
 ORDER BY signature;
+
 
 DO $$
 DECLARE
@@ -478,6 +401,7 @@ BEGIN
   END IF;
 END $$;
 
+
 -- ===========================================
 -- CHECK THE CLOSED HOLES LEFT NOTHING BEHIND
 -- ===========================================
@@ -497,6 +421,7 @@ END $$;
 -- gone" stay two separate statements. A fresh install reports nothing here.
 
 SELECT residue, identity, detail FROM check_release_residue() ORDER BY residue, identity;
+
 
 DO $$
 DECLARE
@@ -522,15 +447,19 @@ BEGIN
   END IF;
 END $$;
 
+
 -- ===========================================
 -- RELEASE MANIFEST
 -- ===========================================
 -- Anything not 'ok' or 'skipped' below is the reason the version was not stamped.
 
+SELECT signature, detail FROM check_definer_search_path() ORDER BY signature;
+
 SELECT module, identity AS object, status, detail
 FROM check_schema_release()
 ORDER BY CASE status WHEN 'missing' THEN 0 WHEN 'stale' THEN 1 WHEN 'ok' THEN 2 ELSE 3 END,
          module, identity;
+
 
 -- ===========================================
 -- VERIFY AND STAMP
@@ -559,10 +488,11 @@ BEGIN
       COALESCE(v_problem->>'detail', '');
   END LOOP;
 
-  RAISE EXCEPTION 'Schema verification failed: % problem(s) listed above. Fix them - for a missing or stale object, re-run the module file named beside it - then run this script again.',
+  RAISE EXCEPTION 'Schema verification failed: % problem(s) listed above. Fix them - for a missing or stale object, apply the migration that defines it (supabase/migrations/) - then run this script again.',
     json_array_length(v_result->'problems')
     USING ERRCODE = 'raise_exception';
 END $$;
+
 
 -- ===========================================
 -- SUMMARY

@@ -15,7 +15,7 @@
 #      calls check_null_unsafe_org_gates() and check_unbound_entity_args() three
 #      times apiece - twice in the report blocks and once inside
 #      verify_and_stamp_schema() - and both scan every function body in public
-#      through strip_sql_noise(), a PL/pgSQL loop that walks the text one
+#      through sql_strip_noise(), a PL/pgSQL loop that walks the text one
 #      character at a time. Six full passes over roughly a quarter of a million
 #      characters, per verification. Nothing in THIS file can remove that: it
 #      lives in supabase/core.sql, which is the artefact under test.
@@ -96,6 +96,10 @@ param(
 
 $ErrorActionPreference = 'Continue'
 Set-Location $PSScriptRoot
+
+# The 5.0 baseline is not idempotent, so repairs re-create only the objects a hole
+# touched, extracted from the release under test (see make-repairs.ps1).
+try { & "$PSScriptRoot\make-repairs.ps1" } catch { Write-Host ("ABORT: could not build the repair files: {0}" -f $_) -ForegroundColor Red; exit 2 }
 
 # ---------------------------------------------------------------------------
 # One psql session per phase, not one per statement.
@@ -204,15 +208,15 @@ function Add-Failure {
 # asserted rather than quietly dropping them.
 # ---------------------------------------------------------------------------
 $Controls = @(
-  @{ Id='NC1';  What='finding 2: parts_with_pricing as a plain view, readable by anon'
+  @{ Id='NC1';  What='finding 2: part_with_pricing as a plain view, readable by anon'
      Hole='/sql/nc1-view-open.sql'; Tokens=@('anon-reachable')
-     Repair=@('/blueplm/modules/30-supply-chain.sql'); Cleanup=@(); RepairIsRemedy=$true }
+     Repair=@('/sql/_generated/repair-nc1.sql'); Cleanup=@(); RepairIsRemedy=$true }
 
-  @{ Id='NC2';  What='finding 3: create_file_share_link gating p_org_id, acting on p_file_id'
+  @{ Id='NC2';  What='finding 3: file_share_link_create gating p_org_id, acting on p_file_id'
      Hole='/sql/nc2-unbound-file-arg.sql'; Tokens=@('unbound-entity-arg')
-     Repair=@('/blueplm/modules/10-source-files.sql'); Cleanup=@(); RepairIsRemedy=$true }
+     Repair=@('/sql/_generated/repair-nc2.sql'); Cleanup=@(); RepairIsRemedy=$true }
 
-  @{ Id='NC3';  What='finding 4: NOT IN (SELECT org_id FROM users ...)'
+  @{ Id='NC3';  What='finding 4: NOT IN (SELECT org_id FROM app_user ...)'
      Hole='/sql/nc3-null-unsafe-gate.sql'; Tokens=@('null-unsafe-gate')
      Repair=@('/sql/nc3-drop.sql'); Cleanup=@(); RepairIsRemedy=$false }
 
@@ -265,17 +269,17 @@ $Controls = @(
      Hole='/sql/nc16-column-grant-view.sql'; Tokens=@('anon-reachable','nc_column_grant_view')
      Repair=@('/sql/nc16-run-remedy.sql'); Cleanup=@('/sql/nc16-drop.sql'); RepairIsRemedy=$true }
 
-  @{ Id='NC17'; What="consume_share_link restating validate_share_link's conditions instead of calling it"
-     Hole='/sql/nc17-consume-restated.sql'; Tokens=@('stale','consume_share_link')
-     Repair=@('/blueplm/modules/10-source-files.sql'); Cleanup=@(); RepairIsRemedy=$true }
+  @{ Id='NC17'; What="file_share_link_consume restating file_share_link_validate's conditions instead of calling it"
+     Hole='/sql/nc17-consume-restated.sql'; Tokens=@('stale','file_share_link_consume')
+     Repair=@('/sql/_generated/repair-nc17.sql'); Cleanup=@(); RepairIsRemedy=$true }
 
-  @{ Id='NC18'; What='create_default_job_titles granted back to authenticated, exactly as the default ACL had it'
-     Hole='/sql/nc18-regrant-seed.sql'; Tokens=@('unverifiable','create_default_job_titles')
-     Repair=@('/blueplm/core.sql'); Cleanup=@(); RepairIsRemedy=$true }
+  @{ Id='NC18'; What='job_title_create_defaults granted back to authenticated, exactly as the default ACL had it'
+     Hole='/sql/nc18-regrant-seed.sql'; Tokens=@('unverifiable','job_title_create_defaults')
+     Repair=@('/sql/_generated/repair-nc18.sql'); Cleanup=@(); RepairIsRemedy=$true }
 
-  @{ Id='NC19'; What='cleanup_extension_http_logs granted back to authenticated, exactly as the default ACL had it'
-     Hole='/sql/nc19-regrant-cleanup-logs.sql'; Tokens=@('execute-not-withdrawn','cleanup_extension_http_logs')
-     Repair=@('/blueplm/modules/50-extensions.sql'); Cleanup=@(); RepairIsRemedy=$true }
+  @{ Id='NC19'; What='review_notify_overdue granted back to authenticated, exactly as the default ACL had it'
+     Hole='/sql/nc19-regrant-notify-overdue.sql'; Tokens=@('execute-not-withdrawn','review_notify_overdue')
+     Repair=@('/sql/_generated/repair-nc19.sql'); Cleanup=@(); RepairIsRemedy=$true }
 
   # ------------------------------------------------------------------------
   # New. Each of these trips a branch of a check function in supabase/core.sql
@@ -339,7 +343,7 @@ if ($ExpectRelease -gt 0 -and $RELEASE -ne $ExpectRelease) {
 # A verification run is around half of the smoke tier's entire budget, spent to
 # establish something the database is already carrying the evidence for: nothing
 # but verify_and_stamp_schema() writes schema_version - core.sql revokes the
-# function from every client role, update_schema_version() was reduced to a
+# function from every client role, schema_version_update() was reduced to a
 # no-op precisely so that modules could not stamp, and the write only happens on
 # an empty problem list. So schema_version = schema_release_version() means the
 # last verification of this database passed.
@@ -760,7 +764,7 @@ ROLLBACK;
 # ---------------------------------------------------------------------------
 # CENSUS: the class of hole NC18 and NC19 are two instances of.
 #
-# withdrawn_execute_manifest() is five function names, hand-maintained, and
+# schema_get_withdrawn_execute_manifest() is five function names, hand-maintained, and
 # core.sql says so in as many words: "the cost of leaving one out is what
 # release 95 nearly shipped". Nothing computes the list. A SECURITY DEFINER
 # function in public that takes no p_org_id, that `authenticated` may execute,
@@ -771,7 +775,7 @@ ROLLBACK;
 # This does not withhold anything on its own account: most of those functions
 # are the application's own RPCs and are supposed to be callable. What it does
 # is print the census and fail when it GROWS, so that the next
-# cleanup_extension_http_logs is a line in a diff rather than something found by
+# extension_http_log_cleanup is a line in a diff rather than something found by
 # a control somebody wrote two releases later.
 # ---------------------------------------------------------------------------
 function Invoke-EndpointCensus {
@@ -803,7 +807,7 @@ function Invoke-EndpointCensus {
     # branch ran on every clean checkout. Worse than unfalsifiable - it recorded
     # whatever was reachable at that moment as "known", so the routine the check
     # exists to surface became the content of its own baseline. An audit of
-    # release 95 found notify_overdue_reviews() this way: SECURITY DEFINER, no
+    # release 95 found review_notify_overdue() this way: SECURITY DEFINER, no
     # organization argument, executable by authenticated, and it would have been
     # written into census-baseline.txt as expected on the first run.
     #
@@ -827,7 +831,7 @@ function Invoke-EndpointCensus {
   } else {
     Write-Host ("  [FAILED]  {0} SECURITY DEFINER routine(s) became reachable by authenticated with nothing probing them:" -f $new.Count) -ForegroundColor Red
     $new | ForEach-Object { Write-Host ("            " + $_) -ForegroundColor Red }
-    Write-Host  "            Either gate it on an organization argument, or add it to withdrawn_execute_manifest() and REVOKE it, or add it to sql/fast/census-baseline.txt with a reason in the commit message." -ForegroundColor DarkGray
+    Write-Host  "            Either gate it on an organization argument, or add it to schema_get_withdrawn_execute_manifest() and REVOKE it, or add it to sql/fast/census-baseline.txt with a reason in the commit message." -ForegroundColor DarkGray
     Add-Failure ("CENSUS (" + $new.Count + " newly unprobed routine(s))")
   }
 }

@@ -7,12 +7,13 @@
 # 'Stop' would turn into terminating errors before any exit code is read.
 # Failures are raised explicitly below instead.
 param(
-  [switch]$CoreOnly,
-  [string[]]$Modules,
   [switch]$NoSeed,
   # Which mounted copy of supabase/ to install. /blueplm is the release under
-  # test; /baseline is the one the upgrade lane starts from.
-  [string]$Root = '/blueplm'
+  # test; /baseline is the one the upgrade lane starts from (the 4.10 snapshot).
+  [string]$Root = '/blueplm',
+  # Install without verifying - the upgrade lane verifies the 4.10 snapshot with
+  # that snapshot's own tools/verify-schema.sql.
+  [switch]$NoVerify
 )
 
 $ErrorActionPreference = 'Continue'
@@ -73,15 +74,12 @@ docker compose exec -T -e PGPASSWORD=postgres db `
     WHERE n.nspname = 'public' ORDER BY 1, 2" 2>&1 | Write-Host
 
 Write-Host "=== installing release ===" -ForegroundColor Yellow
-if ($CoreOnly)      { & "$PSScriptRoot\install.ps1" -CoreOnly -Root $Root }
-elseif ($Modules)   { & "$PSScriptRoot\install.ps1" -Modules $Modules -Root $Root }
-else                { & "$PSScriptRoot\install.ps1" -Root $Root }
-if ($LASTEXITCODE -ne 0) { throw "install failed" }
+& "$PSScriptRoot\install.ps1" -Root $Root -NoVerify:$NoVerify
 
-if (-not $NoSeed -and -not $CoreOnly) {
+if (-not $NoSeed) {
   Write-Host "=== seeding ===" -ForegroundColor Yellow
   $out = docker compose exec -T -e PGPASSWORD=postgres db `
-    psql -v ON_ERROR_STOP=1 --no-psqlrc -U postgres -d postgres -h 127.0.0.1 -f /sql/seed.sql 2>&1
+    psql -v ON_ERROR_STOP=1 --no-psqlrc -U postgres -d postgres -h 127.0.0.1 -f $(if ($Root -eq "/baseline") { "/sql/seed-4x.sql" } else { "/sql/seed.sql" }) 2>&1
   if ($LASTEXITCODE -ne 0) { $out | Write-Host; throw "seed failed" }
 }
 

@@ -5,7 +5,7 @@
 CREATE OR REPLACE FUNCTION nc_leaky_org_gate(p_org_id UUID)
 RETURNS TEXT AS $$
 BEGIN
-  IF p_org_id NOT IN (SELECT org_id FROM users WHERE id = auth.uid()) THEN
+  IF p_org_id NOT IN (SELECT org_id FROM app_user WHERE id = auth.uid()) THEN
     RAISE EXCEPTION 'Not authorized for this organization';
   END IF;
   RETURN 'reached';

@@ -1,0 +1,28 @@
+-- NC19: an internal function with no organization argument granted back to
+-- authenticated, the way such holes have actually existed.
+--
+-- Not by editing the function: by one GRANT. Supabase's bootstrap runs
+--
+--   ALTER DEFAULT PRIVILEGES IN SCHEMA public
+--     GRANT ALL ON FUNCTIONS TO postgres, anon, authenticated, service_role;
+--
+-- so every function postgres creates is born with an explicit
+-- `authenticated=X/postgres` in its ACL. An absent GRANT does not mean nobody
+-- holds the privilege, so one GRANT reproduces the exposure exactly: the
+-- function unchanged, the baseline unchanged, and the only difference is the
+-- ACL entry that makes it a live PostgREST endpoint.
+--
+-- review_notify_overdue() is SECURITY DEFINER and notifies every tenant's
+-- reviewers in one statement. check_org_gates() cannot refuse this: it only
+-- probes functions taking a p_org_id, and this one takes nothing, so it has no
+-- verdict to offer. check_withdrawn_execute() is what catches it - it asserts
+-- the ACL itself for the functions whose only protection is that no PostgREST
+-- role may execute them.
+--
+-- (Through 4.x this control used extension_http_log_cleanup, which 5.0 dropped
+-- with the sandboxed extension tables.)
+--
+-- anon is deliberately not granted, for the same reason as NC18:
+-- anon_enforce_execute_posture() would take it straight back and the control
+-- would be testing that sweep instead of this check.
+GRANT EXECUTE ON FUNCTION review_notify_overdue() TO authenticated;

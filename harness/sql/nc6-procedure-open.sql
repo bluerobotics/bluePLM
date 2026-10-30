@@ -4,7 +4,7 @@
 --
 -- NC4 creates a function, and every part of the release before this one that
 -- looked at routines split on prokind. check_anon_reach() had no filter and
--- reported this. enforce_anon_execute_posture() filtered prokind = 'f' and did
+-- reported this. anon_enforce_execute_posture() filtered prokind = 'f' and did
 -- not touch it, and `REVOKE EXECUTE ON FUNCTION` would not have reached it
 -- anyway - FUNCTION covers functions, aggregates and window functions, and
 -- procedures need ROUTINE.

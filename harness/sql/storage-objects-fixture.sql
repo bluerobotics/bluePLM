@@ -19,7 +19,7 @@
 --
 -- BluePLM stores at {org_id}/{content_hash[0:2]}/{content_hash}, so the first
 -- path component is the owning organization and is the entire authorization
--- term. files.content_hash is readable org-wide, which is what makes the
+-- term. file.content_hash is readable org-wide, which is what makes the
 -- absence of that term enumerable rather than merely permissive: a member of
 -- one organization can read another's hashes from their own file list and
 -- construct the path.

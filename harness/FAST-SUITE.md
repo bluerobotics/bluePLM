@@ -58,11 +58,11 @@ things, and that no rearrangement of the PowerShell can make one cheaper.
 
 Inside a verification, in the order I would bet on them:
 
-**1a. `strip_sql_noise()`, six full passes per run. Confidence: medium.**
+**1a. `sql_strip_noise()`, six full passes per run. Confidence: medium.**
 `verify-schema.sql` calls `check_null_unsafe_org_gates()` at lines 396 and 402
 and `check_unbound_entity_args()` at 426 and 432, and `verify_and_stamp_schema()`
 calls each once more - three times each. Both scan every function body in
-`public` through `strip_sql_noise()`, which walks the text one character at a
+`public` through `sql_strip_noise()`, which walks the text one character at a
 time in PL/pgSQL, executing two `substr()` calls and several branches per
 character. The installed SQL is 769 KB across `core.sql` and six modules; the
 function bodies inside it are a large minority of that, so call it a quarter of
@@ -100,12 +100,11 @@ expensive than starting them.
 
 ### Rank 3 — re-applying release module files. Confidence: medium.
 
-Eighteen repairs re-apply a file. Five of those are release modules:
-`10-source-files.sql` (227 KB) twice, for NC2 and NC17, plus `30-supply-chain`,
-`50-extensions` (NC18 re-applies `core.sql` since 4.8.0, when `60-customers`
-left core with the Customers extension). Re-running 227 KB of `CREATE OR REPLACE` is
-thousands of catalogue writes. Estimate 10-20 seconds each, so roughly a minute
-across the suite.
+Through 4.x, eighteen repairs re-applied a file, five of them whole release
+modules. Since 5.0 the baseline is not idempotent, so the module repairs
+(NC1, NC2, NC17, NC18, NC19) re-create only the objects the hole touched, from
+`sql/_generated/` (written by `make-repairs.ps1` from the release under test).
+This cost is gone.
 
 ### Rank 4 — durability settings. Confidence: medium.
 
@@ -131,7 +130,7 @@ already avoided the usual mistakes.
 
 The floor is `(number of verification runs) x (cost of one verification)`.
 Everything else is a tenth of the runtime. So the tiers are, mostly, a way of
-choosing that first number, and the one deep fix available is `strip_sql_noise()`
+choosing that first number, and the one deep fix available is `sql_strip_noise()`
 - which lives in the artefact under test and therefore cannot simply be edited.
 
 ---
@@ -349,7 +348,7 @@ Two assertions do not survive this and are not quietly dropped:
 
 **Reading the baseline stamp instead of re-verifying (smoke only).** Only
 `verify_and_stamp_schema()` writes `schema_version`: it is revoked from every
-client role, `update_schema_version()` was reduced to a no-op precisely so that
+client role, `schema_version_update()` was reduced to a no-op precisely so that
 modules could not stamp, and the write happens only on an empty problem list. So
 `schema_version = schema_release_version()` means the last verification passed.
 What it does not cover is a change made after that stamp, which is why the other
@@ -378,7 +377,7 @@ taken, what a catalogue query returns, or which errors are raised. A committed
 transaction is still committed to every session; it is merely not guaranteed to
 survive the machine dying, on a container that `docker compose down -v` destroys.
 
-**Replacing `strip_sql_noise()` — opt-in, and not for releases.** The
+**Replacing `sql_strip_noise()` — opt-in, and not for releases.** The
 implementation in `sql/fast/strip-sql-noise-fast.sql` keeps the same four-state
 machine and the same index arithmetic, and only jumps between the characters that
 can change state instead of visiting every character. It installs itself into
@@ -388,10 +387,10 @@ adversarial cases *and* every installed function body in both `prosrc` and
 them agree exactly. If any disagree it raises and replaces nothing.
 
 Three properties had to hold for the swap to be invisible, and all three were
-checked in the source: `strip_sql_noise` is not an object in
-`schema_release_manifest()` (the manifest mentions the name only as a substring
+checked in the source: `sql_strip_noise` is not an object in
+`schema_get_release_manifest()` (the manifest mentions the name only as a substring
 required inside `check_null_unsafe_org_gates()`, so no `stale` row appears);
-`check_null_unsafe_org_gates()` excludes itself and `strip_sql_noise` from its
+`check_null_unsafe_org_gates()` excludes itself and `sql_strip_noise` from its
 own scan; and `CREATE OR REPLACE` preserves owner and ACL.
 
 Even so: this replaces part of the artefact under test with code that is not in
@@ -411,7 +410,7 @@ what I did about each.
 
 | branch | where | evidence it never ran | what I added |
 |---|---|---|---|
-| `residue := 'cross_tenant_workflow_history'` | `core.sql:2298` | a fresh install has no residue; NC12 produces residue of the share-link kind only; nothing else creates these rows | **NX1** plants an Acme history row naming Umbrella's workflow, requires the check to report it, repairs by running the advertised `remediate_cross_tenant_workflow_history()` rather than by deleting the row, and asserts the redaction actually took |
+| `residue := 'cross_tenant_workflow_history'` | `core.sql:2298` | a fresh install has no residue; NC12 produces residue of the share-link kind only; nothing else creates these rows | **NX1** plants an Acme history row naming Umbrella's workflow, requires the check to report it, repairs by running the advertised `workflow_history_remediate_cross_tenant()` rather than by deleting the row, and asserts the redaction actually took |
 | `residue := 'cross_tenant_workflow_assignment'` | `core.sql:2327` | same | **NX2** assigns a seeded Acme file to Umbrella's workflow, requires the report, repairs by remediation, and additionally asserts the remediation did *not* also delete the legitimate assignment |
 
 Both fixtures assert their own premise: if the row did not land in a state that
@@ -419,7 +418,7 @@ satisfies the check's predicate, the fixture raises, so "the verifier missed it"
 can never be a fixture that quietly failed to insert.
 
 NX1 and NX2 also exercise the *repair* side of the same never-run branches -
-`remediate_cross_tenant_workflow_history()`'s history redaction (four NOT NULL
+`workflow_history_remediate_cross_tenant()`'s history redaction (four NOT NULL
 columns set to markers, four foreign keys nulled) and its assignment deletion.
 Those had never executed either.
 
@@ -427,7 +426,7 @@ Those had never executed either.
 
 **The CENSUS check.** NC18 and NC19 are two instances of one defect: a SECURITY
 DEFINER routine in `public` with no `p_org_id`, executable by `authenticated`,
-and not on the five-name hand-maintained `withdrawn_execute_manifest()`, is
+and not on the five-name hand-maintained `schema_get_withdrawn_execute_manifest()`, is
 examined by nothing at all. `check_anon_reach()` asks about `anon`.
 `check_org_gates()` only probes routines taking a `p_org_id` - "correctly and
 uselessly", as `core.sql` puts it. `check_withdrawn_execute()` only looks at the
@@ -437,7 +436,7 @@ cost of leaving one out is what release 95 nearly shipped".
 `sql/fast/nc-endpoint-census.sql` computes that set. It does not judge it - most
 of those routines are the application's own RPCs and have to be callable - it
 records it in `census-baseline.txt` and fails when the set **grows**. The next
-`cleanup_extension_http_logs` then arrives as a line in a diff at the moment it
+`extension_http_log_cleanup` then arrives as a line in a diff at the moment it
 is created.
 
 **The runner's own failure paths.** `-SelfTest` deliberately trips five of them
@@ -455,7 +454,7 @@ These have no control and I did not add one. In each case I say why.
 | `status := 'missing'` for a table | `core.sql:717` | no control drops a manifest object | worth a control; see below |
 | `status := 'missing'` for a function | `core.sql:729` | same | same |
 | `status := 'absent'` in `check_withdrawn_execute()` | `core.sql:2395` | fires when the manifest names a routine that does not exist - only reachable by editing the manifest | low value; the manifest is five entries and is read every run |
-| `status := 'skipped'` | `core.sql:706` | partial installs only (`install.ps1 -Modules`) | exercised by the module lane, not this suite; worth one assertion there |
+| `status := 'skipped'` | `core.sql:706` | partial installs only, which 5.0 no longer has | unreachable since 5.0 |
 | the `v_updated = 0` exception in `verify_and_stamp_schema()` | `core.sql:2557` | fires when the caller cannot write `schema_version`; the harness always runs as `postgres` | worth a one-line control connecting as `authenticated` and requiring the exception - it is the branch that stops a non-writer being told the schema was verified |
 | `advisory` severity for tables and views | `core.sql:1598-1608`, and the view blocks | only the *routine* advisory path is exercised, by NC7 | a table owned by `supabase_admin` in `public` would do it; NC7's fixture shows the shape |
 | plain table with no RLS (`relkind = 'r'`) | `core.sql:1594` | NC14 covers `'p'`, NC15 covers RLS-with-open-policy, nothing covers the plainest case of all | cheap control, and it is the single most likely real-world mistake |
@@ -468,7 +467,7 @@ shipping it untested:
 
 ```powershell
 @{ Id='NX3';  What='a manifest function dropped outright'
-   Hole='/sql/fast/nx3-drop-manifest-function.sql'; Tokens=@('missing','create_file_share_link')
+   Hole='/sql/fast/nx3-drop-manifest-function.sql'; Tokens=@('missing','file_share_link_create')
    Repair=@('/blueplm/modules/10-source-files.sql'); Cleanup=@(); RepairIsRemedy=$true }
 ```
 
@@ -511,7 +510,7 @@ knew about are still closed". It was read as "the schema is clean". Those are
 very different statements and nothing in the output distinguishes them.
 
 The two tenancy holes `negative-controls` then found - `seed_customer_categories`
-and `cleanup_extension_http_logs`, both granted to `authenticated` by Supabase's
+and `extension_http_log_cleanup`, both granted to `authenticated` by Supabase's
 `ALTER DEFAULT PRIVILEGES` - have no `F` case. They are not variations on any of
 the twenty. They are routines that were simply never on anybody's list.
 
@@ -520,8 +519,8 @@ one. The speed problem is why the suite is skipped; the coverage problem is what
 it would miss if it ran every hour. But they are the same problem in one respect
 that matters here: every enumeration in this codebase that decides what gets
 checked is hand-maintained. `attack.ps1`'s twenty cases,
-`withdrawn_execute_manifest()`'s five names, `anon_execute_allowlist()`,
-`anon_read_allowlist()`, `schema_release_manifest()`. Each is a list of things
+`schema_get_withdrawn_execute_manifest()`'s five names, `anon_get_execute_allowlist()`,
+`anon_get_read_allowlist()`, `schema_get_release_manifest()`. Each is a list of things
 somebody thought of. The CENSUS check is the one thing I added that computes a
 set rather than reading one, and it is the piece of this work I would keep if I
 could keep only one.
@@ -547,7 +546,7 @@ could keep only one.
   the artefact under test. Rewriting them would mean verifying the release with
   code that is not in the release. This is the constraint the brief's technique
   list does not account for, and it is why the one deep fix here
-  (`strip_sql_noise`) ships as opt-in with a differential proof and a warning
+  (`sql_strip_noise`) ships as opt-in with a differential proof and a warning
   rather than as part of the suite.
 - **"Template databases / volume snapshots to restore baseline state in
   seconds."** Not needed, and it would be slower than what is here.
@@ -562,7 +561,7 @@ could keep only one.
   calibrate. I could not check it.
 
 And the claim of mine that changed while I was writing it: I had
-`strip_sql_noise()`'s quadratic string concatenation as the headline cost, on the
+`sql_strip_noise()`'s quadratic string concatenation as the headline cost, on the
 arithmetic that a full pass moves close to a gigabyte. That arithmetic was right
 and the conclusion was wrong - the bodies are short enough that the quadratic term
 is tens of megabytes of `memcpy`, which is nothing. The cost is the PL/pgSQL
@@ -578,7 +577,7 @@ I did not run the fast suite. I did not run the original. I did not time a
 verification, a `docker compose exec`, or a module re-apply. I did not execute
 one line of the SQL in `harness/sql/fast/`, including the fixtures that are
 supposed to trip the controls and the differential test that gates the
-`strip_sql_noise` replacement. The PowerShell parses - that much I checked with
+`sql_strip_noise` replacement. The PowerShell parses - that much I checked with
 the language parser, which needs no database - and nothing beyond that has been
 executed.
 

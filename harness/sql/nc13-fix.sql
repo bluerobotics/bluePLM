@@ -10,14 +10,14 @@ LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
   v_actor UUID := auth.uid();
 BEGIN
-  PERFORM require_org_member(p_org_id);
+  PERFORM org_require_member(p_org_id);
 
   IF p_limit IS NULL OR p_limit <> 42 THEN
     RAISE EXCEPTION 'p_limit must be 42';
   END IF;
 
   RETURN QUERY
-  SELECT f.part_number, f.description FROM files f WHERE f.org_id = p_org_id;
+  SELECT f.part_number, f.description FROM file f WHERE f.org_id = p_org_id;
 END;
 $$;
 

@@ -7,7 +7,7 @@
 -- satisfied before the file moves, are read out of a workflow owned by
 -- Umbrella. Umbrella can change them.
 --
--- This is the state apply_workflow_transition left behind before release 95
+-- This is the state workflow_transition_apply left behind before release 95
 -- bound the transition lookup to the file's organization. attack.ps1's F6 pair
 -- created it over HTTP; nothing has ever asserted that the verifier notices it
 -- afterwards, which is the difference between a hole that gets closed and a
@@ -20,7 +20,7 @@
 -- assigns a workflow to ACME-SECRET-0001 only, so ACME-SECRET-0002 has no
 -- assignment to displace and the UNIQUE constraint on file_id is free.
 
-INSERT INTO file_workflow_assignments (file_id, workflow_id, current_state_id, assigned_by)
+INSERT INTO file_workflow_assignment (file_id, workflow_id, current_state_id, assigned_by)
 VALUES (
   -- Acme's file...
   'aaaaaaaa-3333-4000-8000-000000000002',
@@ -37,9 +37,9 @@ ON CONFLICT (file_id) DO UPDATE
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM file_workflow_assignments a
-    JOIN files f ON f.id = a.file_id
-    JOIN workflow_templates wt ON wt.id = a.workflow_id
+    SELECT 1 FROM file_workflow_assignment a
+    JOIN file f ON f.id = a.file_id
+    JOIN workflow_template wt ON wt.id = a.workflow_id
     WHERE a.file_id = 'aaaaaaaa-3333-4000-8000-000000000002'
       AND wt.org_id <> f.org_id
   ) THEN

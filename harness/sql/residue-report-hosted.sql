@@ -35,16 +35,16 @@ FROM (
     l.org_id                  AS minted_for_org,
     f.org_id                  AS file_actually_in_org,
     l.created_by,
-    (SELECT u.org_id FROM users u WHERE u.id = l.created_by) AS creator_org,
+    (SELECT u.org_id FROM app_user u WHERE u.id = l.created_by) AS creator_org,
     CASE
-      WHEN (SELECT u.org_id FROM users u WHERE u.id = l.created_by) = f.org_id
+      WHEN (SELECT u.org_id FROM app_user u WHERE u.id = l.created_by) = f.org_id
         THEN 'creator is in the file''s organization - most likely a file that moved'
       ELSE 'creator is NOT in the file''s organization - the v92-and-earlier hole'
     END AS reading,
-    l.created_at, l.expires_at, l.is_active, l.require_auth,
+    l.created_at, l.expires_at, l.is_active, l.is_auth_required,
     l.download_count, l.max_downloads
-  FROM file_share_links l
-  JOIN files f ON f.id = l.file_id
+  FROM file_share_link l
+  JOIN file f ON f.id = l.file_id
   WHERE l.org_id IS DISTINCT FROM f.org_id
 ) x
 
@@ -58,13 +58,13 @@ FROM (
     h.workflow_name, h.from_state_name, h.to_state_name, h.transition_name,
     h.performed_by_email, h.performed_at
   FROM workflow_history h
-  WHERE EXISTS (SELECT 1 FROM workflow_templates t
+  WHERE EXISTS (SELECT 1 FROM workflow_template t
                  WHERE t.id = h.workflow_id AND t.org_id <> h.org_id)
-     OR EXISTS (SELECT 1 FROM workflow_transitions tr
-                 JOIN workflow_templates t2 ON t2.id = tr.workflow_id
+     OR EXISTS (SELECT 1 FROM workflow_transition tr
+                 JOIN workflow_template t2 ON t2.id = tr.workflow_id
                 WHERE tr.id = h.transition_id AND t2.org_id <> h.org_id)
-     OR EXISTS (SELECT 1 FROM workflow_states s
-                 JOIN workflow_templates t3 ON t3.id = s.workflow_id
+     OR EXISTS (SELECT 1 FROM workflow_state s
+                 JOIN workflow_template t3 ON t3.id = s.workflow_id
                 WHERE s.id IN (h.from_state_id, h.to_state_id) AND t3.org_id <> h.org_id)
 ) y
 
@@ -76,10 +76,10 @@ FROM (
   SELECT
     a.file_id, f.org_id AS file_org, wt.org_id AS workflow_org,
     wt.name AS workflow_name, s.name AS current_state_name
-  FROM file_workflow_assignments a
-  JOIN files f ON f.id = a.file_id
-  LEFT JOIN workflow_templates wt ON wt.id = a.workflow_id
-  LEFT JOIN workflow_states s ON s.id = a.current_state_id
+  FROM file_workflow_assignment a
+  JOIN file f ON f.id = a.file_id
+  LEFT JOIN workflow_template wt ON wt.id = a.workflow_id
+  LEFT JOIN workflow_state s ON s.id = a.current_state_id
   WHERE wt.org_id IS DISTINCT FROM f.org_id
 ) z
 

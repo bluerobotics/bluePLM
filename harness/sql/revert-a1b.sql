@@ -9,7 +9,7 @@
 -- That is worth executing rather than believing. A no-op is a claim about
 -- PostgreSQL's behaviour, and the cheapest way to check a claim like that is to
 -- remove the thing and see whether anything moves.
-DROP POLICY IF EXISTS "Admins can update org users" ON users;
-CREATE POLICY "Admins can update org users"
-  ON users FOR UPDATE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
+DROP POLICY IF EXISTS "app_user: admins update" ON app_user;
+CREATE POLICY "app_user: admins update"
+  ON app_user FOR UPDATE
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND is_org_admin());

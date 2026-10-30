@@ -1,174 +1,141 @@
 -- =====================================================================
--- BluePLM Integrations Module
+-- BluePLM Integrations Module (5.0 baseline)
 -- =====================================================================
--- 
--- This module contains:
---   - Google Drive columns on organizations table
---   - Organization Integrations (generic integration settings)
---   - Integration Sync Log
---   - Odoo saved configurations
---   - Webhooks
---   - Webhook deliveries
---   - Google Drive integration functions
---   - Integration credential store (service-role only)
+-- Organization integrations (Odoo), saved Odoo configurations, the
+-- service-only credential store, sync logs, webhooks, Google Drive settings
+-- and SOLIDWORKS licences.
 --
--- DEPENDENCIES: 
---   - core.sql must be installed first
+-- 5.0 BASELINE. supabase/core.sql and the files in supabase/modules are one
+-- ordered set: core first, then the modules in file-name order, applied to an empty
+-- database by the desktop app's migration runner in one transaction (or by
+-- hand in that order). Every object is defined once, and nothing here upgrades
+-- an older database: a 4.x database (schema 112) is upgraded by
+-- supabase/migrations/0500_from_4x.sql, and every change after 5.0 is a new
+-- numbered file in supabase/migrations/. Do not edit this baseline in place.
 --
--- IDEMPOTENT: Safe to run multiple times
+-- The stamp is not written here. The runner calls verify_and_stamp_schema()
+-- (supabase/tools/verify-schema.sql) afterwards, and it stamps 500 only when
+-- the manifest, the security checks and the residue checks all pass.
 --
--- ORDER OF OPERATIONS
---
--- The credential store at the end of this file clears the old plaintext
--- credential columns, so apply this together with an API build that reads
--- credentials from integration_credentials. Applying it against an older API
--- leaves integrations without credentials until that deploy lands. The API
--- also needs EXTENSION_ENCRYPTION_KEY set before it can store new credentials.
+-- Names follow .cursor/rules/database.mdc (singular tables, org_ prefixes,
+-- <entity>_<verb> functions, trg_ triggers, "<table>: <who> <action>"
+-- policies); the 4.x -> 5.0 renames are listed in supabase/rename-map-5.0.json.
 --
 -- =====================================================================
 
 -- ===========================================
--- DEPENDENCY CHECK (must stay first)
--- ===========================================
--- This file ends by calling enforce_anon_execute_posture(), defined in core.sql.
--- Under `psql \i` a module used to apply in full against an older core and fail
--- on its last line, reporting a line number rather than the missing dependency.
--- Fail here instead, before anything has been created.
-DO $$
-BEGIN
-  IF to_regprocedure('public.require_org_member(uuid)') IS NULL
-     OR to_regprocedure('public.enforce_anon_execute_posture()') IS NULL THEN
-    RAISE EXCEPTION 'core.sql is absent or predates this release - run supabase/core.sql first, then run this file again'
-      USING HINT = 'require_org_member(uuid) and enforce_anon_execute_posture() must both exist before any module is applied.';
-  END IF;
-END $$;
-
--- ===========================================
--- INTEGRATION ENUMS
+-- TYPES
 -- ===========================================
 
-DO $$ BEGIN
-  CREATE TYPE webhook_event AS ENUM (
-    'file.created', 'file.updated', 'file.deleted', 'file.checked_in', 'file.checked_out',
-    'file.state_changed', 'file.revision_changed', 'eco.created', 'eco.updated', 'eco.completed',
-    'review.requested', 'review.approved', 'review.rejected', 'rfq.created', 'rfq.sent',
-    'rfq.quoted', 'rfq.awarded', 'supplier.created', 'supplier.updated'
-  );
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  CREATE TYPE webhook_delivery_status AS ENUM ('pending', 'success', 'failed', 'retrying');
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
+CREATE TYPE webhook_event AS ENUM ('file.created', 'file.updated', 'file.deleted', 'file.checked_in', 'file.checked_out', 'file.state_changed', 'file.revision_changed', 'eco.created', 'eco.updated', 'eco.completed', 'review.requested', 'review.approved', 'review.rejected', 'rfq.created', 'rfq.sent', 'rfq.quoted', 'rfq.awarded', 'supplier.created', 'supplier.updated');
+CREATE TYPE webhook_delivery_status AS ENUM ('pending', 'success', 'failed', 'retrying');
+CREATE TYPE solidworks_license_type AS ENUM ('standalone', 'network');
 
 -- ===========================================
--- GOOGLE DRIVE ORGANIZATION COLUMNS
+-- TABLES
 -- ===========================================
--- These columns on the organizations table are managed by the integrations module
-
-DO $$ BEGIN 
-  ALTER TABLE organizations ADD COLUMN google_drive_client_id TEXT; 
-EXCEPTION WHEN duplicate_column THEN NULL; 
-END $$;
-
-DO $$ BEGIN 
-  ALTER TABLE organizations ADD COLUMN google_drive_client_secret TEXT; 
-EXCEPTION WHEN duplicate_column THEN NULL; 
-END $$;
-
-DO $$ BEGIN 
-  ALTER TABLE organizations ADD COLUMN google_drive_enabled BOOLEAN DEFAULT FALSE; 
-EXCEPTION WHEN duplicate_column THEN NULL; 
-END $$;
-
--- Google Drive folder holding inspection sheet templates (FAIR / incoming material review)
-DO $$ BEGIN 
-  ALTER TABLE organizations ADD COLUMN google_drive_inspection_template_folder_id TEXT; 
-EXCEPTION WHEN duplicate_column THEN NULL; 
-END $$;
 
 -- ===========================================
 -- ORGANIZATION INTEGRATIONS
 -- ===========================================
-
-CREATE TABLE IF NOT EXISTS organization_integrations (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  
+CREATE TABLE org_integration (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  org_id UUID NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
   -- Integration type
-  integration_type TEXT NOT NULL,  -- 'odoo', 'slack', 'webhook', etc.
-  
+  -- 'odoo', 'slack', 'webhook', etc.
+  integration_type TEXT NOT NULL,
   -- Settings (flexible JSONB)
-  settings JSONB NOT NULL DEFAULT '{}'::jsonb,
-  
-  -- Encrypted credentials
-  credentials_encrypted TEXT,
-  
+  settings JSONB DEFAULT '{}'::jsonb NOT NULL,
   -- Status
   is_active BOOLEAN DEFAULT true,
   is_connected BOOLEAN DEFAULT false,
   last_connected_at TIMESTAMPTZ,
   last_error TEXT,
-  
   -- Sync settings
-  auto_sync BOOLEAN DEFAULT false,
-  sync_interval_minutes INT DEFAULT 60,
+  is_auto_sync BOOLEAN DEFAULT false,
+  sync_interval_minutes INTEGER DEFAULT 60,
   last_sync_at TIMESTAMPTZ,
   last_sync_status TEXT,
   last_sync_message TEXT,
-  last_sync_count INT,
-  
+  last_sync_count INTEGER,
   -- Metadata
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  created_by UUID REFERENCES users(id),
+  created_by UUID REFERENCES app_user(id),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_by UUID REFERENCES users(id),
-  
-  UNIQUE(org_id, integration_type)
+  updated_by UUID REFERENCES app_user(id),
+  CONSTRAINT org_integration_org_id_integration_type_key UNIQUE (org_id, integration_type)
 );
 
-CREATE INDEX IF NOT EXISTS idx_org_integrations_org_id ON organization_integrations(org_id);
-CREATE INDEX IF NOT EXISTS idx_org_integrations_type ON organization_integrations(integration_type);
-CREATE INDEX IF NOT EXISTS idx_org_integrations_active ON organization_integrations(is_active) WHERE is_active = true;
+-- ===========================================
+-- RLS POLICIES
+-- ===========================================
+
+-- ===========================================
+-- COMMENTS
+-- ===========================================
+
+CREATE INDEX org_integration_org_id_idx ON org_integration (org_id);
+CREATE INDEX org_integration_integration_type_idx ON org_integration (integration_type);
+CREATE INDEX org_integration_is_active_idx ON org_integration (is_active) WHERE (is_active = true);
+
+COMMENT ON TABLE org_integration IS 'Generic integration configurations for orgs';
+ALTER TABLE org_integration ENABLE ROW LEVEL SECURITY;
+ALTER TABLE org_integration REPLICA IDENTITY FULL;
+ALTER PUBLICATION supabase_realtime ADD TABLE org_integration;
 
 -- ===========================================
 -- INTEGRATION SYNC LOG
 -- ===========================================
-
-CREATE TABLE IF NOT EXISTS integration_sync_log (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  integration_id UUID NOT NULL REFERENCES organization_integrations(id) ON DELETE CASCADE,
-  
+CREATE TABLE integration_sync_log (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  org_id UUID NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
+  integration_id UUID NOT NULL REFERENCES org_integration(id) ON DELETE CASCADE,
   -- Sync details
   sync_type TEXT NOT NULL,
-  sync_direction TEXT NOT NULL DEFAULT 'pull',
-  
+  sync_direction TEXT DEFAULT 'pull'::text NOT NULL,
   -- Results
   status TEXT NOT NULL,
   started_at TIMESTAMPTZ DEFAULT NOW(),
   completed_at TIMESTAMPTZ,
-  
   -- Counts
-  records_processed INT DEFAULT 0,
-  records_created INT DEFAULT 0,
-  records_updated INT DEFAULT 0,
-  records_skipped INT DEFAULT 0,
-  records_errored INT DEFAULT 0,
-  
+  records_processed INTEGER DEFAULT 0,
+  records_created INTEGER DEFAULT 0,
+  records_updated INTEGER DEFAULT 0,
+  records_skipped INTEGER DEFAULT 0,
+  records_errored INTEGER DEFAULT 0,
   -- Error details
   error_message TEXT,
   error_details JSONB,
-  
   -- Triggered by
-  triggered_by UUID REFERENCES users(id),
-  trigger_type TEXT DEFAULT 'manual'
+  triggered_by UUID REFERENCES app_user(id),
+  trigger_type TEXT DEFAULT 'manual'::text,
+  phase TEXT,
+  phase_index INTEGER,
+  phase_count INTEGER,
+  progress_current INTEGER,
+  progress_total INTEGER,
+  is_cancel_requested BOOLEAN DEFAULT false NOT NULL,
+  cancel_requested_by UUID REFERENCES app_user(id),
+  heartbeat_at TIMESTAMPTZ,
+  sync_watermark_at TIMESTAMPTZ
 );
 
-CREATE INDEX IF NOT EXISTS idx_sync_log_org_id ON integration_sync_log(org_id);
-CREATE INDEX IF NOT EXISTS idx_sync_log_integration_id ON integration_sync_log(integration_id);
-CREATE INDEX IF NOT EXISTS idx_sync_log_started_at ON integration_sync_log(started_at DESC);
+-- Supports the "is one already running for this org" guard the sync takes
+-- before it starts, which is the only thing standing between two clients and
+-- two concurrent syncs racing on the same upserts.
+
+-- Supports reading back the last watermark: the newest successful run of one
+-- sync_type for an org.
+
+CREATE INDEX integration_sync_log_org_id_idx ON integration_sync_log (org_id);
+CREATE INDEX integration_sync_log_integration_id_idx ON integration_sync_log (integration_id);
+CREATE INDEX integration_sync_log_started_at_idx ON integration_sync_log (started_at DESC);
+CREATE INDEX integration_sync_log_org_id_integration_id_idx ON integration_sync_log (org_id, integration_id) WHERE (status = 'running'::text);
+CREATE INDEX integration_sync_log_org_id_sync_type_started_at_idx ON integration_sync_log (org_id, sync_type, started_at DESC) WHERE ((status = 'success'::text) AND (sync_watermark_at IS NOT NULL));
+
+COMMENT ON TABLE integration_sync_log IS 'Audit trail for integration sync operations';
+COMMENT ON COLUMN integration_sync_log.sync_watermark_at IS 'How far through the source system''s change history this run got, in the SOURCE system''s clock (for Odoo, res.partner/sale.order write_date). The next run of the same sync_type resumes from the newest successful run''s value. Only written on success, so a cancelled or failed run leaves the window to be re-read.';
+ALTER TABLE integration_sync_log ENABLE ROW LEVEL SECURITY;
 
 -- ── Live progress and cooperative cancellation ──────────────────────────────
 -- The table was originally an after-the-fact audit trail: one row written once
@@ -183,340 +150,355 @@ CREATE INDEX IF NOT EXISTS idx_sync_log_started_at ON integration_sync_log(start
 -- a running row". A reader treats a run whose heartbeat has gone quiet as dead
 -- rather than trusting status alone.
 
-DO $$ BEGIN
-  ALTER TABLE integration_sync_log ADD COLUMN phase TEXT;
-EXCEPTION WHEN duplicate_column THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  ALTER TABLE integration_sync_log ADD COLUMN phase_index INT;
-EXCEPTION WHEN duplicate_column THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  ALTER TABLE integration_sync_log ADD COLUMN phase_count INT;
-EXCEPTION WHEN duplicate_column THEN NULL;
-END $$;
-
 -- progress_total stays NULL until the count is known; the reader shows a bare
 -- running figure rather than inventing a denominator.
-DO $$ BEGIN
-  ALTER TABLE integration_sync_log ADD COLUMN progress_current INT;
-EXCEPTION WHEN duplicate_column THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  ALTER TABLE integration_sync_log ADD COLUMN progress_total INT;
-EXCEPTION WHEN duplicate_column THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  ALTER TABLE integration_sync_log ADD COLUMN cancel_requested BOOLEAN NOT NULL DEFAULT FALSE;
-EXCEPTION WHEN duplicate_column THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  ALTER TABLE integration_sync_log ADD COLUMN cancel_requested_by UUID REFERENCES users(id);
-EXCEPTION WHEN duplicate_column THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  ALTER TABLE integration_sync_log ADD COLUMN heartbeat_at TIMESTAMPTZ;
-EXCEPTION WHEN duplicate_column THEN NULL;
-END $$;
 
 -- ── Incremental sync watermark ──────────────────────────────────────────────
 -- How far through the source system's change history a run got, expressed in
 -- the SOURCE system's clock rather than this server's - the two are not
 -- synchronised, and a few seconds of skew is a silently dropped record.
 --
--- It lives on the run row instead of on organization_integrations so that only
+-- It lives on the run row instead of on org_integration so that only
 -- a run that reached 'success' can move it. A cancelled or failed run writes a
 -- partial mirror and no watermark, so the next run re-reads that window.
-
-DO $$ BEGIN
-  ALTER TABLE integration_sync_log ADD COLUMN sync_watermark TIMESTAMPTZ;
-EXCEPTION WHEN duplicate_column THEN NULL;
-END $$;
-
--- Supports the "is one already running for this org" guard the sync takes
--- before it starts, which is the only thing standing between two clients and
--- two concurrent syncs racing on the same upserts.
-CREATE INDEX IF NOT EXISTS idx_sync_log_running
-  ON integration_sync_log(org_id, integration_id) WHERE status = 'running';
-
--- Supports reading back the last watermark: the newest successful run of one
--- sync_type for an org.
-CREATE INDEX IF NOT EXISTS idx_sync_log_watermark
-  ON integration_sync_log(org_id, sync_type, started_at DESC)
-  WHERE status = 'success' AND sync_watermark IS NOT NULL;
 
 -- ===========================================
 -- ODOO SAVED CONFIGURATIONS
 -- ===========================================
-
-CREATE TABLE IF NOT EXISTS odoo_saved_configs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  
+CREATE TABLE odoo_saved_config (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  org_id UUID NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
   -- Configuration identity
   name TEXT NOT NULL,
   description TEXT,
-  
   -- Connection settings
   url TEXT NOT NULL,
   database TEXT NOT NULL,
   username TEXT NOT NULL,
-  api_key_encrypted TEXT,
-  
   -- Status
   is_active BOOLEAN DEFAULT true,
   last_tested_at TIMESTAMPTZ,
-  last_test_success BOOLEAN,
+  is_last_test_successful BOOLEAN,
   last_test_error TEXT,
-  
   -- Visual
   color TEXT,
-  
   -- Metadata
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  created_by UUID REFERENCES users(id),
+  created_by UUID REFERENCES app_user(id),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_by UUID REFERENCES users(id),
-  
-  UNIQUE(org_id, name)
+  updated_by UUID REFERENCES app_user(id),
+  CONSTRAINT odoo_saved_config_org_id_name_key UNIQUE (org_id, name)
 );
 
-CREATE INDEX IF NOT EXISTS idx_odoo_saved_configs_org_id ON odoo_saved_configs(org_id);
-CREATE INDEX IF NOT EXISTS idx_odoo_saved_configs_active ON odoo_saved_configs(is_active) WHERE is_active = true;
+CREATE INDEX odoo_saved_config_org_id_idx ON odoo_saved_config (org_id);
+CREATE INDEX odoo_saved_config_is_active_idx ON odoo_saved_config (is_active) WHERE (is_active = true);
+
+COMMENT ON TABLE odoo_saved_config IS 'Saved Odoo ERP connection configurations';
+ALTER TABLE odoo_saved_config ENABLE ROW LEVEL SECURITY;
+ALTER TABLE odoo_saved_config REPLICA IDENTITY FULL;
+ALTER PUBLICATION supabase_realtime ADD TABLE odoo_saved_config;
 
 -- ===========================================
 -- WEBHOOKS
 -- ===========================================
-
-CREATE TABLE IF NOT EXISTS webhooks (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  
+CREATE TABLE webhook (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  org_id UUID NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
   -- Basic info
   name TEXT NOT NULL,
   description TEXT,
   url TEXT NOT NULL,
-  
   -- Security
   secret TEXT NOT NULL,
-  
   -- Configuration
-  events webhook_event[] NOT NULL DEFAULT '{}',
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  
+  events webhook_event[] DEFAULT '{}'::webhook_event[] NOT NULL,
+  is_active BOOLEAN DEFAULT true NOT NULL,
   -- User filtering
-  trigger_filter TEXT NOT NULL DEFAULT 'everyone' CHECK (trigger_filter IN ('everyone', 'roles', 'users')),
-  trigger_roles TEXT[] NOT NULL DEFAULT '{}',
-  trigger_user_ids UUID[] NOT NULL DEFAULT '{}',
-  
+  trigger_filter TEXT DEFAULT 'everyone'::text NOT NULL CHECK ((trigger_filter = ANY (ARRAY['everyone'::text, 'roles'::text, 'users'::text]))),
+  trigger_roles TEXT[] DEFAULT '{}'::text[] NOT NULL,
+  trigger_user_ids UUID[] DEFAULT '{}'::uuid[] NOT NULL,
   -- Headers
-  custom_headers JSONB NOT NULL DEFAULT '{}'::jsonb,
-  
+  custom_headers JSONB DEFAULT '{}'::jsonb NOT NULL,
   -- Retry configuration
-  max_retries INTEGER NOT NULL DEFAULT 3,
-  retry_delay_seconds INTEGER NOT NULL DEFAULT 60,
-  timeout_seconds INTEGER NOT NULL DEFAULT 30,
-  
+  max_retries INTEGER DEFAULT 3 NOT NULL,
+  retry_delay_seconds INTEGER DEFAULT 60 NOT NULL,
+  timeout_seconds INTEGER DEFAULT 30 NOT NULL,
   -- Metadata
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_by UUID REFERENCES app_user(id) ON DELETE SET NULL,
   updated_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
-  
+  updated_by UUID REFERENCES app_user(id) ON DELETE SET NULL,
   -- Stats
   last_triggered_at TIMESTAMPTZ,
   success_count INTEGER DEFAULT 0,
   failure_count INTEGER DEFAULT 0
 );
 
-CREATE INDEX IF NOT EXISTS idx_webhooks_org_id ON webhooks(org_id);
-CREATE INDEX IF NOT EXISTS idx_webhooks_active ON webhooks(org_id, is_active) WHERE is_active = TRUE;
+-- ===========================================
+-- REALTIME
+-- ===========================================
 
--- Migration: Ensure webhooks columns have NOT NULL (set defaults for any existing NULLs first)
-UPDATE webhooks SET is_active = TRUE WHERE is_active IS NULL;
-UPDATE webhooks SET trigger_filter = 'everyone' WHERE trigger_filter IS NULL;
-UPDATE webhooks SET trigger_roles = '{}' WHERE trigger_roles IS NULL;
-UPDATE webhooks SET trigger_user_ids = '{}' WHERE trigger_user_ids IS NULL;
-UPDATE webhooks SET custom_headers = '{}'::jsonb WHERE custom_headers IS NULL;
-UPDATE webhooks SET max_retries = 3 WHERE max_retries IS NULL;
-UPDATE webhooks SET retry_delay_seconds = 60 WHERE retry_delay_seconds IS NULL;
-UPDATE webhooks SET timeout_seconds = 30 WHERE timeout_seconds IS NULL;
-DO $$ BEGIN
-  ALTER TABLE webhooks ALTER COLUMN is_active SET NOT NULL;
-  ALTER TABLE webhooks ALTER COLUMN trigger_filter SET NOT NULL;
-  ALTER TABLE webhooks ALTER COLUMN trigger_roles SET NOT NULL;
-  ALTER TABLE webhooks ALTER COLUMN trigger_user_ids SET NOT NULL;
-  ALTER TABLE webhooks ALTER COLUMN custom_headers SET NOT NULL;
-  ALTER TABLE webhooks ALTER COLUMN max_retries SET NOT NULL;
-  ALTER TABLE webhooks ALTER COLUMN retry_delay_seconds SET NOT NULL;
-  ALTER TABLE webhooks ALTER COLUMN timeout_seconds SET NOT NULL;
-EXCEPTION WHEN others THEN NULL;
-END $$;
+CREATE INDEX webhook_org_id_idx ON webhook (org_id);
+CREATE INDEX webhook_org_id_is_active_idx ON webhook (org_id, is_active) WHERE (is_active = true);
+
+COMMENT ON TABLE webhook IS 'Webhook configurations for external integrations';
+ALTER TABLE webhook ENABLE ROW LEVEL SECURITY;
+ALTER TABLE webhook REPLICA IDENTITY FULL;
+ALTER PUBLICATION supabase_realtime ADD TABLE webhook;
 
 -- ===========================================
 -- WEBHOOK DELIVERIES
 -- ===========================================
-
-CREATE TABLE IF NOT EXISTS webhook_deliveries (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  webhook_id UUID NOT NULL REFERENCES webhooks(id) ON DELETE CASCADE,
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  
+CREATE TABLE webhook_delivery (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  webhook_id UUID NOT NULL REFERENCES webhook(id) ON DELETE CASCADE,
+  org_id UUID NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
   -- Event details
   event_type webhook_event NOT NULL,
   event_id UUID,
   payload JSONB NOT NULL,
-  
   -- Delivery status
-  status webhook_delivery_status DEFAULT 'pending',
+  status webhook_delivery_status DEFAULT 'pending'::webhook_delivery_status,
   attempt_count INTEGER DEFAULT 0,
-  
   -- Response
   response_status INTEGER,
   response_body TEXT,
   response_headers JSONB,
-  
   -- Timing
   created_at TIMESTAMPTZ DEFAULT NOW(),
   delivered_at TIMESTAMPTZ,
   next_retry_at TIMESTAMPTZ,
-  
   -- Error tracking
   last_error TEXT
 );
 
-CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_webhook_id ON webhook_deliveries(webhook_id);
-CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_org_id ON webhook_deliveries(org_id);
-CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_status ON webhook_deliveries(status) WHERE status IN ('pending', 'retrying');
-CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_created_at ON webhook_deliveries(created_at DESC);
+CREATE INDEX webhook_delivery_webhook_id_idx ON webhook_delivery (webhook_id);
+CREATE INDEX webhook_delivery_org_id_idx ON webhook_delivery (org_id);
+CREATE INDEX webhook_delivery_status_idx ON webhook_delivery (status) WHERE (status = ANY (ARRAY['pending'::webhook_delivery_status, 'retrying'::webhook_delivery_status]));
+CREATE INDEX webhook_delivery_created_at_idx ON webhook_delivery (created_at DESC);
+
+COMMENT ON TABLE webhook_delivery IS 'Webhook delivery attempts and history';
+ALTER TABLE webhook_delivery ENABLE ROW LEVEL SECURITY;
 
 -- ===========================================
--- RLS POLICIES
+-- SOLIDWORKS LICENSE MANAGEMENT
 -- ===========================================
 
-ALTER TABLE organization_integrations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE integration_sync_log ENABLE ROW LEVEL SECURITY;
-ALTER TABLE odoo_saved_configs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE webhooks ENABLE ROW LEVEL SECURITY;
-ALTER TABLE webhook_deliveries ENABLE ROW LEVEL SECURITY;
+-- Enum for license types
+
+-- Table: SOLIDWORKS Licenses
+CREATE TABLE solidworks_license (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  org_id UUID NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
+  -- License details
+  serial_number TEXT NOT NULL,
+  nickname TEXT,
+  license_type solidworks_license_type DEFAULT 'standalone'::solidworks_license_type,
+  product_name TEXT,
+  seats INTEGER DEFAULT 1,
+  -- Dates
+  purchase_date DATE,
+  expiry_date DATE,
+  -- Notes
+  notes TEXT,
+  -- Metadata
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  created_by UUID REFERENCES app_user(id),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT solidworks_license_org_id_serial_number_key UNIQUE (org_id, serial_number)
+);
+
+-- RLS for SOLIDWORKS Licenses
+
+-- Realtime for license management
+
+-- Comments
+
+CREATE INDEX solidworks_license_org_id_idx ON solidworks_license (org_id);
+
+COMMENT ON TABLE solidworks_license IS 'Organization SOLIDWORKS license keys and metadata';
+ALTER TABLE solidworks_license ENABLE ROW LEVEL SECURITY;
+ALTER TABLE solidworks_license REPLICA IDENTITY FULL;
+ALTER PUBLICATION supabase_realtime ADD TABLE solidworks_license;
+
+-- Table: SOLIDWORKS License Assignments
+CREATE TABLE solidworks_license_assignment (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  license_id UUID NOT NULL REFERENCES solidworks_license(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES app_user(id) ON DELETE CASCADE,
+  -- Assignment tracking
+  assigned_at TIMESTAMPTZ DEFAULT NOW(),
+  assigned_by UUID REFERENCES app_user(id),
+  -- Activation status
+  is_active BOOLEAN DEFAULT false,
+  activated_at TIMESTAMPTZ,
+  machine_id TEXT,
+  machine_name TEXT,
+  deactivated_at TIMESTAMPTZ,
+  CONSTRAINT solidworks_license_assignment_license_id_user_id_key UNIQUE (license_id, user_id)
+);
+
+CREATE INDEX solidworks_license_assignment_license_id_idx ON solidworks_license_assignment (license_id);
+CREATE INDEX solidworks_license_assignment_user_id_idx ON solidworks_license_assignment (user_id);
+
+COMMENT ON TABLE solidworks_license_assignment IS 'User-license assignments with activation tracking';
+ALTER TABLE solidworks_license_assignment ENABLE ROW LEVEL SECURITY;
+ALTER TABLE solidworks_license_assignment REPLICA IDENTITY FULL;
+ALTER PUBLICATION supabase_realtime ADD TABLE solidworks_license_assignment;
+
+-- ===========================================
+-- CREDENTIAL STORE
+-- ===========================================
+--
+-- In 4.x, odoo_saved_configs.api_key_encrypted and
+-- organization_integrations.credentials_encrypted were named as though they
+-- held ciphertext, but the API wrote the raw API key straight into them and
+-- read it straight back out. Two consequences:
+--
+--   1. The values were plaintext at rest, despite the column names.
+--   2. The SELECT policies on both tables grant access to every org member,
+--      not just admins, so any authenticated user in the org could read
+--      another team's ERP credentials directly through PostgREST.
+--
+-- Postgres RLS filters rows, not columns, so no policy change can hide a
+-- credential column from a role that can read the row. The only robust fix is
+-- to move the secret into a table that clients cannot read at all.
+CREATE TABLE integration_credential (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  org_id UUID NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
+  -- Which record this credential belongs to. Deliberately not a foreign key
+  -- per source table: new integrations should not require a schema change.
+  owner_type TEXT NOT NULL CHECK ((owner_type = ANY (ARRAY['odoo_saved_config'::text, 'organization_integration'::text]))),
+  owner_id UUID NOT NULL,
+  -- AES-256-GCM ciphertext in `iv:authTag:ciphertext` base64 form, written by
+  -- the API using EXTENSION_ENCRYPTION_KEY.
+  --
+  -- Rows migrated from the 4.x columns started out as plaintext; the API
+  -- detects the format on read and re-encrypts on next write.
+  secret TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_by UUID REFERENCES app_user(id) ON DELETE SET NULL,
+  CONSTRAINT integration_credential_owner_type_owner_id_key UNIQUE (owner_type, owner_id)
+);
+
+CREATE INDEX integration_credential_org_id_idx ON integration_credential (org_id);
+CREATE INDEX integration_credential_owner_type_owner_id_idx ON integration_credential (owner_type, owner_id);
+
+COMMENT ON TABLE integration_credential IS 'Encrypted credentials for external integrations. Readable only by service_role: RLS is enabled with no policies for anon or authenticated, so PostgREST returns nothing to clients. Ciphertext is AES-256-GCM under EXTENSION_ENCRYPTION_KEY.';
+ALTER TABLE integration_credential ENABLE ROW LEVEL SECURITY;
+
+
+-- ===========================================
+-- ADDITIONS TO TABLES OF EARLIER FILES
+-- ===========================================
+
+-- Added to organization (core.sql) by this module.
+ALTER TABLE organization ADD COLUMN google_drive_client_id TEXT;
+ALTER TABLE organization ADD COLUMN google_drive_client_secret TEXT;
+ALTER TABLE organization ADD COLUMN is_google_drive_enabled BOOLEAN DEFAULT false;
+ALTER TABLE organization ADD COLUMN google_drive_inspection_template_folder_id TEXT;
+
+-- Added to pending_org_member (core.sql) by this module.
+ALTER TABLE pending_org_member ADD COLUMN solidworks_license_ids UUID[] DEFAULT '{}'::uuid[];
+
+-- ===========================================
+-- FUNCTIONS, VIEWS, TRIGGERS AND POLICIES
+-- ===========================================
 
 -- Organization Integrations
-DROP POLICY IF EXISTS "Org members can view integrations" ON organization_integrations;
-CREATE POLICY "Org members can view integrations"
-  ON organization_integrations FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+CREATE POLICY "org_integration: org members read"
+  ON org_integration FOR SELECT
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()));
 
-DROP POLICY IF EXISTS "Admins can insert org integrations" ON organization_integrations;
-CREATE POLICY "Admins can insert org integrations"
-  ON organization_integrations FOR INSERT
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
+CREATE POLICY "org_integration: admins insert"
+  ON org_integration FOR INSERT
+  WITH CHECK (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND is_org_admin());
 
-DROP POLICY IF EXISTS "Admins can update org integrations" ON organization_integrations;
-CREATE POLICY "Admins can update org integrations"
-  ON organization_integrations FOR UPDATE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
+CREATE POLICY "org_integration: admins update"
+  ON org_integration FOR UPDATE
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND is_org_admin());
 
-DROP POLICY IF EXISTS "Admins can delete org integrations" ON organization_integrations;
-CREATE POLICY "Admins can delete org integrations"
-  ON organization_integrations FOR DELETE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
+CREATE POLICY "org_integration: admins delete"
+  ON org_integration FOR DELETE
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND is_org_admin());
 
 -- Integration Sync Log
-DROP POLICY IF EXISTS "Engineers can view sync logs" ON integration_sync_log;
-CREATE POLICY "Engineers can view sync logs"
+CREATE POLICY "integration_sync_log: engineers read"
   ON integration_sync_log FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('system:integrations', 'view'));
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND has_team_permission('system:integrations', 'view'));
 
-DROP POLICY IF EXISTS "System can insert sync logs" ON integration_sync_log;
-CREATE POLICY "System can insert sync logs"
+CREATE POLICY "integration_sync_log: system insert"
   ON integration_sync_log FOR INSERT
   -- Schema 112: triggered_by is the caller.
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND triggered_by = auth.uid());
+  WITH CHECK (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND triggered_by = auth.uid());
 
 -- Odoo Saved Configs
-DROP POLICY IF EXISTS "Org members can view odoo configs" ON odoo_saved_configs;
-CREATE POLICY "Org members can view odoo configs"
-  ON odoo_saved_configs FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+CREATE POLICY "odoo_saved_config: org members read"
+  ON odoo_saved_config FOR SELECT
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()));
 
-DROP POLICY IF EXISTS "Admins can insert odoo configs" ON odoo_saved_configs;
-CREATE POLICY "Admins can insert odoo configs"
-  ON odoo_saved_configs FOR INSERT
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
+CREATE POLICY "odoo_saved_config: admins insert"
+  ON odoo_saved_config FOR INSERT
+  WITH CHECK (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND is_org_admin());
 
-DROP POLICY IF EXISTS "Admins can update odoo configs" ON odoo_saved_configs;
-CREATE POLICY "Admins can update odoo configs"
-  ON odoo_saved_configs FOR UPDATE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
+CREATE POLICY "odoo_saved_config: admins update"
+  ON odoo_saved_config FOR UPDATE
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND is_org_admin());
 
-DROP POLICY IF EXISTS "Admins can delete odoo configs" ON odoo_saved_configs;
-CREATE POLICY "Admins can delete odoo configs"
-  ON odoo_saved_configs FOR DELETE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
-
+CREATE POLICY "odoo_saved_config: admins delete"
+  ON odoo_saved_config FOR DELETE
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND is_org_admin());
 
 -- Webhooks
-DROP POLICY IF EXISTS "Users can view their org webhooks" ON webhooks;
-CREATE POLICY "Users can view their org webhooks"
-  ON webhooks FOR SELECT
+CREATE POLICY "webhook: users read"
+  ON webhook FOR SELECT
   -- Schema 112: admins only; the row carries the signing secret. Every write was
   -- already admin-only and nothing outside the admin settings page reads it.
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND is_org_admin());
 
-DROP POLICY IF EXISTS "Admins can insert webhooks" ON webhooks;
-CREATE POLICY "Admins can insert webhooks"
-  ON webhooks FOR INSERT
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
+CREATE POLICY "webhook: admins insert"
+  ON webhook FOR INSERT
+  WITH CHECK (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND is_org_admin());
 
-DROP POLICY IF EXISTS "Admins can update webhooks" ON webhooks;
-CREATE POLICY "Admins can update webhooks"
-  ON webhooks FOR UPDATE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
+CREATE POLICY "webhook: admins update"
+  ON webhook FOR UPDATE
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND is_org_admin());
 
-DROP POLICY IF EXISTS "Admins can delete webhooks" ON webhooks;
-CREATE POLICY "Admins can delete webhooks"
-  ON webhooks FOR DELETE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
+CREATE POLICY "webhook: admins delete"
+  ON webhook FOR DELETE
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND is_org_admin());
 
 -- Webhook Deliveries
-DROP POLICY IF EXISTS "Users can view their org webhook deliveries" ON webhook_deliveries;
-CREATE POLICY "Users can view their org webhook deliveries"
-  ON webhook_deliveries FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
+CREATE POLICY "webhook_delivery: users read"
+  ON webhook_delivery FOR SELECT
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND is_org_admin());
 
 -- Schema 112: withdrawn. "Service" policies with TRUE applied to every role,
 -- anon included, so anyone could insert or rewrite any organization's delivery
 -- log. The service role bypasses RLS and needs no policy.
-DROP POLICY IF EXISTS "Service can insert webhook deliveries" ON webhook_deliveries;
-DROP POLICY IF EXISTS "Service can update webhook deliveries" ON webhook_deliveries;
 
 -- ===========================================
 -- HELPER FUNCTIONS
 -- ===========================================
 
 -- Get organization integration status (no credentials exposed)
-CREATE OR REPLACE FUNCTION get_org_integration_status(p_org_id UUID, p_integration_type TEXT)
+CREATE OR REPLACE FUNCTION org_integration_get_status(p_org_id UUID, p_integration_type TEXT)
 RETURNS TABLE (
   id UUID,
   integration_type TEXT,
   is_active BOOLEAN,
   is_connected BOOLEAN,
   last_connected_at TIMESTAMPTZ,
-  auto_sync BOOLEAN,
+  is_auto_sync BOOLEAN,
   last_sync_at TIMESTAMPTZ,
   last_sync_status TEXT,
   last_sync_count INT
 ) AS $$
 BEGIN
   -- Returns the empty set rather than raising, so is_org_member() rather than
-  -- require_org_member(). The test was
-  -- `p_org_id NOT IN (SELECT org_id FROM users WHERE users.id = auth.uid())`,
+  -- org_require_member(). The test was
+  -- `p_org_id NOT IN (SELECT org_id FROM users WHERE app_user.id = auth.uid())`,
   -- which is NULL for an account that has not joined an organization, so the
   -- RETURN was skipped and the query below ran for the named organization.
   -- Reproduced against another tenant's Odoo integration.
@@ -527,17 +509,16 @@ BEGIN
   RETURN QUERY
   SELECT 
     oi.id, oi.integration_type, oi.is_active, oi.is_connected,
-    oi.last_connected_at, oi.auto_sync, oi.last_sync_at,
+    oi.last_connected_at, oi.is_auto_sync, oi.last_sync_at,
     oi.last_sync_status, oi.last_sync_count
-  FROM organization_integrations oi
+  FROM org_integration oi
   WHERE oi.org_id = p_org_id AND oi.integration_type = p_integration_type AND oi.is_active = true;
 END;
-$$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
-
-GRANT EXECUTE ON FUNCTION get_org_integration_status(UUID, TEXT) TO authenticated;
+$$ LANGUAGE plpgsql STABLE SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 -- Get Odoo configs (no API keys exposed)
-CREATE OR REPLACE FUNCTION get_org_odoo_configs(p_org_id UUID)
+CREATE OR REPLACE FUNCTION odoo_saved_config_list(p_org_id UUID)
 RETURNS TABLE (
   id UUID,
   name TEXT,
@@ -547,12 +528,12 @@ RETURNS TABLE (
   color TEXT,
   is_active BOOLEAN,
   last_tested_at TIMESTAMPTZ,
-  last_test_success BOOLEAN,
+  is_last_test_successful BOOLEAN,
   created_at TIMESTAMPTZ
 ) AS $$
 BEGIN
-  -- Same NULL-unsafe test as get_org_integration_status. Reproduced: an account
-  -- with users.org_id NULL read another tenant's saved Odoo configuration -
+  -- Same NULL-unsafe test as org_integration_get_status. Reproduced: an account
+  -- with app_user.org_id NULL read another tenant's saved Odoo configuration -
   -- its URL, database name and service account - over PostgREST.
   IF NOT is_org_member(p_org_id) THEN
     RETURN;
@@ -561,20 +542,19 @@ BEGIN
   RETURN QUERY
   SELECT 
     osc.id, osc.name, osc.description, osc.url, osc.database,
-    osc.color, osc.is_active, osc.last_tested_at, osc.last_test_success, osc.created_at
-  FROM odoo_saved_configs osc
+    osc.color, osc.is_active, osc.last_tested_at, osc.is_last_test_successful, osc.created_at
+  FROM odoo_saved_config osc
   WHERE osc.org_id = p_org_id AND osc.is_active = true
   ORDER BY osc.name;
 END;
-$$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
-
-GRANT EXECUTE ON FUNCTION get_org_odoo_configs(UUID) TO authenticated;
+$$ LANGUAGE plpgsql STABLE SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 -- Get webhooks for event
-CREATE OR REPLACE FUNCTION get_webhooks_for_event(p_org_id UUID, p_event_type webhook_event)
-RETURNS SETOF webhooks
+CREATE OR REPLACE FUNCTION webhook_list_for_event(p_org_id UUID, p_event_type webhook_event)
+RETURNS SETOF webhook
 LANGUAGE sql STABLE AS $$
-  SELECT * FROM webhooks
+  SELECT * FROM webhook
   WHERE org_id = p_org_id AND is_active = TRUE AND p_event_type = ANY(events);
 $$;
 
@@ -585,42 +565,42 @@ $$;
 -- correct, and their correctness was the problem: check_org_gates() had to
 -- treat a bare auth.uid() as evidence of a gate in order to keep passing them,
 -- and that accommodation certified a function with no authorization at all. See
--- c_gate_binding in core.sql. require_org_member() admits exactly the same
+-- c_gate_binding in core.sql. org_require_member() admits exactly the same
 -- callers this test did.
-DROP FUNCTION IF EXISTS get_google_drive_settings(UUID);
-CREATE OR REPLACE FUNCTION get_google_drive_settings(p_org_id UUID)
-RETURNS TABLE (client_id TEXT, client_secret TEXT, enabled BOOLEAN, inspection_template_folder_id TEXT) 
-SECURITY DEFINER AS $$
+CREATE OR REPLACE FUNCTION org_get_google_drive_settings(p_org_id UUID)
+RETURNS TABLE (client_id TEXT, client_secret TEXT, is_enabled BOOLEAN, inspection_template_folder_id TEXT) 
+SECURITY DEFINER
+SET search_path = public, pg_temp AS $$
 BEGIN
-  PERFORM require_org_member(p_org_id);
+  PERFORM org_require_member(p_org_id);
 
   RETURN QUERY
-  SELECT o.google_drive_client_id, o.google_drive_client_secret, o.google_drive_enabled,
+  SELECT o.google_drive_client_id, o.google_drive_client_secret, o.is_google_drive_enabled,
          o.google_drive_inspection_template_folder_id
-  FROM organizations o WHERE o.id = p_org_id;
+  FROM organization o WHERE o.id = p_org_id;
 END;
 $$ LANGUAGE plpgsql;
 
-DROP FUNCTION IF EXISTS update_google_drive_settings(UUID, TEXT, TEXT, BOOLEAN);
-CREATE OR REPLACE FUNCTION update_google_drive_settings(
+CREATE OR REPLACE FUNCTION org_update_google_drive_settings(
   p_org_id UUID, p_client_id TEXT, p_client_secret TEXT, p_enabled BOOLEAN,
   p_inspection_template_folder_id TEXT DEFAULT NULL
-) RETURNS BOOLEAN SECURITY DEFINER AS $$
+) RETURNS BOOLEAN SECURITY DEFINER
+SET search_path = public, pg_temp AS $$
 BEGIN
   -- Membership first, then the narrower admin question. The organization
   -- binding is a call something can recognise. "Admin" is is_org_admin(): the
   -- role column OR membership of the Administrators team, the same answer the
   -- renderer and the API now give.
-  PERFORM require_org_member(p_org_id);
+  PERFORM org_require_member(p_org_id);
 
   IF NOT is_org_admin() THEN
     RAISE EXCEPTION 'Only admins can update Google Drive settings';
   END IF;
   
-  UPDATE organizations
+  UPDATE organization
   SET google_drive_client_id = p_client_id,
       google_drive_client_secret = p_client_secret,
-      google_drive_enabled = p_enabled,
+      is_google_drive_enabled = p_enabled,
       google_drive_inspection_template_folder_id = p_inspection_template_folder_id
   WHERE id = p_org_id;
   
@@ -628,116 +608,19 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-GRANT EXECUTE ON FUNCTION get_google_drive_settings(UUID) TO authenticated;
-GRANT EXECUTE ON FUNCTION update_google_drive_settings(UUID, TEXT, TEXT, BOOLEAN, TEXT) TO authenticated;
-
 -- ===========================================
 -- TRIGGERS
 -- ===========================================
-
-DROP TRIGGER IF EXISTS webhooks_updated_at ON webhooks;
-CREATE TRIGGER webhooks_updated_at
-  BEFORE UPDATE ON webhooks
+CREATE TRIGGER trg_webhook_set_updated_at
+  BEFORE UPDATE ON webhook
   FOR EACH ROW
-  EXECUTE FUNCTION update_updated_at_column();
-
--- ===========================================
--- REALTIME
--- ===========================================
-
-ALTER TABLE webhooks REPLICA IDENTITY FULL;
-ALTER TABLE organization_integrations REPLICA IDENTITY FULL;
-ALTER TABLE odoo_saved_configs REPLICA IDENTITY FULL;
-DO $$
-BEGIN
-  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE webhooks; EXCEPTION WHEN duplicate_object THEN NULL; END;
-  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE organization_integrations; EXCEPTION WHEN duplicate_object THEN NULL; END;
-  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE odoo_saved_configs; EXCEPTION WHEN duplicate_object THEN NULL; END;
-END $$;
-
--- ===========================================
--- COMMENTS
--- ===========================================
-
-COMMENT ON TABLE organization_integrations IS 'Generic integration configurations for orgs';
-COMMENT ON TABLE integration_sync_log IS 'Audit trail for integration sync operations';
-COMMENT ON COLUMN integration_sync_log.sync_watermark IS
-  'How far through the source system''s change history this run got, in the SOURCE system''s clock (for Odoo, res.partner/sale.order write_date). The next run of the same sync_type resumes from the newest successful run''s value. Only written on success, so a cancelled or failed run leaves the window to be re-read.';
-COMMENT ON TABLE odoo_saved_configs IS 'Saved Odoo ERP connection configurations';
-COMMENT ON TABLE webhooks IS 'Webhook configurations for external integrations';
-COMMENT ON TABLE webhook_deliveries IS 'Webhook delivery attempts and history';
-
--- ===========================================
--- SOLIDWORKS LICENSE MANAGEMENT
--- ===========================================
-
--- Enum for license types
-DO $$ BEGIN
-  CREATE TYPE solidworks_license_type AS ENUM ('standalone', 'network');
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
--- Table: SOLIDWORKS Licenses
-CREATE TABLE IF NOT EXISTS solidworks_licenses (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  
-  -- License details
-  serial_number TEXT NOT NULL,
-  nickname TEXT,
-  license_type solidworks_license_type DEFAULT 'standalone',
-  product_name TEXT,
-  seats INTEGER DEFAULT 1,
-  
-  -- Dates
-  purchase_date DATE,
-  expiry_date DATE,
-  
-  -- Notes
-  notes TEXT,
-  
-  -- Metadata
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  created_by UUID REFERENCES users(id),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  
-  UNIQUE(org_id, serial_number)
-);
-
-CREATE INDEX IF NOT EXISTS idx_solidworks_licenses_org_id ON solidworks_licenses(org_id);
-
--- Table: SOLIDWORKS License Assignments
-CREATE TABLE IF NOT EXISTS solidworks_license_assignments (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  license_id UUID NOT NULL REFERENCES solidworks_licenses(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  
-  -- Assignment tracking
-  assigned_at TIMESTAMPTZ DEFAULT NOW(),
-  assigned_by UUID REFERENCES users(id),
-  
-  -- Activation status
-  is_active BOOLEAN DEFAULT false,
-  activated_at TIMESTAMPTZ,
-  machine_id TEXT,
-  machine_name TEXT,
-  deactivated_at TIMESTAMPTZ,
-  
-  UNIQUE(license_id, user_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_solidworks_license_assignments_license_id ON solidworks_license_assignments(license_id);
-CREATE INDEX IF NOT EXISTS idx_solidworks_license_assignments_user_id ON solidworks_license_assignments(user_id);
-
--- RLS for SOLIDWORKS Licenses
-ALTER TABLE solidworks_licenses ENABLE ROW LEVEL SECURITY;
-ALTER TABLE solidworks_license_assignments ENABLE ROW LEVEL SECURITY;
+  EXECUTE FUNCTION trg_set_updated_at();
 
 -- Licenses: admins read every licence in their organization; anyone else reads
 -- only the licences assigned to them (schema 106). Before 106 every member read
 -- every row, serial_number included. The assignment test goes through a
 -- SECURITY DEFINER helper because the assignment policies below read
--- solidworks_licenses, and a licence policy that read the assignments table
+-- solidworks_license, and a licence policy that read the assignments table
 -- under RLS would recurse.
 --
 -- The helper takes no argument on purpose: it answers only about the caller, so
@@ -750,96 +633,82 @@ STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT license_id FROM solidworks_license_assignments WHERE user_id = auth.uid()
+  SELECT license_id FROM solidworks_license_assignment WHERE user_id = auth.uid()
 $$;
 
-REVOKE ALL ON FUNCTION my_solidworks_license_ids() FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION my_solidworks_license_ids() TO authenticated;
-
-DROP POLICY IF EXISTS "Org members can view solidworks licenses" ON solidworks_licenses;
-DROP POLICY IF EXISTS "Admins and assignees can view solidworks licenses" ON solidworks_licenses;
-CREATE POLICY "Admins and assignees can view solidworks licenses"
-  ON solidworks_licenses FOR SELECT
+CREATE POLICY "solidworks_license: admins and assignees read"
+  ON solidworks_license FOR SELECT
   USING (
-    org_id IN (SELECT org_id FROM users WHERE id = auth.uid())
+    org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid())
     AND (is_org_admin() OR id IN (SELECT my_solidworks_license_ids()))
   );
 
 -- Licenses: Admins can insert
-DROP POLICY IF EXISTS "Admins can insert solidworks licenses" ON solidworks_licenses;
-CREATE POLICY "Admins can insert solidworks licenses"
-  ON solidworks_licenses FOR INSERT
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
+CREATE POLICY "solidworks_license: admins insert"
+  ON solidworks_license FOR INSERT
+  WITH CHECK (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND is_org_admin());
 
 -- Licenses: Admins can update
-DROP POLICY IF EXISTS "Admins can update solidworks licenses" ON solidworks_licenses;
-CREATE POLICY "Admins can update solidworks licenses"
-  ON solidworks_licenses FOR UPDATE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
+CREATE POLICY "solidworks_license: admins update"
+  ON solidworks_license FOR UPDATE
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND is_org_admin());
 
 -- Licenses: Admins can delete
-DROP POLICY IF EXISTS "Admins can delete solidworks licenses" ON solidworks_licenses;
-CREATE POLICY "Admins can delete solidworks licenses"
-  ON solidworks_licenses FOR DELETE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
+CREATE POLICY "solidworks_license: admins delete"
+  ON solidworks_license FOR DELETE
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND is_org_admin());
 
 -- Assignments: users read their own, admins read every assignment in the org.
 -- The second arm used to admit any org member (the comment always said admins),
 -- which told every member who held which licence.
-DROP POLICY IF EXISTS "Users can view own license assignments" ON solidworks_license_assignments;
-CREATE POLICY "Users can view own license assignments"
-  ON solidworks_license_assignments FOR SELECT
+CREATE POLICY "solidworks_license_assignment: users read own"
+  ON solidworks_license_assignment FOR SELECT
   USING (
     user_id = auth.uid() OR (
       is_org_admin() AND license_id IN (
-        SELECT id FROM solidworks_licenses
-        WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())
+        SELECT id FROM solidworks_license
+        WHERE org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid())
       )
     )
   );
 
 -- Assignments: Admins can manage all
-DROP POLICY IF EXISTS "Admins can insert license assignments" ON solidworks_license_assignments;
-CREATE POLICY "Admins can insert license assignments"
-  ON solidworks_license_assignments FOR INSERT
+CREATE POLICY "solidworks_license_assignment: admins insert"
+  ON solidworks_license_assignment FOR INSERT
   WITH CHECK (
     license_id IN (
-      SELECT id FROM solidworks_licenses 
-      WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())
+      SELECT id FROM solidworks_license 
+      WHERE org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid())
     ) AND is_org_admin()
   );
 
-DROP POLICY IF EXISTS "Admins can update license assignments" ON solidworks_license_assignments;
-CREATE POLICY "Admins can update license assignments"
-  ON solidworks_license_assignments FOR UPDATE
+CREATE POLICY "solidworks_license_assignment: admins update"
+  ON solidworks_license_assignment FOR UPDATE
   USING (
     license_id IN (
-      SELECT id FROM solidworks_licenses 
-      WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())
+      SELECT id FROM solidworks_license 
+      WHERE org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid())
     ) AND is_org_admin()
   );
 
-DROP POLICY IF EXISTS "Admins can delete license assignments" ON solidworks_license_assignments;
-CREATE POLICY "Admins can delete license assignments"
-  ON solidworks_license_assignments FOR DELETE
+CREATE POLICY "solidworks_license_assignment: admins delete"
+  ON solidworks_license_assignment FOR DELETE
   USING (
     license_id IN (
-      SELECT id FROM solidworks_licenses 
-      WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())
+      SELECT id FROM solidworks_license 
+      WHERE org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid())
     ) AND is_org_admin()
   );
 
 -- Withdrawn in schema 106. It let a user UPDATE any column of their own
 -- assignment, license_id included, so pointing it at another licence made that
 -- licence's serial readable through the assignee arm of the licence policy.
--- Users change their activation through activate_solidworks_license() and
--- deactivate_solidworks_license(), which are SECURITY DEFINER and touch only
+-- Users change their activation through solidworks_license_activate() and
+-- solidworks_license_deactivate(), which are SECURITY DEFINER and touch only
 -- the activation columns; nothing in the app updated the row directly.
-DROP POLICY IF EXISTS "Users can update own assignment activation" ON solidworks_license_assignments;
 
 -- Helper function: Assign license to user
-DROP FUNCTION IF EXISTS assign_solidworks_license(UUID, UUID);
-CREATE OR REPLACE FUNCTION assign_solidworks_license(
+CREATE OR REPLACE FUNCTION solidworks_license_assign(
   p_license_id UUID,
   p_user_id UUID
 ) RETURNS JSON AS $$
@@ -852,7 +721,7 @@ BEGIN
   v_current_user_id := auth.uid();
   
   -- Get license org
-  SELECT org_id INTO v_license_org_id FROM solidworks_licenses WHERE id = p_license_id;
+  SELECT org_id INTO v_license_org_id FROM solidworks_license WHERE id = p_license_id;
   
   IF v_license_org_id IS NULL THEN
     RETURN json_build_object('success', false, 'error', 'License not found');
@@ -863,7 +732,7 @@ BEGIN
   -- own. An admin anywhere could therefore hand out any other organization's
   -- licences. Membership of the licence's organization is the missing half.
   IF NOT EXISTS (
-    SELECT 1 FROM users u WHERE u.id = v_current_user_id AND u.org_id = v_license_org_id
+    SELECT 1 FROM app_user u WHERE u.id = v_current_user_id AND u.org_id = v_license_org_id
   ) THEN
     RETURN json_build_object('success', false, 'error', 'License not found');
   END IF;
@@ -874,31 +743,29 @@ BEGIN
   END IF;
   
   -- Verify target user is in the same org
-  SELECT org_id INTO v_user_org_id FROM users WHERE id = p_user_id;
+  SELECT org_id INTO v_user_org_id FROM app_user WHERE id = p_user_id;
   
   IF v_user_org_id IS NULL OR v_user_org_id != v_license_org_id THEN
     RETURN json_build_object('success', false, 'error', 'User not found in organization');
   END IF;
   
   -- Check if assignment already exists
-  IF EXISTS (SELECT 1 FROM solidworks_license_assignments WHERE license_id = p_license_id AND user_id = p_user_id) THEN
+  IF EXISTS (SELECT 1 FROM solidworks_license_assignment WHERE license_id = p_license_id AND user_id = p_user_id) THEN
     RETURN json_build_object('success', false, 'error', 'License already assigned to this user');
   END IF;
   
   -- Create assignment
-  INSERT INTO solidworks_license_assignments (license_id, user_id, assigned_by)
+  INSERT INTO solidworks_license_assignment (license_id, user_id, assigned_by)
   VALUES (p_license_id, p_user_id, v_current_user_id)
   RETURNING id INTO v_assignment_id;
   
   RETURN json_build_object('success', true, 'assignment_id', v_assignment_id);
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-GRANT EXECUTE ON FUNCTION assign_solidworks_license(UUID, UUID) TO authenticated;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 -- Helper function: Unassign license from user
-DROP FUNCTION IF EXISTS unassign_solidworks_license(UUID);
-CREATE OR REPLACE FUNCTION unassign_solidworks_license(
+CREATE OR REPLACE FUNCTION solidworks_license_unassign(
   p_assignment_id UUID
 ) RETURNS JSON AS $$
 DECLARE
@@ -906,8 +773,8 @@ DECLARE
 BEGIN
   -- Get the org from the license via assignment
   SELECT sl.org_id INTO v_license_org_id
-  FROM solidworks_license_assignments sla
-  JOIN solidworks_licenses sl ON sl.id = sla.license_id
+  FROM solidworks_license_assignment sla
+  JOIN solidworks_license sl ON sl.id = sla.license_id
   WHERE sla.id = p_assignment_id;
   
   IF v_license_org_id IS NULL THEN
@@ -919,7 +786,7 @@ BEGIN
   -- assignments. Same refusal as a nonexistent assignment, so this is not a way
   -- to enumerate them.
   IF NOT EXISTS (
-    SELECT 1 FROM users u WHERE u.id = auth.uid() AND u.org_id = v_license_org_id
+    SELECT 1 FROM app_user u WHERE u.id = auth.uid() AND u.org_id = v_license_org_id
   ) THEN
     RETURN json_build_object('success', false, 'error', 'Assignment not found');
   END IF;
@@ -930,17 +797,15 @@ BEGIN
   END IF;
   
   -- Delete assignment
-  DELETE FROM solidworks_license_assignments WHERE id = p_assignment_id;
+  DELETE FROM solidworks_license_assignment WHERE id = p_assignment_id;
   
   RETURN json_build_object('success', true);
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-GRANT EXECUTE ON FUNCTION unassign_solidworks_license(UUID) TO authenticated;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 -- Helper function: Activate license on a machine
-DROP FUNCTION IF EXISTS activate_solidworks_license(UUID, TEXT, TEXT);
-CREATE OR REPLACE FUNCTION activate_solidworks_license(
+CREATE OR REPLACE FUNCTION solidworks_license_activate(
   p_assignment_id UUID,
   p_machine_id TEXT,
   p_machine_name TEXT DEFAULT NULL
@@ -951,8 +816,8 @@ DECLARE
 BEGIN
   -- Get the assignment user
   SELECT sla.user_id, sl.org_id INTO v_user_id, v_license_org_id
-  FROM solidworks_license_assignments sla
-  JOIN solidworks_licenses sl ON sl.id = sla.license_id
+  FROM solidworks_license_assignment sla
+  JOIN solidworks_license sl ON sl.id = sla.license_id
   WHERE sla.id = p_assignment_id;
   
   IF v_user_id IS NULL THEN
@@ -963,7 +828,7 @@ BEGIN
   -- let an admin anywhere activate any assignment. Scope it to this licence's
   -- organization.
   IF NOT EXISTS (
-    SELECT 1 FROM users u WHERE u.id = auth.uid() AND u.org_id = v_license_org_id
+    SELECT 1 FROM app_user u WHERE u.id = auth.uid() AND u.org_id = v_license_org_id
   ) THEN
     RETURN json_build_object('success', false, 'error', 'Assignment not found');
   END IF;
@@ -974,7 +839,7 @@ BEGIN
   END IF;
   
   -- Update activation status
-  UPDATE solidworks_license_assignments
+  UPDATE solidworks_license_assignment
   SET 
     is_active = true,
     activated_at = NOW(),
@@ -985,13 +850,11 @@ BEGIN
   
   RETURN json_build_object('success', true, 'activated_at', NOW());
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-GRANT EXECUTE ON FUNCTION activate_solidworks_license(UUID, TEXT, TEXT) TO authenticated;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 -- Helper function: Deactivate license
-DROP FUNCTION IF EXISTS deactivate_solidworks_license(UUID);
-CREATE OR REPLACE FUNCTION deactivate_solidworks_license(
+CREATE OR REPLACE FUNCTION solidworks_license_deactivate(
   p_assignment_id UUID
 ) RETURNS JSON AS $$
 DECLARE
@@ -1000,8 +863,8 @@ DECLARE
 BEGIN
   -- Get the assignment user
   SELECT sla.user_id, sl.org_id INTO v_user_id, v_license_org_id
-  FROM solidworks_license_assignments sla
-  JOIN solidworks_licenses sl ON sl.id = sla.license_id
+  FROM solidworks_license_assignment sla
+  JOIN solidworks_license sl ON sl.id = sla.license_id
   WHERE sla.id = p_assignment_id;
   
   IF v_user_id IS NULL THEN
@@ -1011,7 +874,7 @@ BEGIN
   -- Scope the admin check to this licence's organization; is_org_admin() only
   -- says the caller is an admin of their own.
   IF NOT EXISTS (
-    SELECT 1 FROM users u WHERE u.id = auth.uid() AND u.org_id = v_license_org_id
+    SELECT 1 FROM app_user u WHERE u.id = auth.uid() AND u.org_id = v_license_org_id
   ) THEN
     RETURN json_build_object('success', false, 'error', 'Assignment not found');
   END IF;
@@ -1022,7 +885,7 @@ BEGIN
   END IF;
   
   -- Update deactivation status
-  UPDATE solidworks_license_assignments
+  UPDATE solidworks_license_assignment
   SET 
     is_active = false,
     deactivated_at = NOW()
@@ -1030,41 +893,17 @@ BEGIN
   
   RETURN json_build_object('success', true, 'deactivated_at', NOW());
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-GRANT EXECUTE ON FUNCTION deactivate_solidworks_license(UUID) TO authenticated;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 -- Trigger for updated_at
-DROP TRIGGER IF EXISTS solidworks_licenses_updated_at ON solidworks_licenses;
-CREATE TRIGGER solidworks_licenses_updated_at
-  BEFORE UPDATE ON solidworks_licenses
+CREATE TRIGGER trg_solidworks_license_set_updated_at
+  BEFORE UPDATE ON solidworks_license
   FOR EACH ROW
-  EXECUTE FUNCTION update_updated_at_column();
-
--- Realtime for license management
-ALTER TABLE solidworks_licenses REPLICA IDENTITY FULL;
-ALTER TABLE solidworks_license_assignments REPLICA IDENTITY FULL;
-
-DO $$
-BEGIN
-  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE solidworks_licenses; EXCEPTION WHEN duplicate_object THEN NULL; END;
-  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE solidworks_license_assignments; EXCEPTION WHEN duplicate_object THEN NULL; END;
-END $$;
-
--- Comments
-COMMENT ON TABLE solidworks_licenses IS 'Organization SOLIDWORKS license keys and metadata';
-COMMENT ON TABLE solidworks_license_assignments IS 'User-license assignments with activation tracking';
-
--- ===========================================
--- PENDING USER LICENSE ASSIGNMENTS
--- ===========================================
-
--- Add solidworks_license_ids column to pending_org_members for pre-assigning licenses
-ALTER TABLE pending_org_members ADD COLUMN IF NOT EXISTS solidworks_license_ids UUID[] DEFAULT '{}';
+  EXECUTE FUNCTION trg_set_updated_at();
 
 -- Function to add a license to a pending member's pre-assigned list
-DROP FUNCTION IF EXISTS add_pending_license_assignment(UUID, UUID);
-CREATE OR REPLACE FUNCTION add_pending_license_assignment(
+CREATE OR REPLACE FUNCTION pending_license_assignment_add(
   p_pending_member_id UUID,
   p_license_id UUID
 ) RETURNS JSON AS $$
@@ -1078,7 +917,7 @@ BEGIN
   END IF;
   
   -- Get pending member
-  SELECT * INTO v_pending FROM pending_org_members WHERE id = p_pending_member_id AND claimed_at IS NULL;
+  SELECT * INTO v_pending FROM pending_org_member WHERE id = p_pending_member_id AND claimed_at IS NULL;
   IF NOT FOUND THEN
     RETURN json_build_object('success', false, 'error', 'Pending member not found');
   END IF;
@@ -1087,19 +926,19 @@ BEGIN
   -- so without this an admin elsewhere could edit this organization's pending
   -- invitations. Same refusal as a nonexistent invitation.
   IF NOT EXISTS (
-    SELECT 1 FROM users u WHERE u.id = auth.uid() AND u.org_id = v_pending.org_id
+    SELECT 1 FROM app_user u WHERE u.id = auth.uid() AND u.org_id = v_pending.org_id
   ) THEN
     RETURN json_build_object('success', false, 'error', 'Pending member not found');
   END IF;
   
   -- Verify license belongs to same org
-  SELECT org_id INTO v_license_org_id FROM solidworks_licenses WHERE id = p_license_id;
+  SELECT org_id INTO v_license_org_id FROM solidworks_license WHERE id = p_license_id;
   IF v_license_org_id IS NULL OR v_license_org_id != v_pending.org_id THEN
     RETURN json_build_object('success', false, 'error', 'License not found in organization');
   END IF;
   
   -- Add license to array if not already present
-  UPDATE pending_org_members
+  UPDATE pending_org_member
   SET solidworks_license_ids = array_append(
     array_remove(solidworks_license_ids, p_license_id), -- Remove first to avoid duplicates
     p_license_id
@@ -1108,13 +947,11 @@ BEGIN
   
   RETURN json_build_object('success', true);
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-GRANT EXECUTE ON FUNCTION add_pending_license_assignment(UUID, UUID) TO authenticated;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 -- Function to remove a license from a pending member's pre-assigned list
-DROP FUNCTION IF EXISTS remove_pending_license_assignment(UUID, UUID);
-CREATE OR REPLACE FUNCTION remove_pending_license_assignment(
+CREATE OR REPLACE FUNCTION pending_license_assignment_remove(
   p_pending_member_id UUID,
   p_license_id UUID
 ) RETURNS JSON AS $$
@@ -1126,22 +963,20 @@ BEGIN
   
   -- ...of this invitation's organization. is_org_admin() alone let an admin
   -- anywhere strip licences from anyone's pending invitations.
-  UPDATE pending_org_members
+  UPDATE pending_org_member
   SET solidworks_license_ids = array_remove(solidworks_license_ids, p_license_id)
   WHERE id = p_pending_member_id
     AND claimed_at IS NULL
-    AND org_id = (SELECT u.org_id FROM users u WHERE u.id = auth.uid());
+    AND org_id = (SELECT u.org_id FROM app_user u WHERE u.id = auth.uid());
   
   RETURN json_build_object('success', true);
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-GRANT EXECUTE ON FUNCTION remove_pending_license_assignment(UUID, UUID) TO authenticated;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 -- Function to apply pending license assignments when user signs up
--- This should be called from the claim_pending_membership trigger
-DROP FUNCTION IF EXISTS apply_pending_license_assignments(UUID);
-CREATE OR REPLACE FUNCTION apply_pending_license_assignments(p_user_id UUID)
+-- This should be called from the trg_app_user_claim_pending_membership trigger
+CREATE OR REPLACE FUNCTION pending_license_assignment_apply(p_user_id UUID)
 RETURNS VOID AS $$
 DECLARE
   v_pending RECORD;
@@ -1150,11 +985,11 @@ DECLARE
 BEGIN
   -- Find the pending member record for this user
   SELECT * INTO v_pending
-  FROM pending_org_members
+  FROM pending_org_member
   -- Schema 111: verified address and the account's own organization, as in
-  -- apply_pending_team_memberships() (core.sql).
-  WHERE LOWER(email) = verified_auth_email(p_user_id)
-    AND org_id = (SELECT org_id FROM users WHERE id = p_user_id)
+  -- team_member_apply_pending() (core.sql).
+  WHERE LOWER(email) = user_get_verified_email(p_user_id)
+    AND org_id = (SELECT org_id FROM app_user WHERE id = p_user_id)
     AND claimed_at IS NULL
   LIMIT 1;
   
@@ -1170,97 +1005,27 @@ BEGIN
     LOOP
       -- Only assign if license still exists and isn't already assigned to someone else
       IF EXISTS (
-        SELECT 1 FROM solidworks_licenses 
+        SELECT 1 FROM solidworks_license 
         WHERE id = v_license_id 
         AND org_id = v_pending.org_id
-        AND NOT EXISTS (SELECT 1 FROM solidworks_license_assignments WHERE license_id = v_license_id)
+        AND NOT EXISTS (SELECT 1 FROM solidworks_license_assignment WHERE license_id = v_license_id)
       ) THEN
-        INSERT INTO solidworks_license_assignments (license_id, user_id, assigned_by)
+        INSERT INTO solidworks_license_assignment (license_id, user_id, assigned_by)
         VALUES (v_license_id, p_user_id, v_invited_by)
         ON CONFLICT DO NOTHING;
       END IF;
     END LOOP;
   END IF;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Trigger-only, and withdrawn rather than gated, for the same reason as
--- apply_pending_team_memberships() in core.sql: it runs from
--- claim_pending_membership() and from the API's service-role invite path, where
--- auth.uid() is NULL, so there is no caller identity to check. Granted to
--- authenticated it was an endpoint that took a user id and handed that user
--- whatever licences an invitation named; granted to anon - which Supabase's
--- default privileges did - it was that without logging in.
-REVOKE ALL ON FUNCTION apply_pending_license_assignments(UUID) FROM PUBLIC, anon, authenticated;
-
--- Update the claim_pending_membership trigger function to also apply license assignments
-CREATE OR REPLACE FUNCTION claim_pending_membership()
-RETURNS TRIGGER AS $$
-BEGIN
-  PERFORM apply_pending_team_memberships(NEW.id);
-  PERFORM apply_pending_license_assignments(NEW.id);
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- ===========================================
--- CREDENTIAL STORE
--- ===========================================
---
--- odoo_saved_configs.api_key_encrypted and
--- organization_integrations.credentials_encrypted were named as though they
--- held ciphertext, but the API wrote the raw API key straight into them and
--- read it straight back out. Two consequences:
---
---   1. The values were plaintext at rest, despite the column names.
---   2. The SELECT policies on both tables grant access to every org member,
---      not just admins, so any authenticated user in the org could read
---      another team's ERP credentials directly through PostgREST.
---
--- Postgres RLS filters rows, not columns, so no policy change can hide a
--- credential column from a role that can read the row. The only robust fix is
--- to move the secret into a table that clients cannot read at all.
-
-CREATE TABLE IF NOT EXISTS integration_credentials (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-
-  -- Which record this credential belongs to. Deliberately not a foreign key
-  -- per source table: new integrations should not require a schema change.
-  owner_type TEXT NOT NULL CHECK (owner_type IN ('odoo_saved_config', 'organization_integration')),
-  owner_id UUID NOT NULL,
-
-  -- AES-256-GCM ciphertext in `iv:authTag:ciphertext` base64 form, written by
-  -- the API using EXTENSION_ENCRYPTION_KEY.
-  --
-  -- Rows migrated from the old columns below start out as PLAINTEXT, because
-  -- the encryption key is only available to the API process and not to this
-  -- migration. The API detects the format on read and re-encrypts on next
-  -- write, so values migrate themselves as they are used. They are not
-  -- client-readable in the meantime, which is the point of this table.
-  secret TEXT,
-
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
-
-  UNIQUE (owner_type, owner_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_integration_credentials_org ON integration_credentials(org_id);
-CREATE INDEX IF NOT EXISTS idx_integration_credentials_owner ON integration_credentials(owner_type, owner_id);
-
-ALTER TABLE integration_credentials ENABLE ROW LEVEL SECURITY;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 -- No policies are defined for anon or authenticated, and that is deliberate.
 -- With RLS enabled and no matching policy, PostgREST returns zero rows to
 -- those roles. service_role bypasses RLS, so only the API can reach these
 -- values. Do not add a "users can view their org's credentials" policy here:
 -- that would reintroduce exactly the problem this table exists to fix.
-REVOKE ALL ON integration_credentials FROM anon, authenticated;
-GRANT ALL ON integration_credentials TO service_role;
-
-CREATE OR REPLACE FUNCTION update_integration_credentials_timestamp()
+CREATE OR REPLACE FUNCTION trg_integration_credential_set_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
   NEW.updated_at = NOW();
@@ -1268,96 +1033,57 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS integration_credentials_updated ON integration_credentials;
-CREATE TRIGGER integration_credentials_updated
-  BEFORE UPDATE ON integration_credentials
-  FOR EACH ROW EXECUTE FUNCTION update_integration_credentials_timestamp();
-
--- Relocate any secrets still sitting in the client-readable columns.
--- Idempotent: ON CONFLICT protects a re-run, and once the source columns are
--- cleared there is nothing left to copy.
-
-INSERT INTO integration_credentials (org_id, owner_type, owner_id, secret)
-SELECT org_id, 'odoo_saved_config', id, api_key_encrypted
-FROM odoo_saved_configs
-WHERE api_key_encrypted IS NOT NULL AND api_key_encrypted <> ''
-ON CONFLICT (owner_type, owner_id) DO NOTHING;
-
-INSERT INTO integration_credentials (org_id, owner_type, owner_id, secret)
-SELECT org_id, 'organization_integration', id, credentials_encrypted
-FROM organization_integrations
-WHERE credentials_encrypted IS NOT NULL AND credentials_encrypted <> ''
-ON CONFLICT (owner_type, owner_id) DO NOTHING;
-
--- Clear the client-readable copies. This is the step that actually closes the
--- exposure; everything above only relocates the data. It is also the step that
--- requires an API build reading from integration_credentials to be deployed -
--- see the ordering note in this module's header.
---
--- Each clear is conditional on the credential being provably present in the
--- new table. The INSERTs above use ON CONFLICT DO NOTHING, so a row that
--- already had a credential entry is skipped - and if that entry were empty,
--- clearing here would destroy the only remaining copy of the key. The EXISTS
--- check makes that impossible: a key that was not captured is left where it is,
--- still exposed but not lost, and a re-run picks it up. Losing a credential is
--- worse than briefly not having relocated one.
-UPDATE odoo_saved_configs c
-  SET api_key_encrypted = NULL
-  WHERE c.api_key_encrypted IS NOT NULL
-    AND EXISTS (
-      SELECT 1 FROM integration_credentials ic
-      WHERE ic.owner_type = 'odoo_saved_config'
-        AND ic.owner_id = c.id
-        AND ic.secret IS NOT NULL
-        AND ic.secret <> ''
-    );
-
-UPDATE organization_integrations oi
-  SET credentials_encrypted = NULL
-  WHERE oi.credentials_encrypted IS NOT NULL
-    AND EXISTS (
-      SELECT 1 FROM integration_credentials ic
-      WHERE ic.owner_type = 'organization_integration'
-        AND ic.owner_id = oi.id
-        AND ic.secret IS NOT NULL
-        AND ic.secret <> ''
-    );
-
--- Left in place rather than dropped so that an API still running the previous
--- build does not error on a missing column mid-rollout. Drop them in a later
--- migration once every deployment reads from integration_credentials.
-COMMENT ON COLUMN odoo_saved_configs.api_key_encrypted IS
-  'DEPRECATED and always NULL. Never held ciphertext despite the name. Credentials now live in integration_credentials, which clients cannot read. Safe to drop once all API deployments are updated.';
-
-COMMENT ON COLUMN organization_integrations.credentials_encrypted IS
-  'DEPRECATED and always NULL. Never held ciphertext despite the name. Credentials now live in integration_credentials, which clients cannot read. Safe to drop once all API deployments are updated.';
-
-COMMENT ON TABLE integration_credentials IS
-  'Encrypted credentials for external integrations. Readable only by service_role: RLS is enabled with no policies for anon or authenticated, so PostgREST returns nothing to clients. Ciphertext is AES-256-GCM under EXTENSION_ENCRYPTION_KEY.';
+CREATE TRIGGER trg_integration_credential_set_updated_at
+  BEFORE UPDATE ON integration_credential
+  FOR EACH ROW EXECUTE FUNCTION trg_integration_credential_set_updated_at();
 
 -- ===========================================
--- END OF INTEGRATIONS MODULE
+-- PRIVILEGES
 -- ===========================================
 
-SELECT enforce_anon_execute_posture();
+-- Written out in full rather than left to the platform's default privileges, so a
+-- fresh database and an upgraded one hold the same grants. anon holds nothing
+-- here except what anon_get_read_allowlist() and anon_get_execute_allowlist() name.
+REVOKE ALL ON FUNCTION
+  my_solidworks_license_ids(),
+  odoo_saved_config_list(uuid),
+  org_get_google_drive_settings(uuid),
+  org_integration_get_status(uuid,text),
+  org_update_google_drive_settings(uuid,text,text,boolean,text),
+  pending_license_assignment_add(uuid,uuid),
+  pending_license_assignment_remove(uuid,uuid),
+  solidworks_license_activate(uuid,text,text),
+  solidworks_license_assign(uuid,uuid),
+  solidworks_license_deactivate(uuid),
+  solidworks_license_unassign(uuid),
+  trg_integration_credential_set_updated_at(),
+  webhook_list_for_event(uuid,webhook_event)
+FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION
+  my_solidworks_license_ids(),
+  odoo_saved_config_list(uuid),
+  org_get_google_drive_settings(uuid),
+  org_integration_get_status(uuid,text),
+  org_update_google_drive_settings(uuid,text,text,boolean,text),
+  pending_license_assignment_add(uuid,uuid),
+  pending_license_assignment_remove(uuid,uuid),
+  solidworks_license_activate(uuid,text,text),
+  solidworks_license_assign(uuid,uuid),
+  solidworks_license_deactivate(uuid),
+  solidworks_license_unassign(uuid),
+  trg_integration_credential_set_updated_at(),
+  webhook_list_for_event(uuid,webhook_event)
+TO authenticated, service_role;
+REVOKE ALL ON FUNCTION
+  pending_license_assignment_apply(uuid)
+FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION
+  pending_license_assignment_apply(uuid)
+TO service_role;
 
--- The version is asked for here rather than claimed. A module cannot claim one -
--- it speaks for its own objects and cannot see the others - but it can ask and be
--- told no. try_stamp_schema() in core.sql answers from the whole release manifest,
--- so the answer does not depend on which file asked, and whichever file is run
--- last is the one that records the version.
---
--- Guarded: this module may be applied over a core.sql that predates the helper,
--- and an uncaught error here would roll back everything the file just installed.
-DO $$
-BEGIN
-  RAISE NOTICE 'Integrations module installed successfully';
+REVOKE ALL ON TABLE integration_sync_log, odoo_saved_config, org_integration, solidworks_license, solidworks_license_assignment, webhook, webhook_delivery FROM PUBLIC, anon, authenticated, service_role;
+GRANT ALL ON TABLE integration_sync_log, odoo_saved_config, org_integration, solidworks_license, solidworks_license_assignment, webhook, webhook_delivery TO authenticated, service_role;
+REVOKE ALL ON TABLE integration_credential FROM PUBLIC, anon, authenticated, service_role;
+GRANT ALL ON TABLE integration_credential TO service_role;
 
-  IF to_regprocedure('public.try_stamp_schema()') IS NULL THEN
-    RAISE NOTICE 'Schema version not recorded: this core.sql predates try_stamp_schema(). Apply core.sql, or run supabase/tools/verify-schema.sql.';
-    RETURN;
-  END IF;
-  PERFORM try_stamp_schema();
-EXCEPTION WHEN OTHERS THEN
-  RAISE WARNING 'Schema version not recorded: %', SQLERRM;
-END $$;
+SELECT anon_enforce_execute_posture();

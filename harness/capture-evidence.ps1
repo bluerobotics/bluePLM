@@ -22,15 +22,18 @@
 # posture checks are about the release under test and have nothing to say about
 # an older one.
 #
-# -Upgrade captures the second lane: the previous release installed, attacked,
-# and then upgraded to the release under test in place. It is a separate
+# -Baseline needs a release that speaks the 5.0 names: attack.ps1 calls the 5.0
+# RPCs and tables, so a 4.x checkout cannot be attacked by it any more.
+#
+# -Upgrade captures the second lane: the 4.10 snapshot installed and seeded,
+# then upgraded to the release under test by supabase/migrations/0500_from_4x.sql. It is a separate
 # invocation rather than a step of the "after" run because it destroys the
 # database it starts from and leaves behind one that has a history, which is the
 # opposite of what every other file in evidence/ is captured against.
 param(
   [string]$Baseline,
   [switch]$Upgrade,
-  [string]$UpgradeFrom = '../../blueplm-v90/supabase'
+  [string]$UpgradeFrom = '../supabase/legacy-4.10'
 )
 
 $ErrorActionPreference = 'Continue'
@@ -120,7 +123,7 @@ $tooling = & powershell -NoProfile -File "$PSScriptRoot\tooling-controls.ps1" 2>
 Save -Name '08-tooling-controls.txt' -Command '.\tooling-controls.ps1' -Lines $tooling
 
 # The only executed evidence that schema 95's five policy fixes exist, because
-# schema_release_manifest() has no 'policy' kind and check_schema_release()
+# schema_get_release_manifest() has no 'policy' kind and check_schema_release()
 # therefore cannot see any of them. Captured after the negative controls, and
 # before the reopen below, because it reverts and restores real policies and
 # must not be running while anything else is reading them.

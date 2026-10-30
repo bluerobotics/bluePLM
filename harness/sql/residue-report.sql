@@ -31,7 +31,7 @@
 --     cross-tenant credential;
 --   * a link minted in good faith for a file that later moved organizations -
 --     no attack, and still a live cross-tenant credential, because under this
---     release validate_share_link() resolves the organization from the file and
+--     release file_share_link_validate() resolves the organization from the file and
 --     will hand out a file the link's own organization no longer owns.
 --
 -- Both are acted on. Which one it is can be read off created_by's membership,
@@ -45,25 +45,25 @@ SELECT
   l.org_id                           AS minted_for_org,
   f.org_id                           AS file_actually_in_org,
   l.created_by,
-  (SELECT u.org_id FROM users u WHERE u.id = l.created_by) AS creator_org,
+  (SELECT u.org_id FROM app_user u WHERE u.id = l.created_by) AS creator_org,
   CASE
-    WHEN (SELECT u.org_id FROM users u WHERE u.id = l.created_by) = f.org_id
+    WHEN (SELECT u.org_id FROM app_user u WHERE u.id = l.created_by) = f.org_id
       THEN 'creator is in the file''s organization - most likely a file that moved'
     ELSE 'creator is NOT in the file''s organization - the v92-and-earlier hole'
   END                                AS reading,
-  l.created_at, l.expires_at, l.is_active, l.require_auth,
+  l.created_at, l.expires_at, l.is_active, l.is_auth_required,
   l.download_count, l.max_downloads
-FROM file_share_links l
-JOIN files f ON f.id = l.file_id
+FROM file_share_link l
+JOIN file f ON f.id = l.file_id
 WHERE l.org_id IS DISTINCT FROM f.org_id
 ORDER BY l.created_at;
 
 -- ===========================================================================
 -- 2. Workflow history naming another organization's workflow
 -- ===========================================================================
--- The reviewer joined workflow_templates on the NAME:
+-- The reviewer joined workflow_template on the NAME:
 --
---   JOIN workflow_templates t ON t.name = h.workflow_name
+--   JOIN workflow_template t ON t.name = h.workflow_name
 --
 -- That finds the seeded case because the harness names Umbrella's workflow
 -- distinctively, and on a real database it is a false-positive generator: two
@@ -79,13 +79,13 @@ SELECT
   h.workflow_name, h.from_state_name, h.to_state_name, h.transition_name,
   h.performed_by_email, h.performed_at
 FROM workflow_history h
-WHERE EXISTS (SELECT 1 FROM workflow_templates t
+WHERE EXISTS (SELECT 1 FROM workflow_template t
                WHERE t.id = h.workflow_id AND t.org_id <> h.org_id)
-   OR EXISTS (SELECT 1 FROM workflow_transitions tr
-               JOIN workflow_templates t2 ON t2.id = tr.workflow_id
+   OR EXISTS (SELECT 1 FROM workflow_transition tr
+               JOIN workflow_template t2 ON t2.id = tr.workflow_id
               WHERE tr.id = h.transition_id AND t2.org_id <> h.org_id)
-   OR EXISTS (SELECT 1 FROM workflow_states s
-               JOIN workflow_templates t3 ON t3.id = s.workflow_id
+   OR EXISTS (SELECT 1 FROM workflow_state s
+               JOIN workflow_template t3 ON t3.id = s.workflow_id
               WHERE s.id IN (h.from_state_id, h.to_state_id) AND t3.org_id <> h.org_id)
 ORDER BY h.performed_at;
 
@@ -101,10 +101,10 @@ ORDER BY h.performed_at;
 SELECT
   a.file_id, f.org_id AS file_org, wt.org_id AS workflow_org,
   wt.name AS workflow_name, s.name AS current_state_name
-FROM file_workflow_assignments a
-JOIN files f ON f.id = a.file_id
-LEFT JOIN workflow_templates wt ON wt.id = a.workflow_id
-LEFT JOIN workflow_states s ON s.id = a.current_state_id
+FROM file_workflow_assignment a
+JOIN file f ON f.id = a.file_id
+LEFT JOIN workflow_template wt ON wt.id = a.workflow_id
+LEFT JOIN workflow_state s ON s.id = a.current_state_id
 WHERE wt.org_id IS DISTINCT FROM f.org_id
 ORDER BY a.file_id;
 
@@ -118,24 +118,24 @@ DECLARE
   v_assign INTEGER;
 BEGIN
   SELECT count(*) INTO v_links
-  FROM file_share_links l JOIN files f ON f.id = l.file_id
+  FROM file_share_link l JOIN file f ON f.id = l.file_id
   WHERE l.org_id IS DISTINCT FROM f.org_id AND COALESCE(l.is_active, false);
 
   SELECT count(*) INTO v_history
   FROM workflow_history h
-  WHERE EXISTS (SELECT 1 FROM workflow_templates t
+  WHERE EXISTS (SELECT 1 FROM workflow_template t
                  WHERE t.id = h.workflow_id AND t.org_id <> h.org_id)
-     OR EXISTS (SELECT 1 FROM workflow_transitions tr
-                 JOIN workflow_templates t2 ON t2.id = tr.workflow_id
+     OR EXISTS (SELECT 1 FROM workflow_transition tr
+                 JOIN workflow_template t2 ON t2.id = tr.workflow_id
                 WHERE tr.id = h.transition_id AND t2.org_id <> h.org_id)
-     OR EXISTS (SELECT 1 FROM workflow_states s
-                 JOIN workflow_templates t3 ON t3.id = s.workflow_id
+     OR EXISTS (SELECT 1 FROM workflow_state s
+                 JOIN workflow_template t3 ON t3.id = s.workflow_id
                 WHERE s.id IN (h.from_state_id, h.to_state_id) AND t3.org_id <> h.org_id);
 
   SELECT count(*) INTO v_assign
-  FROM file_workflow_assignments a
-  JOIN files f ON f.id = a.file_id
-  LEFT JOIN workflow_templates wt ON wt.id = a.workflow_id
+  FROM file_workflow_assignment a
+  JOIN file f ON f.id = a.file_id
+  LEFT JOIN workflow_template wt ON wt.id = a.workflow_id
   WHERE wt.org_id IS DISTINCT FROM f.org_id;
 
   IF v_links + v_history + v_assign > 0 THEN

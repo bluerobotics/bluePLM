@@ -7,7 +7,7 @@
 -- and the first version of check_null_unsafe_org_gates() was a literal regex
 -- for that. It found all nine, and the release said the shape was "banned
 -- outright". It was not - one spelling of it was. Every function below is the
--- identical defect: for a caller whose users.org_id is NULL the comparison is
+-- identical defect: for a caller whose app_user.org_id is NULL the comparison is
 -- NULL rather than true, the refusal does not fire, and the body runs against
 -- whatever organization was named.
 --
@@ -22,7 +22,7 @@
 CREATE OR REPLACE FUNCTION nc_null_unsafe_alt1(p_org_id UUID)
 RETURNS TEXT AS $$
 BEGIN
-  IF p_org_id NOT IN (SELECT u.org_id FROM public.users u WHERE u.id = auth.uid()) THEN
+  IF p_org_id NOT IN (SELECT u.org_id FROM public.app_user u WHERE u.id = auth.uid()) THEN
     RAISE EXCEPTION 'Not authorized for this organization';
   END IF;
   RETURN 'reached';
@@ -32,7 +32,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE OR REPLACE FUNCTION nc_null_unsafe_alt2(p_org_id UUID)
 RETURNS TEXT AS $$
 BEGIN
-  IF p_org_id <> ALL (SELECT u.org_id FROM users u WHERE u.id = auth.uid()) THEN
+  IF p_org_id <> ALL (SELECT u.org_id FROM app_user u WHERE u.id = auth.uid()) THEN
     RAISE EXCEPTION 'Not authorized for this organization';
   END IF;
   RETURN 'reached';
@@ -42,7 +42,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE OR REPLACE FUNCTION nc_null_unsafe_alt3(p_org_id UUID)
 RETURNS TEXT AS $$
 BEGIN
-  IF NOT (p_org_id IN (SELECT org_id FROM users WHERE id = auth.uid())) THEN
+  IF NOT (p_org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid())) THEN
     RAISE EXCEPTION 'Not authorized for this organization';
   END IF;
   RETURN 'reached';
@@ -53,7 +53,7 @@ CREATE OR REPLACE FUNCTION nc_null_unsafe_alt4(p_org_id UUID)
 RETURNS TEXT
 LANGUAGE sql SECURITY DEFINER AS $$
   SELECT CASE
-    WHEN p_org_id NOT IN (SELECT org_id FROM users WHERE id = auth.uid())
+    WHEN p_org_id NOT IN (SELECT org_id FROM app_user WHERE id = auth.uid())
       THEN 'refused'
     ELSE 'reached'
   END;

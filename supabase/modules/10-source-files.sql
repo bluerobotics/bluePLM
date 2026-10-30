@@ -1,67 +1,1166 @@
 -- =====================================================================
--- BluePLM Source Files Module
+-- BluePLM Source Files Module (5.0 baseline)
 -- =====================================================================
--- 
--- This module contains:
---   - Vaults (file storage containers)
---   - Files and file versions
---   - File references (BOM/assembly relationships)
---   - Activity logging
---   - Workflow system (templates, states, transitions, gates)
---   - Backup system
---   - File watchers, share links, comments
---   - Custom metadata columns
+-- Vaults and vault access, files and versions, references, folders, file
+-- workflows and gate reviews, backups, metadata columns, item designations,
+-- share links, comments and the vault storage bucket.
 --
--- DEPENDENCIES: core.sql must be installed first
+-- 5.0 BASELINE. supabase/core.sql and the files in supabase/modules are one
+-- ordered set: core first, then the modules in file-name order, applied to an empty
+-- database by the desktop app's migration runner in one transaction (or by
+-- hand in that order). Every object is defined once, and nothing here upgrades
+-- an older database: a 4.x database (schema 112) is upgraded by
+-- supabase/migrations/0500_from_4x.sql, and every change after 5.0 is a new
+-- numbered file in supabase/migrations/. Do not edit this baseline in place.
 --
--- IDEMPOTENT: Safe to run multiple times
+-- The stamp is not written here. The runner calls verify_and_stamp_schema()
+-- (supabase/tools/verify-schema.sql) afterwards, and it stamps 500 only when
+-- the manifest, the security checks and the residue checks all pass.
+--
+-- Names follow .cursor/rules/database.mdc (singular tables, org_ prefixes,
+-- <entity>_<verb> functions, trg_ triggers, "<table>: <who> <action>"
+-- policies); the 4.x -> 5.0 renames are listed in supabase/rename-map-5.0.json.
 --
 -- =====================================================================
 
 -- ===========================================
--- DEPENDENCY CHECK (must stay first)
+-- TYPES
 -- ===========================================
--- The org-scoped functions below call require_org_member(), and the file ends
--- by calling enforce_anon_execute_posture(). Both are defined in core.sql.
+
+CREATE TYPE file_type AS ENUM ('part', 'assembly', 'drawing', 'pdf', 'step', 'other');
+CREATE TYPE reference_type AS ENUM ('component', 'derived', 'reference');
+CREATE TYPE activity_action AS ENUM ('create', 'update', 'checkout', 'checkin', 'state_change', 'revision_change', 'delete', 'restore', 'move', 'rename');
+CREATE TYPE release_file_type AS ENUM ('step', 'pdf', 'dxf', 'iges', 'stl', 'dwg', 'dxf_flat');
+CREATE TYPE metadata_column_type AS ENUM ('text', 'number', 'date', 'boolean', 'select');
+CREATE TYPE state_type AS ENUM ('state', 'gate');
+CREATE TYPE state_shape AS ENUM ('rectangle', 'diamond', 'hexagon', 'ellipse');
+CREATE TYPE transition_line_style AS ENUM ('solid', 'dashed', 'dotted');
+CREATE TYPE transition_path_type AS ENUM ('straight', 'spline', 'elbow');
+CREATE TYPE transition_arrow_head AS ENUM ('none', 'end', 'start', 'both');
+CREATE TYPE gate_type AS ENUM ('approval', 'checklist', 'condition');
+CREATE TYPE approval_mode AS ENUM ('any', 'all', 'majority');
+CREATE TYPE reviewer_type AS ENUM ('user', 'role', 'group', 'workflow_role');
+CREATE TYPE review_status AS ENUM ('pending', 'approved', 'rejected', 'cancelled', 'kicked_back');
+CREATE TYPE transition_edge AS ENUM ('left', 'right', 'top', 'bottom');
+CREATE TYPE revision_scheme AS ENUM ('letter', 'numeric');
+
+-- ===========================================
+-- TABLES
+-- ===========================================
+
+-- ===========================================
+-- SOURCE FILES ENUMS
+-- ===========================================
+
+-- ===========================================
+-- WORKFLOW ENUMS
+-- ===========================================
+
+-- Box edge an anchored transition endpoint is attached to
+
+-- Revision scheme enum (used by organization.revision_scheme column)
+
+-- ===========================================
+-- ORGANIZATION COLUMNS (managed by source-files module)
+-- ===========================================
+
+-- ===========================================
+-- VAULTS
+-- ===========================================
+CREATE TABLE vault (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  org_id UUID NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  slug TEXT NOT NULL,
+  description TEXT,
+  local_path TEXT,
+  storage_bucket TEXT,
+  color TEXT DEFAULT '#6366f1'::text,
+  icon TEXT DEFAULT 'folder'::text,
+  is_default BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  created_by UUID REFERENCES app_user(id),
+  CONSTRAINT vault_org_id_slug_key UNIQUE (org_id, slug)
+);
+
+-- ===========================================
+-- RLS POLICIES
+-- ===========================================
+
+-- ===========================================
+-- REALTIME
+-- ===========================================
+
+-- ===========================================
+-- MIGRATIONS FOR EXISTING DATABASES
+-- ===========================================
+-- These ALTER statements add columns that may be missing from existing installations.
+-- Safe to run multiple times (uses IF NOT EXISTS or DO blocks with exception handling).
+
+-- v26: Storage bucket for vaults (already handled inline, but included for completeness)
+
+CREATE INDEX vault_org_id_idx ON vault (org_id);
+
+ALTER TABLE vault ENABLE ROW LEVEL SECURITY;
+ALTER TABLE vault REPLICA IDENTITY FULL;
+ALTER PUBLICATION supabase_realtime ADD TABLE vault;
+
+-- ===========================================
+-- VAULT ACCESS (Per-user permissions)
+-- ===========================================
+CREATE TABLE vault_access (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  vault_id UUID NOT NULL REFERENCES vault(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES app_user(id) ON DELETE CASCADE,
+  granted_by UUID REFERENCES app_user(id),
+  granted_at TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT vault_access_vault_id_user_id_key UNIQUE (vault_id, user_id)
+);
+
+CREATE INDEX vault_access_vault_id_idx ON vault_access (vault_id);
+CREATE INDEX vault_access_user_id_idx ON vault_access (user_id);
+
+ALTER TABLE vault_access ENABLE ROW LEVEL SECURITY;
+ALTER TABLE vault_access REPLICA IDENTITY FULL;
+ALTER PUBLICATION supabase_realtime ADD TABLE vault_access;
+
+-- Team vault access (references teams from core)
+CREATE TABLE team_vault_access (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  team_id UUID NOT NULL REFERENCES team(id) ON DELETE CASCADE,
+  vault_id UUID NOT NULL REFERENCES vault(id) ON DELETE CASCADE,
+  granted_at TIMESTAMPTZ DEFAULT NOW(),
+  granted_by UUID REFERENCES app_user(id),
+  CONSTRAINT team_vault_access_team_id_vault_id_key UNIQUE (team_id, vault_id)
+);
+
+CREATE INDEX team_vault_access_team_id_idx ON team_vault_access (team_id);
+CREATE INDEX team_vault_access_vault_id_idx ON team_vault_access (vault_id);
+
+ALTER TABLE team_vault_access ENABLE ROW LEVEL SECURITY;
+
+-- ===========================================
+-- WORKFLOW TEMPLATES (must come before files)
+-- ===========================================
+CREATE TABLE workflow_template (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  org_id UUID NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  description TEXT,
+  is_default BOOLEAN DEFAULT false,
+  is_active BOOLEAN DEFAULT true,
+  canvas_config JSONB DEFAULT '{"panX": 0, "panY": 0, "zoom": 1}'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  created_by UUID REFERENCES app_user(id),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_by UUID REFERENCES app_user(id)
+);
+
+CREATE INDEX workflow_template_org_id_idx ON workflow_template (org_id);
+CREATE INDEX workflow_template_is_default_idx ON workflow_template (is_default);
+CREATE INDEX workflow_template_is_active_idx ON workflow_template (is_active);
+
+ALTER TABLE workflow_template ENABLE ROW LEVEL SECURITY;
+ALTER TABLE workflow_template REPLICA IDENTITY FULL;
+ALTER PUBLICATION supabase_realtime ADD TABLE workflow_template;
+
+-- ===========================================
+-- WORKFLOW STATES
+-- ===========================================
+CREATE TABLE workflow_state (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  workflow_id UUID NOT NULL REFERENCES workflow_template(id) ON DELETE CASCADE,
+  state_type state_type DEFAULT 'state'::state_type,
+  shape state_shape DEFAULT 'rectangle'::state_shape,
+  name TEXT NOT NULL,
+  label TEXT,
+  description TEXT,
+  color TEXT DEFAULT '#6B7280'::text,
+  fill_opacity NUMERIC(3,2) DEFAULT 1.0,
+  border_color TEXT,
+  border_opacity NUMERIC(3,2) DEFAULT 1.0,
+  border_thickness INTEGER DEFAULT 2,
+  corner_radius INTEGER DEFAULT 8,
+  icon TEXT DEFAULT 'circle'::text,
+  position_x INTEGER DEFAULT 0,
+  position_y INTEGER DEFAULT 0,
+  width INTEGER DEFAULT 120 NOT NULL,
+  height INTEGER DEFAULT 60 NOT NULL,
+  is_editable BOOLEAN DEFAULT true,
+  is_checkout_required BOOLEAN DEFAULT true,
+  is_revision_auto_incremented BOOLEAN DEFAULT false,
+  gate_config JSONB DEFAULT '{}'::jsonb,
+  required_workflow_roles UUID[] DEFAULT '{}'::uuid[],
+  is_review_stage BOOLEAN DEFAULT false,
+  sort_order INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  review_approved_state_id UUID REFERENCES workflow_state(id) ON DELETE SET NULL
+);
+
+-- Schema 110: a review stage (is_review_stage) names the state an approved review
+-- moves its files to. NULL = the stage's only outgoing transition.
+
+CREATE INDEX workflow_state_workflow_id_idx ON workflow_state (workflow_id);
+
+ALTER TABLE workflow_state ENABLE ROW LEVEL SECURITY;
+ALTER TABLE workflow_state REPLICA IDENTITY FULL;
+ALTER PUBLICATION supabase_realtime ADD TABLE workflow_state;
+
+-- ===========================================
+-- FILES
+-- ===========================================
+CREATE TABLE file (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  org_id UUID NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
+  vault_id UUID NOT NULL REFERENCES vault(id) ON DELETE CASCADE,
+  -- File identity
+  file_path TEXT NOT NULL,
+  file_name TEXT NOT NULL,
+  extension TEXT NOT NULL,
+  file_type file_type DEFAULT 'other'::file_type NOT NULL,
+  -- Engineering metadata
+  part_number TEXT,
+  description TEXT,
+  revision TEXT DEFAULT ''::text NOT NULL,
+  version INTEGER DEFAULT 1 NOT NULL,
+  -- Content reference
+  content_hash TEXT,
+  file_size BIGINT DEFAULT 0,
+  -- Inspection table content fingerprint (drawings).
+  -- Hash of the inspection_characteristic rows; used to detect inspection edits
+  -- so they trigger a new version on check-in (see file_checkin).
+  inspection_hash TEXT,
+  -- Workflow state
+  workflow_state_id UUID REFERENCES workflow_state(id),
+  -- Legacy field for backwards compatibility
+  state TEXT DEFAULT 'WIP'::text,
+  state_changed_at TIMESTAMPTZ DEFAULT NOW(),
+  state_changed_by UUID REFERENCES app_user(id),
+  -- Checkout lock
+  checked_out_by UUID REFERENCES app_user(id),
+  checked_out_at TIMESTAMPTZ,
+  lock_message TEXT,
+  checked_out_by_machine_id TEXT,
+  checked_out_by_machine_name TEXT,
+  -- file_path / file_name at the moment file_checkout() ran, so discard can restore a
+  -- rename or move made during the checkout - renames themselves keep propagating to
+  -- file_path/file_name live, exactly as before. NULL when not checked out. Cleared by
+  -- file_checkin(), undoCheckout() and adminForceDiscardCheckout() alongside the lock.
+  checked_out_file_path TEXT,
+  checked_out_file_name TEXT,
+  -- Timestamps
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  created_by UUID NOT NULL REFERENCES app_user(id),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_by UUID REFERENCES app_user(id),
+  -- Custom properties
+  custom_properties JSONB DEFAULT '{}'::jsonb,
+  -- Configuration-specific revisions (for multi-config parts/assemblies)
+  -- Map of configuration name -> revision letter, e.g. {"Default": "B", "Anodized": "C"}
+  -- Updated when drawings referencing this file's configs are released
+  configuration_revisions JSONB DEFAULT '{}'::jsonb,
+  -- ECO tags (denormalized)
+  eco_tags TEXT[] DEFAULT '{}'::text[],
+  -- Soft delete
+  deleted_at TIMESTAMPTZ,
+  deleted_by UUID REFERENCES app_user(id)
+);
+
+-- v46: Configuration-specific revisions for multi-config parts/assemblies
+
+-- v98: Checkout path snapshot, so discard can restore a rename or move made during checkout
+
+CREATE UNIQUE INDEX file_vault_id_file_path_idx ON file (vault_id, lower(file_path)) WHERE (deleted_at IS NULL);
+CREATE INDEX file_org_id_idx ON file (org_id);
+CREATE INDEX file_vault_id_idx ON file (vault_id);
+CREATE INDEX file_file_path_idx ON file (file_path);
+CREATE INDEX file_part_number_idx ON file (part_number) WHERE (part_number IS NOT NULL);
+CREATE INDEX file_state_idx ON file (state);
+CREATE INDEX file_checked_out_by_idx ON file (checked_out_by) WHERE (checked_out_by IS NOT NULL);
+CREATE INDEX file_extension_idx ON file (extension);
+CREATE INDEX file_content_hash_idx ON file (content_hash) WHERE (content_hash IS NOT NULL);
+CREATE INDEX file_deleted_at_idx ON file (deleted_at) WHERE (deleted_at IS NOT NULL);
+CREATE INDEX file_vault_id_file_path_deleted_at_idx ON file (vault_id, file_path) WHERE (deleted_at IS NULL);
+CREATE INDEX file_eco_tags_idx ON file USING gin (eco_tags);
+
+ALTER TABLE file ENABLE ROW LEVEL SECURITY;
+ALTER TABLE file REPLICA IDENTITY FULL;
+ALTER PUBLICATION supabase_realtime ADD TABLE file;
+
+-- Indexes
+-- DROP+CREATE to ensure the index uses LOWER(file_path) for case-insensitive uniqueness on Windows
+
+-- ===========================================
+-- FILE VERSIONS
+-- ===========================================
+CREATE TABLE file_version (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  file_id UUID NOT NULL REFERENCES file(id) ON DELETE CASCADE,
+  version INTEGER NOT NULL,
+  revision TEXT NOT NULL,
+  content_hash TEXT NOT NULL,
+  file_size BIGINT DEFAULT 0,
+  workflow_state_id UUID REFERENCES workflow_state(id),
+  -- Workflow state name at time of version
+  state TEXT DEFAULT 'not_tracked'::text NOT NULL,
+  comment TEXT,
+  -- Snapshot of part number at time of version
+  part_number TEXT,
+  -- Snapshot of description at time of version
+  description TEXT,
+  -- Snapshot of inspection table fingerprint at time of version
+  inspection_hash TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  created_by UUID NOT NULL REFERENCES app_user(id),
+  references_recorded_at TIMESTAMPTZ,
+  CONSTRAINT file_version_file_id_version_key UNIQUE (file_id, version)
+);
+
+-- Schema 105: set when file_version_reference_record() has written this version's
+-- reference set (possibly empty). NULL means the version predates per-version
+-- references, and file_version_get_dependency_closure() falls back to file_reference.
+
+-- v45: File versions metadata snapshots (already handled inline, but included for completeness)
+
+CREATE INDEX file_version_file_id_idx ON file_version (file_id);
+CREATE INDEX file_version_content_hash_idx ON file_version (content_hash);
+
+ALTER TABLE file_version ENABLE ROW LEVEL SECURITY;
+
+-- ===========================================
+-- RELEASE FILES
+-- ===========================================
+CREATE TABLE release_file (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  file_id UUID NOT NULL REFERENCES file(id) ON DELETE CASCADE,
+  file_version_id UUID REFERENCES file_version(id) ON DELETE SET NULL,
+  version INTEGER NOT NULL,
+  revision TEXT,
+  file_type release_file_type NOT NULL,
+  file_name TEXT NOT NULL,
+  local_path TEXT,
+  storage_path TEXT,
+  storage_hash TEXT,
+  file_size BIGINT DEFAULT 0,
+  generated_by UUID REFERENCES app_user(id),
+  generated_at TIMESTAMPTZ DEFAULT NOW(),
+  rfq_id UUID,
+  rfq_item_id UUID,
+  org_id UUID NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 5.0 (audit S7): a release file's RFQ links were plain UUIDs while the supply
+-- chain module was optional. Deleting the RFQ or its item clears the link.
+
+CREATE INDEX release_file_file_id_idx ON release_file (file_id);
+CREATE INDEX release_file_file_version_id_idx ON release_file (file_version_id);
+CREATE INDEX release_file_org_id_idx ON release_file (org_id);
+CREATE INDEX release_file_file_id_version_file_type_idx ON release_file (file_id, version, file_type);
+
+ALTER TABLE release_file ENABLE ROW LEVEL SECURITY;
+
+-- ===========================================
+-- FILE REFERENCES (BOM/Assembly)
+-- ===========================================
+CREATE TABLE file_reference (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  org_id UUID NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
+  parent_file_id UUID NOT NULL REFERENCES file(id) ON DELETE CASCADE,
+  child_file_id UUID NOT NULL REFERENCES file(id) ON DELETE CASCADE,
+  reference_type reference_type DEFAULT 'component'::reference_type,
+  quantity INTEGER DEFAULT 1,
+  configuration TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT file_reference_parent_file_id_child_file_id_configuration_key UNIQUE (parent_file_id, child_file_id, configuration)
+);
+
+CREATE INDEX file_reference_parent_file_id_idx ON file_reference (parent_file_id);
+CREATE INDEX file_reference_child_file_id_idx ON file_reference (child_file_id);
+
+ALTER TABLE file_reference ENABLE ROW LEVEL SECURITY;
+
+-- ===========================================
+-- FILE VERSION REFERENCES (schema 107)
+-- ===========================================
+-- file_reference says what a file references *now*. A review pins a drawing at a
+-- version, and "the drawing and its parts at matching versions" needs what that
+-- version referenced when it was checked in. One row per reference of one parent
+-- version, written by file_version_reference_record() at check-in.
 --
--- The Supabase SQL editor wraps a run in a transaction and rolls the whole thing
--- back on error, but the `psql \i` path documented in modules/README.md does
--- not. Against an older core, a module used to apply in full and then fail on
--- its very last line - leaving every object created, no revoke ever run, and the
--- operator reading an error about line 944 instead of about the missing
--- dependency. Fail here, before anything has been changed, and say why.
-DO $$
-BEGIN
-  IF to_regprocedure('public.require_org_member(uuid)') IS NULL
-     OR to_regprocedure('public.enforce_anon_execute_posture()') IS NULL THEN
-    RAISE EXCEPTION 'core.sql is absent or predates this release - run supabase/core.sql first, then run this file again'
-      USING HINT = 'require_org_member(uuid) and enforce_anon_execute_posture() must both exist before any module is applied.';
-  END IF;
-END $$;
+-- child_version_id is the child's version whose content hash matched the local
+-- child at check-in (exact = true), else the child's latest version at that moment
+-- (exact = false), else NULL (the child had no version). child_file_id is NULL for
+-- a reference outside the vault; child_path still names it.
+CREATE TABLE file_version_reference (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  org_id UUID NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
+  parent_version_id UUID NOT NULL REFERENCES file_version(id) ON DELETE CASCADE,
+  parent_file_id UUID NOT NULL REFERENCES file(id) ON DELETE CASCADE,
+  child_file_id UUID REFERENCES file(id) ON DELETE SET NULL,
+  child_version_id UUID REFERENCES file_version(id) ON DELETE SET NULL,
+  child_path TEXT NOT NULL CHECK ((length(btrim(child_path)) > 0)),
+  configuration TEXT,
+  reference_type reference_type DEFAULT 'component'::reference_type NOT NULL,
+  quantity INTEGER DEFAULT 1 NOT NULL CHECK ((quantity >= 1)),
+  is_exact BOOLEAN DEFAULT false NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+CREATE UNIQUE INDEX file_version_reference_edge_idx ON file_version_reference (parent_version_id, lower(child_path), COALESCE(configuration, ''::text));
+CREATE INDEX file_version_reference_child_file_id_idx ON file_version_reference (child_file_id);
+CREATE INDEX file_version_reference_child_version_id_idx ON file_version_reference (child_version_id);
+CREATE INDEX file_version_reference_org_id_idx ON file_version_reference (org_id);
+
+ALTER TABLE file_version_reference ENABLE ROW LEVEL SECURITY;
+
+-- ===========================================
+-- DRAWING PDF RENDERS (schema 107)
+-- ===========================================
+-- The PDF a reviewer sees for a drawing version. Generated once (on a machine with
+-- SOLIDWORKS), stored content-addressed in the vault bucket, and reused by every
+-- later request for the same version.
+--
+-- Not release_file: its policy lets any member with module:explorer:edit write
+-- any row of their organization with no uniqueness per version, so a review's PDF
+-- could be silently replaced or duplicated. This table is SELECT-only for clients;
+-- drawing_pdf_render_record() is the only writer and refuses to replace a render unless
+-- the caller is an administrator.
+CREATE TABLE drawing_pdf_render (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  org_id UUID NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
+  file_id UUID NOT NULL REFERENCES file(id) ON DELETE CASCADE,
+  file_version_id UUID NOT NULL UNIQUE REFERENCES file_version(id) ON DELETE CASCADE,
+  storage_hash TEXT NOT NULL CHECK ((storage_hash ~ '^[0-9a-f]{64}$'::text)),
+  file_size BIGINT NOT NULL CHECK ((file_size > 0)),
+  -- Whether the references the drawing was rendered against were all exact
+  -- versions. NULL when the generator did not say.
+  is_closure_exact BOOLEAN,
+  generated_by UUID REFERENCES app_user(id) ON DELETE SET NULL,
+  generated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+-- ===========================================
+-- VAULT STORAGE BUCKET POLICIES (schema 111)
+-- ===========================================
+-- The `vault` bucket (docs/admin-setup.md step 3) holds file content addressed by
+-- its SHA-256 as <org_id>/<hash[0:2]>/<hash> (older objects: <org_id>/<hash>),
+-- drawing PDF renders the same way, organization assets under <org_id>/_assets/
+-- (avatars, the company logo, item images), and inspection previews under
+-- <org_id>/inspection-previews/<file_id>-<time>.<ext>.
+--
+-- Until 111 the bucket's policies were not in this repository at all. The only
+-- set ever committed (cbe3997) admitted every signed-in user of every
+-- organization to read, overwrite and delete every object, and a list() of the
+-- bucket enumerated every content hash. These policies replace whatever is there:
+--
+--   read    - an object in the caller's organization, and one of: the caller is
+--             an org admin; the caller uploaded it; it is an organization asset;
+--             it is content whose hash a file, version or drawing PDF in a vault
+--             the caller may see names, or an inspection preview of such a file
+--             (can_read_vault_object()).
+--   upload  - into the caller's organization.
+--   update  - only the mutable areas (_assets/, inspection-previews/), in the
+--             caller's organization, by an admin or the uploader (upserted
+--             avatars, logo, item images, previews). Content-addressed objects are
+--             never updated: overwriting one would change a file for everyone
+--             whose version names that hash.
+--   delete  - an admin, anywhere in the organization (vault deletion purges
+--             content); the uploader, in the mutable areas only.
+--
+-- "The caller uploaded it" is what lets check-in verify the bytes it just wrote,
+-- before any version row names the hash. Content is deduplicated across vaults,
+-- so a user can be told an upload "already exists" for an object they cannot
+-- list; the renderer treats that answer as success (checkin.ts).
+--
+-- Every other policy on storage.objects is dropped, by whatever name it was
+-- installed under, because policies are OR-ed and one permissive leftover undoes
+-- all of this. Production carried four dashboard-made policies ("Allow
+-- authenticated access 1uo56a_0..3") granting every signed-in account SELECT,
+-- INSERT, UPDATE and DELETE with `true` on every bucket. The application uses two
+-- buckets: vault (these policies) and org-extensions (module 50's four, kept by
+-- name). Each policy dropped is printed with its definition, and
+-- check_release_residue() refuses to stamp while any other remains.
+
+CREATE INDEX drawing_pdf_render_org_id_idx ON drawing_pdf_render (org_id);
+CREATE INDEX drawing_pdf_render_file_id_idx ON drawing_pdf_render (file_id);
+CREATE INDEX drawing_pdf_render_storage_hash_idx ON drawing_pdf_render (storage_hash);
+
+ALTER TABLE drawing_pdf_render ENABLE ROW LEVEL SECURITY;
+
+-- ===========================================
+-- FOLDERS (Explicit folder records for empty folders)
+-- ===========================================
+CREATE TABLE folder (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  org_id UUID NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
+  vault_id UUID NOT NULL REFERENCES vault(id) ON DELETE CASCADE,
+  -- relative path, e.g., "Assemblies" or "Project/Assemblies"
+  folder_path TEXT NOT NULL,
+  created_by UUID REFERENCES app_user(id),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  deleted_at TIMESTAMPTZ,
+  deleted_by UUID REFERENCES app_user(id)
+);
+
+-- v101: folders carries deleted_at/deleted_by like files does, and
+-- deleteFolderByPath soft-deletes through them, but the table was never
+-- published or given a full replica identity, so a folder deletion with no
+-- files in it never reached another client. REPLICA IDENTITY FULL is the
+-- load-bearing half - without it an UPDATE's old record on the wire carries
+-- only the primary key, so a deleted_at null-to-set transition is
+-- undetectable. See check_release_residue() in core.sql for the verification
+-- this schema_get_release_manifest() cannot express for either statement.
+
+CREATE UNIQUE INDEX folder_vault_id_folder_path_idx ON folder (vault_id, lower(folder_path)) WHERE (deleted_at IS NULL);
+CREATE INDEX folder_org_id_idx ON folder (org_id);
+CREATE INDEX folder_vault_id_idx ON folder (vault_id);
+CREATE INDEX folder_deleted_at_idx ON folder (deleted_at) WHERE (deleted_at IS NOT NULL);
+
+ALTER TABLE folder ENABLE ROW LEVEL SECURITY;
+ALTER TABLE folder REPLICA IDENTITY FULL;
+ALTER PUBLICATION supabase_realtime ADD TABLE folder;
+
+-- ===========================================
+-- ACTIVITY LOG
+-- ===========================================
+CREATE TABLE activity (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  org_id UUID NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
+  file_id UUID REFERENCES file(id) ON DELETE SET NULL,
+  user_id UUID NOT NULL REFERENCES app_user(id),
+  user_email TEXT NOT NULL,
+  action activity_action NOT NULL,
+  details JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX activity_org_id_idx ON activity (org_id);
+CREATE INDEX activity_file_id_idx ON activity (file_id);
+CREATE INDEX activity_user_id_idx ON activity (user_id);
+CREATE INDEX activity_created_at_idx ON activity (created_at DESC);
+CREATE INDEX activity_action_idx ON activity (action);
+
+ALTER TABLE activity ENABLE ROW LEVEL SECURITY;
+
+-- ===========================================
+-- WORKFLOW TRANSITIONS
+-- ===========================================
+CREATE TABLE workflow_transition (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  workflow_id UUID NOT NULL REFERENCES workflow_template(id) ON DELETE CASCADE,
+  from_state_id UUID NOT NULL REFERENCES workflow_state(id) ON DELETE CASCADE,
+  to_state_id UUID NOT NULL REFERENCES workflow_state(id) ON DELETE CASCADE,
+  name TEXT,
+  description TEXT,
+  line_style transition_line_style DEFAULT 'solid'::transition_line_style,
+  line_color TEXT,
+  line_path_type transition_path_type DEFAULT 'spline'::transition_path_type,
+  line_arrow_head transition_arrow_head DEFAULT 'end'::transition_arrow_head,
+  line_thickness INTEGER DEFAULT 2,
+  allowed_workflow_roles UUID[] DEFAULT '{}'::uuid[],
+  auto_conditions JSONB,
+  -- Diagram routing. NULL anchors mean "wherever the centre-to-centre ray crosses
+  -- the border"; a set edge + fraction pins the endpoint to a spot the user chose.
+  start_edge transition_edge,
+  start_fraction NUMERIC(4,3),
+  end_edge transition_edge,
+  end_fraction NUMERIC(4,3),
+  waypoints JSONB DEFAULT '[]'::jsonb NOT NULL,
+  label_offset JSONB,
+  label_pinned JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT workflow_transition_from_state_id_to_state_id_key UNIQUE (from_state_id, to_state_id)
+);
+
+CREATE INDEX workflow_transition_workflow_id_idx ON workflow_transition (workflow_id);
+CREATE INDEX workflow_transition_from_state_id_idx ON workflow_transition (from_state_id);
+CREATE INDEX workflow_transition_to_state_id_idx ON workflow_transition (to_state_id);
+
+ALTER TABLE workflow_transition ENABLE ROW LEVEL SECURITY;
+ALTER TABLE workflow_transition REPLICA IDENTITY FULL;
+ALTER PUBLICATION supabase_realtime ADD TABLE workflow_transition;
+
+-- ===========================================
+-- WORKFLOW GATES
+-- ===========================================
+CREATE TABLE workflow_gate (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  transition_id UUID NOT NULL REFERENCES workflow_transition(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  description TEXT,
+  gate_type gate_type DEFAULT 'approval'::gate_type,
+  required_approvals INTEGER DEFAULT 1,
+  approval_mode approval_mode DEFAULT 'any'::approval_mode,
+  checklist_items JSONB DEFAULT '[]'::jsonb,
+  conditions JSONB,
+  is_blocking BOOLEAN DEFAULT true,
+  can_be_skipped_by user_role[] DEFAULT '{}'::user_role[],
+  sort_order INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX workflow_gate_transition_id_idx ON workflow_gate (transition_id);
+
+ALTER TABLE workflow_gate ENABLE ROW LEVEL SECURITY;
+ALTER TABLE workflow_gate REPLICA IDENTITY FULL;
+ALTER PUBLICATION supabase_realtime ADD TABLE workflow_gate;
+
+-- ===========================================
+-- WORKFLOW GATE REVIEWERS
+-- ===========================================
+CREATE TABLE workflow_gate_reviewer (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  gate_id UUID NOT NULL REFERENCES workflow_gate(id) ON DELETE CASCADE,
+  reviewer_type reviewer_type NOT NULL,
+  user_id UUID REFERENCES app_user(id) ON DELETE CASCADE,
+  role user_role,
+  group_name TEXT,
+  workflow_role_id UUID,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX workflow_gate_reviewer_gate_id_idx ON workflow_gate_reviewer (gate_id);
+CREATE INDEX workflow_gate_reviewer_user_id_idx ON workflow_gate_reviewer (user_id);
+
+ALTER TABLE workflow_gate_reviewer ENABLE ROW LEVEL SECURITY;
+ALTER TABLE workflow_gate_reviewer REPLICA IDENTITY FULL;
+ALTER PUBLICATION supabase_realtime ADD TABLE workflow_gate_reviewer;
+
+-- ===========================================
+-- WORKFLOW ROLES
+-- ===========================================
+CREATE TABLE workflow_role (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  org_id UUID NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  description TEXT,
+  color TEXT DEFAULT '#6B7280'::text,
+  icon TEXT DEFAULT 'badge-check'::text,
+  is_active BOOLEAN DEFAULT true,
+  sort_order INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  created_by UUID REFERENCES app_user(id),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_by UUID REFERENCES app_user(id),
+  CONSTRAINT workflow_role_org_id_name_key UNIQUE (org_id, name)
+);
+
+CREATE INDEX workflow_role_org_id_idx ON workflow_role (org_id);
+CREATE INDEX workflow_role_org_id_name_idx ON workflow_role (org_id, name);
+
+ALTER TABLE workflow_role ENABLE ROW LEVEL SECURITY;
+ALTER TABLE workflow_role REPLICA IDENTITY FULL;
+ALTER PUBLICATION supabase_realtime ADD TABLE workflow_role;
+
+ALTER TABLE workflow_gate_reviewer ADD CONSTRAINT workflow_gate_reviewer_workflow_role_id_fkey
+  FOREIGN KEY (workflow_role_id) REFERENCES workflow_role(id) ON DELETE CASCADE;
+
+-- User workflow role assignments
+CREATE TABLE user_workflow_role (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES app_user(id) ON DELETE CASCADE,
+  workflow_role_id UUID NOT NULL REFERENCES workflow_role(id) ON DELETE CASCADE,
+  assigned_at TIMESTAMPTZ DEFAULT NOW(),
+  assigned_by UUID REFERENCES app_user(id),
+  CONSTRAINT user_workflow_role_user_id_workflow_role_id_key UNIQUE (user_id, workflow_role_id)
+);
+
+CREATE INDEX user_workflow_role_user_id_idx ON user_workflow_role (user_id);
+CREATE INDEX user_workflow_role_workflow_role_id_idx ON user_workflow_role (workflow_role_id);
+
+ALTER TABLE user_workflow_role ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_workflow_role REPLICA IDENTITY FULL;
+ALTER PUBLICATION supabase_realtime ADD TABLE user_workflow_role;
+
+-- ===========================================
+-- FILE WORKFLOW ASSIGNMENTS
+-- ===========================================
+CREATE TABLE file_workflow_assignment (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  file_id UUID NOT NULL UNIQUE REFERENCES file(id) ON DELETE CASCADE,
+  workflow_id UUID NOT NULL REFERENCES workflow_template(id) ON DELETE CASCADE,
+  current_state_id UUID REFERENCES workflow_state(id) ON DELETE SET NULL,
+  assigned_at TIMESTAMPTZ DEFAULT NOW(),
+  assigned_by UUID REFERENCES app_user(id)
+);
+
+CREATE INDEX file_workflow_assignment_file_id_idx ON file_workflow_assignment (file_id);
+CREATE INDEX file_workflow_assignment_workflow_id_idx ON file_workflow_assignment (workflow_id);
+CREATE INDEX file_workflow_assignment_current_state_id_idx ON file_workflow_assignment (current_state_id);
+
+ALTER TABLE file_workflow_assignment ENABLE ROW LEVEL SECURITY;
+
+-- ===========================================
+-- PENDING REVIEWS
+-- ===========================================
+CREATE TABLE workflow_gate_review (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  org_id UUID NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
+  file_id UUID NOT NULL REFERENCES file(id) ON DELETE CASCADE,
+  transition_id UUID NOT NULL REFERENCES workflow_transition(id) ON DELETE CASCADE,
+  gate_id UUID NOT NULL REFERENCES workflow_gate(id) ON DELETE CASCADE,
+  requested_by UUID NOT NULL REFERENCES app_user(id),
+  requested_at TIMESTAMPTZ DEFAULT NOW(),
+  status review_status DEFAULT 'pending'::review_status NOT NULL,
+  assignee_id UUID REFERENCES app_user(id),
+  reviewed_by UUID REFERENCES app_user(id),
+  reviewed_at TIMESTAMPTZ,
+  review_comment TEXT,
+  checklist_responses JSONB DEFAULT '{}'::jsonb,
+  expires_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  attempt_id UUID NOT NULL
+);
+
+-- Schema 105: an attempt id scopes a gate's approval count to one run of the
+-- transition. Before this, gate_review_complete() counted every row ever created
+-- for (file, transition, gate), so an 'all' gate could never pass again after one
+-- rejection and an 'any' gate with required_approvals > 1 passed by reusing
+-- approvals from earlier attempts and earlier versions.
+--
+-- Backfill: workflow_transition_execute() inserted every row of one attempt in a
+-- single statement loop, so they share requested_at (NOW() is fixed for the
+-- transaction). One attempt per (file, transition, requested_at) is therefore the
+-- attempt each legacy row actually belonged to. Only NULL rows are touched, so a
+-- second run changes nothing.
+
+CREATE INDEX workflow_gate_review_org_id_idx ON workflow_gate_review (org_id);
+CREATE INDEX workflow_gate_review_file_id_idx ON workflow_gate_review (file_id);
+CREATE INDEX workflow_gate_review_status_idx ON workflow_gate_review (status);
+CREATE INDEX workflow_gate_review_assignee_id_idx ON workflow_gate_review (assignee_id);
+CREATE INDEX workflow_gate_review_attempt_id_gate_id_idx ON workflow_gate_review (attempt_id, gate_id);
+
+ALTER TABLE workflow_gate_review ENABLE ROW LEVEL SECURITY;
+
+-- ===========================================
+-- WORKFLOW REVIEW HISTORY
+-- ===========================================
+CREATE TABLE workflow_review_history (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  org_id UUID NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
+  file_id UUID REFERENCES file(id) ON DELETE SET NULL,
+  file_path TEXT NOT NULL,
+  file_name TEXT NOT NULL,
+  workflow_id UUID REFERENCES workflow_template(id) ON DELETE SET NULL,
+  workflow_name TEXT NOT NULL,
+  transition_id UUID REFERENCES workflow_transition(id) ON DELETE SET NULL,
+  from_state_name TEXT NOT NULL,
+  to_state_name TEXT NOT NULL,
+  gate_id UUID REFERENCES workflow_gate(id) ON DELETE SET NULL,
+  gate_name TEXT NOT NULL,
+  requested_by UUID REFERENCES app_user(id) ON DELETE SET NULL,
+  requested_by_email TEXT NOT NULL,
+  requested_at TIMESTAMPTZ NOT NULL,
+  reviewed_by UUID REFERENCES app_user(id) ON DELETE SET NULL,
+  reviewed_by_email TEXT NOT NULL,
+  reviewed_at TIMESTAMPTZ NOT NULL,
+  decision TEXT NOT NULL,
+  comment TEXT,
+  checklist_responses JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX workflow_review_history_org_id_idx ON workflow_review_history (org_id);
+CREATE INDEX workflow_review_history_file_id_idx ON workflow_review_history (file_id);
+CREATE INDEX workflow_review_history_created_at_idx ON workflow_review_history (created_at DESC);
+
+ALTER TABLE workflow_review_history ENABLE ROW LEVEL SECURITY;
+
+-- ===========================================
+-- WORKFLOW HISTORY
+-- ===========================================
+CREATE TABLE workflow_history (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  org_id UUID NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
+  file_id UUID REFERENCES file(id) ON DELETE SET NULL,
+  file_path TEXT NOT NULL,
+  file_name TEXT NOT NULL,
+  workflow_id UUID REFERENCES workflow_template(id) ON DELETE SET NULL,
+  workflow_name TEXT NOT NULL,
+  from_state_id UUID REFERENCES workflow_state(id) ON DELETE SET NULL,
+  from_state_name TEXT NOT NULL,
+  to_state_id UUID REFERENCES workflow_state(id) ON DELETE SET NULL,
+  to_state_name TEXT NOT NULL,
+  transition_id UUID REFERENCES workflow_transition(id) ON DELETE SET NULL,
+  transition_name TEXT,
+  performed_by UUID REFERENCES app_user(id) ON DELETE SET NULL,
+  performed_by_email TEXT NOT NULL,
+  performed_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  comment TEXT,
+  revision_before TEXT,
+  revision_after TEXT,
+  approvals_data JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX workflow_history_org_id_idx ON workflow_history (org_id);
+CREATE INDEX workflow_history_file_id_idx ON workflow_history (file_id);
+CREATE INDEX workflow_history_performed_at_idx ON workflow_history (performed_at DESC);
+
+ALTER TABLE workflow_history ENABLE ROW LEVEL SECURITY;
+
+-- ===========================================
+-- FILE STATE ENTRIES (Per-state file list)
+-- ===========================================
+CREATE TABLE file_state_entry (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  file_id UUID NOT NULL REFERENCES file(id) ON DELETE CASCADE,
+  state_id UUID NOT NULL REFERENCES workflow_state(id) ON DELETE CASCADE,
+  entered_at TIMESTAMPTZ DEFAULT NOW(),
+  entered_by UUID REFERENCES app_user(id),
+  exited_at TIMESTAMPTZ,
+  exited_by UUID REFERENCES app_user(id),
+  duration_seconds INTEGER,
+  CONSTRAINT file_state_entry_file_id_state_id_entered_at_key UNIQUE (file_id, state_id, entered_at)
+);
+
+CREATE INDEX file_state_entry_file_id_idx ON file_state_entry (file_id);
+CREATE INDEX file_state_entry_state_id_idx ON file_state_entry (state_id);
+CREATE INDEX file_state_entry_state_id_exited_at_idx ON file_state_entry (state_id) WHERE (exited_at IS NULL);
+
+ALTER TABLE file_state_entry ENABLE ROW LEVEL SECURITY;
+
+-- ===========================================
+-- FILE WATCHERS
+-- ===========================================
+CREATE TABLE file_watcher (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  org_id UUID NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
+  file_id UUID NOT NULL REFERENCES file(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES app_user(id) ON DELETE CASCADE,
+  is_notified_on_checkin BOOLEAN DEFAULT true,
+  is_notified_on_checkout BOOLEAN DEFAULT false,
+  is_notified_on_state_change BOOLEAN DEFAULT true,
+  is_notified_on_review BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT file_watcher_file_id_user_id_key UNIQUE (file_id, user_id)
+);
+
+CREATE INDEX file_watcher_file_id_idx ON file_watcher (file_id);
+CREATE INDEX file_watcher_user_id_idx ON file_watcher (user_id);
+CREATE INDEX file_watcher_org_id_idx ON file_watcher (org_id);
+
+ALTER TABLE file_watcher ENABLE ROW LEVEL SECURITY;
+
+-- ===========================================
+-- FILE SHARE LINKS
+-- ===========================================
+CREATE TABLE file_share_link (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  org_id UUID NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
+  file_id UUID NOT NULL REFERENCES file(id) ON DELETE CASCADE,
+  token TEXT NOT NULL UNIQUE,
+  created_by UUID NOT NULL REFERENCES app_user(id),
+  expires_at TIMESTAMPTZ,
+  max_downloads INTEGER,
+  download_count INTEGER DEFAULT 0,
+  password_hash TEXT,
+  file_version INTEGER,
+  can_download BOOLEAN DEFAULT true,
+  is_auth_required BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  last_accessed_at TIMESTAMPTZ,
+  is_active BOOLEAN DEFAULT true
+);
+
+CREATE INDEX file_share_link_token_idx ON file_share_link (token);
+CREATE INDEX file_share_link_file_id_idx ON file_share_link (file_id);
+CREATE INDEX file_share_link_org_id_idx ON file_share_link (org_id);
+CREATE INDEX file_share_link_created_by_idx ON file_share_link (created_by);
+CREATE INDEX file_share_link_expires_at_idx ON file_share_link (expires_at) WHERE (expires_at IS NOT NULL);
+
+ALTER TABLE file_share_link ENABLE ROW LEVEL SECURITY;
+
+-- ===========================================
+-- FILE COMMENTS
+-- ===========================================
+CREATE TABLE file_comment (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  file_id UUID NOT NULL REFERENCES file(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES app_user(id) ON DELETE CASCADE,
+  comment TEXT NOT NULL,
+  -- PDF page (1-indexed), NULL for file-level comments
+  page_number INTEGER,
+  -- {x, y, width, height, pageWidth, pageHeight} for area highlights
+  position JSONB,
+  -- 'area', 'text', 'highlight', or 'file' (file-level)
+  annotation_type TEXT DEFAULT 'text'::text,
+  -- for threaded replies
+  parent_id UUID REFERENCES file_comment(id) ON DELETE CASCADE,
+  is_resolved BOOLEAN DEFAULT false,
+  resolved_by UUID REFERENCES app_user(id) ON DELETE SET NULL,
+  resolved_at TIMESTAMPTZ,
+  -- version the comment was made on
+  file_version INTEGER,
+  -- tracks if comment was edited
+  edited_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ===========================================
+-- FILE COMMENTS LINKED TO A REVIEW (schema 107)
+-- ===========================================
+-- PDF markups and comments made inside a review carry the review, the round and
+-- the item they were made on, so a requester sees each reviewer's markups for
+-- exactly the version and round they were made on. file_comment itself lives in
+-- 10-source-files.sql; these columns live here because reviews does.
+-- trg_file_comment_link_review() below validates them.
+
+CREATE INDEX file_comment_file_id_idx ON file_comment (file_id);
+CREATE INDEX file_comment_user_id_idx ON file_comment (user_id);
+CREATE INDEX file_comment_parent_id_idx ON file_comment (parent_id);
+CREATE INDEX file_comment_is_resolved_idx ON file_comment (is_resolved);
+
+ALTER TABLE file_comment ENABLE ROW LEVEL SECURITY;
+
+-- ===========================================
+-- FILE METADATA COLUMNS (Custom fields)
+-- ===========================================
+CREATE TABLE file_metadata_column (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  org_id UUID NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  label TEXT NOT NULL,
+  data_type metadata_column_type DEFAULT 'text'::metadata_column_type NOT NULL,
+  select_options TEXT[] DEFAULT '{}'::text[] NOT NULL,
+  width INTEGER DEFAULT 120 NOT NULL,
+  is_visible BOOLEAN DEFAULT true NOT NULL,
+  is_sortable BOOLEAN DEFAULT true NOT NULL,
+  sort_order INTEGER DEFAULT 0 NOT NULL,
+  is_required BOOLEAN DEFAULT false NOT NULL,
+  default_value TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  created_by UUID REFERENCES app_user(id),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_by UUID REFERENCES app_user(id),
+  CONSTRAINT file_metadata_column_org_id_name_key UNIQUE (org_id, name)
+);
+
+CREATE INDEX file_metadata_column_org_id_idx ON file_metadata_column (org_id);
+CREATE INDEX file_metadata_column_org_id_sort_order_idx ON file_metadata_column (org_id, sort_order);
+
+ALTER TABLE file_metadata_column ENABLE ROW LEVEL SECURITY;
+ALTER TABLE file_metadata_column REPLICA IDENTITY FULL;
+ALTER PUBLICATION supabase_realtime ADD TABLE file_metadata_column;
+
+-- ===========================================
+-- BACKUP SYSTEM
+-- ===========================================
+CREATE TABLE backup_config (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  org_id UUID NOT NULL UNIQUE REFERENCES organization(id) ON DELETE CASCADE,
+  provider TEXT DEFAULT 'backblaze_b2'::text NOT NULL,
+  bucket TEXT,
+  region TEXT,
+  endpoint TEXT,
+  access_key_encrypted TEXT,
+  secret_key_encrypted TEXT,
+  restic_password_encrypted TEXT,
+  is_schedule_enabled BOOLEAN DEFAULT false,
+  schedule_cron TEXT DEFAULT '0 0 * * *'::text,
+  schedule_hour INTEGER DEFAULT 0,
+  schedule_minute INTEGER DEFAULT 0,
+  schedule_timezone TEXT DEFAULT 'UTC'::text,
+  designated_machine_id TEXT,
+  designated_machine_name TEXT,
+  designated_machine_platform TEXT,
+  designated_machine_user_email TEXT,
+  designated_machine_last_seen_at TIMESTAMPTZ,
+  backup_requested_at TIMESTAMPTZ,
+  backup_requested_by TEXT,
+  backup_started_at TIMESTAMPTZ,
+  retention_daily INTEGER DEFAULT 14,
+  retention_weekly INTEGER DEFAULT 10,
+  retention_monthly INTEGER DEFAULT 10,
+  retention_yearly INTEGER DEFAULT 5,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_by UUID REFERENCES app_user(id)
+);
+
+-- v31: Backup config endpoint and restic password
+
+CREATE INDEX backup_config_org_id_idx ON backup_config (org_id);
+
+ALTER TABLE backup_config ENABLE ROW LEVEL SECURITY;
+ALTER TABLE backup_config REPLICA IDENTITY FULL;
+ALTER PUBLICATION supabase_realtime ADD TABLE backup_config;
+
+CREATE TABLE backup_history (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  org_id UUID NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
+  started_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  completed_at TIMESTAMPTZ,
+  status TEXT DEFAULT 'running'::text NOT NULL,
+  machine_id TEXT NOT NULL,
+  machine_name TEXT NOT NULL,
+  files_total INTEGER,
+  files_added INTEGER,
+  files_modified INTEGER,
+  bytes_added BIGINT,
+  bytes_total BIGINT,
+  duration_seconds INTEGER,
+  snapshot_id TEXT,
+  error_message TEXT,
+  error_details JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX backup_history_org_id_idx ON backup_history (org_id);
+CREATE INDEX backup_history_started_at_idx ON backup_history (started_at DESC);
+CREATE INDEX backup_history_status_idx ON backup_history (status);
+
+ALTER TABLE backup_history ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE backup_machine (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  org_id UUID NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
+  machine_id TEXT NOT NULL,
+  machine_name TEXT NOT NULL,
+  user_id UUID REFERENCES app_user(id),
+  user_email TEXT,
+  last_seen_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  is_designated BOOLEAN DEFAULT false,
+  platform TEXT,
+  app_version TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT backup_machine_org_id_machine_id_key UNIQUE (org_id, machine_id)
+);
+
+CREATE INDEX backup_machine_org_id_idx ON backup_machine (org_id);
+CREATE INDEX backup_machine_last_seen_at_idx ON backup_machine (last_seen_at);
+
+ALTER TABLE backup_machine ENABLE ROW LEVEL SECURITY;
+ALTER TABLE backup_machine REPLICA IDENTITY FULL;
+ALTER PUBLICATION supabase_realtime ADD TABLE backup_machine;
+
+CREATE TABLE backup_lock (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  org_id UUID NOT NULL UNIQUE REFERENCES organization(id) ON DELETE CASCADE,
+  locked_by_machine_id TEXT NOT NULL,
+  locked_by_machine_name TEXT NOT NULL,
+  locked_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  backup_history_id UUID REFERENCES backup_history(id) ON DELETE CASCADE
+);
+
+CREATE INDEX backup_lock_org_id_idx ON backup_lock (org_id);
+CREATE INDEX backup_lock_expires_at_idx ON backup_lock (expires_at);
+
+ALTER TABLE backup_lock ENABLE ROW LEVEL SECURITY;
+
+-- ===========================================
+-- ITEM IMAGES (Item Browser per-item visual override)
+-- ===========================================
+
+-- Per-item (part_number) image override, shared org-wide. The absence of a row
+-- means the item falls back to the default SolidWorks preview.
+CREATE TABLE item_image (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  org_id UUID NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
+  part_number TEXT NOT NULL,
+  image_type TEXT DEFAULT 'preview'::text NOT NULL CHECK ((image_type = ANY (ARRAY['preview'::text, 'icon'::text, 'image'::text]))),
+  icon_name TEXT,
+  icon_color TEXT,
+  image_storage_path TEXT,
+  updated_by UUID REFERENCES app_user(id),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT item_image_org_id_part_number_key UNIQUE (org_id, part_number)
+);
+
+CREATE INDEX item_image_org_id_idx ON item_image (org_id);
+
+ALTER TABLE item_image ENABLE ROW LEVEL SECURITY;
+
+-- ===========================================
+-- ITEM DESIGNATIONS (Item Browser part/assembly classification)
+-- ===========================================
+
+-- Org-configurable list of item designations (e.g. Part, Assembly, Packed
+-- Assembly). Admins manage the list from Settings; every org is seeded with a
+-- default set on first read (see item_designation_list).
+CREATE TABLE item_designation (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  org_id UUID NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  sort_order INTEGER DEFAULT 0 NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  created_by UUID REFERENCES app_user(id)
+);
+
+CREATE INDEX item_designation_org_id_idx ON item_designation (org_id);
+CREATE UNIQUE INDEX item_designation_org_id_name_idx ON item_designation (org_id, lower(name));
+
+ALTER TABLE item_designation ENABLE ROW LEVEL SECURITY;
+
+-- Per-item designation assignment (override of the type-derived default),
+-- keyed by vault + part number. Absence of a row means the default applies.
+CREATE TABLE item_designation_assignment (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  org_id UUID NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
+  vault_id UUID NOT NULL REFERENCES vault(id) ON DELETE CASCADE,
+  part_number TEXT NOT NULL,
+  designation_id UUID NOT NULL REFERENCES item_designation(id) ON DELETE CASCADE,
+  updated_by UUID REFERENCES app_user(id),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT item_designation_assignment_org_id_vault_id_part_number_key UNIQUE (org_id, vault_id, part_number)
+);
+
+CREATE INDEX item_designation_assignment_org_id_vault_id_idx ON item_designation_assignment (org_id, vault_id);
+
+ALTER TABLE item_designation_assignment ENABLE ROW LEVEL SECURITY;
+
+
+-- ===========================================
+-- ADDITIONS TO TABLES OF EARLIER FILES
+-- ===========================================
+
+-- Added to organization (core.sql) by this module.
+ALTER TABLE organization ADD COLUMN revision_scheme revision_scheme DEFAULT 'letter'::revision_scheme;
+ALTER TABLE organization ADD COLUMN serialization_settings JSONB DEFAULT '{"prefix": "PN-", "suffix": "", "enabled": true, "letter_count": 0, "keepout_zones": [], "letter_prefix": "", "padding_digits": 5, "current_counter": 0, "auto_apply_extensions": [], "use_letters_before_numbers": false}'::jsonb;
+ALTER TABLE organization ADD COLUMN item_definition_settings JSONB DEFAULT '{"anyType": true, "anyStage": true, "fileTypes": [], "matchOrgFormat": true, "workflowStageIds": [], "requirePartNumber": true}'::jsonb;
+
+-- Added to team_reviewer (core.sql) by this module.
+ALTER TABLE team_reviewer ADD CONSTRAINT team_reviewer_workflow_role_id_fkey
+  FOREIGN KEY (workflow_role_id) REFERENCES workflow_role(id) ON DELETE CASCADE;
+
+-- Added to team_permission (core.sql) by this module.
+ALTER TABLE team_permission ADD CONSTRAINT team_permission_vault_id_fkey
+  FOREIGN KEY (vault_id) REFERENCES vault(id) ON DELETE CASCADE;
+
+-- Added to user_permission (core.sql) by this module.
+ALTER TABLE user_permission ADD CONSTRAINT user_permission_vault_id_fkey
+  FOREIGN KEY (vault_id) REFERENCES vault(id) ON DELETE CASCADE;
+
+-- ===========================================
+-- FUNCTIONS, VIEWS, TRIGGERS AND POLICIES
+-- ===========================================
 
 -- ===========================================
 -- ENTITY GATES
 -- ===========================================
--- require_org_member() closed the functions that take an organization id. It did
+-- org_require_member() closed the functions that take an organization id. It did
 -- nothing for the ones that take a file id, a vault id or an ECO id, because
 -- those never mention an organization at all - and those are most of the ones
--- that matter. checkout_file, checkin_file, move_file, rename_folder_files and
+-- that matter. file_checkout, file_checkin, file_move, folder_rename and
 -- the workflow entry points each accepted an entity id, looked the row up
 -- without reference to who was asking, and acted on it. As anon with no JWT,
--- checkout_file on another organization's file returned {"success": true} with
--- the whole row in it, and move_file then renamed that file.
+-- file_checkout on another organization's file returned {"success": true} with
+-- the whole row in it, and file_move then renamed that file.
 --
 -- The organization is not absent from these calls, only implicit: it is a column
 -- on the row being addressed. Resolve it and the same membership rule applies.
 --
 -- A file that does not exist and a file in another organization produce the
--- identical refusal, for the reason require_org_member() gives: the alternative
+-- identical refusal, for the reason org_require_member() gives: the alternative
 -- is an endpoint that reports which ids are real. The JSON-returning RPCs
 -- convert that refusal into their existing {"success": false, "error": "... not
 -- found"} shape so that api/routes/files.ts keeps answering 404 rather than 500,
 -- and so that the two cases stay indistinguishable from outside.
-
-CREATE OR REPLACE FUNCTION require_file_access(p_file_id UUID)
+CREATE OR REPLACE FUNCTION file_require_access(p_file_id UUID)
 RETURNS UUID AS $$
 DECLARE
   v_org_id UUID;
@@ -72,27 +1171,26 @@ BEGIN
       USING ERRCODE = 'invalid_parameter_value';
   END IF;
 
-  PERFORM current_actor_id();
+  PERFORM my_actor_id();
 
-  SELECT f.org_id, f.vault_id INTO v_org_id, v_vault_id FROM files f WHERE f.id = p_file_id;
+  SELECT f.org_id, f.vault_id INTO v_org_id, v_vault_id FROM file f WHERE f.id = p_file_id;
 
   -- Schema 111: membership is not enough, the caller must also be allowed to see
-  -- the file's vault (may_access_vault(), the rule RLS applies to files). A file
+  -- the file's vault (can_access_vault(), the rule RLS applies to files). A file
   -- in a vault the caller cannot see is refused exactly like a missing one.
   IF v_org_id IS NULL OR NOT EXISTS (
-    SELECT 1 FROM users u WHERE u.id = auth.uid() AND u.org_id = v_org_id
-  ) OR NOT may_access_vault(v_vault_id) THEN
+    SELECT 1 FROM app_user u WHERE u.id = auth.uid() AND u.org_id = v_org_id
+  ) OR NOT can_access_vault(v_vault_id) THEN
     RAISE EXCEPTION 'Not authorized for this file'
       USING ERRCODE = 'insufficient_privilege';
   END IF;
 
   RETURN v_org_id;
 END;
-$$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
+$$ LANGUAGE plpgsql STABLE SECURITY DEFINER
+SET search_path = public, pg_temp;
 
-GRANT EXECUTE ON FUNCTION require_file_access(UUID) TO authenticated;
-
-CREATE OR REPLACE FUNCTION require_vault_access(p_vault_id UUID)
+CREATE OR REPLACE FUNCTION vault_require_access(p_vault_id UUID)
 RETURNS UUID AS $$
 DECLARE
   v_org_id UUID;
@@ -102,278 +1200,22 @@ BEGIN
       USING ERRCODE = 'invalid_parameter_value';
   END IF;
 
-  PERFORM current_actor_id();
+  PERFORM my_actor_id();
 
-  SELECT v.org_id INTO v_org_id FROM vaults v WHERE v.id = p_vault_id;
+  SELECT v.org_id INTO v_org_id FROM vault v WHERE v.id = p_vault_id;
 
   -- Schema 111: and the caller must be allowed to see this vault.
   IF v_org_id IS NULL OR NOT EXISTS (
-    SELECT 1 FROM users u WHERE u.id = auth.uid() AND u.org_id = v_org_id
-  ) OR NOT may_access_vault(p_vault_id) THEN
+    SELECT 1 FROM app_user u WHERE u.id = auth.uid() AND u.org_id = v_org_id
+  ) OR NOT can_access_vault(p_vault_id) THEN
     RAISE EXCEPTION 'Not authorized for this vault'
       USING ERRCODE = 'insufficient_privilege';
   END IF;
 
   RETURN v_org_id;
 END;
-$$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
-
-GRANT EXECUTE ON FUNCTION require_vault_access(UUID) TO authenticated;
-
--- ===========================================
--- SOURCE FILES ENUMS
--- ===========================================
-
-DO $$ BEGIN
-  CREATE TYPE file_type AS ENUM (
-    'part', 'assembly', 'drawing', 'pdf', 'step', 'other'
-  );
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  CREATE TYPE reference_type AS ENUM (
-    'component', 'derived', 'reference'
-  );
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  CREATE TYPE activity_action AS ENUM (
-    'create', 'update', 'checkout', 'checkin', 'state_change', 
-    'revision_change', 'delete', 'restore', 'move', 'rename'
-  );
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  CREATE TYPE release_file_type AS ENUM (
-    'step', 'pdf', 'dxf', 'iges', 'stl', 'dwg', 'dxf_flat'
-  );
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  CREATE TYPE metadata_column_type AS ENUM (
-    'text', 'number', 'date', 'boolean', 'select'
-  );
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
--- ===========================================
--- WORKFLOW ENUMS
--- ===========================================
-
-DO $$ BEGIN
-  CREATE TYPE state_type AS ENUM ('state', 'gate');
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  CREATE TYPE state_shape AS ENUM (
-    'rectangle', 'diamond', 'hexagon', 'ellipse'
-  );
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  CREATE TYPE transition_line_style AS ENUM (
-    'solid', 'dashed', 'dotted'
-  );
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  CREATE TYPE transition_path_type AS ENUM (
-    'straight', 'spline', 'elbow'
-  );
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  CREATE TYPE transition_arrow_head AS ENUM (
-    'none', 'end', 'start', 'both'
-  );
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  CREATE TYPE gate_type AS ENUM (
-    'approval', 'checklist', 'condition'
-  );
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  CREATE TYPE approval_mode AS ENUM (
-    'any', 'all', 'majority'
-  );
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  CREATE TYPE reviewer_type AS ENUM (
-    'user', 'role', 'group', 'workflow_role'
-  );
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  CREATE TYPE review_status AS ENUM (
-    'pending', 'approved', 'rejected', 'cancelled', 'kicked_back'
-  );
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
--- Migration: ensure 'kicked_back' exists on review_status for databases created
--- before it was added to the CREATE TYPE above. The DO/EXCEPTION block only runs
--- CREATE TYPE for brand-new databases, so pre-existing enums never received this
--- value (causing "invalid input value for enum review_status: kicked_back").
--- ALTER TYPE ... ADD VALUE must be a top-level statement (it cannot run inside a
--- DO/function block) and IF NOT EXISTS makes it idempotent.
-ALTER TYPE review_status ADD VALUE IF NOT EXISTS 'kicked_back';
-
--- Box edge an anchored transition endpoint is attached to
-DO $$ BEGIN
-  CREATE TYPE transition_edge AS ENUM ('left', 'right', 'top', 'bottom');
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
--- Migration (v86): drop the advanced-workflow tables that were never wired up.
--- They carried RLS with no policies (deny-all) and no application code ever read
--- or wrote them. Transition guards, actions, notifications, timers and tasks are
--- not part of the engine; approvals go through workflow_gates + pending_reviews.
-DROP TABLE IF EXISTS pending_transition_approvals CASCADE;
-DROP TABLE IF EXISTS workflow_approval_reviewers CASCADE;
-DROP TABLE IF EXISTS workflow_transition_approvals CASCADE;
-DROP TABLE IF EXISTS workflow_transition_notifications CASCADE;
-DROP TABLE IF EXISTS workflow_transition_actions CASCADE;
-DROP TABLE IF EXISTS workflow_transition_conditions CASCADE;
-DROP TABLE IF EXISTS workflow_auto_transitions CASCADE;
-DROP TABLE IF EXISTS workflow_state_permissions CASCADE;
-DROP TABLE IF EXISTS workflow_tasks CASCADE;
-DROP TABLE IF EXISTS revision_schemes CASCADE;
-
--- Enums that only those tables used
-DROP TYPE IF EXISTS state_permission_type CASCADE;
-DROP TYPE IF EXISTS condition_type CASCADE;
-DROP TYPE IF EXISTS action_type CASCADE;
-DROP TYPE IF EXISTS revision_scheme_type CASCADE;
-DROP TYPE IF EXISTS auto_trigger_type CASCADE;
-DROP TYPE IF EXISTS workflow_task_type CASCADE;
-DROP TYPE IF EXISTS notification_recipient_type CASCADE;
-
--- Revision scheme enum (used by organizations.revision_scheme column)
-DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'revision_scheme') THEN
-    CREATE TYPE revision_scheme AS ENUM ('letter', 'numeric');
-  END IF;
-END $$;
-
--- ===========================================
--- ORGANIZATION COLUMNS (managed by source-files module)
--- ===========================================
-
--- Migration: Add revision_scheme column to organizations
-DO $$ BEGIN 
-  ALTER TABLE organizations ADD COLUMN revision_scheme revision_scheme DEFAULT 'letter'; 
-EXCEPTION WHEN duplicate_column THEN NULL; 
-END $$;
-
--- Migration: Add serialization_settings column to organizations
-DO $$ BEGIN 
-  ALTER TABLE organizations ADD COLUMN serialization_settings JSONB DEFAULT '{
-    "enabled": true,
-    "prefix": "PN-",
-    "suffix": "",
-    "padding_digits": 5,
-    "letter_count": 0,
-    "current_counter": 0,
-    "use_letters_before_numbers": false,
-    "letter_prefix": "",
-    "keepout_zones": [],
-    "auto_apply_extensions": []
-  }'::jsonb; 
-EXCEPTION WHEN duplicate_column THEN NULL; 
-END $$;
-
--- Migration: Add item_definition_settings column to organizations
--- Defines what constitutes an "item" for the Item Browser module:
---   anyStage / workflowStageIds - which workflow_states qualify (empty + anyStage = all)
---   anyType / fileTypes - which file_type values qualify (empty + anyType = all)
---   requirePartNumber - only count files that have a part number
---   matchOrgFormat - only show item numbers matching the org serialization format
-DO $$ BEGIN 
-  ALTER TABLE organizations ADD COLUMN item_definition_settings JSONB DEFAULT '{
-    "anyStage": true,
-    "workflowStageIds": [],
-    "anyType": true,
-    "fileTypes": [],
-    "requirePartNumber": true,
-    "matchOrgFormat": true
-  }'::jsonb; 
-EXCEPTION WHEN duplicate_column THEN NULL; 
-END $$;
-
--- ===========================================
--- VAULTS
--- ===========================================
-
-CREATE TABLE IF NOT EXISTS vaults (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  slug TEXT NOT NULL,
-  description TEXT,
-  local_path TEXT,
-  storage_bucket TEXT,
-  color TEXT DEFAULT '#6366f1',
-  icon TEXT DEFAULT 'folder',
-  is_default BOOLEAN DEFAULT false,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  created_by UUID REFERENCES users(id),
-  
-  UNIQUE(org_id, slug)
-);
-
--- Migration: Add storage_bucket column to existing vaults tables
-DO $$ BEGIN 
-  ALTER TABLE vaults ADD COLUMN storage_bucket TEXT; 
-EXCEPTION WHEN duplicate_column THEN NULL; 
-END $$;
-
-CREATE INDEX IF NOT EXISTS idx_vaults_org_id ON vaults(org_id);
-
--- ===========================================
--- VAULT ACCESS (Per-user permissions)
--- ===========================================
-
-CREATE TABLE IF NOT EXISTS vault_access (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  vault_id UUID NOT NULL REFERENCES vaults(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  granted_by UUID REFERENCES users(id),
-  granted_at TIMESTAMPTZ DEFAULT NOW(),
-  
-  UNIQUE(vault_id, user_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_vault_access_vault_id ON vault_access(vault_id);
-CREATE INDEX IF NOT EXISTS idx_vault_access_user_id ON vault_access(user_id);
-
--- Team vault access (references teams from core)
-CREATE TABLE IF NOT EXISTS team_vault_access (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  team_id UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
-  vault_id UUID NOT NULL REFERENCES vaults(id) ON DELETE CASCADE,
-  granted_at TIMESTAMPTZ DEFAULT NOW(),
-  granted_by UUID REFERENCES users(id),
-  
-  UNIQUE(team_id, vault_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_team_vault_access_team_id ON team_vault_access(team_id);
-CREATE INDEX IF NOT EXISTS idx_team_vault_access_vault_id ON team_vault_access(vault_id);
+$$ LANGUAGE plpgsql STABLE SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 -- ===========================================
 -- VAULT VISIBILITY (schema 111)
@@ -401,400 +1243,22 @@ LANGUAGE sql STABLE SECURITY DEFINER
 SET search_path = public
 AS $$
   SELECT v.id
-    FROM vaults v
-    JOIN users u ON u.id = auth.uid() AND u.org_id = v.org_id
+    FROM vault v
+    JOIN app_user u ON u.id = auth.uid() AND u.org_id = v.org_id
    WHERE is_org_admin()
       OR EXISTS (SELECT 1 FROM vault_access va WHERE va.vault_id = v.id AND va.user_id = u.id)
       OR EXISTS (
         SELECT 1 FROM team_vault_access tva
-        JOIN team_members tm ON tm.team_id = tva.team_id
+        JOIN team_member tm ON tm.team_id = tva.team_id
         WHERE tva.vault_id = v.id AND tm.user_id = u.id
       );
 $$;
-
-REVOKE ALL ON FUNCTION my_accessible_vault_ids() FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION my_accessible_vault_ids() TO authenticated;
-
--- ===========================================
--- WORKFLOW TEMPLATES (must come before files)
--- ===========================================
-
-CREATE TABLE IF NOT EXISTS workflow_templates (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  description TEXT,
-  is_default BOOLEAN DEFAULT false,
-  is_active BOOLEAN DEFAULT true,
-  canvas_config JSONB DEFAULT '{"zoom": 1, "panX": 0, "panY": 0}'::jsonb,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  created_by UUID REFERENCES users(id),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_by UUID REFERENCES users(id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_workflow_templates_org_id ON workflow_templates(org_id);
-CREATE INDEX IF NOT EXISTS idx_workflow_templates_is_default ON workflow_templates(is_default);
-CREATE INDEX IF NOT EXISTS idx_workflow_templates_is_active ON workflow_templates(is_active);
-
--- ===========================================
--- WORKFLOW STATES
--- ===========================================
-
-CREATE TABLE IF NOT EXISTS workflow_states (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  workflow_id UUID NOT NULL REFERENCES workflow_templates(id) ON DELETE CASCADE,
-  state_type state_type DEFAULT 'state',
-  shape state_shape DEFAULT 'rectangle',
-  name TEXT NOT NULL,
-  label TEXT,
-  description TEXT,
-  color TEXT DEFAULT '#6B7280',
-  fill_opacity DECIMAL(3,2) DEFAULT 1.0,
-  border_color TEXT,
-  border_opacity DECIMAL(3,2) DEFAULT 1.0,
-  border_thickness INTEGER DEFAULT 2,
-  corner_radius INTEGER DEFAULT 8,
-  icon TEXT DEFAULT 'circle',
-  position_x INTEGER DEFAULT 0,
-  position_y INTEGER DEFAULT 0,
-  width INTEGER NOT NULL DEFAULT 120,
-  height INTEGER NOT NULL DEFAULT 60,
-  is_editable BOOLEAN DEFAULT true,
-  requires_checkout BOOLEAN DEFAULT true,
-  auto_increment_revision BOOLEAN DEFAULT false,
-  gate_config JSONB DEFAULT '{}'::jsonb,
-  required_workflow_roles UUID[] DEFAULT '{}',
-  triggers_review BOOLEAN DEFAULT FALSE,
-  sort_order INTEGER DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Migration: Add triggers_review column for existing tables
-DO $$ BEGIN ALTER TABLE workflow_states ADD COLUMN triggers_review BOOLEAN DEFAULT FALSE; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
-
--- Schema 110: a review stage (triggers_review) names the state an approved review
--- moves its files to. NULL = the stage's only outgoing transition.
-ALTER TABLE workflow_states ADD COLUMN IF NOT EXISTS review_approved_state_id UUID
-  REFERENCES workflow_states(id) ON DELETE SET NULL;
-
--- Migration (v86): node size is part of the saved diagram, not per-session UI state
-ALTER TABLE workflow_states ADD COLUMN IF NOT EXISTS width INTEGER NOT NULL DEFAULT 120;
-ALTER TABLE workflow_states ADD COLUMN IF NOT EXISTS height INTEGER NOT NULL DEFAULT 60;
-
-CREATE INDEX IF NOT EXISTS idx_workflow_states_workflow_id ON workflow_states(workflow_id);
-
--- ===========================================
--- FILES
--- ===========================================
-
-CREATE TABLE IF NOT EXISTS files (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  vault_id UUID REFERENCES vaults(id) ON DELETE CASCADE,
-  
-  -- File identity
-  file_path TEXT NOT NULL,
-  file_name TEXT NOT NULL,
-  extension TEXT NOT NULL,
-  file_type file_type NOT NULL DEFAULT 'other',
-  
-  -- Engineering metadata
-  part_number TEXT,
-  description TEXT,
-  revision TEXT NOT NULL DEFAULT '',
-  version INTEGER NOT NULL DEFAULT 1,
-  
-  -- Content reference
-  content_hash TEXT,
-  file_size BIGINT DEFAULT 0,
-  
-  -- Inspection table content fingerprint (drawings).
-  -- Hash of the inspection_characteristics rows; used to detect inspection edits
-  -- so they trigger a new version on check-in (see checkin_file).
-  inspection_hash TEXT,
-  
-  -- Workflow state
-  workflow_state_id UUID REFERENCES workflow_states(id),
-  state TEXT DEFAULT 'WIP', -- Legacy field for backwards compatibility
-  state_changed_at TIMESTAMPTZ DEFAULT NOW(),
-  state_changed_by UUID REFERENCES users(id),
-  
-  -- Checkout lock
-  checked_out_by UUID REFERENCES users(id),
-  checked_out_at TIMESTAMPTZ,
-  lock_message TEXT,
-  checked_out_by_machine_id TEXT,
-  checked_out_by_machine_name TEXT,
-  -- file_path / file_name at the moment checkout_file() ran, so discard can restore a
-  -- rename or move made during the checkout - renames themselves keep propagating to
-  -- file_path/file_name live, exactly as before. NULL when not checked out. Cleared by
-  -- checkin_file(), undoCheckout() and adminForceDiscardCheckout() alongside the lock.
-  checked_out_file_path TEXT,
-  checked_out_file_name TEXT,
-  
-  -- Timestamps
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  created_by UUID NOT NULL REFERENCES users(id),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_by UUID REFERENCES users(id),
-  
-  -- Custom properties
-  custom_properties JSONB DEFAULT '{}'::jsonb,
-  
-  -- Configuration-specific revisions (for multi-config parts/assemblies)
-  -- Map of configuration name -> revision letter, e.g. {"Default": "B", "Anodized": "C"}
-  -- Updated when drawings referencing this file's configs are released
-  configuration_revisions JSONB DEFAULT '{}'::jsonb,
-  
-  -- ECO tags (denormalized)
-  eco_tags TEXT[] DEFAULT '{}',
-  
-  -- Soft delete
-  deleted_at TIMESTAMPTZ,
-  deleted_by UUID REFERENCES users(id)
-);
-
--- Indexes
--- DROP+CREATE to ensure the index uses LOWER(file_path) for case-insensitive uniqueness on Windows
-DROP INDEX IF EXISTS idx_files_vault_path_unique_active;
-CREATE UNIQUE INDEX idx_files_vault_path_unique_active 
-  ON files(vault_id, LOWER(file_path)) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_files_org_id ON files(org_id);
-CREATE INDEX IF NOT EXISTS idx_files_vault_id ON files(vault_id);
-CREATE INDEX IF NOT EXISTS idx_files_file_path ON files(file_path);
-CREATE INDEX IF NOT EXISTS idx_files_part_number ON files(part_number) WHERE part_number IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_files_state ON files(state);
-CREATE INDEX IF NOT EXISTS idx_files_checked_out_by ON files(checked_out_by) WHERE checked_out_by IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_files_extension ON files(extension);
-CREATE INDEX IF NOT EXISTS idx_files_content_hash ON files(content_hash) WHERE content_hash IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_files_deleted_at ON files(deleted_at) WHERE deleted_at IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_files_active ON files(vault_id, file_path) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_files_eco_tags ON files USING GIN (eco_tags);
-
--- Full text search
-DO $$ BEGIN
-  CREATE INDEX idx_files_search ON files USING GIN (
-    to_tsvector('simple'::regconfig, 
-      coalesce(file_name, '') || ' ' || 
-      coalesce(part_number, '') || ' ' || 
-      coalesce(description, '') || ' ' ||
-      coalesce(array_to_string(eco_tags, ' '), '')
-    )
-  );
-EXCEPTION WHEN OTHERS THEN 
-  RAISE NOTICE 'Could not create idx_files_search: %', SQLERRM;
-END $$;
-
--- Migration: Ensure files columns have NOT NULL (set defaults for any existing NULLs first)
-UPDATE files SET file_type = 'other' WHERE file_type IS NULL;
-UPDATE files SET revision = '' WHERE revision IS NULL;
-UPDATE files SET version = 1 WHERE version IS NULL;
-
--- Migration: Change default revision from 'A' to '' (empty string means "no revision set")
-DO $$ BEGIN
-  ALTER TABLE files ALTER COLUMN revision SET DEFAULT '';
-EXCEPTION WHEN others THEN NULL;
-END $$;
-DO $$ BEGIN
-  ALTER TABLE files ALTER COLUMN file_type SET NOT NULL;
-  ALTER TABLE files ALTER COLUMN revision SET NOT NULL;
-  ALTER TABLE files ALTER COLUMN version SET NOT NULL;
-EXCEPTION WHEN others THEN NULL;
-END $$;
-
--- Migration: Add inspection_hash column to files (inspection table fingerprint)
-DO $$ BEGIN
-  ALTER TABLE files ADD COLUMN inspection_hash TEXT;
-EXCEPTION WHEN duplicate_column THEN NULL;
-END $$;
-
--- ===========================================
--- FILE VERSIONS
--- ===========================================
-
-CREATE TABLE IF NOT EXISTS file_versions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-  version INTEGER NOT NULL,
-  revision TEXT NOT NULL,
-  content_hash TEXT NOT NULL,
-  file_size BIGINT DEFAULT 0,
-  workflow_state_id UUID REFERENCES workflow_states(id),
-  state TEXT NOT NULL DEFAULT 'not_tracked', -- Workflow state name at time of version
-  comment TEXT,
-  part_number TEXT,      -- Snapshot of part number at time of version
-  description TEXT,      -- Snapshot of description at time of version
-  inspection_hash TEXT,  -- Snapshot of inspection table fingerprint at time of version
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  created_by UUID NOT NULL REFERENCES users(id),
-  
-  UNIQUE(file_id, version)
-);
-
--- Migration: Add state column to file_versions if it doesn't exist
-DO $$ BEGIN 
-  ALTER TABLE file_versions ADD COLUMN state TEXT NOT NULL DEFAULT 'not_tracked'; 
-EXCEPTION WHEN duplicate_column THEN NULL; 
-END $$;
-
--- Migration: Add part_number and description columns to file_versions
-DO $$ BEGIN 
-  ALTER TABLE file_versions ADD COLUMN part_number TEXT; 
-EXCEPTION WHEN duplicate_column THEN NULL; 
-END $$;
-DO $$ BEGIN 
-  ALTER TABLE file_versions ADD COLUMN description TEXT; 
-EXCEPTION WHEN duplicate_column THEN NULL; 
-END $$;
-
--- Migration: Add inspection_hash column to file_versions (inspection table snapshot fingerprint)
-DO $$ BEGIN 
-  ALTER TABLE file_versions ADD COLUMN inspection_hash TEXT; 
-EXCEPTION WHEN duplicate_column THEN NULL; 
-END $$;
-
--- Schema 105: set when record_version_references() has written this version's
--- reference set (possibly empty). NULL means the version predates per-version
--- references, and get_version_dependency_closure() falls back to file_references.
-ALTER TABLE file_versions ADD COLUMN IF NOT EXISTS references_recorded_at TIMESTAMPTZ;
-
-CREATE INDEX IF NOT EXISTS idx_file_versions_file_id ON file_versions(file_id);
-CREATE INDEX IF NOT EXISTS idx_file_versions_content_hash ON file_versions(content_hash);
-
--- ===========================================
--- RELEASE FILES
--- ===========================================
-
-CREATE TABLE IF NOT EXISTS release_files (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-  file_version_id UUID REFERENCES file_versions(id) ON DELETE SET NULL,
-  version INTEGER NOT NULL,
-  revision TEXT,
-  file_type release_file_type NOT NULL,
-  file_name TEXT NOT NULL,
-  local_path TEXT,
-  storage_path TEXT,
-  storage_hash TEXT,
-  file_size BIGINT DEFAULT 0,
-  generated_by UUID REFERENCES users(id),
-  generated_at TIMESTAMPTZ DEFAULT NOW(),
-  rfq_id UUID,
-  rfq_item_id UUID,
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_release_files_file_id ON release_files(file_id);
-CREATE INDEX IF NOT EXISTS idx_release_files_file_version ON release_files(file_version_id);
-CREATE INDEX IF NOT EXISTS idx_release_files_org ON release_files(org_id);
-CREATE INDEX IF NOT EXISTS idx_release_files_file_version_type ON release_files(file_id, version, file_type);
-
--- ===========================================
--- FILE REFERENCES (BOM/Assembly)
--- ===========================================
-
-CREATE TABLE IF NOT EXISTS file_references (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  parent_file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-  child_file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-  reference_type reference_type DEFAULT 'component',
-  quantity INTEGER DEFAULT 1,
-  configuration TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  
-  UNIQUE(parent_file_id, child_file_id, configuration)
-);
-
-CREATE INDEX IF NOT EXISTS idx_file_references_parent ON file_references(parent_file_id);
-CREATE INDEX IF NOT EXISTS idx_file_references_child ON file_references(child_file_id);
-
--- ===========================================
--- FILE VERSION REFERENCES (schema 107)
--- ===========================================
--- file_references says what a file references *now*. A review pins a drawing at a
--- version, and "the drawing and its parts at matching versions" needs what that
--- version referenced when it was checked in. One row per reference of one parent
--- version, written by record_version_references() at check-in.
---
--- child_version_id is the child's version whose content hash matched the local
--- child at check-in (exact = true), else the child's latest version at that moment
--- (exact = false), else NULL (the child had no version). child_file_id is NULL for
--- a reference outside the vault; child_path still names it.
-CREATE TABLE IF NOT EXISTS file_version_references (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  parent_version_id UUID NOT NULL REFERENCES file_versions(id) ON DELETE CASCADE,
-  parent_file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-  child_file_id UUID REFERENCES files(id) ON DELETE SET NULL,
-  child_version_id UUID REFERENCES file_versions(id) ON DELETE SET NULL,
-  child_path TEXT NOT NULL CHECK (length(btrim(child_path)) > 0),
-  configuration TEXT,
-  reference_type reference_type NOT NULL DEFAULT 'component',
-  quantity INTEGER NOT NULL DEFAULT 1 CHECK (quantity >= 1),
-  exact BOOLEAN NOT NULL DEFAULT false,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_file_version_references_unique
-  ON file_version_references (parent_version_id, lower(child_path), COALESCE(configuration, ''));
-CREATE INDEX IF NOT EXISTS idx_file_version_references_child ON file_version_references(child_file_id);
-CREATE INDEX IF NOT EXISTS idx_file_version_references_child_version ON file_version_references(child_version_id);
-CREATE INDEX IF NOT EXISTS idx_file_version_references_org ON file_version_references(org_id);
-
--- ===========================================
--- DRAWING PDF RENDERS (schema 107)
--- ===========================================
--- The PDF a reviewer sees for a drawing version. Generated once (on a machine with
--- SOLIDWORKS), stored content-addressed in the vault bucket, and reused by every
--- later request for the same version.
---
--- Not release_files: its policy lets any member with module:explorer:edit write
--- any row of their organization with no uniqueness per version, so a review's PDF
--- could be silently replaced or duplicated. This table is SELECT-only for clients;
--- record_drawing_pdf() is the only writer and refuses to replace a render unless
--- the caller is an administrator.
-CREATE TABLE IF NOT EXISTS drawing_pdf_renders (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-  file_version_id UUID NOT NULL UNIQUE REFERENCES file_versions(id) ON DELETE CASCADE,
-  storage_hash TEXT NOT NULL CHECK (storage_hash ~ '^[0-9a-f]{64}$'),
-  file_size BIGINT NOT NULL CHECK (file_size > 0),
-  -- Whether the references the drawing was rendered against were all exact
-  -- versions. NULL when the generator did not say.
-  closure_exact BOOLEAN,
-  generated_by UUID REFERENCES users(id) ON DELETE SET NULL,
-  generated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_drawing_pdf_renders_org ON drawing_pdf_renders(org_id);
-CREATE INDEX IF NOT EXISTS idx_drawing_pdf_renders_file ON drawing_pdf_renders(file_id);
-
--- ===========================================
--- FOLDERS (Explicit folder records for empty folders)
--- ===========================================
-
-CREATE TABLE IF NOT EXISTS folders (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  vault_id UUID NOT NULL REFERENCES vaults(id) ON DELETE CASCADE,
-  folder_path TEXT NOT NULL,  -- relative path, e.g., "Assemblies" or "Project/Assemblies"
-  created_by UUID REFERENCES users(id),
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  deleted_at TIMESTAMPTZ,
-  deleted_by UUID REFERENCES users(id)
-);
 
 -- Soft-delete the losing row of every case-colliding pair of active folders.
 --
 -- WHICH ROW SURVIVES, AND WHY IN THAT ORDER
 --
--- Nothing in this schema references folders.id - there is no `REFERENCES
+-- Nothing in this schema references folder.id - there is no `REFERENCES
 -- folders` anywhere in supabase/ - so no row here is referentially
 -- load-bearing, and the choice is entirely about which spelling the rest of the
 -- data already agrees with. In order:
@@ -809,8 +1273,8 @@ CREATE TABLE IF NOT EXISTS folders (
 -- The prefix test is written as left(file_path, n) = folder_path || '/' rather
 -- than as a LIKE, for two reasons. A folder called `100%` or `Part_Files` fed
 -- to LIKE as a pattern counts files it does not contain; and this runs while
--- the schema is being applied, where like_escape() - the answer
--- rename_folder_files() uses to that problem - lives in a core.sql this module
+-- the schema is being applied, where like_pattern_escape() - the answer
+-- folder_rename() uses to that problem - lives in a core.sql this module
 -- may be applied over an older copy of.
 --
 -- Losers are soft-deleted, never hard-deleted, matching every other remediation
@@ -818,10 +1282,10 @@ CREATE TABLE IF NOT EXISTS folders (
 -- Soft-deleting is also what makes the function idempotent: a second run finds
 -- no active collisions, writes nothing to the ledger and prints nothing.
 --
--- record_remediation() is likewise a core.sql object, so the ledger entry is
+-- schema_remediation_record() is likewise a core.sql object, so the ledger entry is
 -- guarded. The dedupe itself still happens against an older core - only the
 -- receipt is skipped, and the count is still returned.
-CREATE OR REPLACE FUNCTION remediate_case_colliding_folders()
+CREATE OR REPLACE FUNCTION folder_remediate_case_collisions()
 RETURNS INTEGER
 LANGUAGE plpgsql AS $$
 DECLARE
@@ -832,15 +1296,15 @@ BEGIN
     SELECT f.id, f.org_id, f.vault_id, f.folder_path, f.created_by, f.created_at,
            LOWER(f.folder_path) AS folder_key,
            (SELECT count(*)
-              FROM files fi
+              FROM file fi
              WHERE fi.vault_id = f.vault_id
                AND fi.deleted_at IS NULL
                AND left(fi.file_path, length(f.folder_path) + 1) = f.folder_path || '/'
            ) AS agreeing_files
-      FROM folders f
+      FROM folder f
      WHERE f.deleted_at IS NULL
        AND EXISTS (SELECT 1
-                     FROM folders g
+                     FROM folder g
                     WHERE g.vault_id = f.vault_id
                       AND g.deleted_at IS NULL
                       AND LOWER(g.folder_path) = LOWER(f.folder_path)
@@ -861,7 +1325,7 @@ BEGIN
      WHERE j.id <> j.surviving_id
   ),
   deactivated AS (
-    UPDATE folders f
+    UPDATE folder f
        SET deleted_at = NOW(),
            deleted_by = NULL
       FROM victims v
@@ -873,11 +1337,11 @@ BEGIN
     INTO v_subjects, v_rows
     FROM victims v;
 
-  IF to_regprocedure('public.record_remediation(text,integer,jsonb,text)') IS NULL THEN
+  IF to_regprocedure('public.schema_remediation_record(text,integer,jsonb,text)') IS NULL THEN
     RETURN COALESCE(v_rows, 0);
   END IF;
 
-  RETURN record_remediation(
+  RETURN schema_remediation_record(
     'case_colliding_folders', v_rows, v_subjects,
     'Each row was a second active folders row differing from another only in '
     || 'letter case, which on Windows is the same folder. The surviving row is '
@@ -885,697 +1349,65 @@ BEGIN
     || 'most active files already use, then the oldest, then the lowest id. '
     || 'Nothing was deleted - to bring one back, set deleted_at = NULL on it '
     || 'after renaming it to a path no active row holds, because '
-    || 'idx_folders_unique_active is now unique on LOWER(folder_path).');
+    || 'folder_vault_id_folder_path_idx is now unique on LOWER(folder_path).');
 END;
 $$;
 
-REVOKE ALL ON FUNCTION remediate_case_colliding_folders() FROM PUBLIC, anon, authenticated;
-
--- Only one active row per folder per vault, compared case-insensitively.
---
--- Windows is this product's only target - a vault lives at something like
--- C:\BluePLM\br-vault - and every consumer of this table keys on
--- folder_path.toLowerCase(). The index was byte-exact, so `RADCAM` and `Radcam`
--- were two active rows describing one folder, and the client's own two counts
--- of one vault disagreed with each other: getVaultFolders reported 2015 rows
--- while the load path built a map of 1995. files has been on LOWER(file_path)
--- since v54; this is the same shape, arrived at late.
---
--- DROP+CREATE rather than CREATE IF NOT EXISTS: the name already exists on
--- every installed database carrying the byte-exact definition, and IF NOT
--- EXISTS would silently keep it.
---
--- The dedupe runs immediately above the CREATE and not at the module tail
--- beside the other two remediations, which is where a reader would look for it.
--- A unique index cannot be built while the duplicates it forbids are present:
--- the statement would raise 23505, the Supabase SQL editor would roll back the
--- whole file, and the module would be left unapplied.
-SELECT remediate_case_colliding_folders();
-
-DROP INDEX IF EXISTS idx_folders_unique_active;
-CREATE UNIQUE INDEX idx_folders_unique_active
-  ON folders(vault_id, LOWER(folder_path))
-  WHERE deleted_at IS NULL;
-
-CREATE INDEX IF NOT EXISTS idx_folders_org_id ON folders(org_id);
-CREATE INDEX IF NOT EXISTS idx_folders_vault_id ON folders(vault_id);
-CREATE INDEX IF NOT EXISTS idx_folders_deleted_at ON folders(deleted_at) WHERE deleted_at IS NOT NULL;
-
--- ===========================================
--- ACTIVITY LOG
--- ===========================================
-
-CREATE TABLE IF NOT EXISTS activity (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  file_id UUID REFERENCES files(id) ON DELETE SET NULL,
-  user_id UUID NOT NULL REFERENCES users(id),
-  user_email TEXT NOT NULL,
-  action activity_action NOT NULL,
-  details JSONB DEFAULT '{}'::jsonb,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_activity_org_id ON activity(org_id);
-CREATE INDEX IF NOT EXISTS idx_activity_file_id ON activity(file_id);
-CREATE INDEX IF NOT EXISTS idx_activity_user_id ON activity(user_id);
-CREATE INDEX IF NOT EXISTS idx_activity_created_at ON activity(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_activity_action ON activity(action);
-
--- ===========================================
--- WORKFLOW TRANSITIONS
--- ===========================================
-
-CREATE TABLE IF NOT EXISTS workflow_transitions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  workflow_id UUID NOT NULL REFERENCES workflow_templates(id) ON DELETE CASCADE,
-  from_state_id UUID NOT NULL REFERENCES workflow_states(id) ON DELETE CASCADE,
-  to_state_id UUID NOT NULL REFERENCES workflow_states(id) ON DELETE CASCADE,
-  name TEXT,
-  description TEXT,
-  line_style transition_line_style DEFAULT 'solid',
-  line_color TEXT,
-  line_path_type transition_path_type DEFAULT 'spline',
-  line_arrow_head transition_arrow_head DEFAULT 'end',
-  line_thickness INTEGER DEFAULT 2,
-  allowed_workflow_roles UUID[] DEFAULT '{}',
-  auto_conditions JSONB,
-
-  -- Diagram routing. NULL anchors mean "wherever the centre-to-centre ray crosses
-  -- the border"; a set edge + fraction pins the endpoint to a spot the user chose.
-  start_edge transition_edge,
-  start_fraction DECIMAL(4,3),
-  end_edge transition_edge,
-  end_fraction DECIMAL(4,3),
-  waypoints JSONB NOT NULL DEFAULT '[]'::jsonb,
-  label_offset JSONB,
-  label_pinned JSONB,
-
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  
-  UNIQUE(from_state_id, to_state_id)
-);
-
--- Migration (v86): routing is part of the saved diagram, not per-session UI state
-ALTER TABLE workflow_transitions ADD COLUMN IF NOT EXISTS start_edge transition_edge;
-ALTER TABLE workflow_transitions ADD COLUMN IF NOT EXISTS start_fraction DECIMAL(4,3);
-ALTER TABLE workflow_transitions ADD COLUMN IF NOT EXISTS end_edge transition_edge;
-ALTER TABLE workflow_transitions ADD COLUMN IF NOT EXISTS end_fraction DECIMAL(4,3);
-ALTER TABLE workflow_transitions ADD COLUMN IF NOT EXISTS waypoints JSONB NOT NULL DEFAULT '[]'::jsonb;
-ALTER TABLE workflow_transitions ADD COLUMN IF NOT EXISTS label_offset JSONB;
-ALTER TABLE workflow_transitions ADD COLUMN IF NOT EXISTS label_pinned JSONB;
-
-CREATE INDEX IF NOT EXISTS idx_workflow_transitions_workflow_id ON workflow_transitions(workflow_id);
-CREATE INDEX IF NOT EXISTS idx_workflow_transitions_from_state ON workflow_transitions(from_state_id);
-CREATE INDEX IF NOT EXISTS idx_workflow_transitions_to_state ON workflow_transitions(to_state_id);
-
--- Migration (v64): transitions are single-direction only. Convert any legacy
--- bidirectional arrowheads to a normal end arrow. Admins should add a separate
--- transition for the reverse direction. Idempotent.
-UPDATE workflow_transitions SET line_arrow_head = 'end' WHERE line_arrow_head = 'both';
-
--- ===========================================
--- WORKFLOW GATES
--- ===========================================
-
-CREATE TABLE IF NOT EXISTS workflow_gates (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  transition_id UUID NOT NULL REFERENCES workflow_transitions(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  description TEXT,
-  gate_type gate_type DEFAULT 'approval',
-  required_approvals INTEGER DEFAULT 1,
-  approval_mode approval_mode DEFAULT 'any',
-  checklist_items JSONB DEFAULT '[]'::jsonb,
-  conditions JSONB,
-  is_blocking BOOLEAN DEFAULT true,
-  can_be_skipped_by user_role[] DEFAULT '{}'::user_role[],
-  sort_order INTEGER DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_workflow_gates_transition_id ON workflow_gates(transition_id);
-
--- ===========================================
--- WORKFLOW GATE REVIEWERS
--- ===========================================
-
-CREATE TABLE IF NOT EXISTS workflow_gate_reviewers (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  gate_id UUID NOT NULL REFERENCES workflow_gates(id) ON DELETE CASCADE,
-  reviewer_type reviewer_type NOT NULL,
-  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-  role user_role,
-  group_name TEXT,
-  workflow_role_id UUID,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_workflow_gate_reviewers_gate_id ON workflow_gate_reviewers(gate_id);
-CREATE INDEX IF NOT EXISTS idx_workflow_gate_reviewers_user_id ON workflow_gate_reviewers(user_id);
-
--- ===========================================
--- WORKFLOW ROLES
--- ===========================================
-
-CREATE TABLE IF NOT EXISTS workflow_roles (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  description TEXT,
-  color TEXT DEFAULT '#6B7280',
-  icon TEXT DEFAULT 'badge-check',
-  is_active BOOLEAN DEFAULT true,
-  sort_order INTEGER DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  created_by UUID REFERENCES users(id),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_by UUID REFERENCES users(id),
-  UNIQUE(org_id, name)
-);
-
-CREATE INDEX IF NOT EXISTS idx_workflow_roles_org_id ON workflow_roles(org_id);
-CREATE INDEX IF NOT EXISTS idx_workflow_roles_name ON workflow_roles(org_id, name);
-
--- User workflow role assignments
-CREATE TABLE IF NOT EXISTS user_workflow_roles (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  workflow_role_id UUID NOT NULL REFERENCES workflow_roles(id) ON DELETE CASCADE,
-  assigned_at TIMESTAMPTZ DEFAULT NOW(),
-  assigned_by UUID REFERENCES users(id),
-  UNIQUE(user_id, workflow_role_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_user_workflow_roles_user_id ON user_workflow_roles(user_id);
-CREATE INDEX IF NOT EXISTS idx_user_workflow_roles_role_id ON user_workflow_roles(workflow_role_id);
-
--- Add workflow_role_id FK to gate_reviewers after workflow_roles exists
-DO $$ BEGIN
-  ALTER TABLE workflow_gate_reviewers 
-    ADD CONSTRAINT fk_workflow_gate_reviewers_workflow_role 
-    FOREIGN KEY (workflow_role_id) REFERENCES workflow_roles(id) ON DELETE CASCADE;
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
--- ===========================================
--- FILE WORKFLOW ASSIGNMENTS
--- ===========================================
-
-CREATE TABLE IF NOT EXISTS file_workflow_assignments (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE UNIQUE,
-  workflow_id UUID NOT NULL REFERENCES workflow_templates(id) ON DELETE CASCADE,
-  current_state_id UUID REFERENCES workflow_states(id) ON DELETE SET NULL,
-  assigned_at TIMESTAMPTZ DEFAULT NOW(),
-  assigned_by UUID REFERENCES users(id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_file_workflow_assignments_file_id ON file_workflow_assignments(file_id);
-CREATE INDEX IF NOT EXISTS idx_file_workflow_assignments_workflow_id ON file_workflow_assignments(workflow_id);
-CREATE INDEX IF NOT EXISTS idx_file_workflow_assignments_current_state ON file_workflow_assignments(current_state_id);
-
--- ===========================================
--- PENDING REVIEWS
--- ===========================================
-
-CREATE TABLE IF NOT EXISTS pending_reviews (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-  transition_id UUID NOT NULL REFERENCES workflow_transitions(id) ON DELETE CASCADE,
-  gate_id UUID NOT NULL REFERENCES workflow_gates(id) ON DELETE CASCADE,
-  requested_by UUID NOT NULL REFERENCES users(id),
-  requested_at TIMESTAMPTZ DEFAULT NOW(),
-  status review_status NOT NULL DEFAULT 'pending',
-  assigned_to UUID REFERENCES users(id),
-  reviewed_by UUID REFERENCES users(id),
-  reviewed_at TIMESTAMPTZ,
-  review_comment TEXT,
-  checklist_responses JSONB DEFAULT '{}'::jsonb,
-  expires_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_pending_reviews_org_id ON pending_reviews(org_id);
-CREATE INDEX IF NOT EXISTS idx_pending_reviews_file_id ON pending_reviews(file_id);
-CREATE INDEX IF NOT EXISTS idx_pending_reviews_status ON pending_reviews(status);
-CREATE INDEX IF NOT EXISTS idx_pending_reviews_assigned_to ON pending_reviews(assigned_to);
-
--- Migration: Ensure pending_reviews.status has NOT NULL
-UPDATE pending_reviews SET status = 'pending' WHERE status IS NULL;
-DO $$ BEGIN
-  ALTER TABLE pending_reviews ALTER COLUMN status SET NOT NULL;
-EXCEPTION WHEN others THEN NULL;
-END $$;
-
--- Schema 105: an attempt id scopes a gate's approval count to one run of the
--- transition. Before this, complete_gate_review() counted every row ever created
--- for (file, transition, gate), so an 'all' gate could never pass again after one
--- rejection and an 'any' gate with required_approvals > 1 passed by reusing
--- approvals from earlier attempts and earlier versions.
---
--- Backfill: execute_workflow_transition() inserted every row of one attempt in a
--- single statement loop, so they share requested_at (NOW() is fixed for the
--- transaction). One attempt per (file, transition, requested_at) is therefore the
--- attempt each legacy row actually belonged to. Only NULL rows are touched, so a
--- second run changes nothing.
-ALTER TABLE pending_reviews ADD COLUMN IF NOT EXISTS attempt_id UUID;
-
-UPDATE pending_reviews pr
-SET attempt_id = g.attempt_id
-FROM (
-  SELECT file_id, transition_id, requested_at, gen_random_uuid() AS attempt_id
-  FROM pending_reviews
-  WHERE attempt_id IS NULL
-  GROUP BY file_id, transition_id, requested_at
-) g
-WHERE pr.attempt_id IS NULL
-  AND pr.file_id = g.file_id
-  AND pr.transition_id = g.transition_id
-  AND pr.requested_at IS NOT DISTINCT FROM g.requested_at;
-
-DO $$ BEGIN
-  ALTER TABLE pending_reviews ALTER COLUMN attempt_id SET NOT NULL;
-EXCEPTION WHEN others THEN NULL;
-END $$;
-
-CREATE INDEX IF NOT EXISTS idx_pending_reviews_attempt ON pending_reviews(attempt_id, gate_id);
-
--- ===========================================
--- WORKFLOW REVIEW HISTORY
--- ===========================================
-
-CREATE TABLE IF NOT EXISTS workflow_review_history (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  file_id UUID REFERENCES files(id) ON DELETE SET NULL,
-  file_path TEXT NOT NULL,
-  file_name TEXT NOT NULL,
-  workflow_id UUID REFERENCES workflow_templates(id) ON DELETE SET NULL,
-  workflow_name TEXT NOT NULL,
-  transition_id UUID REFERENCES workflow_transitions(id) ON DELETE SET NULL,
-  from_state_name TEXT NOT NULL,
-  to_state_name TEXT NOT NULL,
-  gate_id UUID REFERENCES workflow_gates(id) ON DELETE SET NULL,
-  gate_name TEXT NOT NULL,
-  requested_by UUID REFERENCES users(id) ON DELETE SET NULL,
-  requested_by_email TEXT NOT NULL,
-  requested_at TIMESTAMPTZ NOT NULL,
-  reviewed_by UUID REFERENCES users(id) ON DELETE SET NULL,
-  reviewed_by_email TEXT NOT NULL,
-  reviewed_at TIMESTAMPTZ NOT NULL,
-  decision TEXT NOT NULL,
-  comment TEXT,
-  checklist_responses JSONB,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_workflow_review_history_org_id ON workflow_review_history(org_id);
-CREATE INDEX IF NOT EXISTS idx_workflow_review_history_file_id ON workflow_review_history(file_id);
-CREATE INDEX IF NOT EXISTS idx_workflow_review_history_created_at ON workflow_review_history(created_at DESC);
-
--- ===========================================
--- WORKFLOW HISTORY
--- ===========================================
-
-CREATE TABLE IF NOT EXISTS workflow_history (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  file_id UUID REFERENCES files(id) ON DELETE SET NULL,
-  file_path TEXT NOT NULL,
-  file_name TEXT NOT NULL,
-  workflow_id UUID REFERENCES workflow_templates(id) ON DELETE SET NULL,
-  workflow_name TEXT NOT NULL,
-  from_state_id UUID REFERENCES workflow_states(id) ON DELETE SET NULL,
-  from_state_name TEXT NOT NULL,
-  to_state_id UUID REFERENCES workflow_states(id) ON DELETE SET NULL,
-  to_state_name TEXT NOT NULL,
-  transition_id UUID REFERENCES workflow_transitions(id) ON DELETE SET NULL,
-  transition_name TEXT,
-  performed_by UUID REFERENCES users(id) ON DELETE SET NULL,
-  performed_by_email TEXT NOT NULL,
-  performed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  comment TEXT,
-  revision_before TEXT,
-  revision_after TEXT,
-  approvals_data JSONB,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_workflow_history_org_id ON workflow_history(org_id);
-CREATE INDEX IF NOT EXISTS idx_workflow_history_file_id ON workflow_history(file_id);
-CREATE INDEX IF NOT EXISTS idx_workflow_history_performed_at ON workflow_history(performed_at DESC);
-
--- ===========================================
--- FILE STATE ENTRIES (Per-state file list)
--- ===========================================
-
-CREATE TABLE IF NOT EXISTS file_state_entries (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-  state_id UUID NOT NULL REFERENCES workflow_states(id) ON DELETE CASCADE,
-  entered_at TIMESTAMPTZ DEFAULT NOW(),
-  entered_by UUID REFERENCES users(id),
-  exited_at TIMESTAMPTZ,
-  exited_by UUID REFERENCES users(id),
-  duration_seconds INTEGER,
-  
-  UNIQUE(file_id, state_id, entered_at)
-);
-
-CREATE INDEX IF NOT EXISTS idx_file_state_entries_file_id ON file_state_entries(file_id);
-CREATE INDEX IF NOT EXISTS idx_file_state_entries_state_id ON file_state_entries(state_id);
-CREATE INDEX IF NOT EXISTS idx_file_state_entries_active ON file_state_entries(state_id) WHERE exited_at IS NULL;
-
--- ===========================================
--- FILE WATCHERS
--- ===========================================
-
-CREATE TABLE IF NOT EXISTS file_watchers (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  notify_on_checkin BOOLEAN DEFAULT true,
-  notify_on_checkout BOOLEAN DEFAULT false,
-  notify_on_state_change BOOLEAN DEFAULT true,
-  notify_on_review BOOLEAN DEFAULT true,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  
-  UNIQUE(file_id, user_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_file_watchers_file_id ON file_watchers(file_id);
-CREATE INDEX IF NOT EXISTS idx_file_watchers_user_id ON file_watchers(user_id);
-CREATE INDEX IF NOT EXISTS idx_file_watchers_org_id ON file_watchers(org_id);
-
--- ===========================================
--- FILE SHARE LINKS
--- ===========================================
-
-CREATE TABLE IF NOT EXISTS file_share_links (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-  token TEXT NOT NULL UNIQUE,
-  created_by UUID NOT NULL REFERENCES users(id),
-  expires_at TIMESTAMPTZ,
-  max_downloads INTEGER,
-  download_count INTEGER DEFAULT 0,
-  password_hash TEXT,
-  file_version INTEGER,
-  allow_download BOOLEAN DEFAULT true,
-  require_auth BOOLEAN DEFAULT false,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  last_accessed_at TIMESTAMPTZ,
-  is_active BOOLEAN DEFAULT true
-);
-
-CREATE INDEX IF NOT EXISTS idx_file_share_links_token ON file_share_links(token);
-CREATE INDEX IF NOT EXISTS idx_file_share_links_file_id ON file_share_links(file_id);
-CREATE INDEX IF NOT EXISTS idx_file_share_links_org_id ON file_share_links(org_id);
-CREATE INDEX IF NOT EXISTS idx_file_share_links_created_by ON file_share_links(created_by);
-CREATE INDEX IF NOT EXISTS idx_file_share_links_expires_at ON file_share_links(expires_at) WHERE expires_at IS NOT NULL;
-
--- ===========================================
--- FILE COMMENTS
--- ===========================================
-
-CREATE TABLE IF NOT EXISTS file_comments (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  comment TEXT NOT NULL,
-  page_number INTEGER,                    -- PDF page (1-indexed), NULL for file-level comments
-  position JSONB,                         -- {x, y, width, height, pageWidth, pageHeight} for area highlights
-  annotation_type TEXT DEFAULT 'text',    -- 'area', 'text', 'highlight', or 'file' (file-level)
-  parent_id UUID REFERENCES file_comments(id) ON DELETE CASCADE,  -- for threaded replies
-  resolved BOOLEAN DEFAULT FALSE,
-  resolved_by UUID REFERENCES users(id) ON DELETE SET NULL,
-  resolved_at TIMESTAMPTZ,
-  file_version INTEGER,                   -- version the comment was made on
-  edited_at TIMESTAMPTZ,                  -- tracks if comment was edited
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Migration: Add v51 columns for existing file_comments tables
-ALTER TABLE file_comments ADD COLUMN IF NOT EXISTS page_number INTEGER;
-ALTER TABLE file_comments ADD COLUMN IF NOT EXISTS position JSONB;
-ALTER TABLE file_comments ADD COLUMN IF NOT EXISTS annotation_type TEXT DEFAULT 'text';
-DO $$ BEGIN ALTER TABLE file_comments ADD COLUMN parent_id UUID REFERENCES file_comments(id) ON DELETE CASCADE; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
-ALTER TABLE file_comments ADD COLUMN IF NOT EXISTS resolved BOOLEAN DEFAULT FALSE;
-DO $$ BEGIN ALTER TABLE file_comments ADD COLUMN resolved_by UUID REFERENCES users(id) ON DELETE SET NULL; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
-ALTER TABLE file_comments ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMPTZ;
-ALTER TABLE file_comments ADD COLUMN IF NOT EXISTS file_version INTEGER;
-ALTER TABLE file_comments ADD COLUMN IF NOT EXISTS edited_at TIMESTAMPTZ;
-
-CREATE INDEX IF NOT EXISTS idx_file_comments_file_id ON file_comments(file_id);
-CREATE INDEX IF NOT EXISTS idx_file_comments_user_id ON file_comments(user_id);
-CREATE INDEX IF NOT EXISTS idx_file_comments_parent_id ON file_comments(parent_id);
-CREATE INDEX IF NOT EXISTS idx_file_comments_resolved ON file_comments(resolved);
-
--- ===========================================
--- FILE METADATA COLUMNS (Custom fields)
--- ===========================================
-
-CREATE TABLE IF NOT EXISTS file_metadata_columns (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  label TEXT NOT NULL,
-  data_type metadata_column_type NOT NULL DEFAULT 'text',
-  select_options TEXT[] NOT NULL DEFAULT '{}',
-  width INTEGER NOT NULL DEFAULT 120,
-  visible BOOLEAN NOT NULL DEFAULT true,
-  sortable BOOLEAN NOT NULL DEFAULT true,
-  sort_order INTEGER NOT NULL DEFAULT 0,
-  required BOOLEAN NOT NULL DEFAULT false,
-  default_value TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  created_by UUID REFERENCES users(id),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_by UUID REFERENCES users(id),
-  
-  UNIQUE(org_id, name)
-);
-
-CREATE INDEX IF NOT EXISTS idx_file_metadata_columns_org_id ON file_metadata_columns(org_id);
-CREATE INDEX IF NOT EXISTS idx_file_metadata_columns_sort_order ON file_metadata_columns(org_id, sort_order);
-
--- Migration: Ensure file_metadata_columns columns have NOT NULL (set defaults for any existing NULLs first)
-UPDATE file_metadata_columns SET data_type = 'text' WHERE data_type IS NULL;
-UPDATE file_metadata_columns SET select_options = '{}' WHERE select_options IS NULL;
-UPDATE file_metadata_columns SET width = 120 WHERE width IS NULL;
-UPDATE file_metadata_columns SET visible = true WHERE visible IS NULL;
-UPDATE file_metadata_columns SET sortable = true WHERE sortable IS NULL;
-UPDATE file_metadata_columns SET sort_order = 0 WHERE sort_order IS NULL;
-UPDATE file_metadata_columns SET required = false WHERE required IS NULL;
-DO $$ BEGIN
-  ALTER TABLE file_metadata_columns ALTER COLUMN data_type SET NOT NULL;
-  ALTER TABLE file_metadata_columns ALTER COLUMN select_options SET NOT NULL;
-  ALTER TABLE file_metadata_columns ALTER COLUMN width SET NOT NULL;
-  ALTER TABLE file_metadata_columns ALTER COLUMN visible SET NOT NULL;
-  ALTER TABLE file_metadata_columns ALTER COLUMN sortable SET NOT NULL;
-  ALTER TABLE file_metadata_columns ALTER COLUMN sort_order SET NOT NULL;
-  ALTER TABLE file_metadata_columns ALTER COLUMN required SET NOT NULL;
-EXCEPTION WHEN others THEN NULL;
-END $$;
-
--- ===========================================
--- BACKUP SYSTEM
--- ===========================================
-
-CREATE TABLE IF NOT EXISTS backup_config (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE UNIQUE,
-  provider TEXT NOT NULL DEFAULT 'backblaze_b2',
-  bucket TEXT,
-  region TEXT,
-  endpoint TEXT,
-  access_key_encrypted TEXT,
-  secret_key_encrypted TEXT,
-  restic_password_encrypted TEXT,
-  schedule_enabled BOOLEAN DEFAULT false,
-  schedule_cron TEXT DEFAULT '0 0 * * *',
-  schedule_hour INT DEFAULT 0,
-  schedule_minute INT DEFAULT 0,
-  schedule_timezone TEXT DEFAULT 'UTC',
-  designated_machine_id TEXT,
-  designated_machine_name TEXT,
-  designated_machine_platform TEXT,
-  designated_machine_user_email TEXT,
-  designated_machine_last_seen TIMESTAMPTZ,
-  backup_requested_at TIMESTAMPTZ,
-  backup_requested_by TEXT,
-  backup_running_since TIMESTAMPTZ,
-  retention_daily INT DEFAULT 14,
-  retention_weekly INT DEFAULT 10,
-  retention_monthly INT DEFAULT 10,
-  retention_yearly INT DEFAULT 5,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_by UUID REFERENCES users(id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_backup_config_org_id ON backup_config(org_id);
-
-CREATE TABLE IF NOT EXISTS backup_history (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  completed_at TIMESTAMPTZ,
-  status TEXT NOT NULL DEFAULT 'running',
-  machine_id TEXT NOT NULL,
-  machine_name TEXT NOT NULL,
-  files_total INT,
-  files_added INT,
-  files_modified INT,
-  bytes_added BIGINT,
-  bytes_total BIGINT,
-  duration_seconds INT,
-  snapshot_id TEXT,
-  error_message TEXT,
-  error_details JSONB,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_backup_history_org_id ON backup_history(org_id);
-CREATE INDEX IF NOT EXISTS idx_backup_history_started_at ON backup_history(started_at DESC);
-CREATE INDEX IF NOT EXISTS idx_backup_history_status ON backup_history(status);
-
-CREATE TABLE IF NOT EXISTS backup_machines (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  machine_id TEXT NOT NULL,
-  machine_name TEXT NOT NULL,
-  user_id UUID REFERENCES users(id),
-  user_email TEXT,
-  last_seen TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  is_designated BOOLEAN DEFAULT false,
-  platform TEXT,
-  app_version TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  
-  UNIQUE(org_id, machine_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_backup_machines_org_id ON backup_machines(org_id);
-CREATE INDEX IF NOT EXISTS idx_backup_machines_last_seen ON backup_machines(last_seen);
-
-CREATE TABLE IF NOT EXISTS backup_locks (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE UNIQUE,
-  locked_by_machine_id TEXT NOT NULL,
-  locked_by_machine_name TEXT NOT NULL,
-  locked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  expires_at TIMESTAMPTZ NOT NULL,
-  backup_history_id UUID REFERENCES backup_history(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_backup_locks_org_id ON backup_locks(org_id);
-CREATE INDEX IF NOT EXISTS idx_backup_locks_expires_at ON backup_locks(expires_at);
-
--- ===========================================
--- RLS POLICIES
--- ===========================================
-
-ALTER TABLE vaults ENABLE ROW LEVEL SECURITY;
-ALTER TABLE vault_access ENABLE ROW LEVEL SECURITY;
-ALTER TABLE team_vault_access ENABLE ROW LEVEL SECURITY;
-ALTER TABLE files ENABLE ROW LEVEL SECURITY;
-ALTER TABLE file_versions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE release_files ENABLE ROW LEVEL SECURITY;
-ALTER TABLE file_references ENABLE ROW LEVEL SECURITY;
-ALTER TABLE file_version_references ENABLE ROW LEVEL SECURITY;
-ALTER TABLE drawing_pdf_renders ENABLE ROW LEVEL SECURITY;
-ALTER TABLE folders ENABLE ROW LEVEL SECURITY;
-ALTER TABLE activity ENABLE ROW LEVEL SECURITY;
-ALTER TABLE workflow_templates ENABLE ROW LEVEL SECURITY;
-ALTER TABLE workflow_states ENABLE ROW LEVEL SECURITY;
-ALTER TABLE workflow_transitions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE workflow_gates ENABLE ROW LEVEL SECURITY;
-ALTER TABLE workflow_gate_reviewers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE workflow_roles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE user_workflow_roles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE file_workflow_assignments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE pending_reviews ENABLE ROW LEVEL SECURITY;
-ALTER TABLE workflow_review_history ENABLE ROW LEVEL SECURITY;
-ALTER TABLE workflow_history ENABLE ROW LEVEL SECURITY;
-ALTER TABLE file_state_entries ENABLE ROW LEVEL SECURITY;
-ALTER TABLE file_watchers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE file_share_links ENABLE ROW LEVEL SECURITY;
-ALTER TABLE file_comments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE file_metadata_columns ENABLE ROW LEVEL SECURITY;
-ALTER TABLE backup_config ENABLE ROW LEVEL SECURITY;
-ALTER TABLE backup_history ENABLE ROW LEVEL SECURITY;
-ALTER TABLE backup_machines ENABLE ROW LEVEL SECURITY;
-ALTER TABLE backup_locks ENABLE ROW LEVEL SECURITY;
-
 -- Vaults
-DROP POLICY IF EXISTS "Authenticated users can view vaults" ON vaults;
+
 -- Schema 111: members of the vault's organization only. USING (true) let any
 -- signed-in user of any organization list every organization's vault names.
 -- Every member still sees every vault of their own organization (names, not file
 -- data): the admin screens and getAccessibleVaults() filter that list.
-CREATE POLICY "Authenticated users can view vaults"
-  ON vaults FOR SELECT TO authenticated USING (is_org_member(org_id));
+CREATE POLICY "vault: authenticated users read"
+  ON vault FOR SELECT TO authenticated USING (is_org_member(org_id));
 
-DROP POLICY IF EXISTS "Admins can create vaults" ON vaults;
-CREATE POLICY "Admins can create vaults"
-  ON vaults FOR INSERT
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
+CREATE POLICY "vault: admins insert"
+  ON vault FOR INSERT
+  WITH CHECK (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND is_org_admin());
 
-DROP POLICY IF EXISTS "Admins can update vaults" ON vaults;
-CREATE POLICY "Admins can update vaults"
-  ON vaults FOR UPDATE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
+CREATE POLICY "vault: admins update"
+  ON vault FOR UPDATE
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND is_org_admin());
 
-DROP POLICY IF EXISTS "Admins can delete vaults" ON vaults;
-CREATE POLICY "Admins can delete vaults"
-  ON vaults FOR DELETE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
+CREATE POLICY "vault: admins delete"
+  ON vault FOR DELETE
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND is_org_admin());
 
 -- Vault Access
-DROP POLICY IF EXISTS "Users can view vault access" ON vault_access;
-CREATE POLICY "Users can view vault access"
+CREATE POLICY "vault_access: users read"
   ON vault_access FOR SELECT
-  USING (vault_id IN (SELECT id FROM vaults WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())));
+  USING (vault_id IN (SELECT id FROM vault WHERE org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid())));
 
-DROP POLICY IF EXISTS "Admins can manage vault access" ON vault_access;
-CREATE POLICY "Admins can manage vault access"
+CREATE POLICY "vault_access: admins manage"
   ON vault_access FOR ALL
-  USING (vault_id IN (SELECT id FROM vaults WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())) AND is_org_admin());
+  USING (vault_id IN (SELECT id FROM vault WHERE org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid())) AND is_org_admin());
 
 -- Team Vault Access
-DROP POLICY IF EXISTS "Users can view team vault access" ON team_vault_access;
-CREATE POLICY "Users can view team vault access"
+CREATE POLICY "team_vault_access: users read"
   ON team_vault_access FOR SELECT
-  USING (team_id IN (SELECT id FROM teams WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())));
+  USING (team_id IN (SELECT id FROM team WHERE org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid())));
 
-DROP POLICY IF EXISTS "Admins can manage team vault access" ON team_vault_access;
-CREATE POLICY "Admins can manage team vault access"
+CREATE POLICY "team_vault_access: admins manage"
   ON team_vault_access FOR ALL
-  USING (team_id IN (SELECT id FROM teams WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())) AND is_org_admin());
+  USING (team_id IN (SELECT id FROM team WHERE org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid())) AND is_org_admin());
 
 -- Files
 -- Schema 111: file data is readable only in a vault the caller may see
 -- (my_accessible_vault_ids(): admins every vault, everyone else their grants;
--- a file with no vault is no restriction, as in user_may_access_vault()). Every
+-- every file has a vault, file.vault_id is NOT NULL since 5.0). Every
 -- policy below that exposes a file's name, path, hash or metadata names the
--- helper, directly or through `file_id IN (SELECT f.id FROM files f ...)`, and
+-- helper, directly or through `file_id IN (SELECT f.id FROM file f ...)`, and
 -- check_release_residue() refuses to stamp while one that does not remains.
 -- Write policies carry the same term, so a file cannot be created in, moved
 -- into or changed in a vault the caller cannot see.
-DROP POLICY IF EXISTS "Users can view org files" ON files;
-CREATE POLICY "Users can view org files"
-  ON files FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND (vault_id IS NULL OR vault_id IN (SELECT my_accessible_vault_ids())));
+CREATE POLICY "file: users read"
+  ON file FOR SELECT
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND vault_id IN (SELECT my_accessible_vault_ids()));
 
-DROP POLICY IF EXISTS "Engineers can insert files" ON files;
-CREATE POLICY "Engineers can insert files"
-  ON files FOR INSERT
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND (vault_id IS NULL OR vault_id IN (SELECT my_accessible_vault_ids())) AND user_has_team_permission('module:explorer', 'create'));
+CREATE POLICY "file: engineers insert"
+  ON file FOR INSERT
+  WITH CHECK (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND vault_id IN (SELECT my_accessible_vault_ids()) AND has_team_permission('module:explorer', 'create'));
 
 -- module:explorer:delete used to be decorative.
 --
@@ -1595,307 +1427,258 @@ CREATE POLICY "Engineers can insert files"
 -- editing any other column of a file that is *already* in the trash also needs
 -- 'delete'. That is deliberate: it is the conservative reading, and the product
 -- offers no way to edit a trashed file in the first place.
-DROP POLICY IF EXISTS "Engineers can update files" ON files;
-CREATE POLICY "Engineers can update files"
-  ON files FOR UPDATE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND (vault_id IS NULL OR vault_id IN (SELECT my_accessible_vault_ids())) AND user_has_team_permission('module:explorer', 'edit'))
+CREATE POLICY "file: engineers update"
+  ON file FOR UPDATE
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND vault_id IN (SELECT my_accessible_vault_ids()) AND has_team_permission('module:explorer', 'edit'))
   WITH CHECK (
-    org_id IN (SELECT org_id FROM users WHERE id = auth.uid())
-    AND (vault_id IS NULL OR vault_id IN (SELECT my_accessible_vault_ids()))
-    AND user_has_team_permission('module:explorer', 'edit')
-    AND (deleted_at IS NULL OR user_has_team_permission('module:explorer', 'delete'))
+    org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid())
+    AND vault_id IN (SELECT my_accessible_vault_ids())
+    AND has_team_permission('module:explorer', 'edit')
+    AND (deleted_at IS NULL OR has_team_permission('module:explorer', 'delete'))
   );
 
-DROP POLICY IF EXISTS "Admins can delete files" ON files;
-CREATE POLICY "Admins can delete files"
-  ON files FOR DELETE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND (vault_id IS NULL OR vault_id IN (SELECT my_accessible_vault_ids())) AND user_has_team_permission('module:explorer', 'delete'));
+CREATE POLICY "file: admins delete"
+  ON file FOR DELETE
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND vault_id IN (SELECT my_accessible_vault_ids()) AND has_team_permission('module:explorer', 'delete'));
 
 -- File Versions
-DROP POLICY IF EXISTS "Users can view file versions" ON file_versions;
-CREATE POLICY "Users can view file versions"
-  ON file_versions FOR SELECT
-  USING (file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())));
+CREATE POLICY "file_version: users read"
+  ON file_version FOR SELECT
+  USING (file_id IN (SELECT f.id FROM file f WHERE f.vault_id IN (SELECT my_accessible_vault_ids())));
 
-DROP POLICY IF EXISTS "Engineers can manage file versions" ON file_versions;
-CREATE POLICY "Engineers can manage file versions"
-  ON file_versions FOR ALL
-  USING (file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())) AND user_has_team_permission('module:explorer', 'edit'));
+CREATE POLICY "file_version: engineers manage"
+  ON file_version FOR ALL
+  USING (file_id IN (SELECT f.id FROM file f WHERE f.vault_id IN (SELECT my_accessible_vault_ids())) AND has_team_permission('module:explorer', 'edit'));
 
 -- Release Files
-DROP POLICY IF EXISTS "Users can view org release files" ON release_files;
-CREATE POLICY "Users can view org release files"
-  ON release_files FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())));
+CREATE POLICY "release_file: users read"
+  ON release_file FOR SELECT
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND file_id IN (SELECT f.id FROM file f WHERE f.vault_id IN (SELECT my_accessible_vault_ids())));
 
-DROP POLICY IF EXISTS "Engineers can manage release files" ON release_files;
-CREATE POLICY "Engineers can manage release files"
-  ON release_files FOR ALL
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())) AND user_has_team_permission('module:explorer', 'edit'));
+CREATE POLICY "release_file: engineers manage"
+  ON release_file FOR ALL
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND file_id IN (SELECT f.id FROM file f WHERE f.vault_id IN (SELECT my_accessible_vault_ids())) AND has_team_permission('module:explorer', 'edit'));
 
 -- File References
-DROP POLICY IF EXISTS "Users can view file references" ON file_references;
-CREATE POLICY "Users can view file references"
-  ON file_references FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND parent_file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())));
+CREATE POLICY "file_reference: users read"
+  ON file_reference FOR SELECT
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND parent_file_id IN (SELECT f.id FROM file f WHERE f.vault_id IN (SELECT my_accessible_vault_ids())));
 
-DROP POLICY IF EXISTS "Engineers can manage references" ON file_references;
-CREATE POLICY "Engineers can manage references"
-  ON file_references FOR ALL
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND parent_file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())) AND user_has_team_permission('module:explorer', 'edit'));
+CREATE POLICY "file_reference: engineers manage"
+  ON file_reference FOR ALL
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND parent_file_id IN (SELECT f.id FROM file f WHERE f.vault_id IN (SELECT my_accessible_vault_ids())) AND has_team_permission('module:explorer', 'edit'));
 
 -- Per-version references and drawing PDF renders (schema 107): read-only to
--- clients. record_version_references() and record_drawing_pdf() are the writers,
+-- clients. file_version_reference_record() and drawing_pdf_render_record() are the writers,
 -- because both resolve something the client must not be trusted to supply (which
 -- child version a hash belongs to; whether a render may be replaced).
-DROP POLICY IF EXISTS "Users can view file version references" ON file_version_references;
-CREATE POLICY "Users can view file version references"
-  ON file_version_references FOR SELECT
+CREATE POLICY "file_version_reference: users read"
+  ON file_version_reference FOR SELECT
   TO authenticated
-  USING (is_org_member(org_id) AND parent_file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())));
+  USING (is_org_member(org_id) AND parent_file_id IN (SELECT f.id FROM file f WHERE f.vault_id IN (SELECT my_accessible_vault_ids())));
 
-DROP POLICY IF EXISTS "Users can view drawing pdf renders" ON drawing_pdf_renders;
-CREATE POLICY "Users can view drawing pdf renders"
-  ON drawing_pdf_renders FOR SELECT
+CREATE POLICY "drawing_pdf_render: users read"
+  ON drawing_pdf_render FOR SELECT
   TO authenticated
-  USING (is_org_member(org_id) AND file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())));
+  USING (is_org_member(org_id) AND file_id IN (SELECT f.id FROM file f WHERE f.vault_id IN (SELECT my_accessible_vault_ids())));
 
 -- Folders
-DROP POLICY IF EXISTS "Users can view org folders" ON folders;
-CREATE POLICY "Users can view org folders"
-  ON folders FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND vault_id IN (SELECT my_accessible_vault_ids()));
+CREATE POLICY "folder: users read"
+  ON folder FOR SELECT
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND vault_id IN (SELECT my_accessible_vault_ids()));
 
-DROP POLICY IF EXISTS "Engineers can insert folders" ON folders;
-CREATE POLICY "Engineers can insert folders"
-  ON folders FOR INSERT
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND vault_id IN (SELECT my_accessible_vault_ids()) AND user_has_team_permission('module:explorer', 'create'));
+CREATE POLICY "folder: engineers insert"
+  ON folder FOR INSERT
+  WITH CHECK (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND vault_id IN (SELECT my_accessible_vault_ids()) AND has_team_permission('module:explorer', 'create'));
 
-DROP POLICY IF EXISTS "Engineers can update folders" ON folders;
-CREATE POLICY "Engineers can update folders"
-  ON folders FOR UPDATE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND vault_id IN (SELECT my_accessible_vault_ids()) AND user_has_team_permission('module:explorer', 'edit'));
+CREATE POLICY "folder: engineers update"
+  ON folder FOR UPDATE
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND vault_id IN (SELECT my_accessible_vault_ids()) AND has_team_permission('module:explorer', 'edit'));
 
-DROP POLICY IF EXISTS "Engineers can delete folders" ON folders;
-CREATE POLICY "Engineers can delete folders"
-  ON folders FOR DELETE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND vault_id IN (SELECT my_accessible_vault_ids()) AND user_has_team_permission('module:explorer', 'delete'));
+CREATE POLICY "folder: engineers delete"
+  ON folder FOR DELETE
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND vault_id IN (SELECT my_accessible_vault_ids()) AND has_team_permission('module:explorer', 'delete'));
 
 -- Activity
-DROP POLICY IF EXISTS "Users can view org activity" ON activity;
-CREATE POLICY "Users can view org activity"
+CREATE POLICY "activity: users read"
   ON activity FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND (file_id IS NULL OR file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids()))));
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND (file_id IS NULL OR file_id IN (SELECT f.id FROM file f WHERE f.vault_id IN (SELECT my_accessible_vault_ids()))));
 
-DROP POLICY IF EXISTS "Users can log activity" ON activity;
-CREATE POLICY "Users can log activity"
+CREATE POLICY "activity: users insert"
   ON activity FOR INSERT
   -- Schema 112: the row names its author, and the author is the caller.
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_id = auth.uid());
+  WITH CHECK (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND user_id = auth.uid());
 
 -- Workflow Templates
-DROP POLICY IF EXISTS "Users can view org workflows" ON workflow_templates;
-CREATE POLICY "Users can view org workflows"
-  ON workflow_templates FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+CREATE POLICY "workflow_template: users read"
+  ON workflow_template FOR SELECT
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()));
 
-DROP POLICY IF EXISTS "Admins can create workflows" ON workflow_templates;
-CREATE POLICY "Admins can create workflows"
-  ON workflow_templates FOR INSERT
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
+CREATE POLICY "workflow_template: admins insert"
+  ON workflow_template FOR INSERT
+  WITH CHECK (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND is_org_admin());
 
-DROP POLICY IF EXISTS "Admins can update workflows" ON workflow_templates;
-CREATE POLICY "Admins can update workflows"
-  ON workflow_templates FOR UPDATE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
+CREATE POLICY "workflow_template: admins update"
+  ON workflow_template FOR UPDATE
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND is_org_admin());
 
-DROP POLICY IF EXISTS "Admins can delete workflows" ON workflow_templates;
-CREATE POLICY "Admins can delete workflows"
-  ON workflow_templates FOR DELETE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
+CREATE POLICY "workflow_template: admins delete"
+  ON workflow_template FOR DELETE
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND is_org_admin());
 
 -- Workflow States
-DROP POLICY IF EXISTS "Users can view workflow states" ON workflow_states;
-CREATE POLICY "Users can view workflow states"
-  ON workflow_states FOR SELECT
-  USING (workflow_id IN (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())));
+CREATE POLICY "workflow_state: users read"
+  ON workflow_state FOR SELECT
+  USING (workflow_id IN (SELECT id FROM workflow_template WHERE org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid())));
 
-DROP POLICY IF EXISTS "Admins can manage workflow states" ON workflow_states;
-CREATE POLICY "Admins can manage workflow states"
-  ON workflow_states FOR ALL
-  USING (workflow_id IN (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())) AND is_org_admin());
+CREATE POLICY "workflow_state: admins manage"
+  ON workflow_state FOR ALL
+  USING (workflow_id IN (SELECT id FROM workflow_template WHERE org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid())) AND is_org_admin());
 
 -- Workflow Transitions
-DROP POLICY IF EXISTS "Users can view workflow transitions" ON workflow_transitions;
-CREATE POLICY "Users can view workflow transitions"
-  ON workflow_transitions FOR SELECT
-  USING (workflow_id IN (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())));
+CREATE POLICY "workflow_transition: users read"
+  ON workflow_transition FOR SELECT
+  USING (workflow_id IN (SELECT id FROM workflow_template WHERE org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid())));
 
-DROP POLICY IF EXISTS "Admins can manage workflow transitions" ON workflow_transitions;
-CREATE POLICY "Admins can manage workflow transitions"
-  ON workflow_transitions FOR ALL
-  USING (workflow_id IN (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())) AND is_org_admin());
+CREATE POLICY "workflow_transition: admins manage"
+  ON workflow_transition FOR ALL
+  USING (workflow_id IN (SELECT id FROM workflow_template WHERE org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid())) AND is_org_admin());
 
 -- Workflow Gates
-DROP POLICY IF EXISTS "Users can view workflow gates" ON workflow_gates;
-CREATE POLICY "Users can view workflow gates"
-  ON workflow_gates FOR SELECT
-  USING (transition_id IN (SELECT id FROM workflow_transitions WHERE workflow_id IN (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid()))));
+CREATE POLICY "workflow_gate: users read"
+  ON workflow_gate FOR SELECT
+  USING (transition_id IN (SELECT id FROM workflow_transition WHERE workflow_id IN (SELECT id FROM workflow_template WHERE org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()))));
 
-DROP POLICY IF EXISTS "Admins can manage workflow gates" ON workflow_gates;
-CREATE POLICY "Admins can manage workflow gates"
-  ON workflow_gates FOR ALL
-  USING (transition_id IN (SELECT id FROM workflow_transitions WHERE workflow_id IN (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid()))) AND is_org_admin());
+CREATE POLICY "workflow_gate: admins manage"
+  ON workflow_gate FOR ALL
+  USING (transition_id IN (SELECT id FROM workflow_transition WHERE workflow_id IN (SELECT id FROM workflow_template WHERE org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()))) AND is_org_admin());
 
 -- Gate Reviewers
-DROP POLICY IF EXISTS "Users can view gate reviewers" ON workflow_gate_reviewers;
-CREATE POLICY "Users can view gate reviewers"
-  ON workflow_gate_reviewers FOR SELECT
-  USING (gate_id IN (SELECT id FROM workflow_gates WHERE transition_id IN (SELECT id FROM workflow_transitions WHERE workflow_id IN (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())))));
+CREATE POLICY "workflow_gate_reviewer: users read"
+  ON workflow_gate_reviewer FOR SELECT
+  USING (gate_id IN (SELECT id FROM workflow_gate WHERE transition_id IN (SELECT id FROM workflow_transition WHERE workflow_id IN (SELECT id FROM workflow_template WHERE org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid())))));
 
-DROP POLICY IF EXISTS "Admins can manage gate reviewers" ON workflow_gate_reviewers;
-CREATE POLICY "Admins can manage gate reviewers"
-  ON workflow_gate_reviewers FOR ALL
-  USING (gate_id IN (SELECT id FROM workflow_gates WHERE transition_id IN (SELECT id FROM workflow_transitions WHERE workflow_id IN (SELECT id FROM workflow_templates WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())))) AND is_org_admin());
+CREATE POLICY "workflow_gate_reviewer: admins manage"
+  ON workflow_gate_reviewer FOR ALL
+  USING (gate_id IN (SELECT id FROM workflow_gate WHERE transition_id IN (SELECT id FROM workflow_transition WHERE workflow_id IN (SELECT id FROM workflow_template WHERE org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid())))) AND is_org_admin());
 
 -- Workflow Roles
-DROP POLICY IF EXISTS "Users can view org workflow roles" ON workflow_roles;
-CREATE POLICY "Users can view org workflow roles"
-  ON workflow_roles FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+CREATE POLICY "workflow_role: users read"
+  ON workflow_role FOR SELECT
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()));
 
-DROP POLICY IF EXISTS "Admins can manage workflow roles" ON workflow_roles;
-CREATE POLICY "Admins can manage workflow roles"
-  ON workflow_roles FOR ALL
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
+CREATE POLICY "workflow_role: admins manage"
+  ON workflow_role FOR ALL
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND is_org_admin());
 
 -- User Workflow Roles
-DROP POLICY IF EXISTS "Users can view workflow role assignments in their org" ON user_workflow_roles;
-CREATE POLICY "Users can view workflow role assignments in their org"
-  ON user_workflow_roles FOR SELECT
-  USING (user_id IN (SELECT id FROM users WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())));
+CREATE POLICY "user_workflow_role: users read"
+  ON user_workflow_role FOR SELECT
+  USING (user_id IN (SELECT id FROM app_user WHERE org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid())));
 
-DROP POLICY IF EXISTS "Admins can manage workflow role assignments" ON user_workflow_roles;
-CREATE POLICY "Admins can manage workflow role assignments"
-  ON user_workflow_roles FOR ALL
-  USING (user_id IN (SELECT id FROM users WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())) AND is_org_admin());
+CREATE POLICY "user_workflow_role: admins manage"
+  ON user_workflow_role FOR ALL
+  USING (user_id IN (SELECT id FROM app_user WHERE org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid())) AND is_org_admin());
 
 -- File Workflow Assignments
-DROP POLICY IF EXISTS "Users can view file workflow assignments" ON file_workflow_assignments;
-CREATE POLICY "Users can view file workflow assignments"
-  ON file_workflow_assignments FOR SELECT
-  USING (file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())));
+CREATE POLICY "file_workflow_assignment: users read"
+  ON file_workflow_assignment FOR SELECT
+  USING (file_id IN (SELECT f.id FROM file f WHERE f.vault_id IN (SELECT my_accessible_vault_ids())));
 
-DROP POLICY IF EXISTS "Engineers can manage file workflow assignments" ON file_workflow_assignments;
-CREATE POLICY "Engineers can manage file workflow assignments"
-  ON file_workflow_assignments FOR ALL
-  USING (file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())) AND user_has_team_permission('module:workflows', 'edit'));
+CREATE POLICY "file_workflow_assignment: engineers manage"
+  ON file_workflow_assignment FOR ALL
+  USING (file_id IN (SELECT f.id FROM file f WHERE f.vault_id IN (SELECT my_accessible_vault_ids())) AND has_team_permission('module:workflows', 'edit'));
 
 -- Pending Reviews
-DROP POLICY IF EXISTS "Users can view pending reviews" ON pending_reviews;
-CREATE POLICY "Users can view pending reviews"
-  ON pending_reviews FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+CREATE POLICY "workflow_gate_review: users read"
+  ON workflow_gate_review FOR SELECT
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()));
 
 -- Schema 105: no client writes at all. Gate review rows are created by
--- execute_workflow_transition() and decided by complete_gate_review(), both
+-- workflow_transition_execute() and decided by gate_review_complete(), both
 -- SECURITY DEFINER, which do not pass through these policies.
 --
 -- The INSERT policy let a module:reviews:create member insert a row already
 -- 'approved', and the UPDATE policy let a module:reviews:edit member set any
 -- pending row of the organization to 'approved' with reviewed_by = self. Neither
--- advanced the file directly, but complete_gate_review() counted such rows as
--- approvals, so both were a way around may_review_gate(), the assignment and the
+-- advanced the file directly, but gate_review_complete() counted such rows as
+-- approvals, so both were a way around can_review_gate(), the assignment and the
 -- history row. Dropping the policies leaves RLS denying both.
-DROP POLICY IF EXISTS "Engineers can create pending reviews" ON pending_reviews;
-DROP POLICY IF EXISTS "Users can update pending reviews" ON pending_reviews;
 
 -- Workflow Review History
-DROP POLICY IF EXISTS "Users can view workflow review history" ON workflow_review_history;
-CREATE POLICY "Users can view workflow review history"
+CREATE POLICY "workflow_review_history: users read"
   ON workflow_review_history FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND (file_id IS NULL OR file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids()))));
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND (file_id IS NULL OR file_id IN (SELECT f.id FROM file f WHERE f.vault_id IN (SELECT my_accessible_vault_ids()))));
 
--- Schema 105: the approval audit trail is written only by complete_gate_review().
+-- Schema 105: the approval audit trail is written only by gate_review_complete().
 -- The INSERT policy this replaces checked organization membership alone, so any
 -- member could write a row claiming anyone approved anything.
-DROP POLICY IF EXISTS "System can insert workflow review history" ON workflow_review_history;
 
 -- Workflow History
 -- Append-only audit trail: anyone in the org can read it, the engine writes it,
 -- and nobody can rewrite or erase it (no UPDATE or DELETE policy).
-DROP POLICY IF EXISTS "Users can view workflow history in their org" ON workflow_history;
-CREATE POLICY "Users can view workflow history in their org"
+CREATE POLICY "workflow_history: users read"
   ON workflow_history FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND (file_id IS NULL OR file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids()))));
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND (file_id IS NULL OR file_id IN (SELECT f.id FROM file f WHERE f.vault_id IN (SELECT my_accessible_vault_ids()))));
 
-DROP POLICY IF EXISTS "Users can insert workflow history in their org" ON workflow_history;
-CREATE POLICY "Users can insert workflow history in their org"
+CREATE POLICY "workflow_history: users insert"
   ON workflow_history FOR INSERT
   -- Schema 112: performed_by is the caller (the engine writes as definer).
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND performed_by = auth.uid());
+  WITH CHECK (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND performed_by = auth.uid());
 
 -- File State Entries
 -- Scoped through the file, which carries the org id.
-DROP POLICY IF EXISTS "Users can view file state entries" ON file_state_entries;
-CREATE POLICY "Users can view file state entries"
-  ON file_state_entries FOR SELECT
-  USING (file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())));
+CREATE POLICY "file_state_entry: users read"
+  ON file_state_entry FOR SELECT
+  USING (file_id IN (SELECT f.id FROM file f WHERE f.vault_id IN (SELECT my_accessible_vault_ids())));
 
-DROP POLICY IF EXISTS "Users can insert file state entries" ON file_state_entries;
-CREATE POLICY "Users can insert file state entries"
-  ON file_state_entries FOR INSERT
+CREATE POLICY "file_state_entry: users insert"
+  ON file_state_entry FOR INSERT
   -- Schema 112: entered_by is the caller.
   WITH CHECK (
-    file_id IN (SELECT id FROM files WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid()))
+    file_id IN (SELECT id FROM file WHERE org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()))
     AND entered_by = auth.uid()
   );
 
-DROP POLICY IF EXISTS "Users can close file state entries" ON file_state_entries;
-CREATE POLICY "Users can close file state entries"
-  ON file_state_entries FOR UPDATE
-  USING (file_id IN (SELECT id FROM files WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid())))
+CREATE POLICY "file_state_entry: users update"
+  ON file_state_entry FOR UPDATE
+  USING (file_id IN (SELECT id FROM file WHERE org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid())))
   -- Schema 112: closing an entry records the caller, and only closes it: who
   -- entered and when stay as written.
   WITH CHECK (
-    file_id IN (SELECT id FROM files WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid()))
+    file_id IN (SELECT id FROM file WHERE org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()))
     AND exited_by = auth.uid()
-    AND entered_by IS NOT DISTINCT FROM (SELECT e.entered_by FROM file_state_entries e WHERE e.id = file_state_entries.id)
+    AND entered_by IS NOT DISTINCT FROM (SELECT e.entered_by FROM file_state_entry e WHERE e.id = file_state_entry.id)
   );
 
 -- File Watchers
-DROP POLICY IF EXISTS "Users can view file watchers in org" ON file_watchers;
-CREATE POLICY "Users can view file watchers in org"
-  ON file_watchers FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())));
+CREATE POLICY "file_watcher: users read"
+  ON file_watcher FOR SELECT
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND file_id IN (SELECT f.id FROM file f WHERE f.vault_id IN (SELECT my_accessible_vault_ids())));
 
-DROP POLICY IF EXISTS "Users can watch files" ON file_watchers;
-CREATE POLICY "Users can watch files"
-  ON file_watchers FOR INSERT
-  WITH CHECK (user_id = auth.uid() AND org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+CREATE POLICY "file_watcher: users insert"
+  ON file_watcher FOR INSERT
+  WITH CHECK (user_id = auth.uid() AND org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()));
 
-DROP POLICY IF EXISTS "Users can update own watchers" ON file_watchers;
-CREATE POLICY "Users can update own watchers"
-  ON file_watchers FOR UPDATE USING (user_id = auth.uid());
+CREATE POLICY "file_watcher: users update own"
+  ON file_watcher FOR UPDATE USING (user_id = auth.uid());
 
-DROP POLICY IF EXISTS "Users can unwatch files" ON file_watchers;
-CREATE POLICY "Users can unwatch files"
-  ON file_watchers FOR DELETE USING (user_id = auth.uid());
+CREATE POLICY "file_watcher: users delete"
+  ON file_watcher FOR DELETE USING (user_id = auth.uid());
 
 -- File Share Links
-DROP POLICY IF EXISTS "Users can view share links in org" ON file_share_links;
-CREATE POLICY "Users can view share links in org"
-  ON file_share_links FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())));
+CREATE POLICY "file_share_link: users read"
+  ON file_share_link FOR SELECT
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND file_id IN (SELECT f.id FROM file f WHERE f.vault_id IN (SELECT my_accessible_vault_ids())));
 
 -- THE ARGUMENT THAT IS CHECKED MUST BE THE ARGUMENT THAT SELECTS THE ROW
 --
--- create_file_share_link() had this exact defect and it was fixed there in v91
+-- file_share_link_create() had this exact defect and it was fixed there in v91
 -- by deriving the organization from the file. The table path kept it: org_id
 -- was constrained and file_id was not, so a member of org A inserted
 -- {org_id: A, file_id: <org B's file>} and minted a working token for another
--- tenant's file. anon validate_share_link() then answered is_valid: true with
--- the victim's file_id and org_id, and consume_share_link() spent a download.
+-- tenant's file. anon file_share_link_validate() then answered is_valid: true with
+-- the victim's file_id and org_id, and file_share_link_consume() spent a download.
 --
 -- Three terms, and each one is load-bearing:
 --   org_id      - the link is filed under an organization the caller belongs to
@@ -1904,22 +1687,21 @@ CREATE POLICY "Users can view share links in org"
 --                 construction rather than by the SELECT policy happening to
 --                 hide the result
 --   created_by  - the audit row names whoever actually inserted it.
---                 remediate_cross_tenant_share_links() reads created_by to tell
+--                 file_share_link_remediate_cross_tenant() reads created_by to tell
 --                 a link minted through the hole from one minted in good faith
 --                 for a file that later moved, and until now the column it read
 --                 was whatever the request body said.
-DROP POLICY IF EXISTS "Engineers can create share links" ON file_share_links;
-CREATE POLICY "Engineers can create share links"
-  ON file_share_links FOR INSERT
+CREATE POLICY "file_share_link: engineers insert"
+  ON file_share_link FOR INSERT
   TO authenticated
   WITH CHECK (
-    org_id IN (SELECT org_id FROM users WHERE id = auth.uid())
-    AND user_has_team_permission('module:explorer', 'create')
+    org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid())
+    AND has_team_permission('module:explorer', 'create')
     AND created_by = auth.uid()
     AND EXISTS (
-      SELECT 1 FROM files f
-       WHERE f.id = file_share_links.file_id
-         AND f.org_id = file_share_links.org_id
+      SELECT 1 FROM file f
+       WHERE f.id = file_share_link.file_id
+         AND f.org_id = file_share_link.org_id
     )
   );
 
@@ -1936,7 +1718,7 @@ CREATE POLICY "Engineers can create share links"
 -- SELECT policy, not this one.
 --
 -- Nothing in the application updates this table: share links are created by
--- shareLinks.ts and spent by consume_share_link(), which is SECURITY DEFINER
+-- shareLinks.ts and spent by file_share_link_consume(), which is SECURITY DEFINER
 -- and does not pass through RLS. The only update the product has ever needed is
 -- "revoke this link", so that is the only one admitted, and it is expressed as
 -- a property of the resulting row rather than as a list of columns nobody may
@@ -1949,76 +1731,70 @@ CREATE POLICY "Engineers can create share links"
 -- cannot deactivate it through this policy. Three things make that the right
 -- trade. They can still remove it - the DELETE policy below asks only who
 -- created it. Applying this release deactivates every such link on the way in,
--- via remediate_cross_tenant_share_links(), so the stuck state is cleared by
+-- via file_share_link_remediate_cross_tenant(), so the stuck state is cleared by
 -- the same upgrade that creates it. And the alternative - dropping the term
 -- because "the row ends up inactive anyway, so repointing file_id is harmless"
 -- - is the same reasoning that left org_id reachable here in the first place: a
 -- clause held safe by a property some other clause happens to enforce.
-DROP POLICY IF EXISTS "Users can update own share links" ON file_share_links;
-CREATE POLICY "Users can update own share links"
-  ON file_share_links FOR UPDATE
+CREATE POLICY "file_share_link: users update own"
+  ON file_share_link FOR UPDATE
   TO authenticated
   USING (
     created_by = auth.uid()
-    AND org_id IN (SELECT org_id FROM users WHERE id = auth.uid())
+    AND org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid())
   )
   WITH CHECK (
     created_by = auth.uid()
-    AND org_id IN (SELECT org_id FROM users WHERE id = auth.uid())
+    AND org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid())
     AND EXISTS (
-      SELECT 1 FROM files f
-       WHERE f.id = file_share_links.file_id
-         AND f.org_id = file_share_links.org_id
+      SELECT 1 FROM file f
+       WHERE f.id = file_share_link.file_id
+         AND f.org_id = file_share_link.org_id
     )
     AND NOT COALESCE(is_active, false)
   );
 
-DROP POLICY IF EXISTS "Users can delete share links" ON file_share_links;
-CREATE POLICY "Users can delete share links"
-  ON file_share_links FOR DELETE
+CREATE POLICY "file_share_link: users delete"
+  ON file_share_link FOR DELETE
   -- Schema 112: inside the caller's organization. is_org_admin() alone let an
   -- admin of one organization delete another organization's links.
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND (created_by = auth.uid() OR is_org_admin()));
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND (created_by = auth.uid() OR is_org_admin()));
 
 -- File Comments
-DROP POLICY IF EXISTS "Users can view file comments in org" ON file_comments;
-CREATE POLICY "Users can view file comments in org"
-  ON file_comments FOR SELECT
-  USING (file_id IN (SELECT f.id FROM files f WHERE f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())));
+CREATE POLICY "file_comment: users read"
+  ON file_comment FOR SELECT
+  USING (file_id IN (SELECT f.id FROM file f WHERE f.vault_id IN (SELECT my_accessible_vault_ids())));
 
 -- Schema 105: the file must be in the author's organization. The INSERT check
 -- tested only user_id = auth.uid(), so a member could comment on another
 -- organization's file, and UPDATE (no WITH CHECK) let the author re-point
--- file_id anywhere. file_comments_integrity() below also pins file_id and keeps a
+-- file_id anywhere. trg_file_comment_check_integrity() below also pins file_id and keeps a
 -- reply on its parent's file.
-DROP POLICY IF EXISTS "Users can create file comments" ON file_comments;
-CREATE POLICY "Users can create file comments"
-  ON file_comments FOR INSERT
+CREATE POLICY "file_comment: users insert"
+  ON file_comment FOR INSERT
   TO authenticated
   WITH CHECK (
     user_id = auth.uid()
-    AND file_id IN (SELECT id FROM files WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid()))
+    AND file_id IN (SELECT id FROM file WHERE org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()))
   );
 
-DROP POLICY IF EXISTS "Users can update own comments" ON file_comments;
-CREATE POLICY "Users can update own comments"
-  ON file_comments FOR UPDATE
+CREATE POLICY "file_comment: users update own"
+  ON file_comment FOR UPDATE
   TO authenticated
   USING (user_id = auth.uid())
   WITH CHECK (
     user_id = auth.uid()
-    AND file_id IN (SELECT id FROM files WHERE org_id IN (SELECT org_id FROM users WHERE id = auth.uid()))
+    AND file_id IN (SELECT id FROM file WHERE org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()))
   );
 
-DROP POLICY IF EXISTS "Users can delete own comments" ON file_comments;
-CREATE POLICY "Users can delete own comments"
-  ON file_comments FOR DELETE USING (user_id = auth.uid());
+CREATE POLICY "file_comment: users delete own"
+  ON file_comment FOR DELETE USING (user_id = auth.uid());
 
--- What a policy cannot say about file_comments, because it sees only one row:
+-- What a policy cannot say about file_comment, because it sees only one row:
 -- a reply must sit on its parent's file, and a comment cannot be moved to another
 -- file once written. Review links (review_id / review_round / review_item_id) are
 -- validated by a second trigger in 20-change-control.sql, where reviews live.
-CREATE OR REPLACE FUNCTION file_comments_integrity()
+CREATE OR REPLACE FUNCTION trg_file_comment_check_integrity()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -2031,7 +1807,7 @@ BEGIN
   END IF;
 
   IF NEW.parent_id IS NOT NULL AND NOT EXISTS (
-    SELECT 1 FROM file_comments p WHERE p.id = NEW.parent_id AND p.file_id = NEW.file_id
+    SELECT 1 FROM file_comment p WHERE p.id = NEW.parent_id AND p.file_id = NEW.file_id
   ) THEN
     RAISE EXCEPTION 'A reply must be on the same file as the comment it answers'
       USING ERRCODE = 'invalid_parameter_value';
@@ -2041,33 +1817,26 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION file_comments_integrity() FROM PUBLIC, anon, authenticated;
-
-DROP TRIGGER IF EXISTS trg_file_comments_integrity ON file_comments;
-CREATE TRIGGER trg_file_comments_integrity
-  BEFORE INSERT OR UPDATE ON file_comments
-  FOR EACH ROW EXECUTE FUNCTION file_comments_integrity();
+CREATE TRIGGER trg_file_comment_check_integrity
+  BEFORE INSERT OR UPDATE ON file_comment
+  FOR EACH ROW EXECUTE FUNCTION trg_file_comment_check_integrity();
 
 -- File Metadata Columns
-DROP POLICY IF EXISTS "Users can view org metadata columns" ON file_metadata_columns;
-CREATE POLICY "Users can view org metadata columns"
-  ON file_metadata_columns FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+CREATE POLICY "file_metadata_column: users read"
+  ON file_metadata_column FOR SELECT
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()));
 
-DROP POLICY IF EXISTS "Admins can create metadata columns" ON file_metadata_columns;
-CREATE POLICY "Admins can create metadata columns"
-  ON file_metadata_columns FOR INSERT
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
+CREATE POLICY "file_metadata_column: admins insert"
+  ON file_metadata_column FOR INSERT
+  WITH CHECK (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND is_org_admin());
 
-DROP POLICY IF EXISTS "Admins can update metadata columns" ON file_metadata_columns;
-CREATE POLICY "Admins can update metadata columns"
-  ON file_metadata_columns FOR UPDATE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
+CREATE POLICY "file_metadata_column: admins update"
+  ON file_metadata_column FOR UPDATE
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND is_org_admin());
 
-DROP POLICY IF EXISTS "Admins can delete metadata columns" ON file_metadata_columns;
-CREATE POLICY "Admins can delete metadata columns"
-  ON file_metadata_columns FOR DELETE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
+CREATE POLICY "file_metadata_column: admins delete"
+  ON file_metadata_column FOR DELETE
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND is_org_admin());
 
 -- Backup Config
 -- Schema 112: admins only. The row holds the backup bucket's access key, secret
@@ -2075,69 +1844,59 @@ CREATE POLICY "Admins can delete metadata columns"
 -- historical), and every member could read them - which is read and delete
 -- access to every backup of the organization. Running, designating and restoring
 -- were already admin-only (UPDATE is admin-only). Members see the status, without
--- the secrets, through get_backup_status().
-DROP POLICY IF EXISTS "Users can view org backup config" ON backup_config;
-CREATE POLICY "Users can view org backup config"
+-- the secrets, through backup_get_status().
+CREATE POLICY "backup_config: users read"
   ON backup_config FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND is_org_admin());
 
-DROP POLICY IF EXISTS "Admins can insert backup config" ON backup_config;
-CREATE POLICY "Admins can insert backup config"
+CREATE POLICY "backup_config: admins insert"
   ON backup_config FOR INSERT
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
+  WITH CHECK (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND is_org_admin());
 
-DROP POLICY IF EXISTS "Admins can update backup config" ON backup_config;
-CREATE POLICY "Admins can update backup config"
+CREATE POLICY "backup_config: admins update"
   ON backup_config FOR UPDATE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND is_org_admin());
 
-DROP POLICY IF EXISTS "Admins can delete backup config" ON backup_config;
-CREATE POLICY "Admins can delete backup config"
+CREATE POLICY "backup_config: admins delete"
   ON backup_config FOR DELETE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND is_org_admin());
 
 -- Backup History
-DROP POLICY IF EXISTS "Users can view org backup history" ON backup_history;
-CREATE POLICY "Users can view org backup history"
+CREATE POLICY "backup_history: users read"
   ON backup_history FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()));
 
-DROP POLICY IF EXISTS "System can manage backup history" ON backup_history;
 -- Schema 112: admins only (backups are run from an admin's designated machine).
 -- Any member could rewrite or erase the record of what was backed up.
-CREATE POLICY "System can manage backup history"
+CREATE POLICY "backup_history: system manage"
   ON backup_history FOR ALL
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin())
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND is_org_admin())
+  WITH CHECK (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND is_org_admin());
 
 -- Backup Machines
-DROP POLICY IF EXISTS "Users can view org backup machines" ON backup_machines;
-CREATE POLICY "Users can view org backup machines"
-  ON backup_machines FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+CREATE POLICY "backup_machine: users read"
+  ON backup_machine FOR SELECT
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()));
 
-DROP POLICY IF EXISTS "Users can manage own backup machines" ON backup_machines;
-CREATE POLICY "Users can manage own backup machines"
-  ON backup_machines FOR ALL
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND (user_id = auth.uid() OR is_org_admin()));
+CREATE POLICY "backup_machine: users manage own"
+  ON backup_machine FOR ALL
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND (user_id = auth.uid() OR is_org_admin()));
 
 -- Backup Locks
-DROP POLICY IF EXISTS "Users can view backup locks" ON backup_locks;
-CREATE POLICY "Users can view backup locks"
-  ON backup_locks FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
+CREATE POLICY "backup_lock: users read"
+  ON backup_lock FOR SELECT
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()));
 
-DROP POLICY IF EXISTS "Users can manage backup locks" ON backup_locks;
 -- Schema 112: admins only, as backup_history; a member could hold or break the lock.
-CREATE POLICY "Users can manage backup locks"
-  ON backup_locks FOR ALL
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin())
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND is_org_admin());
+CREATE POLICY "backup_lock: users manage"
+  ON backup_lock FOR ALL
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND is_org_admin())
+  WITH CHECK (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND is_org_admin());
 
 -- The caller's organization's backup configuration without its three secrets,
 -- plus whether they are set (schema 112). Argument-less: the organization is the
 -- caller's own. NULL when there is no configuration or no organization.
-CREATE OR REPLACE FUNCTION get_backup_status()
+CREATE OR REPLACE FUNCTION backup_get_status()
 RETURNS JSONB
 LANGUAGE sql STABLE SECURITY DEFINER
 SET search_path = public
@@ -2149,42 +1908,18 @@ AS $$
                 bc.access_key_encrypted IS NOT NULL AND bc.access_key_encrypted <> ''
                 AND bc.restic_password_encrypted IS NOT NULL AND bc.restic_password_encrypted <> '')
     FROM backup_config bc
-    JOIN users u ON u.id = auth.uid() AND u.org_id = bc.org_id;
+    JOIN app_user u ON u.id = auth.uid() AND u.org_id = bc.org_id;
 $$;
 
-REVOKE ALL ON FUNCTION get_backup_status() FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION get_backup_status() TO authenticated;
-
--- ===========================================
--- HELPER FUNCTIONS
--- ===========================================
-
--- Helper to drop all overloads of a function (prevents signature ambiguity)
--- Usage: SELECT drop_function_overloads('function_name');
-CREATE OR REPLACE FUNCTION drop_function_overloads(func_name TEXT)
-RETURNS void AS $$
-DECLARE r RECORD;
-BEGIN
-  FOR r IN 
-    SELECT p.oid::regprocedure as func_sig
-    FROM pg_proc p
-    JOIN pg_namespace n ON p.pronamespace = n.oid
-    WHERE n.nspname = 'public' AND p.proname = func_name
-  LOOP
-    EXECUTE 'DROP FUNCTION IF EXISTS ' || r.func_sig || ' CASCADE';
-  END LOOP;
-END $$ LANGUAGE plpgsql;
-
 -- Log file activity
-DROP FUNCTION IF EXISTS log_file_activity() CASCADE;
-CREATE OR REPLACE FUNCTION log_file_activity()
+CREATE OR REPLACE FUNCTION trg_file_log_activity()
 RETURNS TRIGGER AS $$
 DECLARE
   action_type activity_action;
   activity_details JSONB := '{}'::jsonb;
   user_email_val TEXT;
 BEGIN
-  SELECT email INTO user_email_val FROM users WHERE id = auth.uid();
+  SELECT email INTO user_email_val FROM app_user WHERE id = auth.uid();
   IF user_email_val IS NULL THEN user_email_val := 'system'; END IF;
   
   IF TG_OP = 'INSERT' THEN
@@ -2228,56 +1963,56 @@ EXCEPTION WHEN OTHERS THEN
   RAISE WARNING 'Activity logging failed: %', SQLERRM;
   RETURN COALESCE(NEW, OLD);
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp;
 
-DROP TRIGGER IF EXISTS log_file_changes ON files;
-CREATE TRIGGER log_file_changes
-  AFTER INSERT OR UPDATE OR DELETE ON files
-  FOR EACH ROW EXECUTE FUNCTION log_file_activity();
+CREATE TRIGGER trg_file_log_activity
+  AFTER INSERT OR UPDATE OR DELETE ON file
+  FOR EACH ROW EXECUTE FUNCTION trg_file_log_activity();
 
 -- Create default workflow
-DROP FUNCTION IF EXISTS create_default_workflow(UUID, UUID) CASCADE;
-CREATE OR REPLACE FUNCTION create_default_workflow(p_org_id UUID, p_created_by UUID)
+CREATE OR REPLACE FUNCTION workflow_create_default(p_org_id UUID)
 RETURNS UUID AS $$
 DECLARE
   v_workflow_id UUID;
+  v_created_by UUID;
   v_wip_state_id UUID;
   v_review_state_id UUID;
   v_released_state_id UUID;
   v_obsolete_state_id UUID;
 BEGIN
-  PERFORM require_org_member(p_org_id);
+  PERFORM org_require_member(p_org_id);
 
-  -- Schema 112: creating a workflow is an admin act (the workflow_templates INSERT
+  -- Schema 112: creating a workflow is an admin act (the workflow_template INSERT
   -- policy says so; this function writes as definer and bypassed it), and the
-  -- author is the caller. p_created_by is kept for existing callers and ignored.
+  -- author is the caller.
   IF NOT is_org_admin() THEN
     RAISE EXCEPTION 'Only admins can create workflows'
       USING ERRCODE = 'insufficient_privilege';
   END IF;
-  p_created_by := current_actor_id();
+  v_created_by := my_actor_id();
 
-  INSERT INTO workflow_templates (org_id, name, description, is_default, created_by)
-  VALUES (p_org_id, 'Standard Release Process', 'Default workflow for releasing engineering files', true, p_created_by)
+  INSERT INTO workflow_template (org_id, name, description, is_default, created_by)
+  VALUES (p_org_id, 'Standard Release Process', 'Default workflow for releasing engineering files', true, v_created_by)
   RETURNING id INTO v_workflow_id;
   
-  INSERT INTO workflow_states (workflow_id, name, label, color, icon, position_x, position_y, is_editable, requires_checkout, sort_order)
+  INSERT INTO workflow_state (workflow_id, name, label, color, icon, position_x, position_y, is_editable, is_checkout_required, sort_order)
   VALUES (v_workflow_id, 'WIP', 'Work In Progress', '#EAB308', 'pencil', 100, 200, true, true, 1)
   RETURNING id INTO v_wip_state_id;
   
-  INSERT INTO workflow_states (workflow_id, name, label, color, icon, position_x, position_y, is_editable, requires_checkout, sort_order)
+  INSERT INTO workflow_state (workflow_id, name, label, color, icon, position_x, position_y, is_editable, is_checkout_required, sort_order)
   VALUES (v_workflow_id, 'In Review', 'In Review', '#3B82F6', 'eye', 350, 200, false, false, 2)
   RETURNING id INTO v_review_state_id;
   
-  INSERT INTO workflow_states (workflow_id, name, label, color, icon, position_x, position_y, is_editable, requires_checkout, auto_increment_revision, sort_order)
+  INSERT INTO workflow_state (workflow_id, name, label, color, icon, position_x, position_y, is_editable, is_checkout_required, is_revision_auto_incremented, sort_order)
   VALUES (v_workflow_id, 'Released', 'Released', '#22C55E', 'check-circle', 600, 200, false, false, true, 3)
   RETURNING id INTO v_released_state_id;
   
-  INSERT INTO workflow_states (workflow_id, name, label, color, icon, position_x, position_y, is_editable, requires_checkout, sort_order)
+  INSERT INTO workflow_state (workflow_id, name, label, color, icon, position_x, position_y, is_editable, is_checkout_required, sort_order)
   VALUES (v_workflow_id, 'Obsolete', 'Obsolete', '#6B7280', 'archive', 600, 350, false, false, 4)
   RETURNING id INTO v_obsolete_state_id;
   
-  INSERT INTO workflow_transitions (workflow_id, from_state_id, to_state_id, name, line_style) VALUES
+  INSERT INTO workflow_transition (workflow_id, from_state_id, to_state_id, name, line_style) VALUES
     (v_workflow_id, v_wip_state_id, v_review_state_id, 'Submit for Review', 'solid'),
     (v_workflow_id, v_review_state_id, v_released_state_id, 'Approve', 'solid'),
     (v_workflow_id, v_review_state_id, v_wip_state_id, 'Reject', 'dashed'),
@@ -2286,13 +2021,11 @@ BEGIN
   
   RETURN v_workflow_id;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-GRANT EXECUTE ON FUNCTION create_default_workflow(UUID, UUID) TO authenticated;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 -- Get available transitions
-DROP FUNCTION IF EXISTS get_available_transitions(UUID, UUID) CASCADE;
-CREATE OR REPLACE FUNCTION get_available_transitions(p_file_id UUID, p_user_id UUID)
+CREATE OR REPLACE FUNCTION workflow_transition_list_available(p_file_id UUID)
 RETURNS TABLE (
   transition_id UUID,
   transition_name TEXT,
@@ -2306,26 +2039,27 @@ DECLARE
   v_current_state_id UUID;
   v_actor UUID;
 BEGIN
-  -- p_user_id is ignored: the answer is "what may *you* do to this file", and
-  -- letting the caller name the subject turned it into "what may anyone do".
-  v_actor := current_actor_id();
-  PERFORM require_file_access(p_file_id);
+  -- The answer is "what may *you* do to this file"; the caller never names the
+  -- subject, which would turn it into "what may anyone do".
+  v_actor := my_actor_id();
+  PERFORM file_require_access(p_file_id);
 
   SELECT fwa.current_state_id INTO v_current_state_id
-  FROM file_workflow_assignments fwa WHERE fwa.file_id = p_file_id;
+  FROM file_workflow_assignment fwa WHERE fwa.file_id = p_file_id;
   
   IF v_current_state_id IS NULL THEN RETURN; END IF;
   
   RETURN QUERY
   SELECT 
     wt.id, wt.name, ws.id, ws.name, ws.color,
-    EXISTS(SELECT 1 FROM workflow_gates wg WHERE wg.transition_id = wt.id),
-    user_can_run_transition(v_actor, wt.id)
-  FROM workflow_transitions wt
-  JOIN workflow_states ws ON wt.to_state_id = ws.id
+    EXISTS(SELECT 1 FROM workflow_gate wg WHERE wg.transition_id = wt.id),
+    can_run_transition(v_actor, wt.id)
+  FROM workflow_transition wt
+  JOIN workflow_state ws ON wt.to_state_id = ws.id
   WHERE wt.from_state_id = v_current_state_id;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 -- Replace a workflow's whole graph from an exported payload.
 --
@@ -2334,8 +2068,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- part-way left the workflow empty. Doing it inside one function makes it a
 -- single transaction, so either the new graph lands complete or the old one is
 -- still there untouched.
-DROP FUNCTION IF EXISTS import_workflow_graph(UUID, JSONB) CASCADE;
-CREATE OR REPLACE FUNCTION import_workflow_graph(p_workflow_id UUID, p_payload JSONB)
+CREATE OR REPLACE FUNCTION workflow_import_graph(p_workflow_id UUID, p_payload JSONB)
 RETURNS JSONB AS $$
 DECLARE
   v_org_id UUID;
@@ -2351,7 +2084,7 @@ DECLARE
   v_transition_count INTEGER := 0;
   v_gate_count INTEGER := 0;
 BEGIN
-  SELECT org_id INTO v_org_id FROM workflow_templates WHERE id = p_workflow_id;
+  SELECT org_id INTO v_org_id FROM workflow_template WHERE id = p_workflow_id;
 
   IF v_org_id IS NULL THEN
     RAISE EXCEPTION 'Workflow not found';
@@ -2369,16 +2102,16 @@ BEGIN
     RAISE EXCEPTION 'Payload is missing a states array';
   END IF;
 
-  DELETE FROM workflow_transitions WHERE workflow_id = p_workflow_id;
-  DELETE FROM workflow_states WHERE workflow_id = p_workflow_id;
+  DELETE FROM workflow_transition WHERE workflow_id = p_workflow_id;
+  DELETE FROM workflow_state WHERE workflow_id = p_workflow_id;
 
   FOR v_state IN SELECT * FROM jsonb_array_elements(p_payload->'states') LOOP
-    INSERT INTO workflow_states (
+    INSERT INTO workflow_state (
       workflow_id, state_type, shape, name, label, description,
       color, fill_opacity, border_color, border_opacity, border_thickness, corner_radius,
       icon, position_x, position_y, width, height,
-      is_editable, requires_checkout, auto_increment_revision,
-      required_workflow_roles, triggers_review, sort_order
+      is_editable, is_checkout_required, is_revision_auto_incremented,
+      required_workflow_roles, is_review_stage, sort_order
     ) VALUES (
       p_workflow_id,
       COALESCE((v_state->>'state_type')::state_type, 'state'),
@@ -2398,10 +2131,10 @@ BEGIN
       COALESCE((v_state->>'width')::integer, 120),
       COALESCE((v_state->>'height')::integer, 60),
       COALESCE((v_state->>'is_editable')::boolean, true),
-      COALESCE((v_state->>'requires_checkout')::boolean, true),
-      COALESCE((v_state->>'auto_increment_revision')::boolean, false),
+      COALESCE((v_state->>'is_checkout_required')::boolean, (v_state->>'requires_checkout')::boolean, true),
+      COALESCE((v_state->>'is_revision_auto_incremented')::boolean, (v_state->>'auto_increment_revision')::boolean, false),
       '{}',
-      COALESCE((v_state->>'triggers_review')::boolean, false),
+      COALESCE((v_state->>'is_review_stage')::boolean, (v_state->>'triggers_review')::boolean, false),
       COALESCE((v_state->>'sort_order')::integer, v_state_count)
     ) RETURNING id INTO v_state_id;
 
@@ -2411,7 +2144,7 @@ BEGIN
 
   -- A review stage names, by key, where an approval moves files (schema 110). Resolved once
   -- every state has its new id; a key that is not in the payload leaves it unset.
-  UPDATE workflow_states ws
+  UPDATE workflow_state ws
   SET review_approved_state_id = (v_key_map->>(x.st->>'review_approved'))::uuid
   FROM jsonb_array_elements(p_payload->'states') AS x(st)
   WHERE ws.id = (v_key_map->>(x.st->>'key'))::uuid
@@ -2427,7 +2160,7 @@ BEGIN
         RAISE EXCEPTION 'Transition references a state that is not in the payload';
       END IF;
 
-      INSERT INTO workflow_transitions (
+      INSERT INTO workflow_transition (
         workflow_id, from_state_id, to_state_id, name, description,
         line_style, line_color, line_path_type, line_arrow_head, line_thickness,
         auto_conditions,
@@ -2455,7 +2188,7 @@ BEGIN
 
       IF jsonb_typeof(v_transition->'gates') = 'array' THEN
         FOR v_gate IN SELECT * FROM jsonb_array_elements(v_transition->'gates') LOOP
-          INSERT INTO workflow_gates (
+          INSERT INTO workflow_gate (
             transition_id, name, description, gate_type, required_approvals,
             approval_mode, checklist_items, conditions, is_blocking, can_be_skipped_by, sort_order
           ) VALUES (
@@ -2487,9 +2220,8 @@ BEGIN
     'gate_count', v_gate_count
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-GRANT EXECUTE ON FUNCTION import_workflow_graph(UUID, JSONB) TO authenticated;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 -- Generate share token
 --
@@ -2503,16 +2235,13 @@ GRANT EXECUTE ON FUNCTION import_workflow_graph(UUID, JSONB) TO authenticated;
 -- here only because it needs no schema qualification: pgcrypto lives in the
 -- extensions schema on Supabase and in public elsewhere, and a SECURITY DEFINER
 -- function should not be relying on search_path to find it.
-DROP FUNCTION IF EXISTS generate_share_token() CASCADE;
-CREATE OR REPLACE FUNCTION generate_share_token()
+CREATE OR REPLACE FUNCTION file_share_link_generate_token()
 RETURNS TEXT AS $$
   -- 32 hex characters, 128 bits.
   SELECT replace(gen_random_uuid()::text, '-', '');
 $$ LANGUAGE sql VOLATILE;
 
--- Create file share link
-DO $$ BEGIN PERFORM drop_function_overloads('create_file_share_link'); END $$;
-CREATE OR REPLACE FUNCTION create_file_share_link(
+CREATE OR REPLACE FUNCTION file_share_link_create(
   p_org_id UUID, p_file_id UUID, p_created_by UUID,
   p_expires_in_days INTEGER DEFAULT NULL,
   p_max_downloads INTEGER DEFAULT NULL,
@@ -2527,23 +2256,23 @@ DECLARE
 BEGIN
   -- The gate is on the file, not on p_org_id.
   --
-  -- This function took two ids and checked one of them. require_org_member(
+  -- This function took two ids and checked one of them. org_require_member(
   -- p_org_id) confirmed the caller belongs to the organization they named, and
   -- then p_file_id was inserted without ever being compared to it. An
   -- authenticated member of any organization could pass their own org id - so
   -- the gate was satisfied honestly - together with a file id belonging to
   -- somebody else, and receive a working token for that file. Redeeming it as
   -- anon returned is_valid = true. Both of the release's checks certified this
-  -- function as correct: the manifest saw 'require_org_member' in the source,
+  -- function as correct: the manifest saw 'org_require_member' in the source,
   -- and check_org_gates() called it with a foreign p_org_id and was refused,
   -- which is true and beside the point.
   --
   -- The general shape is: a gate on one argument while a second argument selects
   -- the row. Whenever a function is reached through an entity id, the
   -- organization has to be *derived from that entity*, and the argument that
-  -- names an organization is at best redundant. require_file_access() does the
+  -- names an organization is at best redundant. file_require_access() does the
   -- derivation and raises if the caller is not a member of the file's org.
-  v_file_org_id := require_file_access(p_file_id);
+  v_file_org_id := file_require_access(p_file_id);
 
   -- p_org_id is now only accepted if it agrees. It is kept in the signature so
   -- existing callers keep working, but it decides nothing; disagreeing with it
@@ -2555,8 +2284,8 @@ BEGIN
   END IF;
 
   LOOP
-    v_token := generate_share_token();
-    EXIT WHEN NOT EXISTS (SELECT 1 FROM file_share_links WHERE file_share_links.token = v_token);
+    v_token := file_share_link_generate_token();
+    EXIT WHEN NOT EXISTS (SELECT 1 FROM file_share_link WHERE file_share_link.token = v_token);
   END LOOP;
   
   IF p_expires_in_days IS NOT NULL THEN
@@ -2565,19 +2294,18 @@ BEGIN
   
   -- org_id is the file's, and created_by is whoever actually called, not
   -- whoever the request body named.
-  INSERT INTO file_share_links (org_id, file_id, token, created_by, expires_at, max_downloads, require_auth)
-  VALUES (v_file_org_id, p_file_id, v_token, current_actor_id(), v_expires_at, p_max_downloads, p_require_auth)
+  INSERT INTO file_share_link (org_id, file_id, token, created_by, expires_at, max_downloads, is_auth_required)
+  VALUES (v_file_org_id, p_file_id, v_token, my_actor_id(), v_expires_at, p_max_downloads, p_require_auth)
   RETURNING id INTO v_link_id;
   
   RETURN QUERY SELECT v_link_id, v_token, v_expires_at;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-GRANT EXECUTE ON FUNCTION create_file_share_link(UUID, UUID, UUID, INTEGER, INTEGER, BOOLEAN) TO authenticated;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 -- WHO MAY REDEEM THIS LINK, ASKED ONCE
 --
--- validate_share_link() and consume_share_link() are two HTTP round trips with
+-- file_share_link_validate() and file_share_link_consume() are two HTTP round trips with
 -- one admission decision between them, and nothing forces a caller to make the
 -- first. If consume admits somebody validate refuses, the download the refusal
 -- was protecting happens anyway - so the two must agree about every condition,
@@ -2586,27 +2314,26 @@ GRANT EXECUTE ON FUNCTION create_file_share_link(UUID, UUID, UUID, INTEGER, INTE
 -- They did not. Each restated the conditions in its own dialect: validate as a
 -- sequence of early returns, consume as a WHERE clause. The file test -
 -- `f.deleted_at IS NULL` - existed in both, and in consume it sat *inside* the
--- require_auth branch, so with require_auth = false and the file soft-deleted
+-- is_auth_required branch, so with is_auth_required = false and the file soft-deleted
 -- between minting and use, validate answered `is_valid = f, 'Link not found'`
 -- and consume answered `t` and incremented download_count. Executed, both of
 -- them, over HTTP.
 --
 -- The manifest tried to hold the two together by requiring the same words in
--- each - 'require_auth && is_org_member' on both - and that passed the whole
+-- each - 'is_auth_required && is_org_member' on both - and that passed the whole
 -- time. Two lists that must agree should not be two lists. This is the list.
 --
 -- Everything except the download counter is decided here. The counter is
 -- deliberately left out: it is the only condition with a race in it, and
 -- consume re-checks it inside its UPDATE, under the row lock, so two concurrent
 -- redemptions of the last download cannot both win.
-DROP FUNCTION IF EXISTS share_link_admission(TEXT) CASCADE;
-CREATE OR REPLACE FUNCTION share_link_admission(p_token TEXT)
+CREATE OR REPLACE FUNCTION file_share_link_admit(p_token TEXT)
 RETURNS TABLE (is_valid BOOLEAN, file_id UUID, org_id UUID, file_version INTEGER, error_message TEXT) AS $$
 DECLARE
   v_link RECORD;
   v_file_org_id UUID;
 BEGIN
-  SELECT * INTO v_link FROM file_share_links WHERE token = p_token;
+  SELECT * INTO v_link FROM file_share_link WHERE token = p_token;
 
   IF NOT FOUND THEN
     RETURN QUERY SELECT false::boolean, NULL::uuid, NULL::uuid, NULL::integer, 'Link not found'::text;
@@ -2628,14 +2355,14 @@ BEGIN
     RETURN;
   END IF;
 
-  -- The file has to still be there, whatever require_auth says. A link is a
+  -- The file has to still be there, whatever is_auth_required says. A link is a
   -- pointer at a file; a deleted file is a link to nothing, and serving one is
   -- serving something whose owner has already said to stop serving it.
   --
   -- This test is also what resolves the organization, and it is placed before
-  -- require_auth is read because require_auth is a question *about* that
+  -- is_auth_required is read because is_auth_required is a question *about* that
   -- organization.
-  SELECT f.org_id INTO v_file_org_id FROM files f
+  SELECT f.org_id INTO v_file_org_id FROM file f
    WHERE f.id = v_link.file_id AND f.deleted_at IS NULL;
 
   IF v_file_org_id IS NULL THEN
@@ -2643,7 +2370,7 @@ BEGIN
     RETURN;
   END IF;
 
-  -- WHAT require_auth MEANS
+  -- WHAT is_auth_required MEANS
   --
   -- A member of the organization that owns the file. Not "any Supabase
   -- account", which is what `auth.uid() IS NOT NULL` meant and which is not a
@@ -2656,11 +2383,11 @@ BEGIN
   -- The flag exists so that a link can be circulated inside a company without
   -- becoming a bearer credential for the world; org membership is the only
   -- reading of it that delivers that. A link intended for an outside recipient
-  -- is a link created with require_auth = false, which is the default.
+  -- is a link created with is_auth_required = false, which is the default.
   --
-  -- COALESCE because require_auth is nullable and a NULL there must not read as
+  -- COALESCE because is_auth_required is nullable and a NULL there must not read as
   -- "no authentication required" by accident.
-  IF COALESCE(v_link.require_auth, false) THEN
+  IF COALESCE(v_link.is_auth_required, false) THEN
     IF auth.uid() IS NULL THEN
       RETURN QUERY SELECT false::boolean, NULL::uuid, NULL::uuid, NULL::integer,
                           'This link requires you to sign in'::text;
@@ -2680,26 +2407,26 @@ BEGIN
 
   RETURN QUERY SELECT true::boolean, v_link.file_id, v_file_org_id, v_link.file_version, NULL::text;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp;
 
--- Internal. Recipients call validate_share_link() and consume_share_link(),
--- which are on anon_execute_allowlist(); this is neither, and the sweep at the
+-- Internal. Recipients call file_share_link_validate() and file_share_link_consume(),
+-- which are on anon_get_execute_allowlist(); this is neither, and the sweep at the
 -- end of this file withdraws it from anon.
-REVOKE ALL ON FUNCTION share_link_admission(TEXT) FROM PUBLIC, anon, authenticated;
 
 -- Validate share link
 --
 -- Three things were wrong with this, all reachable by anon holding a token.
 --
---   1. It ignored require_auth entirely. A link created with require_auth = true
+--   1. It ignored is_auth_required entirely. A link created with is_auth_required = true
 --      validated for an unauthenticated caller exactly as one created without.
 --      The flag was stored, returned by nothing, and consulted nowhere.
 --   2. It spent the download allowance on *validation*. Nothing here downloads
 --      anything - the caller does that afterwards with the file id - so any anon
 --      caller could burn a ten-download link with twelve calls to this function
---      and never fetch a byte. Consumption now lives in consume_share_link(),
+--      and never fetch a byte. Consumption now lives in file_share_link_consume(),
 --      which the download path calls once it has actually served the file.
---   3. It returned the link's org_id. Until create_file_share_link resolved the
+--   3. It returned the link's org_id. Until file_share_link_create resolved the
 --      organization from the file, the link's org_id was whatever the creator
 --      passed and could differ from the file's, so a consumer that trusted this
 --      went looking for the file in the wrong tenant. It reports the org the
@@ -2707,29 +2434,29 @@ REVOKE ALL ON FUNCTION share_link_admission(TEXT) FROM PUBLIC, anon, authenticat
 --
 -- Kept on the anon allowlist: recipients of a share link are not BluePLM users,
 -- and the token is the credential. That is only defensible because the token is
--- now 128 bits from a strong source - see generate_share_token().
-DROP FUNCTION IF EXISTS validate_share_link(TEXT) CASCADE;
-CREATE OR REPLACE FUNCTION validate_share_link(p_token TEXT)
+-- now 128 bits from a strong source - see file_share_link_generate_token().
+CREATE OR REPLACE FUNCTION file_share_link_validate(p_token TEXT)
 RETURNS TABLE (is_valid BOOLEAN, file_id UUID, org_id UUID, file_version INTEGER, error_message TEXT) AS $$
 DECLARE
   v_admission RECORD;
 BEGIN
-  SELECT * INTO v_admission FROM share_link_admission(p_token);
+  SELECT * INTO v_admission FROM file_share_link_admit(p_token);
 
   IF v_admission.is_valid THEN
-    UPDATE file_share_links SET last_accessed_at = NOW() WHERE token = p_token;
+    UPDATE file_share_link SET last_accessed_at = NOW() WHERE token = p_token;
   END IF;
 
   RETURN QUERY SELECT v_admission.is_valid, v_admission.file_id, v_admission.org_id,
                       v_admission.file_version, v_admission.error_message;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp;
 
--- Spend one download against a link. Separate from validate_share_link() so
+-- Spend one download against a link. Separate from file_share_link_validate() so
 -- that the allowance is spent by downloading and not by asking.
 --
--- Admission is share_link_admission()'s answer, so this cannot admit anybody
--- validate_share_link() would refuse - not because both were written carefully,
+-- Admission is file_share_link_admit()'s answer, so this cannot admit anybody
+-- file_share_link_validate() would refuse - not because both were written carefully,
 -- but because there is only one place where admission is decided. That is the
 -- fix for a bug where the two disagreed about whether the file still exists.
 --
@@ -2738,20 +2465,19 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- row lock the UPDATE takes is what stops two concurrent redemptions of the
 -- last remaining download from both succeeding. Everything else is settled
 -- above.
-DROP FUNCTION IF EXISTS consume_share_link(TEXT) CASCADE;
-CREATE OR REPLACE FUNCTION consume_share_link(p_token TEXT)
+CREATE OR REPLACE FUNCTION file_share_link_consume(p_token TEXT)
 RETURNS BOOLEAN AS $$
 DECLARE
   v_admitted BOOLEAN;
   v_updated INTEGER;
 BEGIN
-  SELECT a.is_valid INTO v_admitted FROM share_link_admission(p_token) a;
+  SELECT a.is_valid INTO v_admitted FROM file_share_link_admit(p_token) a;
 
   IF NOT COALESCE(v_admitted, false) THEN
     RETURN false;
   END IF;
 
-  UPDATE file_share_links l
+  UPDATE file_share_link l
      SET download_count = COALESCE(l.download_count, 0) + 1,
          last_accessed_at = NOW()
    WHERE l.token = p_token
@@ -2760,17 +2486,15 @@ BEGIN
   GET DIAGNOSTICS v_updated = ROW_COUNT;
   RETURN v_updated > 0;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp;
 
--- Both are on anon_execute_allowlist() in core.sql, which is what
--- enforce_anon_execute_posture() re-grants from at the end of this file. The
+-- Both are on anon_get_execute_allowlist() in core.sql, which is what
+-- anon_enforce_execute_posture() re-grants from at the end of this file. The
 -- explicit grants here are for the window before that sweep runs.
-GRANT EXECUTE ON FUNCTION validate_share_link(TEXT) TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION consume_share_link(TEXT) TO anon, authenticated;
 
 -- Notify file watchers
-DROP FUNCTION IF EXISTS notify_file_watchers() CASCADE;
-CREATE OR REPLACE FUNCTION notify_file_watchers()
+CREATE OR REPLACE FUNCTION trg_file_notify_watchers()
 RETURNS TRIGGER AS $$
 DECLARE
   watcher RECORD;
@@ -2780,7 +2504,7 @@ DECLARE
   actor_name TEXT;
 BEGIN
   IF TG_OP = 'UPDATE' THEN
-    SELECT COALESCE(full_name, email) INTO actor_name FROM users WHERE id = COALESCE(NEW.updated_by, auth.uid());
+    SELECT COALESCE(full_name, email) INTO actor_name FROM app_user WHERE id = COALESCE(NEW.updated_by, auth.uid());
     
     IF OLD.checked_out_by IS NULL AND NEW.checked_out_by IS NOT NULL THEN
       change_type := 'checkout';
@@ -2799,14 +2523,14 @@ BEGIN
     END IF;
     
     FOR watcher IN 
-      SELECT fw.user_id FROM file_watchers fw 
+      SELECT fw.user_id FROM file_watcher fw 
       WHERE fw.file_id = NEW.id
         AND fw.user_id != COALESCE(NEW.updated_by, auth.uid())
-        AND ((change_type = 'checkin' AND fw.notify_on_checkin) OR
-             (change_type = 'checkout' AND fw.notify_on_checkout) OR
-             (change_type = 'state_change' AND fw.notify_on_state_change))
+        AND ((change_type = 'checkin' AND fw.is_notified_on_checkin) OR
+             (change_type = 'checkout' AND fw.is_notified_on_checkout) OR
+             (change_type = 'state_change' AND fw.is_notified_on_state_change))
     LOOP
-      INSERT INTO notifications (org_id, user_id, type, title, message, entity_type, entity_id, from_user_id)
+      INSERT INTO notification (org_id, user_id, type, title, message, entity_type, entity_id, from_user_id)
       VALUES (NEW.org_id, watcher.user_id, 'file_updated', notification_title, notification_message, 'file', NEW.id, COALESCE(NEW.updated_by, auth.uid()));
     END LOOP;
   END IF;
@@ -2816,22 +2540,21 @@ EXCEPTION WHEN OTHERS THEN
   RAISE WARNING 'File watcher notification failed: %', SQLERRM;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp;
 
-DROP TRIGGER IF EXISTS notify_watchers_on_file_change ON files;
-CREATE TRIGGER notify_watchers_on_file_change
-  AFTER UPDATE ON files
-  FOR EACH ROW EXECUTE FUNCTION notify_file_watchers();
+CREATE TRIGGER trg_file_notify_watchers
+  AFTER UPDATE ON file
+  FOR EACH ROW EXECUTE FUNCTION trg_file_notify_watchers();
 
 -- Get user vault access
-DROP FUNCTION IF EXISTS get_user_vault_access(UUID) CASCADE;
-CREATE OR REPLACE FUNCTION get_user_vault_access(p_user_id UUID)
+CREATE OR REPLACE FUNCTION user_vault_access_list(p_user_id UUID)
 RETURNS TABLE (vault_id UUID) AS $$
 BEGIN
   -- Asking which vaults someone can reach is a question about that person, so
   -- the caller has to share an organization with them. Unauthenticated callers
   -- were previously enumerating this for any user id they cared to name.
-  PERFORM require_same_org_user(p_user_id);
+  PERFORM user_require_same_org(p_user_id);
 
   RETURN QUERY
   SELECT DISTINCT va.vault_id
@@ -2839,13 +2562,12 @@ BEGIN
     SELECT vault_access.vault_id FROM vault_access WHERE vault_access.user_id = p_user_id
     UNION
     SELECT tva.vault_id FROM team_vault_access tva
-    JOIN team_members tm ON tva.team_id = tm.team_id
+    JOIN team_member tm ON tva.team_id = tm.team_id
     WHERE tm.user_id = p_user_id
   ) va;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-GRANT EXECUTE ON FUNCTION get_user_vault_access(UUID) TO authenticated;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 -- Whether a user may see a vault: the rule my_accessible_vault_ids() states for
 -- the caller, asked about any user. An administrator of the vault's organization
@@ -2860,9 +2582,9 @@ GRANT EXECUTE ON FUNCTION get_user_vault_access(UUID) TO authenticated;
 -- organization, which the old body never checked.
 --
 -- Internal: the review RPCs ask it about other users (a reviewer being added),
--- which is not a question a client gets to ask. may_access_vault() below is the
+-- which is not a question a client gets to ask. can_access_vault() below is the
 -- caller-only form.
-CREATE OR REPLACE FUNCTION user_may_access_vault(p_user_id UUID, p_vault_id UUID)
+CREATE OR REPLACE FUNCTION can_user_access_vault(p_user_id UUID, p_vault_id UUID)
 RETURNS BOOLEAN
 LANGUAGE sql STABLE SECURITY DEFINER
 SET search_path = public
@@ -2870,35 +2592,30 @@ AS $$
   SELECT p_vault_id IS NULL
     OR EXISTS (
       SELECT 1
-        FROM vaults v
-        JOIN users u ON u.id = p_user_id AND u.org_id = v.org_id
+        FROM vault v
+        JOIN app_user u ON u.id = p_user_id AND u.org_id = v.org_id
        WHERE v.id = p_vault_id
          AND (
            is_org_admin(p_user_id)
            OR EXISTS (SELECT 1 FROM vault_access va WHERE va.user_id = p_user_id AND va.vault_id = p_vault_id)
            OR EXISTS (
              SELECT 1 FROM team_vault_access tva
-             JOIN team_members tm ON tm.team_id = tva.team_id
+             JOIN team_member tm ON tm.team_id = tva.team_id
              WHERE tm.user_id = p_user_id AND tva.vault_id = p_vault_id
            )
          )
     );
 $$;
 
-REVOKE ALL ON FUNCTION user_may_access_vault(UUID, UUID) FROM PUBLIC, anon, authenticated;
-
-CREATE OR REPLACE FUNCTION may_access_vault(p_vault_id UUID)
+CREATE OR REPLACE FUNCTION can_access_vault(p_vault_id UUID)
 RETURNS BOOLEAN
 LANGUAGE sql STABLE SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT auth.uid() IS NOT NULL AND user_may_access_vault(auth.uid(), p_vault_id);
+  SELECT auth.uid() IS NOT NULL AND can_user_access_vault(auth.uid(), p_vault_id);
 $$;
 
-REVOKE ALL ON FUNCTION may_access_vault(UUID) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION may_access_vault(UUID) TO authenticated;
-
--- The active file at a path, matched the way idx_files_vault_path_unique_active
+-- The active file at a path, matched the way file_vault_id_file_path_idx
 -- matches it: (vault_id, LOWER(file_path)) WHERE deleted_at IS NULL. syncFile's
 -- own primary lookup stays byte-exact for speed and only reaches this, from
 -- the 23505 it catches, once a differently-cased row has already proven a
@@ -2915,47 +2632,36 @@ GRANT EXECUTE ON FUNCTION may_access_vault(UUID) TO authenticated;
 -- not just usually fast.
 --
 -- Takes a vault id and derives the organization from the vault itself via
--- require_vault_access, rather than accepting a second p_org_id argument from
--- the caller and trusting it to match - the same reasoning create_file_share_link
+-- vault_require_access, rather than accepting a second p_org_id argument from
+-- the caller and trusting it to match - the same reasoning file_share_link_create
 -- was rewritten for above.
-DROP FUNCTION IF EXISTS get_active_file_by_path(UUID, TEXT) CASCADE;
-CREATE OR REPLACE FUNCTION get_active_file_by_path(
+CREATE OR REPLACE FUNCTION file_get_active_by_path(
   p_vault_id UUID,
   p_file_path TEXT
 )
-RETURNS SETOF files AS $$
+RETURNS SETOF file AS $$
 BEGIN
-  PERFORM require_vault_access(p_vault_id);
+  PERFORM vault_require_access(p_vault_id);
 
-  -- At most one row can match while idx_files_vault_path_unique_active holds,
+  -- At most one row can match while file_vault_id_file_path_idx holds,
   -- but this function is only ever reached after a 23505 has already proven
   -- the index isn't - dropped and rebuilt without UNIQUE, say. ORDER BY makes
   -- two concurrent callers racing that same window agree on which row they
   -- mean instead of each taking whichever the planner happened to scan first.
   RETURN QUERY
     SELECT *
-      FROM files
+      FROM file
      WHERE vault_id = p_vault_id
        AND LOWER(file_path) = LOWER(p_file_path)
        AND deleted_at IS NULL
      ORDER BY created_at, id
      LIMIT 1;
 END;
-$$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
+$$ LANGUAGE plpgsql STABLE SECURITY DEFINER
+SET search_path = public, pg_temp;
 
-GRANT EXECUTE ON FUNCTION get_active_file_by_path(UUID, TEXT) TO authenticated;
-
--- ===========================================
--- ATOMIC FILE OPERATIONS
--- ===========================================
-
--- Atomic checkout: prevents race conditions when two users try to checkout same file
--- Returns JSONB with success status, error message, or file data
--- Drop all overloads to prevent signature ambiguity
-DO $$ BEGIN PERFORM drop_function_overloads('checkout_file'); END $$;
-CREATE OR REPLACE FUNCTION checkout_file(
+CREATE OR REPLACE FUNCTION file_checkout(
   p_file_id UUID,
-  p_user_id UUID,
   p_machine_id TEXT DEFAULT NULL,
   p_machine_name TEXT DEFAULT NULL,
   p_lock_message TEXT DEFAULT NULL
@@ -2963,6 +2669,7 @@ CREATE OR REPLACE FUNCTION checkout_file(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_file RECORD;
@@ -2971,9 +2678,9 @@ DECLARE
   v_user_email TEXT;
   v_actor UUID;
 BEGIN
-  -- p_user_id is ignored. It used to decide who the lock and the activity row
-  -- were attributed to, which made the audit trail a field in the request body.
-  v_actor := current_actor_id();
+  -- The acting user comes from the JWT, never from an argument: an argument made
+  -- the audit trail a field in the request body.
+  v_actor := my_actor_id();
 
   -- The gate is the only statement in this block, and it must stay that way.
   -- The handler below turns a refusal into a JSON result, which is what these
@@ -2981,21 +2688,21 @@ BEGIN
   -- check added after this line would have its RAISE swallowed and the function
   -- would carry on and answer. New checks go before the BEGIN.
   BEGIN
-    PERFORM require_file_access(p_file_id);
+    PERFORM file_require_access(p_file_id);
   EXCEPTION WHEN insufficient_privilege THEN
     RETURN jsonb_build_object('success', false, 'error', 'File not found');
   END;
 
   -- Schema 112: the same permission the files UPDATE policy asks for. This
   -- function writes files as definer, so the policy never sees the write.
-  IF NOT user_has_team_permission('module:explorer', 'edit') THEN
+  IF NOT has_team_permission('module:explorer', 'edit') THEN
     RETURN jsonb_build_object('success', false, 'error', 'You do not have permission to edit files');
   END IF;
 
   -- Lock the row and check status atomically
   SELECT id, file_path, file_name, checked_out_by, org_id
   INTO v_file
-  FROM files
+  FROM file
   WHERE id = p_file_id
   FOR UPDATE;  -- Row-level lock prevents race conditions
   
@@ -3007,7 +2714,7 @@ BEGIN
   IF v_file.checked_out_by IS NOT NULL AND v_file.checked_out_by != v_actor THEN
     -- Get the other user's info
     SELECT email, full_name INTO v_checked_out_user
-    FROM users WHERE id = v_file.checked_out_by;
+    FROM app_user WHERE id = v_file.checked_out_by;
     
     RETURN jsonb_build_object(
       'success', false,
@@ -3019,7 +2726,7 @@ BEGIN
   -- Perform the checkout. The path snapshot is taken from the row's own file_path /
   -- file_name, not from anything the caller supplies, so it always reflects where the
   -- file actually is at this instant - discard restores to this snapshot later.
-  UPDATE files
+  UPDATE file
   SET 
     checked_out_by = v_actor,
     checked_out_at = NOW(),
@@ -3037,11 +2744,11 @@ BEGIN
     'success', true,
     'file', row_to_json(f.*)
   ) INTO v_result
-  FROM files f
+  FROM file f
   WHERE f.id = p_file_id;
   
   -- Log activity
-  SELECT email INTO v_user_email FROM users WHERE id = v_actor;
+  SELECT email INTO v_user_email FROM app_user WHERE id = v_actor;
   
   INSERT INTO activity (org_id, file_id, user_id, user_email, action, details)
   VALUES (
@@ -3061,8 +2768,6 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION checkout_file(UUID, UUID, TEXT, TEXT, TEXT) TO authenticated;
-
 -- Merge an incoming custom_properties patch into the stored one.
 --
 -- `jsonb ||` is a TOP-LEVEL merge, so applying it to a patch that carries a reserved
@@ -3075,7 +2780,7 @@ GRANT EXECUTE ON FUNCTION checkout_file(UUID, UUID, TEXT, TEXT, TEXT) TO authent
 -- The reserved maps are merged entry by entry instead, so a partial patch is an overlay rather
 -- than a replacement. A JSON `null` on an entry removes that configuration, which is the only way
 -- left to delete one now that omission means "leave alone".
-CREATE OR REPLACE FUNCTION merge_custom_properties(p_existing JSONB, p_incoming JSONB)
+CREATE OR REPLACE FUNCTION custom_properties_merge(p_existing JSONB, p_incoming JSONB)
 RETURNS JSONB
 LANGUAGE plpgsql
 IMMUTABLE
@@ -3124,22 +2829,14 @@ BEGIN
 END;
 $$;
 
--- An internal helper for checkin_file, not an API. It was reachable as an RPC only
+-- An internal helper for file_checkin, not an API. It was reachable as an RPC only
 -- because a new function is executable by PUBLIC, which is also why it never
 -- appeared in src/types/supabase.ts: it should not be an endpoint at all. Nothing
--- is lost by withdrawing it - checkin_file is SECURITY DEFINER owned by the schema
+-- is lost by withdrawing it - file_checkin is SECURITY DEFINER owned by the schema
 -- owner, and supabase/tools/test-merge-custom-properties.sql runs in the SQL editor
 -- as that same owner.
-REVOKE ALL ON FUNCTION merge_custom_properties(JSONB, JSONB) FROM PUBLIC;
-
--- Atomic checkin: safely checks in a file with conditional version increment
--- Only increments version when content, metadata, or version switch is detected
--- Returns JSONB with success status, error message, or updated file data
--- Drop all overloads to prevent signature ambiguity (critical for schema updates)
-DO $$ BEGIN PERFORM drop_function_overloads('checkin_file'); END $$;
-CREATE OR REPLACE FUNCTION checkin_file(
+CREATE OR REPLACE FUNCTION file_checkin(
   p_file_id UUID,
-  p_user_id UUID,
   p_new_content_hash TEXT DEFAULT NULL,
   p_new_file_size BIGINT DEFAULT NULL,
   p_comment TEXT DEFAULT NULL,
@@ -3160,6 +2857,7 @@ CREATE OR REPLACE FUNCTION checkin_file(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_file RECORD;
@@ -3181,9 +2879,9 @@ DECLARE
   v_versions_created_during_checkout INT;
   v_actor UUID;
 BEGIN
-  -- p_user_id is ignored; the acting user comes from the JWT. It used to decide
-  -- both whose checkout was honoured and whose name went on the new version.
-  v_actor := current_actor_id();
+  -- The acting user comes from the JWT; it decides both whose checkout is
+  -- honoured and whose name goes on the new version.
+  v_actor := my_actor_id();
 
   -- The gate is the only statement in this block, and it must stay that way.
   -- The handler below turns a refusal into a JSON result, which is what these
@@ -3191,20 +2889,20 @@ BEGIN
   -- check added after this line would have its RAISE swallowed and the function
   -- would carry on and answer. New checks go before the BEGIN.
   BEGIN
-    PERFORM require_file_access(p_file_id);
+    PERFORM file_require_access(p_file_id);
   EXCEPTION WHEN insufficient_privilege THEN
     RETURN jsonb_build_object('success', false, 'error', 'File not found');
   END;
 
   -- Schema 112: the same permission the files UPDATE policy asks for. This
   -- function writes files as definer, so the policy never sees the write.
-  IF NOT user_has_team_permission('module:explorer', 'edit') THEN
+  IF NOT has_team_permission('module:explorer', 'edit') THEN
     RETURN jsonb_build_object('success', false, 'error', 'You do not have permission to edit files');
   END IF;
 
   -- Lock and verify ownership
   SELECT * INTO v_file
-  FROM files
+  FROM file
   WHERE id = p_file_id
   FOR UPDATE;
   
@@ -3219,7 +2917,7 @@ BEGIN
   -- Check for path conflict when file is being renamed/moved
   IF p_new_file_path IS NOT NULL AND LOWER(p_new_file_path) != LOWER(v_file.file_path) THEN
     IF EXISTS (
-      SELECT 1 FROM files 
+      SELECT 1 FROM file 
       WHERE vault_id = v_file.vault_id 
         AND LOWER(file_path) = LOWER(p_new_file_path)
         AND id != p_file_id 
@@ -3272,7 +2970,7 @@ BEGIN
     coalesce(comments, ''),
     chr(10) ORDER BY sort_order, id))
   INTO v_current_inspection_hash
-  FROM inspection_characteristics
+  FROM inspection_characteristic
   WHERE file_id = p_file_id;
   
   v_current_inspection_hash := COALESCE(p_inspection_hash, v_current_inspection_hash);
@@ -3293,7 +2991,7 @@ BEGIN
   v_restoring_exact_version := FALSE;
   IF v_version_switched THEN
     SELECT content_hash INTO v_target_version_hash
-    FROM file_versions 
+    FROM file_version 
     WHERE file_id = p_file_id AND version = p_local_active_version;
     
     -- If content matches the rolled-back version exactly, just move the pointer
@@ -3306,7 +3004,7 @@ BEGIN
   -- Check if a version was already created during this checkout session
   -- If so, skip version creation to avoid double increment
   SELECT COUNT(*) INTO v_versions_created_during_checkout
-  FROM file_versions
+  FROM file_version
   WHERE file_id = p_file_id 
     AND created_at > v_file.checked_out_at;
   
@@ -3320,9 +3018,9 @@ BEGIN
   
   -- Merge custom properties if provided. Scalar keys are replaced; the reserved
   -- per-configuration maps are merged entry by entry so a partial patch cannot erase the
-  -- configurations it does not mention. See merge_custom_properties.
+  -- configurations it does not mention. See custom_properties_merge.
   IF p_custom_properties IS NOT NULL THEN
-    v_merged_custom_props := merge_custom_properties(v_file.custom_properties, p_custom_properties);
+    v_merged_custom_props := custom_properties_merge(v_file.custom_properties, p_custom_properties);
   ELSE
     v_merged_custom_props := v_file.custom_properties;
   END IF;
@@ -3331,7 +3029,7 @@ BEGIN
   -- Note: v_new_version may already be set if v_restoring_exact_version is TRUE
   IF v_should_increment THEN
     SELECT COALESCE(MAX(version), v_file.version) + 1 INTO v_new_version
-    FROM file_versions WHERE file_id = p_file_id;
+    FROM file_version WHERE file_id = p_file_id;
   ELSIF NOT v_restoring_exact_version THEN
     -- Only set to current version if we're not restoring an exact version
     -- (v_new_version was already set to p_local_active_version above)
@@ -3339,7 +3037,7 @@ BEGIN
   END IF;
   
   -- Update file (now includes path/name in single atomic update)
-  UPDATE files SET
+  UPDATE file SET
     checked_out_by = NULL,
     checked_out_at = NULL,
     lock_message = NULL,
@@ -3363,7 +3061,7 @@ BEGIN
   
   -- Create version record ONLY if version incremented
   IF v_should_increment THEN
-    INSERT INTO file_versions (file_id, version, revision, content_hash, file_size, workflow_state_id, state, created_by, comment, part_number, description, inspection_hash)
+    INSERT INTO file_version (file_id, version, revision, content_hash, file_size, workflow_state_id, state, created_by, comment, part_number, description, inspection_hash)
     SELECT p_file_id, v_new_version, 
            COALESCE(p_revision, v_file.revision),
            COALESCE(p_new_content_hash, v_file.content_hash),
@@ -3379,7 +3077,7 @@ BEGIN
 
     -- Snapshot the live inspection table into the immutable per-version table so the
     -- inspection characteristics can be reconstructed exactly as they were at this version.
-    INSERT INTO inspection_characteristic_versions (
+    INSERT INTO inspection_characteristic_version (
       file_version_id, org_id, sort_order, balloon_number, char_id, zone,
       char_type, sub_type, nominal_value, unit, plus_tolerance, minus_tolerance,
       upper_limit, lower_limit, classification, inspection_method, operation,
@@ -3392,12 +3090,12 @@ BEGIN
       upper_limit, lower_limit, classification, inspection_method, operation,
       aql, sample_size, supplier_inspection_rate, internal_inspection_rate, reference, comments,
       source_key, source_sheet, source_view
-    FROM inspection_characteristics
+    FROM inspection_characteristic
     WHERE file_id = p_file_id;
   END IF;
   
   -- Log activity
-  SELECT email INTO v_user_email FROM users WHERE id = v_actor;
+  SELECT email INTO v_user_email FROM app_user WHERE id = v_actor;
   
   INSERT INTO activity (org_id, file_id, user_id, user_email, action, details)
   VALUES (
@@ -3443,88 +3141,21 @@ BEGIN
     'version_incremented', v_should_increment
   )
   INTO v_result
-  FROM files f WHERE f.id = p_file_id;
+  FROM file f WHERE f.id = p_file_id;
   
   RETURN v_result;
 END;
 $$;
 
 -- Grant for signature with custom_properties, file_path, file_name, inspection_hash parameters
-GRANT EXECUTE ON FUNCTION checkin_file(UUID, UUID, TEXT, BIGINT, TEXT, TEXT, TEXT, TEXT, INT, JSONB, TEXT, TEXT, TEXT) TO authenticated;
-
--- ===========================================
--- REPAIRING WHAT THE PRE-FIX CHECK-IN ERASED
--- ===========================================
---
--- WHERE THE SAFETY PROPERTY LIVES
---
--- The offline script this replaces could claim "this module cannot write, provable by reading its
--- imports". A button cannot claim that - the whole point of a button is that it writes. Rather
--- than drop the guarantee, it moves here, where it is stronger: the script's property held for one
--- caller, and this one holds for every caller there will ever be.
---
--- Three things are structural rather than conventional. None depends on the argument.
---
--- 1. **The merge order is written here, not passed in.** Every write is
---
---        jsonb_set(custom_properties, ARRAY[key], <computed> || COALESCE(custom_properties -> key, '{}'))
---
---    `a || b` keeps b on every shared key and yields the union of the key sets. The row is on the
---    right. So an entry the row already holds survives untouched however loudly the argument
---    disagrees with it, and no key of the row's map can be absent from the result. Adding a key
---    the row lacks is the only effect this statement can have. There is no argument that turns it
---    into an overwrite and none that turns it into a deletion: no DELETE, no `jsonb - key`, and no
---    path that reads a value out of the row and writes it back.
---
--- 2. **The caller cannot name the key it writes.** The loop is over c_reserved_maps, a constant in
---    this body, and not over the keys of the argument. A request naming `part_number` or `_secret`
---    is not refused so much as unseen: nothing reads it. Every other key under custom_properties is
---    carried through by jsonb_set untouched, and no other column appears in any SET list.
---
--- 3. **A map that does not already exist is not created.** The WHERE requires the row to carry the
---    key as a JSON object. A row that never described its configurations never lost anything from
---    the map, so filling one would invent database state rather than restore it - the `unattributed`
---    verdict the divergence scanner exists to keep out of a repair. That judgement is enforced
---    here, so a client that gets it wrong still cannot perform it.
---
--- Keys naming configurations that no longer exist are carried through untouched by property 1.
--- They are never repaired, because removing one is a deletion and a deletion is unrepresentable.
---
--- The live row is read inside the UPDATE, so it is the value at apply time and not the client's
--- snapshot of it that wins. A request built against a row that has since gained entries degrades
--- to a smaller repair. It cannot degrade to an overwrite, and the receipt reports what actually
--- landed rather than what was asked for, so the degradation is visible instead of silent.
---
--- Proven by execution, not by argument: harness/sql/repair-config-maps-proof.sql plants row values
--- that disagree with the request, plants keys for configurations that no longer exist, and requires
--- both to survive. It carries a sentinel that fails if the merge is ever written the other way
--- round, so the suite discriminates rather than passing over a function that does nothing.
-
--- Fill gaps in the reserved per-configuration maps, and only gaps.
---
--- p_repairs is an array, one element per file:
---
---   [{ "file_id": "<uuid>",
---      "maps": { "_config_tabs":         { "<configuration>": "<value>", ... },
---                "_config_descriptions": { "<configuration>": "<value>", ... } } }]
---
--- Both maps are optional; an absent or empty one is "no opinion about this map". Values must be
--- JSON strings - the maps hold strings, and admitting a nested object would put a shape in there
--- that nothing else in the application can read. A malformed request raises rather than applying
--- the part of itself that happened to parse: a request this function does not understand is a
--- client bug, and half of one is worse than none.
---
--- Returns a receipt. Per file and per map: the entries the row held before, the entries asked for,
--- and how many keys the row actually gained. Those three disagree exactly when the row already had
--- something the request did not know about, which is the case worth seeing.
-DO $$ BEGIN PERFORM drop_function_overloads('repair_config_maps'); END $$;
-CREATE OR REPLACE FUNCTION repair_config_maps(p_org_id UUID, p_repairs JSONB)
+CREATE OR REPLACE FUNCTION file_repair_config_maps(p_org_id UUID, p_repairs JSONB)
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, pg_temp
 AS $$
 DECLARE
-  -- The only keys this function will ever write. Matches merge_custom_properties, which is the
+  -- The only keys this function will ever write. Matches custom_properties_merge, which is the
   -- authority for what counts as a reserved per-configuration map.
   c_reserved_maps CONSTANT TEXT[] := ARRAY['_config_tabs', '_config_descriptions'];
 
@@ -3547,8 +3178,8 @@ DECLARE
   v_entries_asked  INTEGER := 0;
 BEGIN
   -- Membership first, in its own right rather than leaning on the admin test beside it: see
-  -- upsert_item_designation for why those two are kept independent.
-  PERFORM require_org_member(p_org_id);
+  -- item_designation_upsert for why those two are kept independent.
+  PERFORM org_require_member(p_org_id);
 
   IF NOT is_org_admin() THEN
     RAISE EXCEPTION 'Only organization admins can repair configuration maps'
@@ -3560,8 +3191,8 @@ BEGIN
       USING ERRCODE = 'invalid_parameter_value';
   END IF;
 
-  v_actor := current_actor_id();
-  SELECT email INTO v_actor_email FROM users WHERE id = v_actor;
+  v_actor := my_actor_id();
+  SELECT email INTO v_actor_email FROM app_user WHERE id = v_actor;
 
   -- Validate the whole request before writing any of it. A request carrying one bad value is
   -- rejected entirely, so there is no state in which half a repair has been applied and the caller
@@ -3601,7 +3232,7 @@ BEGIN
     -- confirms the id exists.
     SELECT id, file_path, org_id
       INTO v_file
-      FROM files
+      FROM file
      WHERE id = v_file_id
        AND org_id = p_org_id
        AND deleted_at IS NULL
@@ -3654,7 +3285,7 @@ BEGIN
                THEN (SELECT count(*)::int FROM jsonb_object_keys(f.custom_properties -> v_key))
              END
         INTO v_before
-        FROM files f
+        FROM file f
        WHERE f.id = v_file.id;
 
       IF v_before IS NULL THEN
@@ -3671,7 +3302,7 @@ BEGIN
       -- and the key set can only grow. custom_properties inside the expression is the row's
       -- pre-update value, which is what makes the live row and not the caller's snapshot the side
       -- that survives. The WHERE re-states the guards as refusals rather than as reach.
-      UPDATE files f
+      UPDATE file f
          SET custom_properties = jsonb_set(
                COALESCE(f.custom_properties, '{}'::jsonb),
                ARRAY[v_key],
@@ -3685,7 +3316,7 @@ BEGIN
 
       SELECT (SELECT count(*)::int FROM jsonb_object_keys(f.custom_properties -> v_key))
         INTO v_after
-        FROM files f
+        FROM file f
        WHERE f.id = v_file.id;
 
       v_map_reports := v_map_reports || jsonb_build_object(v_key, jsonb_build_object(
@@ -3741,69 +3372,21 @@ END;
 $$;
 
 -- Born unreachable by anon, as every RPC in this schema is, then handed to signed-in users - who
--- still have to pass require_org_member and is_org_admin inside.
-REVOKE ALL ON FUNCTION repair_config_maps(UUID, JSONB) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION repair_config_maps(UUID, JSONB) TO authenticated;
-
--- ===========================================
--- REALTIME
--- ===========================================
-
-ALTER TABLE vaults REPLICA IDENTITY FULL;
-ALTER TABLE vault_access REPLICA IDENTITY FULL;
-ALTER TABLE files REPLICA IDENTITY FULL;
-ALTER TABLE workflow_templates REPLICA IDENTITY FULL;
-ALTER TABLE workflow_states REPLICA IDENTITY FULL;
-ALTER TABLE workflow_transitions REPLICA IDENTITY FULL;
-ALTER TABLE workflow_gates REPLICA IDENTITY FULL;
-ALTER TABLE workflow_gate_reviewers REPLICA IDENTITY FULL;
-ALTER TABLE workflow_roles REPLICA IDENTITY FULL;
-ALTER TABLE user_workflow_roles REPLICA IDENTITY FULL;
-ALTER TABLE file_metadata_columns REPLICA IDENTITY FULL;
-ALTER TABLE backup_config REPLICA IDENTITY FULL;
-ALTER TABLE backup_machines REPLICA IDENTITY FULL;
--- v101: folders carries deleted_at/deleted_by like files does, and
--- deleteFolderByPath soft-deletes through them, but the table was never
--- published or given a full replica identity, so a folder deletion with no
--- files in it never reached another client. REPLICA IDENTITY FULL is the
--- load-bearing half - without it an UPDATE's old record on the wire carries
--- only the primary key, so a deleted_at null-to-set transition is
--- undetectable. See check_release_residue() in core.sql for the verification
--- this schema_release_manifest() cannot express for either statement.
-ALTER TABLE folders REPLICA IDENTITY FULL;
-
-DO $$
-BEGIN
-  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE vaults; EXCEPTION WHEN duplicate_object THEN NULL; END;
-  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE vault_access; EXCEPTION WHEN duplicate_object THEN NULL; END;
-  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE files; EXCEPTION WHEN duplicate_object THEN NULL; END;
-  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE workflow_templates; EXCEPTION WHEN duplicate_object THEN NULL; END;
-  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE workflow_states; EXCEPTION WHEN duplicate_object THEN NULL; END;
-  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE workflow_transitions; EXCEPTION WHEN duplicate_object THEN NULL; END;
-  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE workflow_gates; EXCEPTION WHEN duplicate_object THEN NULL; END;
-  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE workflow_gate_reviewers; EXCEPTION WHEN duplicate_object THEN NULL; END;
-  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE workflow_roles; EXCEPTION WHEN duplicate_object THEN NULL; END;
-  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE user_workflow_roles; EXCEPTION WHEN duplicate_object THEN NULL; END;
-  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE file_metadata_columns; EXCEPTION WHEN duplicate_object THEN NULL; END;
-  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE backup_config; EXCEPTION WHEN duplicate_object THEN NULL; END;
-  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE backup_machines; EXCEPTION WHEN duplicate_object THEN NULL; END;
-  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE folders; EXCEPTION WHEN duplicate_object THEN NULL; END;
-END $$;
+-- still have to pass org_require_member and is_org_admin inside.
 
 -- ===========================================
 -- SERIAL NUMBER FUNCTIONS
 -- ===========================================
 --
 -- These, like every SECURITY DEFINER function below that takes a p_org_id, open
--- with require_org_member(p_org_id). Without it the argument is an
+-- with org_require_member(p_org_id). Without it the argument is an
 -- unauthenticated instruction: SECURITY DEFINER means RLS is not consulted, and
 -- the function is reachable over PostgREST, so naming another organization's id
 -- read or advanced that organization's counter. See core.sql.
 
 -- Preview next serial number (returns what the next auto-generated serial will look like)
 -- Used by the SerializationSettings component to show a server-side preview
-DROP FUNCTION IF EXISTS preview_next_serial_number(UUID) CASCADE;
-CREATE OR REPLACE FUNCTION preview_next_serial_number(p_org_id UUID)
+CREATE OR REPLACE FUNCTION serial_number_preview_next(p_org_id UUID)
 RETURNS TEXT AS $$
 DECLARE
   settings JSONB;
@@ -3818,11 +3401,11 @@ DECLARE
   letter_prefix TEXT;
   padding_digits INTEGER;
 BEGIN
-  PERFORM require_org_member(p_org_id);
+  PERFORM org_require_member(p_org_id);
 
   -- Get serialization settings for the organization
   SELECT serialization_settings INTO settings
-  FROM organizations WHERE id = p_org_id;
+  FROM organization WHERE id = p_org_id;
   
   -- Return null if no settings or serialization is disabled
   IF settings IS NULL OR NOT COALESCE((settings->>'enabled')::boolean, false) THEN
@@ -3855,14 +3438,12 @@ BEGIN
   
   RETURN result;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-GRANT EXECUTE ON FUNCTION preview_next_serial_number(UUID) TO authenticated;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 -- Get next serial number (atomically increments counter and returns the new serial)
 -- Used when actually assigning a serial number to a file
-DROP FUNCTION IF EXISTS get_next_serial_number(UUID) CASCADE;
-CREATE OR REPLACE FUNCTION get_next_serial_number(p_org_id UUID)
+CREATE OR REPLACE FUNCTION serial_number_get_next(p_org_id UUID)
 RETURNS TEXT AS $$
 DECLARE
   settings JSONB;
@@ -3878,11 +3459,11 @@ DECLARE
   letter_prefix TEXT;
   padding_digits INTEGER;
 BEGIN
-  PERFORM require_org_member(p_org_id);
+  PERFORM org_require_member(p_org_id);
 
   -- Get serialization settings for the organization (with lock for update)
   SELECT serialization_settings INTO settings
-  FROM organizations WHERE id = p_org_id
+  FROM organization WHERE id = p_org_id
   FOR UPDATE;
   
   -- Return null if no settings or serialization is disabled
@@ -3913,7 +3494,7 @@ BEGIN
   END LOOP;
   
   -- Update the counter in the database
-  UPDATE organizations
+  UPDATE organization
   SET serialization_settings = jsonb_set(
     serialization_settings,
     '{current_counter}',
@@ -3926,15 +3507,13 @@ BEGIN
   
   RETURN result;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-GRANT EXECUTE ON FUNCTION get_next_serial_number(UUID) TO authenticated;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 -- Update serialization settings safely (preserves counter from race conditions)
 -- Used when admin saves settings - the counter is preserved from the database
 -- to prevent accidentally overwriting a counter that was incremented by another user
-DROP FUNCTION IF EXISTS update_serialization_settings_safe(UUID, JSONB) CASCADE;
-CREATE OR REPLACE FUNCTION update_serialization_settings_safe(
+CREATE OR REPLACE FUNCTION org_update_serialization_settings(
   p_org_id UUID,
   p_settings JSONB
 )
@@ -3944,7 +3523,7 @@ DECLARE
   preserved_counter INTEGER;
   merged_settings JSONB;
 BEGIN
-  PERFORM require_org_member(p_org_id);
+  PERFORM org_require_member(p_org_id);
 
   -- Schema 112: an organization setting, saved from the admin settings page.
   IF NOT is_org_admin() THEN
@@ -3954,7 +3533,7 @@ BEGIN
 
   -- Get current settings with lock to prevent race conditions
   SELECT serialization_settings INTO current_settings
-  FROM organizations WHERE id = p_org_id
+  FROM organization WHERE id = p_org_id
   FOR UPDATE;
   
   -- Preserve the current counter from the database
@@ -3966,31 +3545,29 @@ BEGIN
   merged_settings := (p_settings - 'current_counter') || jsonb_build_object('current_counter', preserved_counter);
   
   -- Update the organization with merged settings
-  UPDATE organizations
+  UPDATE organization
   SET serialization_settings = merged_settings
   WHERE id = p_org_id;
   
   RETURN TRUE;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-GRANT EXECUTE ON FUNCTION update_serialization_settings_safe(UUID, JSONB) TO authenticated;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 -- ===========================================
 -- ITEM DEFINITION FUNCTIONS (Item Browser)
 -- ===========================================
 
 -- Get the org's item definition settings (returns defaults if unset)
-DROP FUNCTION IF EXISTS get_item_definition_settings(UUID) CASCADE;
-CREATE OR REPLACE FUNCTION get_item_definition_settings(p_org_id UUID)
+CREATE OR REPLACE FUNCTION org_get_item_definition_settings(p_org_id UUID)
 RETURNS JSONB AS $$
 DECLARE
   settings JSONB;
 BEGIN
-  PERFORM require_org_member(p_org_id);
+  PERFORM org_require_member(p_org_id);
 
   SELECT item_definition_settings INTO settings
-  FROM organizations WHERE id = p_org_id;
+  FROM organization WHERE id = p_org_id;
 
   RETURN COALESCE(settings, '{
     "anyStage": true,
@@ -4001,98 +3578,64 @@ BEGIN
     "matchOrgFormat": true
   }'::jsonb);
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-GRANT EXECUTE ON FUNCTION get_item_definition_settings(UUID) TO authenticated;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 -- Update the org's item definition settings
-DROP FUNCTION IF EXISTS update_item_definition_settings(UUID, JSONB) CASCADE;
-CREATE OR REPLACE FUNCTION update_item_definition_settings(
+CREATE OR REPLACE FUNCTION org_update_item_definition_settings(
   p_org_id UUID,
   p_settings JSONB
 )
 RETURNS BOOLEAN AS $$
 BEGIN
-  PERFORM require_org_member(p_org_id);
+  PERFORM org_require_member(p_org_id);
 
   -- Schema 112: an organization-wide definition. Admins, or members granted the
   -- item designation permission the Item Browser already uses for the same view.
-  IF NOT (is_org_admin() OR user_has_team_permission('system:item-designations', 'edit')) THEN
+  IF NOT (is_org_admin() OR has_team_permission('system:item-designations', 'edit')) THEN
     RAISE EXCEPTION 'You do not have permission to change the item definition'
       USING ERRCODE = 'insufficient_privilege';
   END IF;
 
-  UPDATE organizations
+  UPDATE organization
   SET item_definition_settings = p_settings
   WHERE id = p_org_id;
 
   RETURN TRUE;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp;
 
-GRANT EXECUTE ON FUNCTION update_item_definition_settings(UUID, JSONB) TO authenticated;
+CREATE POLICY "item_image: users read"
+  ON item_image FOR SELECT
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()));
 
--- ===========================================
--- ITEM IMAGES (Item Browser per-item visual override)
--- ===========================================
+CREATE POLICY "item_image: members insert"
+  ON item_image FOR INSERT
+  WITH CHECK (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND has_team_permission('module:items', 'edit'));
 
--- Per-item (part_number) image override, shared org-wide. The absence of a row
--- means the item falls back to the default SolidWorks preview.
-CREATE TABLE IF NOT EXISTS item_images (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  part_number TEXT NOT NULL,
-  image_type TEXT NOT NULL DEFAULT 'preview' CHECK (image_type IN ('preview', 'icon', 'image')),
-  icon_name TEXT,
-  icon_color TEXT,
-  image_storage_path TEXT,
-  updated_by UUID REFERENCES users(id),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
+CREATE POLICY "item_image: members update"
+  ON item_image FOR UPDATE
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND has_team_permission('module:items', 'edit'));
 
-  UNIQUE(org_id, part_number)
-);
-
-CREATE INDEX IF NOT EXISTS idx_item_images_org_id ON item_images(org_id);
-
-ALTER TABLE item_images ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Users can view org item images" ON item_images;
-CREATE POLICY "Users can view org item images"
-  ON item_images FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
-
-DROP POLICY IF EXISTS "Members can insert item images" ON item_images;
-CREATE POLICY "Members can insert item images"
-  ON item_images FOR INSERT
-  WITH CHECK (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:items', 'edit'));
-
-DROP POLICY IF EXISTS "Members can update item images" ON item_images;
-CREATE POLICY "Members can update item images"
-  ON item_images FOR UPDATE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:items', 'edit'));
-
-DROP POLICY IF EXISTS "Members can delete item images" ON item_images;
-CREATE POLICY "Members can delete item images"
-  ON item_images FOR DELETE
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()) AND user_has_team_permission('module:items', 'edit'));
+CREATE POLICY "item_image: members delete"
+  ON item_image FOR DELETE
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()) AND has_team_permission('module:items', 'edit'));
 
 -- Get all per-item image overrides for an org (preview items have no row)
-DROP FUNCTION IF EXISTS get_item_images(UUID) CASCADE;
-CREATE OR REPLACE FUNCTION get_item_images(p_org_id UUID)
-RETURNS SETOF item_images AS $$
+CREATE OR REPLACE FUNCTION item_image_list(p_org_id UUID)
+RETURNS SETOF item_image AS $$
 BEGIN
-  PERFORM require_org_member(p_org_id);
+  PERFORM org_require_member(p_org_id);
 
   RETURN QUERY
-  SELECT * FROM item_images WHERE org_id = p_org_id;
+  SELECT * FROM item_image WHERE org_id = p_org_id;
 END;
-$$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
-
-GRANT EXECUTE ON FUNCTION get_item_images(UUID) TO authenticated;
+$$ LANGUAGE plpgsql STABLE SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 -- Upsert a per-item image override (icon or uploaded image)
-DROP FUNCTION IF EXISTS upsert_item_image(UUID, TEXT, TEXT, TEXT, TEXT, TEXT) CASCADE;
-CREATE OR REPLACE FUNCTION upsert_item_image(
+CREATE OR REPLACE FUNCTION item_image_upsert(
   p_org_id UUID,
   p_part_number TEXT,
   p_image_type TEXT,
@@ -4100,18 +3643,18 @@ CREATE OR REPLACE FUNCTION upsert_item_image(
   p_icon_color TEXT DEFAULT NULL,
   p_image_storage_path TEXT DEFAULT NULL
 )
-RETURNS item_images AS $$
+RETURNS item_image AS $$
 DECLARE
-  v_row item_images;
+  v_row item_image;
 BEGIN
   -- Was: p_org_id NOT IN (SELECT org_id FROM users WHERE id = auth.uid()).
   -- NULL, not true, for an account that has not joined an organization, so the
   -- RAISE never happened and this wrote into whatever organization it was
-  -- given. Reproduced: an account with users.org_id NULL overwrote another
-  -- tenant's item_images row over PostgREST.
-  PERFORM require_org_member(p_org_id);
+  -- given. Reproduced: an account with app_user.org_id NULL overwrote another
+  -- tenant's item_image row over PostgREST.
+  PERFORM org_require_member(p_org_id);
 
-  INSERT INTO item_images (
+  INSERT INTO item_image (
     org_id, part_number, image_type, icon_name, icon_color, image_storage_path, updated_by, updated_at
   )
   VALUES (
@@ -4128,115 +3671,65 @@ BEGIN
 
   RETURN v_row;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp;
 
-GRANT EXECUTE ON FUNCTION upsert_item_image(UUID, TEXT, TEXT, TEXT, TEXT, TEXT) TO authenticated;
-
--- Remove a per-item image override (revert to the default SolidWorks preview)
-DROP FUNCTION IF EXISTS reset_item_image(UUID, TEXT) CASCADE;
-CREATE OR REPLACE FUNCTION reset_item_image(
+CREATE OR REPLACE FUNCTION item_image_reset(
   p_org_id UUID,
   p_part_number TEXT
 )
 RETURNS BOOLEAN AS $$
 BEGIN
-  -- Same NULL-unsafe test as upsert_item_image, and the same consequence: an
+  -- Same NULL-unsafe test as item_image_upsert, and the same consequence: an
   -- account with no organization deleted another tenant's row.
-  PERFORM require_org_member(p_org_id);
+  PERFORM org_require_member(p_org_id);
 
-  DELETE FROM item_images WHERE org_id = p_org_id AND part_number = p_part_number;
+  DELETE FROM item_image WHERE org_id = p_org_id AND part_number = p_part_number;
   RETURN TRUE;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp;
 
-GRANT EXECUTE ON FUNCTION reset_item_image(UUID, TEXT) TO authenticated;
+CREATE POLICY "item_designation: users read"
+  ON item_designation FOR SELECT
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()));
 
--- ===========================================
--- ITEM DESIGNATIONS (Item Browser part/assembly classification)
--- ===========================================
-
--- Org-configurable list of item designations (e.g. Part, Assembly, Packed
--- Assembly). Admins manage the list from Settings; every org is seeded with a
--- default set on first read (see get_item_designations).
-CREATE TABLE IF NOT EXISTS item_designations (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  sort_order INTEGER NOT NULL DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  created_by UUID REFERENCES users(id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_item_designations_org_id ON item_designations(org_id);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_item_designations_org_name
-  ON item_designations(org_id, lower(name));
-
-ALTER TABLE item_designations ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Users can view org item designations" ON item_designations;
-CREATE POLICY "Users can view org item designations"
-  ON item_designations FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
-
-DROP POLICY IF EXISTS "Admins manage item designations" ON item_designations;
-CREATE POLICY "Admins manage item designations"
-  ON item_designations FOR ALL
+CREATE POLICY "item_designation: admins manage"
+  ON item_designation FOR ALL
   USING (
-    org_id IN (SELECT org_id FROM users WHERE id = auth.uid())
-    AND (is_org_admin() OR user_has_team_permission('system:item-designations', 'edit'))
+    org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid())
+    AND (is_org_admin() OR has_team_permission('system:item-designations', 'edit'))
   )
   WITH CHECK (
-    org_id IN (SELECT org_id FROM users WHERE id = auth.uid())
-    AND (is_org_admin() OR user_has_team_permission('system:item-designations', 'edit'))
+    org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid())
+    AND (is_org_admin() OR has_team_permission('system:item-designations', 'edit'))
   );
 
--- Per-item designation assignment (override of the type-derived default),
--- keyed by vault + part number. Absence of a row means the default applies.
-CREATE TABLE IF NOT EXISTS item_designation_assignments (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  vault_id UUID NOT NULL REFERENCES vaults(id) ON DELETE CASCADE,
-  part_number TEXT NOT NULL,
-  designation_id UUID NOT NULL REFERENCES item_designations(id) ON DELETE CASCADE,
-  updated_by UUID REFERENCES users(id),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
+CREATE POLICY "item_designation_assignment: users read"
+  ON item_designation_assignment FOR SELECT
+  USING (org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid()));
 
-  UNIQUE(org_id, vault_id, part_number)
-);
-
-CREATE INDEX IF NOT EXISTS idx_item_designation_assignments_org
-  ON item_designation_assignments(org_id, vault_id);
-
-ALTER TABLE item_designation_assignments ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Users can view org designation assignments" ON item_designation_assignments;
-CREATE POLICY "Users can view org designation assignments"
-  ON item_designation_assignments FOR SELECT
-  USING (org_id IN (SELECT org_id FROM users WHERE id = auth.uid()));
-
-DROP POLICY IF EXISTS "Permitted users manage designation assignments" ON item_designation_assignments;
-CREATE POLICY "Permitted users manage designation assignments"
-  ON item_designation_assignments FOR ALL
+CREATE POLICY "item_designation_assignment: permitted users manage"
+  ON item_designation_assignment FOR ALL
   USING (
-    org_id IN (SELECT org_id FROM users WHERE id = auth.uid())
-    AND (is_org_admin() OR user_has_team_permission('system:item-designations', 'edit'))
+    org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid())
+    AND (is_org_admin() OR has_team_permission('system:item-designations', 'edit'))
   )
   WITH CHECK (
-    org_id IN (SELECT org_id FROM users WHERE id = auth.uid())
-    AND (is_org_admin() OR user_has_team_permission('system:item-designations', 'edit'))
+    org_id IN (SELECT org_id FROM app_user WHERE id = auth.uid())
+    AND (is_org_admin() OR has_team_permission('system:item-designations', 'edit'))
   );
 
 -- List the org's item designations, seeding defaults on first access.
-DROP FUNCTION IF EXISTS get_item_designations(UUID) CASCADE;
-CREATE OR REPLACE FUNCTION get_item_designations(p_org_id UUID)
-RETURNS SETOF item_designations AS $$
+CREATE OR REPLACE FUNCTION item_designation_list(p_org_id UUID)
+RETURNS SETOF item_designation AS $$
 BEGIN
   -- NULL-unsafe before this: an account with no organization read - and, via
   -- the seeding branch below, wrote into - any organization it named.
-  PERFORM require_org_member(p_org_id);
+  PERFORM org_require_member(p_org_id);
 
-  IF NOT EXISTS (SELECT 1 FROM item_designations WHERE org_id = p_org_id) THEN
-    INSERT INTO item_designations (org_id, name, sort_order, created_by)
+  IF NOT EXISTS (SELECT 1 FROM item_designation WHERE org_id = p_org_id) THEN
+    INSERT INTO item_designation (org_id, name, sort_order, created_by)
     VALUES
       (p_org_id, 'Part', 0, auth.uid()),
       (p_org_id, 'Assembly', 1, auth.uid()),
@@ -4245,25 +3738,23 @@ BEGIN
   END IF;
 
   RETURN QUERY
-  SELECT * FROM item_designations
+  SELECT * FROM item_designation
   WHERE org_id = p_org_id
   ORDER BY sort_order, name;
 END;
-$$ LANGUAGE plpgsql VOLATILE SECURITY DEFINER;
-
-GRANT EXECUTE ON FUNCTION get_item_designations(UUID) TO authenticated;
+$$ LANGUAGE plpgsql VOLATILE SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 -- Create or update an item designation (admin or system:item-designations edit).
-DROP FUNCTION IF EXISTS upsert_item_designation(UUID, TEXT, UUID, INTEGER) CASCADE;
-CREATE OR REPLACE FUNCTION upsert_item_designation(
+CREATE OR REPLACE FUNCTION item_designation_upsert(
   p_org_id UUID,
   p_name TEXT,
   p_id UUID DEFAULT NULL,
   p_sort_order INTEGER DEFAULT NULL
 )
-RETURNS item_designations AS $$
+RETURNS item_designation AS $$
 DECLARE
-  v_row item_designations;
+  v_row item_designation;
   v_sort INTEGER;
 BEGIN
   -- The membership half of this test was NULL-unsafe. It happened not to be
@@ -4272,22 +3763,22 @@ BEGIN
   -- design - the two conditions are independent and either could be edited
   -- without the other - so the membership test is made sound in its own right
   -- rather than left leaning on its neighbour.
-  PERFORM require_org_member(p_org_id);
+  PERFORM org_require_member(p_org_id);
 
-  IF NOT (is_org_admin() OR user_has_team_permission('system:item-designations', 'edit')) THEN
+  IF NOT (is_org_admin() OR has_team_permission('system:item-designations', 'edit')) THEN
     RAISE EXCEPTION 'Not authorized to manage item designations';
   END IF;
 
   IF p_id IS NULL THEN
     v_sort := COALESCE(
       p_sort_order,
-      (SELECT COALESCE(MAX(sort_order), -1) + 1 FROM item_designations WHERE org_id = p_org_id)
+      (SELECT COALESCE(MAX(sort_order), -1) + 1 FROM item_designation WHERE org_id = p_org_id)
     );
-    INSERT INTO item_designations (org_id, name, sort_order, created_by)
+    INSERT INTO item_designation (org_id, name, sort_order, created_by)
     VALUES (p_org_id, p_name, v_sort, auth.uid())
     RETURNING * INTO v_row;
   ELSE
-    UPDATE item_designations
+    UPDATE item_designation
     SET name = p_name,
         sort_order = COALESCE(p_sort_order, sort_order)
     WHERE id = p_id AND org_id = p_org_id
@@ -4296,73 +3787,67 @@ BEGIN
 
   RETURN v_row;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-GRANT EXECUTE ON FUNCTION upsert_item_designation(UUID, TEXT, UUID, INTEGER) TO authenticated;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 -- Delete an item designation (admin or system:item-designations edit).
-DROP FUNCTION IF EXISTS delete_item_designation(UUID, UUID) CASCADE;
-CREATE OR REPLACE FUNCTION delete_item_designation(
+CREATE OR REPLACE FUNCTION item_designation_delete(
   p_org_id UUID,
   p_id UUID
 )
 RETURNS BOOLEAN AS $$
 BEGIN
-  -- Membership test made sound in its own right; see upsert_item_designation.
-  PERFORM require_org_member(p_org_id);
+  -- Membership test made sound in its own right; see item_designation_upsert.
+  PERFORM org_require_member(p_org_id);
 
-  IF NOT (is_org_admin() OR user_has_team_permission('system:item-designations', 'edit')) THEN
+  IF NOT (is_org_admin() OR has_team_permission('system:item-designations', 'edit')) THEN
     RAISE EXCEPTION 'Not authorized to manage item designations';
   END IF;
 
-  DELETE FROM item_designations WHERE id = p_id AND org_id = p_org_id;
+  DELETE FROM item_designation WHERE id = p_id AND org_id = p_org_id;
   RETURN TRUE;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-GRANT EXECUTE ON FUNCTION delete_item_designation(UUID, UUID) TO authenticated;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 -- Load all per-item designation assignments for a vault.
-DROP FUNCTION IF EXISTS get_item_designation_assignments(UUID, UUID) CASCADE;
-CREATE OR REPLACE FUNCTION get_item_designation_assignments(
+CREATE OR REPLACE FUNCTION item_designation_assignment_list(
   p_org_id UUID,
   p_vault_id UUID
 )
-RETURNS SETOF item_designation_assignments AS $$
+RETURNS SETOF item_designation_assignment AS $$
 BEGIN
-  -- NULL-unsafe before this. Reproduced: an account with users.org_id NULL read
+  -- NULL-unsafe before this. Reproduced: an account with app_user.org_id NULL read
   -- another tenant's designation assignments over PostgREST.
-  PERFORM require_org_member(p_org_id);
+  PERFORM org_require_member(p_org_id);
 
   RETURN QUERY
-  SELECT * FROM item_designation_assignments
+  SELECT * FROM item_designation_assignment
   WHERE org_id = p_org_id AND vault_id = p_vault_id;
 END;
-$$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
-
-GRANT EXECUTE ON FUNCTION get_item_designation_assignments(UUID, UUID) TO authenticated;
+$$ LANGUAGE plpgsql STABLE SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 -- Set (or clear, when p_designation_id is NULL) an item's designation override.
-DROP FUNCTION IF EXISTS set_item_designation_assignment(UUID, UUID, TEXT, UUID) CASCADE;
-CREATE OR REPLACE FUNCTION set_item_designation_assignment(
+CREATE OR REPLACE FUNCTION item_designation_assignment_set(
   p_org_id UUID,
   p_vault_id UUID,
   p_part_number TEXT,
   p_designation_id UUID DEFAULT NULL
 )
-RETURNS item_designation_assignments AS $$
+RETURNS item_designation_assignment AS $$
 DECLARE
-  v_row item_designation_assignments;
+  v_row item_designation_assignment;
 BEGIN
-  -- Membership test made sound in its own right; see upsert_item_designation.
-  PERFORM require_org_member(p_org_id);
+  -- Membership test made sound in its own right; see item_designation_upsert.
+  PERFORM org_require_member(p_org_id);
 
-  IF NOT (is_org_admin() OR user_has_team_permission('system:item-designations', 'edit')) THEN
+  IF NOT (is_org_admin() OR has_team_permission('system:item-designations', 'edit')) THEN
     RAISE EXCEPTION 'Not authorized to edit item designations';
   END IF;
 
   IF p_designation_id IS NULL THEN
-    DELETE FROM item_designation_assignments
+    DELETE FROM item_designation_assignment
     WHERE org_id = p_org_id AND vault_id = p_vault_id AND part_number = p_part_number;
     RETURN NULL;
   END IF;
@@ -4375,19 +3860,19 @@ BEGIN
   -- error into an oracle for whether a given uuid exists in some other
   -- organisation. An argument that selects a row has to be checked against the
   -- organisation the caller was admitted to, even when the write is local.
-  IF NOT EXISTS (SELECT 1 FROM vaults
+  IF NOT EXISTS (SELECT 1 FROM vault
                   WHERE id = p_vault_id AND org_id = p_org_id) THEN
     RAISE EXCEPTION 'Not authorized for this vault'
       USING ERRCODE = 'insufficient_privilege';
   END IF;
 
-  IF NOT EXISTS (SELECT 1 FROM item_designations
+  IF NOT EXISTS (SELECT 1 FROM item_designation
                   WHERE id = p_designation_id AND org_id = p_org_id) THEN
     RAISE EXCEPTION 'Not authorized for this item designation'
       USING ERRCODE = 'insufficient_privilege';
   END IF;
 
-  INSERT INTO item_designation_assignments (
+  INSERT INTO item_designation_assignment (
     org_id, vault_id, part_number, designation_id, updated_by, updated_at
   )
   VALUES (
@@ -4401,9 +3886,8 @@ BEGIN
 
   RETURN v_row;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-GRANT EXECUTE ON FUNCTION set_item_designation_assignment(UUID, UUID, TEXT, UUID) TO authenticated;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 -- ===========================================
 -- PERFORMANCE: Fast Vault File Queries
@@ -4412,8 +3896,7 @@ GRANT EXECUTE ON FUNCTION set_item_designation_assignment(UUID, UUID, TEXT, UUID
 -- Get all vault files in a single query (no pagination overhead)
 -- Returns lightweight file data for initial vault sync
 -- Much faster than paginated REST queries (1 round trip vs 25+ for large vaults)
-DROP FUNCTION IF EXISTS get_vault_files_fast(UUID, UUID) CASCADE;
-CREATE OR REPLACE FUNCTION get_vault_files_fast(
+CREATE OR REPLACE FUNCTION vault_file_list(
   p_org_id UUID,
   p_vault_id UUID DEFAULT NULL
 )
@@ -4443,12 +3926,12 @@ RETURNS TABLE (
   checked_out_file_name TEXT
 ) AS $$
 BEGIN
-  PERFORM require_org_member(p_org_id);
+  PERFORM org_require_member(p_org_id);
   -- Schema 111: a named vault the caller may not see is refused, not answered
   -- empty (an empty answer reads as "the server has no files" to a client that
   -- holds a local copy); without a vault, only visible vaults are listed.
   IF p_vault_id IS NOT NULL THEN
-    PERFORM require_vault_access(p_vault_id);
+    PERFORM vault_require_access(p_vault_id);
   END IF;
 
   RETURN QUERY
@@ -4459,61 +3942,50 @@ BEGIN
     f.checked_out_by, f.checked_out_at, f.updated_at,
     f.custom_properties,
     f.checked_out_file_path, f.checked_out_file_name
-  FROM files f
+  FROM file f
   WHERE f.org_id = p_org_id
     AND f.deleted_at IS NULL
     AND (p_vault_id IS NULL OR f.vault_id = p_vault_id)
-    AND (p_vault_id IS NOT NULL OR f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids()))
+    AND (p_vault_id IS NOT NULL OR f.vault_id IN (SELECT my_accessible_vault_ids()))
   ORDER BY f.file_path;
 END;
-$$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
-
-GRANT EXECUTE ON FUNCTION get_vault_files_fast(UUID, UUID) TO authenticated;
+$$ LANGUAGE plpgsql STABLE SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 -- Cheap reconciliation count for the vault cache: the renderer compares this against
 -- its merged (cache + delta) row count and forces a full refetch on mismatch, so a
 -- delta that was missed (e.g. a mutation that forgot to bump updated_at) self-heals
--- instead of persisting until the cache's 7-day TTL. Must mirror get_vault_files_fast
+-- instead of persisting until the cache's 7-day TTL. Must mirror vault_file_list
 -- exactly in both authorization and predicate - it is SECURITY DEFINER and gates only
--- on require_org_member(), bypassing RLS, same as get_vault_files_fast. A PostgREST
+-- on org_require_member(), bypassing RLS, same as vault_file_list. A PostgREST
 -- count: 'exact' query would instead go through RLS and disagree systematically.
-DROP FUNCTION IF EXISTS get_vault_files_count(UUID, UUID) CASCADE;
-CREATE OR REPLACE FUNCTION get_vault_files_count(
+CREATE OR REPLACE FUNCTION vault_file_count(
   p_org_id UUID,
   p_vault_id UUID DEFAULT NULL
 ) RETURNS BIGINT AS $$
 BEGIN
-  PERFORM require_org_member(p_org_id);
+  PERFORM org_require_member(p_org_id);
   IF p_vault_id IS NOT NULL THEN
-    PERFORM require_vault_access(p_vault_id);
+    PERFORM vault_require_access(p_vault_id);
   END IF;
-  RETURN (SELECT COUNT(*) FROM files f
+  RETURN (SELECT COUNT(*) FROM file f
           WHERE f.org_id = p_org_id
             AND f.deleted_at IS NULL
             AND (p_vault_id IS NULL OR f.vault_id = p_vault_id)
-            AND (p_vault_id IS NOT NULL OR f.vault_id IS NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())));
+            AND (p_vault_id IS NOT NULL OR f.vault_id IN (SELECT my_accessible_vault_ids())));
 END;
-$$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
+$$ LANGUAGE plpgsql STABLE SECURITY DEFINER
+SET search_path = public, pg_temp;
 
-GRANT EXECUTE ON FUNCTION get_vault_files_count(UUID, UUID) TO authenticated;
-
--- ===========================================
--- MOVE FILE RPC
--- ===========================================
-
--- Atomic move: updates file_path and file_name on the server
--- Used when user moves a checked-in file to a new location
--- Returns JSONB with success status, error message, or updated file data
-DO $$ BEGIN PERFORM drop_function_overloads('move_file'); END $$;
-CREATE OR REPLACE FUNCTION move_file(
+CREATE OR REPLACE FUNCTION file_move(
   p_file_id UUID,
-  p_user_id UUID,
   p_new_file_path TEXT,
   p_new_file_name TEXT DEFAULT NULL
 )
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_file RECORD;
@@ -4524,8 +3996,8 @@ DECLARE
   v_old_name TEXT;
   v_actor UUID;
 BEGIN
-  -- p_user_id is ignored; the acting user comes from the JWT.
-  v_actor := current_actor_id();
+  -- The acting user comes from the JWT.
+  v_actor := my_actor_id();
 
   -- The gate is the only statement in this block, and it must stay that way.
   -- The handler below turns a refusal into a JSON result, which is what these
@@ -4533,21 +4005,21 @@ BEGIN
   -- check added after this line would have its RAISE swallowed and the function
   -- would carry on and answer. New checks go before the BEGIN.
   BEGIN
-    PERFORM require_file_access(p_file_id);
+    PERFORM file_require_access(p_file_id);
   EXCEPTION WHEN insufficient_privilege THEN
     RETURN jsonb_build_object('success', false, 'error', 'File not found');
   END;
 
   -- Schema 112: the same permission the files UPDATE policy asks for. This
   -- function writes files as definer, so the policy never sees the write.
-  IF NOT user_has_team_permission('module:explorer', 'edit') THEN
+  IF NOT has_team_permission('module:explorer', 'edit') THEN
     RETURN jsonb_build_object('success', false, 'error', 'You do not have permission to edit files');
   END IF;
 
   -- Lock the row and check status atomically
   SELECT id, file_path, file_name, checked_out_by, org_id
   INTO v_file
-  FROM files
+  FROM file
   WHERE id = p_file_id
   FOR UPDATE;  -- Row-level lock prevents race conditions
   
@@ -4563,7 +4035,7 @@ BEGIN
   IF v_file.checked_out_by IS NOT NULL AND v_file.checked_out_by != v_actor THEN
     -- Get the other user's info
     SELECT email, full_name INTO v_checked_out_user
-    FROM users WHERE id = v_file.checked_out_by;
+    FROM app_user WHERE id = v_file.checked_out_by;
     
     RETURN jsonb_build_object(
       'success', false,
@@ -4573,7 +4045,7 @@ BEGIN
   END IF;
   
   -- Perform the move (update path and optionally name)
-  UPDATE files
+  UPDATE file
   SET 
     file_path = p_new_file_path,
     file_name = COALESCE(p_new_file_name, file_name),
@@ -4586,11 +4058,11 @@ BEGIN
     'success', true,
     'file', row_to_json(f.*)
   ) INTO v_result
-  FROM files f
+  FROM file f
   WHERE f.id = p_file_id;
   
   -- Log activity
-  SELECT email INTO v_user_email FROM users WHERE id = v_actor;
+  SELECT email INTO v_user_email FROM app_user WHERE id = v_actor;
   
   INSERT INTO activity (org_id, file_id, user_id, user_email, action, details)
   VALUES (
@@ -4611,12 +4083,9 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION move_file(UUID, UUID, TEXT, TEXT) TO authenticated;
-
 -- Get files changed since a specific timestamp (for delta sync)
 -- Used by client-side caching to fetch only changed files after initial load
-DROP FUNCTION IF EXISTS get_vault_files_delta(UUID, UUID, TIMESTAMPTZ) CASCADE;
-CREATE OR REPLACE FUNCTION get_vault_files_delta(
+CREATE OR REPLACE FUNCTION vault_file_list_delta(
   p_org_id UUID,
   p_vault_id UUID,
   p_since TIMESTAMPTZ
@@ -4637,22 +4106,22 @@ RETURNS TABLE (
   checked_out_by UUID,
   checked_out_at TIMESTAMPTZ,
   updated_at TIMESTAMPTZ,
-  -- Kept in step with get_vault_files_fast: a delta-refreshed row that dropped
+  -- Kept in step with vault_file_list: a delta-refreshed row that dropped
   -- custom_properties would re-introduce the phantom "modified" state it fixes.
   custom_properties JSONB,
   deleted_at TIMESTAMPTZ,
   is_deleted BOOLEAN,
-  -- Kept in step with get_vault_files_fast: see the comment there.
+  -- Kept in step with vault_file_list: see the comment there.
   checked_out_file_path TEXT,
   checked_out_file_name TEXT
 ) AS $$
 BEGIN
-  PERFORM require_org_member(p_org_id);
+  PERFORM org_require_member(p_org_id);
   -- Schema 111: a named vault the caller may not see is refused, not answered
   -- empty (an empty answer reads as "the server has no files" to a client that
   -- holds a local copy); without a vault, only visible vaults are listed.
   IF p_vault_id IS NOT NULL THEN
-    PERFORM require_vault_access(p_vault_id);
+    PERFORM vault_require_access(p_vault_id);
   END IF;
 
   RETURN QUERY
@@ -4665,33 +4134,24 @@ BEGIN
     f.deleted_at,
     (f.deleted_at IS NOT NULL) AS is_deleted,
     f.checked_out_file_path, f.checked_out_file_name
-  FROM files f
+  FROM file f
   WHERE f.org_id = p_org_id
     AND f.vault_id = p_vault_id
     AND (f.updated_at > p_since OR f.deleted_at > p_since)
   ORDER BY f.updated_at;
 END;
-$$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
+$$ LANGUAGE plpgsql STABLE SECURITY DEFINER
+SET search_path = public, pg_temp;
 
-GRANT EXECUTE ON FUNCTION get_vault_files_delta(UUID, UUID, TIMESTAMPTZ) TO authenticated;
-
--- ===========================================
--- RENAME FOLDER FILES RPC
--- ===========================================
-
--- Bulk path update: rewrites file_path for every active file under the old folder prefix.
--- Replaces N individual HTTP round trips with a single atomic UPDATE.
--- Triggers (log_file_activity, notify_file_watchers) fire per-row as normal.
-DO $$ BEGIN PERFORM drop_function_overloads('rename_folder_files'); END $$;
-CREATE OR REPLACE FUNCTION rename_folder_files(
+CREATE OR REPLACE FUNCTION folder_rename(
   p_old_folder_path TEXT,
   p_new_folder_path TEXT,
-  p_user_id UUID,
   p_vault_id UUID DEFAULT NULL
 )
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_updated INT;
@@ -4701,8 +4161,8 @@ DECLARE
   v_org_id UUID;
   v_candidate_vaults UUID[];
 BEGIN
-  -- p_user_id is ignored; the acting user comes from the JWT.
-  v_actor := current_actor_id();
+  -- The acting user comes from the JWT.
+  v_actor := my_actor_id();
 
   -- p_vault_id defaulted to NULL and NULL meant "every vault", so a single call
   -- rewrote matching paths across every organization in the database. That had
@@ -4718,14 +4178,14 @@ BEGIN
   -- So NULL is accepted again, but it no longer means "every vault everywhere".
   -- It means "work out which vault, inside the caller's own organization". The
   -- authority is identical either way, because vault access in this schema is
-  -- organization membership and nothing more - see require_vault_access(). If
+  -- organization membership and nothing more - see vault_require_access(). If
   -- the prefix matches files in more than one of the caller's vaults the call is
   -- refused rather than guessed at, because a folder rename that silently spans
   -- vaults is not something any caller asked for.
   IF p_vault_id IS NOT NULL THEN
-    v_org_id := require_vault_access(p_vault_id);
+    v_org_id := vault_require_access(p_vault_id);
   ELSE
-    SELECT u.org_id INTO v_org_id FROM users u WHERE u.id = v_actor;
+    SELECT u.org_id INTO v_org_id FROM app_user u WHERE u.id = v_actor;
 
     IF v_org_id IS NULL THEN
       RAISE EXCEPTION 'Not authorized for this organization'
@@ -4734,13 +4194,13 @@ BEGIN
 
     SELECT array_agg(DISTINCT f.vault_id)
       INTO v_candidate_vaults
-    FROM files f
+    FROM file f
     WHERE f.org_id = v_org_id
       AND f.deleted_at IS NULL
       AND f.vault_id IS NOT NULL
-      -- like_escape, or a folder called `100%` matches half the vault. See
-      -- like_escape() in core.sql.
-      AND LOWER(f.file_path) LIKE like_escape(LOWER(RTRIM(p_old_folder_path, '/'))) || '/%' ESCAPE '\';
+      -- like_pattern_escape, or a folder called `100%` matches half the vault. See
+      -- like_pattern_escape() in core.sql.
+      AND LOWER(f.file_path) LIKE like_pattern_escape(LOWER(RTRIM(p_old_folder_path, '/'))) || '/%' ESCAPE '\';
 
     IF v_candidate_vaults IS NULL THEN
       RETURN jsonb_build_object('success', true, 'updated', 0, 'total', 0);
@@ -4756,24 +4216,24 @@ BEGIN
 
     p_vault_id := v_candidate_vaults[1];
     -- Schema 112: the vault found from the path must be one the caller may see.
-    PERFORM require_vault_access(p_vault_id);
+    PERFORM vault_require_access(p_vault_id);
   END IF;
 
-  -- Schema 112: as checkout_file().
-  IF NOT user_has_team_permission('module:explorer', 'edit') THEN
+  -- Schema 112: as file_checkout().
+  IF NOT has_team_permission('module:explorer', 'edit') THEN
     RETURN jsonb_build_object('success', false, 'error', 'You do not have permission to edit files', 'updated', 0);
   END IF;
 
   v_old_prefix := RTRIM(p_old_folder_path, '/');
   v_new_prefix := RTRIM(p_new_folder_path, '/');
 
-  UPDATE files
+  UPDATE file
   SET
     file_path = v_new_prefix || SUBSTRING(file_path FROM LENGTH(v_old_prefix) + 1),
     updated_by = v_actor,
     updated_at = NOW()
   WHERE
-    LOWER(file_path) LIKE like_escape(LOWER(v_old_prefix)) || '/%' ESCAPE '\'
+    LOWER(file_path) LIKE like_pattern_escape(LOWER(v_old_prefix)) || '/%' ESCAPE '\'
     AND deleted_at IS NULL
     AND vault_id = p_vault_id
     AND org_id = v_org_id;
@@ -4793,8 +4253,6 @@ EXCEPTION WHEN OTHERS THEN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION rename_folder_files(TEXT, TEXT, UUID, UUID) TO authenticated;
-
 -- ===========================================
 -- WORKFLOW ENGINE
 -- ===========================================
@@ -4803,8 +4261,7 @@ GRANT EXECUTE ON FUNCTION rename_folder_files(TEXT, TEXT, UUID, UUID) TO authent
 -- role membership, checkout) is re-checked here, because the UI is only a hint.
 
 -- Next revision in the org's scheme. Mirrors getNextRevision() in src/types/pdm.ts.
-DROP FUNCTION IF EXISTS next_revision_value(TEXT, revision_scheme) CASCADE;
-CREATE OR REPLACE FUNCTION next_revision_value(p_current TEXT, p_scheme revision_scheme)
+CREATE OR REPLACE FUNCTION revision_get_next(p_current TEXT, p_scheme revision_scheme)
 RETURNS TEXT AS $$
 DECLARE
   v_chars TEXT[];
@@ -4835,11 +4292,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
--- Legacy files.state value for a workflow state name, or NULL when the name
+-- Legacy file.state value for a workflow state name, or NULL when the name
 -- doesn't correspond to one of the five legacy values. NULL means "leave the
 -- legacy column alone" rather than "clear it".
-DROP FUNCTION IF EXISTS legacy_file_state(TEXT) CASCADE;
-CREATE OR REPLACE FUNCTION legacy_file_state(p_state_name TEXT)
+CREATE OR REPLACE FUNCTION file_get_legacy_state(p_state_name TEXT)
 RETURNS TEXT AS $$
 DECLARE
   v_name TEXT;
@@ -4863,8 +4319,7 @@ $$ LANGUAGE plpgsql IMMUTABLE;
 
 -- True when the user may run this transition: no roles configured means anyone,
 -- otherwise they need one of them. Org admins always may.
-DROP FUNCTION IF EXISTS user_can_run_transition(UUID, UUID) CASCADE;
-CREATE OR REPLACE FUNCTION user_can_run_transition(p_user_id UUID, p_transition_id UUID)
+CREATE OR REPLACE FUNCTION can_run_transition(p_user_id UUID, p_transition_id UUID)
 RETURNS BOOLEAN AS $$
 DECLARE
   v_roles UUID[];
@@ -4872,10 +4327,10 @@ BEGIN
   -- A predicate about another person's authority is still information about
   -- them. Callers inside this schema pass the acting user; nobody has a reason
   -- to ask about a user in another organization.
-  PERFORM require_same_org_user(p_user_id);
+  PERFORM user_require_same_org(p_user_id);
 
   SELECT allowed_workflow_roles INTO v_roles
-  FROM workflow_transitions WHERE id = p_transition_id;
+  FROM workflow_transition WHERE id = p_transition_id;
 
   IF v_roles IS NULL OR array_length(v_roles, 1) IS NULL THEN
     RETURN TRUE;
@@ -4886,22 +4341,21 @@ BEGIN
   END IF;
 
   RETURN EXISTS (
-    SELECT 1 FROM user_workflow_roles uwr
+    SELECT 1 FROM user_workflow_role uwr
     WHERE uwr.user_id = p_user_id AND uwr.workflow_role_id = ANY(v_roles)
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-GRANT EXECUTE ON FUNCTION user_can_run_transition(UUID, UUID) TO authenticated;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 -- Moves a file into the transition's target state and records the move.
 --
 -- TWO IDS, TWO CHECKS
 --
 -- This function takes a file and a transition, and it used to check one of
--- them. require_file_access(p_file_id) is correct and sufficient for the file;
+-- them. file_require_access(p_file_id) is correct and sufficient for the file;
 -- p_transition_id was then loaded with `WHERE id = p_transition_id` and tested
--- only for existence. That is create_file_share_link's defect exactly - a gate
+-- only for existence. That is file_share_link_create's defect exactly - a gate
 -- on one argument while a second argument selects a row - in a function that
 -- was in the release manifest of the very release that closed it.
 --
@@ -4917,20 +4371,18 @@ GRANT EXECUTE ON FUNCTION user_can_run_transition(UUID, UUID) TO authenticated;
 -- transition outside the file's organization is not found rather than applied.
 -- check_unbound_entity_args() no longer starts from p_org_id, so a function
 -- with this shape and no organization argument at all cannot come back unseen.
-DROP FUNCTION IF EXISTS apply_workflow_transition(UUID, UUID, UUID, TEXT, JSONB) CASCADE;
-CREATE OR REPLACE FUNCTION apply_workflow_transition(
+CREATE OR REPLACE FUNCTION workflow_transition_apply(
   p_file_id UUID,
   p_transition_id UUID,
-  p_user_id UUID,
   p_comment TEXT,
   p_approvals JSONB
 )
 RETURNS JSONB AS $$
 DECLARE
-  v_file files%ROWTYPE;
-  v_transition workflow_transitions%ROWTYPE;
-  v_from_state workflow_states%ROWTYPE;
-  v_to_state workflow_states%ROWTYPE;
+  v_file file%ROWTYPE;
+  v_transition workflow_transition%ROWTYPE;
+  v_from_state workflow_state%ROWTYPE;
+  v_to_state workflow_state%ROWTYPE;
   v_workflow_name TEXT;
   v_user_email TEXT;
   v_scheme revision_scheme;
@@ -4943,26 +4395,26 @@ BEGIN
   -- granted to authenticated - but Supabase's default privileges granted it to
   -- anon and to authenticated regardless, so "internal" described the intent
   -- and not the ACL. The REVOKE after this function now names authenticated,
-  -- and the function gates for itself as well: p_user_id is ignored and the
-  -- file decides the organization.
-  v_actor := current_actor_id();
-  v_org_id := require_file_access(p_file_id);
+  -- and the function gates for itself as well: the actor comes from the JWT and
+  -- the file decides the organization.
+  v_actor := my_actor_id();
+  v_org_id := file_require_access(p_file_id);
 
-  SELECT * INTO v_file FROM files WHERE id = p_file_id;
+  SELECT * INTO v_file FROM file WHERE id = p_file_id;
 
   -- The transition has to belong to a workflow of the file's own organization.
   -- Loading it by id alone and testing only that it exists is what let another
   -- tenant's transition be applied to this file; the join is the check, so
   -- there is no second statement anybody can accidentally reorder past.
   SELECT wt.* INTO v_transition
-  FROM workflow_transitions wt
-  JOIN workflow_templates wtpl ON wtpl.id = wt.workflow_id
+  FROM workflow_transition wt
+  JOIN workflow_template wtpl ON wtpl.id = wt.workflow_id
   WHERE wt.id = p_transition_id AND wtpl.org_id = v_org_id;
 
-  SELECT * INTO v_to_state FROM workflow_states WHERE id = v_transition.to_state_id;
-  SELECT * INTO v_from_state FROM workflow_states WHERE id = v_transition.from_state_id;
-  SELECT name INTO v_workflow_name FROM workflow_templates WHERE id = v_transition.workflow_id;
-  SELECT email INTO v_user_email FROM users WHERE id = v_actor;
+  SELECT * INTO v_to_state FROM workflow_state WHERE id = v_transition.to_state_id;
+  SELECT * INTO v_from_state FROM workflow_state WHERE id = v_transition.from_state_id;
+  SELECT name INTO v_workflow_name FROM workflow_template WHERE id = v_transition.workflow_id;
+  SELECT email INTO v_user_email FROM app_user WHERE id = v_actor;
 
   -- A transition belonging to another organization's workflow is not found at
   -- all, and gets the identical refusal to one that does not exist, so this is
@@ -4973,19 +4425,19 @@ BEGIN
   END IF;
 
   v_new_revision := v_file.revision;
-  IF COALESCE(v_to_state.auto_increment_revision, false) THEN
+  IF COALESCE(v_to_state.is_revision_auto_incremented, false) THEN
     SELECT COALESCE(revision_scheme, 'letter') INTO v_scheme
-    FROM organizations WHERE id = v_file.org_id;
-    v_new_revision := next_revision_value(v_file.revision, COALESCE(v_scheme, 'letter'));
+    FROM organization WHERE id = v_file.org_id;
+    v_new_revision := revision_get_next(v_file.revision, COALESCE(v_scheme, 'letter'));
   END IF;
 
-  v_legacy_state := legacy_file_state(v_to_state.name);
+  v_legacy_state := file_get_legacy_state(v_to_state.name);
 
-  UPDATE file_workflow_assignments
+  UPDATE file_workflow_assignment
   SET current_state_id = v_to_state.id
   WHERE file_id = p_file_id;
 
-  UPDATE files
+  UPDATE file
   SET workflow_state_id = v_to_state.id,
       state = COALESCE(v_legacy_state, state),
       revision = v_new_revision,
@@ -4995,12 +4447,12 @@ BEGIN
       updated_by = v_actor
   WHERE id = p_file_id;
 
-  UPDATE file_state_entries
+  UPDATE file_state_entry
   SET exited_at = NOW(), exited_by = v_actor,
       duration_seconds = GREATEST(0, EXTRACT(EPOCH FROM (NOW() - entered_at))::integer)
   WHERE file_id = p_file_id AND exited_at IS NULL;
 
-  INSERT INTO file_state_entries (file_id, state_id, entered_by)
+  INSERT INTO file_state_entry (file_id, state_id, entered_by)
   VALUES (p_file_id, v_to_state.id, v_actor);
 
   INSERT INTO workflow_history (
@@ -5027,7 +4479,8 @@ BEGIN
     'new_revision', v_new_revision
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 -- Naming authenticated, not only PUBLIC. This is the shared tail of the two
 -- entry points below and no client has any business calling it: both of them
@@ -5037,19 +4490,16 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- new function, which is how a function documented as internal was callable
 -- over PostgREST by any signed-in user - and how the cross-tenant transition
 -- above was reached.
-REVOKE EXECUTE ON FUNCTION apply_workflow_transition(UUID, UUID, UUID, TEXT, JSONB)
-  FROM PUBLIC, anon, authenticated;
 
 -- Run a transition on a file. Returns requires_review instead of advancing when
 -- the transition has blocking gates, having raised the reviews they need.
-DROP FUNCTION IF EXISTS execute_workflow_transition(UUID, UUID, UUID, TEXT) CASCADE;
-DROP FUNCTION IF EXISTS execute_workflow_transition(UUID, UUID, TEXT) CASCADE;
+
 -- File workflows can be switched off for an organization (schema 110):
--- organizations.settings.file_workflows_enabled = false. Unset means on, so an
+-- organization.settings.file_workflows_enabled = false. Unset means on, so an
 -- organization that never touched the setting keeps its workflows. While off, no
--- transition runs (execute_workflow_transition refuses WORKFLOWS_DISABLED) and an
+-- transition runs (workflow_transition_execute refuses WORKFLOWS_DISABLED) and an
 -- approved review moves nothing.
-CREATE OR REPLACE FUNCTION org_file_workflows_enabled(p_org_id UUID)
+CREATE OR REPLACE FUNCTION is_org_file_workflows_enabled(p_org_id UUID)
 RETURNS BOOLEAN
 LANGUAGE sql STABLE SECURITY DEFINER
 SET search_path = public
@@ -5058,39 +4508,36 @@ AS $$
     SELECT CASE WHEN jsonb_typeof(o.settings -> 'file_workflows_enabled') = 'boolean'
                 THEN (o.settings ->> 'file_workflows_enabled')::boolean
            END
-    FROM organizations o WHERE o.id = p_org_id
+    FROM organization o WHERE o.id = p_org_id
   ), true);
 $$;
 
 -- Only the definer functions above and below call it; a client reads the setting from its own
 -- organization row.
-REVOKE ALL ON FUNCTION org_file_workflows_enabled(UUID) FROM PUBLIC, anon, authenticated;
 
 -- The transition an approved review takes a file out of a review stage
--- (workflow_states.triggers_review) by: the one to the state's
+-- (workflow_state.is_review_stage) by: the one to the state's
 -- review_approved_state_id when that is set, else the state's only outgoing
 -- transition. NULL when neither names exactly one.
-CREATE OR REPLACE FUNCTION review_stage_exit_transition(p_state_id UUID)
+CREATE OR REPLACE FUNCTION review_stage_get_exit_transition(p_state_id UUID)
 RETURNS UUID
 LANGUAGE sql STABLE SECURITY DEFINER
 SET search_path = public
 AS $$
   SELECT CASE
     WHEN s.review_approved_state_id IS NOT NULL THEN (
-      SELECT t.id FROM workflow_transitions t
+      SELECT t.id FROM workflow_transition t
       WHERE t.from_state_id = s.id AND t.to_state_id = s.review_approved_state_id
     )
     ELSE (
       SELECT CASE WHEN count(*) = 1 THEN min(t.id::text)::uuid END
-      FROM workflow_transitions t WHERE t.from_state_id = s.id
+      FROM workflow_transition t WHERE t.from_state_id = s.id
     )
   END
-  FROM workflow_states s WHERE s.id = p_state_id;
+  FROM workflow_state s WHERE s.id = p_state_id;
 $$;
 
-REVOKE ALL ON FUNCTION review_stage_exit_transition(UUID) FROM PUBLIC, anon, authenticated;
-
-CREATE OR REPLACE FUNCTION execute_workflow_transition(
+CREATE OR REPLACE FUNCTION workflow_transition_execute(
   p_file_id UUID,
   p_transition_id UUID,
   p_comment TEXT DEFAULT NULL
@@ -5098,11 +4545,11 @@ CREATE OR REPLACE FUNCTION execute_workflow_transition(
 RETURNS JSONB AS $$
 DECLARE
   v_user_id UUID;
-  v_file files%ROWTYPE;
-  v_transition workflow_transitions%ROWTYPE;
+  v_file file%ROWTYPE;
+  v_transition workflow_transition%ROWTYPE;
   v_current_state_id UUID;
-  v_to_state workflow_states%ROWTYPE;
-  v_gate workflow_gates%ROWTYPE;
+  v_to_state workflow_state%ROWTYPE;
+  v_gate workflow_gate%ROWTYPE;
   v_blocking_count INTEGER := 0;
   v_attempt_id UUID;
   v_gate_users UUID[];
@@ -5113,14 +4560,14 @@ BEGIN
       'error_message', 'You must be signed in to run a transition');
   END IF;
 
-  SELECT * INTO v_file FROM files WHERE id = p_file_id AND deleted_at IS NULL;
+  SELECT * INTO v_file FROM file WHERE id = p_file_id AND deleted_at IS NULL;
   IF v_file.id IS NULL THEN
     RETURN jsonb_build_object('success', false, 'error_code', 'FILE_NOT_FOUND',
       'error_message', 'File not found');
   END IF;
 
   -- Was `v_file.org_id <> (SELECT org_id FROM users WHERE id = v_user_id)`,
-  -- which is NULL for a caller whose users.org_id is NULL, so the refusal did
+  -- which is NULL for a caller whose app_user.org_id is NULL, so the refusal did
   -- not fire and the transition ran against another tenant's file. Nothing else
   -- in this function stood between that and the write.
   IF NOT is_org_member(v_file.org_id) THEN
@@ -5129,17 +4576,17 @@ BEGIN
   END IF;
 
   -- Schema 111: and to a vault the caller may see.
-  IF NOT may_access_vault(v_file.vault_id) THEN
+  IF NOT can_access_vault(v_file.vault_id) THEN
     RETURN jsonb_build_object('success', false, 'error_code', 'FORBIDDEN',
       'error_message', 'No access to this file''s vault');
   END IF;
 
-  IF NOT org_file_workflows_enabled(v_file.org_id) THEN
+  IF NOT is_org_file_workflows_enabled(v_file.org_id) THEN
     RETURN jsonb_build_object('success', false, 'error_code', 'WORKFLOWS_DISABLED',
       'error_message', 'File workflows are turned off for this organization');
   END IF;
 
-  -- Scoped to the file's organization, like apply_workflow_transition below it.
+  -- Scoped to the file's organization, like workflow_transition_apply below it.
   --
   -- This one was not exploitable: a foreign transition's from_state_id can
   -- never equal this file's current state, so the WRONG_STATE test three
@@ -5148,8 +4595,8 @@ BEGIN
   -- reordering it. Binding the id where it is loaded makes the refusal a
   -- property of this statement instead of a consequence of a later one.
   SELECT wt.* INTO v_transition
-  FROM workflow_transitions wt
-  JOIN workflow_templates wtpl ON wtpl.id = wt.workflow_id
+  FROM workflow_transition wt
+  JOIN workflow_template wtpl ON wtpl.id = wt.workflow_id
   WHERE wt.id = p_transition_id AND wtpl.org_id = v_file.org_id;
 
   IF v_transition.id IS NULL THEN
@@ -5158,7 +4605,7 @@ BEGIN
   END IF;
 
   SELECT current_state_id INTO v_current_state_id
-  FROM file_workflow_assignments WHERE file_id = p_file_id;
+  FROM file_workflow_assignment WHERE file_id = p_file_id;
 
   IF v_current_state_id IS NULL THEN
     RETURN jsonb_build_object('success', false, 'error_code', 'NO_WORKFLOW',
@@ -5172,30 +4619,30 @@ BEGIN
       'error_message', 'The file is no longer in this transition''s starting state');
   END IF;
 
-  IF NOT user_can_run_transition(v_user_id, p_transition_id) THEN
+  IF NOT can_run_transition(v_user_id, p_transition_id) THEN
     RETURN jsonb_build_object('success', false, 'error_code', 'ROLE_REQUIRED',
       'error_message', 'You do not hold a workflow role that allows this transition');
   END IF;
 
-  SELECT * INTO v_to_state FROM workflow_states WHERE id = v_transition.to_state_id;
+  SELECT * INTO v_to_state FROM workflow_state WHERE id = v_transition.to_state_id;
 
-  IF COALESCE(v_to_state.requires_checkout, false) AND v_file.checked_out_by IS DISTINCT FROM v_user_id THEN
+  IF COALESCE(v_to_state.is_checkout_required, false) AND v_file.checked_out_by IS DISTINCT FROM v_user_id THEN
     RETURN jsonb_build_object('success', false, 'error_code', 'CHECKOUT_REQUIRED',
       'error_message', 'Check the file out before moving it to this state');
   END IF;
 
-  IF NOT COALESCE(v_to_state.requires_checkout, false) AND v_file.checked_out_by IS NOT NULL THEN
+  IF NOT COALESCE(v_to_state.is_checkout_required, false) AND v_file.checked_out_by IS NOT NULL THEN
     RETURN jsonb_build_object('success', false, 'error_code', 'CHECKED_OUT',
       'error_message', 'Check the file in before moving it to this state');
   END IF;
 
   -- Serialize transitions of one file, so two concurrent runs cannot both pass the
   -- duplicate-review test below and open two attempts.
-  PERFORM 1 FROM file_workflow_assignments WHERE file_id = p_file_id FOR UPDATE;
+  PERFORM 1 FROM file_workflow_assignment WHERE file_id = p_file_id FOR UPDATE;
 
   -- Re-running a gated transition must not pile up duplicate reviews.
   IF EXISTS (
-    SELECT 1 FROM pending_reviews pr
+    SELECT 1 FROM workflow_gate_review pr
     WHERE pr.file_id = p_file_id AND pr.transition_id = p_transition_id AND pr.status = 'pending'
   ) THEN
     RETURN jsonb_build_object('success', false, 'requires_review', true,
@@ -5203,7 +4650,7 @@ BEGIN
       'error_message', 'This transition is already waiting on a review');
   END IF;
 
-  -- One attempt id for every row this run creates, so complete_gate_review()
+  -- One attempt id for every row this run creates, so gate_review_complete()
   -- counts approvals of this attempt only (schema 107).
   --
   -- Per-reviewer rows. A gate that names reviewers gets one row assigned to each
@@ -5211,22 +4658,22 @@ BEGIN
   -- "two of three engineers" is expressible. A gate that names nobody (anyone with
   -- module:reviews:edit), or whose rules resolve to nobody (administrators only,
   -- through the override), gets GREATEST(1, required_approvals) unassigned slots;
-  -- complete_gate_review() lets one person fill only one slot of a gate per attempt.
+  -- gate_review_complete() lets one person fill only one slot of a gate per attempt.
   v_attempt_id := gen_random_uuid();
 
   FOR v_gate IN
-    SELECT * FROM workflow_gates
+    SELECT * FROM workflow_gate
     WHERE transition_id = p_transition_id AND COALESCE(is_blocking, true)
     ORDER BY sort_order
   LOOP
-    v_gate_users := ARRAY(SELECT gate_reviewer_user_ids(v_gate.id, v_file.org_id));
+    v_gate_users := ARRAY(SELECT gate_reviewer_list_user_ids(v_gate.id, v_file.org_id));
 
     IF cardinality(v_gate_users) > 0 THEN
-      INSERT INTO pending_reviews (org_id, file_id, transition_id, gate_id, requested_by, status, assigned_to, attempt_id)
+      INSERT INTO workflow_gate_review (org_id, file_id, transition_id, gate_id, requested_by, status, assignee_id, attempt_id)
       SELECT v_file.org_id, p_file_id, p_transition_id, v_gate.id, v_user_id, 'pending', u, v_attempt_id
       FROM unnest(v_gate_users) AS u;
     ELSE
-      INSERT INTO pending_reviews (org_id, file_id, transition_id, gate_id, requested_by, status, attempt_id)
+      INSERT INTO workflow_gate_review (org_id, file_id, transition_id, gate_id, requested_by, status, attempt_id)
       SELECT v_file.org_id, p_file_id, p_transition_id, v_gate.id, v_user_id, 'pending', v_attempt_id
       FROM generate_series(1, GREATEST(1, COALESCE(v_gate.required_approvals, 1)));
     END IF;
@@ -5238,17 +4685,15 @@ BEGIN
       'new_state_id', NULL, 'new_state_name', NULL);
   END IF;
 
-  RETURN apply_workflow_transition(p_file_id, p_transition_id, v_user_id, p_comment, NULL);
+  RETURN workflow_transition_apply(p_file_id, p_transition_id, p_comment, NULL);
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-GRANT EXECUTE ON FUNCTION execute_workflow_transition(UUID, UUID, TEXT) TO authenticated;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 -- Run the single transition out of the file's current state that lands on a
 -- legacy state name ('released', 'obsolete', ...). This is what the REST
 -- endpoints use so they go through the same guards as the desktop app.
-DROP FUNCTION IF EXISTS execute_transition_to_legacy_state(UUID, TEXT, TEXT) CASCADE;
-CREATE OR REPLACE FUNCTION execute_transition_to_legacy_state(
+CREATE OR REPLACE FUNCTION workflow_transition_execute_to_legacy_state(
   p_file_id UUID,
   p_target_state TEXT,
   p_comment TEXT DEFAULT NULL
@@ -5258,7 +4703,7 @@ DECLARE
   v_current_state_id UUID;
   v_matches UUID[];
 BEGIN
-  -- execute_workflow_transition() at the end of this function does check the
+  -- workflow_transition_execute() at the end of this function does check the
   -- caller, but everything above it - which transitions exist out of this file's
   -- current state, and whether the file has a workflow at all - answered for any
   -- file id given to it. Gate before reading rather than before writing.
@@ -5268,14 +4713,14 @@ BEGIN
   -- check added after this line would have its RAISE swallowed and the function
   -- would carry on and answer. New checks go before the BEGIN.
   BEGIN
-    PERFORM require_file_access(p_file_id);
+    PERFORM file_require_access(p_file_id);
   EXCEPTION WHEN insufficient_privilege THEN
     RETURN jsonb_build_object('success', false, 'error_code', 'FILE_NOT_FOUND',
       'error_message', 'File not found');
   END;
 
   SELECT current_state_id INTO v_current_state_id
-  FROM file_workflow_assignments WHERE file_id = p_file_id;
+  FROM file_workflow_assignment WHERE file_id = p_file_id;
 
   IF v_current_state_id IS NULL THEN
     RETURN jsonb_build_object('success', false, 'error_code', 'NO_WORKFLOW',
@@ -5283,10 +4728,10 @@ BEGIN
   END IF;
 
   SELECT array_agg(wt.id) INTO v_matches
-  FROM workflow_transitions wt
-  JOIN workflow_states ws ON ws.id = wt.to_state_id
+  FROM workflow_transition wt
+  JOIN workflow_state ws ON ws.id = wt.to_state_id
   WHERE wt.from_state_id = v_current_state_id
-    AND legacy_file_state(ws.name) = p_target_state;
+    AND file_get_legacy_state(ws.name) = p_target_state;
 
   IF v_matches IS NULL OR array_length(v_matches, 1) = 0 THEN
     RETURN jsonb_build_object('success', false, 'error_code', 'NO_TRANSITION',
@@ -5298,83 +4743,78 @@ BEGIN
       'error_message', format('The workflow has more than one transition to %s; pick one explicitly', p_target_state));
   END IF;
 
-  RETURN execute_workflow_transition(p_file_id, v_matches[1], p_comment);
+  RETURN workflow_transition_execute(p_file_id, v_matches[1], p_comment);
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-GRANT EXECUTE ON FUNCTION execute_transition_to_legacy_state(UUID, TEXT, TEXT) TO authenticated;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 -- WHO MAY DECIDE AN UNASSIGNED GATE, ASKED ONCE
 --
--- complete_gate_review() enforced reviewer identity only when the review named
--- an assignee: `IF assigned_to IS NOT NULL AND assigned_to <> caller AND NOT
+-- gate_review_complete() enforced reviewer identity only when the review named
+-- an assignee: `IF assignee_id IS NOT NULL AND assignee_id <> caller AND NOT
 -- is_org_admin(...)`. An unassigned gate fell straight through to the
 -- organization membership test above it, so any member of the organization
 -- could approve any unassigned gate through the sanctioned RPC and have their
 -- own id written into workflow_review_history as the approver.
 --
 -- The rule for an unassigned gate was not missing from the schema. It was
--- already written out in get_my_pending_reviews(), which decides whether the
+-- already written out in gate_review_list_mine(), which decides whether the
 -- review is offered to a user at all - so the list of reviews a user was shown
 -- and the set of reviews the database would accept from them were two different
--- answers to one question. They are one answer now. share_link_admission() in
+-- answers to one question. They are one answer now. file_share_link_admit() in
 -- this module is the same lesson learned the same way: validate and consume
 -- each kept their own copy of the conditions, and they drifted.
 --
--- One deliberate change to the rule as get_my_pending_reviews() stated it: a
+-- One deliberate change to the rule as gate_review_list_mine() stated it: a
 -- gate that names no reviewers at all used to mean "anybody in the
 -- organization", and now means "anybody holding module:reviews:edit". That
 -- fallback is where the hole actually lived. A gate that does name its
 -- reviewers is unaffected, and so is every user it names.
 --
 -- p_user_id must be the calling user or another member of their organization -
--- user_has_permission() raises otherwise, which is its documented contract and
+-- has_user_permission() raises otherwise, which is its documented contract and
 -- not a case either caller here can reach.
 -- The role a gate's reviewer_type = 'role' rule is matched against (schema 107).
--- There is one definition of admin - users.role = 'admin' OR membership of the
+-- There is one definition of admin - app_user.role = 'admin' OR membership of the
 -- Administrators team, which is is_org_admin() - so a team member whose role
 -- column says engineer is an admin here too, the same answer the renderer's
--- getEffectiveRole() gives. Comparing the role column alone, as may_review_gate
+-- getEffectiveRole() gives. Comparing the role column alone, as can_review_gate
 -- did, hid admin-gated reviews from Administrators-team members.
-CREATE OR REPLACE FUNCTION effective_user_role(p_user_id UUID)
+CREATE OR REPLACE FUNCTION user_get_effective_role(p_user_id UUID)
 RETURNS user_role
 LANGUAGE sql STABLE SECURITY DEFINER
 SET search_path = public
 AS $$
   SELECT CASE WHEN is_org_admin(u.id) THEN 'admin'::user_role ELSE u.role END
-  FROM users u WHERE u.id = p_user_id;
+  FROM app_user u WHERE u.id = p_user_id;
 $$;
 
-REVOKE ALL ON FUNCTION effective_user_role(UUID) FROM PUBLIC, anon, authenticated;
-
 -- The users of an organization a gate's reviewer rules name, for the per-reviewer
--- rows execute_workflow_transition() creates. Same three rules as may_review_gate()
+-- rows workflow_transition_execute() creates. Same three rules as can_review_gate()
 -- ('group' still matches nothing - there is no group table).
-CREATE OR REPLACE FUNCTION gate_reviewer_user_ids(p_gate_id UUID, p_org_id UUID)
+CREATE OR REPLACE FUNCTION gate_reviewer_list_user_ids(p_gate_id UUID, p_org_id UUID)
 RETURNS SETOF UUID
 LANGUAGE sql STABLE SECURITY DEFINER
 SET search_path = public
 AS $$
   SELECT u.id
-  FROM users u
+  FROM app_user u
   WHERE u.org_id = p_org_id
     AND EXISTS (
-      SELECT 1 FROM workflow_gate_reviewers gr
+      SELECT 1 FROM workflow_gate_reviewer gr
       WHERE gr.gate_id = p_gate_id
         AND (
           (gr.reviewer_type = 'user' AND gr.user_id = u.id)
-          OR (gr.reviewer_type = 'role' AND gr.role = effective_user_role(u.id))
+          OR (gr.reviewer_type = 'role' AND gr.role = user_get_effective_role(u.id))
           OR (gr.reviewer_type = 'workflow_role' AND EXISTS (
-                SELECT 1 FROM user_workflow_roles uwr
+                SELECT 1 FROM user_workflow_role uwr
                 WHERE uwr.user_id = u.id AND uwr.workflow_role_id = gr.workflow_role_id))
         )
     )
   ORDER BY u.id;
 $$;
 
-REVOKE ALL ON FUNCTION gate_reviewer_user_ids(UUID, UUID) FROM PUBLIC, anon, authenticated;
-
-CREATE OR REPLACE FUNCTION may_review_gate(p_gate_id UUID, p_user_id UUID)
+CREATE OR REPLACE FUNCTION can_review_gate(p_gate_id UUID, p_user_id UUID)
 RETURNS BOOLEAN AS $$
 DECLARE
   v_role user_role;
@@ -5383,88 +4823,85 @@ BEGIN
     RETURN false;
   END IF;
 
-  -- Effective role, not the role column (schema 107): see effective_user_role().
-  v_role := effective_user_role(p_user_id);
+  -- Effective role, not the role column (schema 107): see user_get_effective_role().
+  v_role := user_get_effective_role(p_user_id);
 
-  IF NOT EXISTS (SELECT 1 FROM workflow_gate_reviewers gr WHERE gr.gate_id = p_gate_id) THEN
-    RETURN user_has_permission(p_user_id, 'module:reviews', 'edit');
+  IF NOT EXISTS (SELECT 1 FROM workflow_gate_reviewer gr WHERE gr.gate_id = p_gate_id) THEN
+    RETURN has_user_permission(p_user_id, 'module:reviews', 'edit');
   END IF;
 
-  -- Transplanted from get_my_pending_reviews() unchanged, deliberately: this is
+  -- Transplanted from gate_review_list_mine() unchanged, deliberately: this is
   -- the rule users already see, and rewriting it while moving it would make any
   -- resulting difference impossible to attribute.
   --
   -- reviewer_type has a fourth label, 'group', and neither this nor the list it
-  -- came from has ever matched it - workflow_gate_reviewers.group_name is not
+  -- came from has ever matched it - workflow_gate_reviewer.group_name is not
   -- joined to anything, because there is no group table. The consequence has
   -- changed direction, though, and that is worth being explicit about: a gate
   -- whose reviewers are all 'group' rows was previously approvable by any member
-  -- of the organization, because complete_gate_review() fell through to the
+  -- of the organization, because gate_review_complete() fell through to the
   -- membership test, and is now approvable only by an administrator, via the
-  -- override in complete_gate_review(). Restrictive rather than open, and not a
+  -- override in gate_review_complete(). Restrictive rather than open, and not a
   -- lockout. addGateReviewer (src/lib/supabase/teams.ts:431) only ever writes
   -- 'user' or 'workflow_role', so no gate the application built can be in this
   -- state; one built by hand can. Resolving 'group' properly needs a group
   -- table and is a product decision, not a security fix.
   RETURN EXISTS (
-    SELECT 1 FROM workflow_gate_reviewers gr
+    SELECT 1 FROM workflow_gate_reviewer gr
      WHERE gr.gate_id = p_gate_id
        AND (
          (gr.reviewer_type = 'user' AND gr.user_id = p_user_id)
          OR (gr.reviewer_type = 'role' AND gr.role = v_role)
          OR (gr.reviewer_type = 'workflow_role' AND EXISTS (
-               SELECT 1 FROM user_workflow_roles uwr
+               SELECT 1 FROM user_workflow_role uwr
                 WHERE uwr.user_id = p_user_id
                   AND uwr.workflow_role_id = gr.workflow_role_id))
        )
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 -- Reached only from the two SECURITY DEFINER functions below, which run as the
 -- owner and do not need a grant. Nothing calls it over PostgREST.
-REVOKE ALL ON FUNCTION may_review_gate(UUID, UUID) FROM PUBLIC, anon, authenticated;
 
 -- The gate review rows waiting on a user (schema 107), in one place for
--- get_my_pending_reviews(), list_review_queue() and get_review_badge_count():
+-- gate_review_list_mine(), review_list_queue() and review_count_badge():
 --   * rows assigned to them, and
 --   * one unassigned slot per (attempt, gate) whose rules admit them, unless they
 --     have already decided a row of that gate in that attempt - one person, one
 --     vote per gate per attempt.
-CREATE OR REPLACE FUNCTION gate_review_ids_awaiting(p_user_id UUID)
+CREATE OR REPLACE FUNCTION gate_review_list_awaiting_ids(p_user_id UUID)
 RETURNS SETOF UUID
 LANGUAGE sql STABLE SECURITY DEFINER
 SET search_path = public
 AS $$
   SELECT pr.id
-  FROM pending_reviews pr
-  JOIN users me ON me.id = p_user_id AND me.org_id = pr.org_id
+  FROM workflow_gate_review pr
+  JOIN app_user me ON me.id = p_user_id AND me.org_id = pr.org_id
   WHERE pr.status = 'pending'
-    AND pr.assigned_to = p_user_id
+    AND pr.assignee_id = p_user_id
   UNION ALL
   SELECT s.id FROM (
     SELECT DISTINCT ON (pr.attempt_id, pr.gate_id) pr.id
-    FROM pending_reviews pr
-    JOIN users me ON me.id = p_user_id AND me.org_id = pr.org_id
+    FROM workflow_gate_review pr
+    JOIN app_user me ON me.id = p_user_id AND me.org_id = pr.org_id
     WHERE pr.status = 'pending'
-      AND pr.assigned_to IS NULL
-      AND may_review_gate(pr.gate_id, p_user_id)
+      AND pr.assignee_id IS NULL
+      AND can_review_gate(pr.gate_id, p_user_id)
       AND NOT EXISTS (
-        SELECT 1 FROM pending_reviews d
+        SELECT 1 FROM workflow_gate_review d
         WHERE d.attempt_id = pr.attempt_id
           AND d.gate_id = pr.gate_id
-          AND (d.reviewed_by = p_user_id OR d.assigned_to = p_user_id)
+          AND (d.reviewed_by = p_user_id OR d.assignee_id = p_user_id)
       )
     ORDER BY pr.attempt_id, pr.gate_id, pr.id
   ) s;
 $$;
 
-REVOKE ALL ON FUNCTION gate_review_ids_awaiting(UUID) FROM PUBLIC, anon, authenticated;
-
 -- Record one reviewer's decision on a gate and, when that clears the last
 -- blocking gate, perform the advance the reviews were holding up.
-DROP FUNCTION IF EXISTS complete_gate_review(UUID, review_status, TEXT, JSONB) CASCADE;
-CREATE OR REPLACE FUNCTION complete_gate_review(
+CREATE OR REPLACE FUNCTION gate_review_complete(
   p_pending_review_id UUID,
   p_decision review_status,
   p_comment TEXT DEFAULT NULL,
@@ -5473,10 +4910,10 @@ CREATE OR REPLACE FUNCTION complete_gate_review(
 RETURNS JSONB AS $$
 DECLARE
   v_user_id UUID;
-  v_review pending_reviews%ROWTYPE;
-  v_gate workflow_gates%ROWTYPE;
-  v_file files%ROWTYPE;
-  v_transition workflow_transitions%ROWTYPE;
+  v_review workflow_gate_review%ROWTYPE;
+  v_gate workflow_gate%ROWTYPE;
+  v_file file%ROWTYPE;
+  v_transition workflow_transition%ROWTYPE;
   v_workflow_name TEXT;
   v_from_state_name TEXT;
   v_to_state_name TEXT;
@@ -5508,13 +4945,13 @@ BEGIN
   -- pending, so neither applied the transition. Locking this row first and the
   -- rest afterwards would deadlock two such callers instead.
   SELECT pr.attempt_id, pr.org_id INTO v_attempt_id, v_org_id
-  FROM pending_reviews pr WHERE pr.id = p_pending_review_id;
+  FROM workflow_gate_review pr WHERE pr.id = p_pending_review_id;
   IF v_org_id IS NULL THEN
     RETURN jsonb_build_object('success', false, 'error_code', 'REVIEW_NOT_FOUND',
       'error_message', 'Review not found');
   END IF;
 
-  -- NULL-unsafe in the same way as execute_workflow_transition above.
+  -- NULL-unsafe in the same way as workflow_transition_execute above.
   IF NOT is_org_member(v_org_id) THEN
     RETURN jsonb_build_object('success', false, 'error_code', 'FORBIDDEN',
       'error_message', 'Review belongs to another organization');
@@ -5522,19 +4959,19 @@ BEGIN
 
   -- Schema 111: a reviewer must be able to see the file's vault. Without this
   -- the decision would be recorded and the transition it completes would then
-  -- be refused by require_file_access(), rolling the whole call back.
-  IF NOT may_access_vault((SELECT f.vault_id FROM pending_reviews pr JOIN files f ON f.id = pr.file_id
+  -- be refused by file_require_access(), rolling the whole call back.
+  IF NOT can_access_vault((SELECT f.vault_id FROM workflow_gate_review pr JOIN file f ON f.id = pr.file_id
                             WHERE pr.id = p_pending_review_id)) THEN
     RETURN jsonb_build_object('success', false, 'error_code', 'NO_VAULT_ACCESS',
       'error_message', 'You do not have access to this file''s vault');
   END IF;
 
-  PERFORM 1 FROM pending_reviews pr
+  PERFORM 1 FROM workflow_gate_review pr
   WHERE pr.attempt_id = v_attempt_id
   ORDER BY pr.id
   FOR UPDATE;
 
-  SELECT * INTO v_review FROM pending_reviews WHERE id = p_pending_review_id;
+  SELECT * INTO v_review FROM workflow_gate_review WHERE id = p_pending_review_id;
 
   IF v_review.status <> 'pending' THEN
     RETURN jsonb_build_object('success', false, 'error_code', 'ALREADY_DECIDED',
@@ -5544,7 +4981,7 @@ BEGIN
   -- One person, one vote per gate per attempt: a second unassigned slot, or an
   -- administrator standing in twice, must not count the same reviewer again.
   IF EXISTS (
-    SELECT 1 FROM pending_reviews d
+    SELECT 1 FROM workflow_gate_review d
     WHERE d.attempt_id = v_review.attempt_id
       AND d.gate_id = v_review.gate_id
       AND d.reviewed_by = v_user_id
@@ -5557,27 +4994,27 @@ BEGIN
   -- Assigned: the assignee, or an administrator standing in for them.
   -- Unassigned: whoever the gate's own reviewer rules admit. Before this
   -- release the unassigned branch did not exist and any member could approve.
-  IF v_review.assigned_to IS NOT NULL THEN
-    IF v_review.assigned_to <> v_user_id AND NOT is_org_admin(v_user_id) THEN
+  IF v_review.assignee_id IS NOT NULL THEN
+    IF v_review.assignee_id <> v_user_id AND NOT is_org_admin(v_user_id) THEN
       RETURN jsonb_build_object('success', false, 'error_code', 'NOT_ASSIGNED',
         'error_message', 'This review is assigned to someone else');
     END IF;
-  ELSIF NOT may_review_gate(v_review.gate_id, v_user_id)
+  ELSIF NOT can_review_gate(v_review.gate_id, v_user_id)
         AND NOT is_org_admin(v_user_id) THEN
     RETURN jsonb_build_object('success', false, 'error_code', 'NOT_A_REVIEWER',
       'error_message', 'You are not a reviewer for this gate');
   END IF;
 
-  SELECT * INTO v_gate FROM workflow_gates WHERE id = v_review.gate_id;
-  SELECT * INTO v_file FROM files WHERE id = v_review.file_id;
-  SELECT * INTO v_transition FROM workflow_transitions WHERE id = v_review.transition_id;
-  SELECT name INTO v_workflow_name FROM workflow_templates WHERE id = v_transition.workflow_id;
-  SELECT name INTO v_from_state_name FROM workflow_states WHERE id = v_transition.from_state_id;
-  SELECT name INTO v_to_state_name FROM workflow_states WHERE id = v_transition.to_state_id;
-  SELECT email INTO v_requested_by_email FROM users WHERE id = v_review.requested_by;
-  SELECT email INTO v_reviewer_email FROM users WHERE id = v_user_id;
+  SELECT * INTO v_gate FROM workflow_gate WHERE id = v_review.gate_id;
+  SELECT * INTO v_file FROM file WHERE id = v_review.file_id;
+  SELECT * INTO v_transition FROM workflow_transition WHERE id = v_review.transition_id;
+  SELECT name INTO v_workflow_name FROM workflow_template WHERE id = v_transition.workflow_id;
+  SELECT name INTO v_from_state_name FROM workflow_state WHERE id = v_transition.from_state_id;
+  SELECT name INTO v_to_state_name FROM workflow_state WHERE id = v_transition.to_state_id;
+  SELECT email INTO v_requested_by_email FROM app_user WHERE id = v_review.requested_by;
+  SELECT email INTO v_reviewer_email FROM app_user WHERE id = v_user_id;
 
-  UPDATE pending_reviews
+  UPDATE workflow_gate_review
   SET status = p_decision,
       reviewed_by = v_user_id,
       reviewed_at = NOW(),
@@ -5606,7 +5043,7 @@ BEGIN
   -- nobody can action. Scoped to the attempt (schema 107) - earlier attempts are
   -- history and are left as they are.
   IF p_decision IN ('rejected', 'kicked_back') THEN
-    UPDATE pending_reviews
+    UPDATE workflow_gate_review
     SET status = 'cancelled'
     WHERE attempt_id = v_review.attempt_id
       AND status = 'pending';
@@ -5621,7 +5058,7 @@ BEGIN
          count(*) FILTER (WHERE status IN ('rejected', 'kicked_back')),
          count(*)
     INTO v_approvals, v_rejections, v_reviewers
-  FROM pending_reviews
+  FROM workflow_gate_review
   WHERE attempt_id = v_review.attempt_id
     AND gate_id = v_review.gate_id;
 
@@ -5641,7 +5078,7 @@ BEGIN
 
   -- This gate is satisfied: the slots nobody needs to fill any more are closed,
   -- so they stop appearing in queues and stop holding the transition open.
-  UPDATE pending_reviews
+  UPDATE workflow_gate_review
   SET status = 'cancelled'
   WHERE attempt_id = v_review.attempt_id
     AND gate_id = v_review.gate_id
@@ -5649,7 +5086,7 @@ BEGIN
 
   -- The transition still waits on any other gate of this attempt.
   SELECT count(*) INTO v_still_open
-  FROM pending_reviews
+  FROM workflow_gate_review
   WHERE attempt_id = v_review.attempt_id
     AND status = 'pending';
 
@@ -5659,38 +5096,35 @@ BEGIN
   END IF;
 
   SELECT requested_by INTO v_requested_by
-  FROM pending_reviews
+  FROM workflow_gate_review
   WHERE attempt_id = v_review.attempt_id
   ORDER BY requested_at LIMIT 1;
 
-  RETURN apply_workflow_transition(
+  RETURN workflow_transition_apply(
     v_review.file_id,
     v_review.transition_id,
-    COALESCE(v_requested_by, v_user_id),
     p_comment,
     jsonb_build_object('approved_by', v_user_id, 'approvals', v_approvals)
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-GRANT EXECUTE ON FUNCTION complete_gate_review(UUID, review_status, TEXT, JSONB) TO authenticated;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 -- Reviews waiting on the calling user: either assigned to them, or unassigned
 -- and matching a reviewer rule on the gate.
 --
--- The reviewer rule is may_review_gate() and is not restated here, because this
+-- The reviewer rule is can_review_gate() and is not restated here, because this
 -- function used to be the only place it was written down while
--- complete_gate_review() enforced something weaker - so the reviews a user was
+-- gate_review_complete() enforced something weaker - so the reviews a user was
 -- offered and the reviews the database would accept from them were two
 -- different sets.
 --
--- The one thing the two do not share is complete_gate_review()'s administrator
+-- The one thing the two do not share is gate_review_complete()'s administrator
 -- override, and that is deliberate rather than drift: this function answers
 -- "which reviews are waiting on you", and an administrator being *able* to
 -- stand in for an absent reviewer is not the same as every pending review in
 -- the organization waiting on them.
-DROP FUNCTION IF EXISTS get_my_pending_reviews() CASCADE;
-CREATE OR REPLACE FUNCTION get_my_pending_reviews()
+CREATE OR REPLACE FUNCTION gate_review_list_mine()
 RETURNS TABLE (
   review_id UUID,
   file_id UUID,
@@ -5715,7 +5149,7 @@ BEGIN
   v_user_id := auth.uid();
   IF v_user_id IS NULL THEN RETURN; END IF;
 
-  SELECT u.org_id INTO v_org_id FROM users u WHERE u.id = v_user_id;
+  SELECT u.org_id INTO v_org_id FROM app_user u WHERE u.id = v_user_id;
 
   RETURN QUERY
   SELECT
@@ -5734,37 +5168,36 @@ BEGIN
     ru.email,
     pr.requested_at,
     wg.checklist_items
-  FROM pending_reviews pr
-  JOIN files f ON f.id = pr.file_id
-  JOIN workflow_gates wg ON wg.id = pr.gate_id
-  JOIN workflow_transitions wt ON wt.id = pr.transition_id
-  LEFT JOIN workflow_states fs ON fs.id = wt.from_state_id
-  LEFT JOIN workflow_states ts ON ts.id = wt.to_state_id
-  LEFT JOIN users ru ON ru.id = pr.requested_by
+  FROM workflow_gate_review pr
+  JOIN file f ON f.id = pr.file_id
+  JOIN workflow_gate wg ON wg.id = pr.gate_id
+  JOIN workflow_transition wt ON wt.id = pr.transition_id
+  LEFT JOIN workflow_state fs ON fs.id = wt.from_state_id
+  LEFT JOIN workflow_state ts ON ts.id = wt.to_state_id
+  LEFT JOIN app_user ru ON ru.id = pr.requested_by
   WHERE pr.status = 'pending'
     AND pr.org_id = v_org_id
-    -- Schema 111: only files the caller may see (complete_gate_review refuses the rest).
-    AND may_access_vault(f.vault_id)
+    -- Schema 111: only files the caller may see (gate_review_complete refuses the rest).
+    AND can_access_vault(f.vault_id)
     AND (
-      pr.assigned_to = v_user_id
-      OR (pr.assigned_to IS NULL AND may_review_gate(wg.id, v_user_id))
+      pr.assignee_id = v_user_id
+      OR (pr.assignee_id IS NULL AND can_review_gate(wg.id, v_user_id))
     )
     -- Schema 105: one unassigned slot per (attempt, gate), and none once the user
-    -- has decided that gate in that attempt. gate_review_ids_awaiting() is the
+    -- has decided that gate in that attempt. gate_review_list_awaiting_ids() is the
     -- single statement of that rule; the test above stays as the reviewer rule.
-    AND pr.id IN (SELECT gate_review_ids_awaiting(v_user_id))
+    AND pr.id IN (SELECT gate_review_list_awaiting_ids(v_user_id))
   ORDER BY pr.requested_at;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-GRANT EXECUTE ON FUNCTION get_my_pending_reviews() TO authenticated;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 -- ===========================================
 -- VERSION-ACCURATE REFERENCES (schema 107)
 -- ===========================================
 
 -- Record the references of one checked-in version. Called by the client right
--- after check-in, from the same reference extraction that fills file_references.
+-- after check-in, from the same reference extraction that fills file_reference.
 --
 -- p_refs is a JSON array of
 --   { child_file_id?, child_content_hash?, child_path?, configuration?,
@@ -5776,7 +5209,7 @@ GRANT EXECUTE ON FUNCTION get_my_pending_reviews() TO authenticated;
 -- 108): only the author may replace a recorded set, and only while the version
 -- is the file's newest, so a retried check-in is harmless but history is not
 -- rewritten.
-CREATE OR REPLACE FUNCTION record_version_references(p_file_version_id UUID, p_refs JSONB)
+CREATE OR REPLACE FUNCTION file_version_reference_record(p_file_version_id UUID, p_refs JSONB)
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -5792,7 +5225,7 @@ DECLARE
   v_exact INTEGER := 0;
   v_unresolved INTEGER := 0;
 BEGIN
-  v_actor := current_actor_id();
+  v_actor := my_actor_id();
 
   IF p_refs IS NULL OR jsonb_typeof(p_refs) <> 'array' THEN
     RAISE EXCEPTION 'References must be a JSON array'
@@ -5804,38 +5237,38 @@ BEGIN
   END IF;
 
   SELECT fv.file_id, fv.created_by INTO v_file_id, v_created_by
-  FROM file_versions fv WHERE fv.id = p_file_version_id;
+  FROM file_version fv WHERE fv.id = p_file_version_id;
   IF v_file_id IS NULL THEN
     RAISE EXCEPTION 'File version not found'
       USING ERRCODE = 'insufficient_privilege';
   END IF;
 
-  v_org_id := require_file_access(v_file_id);
+  v_org_id := file_require_access(v_file_id);
 
   IF v_created_by IS DISTINCT FROM v_actor
-     AND NOT user_has_team_permission('module:explorer', 'edit') THEN
+     AND NOT has_team_permission('module:explorer', 'edit') THEN
     RAISE EXCEPTION 'Not allowed to record references for this version'
       USING ERRCODE = 'insufficient_privilege';
   END IF;
 
   -- One writer per version at a time.
   SELECT fv.references_recorded_at INTO v_recorded_at
-  FROM file_versions fv WHERE fv.id = p_file_version_id FOR UPDATE;
+  FROM file_version fv WHERE fv.id = p_file_version_id FOR UPDATE;
 
   -- Schema 108: a recorded set is history (a review's dependency closure was
   -- built from it), so it is written once. The one exception is the author
   -- retrying the check-in of the file's newest version.
   IF v_recorded_at IS NOT NULL AND (
        v_created_by IS DISTINCT FROM v_actor
-       OR EXISTS (SELECT 1 FROM file_versions nv
+       OR EXISTS (SELECT 1 FROM file_version nv
                   WHERE nv.file_id = v_file_id
-                    AND nv.version > (SELECT fv.version FROM file_versions fv WHERE fv.id = p_file_version_id))
+                    AND nv.version > (SELECT fv.version FROM file_version fv WHERE fv.id = p_file_version_id))
      ) THEN
     RAISE EXCEPTION 'References for this version are already recorded'
       USING ERRCODE = 'object_not_in_prerequisite_state', HINT = 'REFERENCES_RECORDED';
   END IF;
 
-  DELETE FROM file_version_references r WHERE r.parent_version_id = p_file_version_id;
+  DELETE FROM file_version_reference r WHERE r.parent_version_id = p_file_version_id;
 
   WITH refs_in AS (
     SELECT
@@ -5854,18 +5287,18 @@ BEGIN
       i.configuration,
       i.reference_type,
       i.quantity,
-      (SELECT cv.id FROM file_versions cv
+      (SELECT cv.id FROM file_version cv
         WHERE cv.file_id = cf.id AND i.child_hash IS NOT NULL AND cv.content_hash = i.child_hash
         ORDER BY cv.version DESC LIMIT 1) AS exact_version_id,
-      (SELECT cv.id FROM file_versions cv
+      (SELECT cv.id FROM file_version cv
         WHERE cv.file_id = cf.id
         ORDER BY cv.version DESC LIMIT 1) AS latest_version_id
     FROM refs_in i
-    LEFT JOIN files cf ON cf.id = i.child_file_id AND cf.org_id = v_org_id
+    LEFT JOIN file cf ON cf.id = i.child_file_id AND cf.org_id = v_org_id
   )
-  INSERT INTO file_version_references (
+  INSERT INTO file_version_reference (
     org_id, parent_version_id, parent_file_id, child_file_id, child_version_id,
-    child_path, configuration, reference_type, quantity, exact
+    child_path, configuration, reference_type, quantity, is_exact
   )
   -- One row per (path, configuration), the unique key. Repeated references (several
   -- instances of one part) add up their quantities; doing it here rather than with
@@ -5884,11 +5317,11 @@ BEGIN
     AND rs.child_file_id IS DISTINCT FROM v_file_id
   GROUP BY lower(rs.child_path), COALESCE(rs.configuration, '');
 
-  UPDATE file_versions SET references_recorded_at = NOW() WHERE id = p_file_version_id;
+  UPDATE file_version SET references_recorded_at = NOW() WHERE id = p_file_version_id;
 
-  SELECT count(*), count(*) FILTER (WHERE r.exact), count(*) FILTER (WHERE r.child_version_id IS NULL)
+  SELECT count(*), count(*) FILTER (WHERE r.is_exact), count(*) FILTER (WHERE r.child_version_id IS NULL)
     INTO v_written, v_exact, v_unresolved
-  FROM file_version_references r WHERE r.parent_version_id = p_file_version_id;
+  FROM file_version_reference r WHERE r.parent_version_id = p_file_version_id;
 
   RETURN jsonb_build_object(
     'written', v_written,
@@ -5899,15 +5332,13 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION record_version_references(UUID, JSONB) TO authenticated;
-
 -- One level of the reference graph below a set of parent versions, for
--- get_version_dependency_closure(). A version with a recorded reference set uses
+-- file_version_get_dependency_closure(). A version with a recorded reference set uses
 -- it. A version from before schema 107 (references_recorded_at IS NULL) falls back
--- to file_references - what the parent file references now - with each child at
+-- to file_reference - what the parent file references now - with each child at
 -- the version that was current when the parent version was created, or the
 -- child's first version if it had none yet. Fallback edges are never exact.
-CREATE OR REPLACE FUNCTION version_reference_edges(p_parent_version_ids UUID[], p_org_id UUID)
+CREATE OR REPLACE FUNCTION file_version_reference_list_edges(p_parent_version_ids UUID[], p_org_id UUID)
 RETURNS TABLE (
   parent_version_id UUID,
   child_file_id UUID,
@@ -5916,37 +5347,35 @@ RETURNS TABLE (
   configuration TEXT,
   reference_type TEXT,
   quantity INTEGER,
-  exact BOOLEAN,
+  is_exact BOOLEAN,
   edge_source TEXT
 )
 LANGUAGE sql STABLE SECURITY DEFINER
 SET search_path = public
 AS $$
   SELECT r.parent_version_id, r.child_file_id, r.child_version_id, r.child_path,
-         r.configuration, r.reference_type::text, r.quantity, r.exact, 'recorded'::text
-  FROM file_version_references r
+         r.configuration, r.reference_type::text, r.quantity, r.is_exact, 'recorded'::text
+  FROM file_version_reference r
   WHERE r.parent_version_id = ANY (p_parent_version_ids)
     AND r.org_id = p_org_id
   UNION ALL
   SELECT pv.id, fr.child_file_id,
          COALESCE(
-           (SELECT cv.id FROM file_versions cv
+           (SELECT cv.id FROM file_version cv
              WHERE cv.file_id = fr.child_file_id AND cv.created_at <= pv.created_at
              ORDER BY cv.version DESC LIMIT 1),
-           (SELECT cv.id FROM file_versions cv
+           (SELECT cv.id FROM file_version cv
              WHERE cv.file_id = fr.child_file_id
              ORDER BY cv.version ASC LIMIT 1)),
          cf.file_path, fr.configuration, fr.reference_type::text,
          GREATEST(1, COALESCE(fr.quantity, 1)), false, 'fallback'::text
-  FROM file_versions pv
-  JOIN files pf ON pf.id = pv.file_id AND pf.org_id = p_org_id
-  JOIN file_references fr ON fr.parent_file_id = pv.file_id AND fr.org_id = p_org_id
-  JOIN files cf ON cf.id = fr.child_file_id AND cf.org_id = p_org_id
+  FROM file_version pv
+  JOIN file pf ON pf.id = pv.file_id AND pf.org_id = p_org_id
+  JOIN file_reference fr ON fr.parent_file_id = pv.file_id AND fr.org_id = p_org_id
+  JOIN file cf ON cf.id = fr.child_file_id AND cf.org_id = p_org_id
   WHERE pv.id = ANY (p_parent_version_ids)
     AND pv.references_recorded_at IS NULL;
 $$;
-
-REVOKE ALL ON FUNCTION version_reference_edges(UUID[], UUID) FROM PUBLIC, anon, authenticated;
 
 -- Everything a file version needs, at the versions it needs them: the root row
 -- (depth 0) and one row per reference edge reached below it, breadth first. Each
@@ -5958,7 +5387,7 @@ REVOKE ALL ON FUNCTION version_reference_edges(UUID[], UUID) FROM PUBLIC, anon, 
 -- edges. missing is true when no child version could be resolved: a reference
 -- outside the vault, or a child with no version. The caller shows exact against
 -- approximate; it never pretends.
-CREATE OR REPLACE FUNCTION get_version_dependency_closure(p_file_version_id UUID)
+CREATE OR REPLACE FUNCTION file_version_get_dependency_closure(p_file_version_id UUID)
 RETURNS TABLE (
   depth INTEGER,
   parent_version_id UUID,
@@ -5968,7 +5397,7 @@ RETURNS TABLE (
   configuration TEXT,
   reference_type TEXT,
   quantity INTEGER,
-  exact BOOLEAN,
+  is_exact BOOLEAN,
   edge_source TEXT,
   missing BOOLEAN,
   version INTEGER,
@@ -5995,20 +5424,20 @@ DECLARE
   v_next_inexact UUID[];
   v_depth INTEGER := 0;
 BEGIN
-  SELECT fv.file_id INTO v_file_id FROM file_versions fv WHERE fv.id = p_file_version_id;
+  SELECT fv.file_id INTO v_file_id FROM file_version fv WHERE fv.id = p_file_version_id;
   IF v_file_id IS NULL THEN
     RAISE EXCEPTION 'File version not found'
       USING ERRCODE = 'insufficient_privilege';
   END IF;
 
-  v_org_id := require_file_access(v_file_id);
+  v_org_id := file_require_access(v_file_id);
 
   RETURN QUERY
   SELECT 0, NULL::uuid, f.id, fv.id, f.file_path, NULL::text, NULL::text, 1, true,
          'root'::text, false, fv.version, fv.revision, fv.content_hash, fv.file_size,
          f.file_name, f.file_path, f.extension, f.vault_id, f.deleted_at IS NOT NULL
-  FROM file_versions fv
-  JOIN files f ON f.id = fv.file_id
+  FROM file_version fv
+  JOIN file f ON f.id = fv.file_id
   WHERE fv.id = p_file_version_id;
 
   v_frontier := ARRAY[p_file_version_id];
@@ -6020,22 +5449,22 @@ BEGIN
     RETURN QUERY
     SELECT v_depth, e.parent_version_id, COALESCE(cv.file_id, e.child_file_id), e.child_version_id,
            e.child_path, e.configuration, e.reference_type, e.quantity,
-           (e.exact AND NOT (e.parent_version_id = ANY (v_inexact))),
+           (e.is_exact AND NOT (e.parent_version_id = ANY (v_inexact))),
            e.edge_source, e.child_version_id IS NULL,
            cv.version, cv.revision, cv.content_hash, cv.file_size,
            cf.file_name, cf.file_path, cf.extension, cf.vault_id,
            COALESCE(cf.deleted_at IS NOT NULL, false)
-    FROM version_reference_edges(v_frontier, v_org_id) e
-    LEFT JOIN file_versions cv ON cv.id = e.child_version_id
-    LEFT JOIN files cf ON cf.id = COALESCE(cv.file_id, e.child_file_id);
+    FROM file_version_reference_list_edges(v_frontier, v_org_id) e
+    LEFT JOIN file_version cv ON cv.id = e.child_version_id
+    LEFT JOIN file cf ON cf.id = COALESCE(cv.file_id, e.child_file_id);
 
     SELECT COALESCE(array_agg(x.child_version_id), '{}'::UUID[]),
            COALESCE(array_agg(x.child_version_id) FILTER (WHERE NOT x.any_exact), '{}'::UUID[])
       INTO v_next, v_next_inexact
     FROM (
       SELECT e.child_version_id,
-             bool_or(e.exact AND NOT (e.parent_version_id = ANY (v_inexact))) AS any_exact
-      FROM version_reference_edges(v_frontier, v_org_id) e
+             bool_or(e.is_exact AND NOT (e.parent_version_id = ANY (v_inexact))) AS any_exact
+      FROM file_version_reference_list_edges(v_frontier, v_org_id) e
       WHERE e.child_version_id IS NOT NULL
         AND NOT (e.child_version_id = ANY (v_seen))
       GROUP BY e.child_version_id
@@ -6048,20 +5477,18 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION get_version_dependency_closure(UUID) TO authenticated;
-
 -- ===========================================
 -- DRAWING PDF RENDERS (schema 107)
 -- ===========================================
 
 -- The stored PDF of a file version, or no row when none has been generated.
-CREATE OR REPLACE FUNCTION get_drawing_pdf(p_file_version_id UUID)
+CREATE OR REPLACE FUNCTION drawing_pdf_render_get(p_file_version_id UUID)
 RETURNS TABLE (
   file_version_id UUID,
   file_id UUID,
   storage_hash TEXT,
   file_size BIGINT,
-  closure_exact BOOLEAN,
+  is_closure_exact BOOLEAN,
   generated_by UUID,
   generated_at TIMESTAMPTZ
 )
@@ -6073,24 +5500,22 @@ DECLARE
   v_file_id UUID;
   v_org_id UUID;
 BEGIN
-  SELECT fv.file_id INTO v_file_id FROM file_versions fv WHERE fv.id = p_file_version_id;
+  SELECT fv.file_id INTO v_file_id FROM file_version fv WHERE fv.id = p_file_version_id;
   IF v_file_id IS NULL THEN
     RAISE EXCEPTION 'File version not found'
       USING ERRCODE = 'insufficient_privilege';
   END IF;
 
-  v_org_id := require_file_access(v_file_id);
+  v_org_id := file_require_access(v_file_id);
 
   RETURN QUERY
-  SELECT d.file_version_id, d.file_id, d.storage_hash, d.file_size, d.closure_exact,
+  SELECT d.file_version_id, d.file_id, d.storage_hash, d.file_size, d.is_closure_exact,
          d.generated_by, d.generated_at
-  FROM drawing_pdf_renders d
+  FROM drawing_pdf_render d
   WHERE d.file_version_id = p_file_version_id
     AND d.org_id = v_org_id;
 END;
 $$;
-
-GRANT EXECUTE ON FUNCTION get_drawing_pdf(UUID) TO authenticated;
 
 -- Record the PDF generated for a file version. The PDF itself is uploaded first,
 -- content-addressed, to the vault bucket; this records which hash it is.
@@ -6099,7 +5524,7 @@ GRANT EXECUTE ON FUNCTION get_drawing_pdf(UUID) TO authenticated;
 -- different hash for a version that already has a render is refused unless the
 -- caller is an administrator, because reviewers must not see the drawing they
 -- are approving change under them.
-CREATE OR REPLACE FUNCTION record_drawing_pdf(
+CREATE OR REPLACE FUNCTION drawing_pdf_render_record(
   p_file_version_id UUID,
   p_storage_hash TEXT,
   p_file_size BIGINT,
@@ -6115,9 +5540,9 @@ DECLARE
   v_file_id UUID;
   v_org_id UUID;
   v_hash TEXT;
-  v_existing drawing_pdf_renders%ROWTYPE;
+  v_existing drawing_pdf_render%ROWTYPE;
 BEGIN
-  v_actor := current_actor_id();
+  v_actor := my_actor_id();
   v_hash := lower(btrim(COALESCE(p_storage_hash, '')));
 
   IF v_hash !~ '^[0-9a-f]{64}$' THEN
@@ -6129,15 +5554,15 @@ BEGIN
       USING ERRCODE = 'invalid_parameter_value';
   END IF;
 
-  SELECT fv.file_id INTO v_file_id FROM file_versions fv WHERE fv.id = p_file_version_id;
+  SELECT fv.file_id INTO v_file_id FROM file_version fv WHERE fv.id = p_file_version_id;
   IF v_file_id IS NULL THEN
     RAISE EXCEPTION 'File version not found'
       USING ERRCODE = 'insufficient_privilege';
   END IF;
 
-  v_org_id := require_file_access(v_file_id);
+  v_org_id := file_require_access(v_file_id);
 
-  SELECT * INTO v_existing FROM drawing_pdf_renders d
+  SELECT * INTO v_existing FROM drawing_pdf_render d
   WHERE d.file_version_id = p_file_version_id AND d.org_id = v_org_id
   FOR UPDATE;
 
@@ -6149,21 +5574,21 @@ BEGIN
       RAISE EXCEPTION 'A PDF is already recorded for this version'
         USING ERRCODE = 'unique_violation', HINT = 'PDF_EXISTS';
     END IF;
-    UPDATE drawing_pdf_renders
-    SET storage_hash = v_hash, file_size = p_file_size, closure_exact = p_closure_exact,
+    UPDATE drawing_pdf_render
+    SET storage_hash = v_hash, file_size = p_file_size, is_closure_exact = p_closure_exact,
         generated_by = v_actor, generated_at = NOW()
     WHERE id = v_existing.id;
     RETURN jsonb_build_object('recorded', true, 'replaced', true, 'storage_hash', v_hash);
   END IF;
 
-  INSERT INTO drawing_pdf_renders (org_id, file_id, file_version_id, storage_hash, file_size, closure_exact, generated_by)
+  INSERT INTO drawing_pdf_render (org_id, file_id, file_version_id, storage_hash, file_size, is_closure_exact, generated_by)
   VALUES (v_org_id, v_file_id, p_file_version_id, v_hash, p_file_size, p_closure_exact, v_actor)
   ON CONFLICT (file_version_id) DO NOTHING;
 
   -- Lost a race with another first write for this version: report what is
   -- stored, never "recorded" for a hash that is not the one kept.
   IF NOT FOUND THEN
-    SELECT * INTO v_existing FROM drawing_pdf_renders d WHERE d.file_version_id = p_file_version_id;
+    SELECT * INTO v_existing FROM drawing_pdf_render d WHERE d.file_version_id = p_file_version_id;
     IF v_existing.storage_hash = v_hash THEN
       RETURN jsonb_build_object('recorded', false, 'replaced', false, 'storage_hash', v_hash);
     END IF;
@@ -6174,32 +5599,6 @@ BEGIN
   RETURN jsonb_build_object('recorded', true, 'replaced', false, 'storage_hash', v_hash);
 END;
 $$;
-
-GRANT EXECUTE ON FUNCTION record_drawing_pdf(UUID, TEXT, BIGINT, BOOLEAN) TO authenticated;
-
--- ===========================================
--- MIGRATIONS FOR EXISTING DATABASES
--- ===========================================
--- These ALTER statements add columns that may be missing from existing installations.
--- Safe to run multiple times (uses IF NOT EXISTS or DO blocks with exception handling).
-
--- v26: Storage bucket for vaults (already handled inline, but included for completeness)
-ALTER TABLE vaults ADD COLUMN IF NOT EXISTS storage_bucket TEXT;
-
--- v31: Backup config endpoint and restic password
-ALTER TABLE backup_config ADD COLUMN IF NOT EXISTS endpoint TEXT;
-ALTER TABLE backup_config ADD COLUMN IF NOT EXISTS restic_password_encrypted TEXT;
-
--- v45: File versions metadata snapshots (already handled inline, but included for completeness)
-ALTER TABLE file_versions ADD COLUMN IF NOT EXISTS part_number TEXT;
-ALTER TABLE file_versions ADD COLUMN IF NOT EXISTS description TEXT;
-
--- v46: Configuration-specific revisions for multi-config parts/assemblies
-ALTER TABLE files ADD COLUMN IF NOT EXISTS configuration_revisions JSONB DEFAULT '{}'::jsonb;
-
--- v98: Checkout path snapshot, so discard can restore a rename or move made during checkout
-ALTER TABLE files ADD COLUMN IF NOT EXISTS checked_out_file_path TEXT;
-ALTER TABLE files ADD COLUMN IF NOT EXISTS checked_out_file_name TEXT;
 
 -- ===========================================
 -- REVOKING WHAT THE CLOSED HOLES PRODUCED
@@ -6228,7 +5627,7 @@ ALTER TABLE files ADD COLUMN IF NOT EXISTS checked_out_file_name TEXT;
 --     because the evidence of a breach is the first thing an audit asks for.
 --
 -- The third rule has exactly one exception and it is stated here rather than
--- discovered in the code: the cross-tenant file_workflow_assignments row is
+-- discovered in the code: the cross-tenant file_workflow_assignment row is
 -- deleted. The reasons are at the point of deletion below. What holds in every
 -- case, including that one, is the second rule - the row is in the ledger
 -- verbatim, with every column, before anything happens to it - and that is the
@@ -6241,7 +5640,7 @@ ALTER TABLE files ADD COLUMN IF NOT EXISTS checked_out_file_name TEXT;
 -- WHY DEACTIVATE AND NOT DELETE, AND WHY BOTH KINDS
 --
 -- Two different rows match. One was minted through the hole: a member of org A
--- passed org B's file id to create_file_share_link, which believed the org_id
+-- passed org B's file id to file_share_link_create, which believed the org_id
 -- it was handed. The other was minted in good faith and then the file moved
 -- organizations, which BluePLM permits. The detector cannot tell them apart -
 -- both are a link whose org_id differs from its file's - and neither may keep
@@ -6279,7 +5678,7 @@ ALTER TABLE files ADD COLUMN IF NOT EXISTS checked_out_file_name TEXT;
 -- and judge it, and restoring one is a single UPDATE. Leaving it live because
 -- it *might* be innocent is the trade the other way round, and this is a
 -- credential that outlives the person it was issued to.
-CREATE OR REPLACE FUNCTION remediate_cross_tenant_share_links()
+CREATE OR REPLACE FUNCTION file_share_link_remediate_cross_tenant()
 RETURNS INTEGER
 LANGUAGE plpgsql AS $$
 DECLARE
@@ -6289,15 +5688,15 @@ BEGIN
   WITH victims AS (
     SELECT l.id, l.token, l.org_id AS link_org, f.org_id AS file_org,
            l.created_by, l.created_at, l.expires_at, l.download_count,
-           l.require_auth, l.last_accessed_at,
+           l.is_auth_required, l.last_accessed_at,
            cu.org_id AS creator_org
-    FROM file_share_links l
-    JOIN files f ON f.id = l.file_id
+    FROM file_share_link l
+    JOIN file f ON f.id = l.file_id
     -- LEFT JOIN rather than the scalar subquery this used to carry, so the
     -- creator's organization is available to the WHERE clause and not only to
     -- the prose. A creator whose row is gone leaves creator_org NULL, and
     -- IS DISTINCT FROM reads that as "not a member", which is correct.
-    LEFT JOIN users cu ON cu.id = l.created_by
+    LEFT JOIN app_user cu ON cu.id = l.created_by
     WHERE (l.org_id IS DISTINCT FROM f.org_id
            OR cu.org_id IS DISTINCT FROM f.org_id)
       -- Already-deactivated rows are skipped, which is what makes a second run
@@ -6305,7 +5704,7 @@ BEGIN
       AND COALESCE(l.is_active, false)
   ),
   deactivated AS (
-    UPDATE file_share_links l
+    UPDATE file_share_link l
        SET is_active = false
       FROM victims v
      WHERE l.id = v.id
@@ -6324,7 +5723,7 @@ BEGIN
     INTO v_subjects, v_rows
   FROM victims v;
 
-  RETURN record_remediation(
+  RETURN schema_remediation_record(
     'cross_tenant_share_links', v_rows, v_subjects,
     'Each link handed out a file belonging to an organization that either the '
     || 'link or its creator is not part of, and is now inactive. Nothing was '
@@ -6334,8 +5733,6 @@ BEGIN
     || 'file''s organization.');
 END;
 $$;
-
-REVOKE ALL ON FUNCTION remediate_cross_tenant_share_links() FROM PUBLIC, anon, authenticated;
 
 -- Redact workflow history that names another organization's workflow, and undo
 -- the assignment the same attack left behind.
@@ -6367,7 +5764,7 @@ REVOKE ALL ON FUNCTION remediate_cross_tenant_share_links() FROM PUBLIC, anon, a
 --
 -- The module's rule is deactivate over delete, and the two alternatives were
 -- both examined and neither works on this table. There is no is_active column
--- to set (file_workflow_assignments is id, file_id, workflow_id,
+-- to set (file_workflow_assignment is id, file_id, workflow_id,
 -- current_state_id, assigned_at, assigned_by - nothing else), and adding one
 -- would not help: file_id is UNIQUE, so a tombstone row keeps the file's slot
 -- and the remedy this remediation exists to enable - somebody in the file's own
@@ -6379,7 +5776,7 @@ REVOKE ALL ON FUNCTION remediate_cross_tenant_share_links() FROM PUBLIC, anon, a
 -- including current_state_id, is in schema_remediation_log.subjects before the
 -- DELETE runs, in the one place no tenant can read. Reinstating one an operator
 -- judges legitimate is an INSERT from the subjects, not a recovery.
-CREATE OR REPLACE FUNCTION remediate_cross_tenant_workflow_history()
+CREATE OR REPLACE FUNCTION workflow_history_remediate_cross_tenant()
 RETURNS INTEGER
 LANGUAGE plpgsql AS $$
 DECLARE
@@ -6396,13 +5793,13 @@ BEGIN
            h.transition_id, h.transition_name, h.performed_by,
            h.performed_by_email, h.performed_at
     FROM workflow_history h
-    WHERE EXISTS (SELECT 1 FROM workflow_templates t
+    WHERE EXISTS (SELECT 1 FROM workflow_template t
                    WHERE t.id = h.workflow_id AND t.org_id <> h.org_id)
-       OR EXISTS (SELECT 1 FROM workflow_transitions tr
-                   JOIN workflow_templates t2 ON t2.id = tr.workflow_id
+       OR EXISTS (SELECT 1 FROM workflow_transition tr
+                   JOIN workflow_template t2 ON t2.id = tr.workflow_id
                   WHERE tr.id = h.transition_id AND t2.org_id <> h.org_id)
-       OR EXISTS (SELECT 1 FROM workflow_states s
-                   JOIN workflow_templates t3 ON t3.id = s.workflow_id
+       OR EXISTS (SELECT 1 FROM workflow_state s
+                   JOIN workflow_template t3 ON t3.id = s.workflow_id
                   WHERE s.id IN (h.from_state_id, h.to_state_id)
                     AND t3.org_id <> h.org_id)
   ),
@@ -6428,7 +5825,7 @@ BEGIN
     INTO v_subjects, v_rows
   FROM victims v;
 
-  v_total := v_total + record_remediation(
+  v_total := v_total + schema_remediation_record(
     'cross_tenant_workflow_history', v_rows, v_subjects,
     'Each row is filed under one organization and named another one''s '
     || 'workflow, states or transition. The names are redacted and the foreign '
@@ -6441,13 +5838,13 @@ BEGIN
   WITH victims AS (
     SELECT a.id, a.file_id, f.org_id AS file_org, a.workflow_id,
            wt.org_id AS workflow_org, a.current_state_id, a.assigned_at, a.assigned_by
-    FROM file_workflow_assignments a
-    JOIN files f ON f.id = a.file_id
-    JOIN workflow_templates wt ON wt.id = a.workflow_id
+    FROM file_workflow_assignment a
+    JOIN file f ON f.id = a.file_id
+    JOIN workflow_template wt ON wt.id = a.workflow_id
     WHERE wt.org_id <> f.org_id
   ),
   cleared AS (
-    DELETE FROM file_workflow_assignments a
+    DELETE FROM file_workflow_assignment a
      USING victims v
      WHERE a.id = v.id
     RETURNING a.id
@@ -6457,7 +5854,7 @@ BEGIN
     INTO v_subjects, v_rows
   FROM victims v;
 
-  v_total := v_total + record_remediation(
+  v_total := v_total + schema_remediation_record(
     'cross_tenant_workflow_assignment', v_rows, v_subjects,
     'Each assignment put a file in one organization under a workflow owned by '
     || 'another, which decides the transitions the file offers next. The '
@@ -6469,60 +5866,15 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION remediate_cross_tenant_workflow_history() FROM PUBLIC, anon, authenticated;
-
--- ===========================================
--- VAULT STORAGE BUCKET POLICIES (schema 111)
--- ===========================================
--- The `vault` bucket (docs/admin-setup.md step 3) holds file content addressed by
--- its SHA-256 as <org_id>/<hash[0:2]>/<hash> (older objects: <org_id>/<hash>),
--- drawing PDF renders the same way, organization assets under <org_id>/_assets/
--- (avatars, the company logo, item images), and inspection previews under
--- <org_id>/inspection-previews/<file_id>-<time>.<ext>.
---
--- Until 111 the bucket's policies were not in this repository at all. The only
--- set ever committed (cbe3997) admitted every signed-in user of every
--- organization to read, overwrite and delete every object, and a list() of the
--- bucket enumerated every content hash. These policies replace whatever is there:
---
---   read    - an object in the caller's organization, and one of: the caller is
---             an org admin; the caller uploaded it; it is an organization asset;
---             it is content whose hash a file, version or drawing PDF in a vault
---             the caller may see names, or an inspection preview of such a file
---             (may_read_vault_object()).
---   upload  - into the caller's organization.
---   update  - only the mutable areas (_assets/, inspection-previews/), in the
---             caller's organization, by an admin or the uploader (upserted
---             avatars, logo, item images, previews). Content-addressed objects are
---             never updated: overwriting one would change a file for everyone
---             whose version names that hash.
---   delete  - an admin, anywhere in the organization (vault deletion purges
---             content); the uploader, in the mutable areas only.
---
--- "The caller uploaded it" is what lets check-in verify the bytes it just wrote,
--- before any version row names the hash. Content is deduplicated across vaults,
--- so a user can be told an upload "already exists" for an object they cannot
--- list; the renderer treats that answer as success (checkin.ts).
---
--- Every other policy on storage.objects is dropped, by whatever name it was
--- installed under, because policies are OR-ed and one permissive leftover undoes
--- all of this. Production carried four dashboard-made policies ("Allow
--- authenticated access 1uo56a_0..3") granting every signed-in account SELECT,
--- INSERT, UPDATE and DELETE with `true` on every bucket. The application uses two
--- buckets: vault (these policies) and org-extensions (module 50's four, kept by
--- name). Each policy dropped is printed with its definition, and
--- check_release_residue() refuses to stamp while any other remains.
-CREATE INDEX IF NOT EXISTS idx_drawing_pdf_renders_storage_hash ON drawing_pdf_renders(storage_hash);
-
 -- Whether the caller may read one object of the vault bucket by what it holds:
 -- content whose hash a file, version or drawing PDF of a vault the caller may see
 -- names, or the inspection preview of such a file. SECURITY DEFINER so each test
--- is an index probe (files.content_hash, file_versions.content_hash,
--- drawing_pdf_renders.storage_hash, files.id) followed by the vault rule, rather
--- than a pass through the file_versions policy, which hashes every readable file
+-- is an index probe (file.content_hash, file_version.content_hash,
+-- drawing_pdf_render.storage_hash, file.id) followed by the vault rule, rather
+-- than a pass through the file_version policy, which hashes every readable file
 -- id once per signed-URL request. It answers only for the caller (auth.uid()), and
 -- only for an object under the caller's own organization prefix.
-CREATE OR REPLACE FUNCTION may_read_vault_object(p_name TEXT)
+CREATE OR REPLACE FUNCTION can_read_vault_object(p_name TEXT)
 RETURNS BOOLEAN
 LANGUAGE sql STABLE SECURITY DEFINER
 SET search_path = public
@@ -6535,7 +5887,7 @@ AS $$
               AND left(split_part(p_name, '/', 3), 36) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
              THEN left(split_part(p_name, '/', 3), 36)::uuid
            END AS preview_file_id
-      FROM users u
+      FROM app_user u
      WHERE u.id = auth.uid()
        AND u.org_id IS NOT NULL
        AND split_part(p_name, '/', 1) = u.org_id::text
@@ -6543,152 +5895,197 @@ AS $$
   visible AS (SELECT my_accessible_vault_ids() AS id)
   SELECT EXISTS (
     SELECT 1 FROM obj
-     WHERE EXISTS (SELECT 1 FROM files f
+     WHERE EXISTS (SELECT 1 FROM file f
                     WHERE f.content_hash = obj.hash AND f.org_id = obj.org_id
-                      AND (f.vault_id IS NULL OR f.vault_id IN (SELECT id FROM visible)))
-        OR EXISTS (SELECT 1 FROM file_versions fv JOIN files f ON f.id = fv.file_id
+                      AND f.vault_id IN (SELECT id FROM visible))
+        OR EXISTS (SELECT 1 FROM file_version fv JOIN file f ON f.id = fv.file_id
                     WHERE fv.content_hash = obj.hash AND f.org_id = obj.org_id
-                      AND (f.vault_id IS NULL OR f.vault_id IN (SELECT id FROM visible)))
-        OR EXISTS (SELECT 1 FROM drawing_pdf_renders d JOIN files f ON f.id = d.file_id
+                      AND f.vault_id IN (SELECT id FROM visible))
+        OR EXISTS (SELECT 1 FROM drawing_pdf_render d JOIN file f ON f.id = d.file_id
                     WHERE d.storage_hash = obj.hash AND f.org_id = obj.org_id
-                      AND (f.vault_id IS NULL OR f.vault_id IN (SELECT id FROM visible)))
-        OR EXISTS (SELECT 1 FROM files f
+                      AND f.vault_id IN (SELECT id FROM visible))
+        OR EXISTS (SELECT 1 FROM file f
                     WHERE f.id = obj.preview_file_id AND f.org_id = obj.org_id
-                      AND (f.vault_id IS NULL OR f.vault_id IN (SELECT id FROM visible)))
+                      AND f.vault_id IN (SELECT id FROM visible))
   );
 $$;
 
-REVOKE ALL ON FUNCTION may_read_vault_object(TEXT) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION may_read_vault_object(TEXT) TO authenticated;
+CREATE POLICY "Vault: read readable objects"
+  ON storage.objects FOR SELECT TO authenticated
+  USING (((bucket_id = 'vault'::text) AND (split_part(name, '/'::text, 1) IN ( SELECT (u.org_id)::text AS org_id
+   FROM app_user u
+  WHERE ((u.id = auth.uid()) AND (u.org_id IS NOT NULL)))) AND (is_org_admin() OR (owner_id = (auth.uid())::text) OR (split_part(name, '/'::text, 2) = '_assets'::text) OR can_read_vault_object(name))));
 
-DO $$
-DECLARE
-  v_owner TEXT;
-  v_org TEXT := $e$split_part(name, '/', 1) IN (SELECT u.org_id::text FROM public.users u WHERE u.id = auth.uid() AND u.org_id IS NOT NULL)$e$;
-  r RECORD;
-BEGIN
-  IF to_regclass('storage.objects') IS NULL THEN
-    RAISE NOTICE 'storage schema not present - skipping the vault bucket policies';
-    RETURN;
-  END IF;
+CREATE POLICY "Vault: upload to own organization"
+  ON storage.objects FOR INSERT TO authenticated
+  WITH CHECK (((bucket_id = 'vault'::text) AND (split_part(name, '/'::text, 1) IN ( SELECT (u.org_id)::text AS org_id
+   FROM app_user u
+  WHERE ((u.id = auth.uid()) AND (u.org_id IS NOT NULL))))));
 
-  -- Supabase records the uploader in owner_id (text); older storage versions
-  -- only in owner (uuid).
-  IF EXISTS (SELECT 1 FROM information_schema.columns
-              WHERE table_schema = 'storage' AND table_name = 'objects' AND column_name = 'owner_id') THEN
-    v_owner := 'owner_id = auth.uid()::text';
-  ELSE
-    v_owner := 'owner = auth.uid()';
-  END IF;
+CREATE POLICY "Vault: update own or org assets"
+  ON storage.objects FOR UPDATE TO authenticated
+  USING (((bucket_id = 'vault'::text) AND (split_part(name, '/'::text, 1) IN ( SELECT (u.org_id)::text AS org_id
+   FROM app_user u
+  WHERE ((u.id = auth.uid()) AND (u.org_id IS NOT NULL)))) AND (split_part(name, '/'::text, 2) = ANY (ARRAY['_assets'::text, 'inspection-previews'::text])) AND (is_org_admin() OR (owner_id = (auth.uid())::text))))
+  WITH CHECK (((bucket_id = 'vault'::text) AND (split_part(name, '/'::text, 1) IN ( SELECT (u.org_id)::text AS org_id
+   FROM app_user u
+  WHERE ((u.id = auth.uid()) AND (u.org_id IS NOT NULL)))) AND (split_part(name, '/'::text, 2) = ANY (ARRAY['_assets'::text, 'inspection-previews'::text]))));
 
-  FOR r IN
-    SELECT p.policyname, p.cmd, p.qual, p.with_check
-      FROM pg_policies p
-     WHERE p.schemaname = 'storage' AND p.tablename = 'objects'
-       AND p.policyname NOT IN ('Vault: read readable objects', 'Vault: upload to own organization',
-                                'Vault: update own or org assets', 'Vault: delete own or as admin',
-                                'Org members read their org extension packages',
-                                'Org admins upload extension packages',
-                                'Org admins update extension packages',
-                                'Org admins delete extension packages')
-  LOOP
-    RAISE NOTICE 'Dropping storage policy "%" (% USING % WITH CHECK %)', r.policyname, r.cmd, r.qual, r.with_check;
-    EXECUTE format('DROP POLICY %I ON storage.objects', r.policyname);
-  END LOOP;
-
-  EXECUTE 'DROP POLICY IF EXISTS "Vault: read readable objects" ON storage.objects';
-  EXECUTE format($p$
-    CREATE POLICY "Vault: read readable objects"
-      ON storage.objects FOR SELECT
-      TO authenticated
-      USING (
-        bucket_id = 'vault'
-        AND %1$s
-        AND (
-          public.is_org_admin()
-          OR %2$s
-          OR split_part(name, '/', 2) = '_assets'
-          OR public.may_read_vault_object(name)
-        )
-      )
-  $p$, v_org, v_owner);
-
-  EXECUTE 'DROP POLICY IF EXISTS "Vault: upload to own organization" ON storage.objects';
-  EXECUTE format($p$
-    CREATE POLICY "Vault: upload to own organization"
-      ON storage.objects FOR INSERT
-      TO authenticated
-      WITH CHECK (bucket_id = 'vault' AND %1$s)
-  $p$, v_org);
-
-  EXECUTE 'DROP POLICY IF EXISTS "Vault: update own or org assets" ON storage.objects';
-  EXECUTE format($p$
-    CREATE POLICY "Vault: update own or org assets"
-      ON storage.objects FOR UPDATE
-      TO authenticated
-      USING (
-        bucket_id = 'vault' AND %1$s
-        AND split_part(name, '/', 2) IN ('_assets', 'inspection-previews')
-        AND (public.is_org_admin() OR %2$s)
-      )
-      WITH CHECK (
-        bucket_id = 'vault' AND %1$s
-        AND split_part(name, '/', 2) IN ('_assets', 'inspection-previews')
-      )
-  $p$, v_org, v_owner);
-
-  EXECUTE 'DROP POLICY IF EXISTS "Vault: delete own or as admin" ON storage.objects';
-  EXECUTE format($p$
-    CREATE POLICY "Vault: delete own or as admin"
-      ON storage.objects FOR DELETE
-      TO authenticated
-      USING (
-        bucket_id = 'vault' AND %1$s
-        AND (
-          public.is_org_admin()
-          OR (%2$s AND split_part(name, '/', 2) IN ('_assets', 'inspection-previews'))
-        )
-      )
-  $p$, v_org, v_owner);
-END $$;
+CREATE POLICY "Vault: delete own or as admin"
+  ON storage.objects FOR DELETE TO authenticated
+  USING (((bucket_id = 'vault'::text) AND (split_part(name, '/'::text, 1) IN ( SELECT (u.org_id)::text AS org_id
+   FROM app_user u
+  WHERE ((u.id = auth.uid()) AND (u.org_id IS NOT NULL)))) AND (is_org_admin() OR ((owner_id = (auth.uid())::text) AND (split_part(name, '/'::text, 2) = ANY (ARRAY['_assets'::text, 'inspection-previews'::text]))))));
 
 -- ===========================================
--- END OF SOURCE FILES MODULE
+-- PRIVILEGES
 -- ===========================================
 
--- Applying the module performs the remediations. On a fresh install both find
--- nothing, write nothing and print nothing; on a database carrying the damage
--- they name every row they touch. This is the line that makes "close the hole"
--- and "revoke what the hole produced" one act instead of two.
-SELECT remediate_cross_tenant_share_links();
-SELECT remediate_cross_tenant_workflow_history();
+-- Written out in full rather than left to the platform's default privileges, so a
+-- fresh database and an upgraded one hold the same grants. anon holds nothing
+-- here except what anon_get_read_allowlist() and anon_get_execute_allowlist() name.
+REVOKE ALL ON FUNCTION
+  file_share_link_consume(text),
+  file_share_link_validate(text)
+FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION
+  file_share_link_consume(text),
+  file_share_link_validate(text)
+TO anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION
+  backup_get_status(),
+  can_access_vault(uuid),
+  can_read_vault_object(text),
+  can_run_transition(uuid,uuid),
+  custom_properties_merge(jsonb,jsonb),
+  drawing_pdf_render_get(uuid),
+  drawing_pdf_render_record(uuid,text,bigint,boolean),
+  file_checkin(uuid,text,bigint,text,text,text,text,integer,jsonb,text,text,text),
+  file_checkout(uuid,text,text,text),
+  file_get_active_by_path(uuid,text),
+  file_get_legacy_state(text),
+  file_move(uuid,text,text),
+  file_repair_config_maps(uuid,jsonb),
+  file_require_access(uuid),
+  file_share_link_create(uuid,uuid,uuid,integer,integer,boolean),
+  file_share_link_generate_token(),
+  file_version_get_dependency_closure(uuid),
+  file_version_reference_record(uuid,jsonb),
+  folder_rename(text,text,uuid),
+  gate_review_complete(uuid,review_status,text,jsonb),
+  gate_review_list_mine(),
+  item_designation_assignment_list(uuid,uuid),
+  item_designation_assignment_set(uuid,uuid,text,uuid),
+  item_designation_delete(uuid,uuid),
+  item_designation_list(uuid),
+  item_designation_upsert(uuid,text,uuid,integer),
+  item_image_list(uuid),
+  item_image_reset(uuid,text),
+  item_image_upsert(uuid,text,text,text,text,text),
+  my_accessible_vault_ids(),
+  org_get_item_definition_settings(uuid),
+  org_update_item_definition_settings(uuid,jsonb),
+  org_update_serialization_settings(uuid,jsonb),
+  revision_get_next(text,revision_scheme),
+  serial_number_get_next(uuid),
+  serial_number_preview_next(uuid),
+  trg_file_log_activity(),
+  trg_file_notify_watchers(),
+  user_vault_access_list(uuid),
+  vault_file_count(uuid,uuid),
+  vault_file_list(uuid,uuid),
+  vault_file_list_delta(uuid,uuid,timestamp with time zone),
+  vault_require_access(uuid),
+  workflow_create_default(uuid),
+  workflow_import_graph(uuid,jsonb),
+  workflow_transition_execute(uuid,uuid,text),
+  workflow_transition_execute_to_legacy_state(uuid,text,text),
+  workflow_transition_list_available(uuid)
+FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION
+  backup_get_status(),
+  can_access_vault(uuid),
+  can_read_vault_object(text),
+  can_run_transition(uuid,uuid),
+  custom_properties_merge(jsonb,jsonb),
+  drawing_pdf_render_get(uuid),
+  drawing_pdf_render_record(uuid,text,bigint,boolean),
+  file_checkin(uuid,text,bigint,text,text,text,text,integer,jsonb,text,text,text),
+  file_checkout(uuid,text,text,text),
+  file_get_active_by_path(uuid,text),
+  file_get_legacy_state(text),
+  file_move(uuid,text,text),
+  file_repair_config_maps(uuid,jsonb),
+  file_require_access(uuid),
+  file_share_link_create(uuid,uuid,uuid,integer,integer,boolean),
+  file_share_link_generate_token(),
+  file_version_get_dependency_closure(uuid),
+  file_version_reference_record(uuid,jsonb),
+  folder_rename(text,text,uuid),
+  gate_review_complete(uuid,review_status,text,jsonb),
+  gate_review_list_mine(),
+  item_designation_assignment_list(uuid,uuid),
+  item_designation_assignment_set(uuid,uuid,text,uuid),
+  item_designation_delete(uuid,uuid),
+  item_designation_list(uuid),
+  item_designation_upsert(uuid,text,uuid,integer),
+  item_image_list(uuid),
+  item_image_reset(uuid,text),
+  item_image_upsert(uuid,text,text,text,text,text),
+  my_accessible_vault_ids(),
+  org_get_item_definition_settings(uuid),
+  org_update_item_definition_settings(uuid,jsonb),
+  org_update_serialization_settings(uuid,jsonb),
+  revision_get_next(text,revision_scheme),
+  serial_number_get_next(uuid),
+  serial_number_preview_next(uuid),
+  trg_file_log_activity(),
+  trg_file_notify_watchers(),
+  user_vault_access_list(uuid),
+  vault_file_count(uuid,uuid),
+  vault_file_list(uuid,uuid),
+  vault_file_list_delta(uuid,uuid,timestamp with time zone),
+  vault_require_access(uuid),
+  workflow_create_default(uuid),
+  workflow_import_graph(uuid,jsonb),
+  workflow_transition_execute(uuid,uuid,text),
+  workflow_transition_execute_to_legacy_state(uuid,text,text),
+  workflow_transition_list_available(uuid)
+TO authenticated, service_role;
+REVOKE ALL ON FUNCTION
+  can_review_gate(uuid,uuid),
+  can_user_access_vault(uuid,uuid),
+  file_share_link_admit(text),
+  file_share_link_remediate_cross_tenant(),
+  file_version_reference_list_edges(uuid[],uuid),
+  folder_remediate_case_collisions(),
+  gate_review_list_awaiting_ids(uuid),
+  gate_reviewer_list_user_ids(uuid,uuid),
+  is_org_file_workflows_enabled(uuid),
+  review_stage_get_exit_transition(uuid),
+  trg_file_comment_check_integrity(),
+  user_get_effective_role(uuid),
+  workflow_history_remediate_cross_tenant(),
+  workflow_transition_apply(uuid,uuid,text,jsonb)
+FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION
+  can_review_gate(uuid,uuid),
+  can_user_access_vault(uuid,uuid),
+  file_share_link_admit(text),
+  file_share_link_remediate_cross_tenant(),
+  file_version_reference_list_edges(uuid[],uuid),
+  folder_remediate_case_collisions(),
+  gate_review_list_awaiting_ids(uuid),
+  gate_reviewer_list_user_ids(uuid,uuid),
+  is_org_file_workflows_enabled(uuid),
+  review_stage_get_exit_transition(uuid),
+  trg_file_comment_check_integrity(),
+  user_get_effective_role(uuid),
+  workflow_history_remediate_cross_tenant(),
+  workflow_transition_apply(uuid,uuid,text,jsonb)
+TO service_role;
 
-SELECT enforce_anon_execute_posture();
+REVOKE ALL ON TABLE activity, backup_config, backup_history, backup_lock, backup_machine, drawing_pdf_render, file, file_comment, file_metadata_column, file_reference, file_share_link, file_state_entry, file_version, file_version_reference, file_watcher, file_workflow_assignment, folder, item_designation, item_designation_assignment, item_image, release_file, team_vault_access, user_workflow_role, vault, vault_access, workflow_gate, workflow_gate_review, workflow_gate_reviewer, workflow_history, workflow_review_history, workflow_role, workflow_state, workflow_template, workflow_transition FROM PUBLIC, anon, authenticated, service_role;
+GRANT ALL ON TABLE activity, backup_config, backup_history, backup_lock, backup_machine, drawing_pdf_render, file, file_comment, file_metadata_column, file_reference, file_share_link, file_state_entry, file_version, file_version_reference, file_watcher, file_workflow_assignment, folder, item_designation, item_designation_assignment, item_image, release_file, team_vault_access, user_workflow_role, vault, vault_access, workflow_gate, workflow_gate_review, workflow_gate_reviewer, workflow_history, workflow_review_history, workflow_role, workflow_state, workflow_template, workflow_transition TO authenticated, service_role;
 
--- This module used to stamp the schema version, on the reasoning that re-running
--- one module - the usual way a single RPC fix is applied - should advance the
--- recorded version. That is exactly what made the number untrustworthy: this file
--- cannot know what state the other modules are in, so the number it wrote was a
--- claim about a database it had only partly seen.
---
--- The reasoning was sound about the workflow and wrong about the mechanism, so
--- the workflow is back and the claim is not: this file asks, and
--- try_stamp_schema() in core.sql answers from the whole release manifest. The
--- answer does not depend on which file asked, so re-running one module does
--- advance the version - but only when the rest of the database is already at this
--- release, which is the case the old stamp could not tell apart.
---
--- Guarded: this module may be applied over a core.sql that predates the helper,
--- and an uncaught error here would roll back everything the file just installed.
-DO $$
-BEGIN
-  RAISE NOTICE 'Source Files module installed successfully';
-
-  IF to_regprocedure('public.try_stamp_schema()') IS NULL THEN
-    RAISE NOTICE 'Schema version not recorded: this core.sql predates try_stamp_schema(). Apply core.sql, or run supabase/tools/verify-schema.sql.';
-    RETURN;
-  END IF;
-  PERFORM try_stamp_schema();
-EXCEPTION WHEN OTHERS THEN
-  RAISE WARNING 'Schema version not recorded: %', SQLERRM;
-END $$;
+SELECT anon_enforce_execute_posture();

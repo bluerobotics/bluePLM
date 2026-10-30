@@ -45,27 +45,35 @@ read out loud rather than trusted.
 .\negative-controls.ps1                        # reintroduce each hole, require the verifier to catch it
 .\attack.ps1 -Expect fixed                     # the attack suite
 .\policy-controls.ps1                          # revert each policy fix, require the hole to reopen
-.\upgrade.ps1                                  # the other lane: attack the previous release, then upgrade over it
+.\upgrade.ps1                                  # the other lane: 4.10 (112) upgraded by migrations/0500_from_4x.sql
 ```
 
 `negative-controls.ps1` takes its expected release number from
 `schema_release_version()` rather than from a literal, so it cannot go stale
 when the schema moves. Pass `-ExpectRelease 95` to assert the number as well.
 
-`reset.ps1 -CoreOnly` and `reset.ps1 -Modules 10-source-files,15-inspection`
-cover the partial-install cases.
+Since 5.0 the baseline (`supabase/core.sql` + `supabase/modules/*.sql`) is one
+ordered set applied once to an empty database: `install.ps1` runs core and every
+module in file-name order in one psql session and one transaction, then
+`tools/verify-schema.sql`, the way the desktop migration runner installs a fresh
+database. There are no partial installs, and no file is re-run over an installed
+database. The negative controls therefore repair only the objects a hole
+touched: `make-repairs.ps1` extracts those definitions and their privileges
+from the release under test into `sql/_generated/` (ignored by git) when a
+suite starts.
 
 Tear down with `docker compose down -v`.
 
 ### The other half of a before/after
 
 `RELEASE_DIR` chooses which copy of `supabase/` is installed. It defaults to the
-working tree; point it at a worktree to run the attacks against an older
-release:
+working tree; point it at a worktree to run the attacks against an older 5.x
+release (attack.ps1 speaks the 5.0 names, so a 4.x tree cannot be attacked by
+it):
 
 ```powershell
-git worktree add ../../blueplm-v90 <commit>
-$env:RELEASE_DIR = '../../blueplm-v90/supabase'
+git worktree add ../../blueplm-older <commit>
+$env:RELEASE_DIR = '../../blueplm-older/supabase'
 .\reset.ps1
 .\attack.ps1 -Expect vulnerable
 Remove-Item Env:\RELEASE_DIR
@@ -88,20 +96,21 @@ v92 left a cross-tenant share link answering `is_valid: true` to `anon` and
 still spending downloads, surviving *because* of the fix, with
 `verify_and_stamp_schema()` reporting the schema clean.
 
-`upgrade.ps1` is the **upgrade lane**, which is the owner's actual path:
+`upgrade.ps1` is the **upgrade lane**, which is how every existing database
+reaches 5.0:
 
 ```powershell
-git worktree add ../../blueplm-v90 <commit>
-.\upgrade.ps1 -Baseline ../../blueplm-v90/supabase   # the default
+.\upgrade.ps1                                   # ../supabase/legacy-4.10 -> the working tree
 ```
 
-It installs the baseline, runs the attack suite so the database carries real
-damage, prints the residue that damage left, applies the release under test
-**in place with no teardown**, prints the residue again and what the
-remediations acted on, verifies, re-attacks and runs the posture checks. Both
-copies of `supabase/` are mounted at once: `BASELINE_DIR` at `/baseline` and
-`RELEASE_DIR` at `/blueplm`, so `install.ps1 -Root /baseline` and
-`install.ps1 -Root /blueplm` are the same script pointed at two releases.
+It installs the 4.10 snapshot (`supabase/legacy-4.10`), seeds it with the 4.x
+spelling of the seed (`sql/seed-4x.sql`), verifies it at 112, counts every
+table's rows by oid (`sql/row-counts.sql`), applies
+`supabase/migrations/0500_from_4x.sql` **in place, in one transaction**, verifies
+and stamps, and then requires every table to have kept its rows (a table 5.0
+drops must have been empty), no residue, every attack refused and the posture
+checks passing. Both copies of `supabase/` are mounted at once: `BASELINE_DIR`
+at `/baseline` and `RELEASE_DIR` at `/blueplm`.
 
 A release has to pass both lanes.
 
@@ -120,7 +129,7 @@ reach the server voids the run.
 **Report a pass over a broken application.** Every attack failing is also what
 you get from a schema that was simply revoked into uselessness. The positive
 controls check the things that must keep working — a member reading their own
-organization's parts through `parts_with_pricing`, minting and redeeming a share
+organization's parts through `part_with_pricing`, minting and redeeming a share
 link for their own file, running a legitimate workflow transition, the sign-in
 screen reading auth providers with the anon key — and a broken one voids the run
 too.
@@ -142,7 +151,7 @@ every state of the code.
 
 ## The tenants
 
-`sql/seed.sql` creates two organizations and four accounts. The one that matters
+`sql/seed.sql` creates two organization and four accounts. The one that matters
 is `mallory@nowhere.test`, whose `users.org_id` is `NULL`: that is the account
 the NULL-unsafe membership tests admit, and testing as `postgres` with
 `auth.uid()` null does not reach it. There is also a `ghost` organization whose
@@ -172,12 +181,12 @@ Three of them are not shaped like the others.
 
 `sql/posture-checks.sql` covers what no HTTP request can see: that a routine
 created now is born unreachable by `anon` and still reachable by
-`authenticated`, that `apply_workflow_transition` refuses a foreign transition
+`authenticated`, that `workflow_transition_apply` refuses a foreign transition
 when called directly with its ACL out of the way, that a folder called `100%`
-renames itself and nothing else, and that `validate_share_link` and
-`consume_share_link` admit exactly the same callers.
+renames itself and nothing else, and that `file_share_link_validate` and
+`file_share_link_consume` admit exactly the same callers.
 
-That last one used to compare the two functions on `require_auth` alone, which
+That last one used to compare the two functions on `is_auth_required` alone, which
 is one axis of an admission decision with six. The two disagreed about a
 soft-deleted file — validate refused, consume spent a download — for a whole
 release while the check passed. It now walks every `(link, caller)` pair over a
@@ -201,8 +210,8 @@ called the function.
 conditions and requires the fixed tool to catch it — and asserts its own premise
 first, including that the *old* predicate really was blind to it, so a control
 cannot pass by testing something else. **LC0 runs first and is a positive
-control:** the three pre-login routines (`get_org_auth_providers`,
-`validate_share_link`, `consume_share_link`) must still be reachable by `anon`
+control:** the three pre-login routines (`org_get_auth_providers`,
+`file_share_link_validate`, `file_share_link_consume`) must still be reachable by `anon`
 after the lockdown, or a script that revoked everything from everyone would
 satisfy every other control while taking the sign-in screen down with it.
 
@@ -217,7 +226,7 @@ git show <commit>:supabase/tools/emergency-lockdown.sql |
 
 ### The policy controls
 
-`schema_release_manifest()` has kinds `'table'` and `'function'` and no
+`schema_get_release_manifest()` has kinds `'table'` and `'function'` and no
 `'policy'`, so `check_schema_release()` cannot see a row-level security policy
 at all. A database whose `users` self-update policy has silently lost its
 `WITH CHECK` verifies clean and stamps. Five of schema 95's seven fixes are
@@ -250,15 +259,15 @@ the same defect one level up.
 
 `sql/policy-fixtures.sql` adds the six accounts the assertions need. The seed
 has only organization administrators and an account in no organization, and
-`is_org_admin()` short-circuits `user_has_permission()` to true, so no seeded
+`is_org_admin()` short-circuits `has_user_permission()` to true, so no seeded
 account can prove anything about a permission term. The fixtures are
 authoritative rather than additive, and re-applying them is what undoes the
 damage a reverted policy lets through — an A1a escalation really does move a
 viewer into another organization as its administrator.
 
-A6 is reverted by mutating `may_review_gate()` to return `true` rather than by
+A6 is reverted by mutating `can_review_gate()` to return `true` rather than by
 restoring a policy, because the schema-94 defect was the *absence* of a reviewer
-branch in `complete_gate_review()`. The mutant reproduces the same observable
+branch in `gate_review_complete()`. The mutant reproduces the same observable
 behaviour through the branch that now exists, without carrying 160 lines of
 unrelated workflow machinery in the harness. See `sql/revert-a6.sql`.
 

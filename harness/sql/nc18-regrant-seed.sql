@@ -12,12 +12,12 @@
 -- core.sql is unchanged, and the only difference is the one ACL entry that
 -- made it callable over PostgREST.
 --
--- The target is create_default_job_titles(p_org_id, p_created_by), a core
+-- The target is job_title_create_defaults(p_org_id, p_created_by), a core
 -- SECURITY DEFINER seeder with the same shape as the function this control was
 -- written for (seed_customer_categories, which left core with the Customers
 -- extension in 4.8.0): it takes p_org_id, so check_org_gates() probes it, and
 -- its insert fails on the foreign key for a synthesized organization, so the
--- verdict is 'unverifiable'. It is also on withdrawn_execute_manifest(), so
+-- verdict is 'unverifiable'. It is also on schema_get_withdrawn_execute_manifest(), so
 -- check_withdrawn_execute() reports it too; the control's tokens require the
 -- org-gate verdict, which is what this control tests.
 --
@@ -26,8 +26,8 @@
 -- would not probe - so the check that exists to catch this shape had been told
 -- not to look.
 --
--- anon is deliberately not granted. enforce_anon_execute_posture() would take
+-- anon is deliberately not granted. anon_enforce_execute_posture() would take
 -- it straight back and the control would be testing that sweep instead of this
 -- check; authenticated is the role that was actually exposed, and no sweep
 -- touches it.
-GRANT EXECUTE ON FUNCTION create_default_job_titles(UUID, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION job_title_create_defaults(UUID, UUID) TO authenticated;

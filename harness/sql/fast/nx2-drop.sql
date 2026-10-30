@@ -10,7 +10,7 @@
 -- verdict and it would show up as a catalogue-signature difference on every
 -- later run.
 
-DELETE FROM file_workflow_assignments
+DELETE FROM file_workflow_assignment
  WHERE file_id = 'aaaaaaaa-3333-4000-8000-000000000002';
 
 DO $$

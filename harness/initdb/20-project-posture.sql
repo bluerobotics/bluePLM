@@ -49,7 +49,7 @@ $$;
 GRANT EXECUTE ON FUNCTION auth.uid(), auth.role(), auth.email(), auth.jwt()
   TO anon, authenticated, service_role, postgres;
 
--- core.sql owns a trigger on auth.users (`on_auth_user_created`), and DROP
+-- core.sql owns a trigger on auth.users (`trg_auth_user_sync_app_user`), and DROP
 -- TRIGGER requires ownership of the table. Supabase granted postgres membership
 -- in supabase_auth_admin for exactly this reason in
 -- 20220609081115_grant-supabase-auth-admin-and-supabase-storage-admin-to-postgres.sql.

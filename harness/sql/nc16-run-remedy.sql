@@ -5,4 +5,4 @@
 -- clear by running what they are told to run - which is precisely the v90
 -- defect this project spent two releases removing. The view is left in place
 -- and the stamp has to come back.
-SELECT enforce_anon_execute_posture();
+SELECT anon_enforce_execute_posture();

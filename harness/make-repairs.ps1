@@ -1,0 +1,130 @@
+# Writes the repair files the negative controls use, extracted from the release
+# under test.
+#
+# WHY THIS EXISTS (5.0)
+#
+# Through 4.x every SQL file was idempotent, so a control that broke a function
+# repaired it by re-running the whole module file the function lives in. The 5.0
+# baseline is not idempotent - it defines each object once and is applied to an
+# empty database - so re-running a module now fails on its first CREATE TABLE.
+# A repair re-creates only the objects the hole touched, with the exact text and
+# privileges the release defines for them, read from the release at run time so
+# a repair can never drift from the baseline it is meant to restore.
+#
+# The files land in sql/_generated/ (ignored by git: harness/**/_*), which the
+# database container sees as /sql/_generated/.
+#
+#   . .\make-repairs.ps1            # dot-sourced by the negative-control suites
+#   .\make-repairs.ps1 -Release ../supabase
+param([string]$Release)
+
+if (-not $Release) {
+  $Release = if ($env:RELEASE_DIR) { $env:RELEASE_DIR } else { '../supabase' }
+}
+$releaseRoot = if ([System.IO.Path]::IsPathRooted($Release)) { $Release } else { Join-Path $PSScriptRoot $Release }
+$baselineFiles = @(Join-Path $releaseRoot 'core.sql') + @(Get-ChildItem (Join-Path $releaseRoot 'modules') -Filter '*.sql' | Sort-Object Name | ForEach-Object { $_.FullName })
+$script:BaselineText = ($baselineFiles | ForEach-Object { [System.IO.File]::ReadAllText($_) }) -join "`n"
+$script:BaselineText = $script:BaselineText -replace "`r`n", "`n"
+
+# One statement from the baseline, from the line matching $Start to the semicolon
+# that ends it. Dollar-quoted bodies are skipped whole, so a semicolon inside a
+# function body does not end the statement.
+function Get-BaselineStatement {
+  param([string]$Start)
+  $m = [regex]::Match($script:BaselineText, "(?m)^$Start")
+  if (-not $m.Success) { throw "make-repairs: no statement in the release matches ^$Start" }
+  $i = $m.Index
+  $text = $script:BaselineText
+  while ($i -lt $text.Length) {
+    $c = $text[$i]
+    if ($c -eq '$') {
+      $tag = [regex]::Match($text.Substring($i), '^\$[A-Za-z_]*\$')
+      if ($tag.Success) {
+        $close = $text.IndexOf($tag.Value, $i + $tag.Length)
+        if ($close -lt 0) { throw "make-repairs: unterminated $($tag.Value) after ^$Start" }
+        $i = $close + $tag.Length
+        continue
+      }
+    }
+    if ($c -eq "'") {
+      $j = $i + 1
+      while ($j -lt $text.Length) {
+        if ($text[$j] -eq "'" -and ($j + 1) -lt $text.Length -and $text[$j + 1] -eq "'") { $j += 2; continue }
+        if ($text[$j] -eq "'") { break }
+        $j++
+      }
+      $i = $j + 1
+      continue
+    }
+    if ($c -eq '-' -and ($i + 1) -lt $text.Length -and $text[$i + 1] -eq '-') {
+      $nl = $text.IndexOf("`n", $i)
+      $i = if ($nl -lt 0) { $text.Length } else { $nl + 1 }
+      continue
+    }
+    if ($c -eq ';') { return $text.Substring($m.Index, $i - $m.Index + 1) }
+    $i++
+  }
+  throw "make-repairs: statement starting ^$Start never ends"
+}
+
+# The privileges the release writes for one function, as two statements: the
+# release revokes everything from the client roles and grants back explicitly.
+function Get-BaselineFunctionAcl {
+  param([string]$Name)
+  $out = @()
+  $blocks = [regex]::Matches($script:BaselineText, '(?m)^(REVOKE ALL|GRANT EXECUTE) ON FUNCTION\n((?:  [^\n]*\n)+?)(FROM|TO) ([^;]+);')
+  $found = $false
+  foreach ($b in $blocks) {
+    $sigs = $b.Groups[2].Value -split "`n" | ForEach-Object { $_.Trim().TrimEnd(',') } | Where-Object { $_ -like "$Name(*" }
+    foreach ($s in $sigs) {
+      $found = $true
+      if ($b.Groups[1].Value -eq 'REVOKE ALL') { $out += "REVOKE ALL ON FUNCTION $s FROM $($b.Groups[4].Value);" }
+      else { $out += "GRANT EXECUTE ON FUNCTION $s TO $($b.Groups[4].Value);" }
+    }
+  }
+  if (-not $found) { throw "make-repairs: the release writes no privileges for $Name" }
+  # REVOKE before GRANT, whatever order the blocks came in.
+  return @($out | Where-Object { $_ -like 'REVOKE*' }) + @($out | Where-Object { $_ -like 'GRANT*' })
+}
+
+# The privileges the release writes for one table or view.
+function Get-BaselineTableAcl {
+  param([string]$Name)
+  $out = @()
+  foreach ($line in ($script:BaselineText -split "`n")) {
+    $m = [regex]::Match($line, '^(REVOKE ALL|GRANT [A-Z, ]+?) ON TABLE (.+) (FROM|TO) ([^;]+);$')
+    if (-not $m.Success) { continue }
+    $names = $m.Groups[2].Value -split ',\s*'
+    if ($names -notcontains $Name) { continue }
+    $out += "$($m.Groups[1].Value) ON TABLE $Name $($m.Groups[3].Value) $($m.Groups[4].Value);"
+  }
+  if ($out.Count -eq 0) { throw "make-repairs: the release writes no privileges for $Name" }
+  return @($out | Where-Object { $_ -like 'REVOKE*' }) + @($out | Where-Object { $_ -notlike 'REVOKE*' })
+}
+
+$genDir = Join-Path $PSScriptRoot 'sql/_generated'
+New-Item -ItemType Directory -Force -Path $genDir | Out-Null
+
+function Write-Repair {
+  param([string]$Id, [string[]]$Statements)
+  $body = "-- Generated by harness/make-repairs.ps1 from the release under test. Do not edit.`n" +
+          "-- Repair for $Id.`n`n" + ($Statements -join "`n`n") + "`n"
+  [System.IO.File]::WriteAllText((Join-Path $genDir "repair-$($Id.ToLower()).sql"), $body)
+}
+
+# NC1: part_with_pricing re-created as a plain view and granted to anon.
+Write-Repair -Id 'NC1' -Statements (@(Get-BaselineStatement 'CREATE OR REPLACE VIEW part_with_pricing\b') + (Get-BaselineTableAcl 'part_with_pricing'))
+
+# NC2: file_share_link_create replaced by the shape that gated p_org_id only.
+Write-Repair -Id 'NC2' -Statements (@(Get-BaselineStatement 'CREATE OR REPLACE FUNCTION file_share_link_create\(') + (Get-BaselineFunctionAcl 'file_share_link_create'))
+
+# NC17: file_share_link_consume restating file_share_link_validate's conditions.
+Write-Repair -Id 'NC17' -Statements (@(Get-BaselineStatement 'CREATE OR REPLACE FUNCTION file_share_link_consume\(') + (Get-BaselineFunctionAcl 'file_share_link_consume'))
+
+# NC18: job_title_create_defaults granted back to authenticated.
+Write-Repair -Id 'NC18' -Statements (Get-BaselineFunctionAcl 'job_title_create_defaults')
+
+# NC19: review_notify_overdue granted back to authenticated.
+Write-Repair -Id 'NC19' -Statements (Get-BaselineFunctionAcl 'review_notify_overdue')
+
+Write-Host "repair files written to sql/_generated/" -ForegroundColor DarkGray

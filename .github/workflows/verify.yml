@@ -366,10 +366,13 @@ jobs:
   # because two earlier security efforts passed against a container where postgres was still a
   # superuser, which makes every grant check meaningless.
   #
-  # Order: core.sql, then core.sql again with every module (core idempotency), then every module
-  # again (module idempotency); then tools/verify-schema.sql, which withholds the stamp and errors
+  # Order: the 5.0 baseline (core.sql and every module, one transaction), then the same install
+  # twice more (idempotency); then tools/verify-schema.sql, which withholds the stamp and errors
   # when an object schema_release_manifest() names is missing; then the fast negative controls,
-  # which break the schema on purpose and require the verifier to notice.
+  # which break the schema on purpose and require the verifier to notice. The harness mounts all of
+  # supabase/ at /blueplm, so the checkout must carry supabase/legacy-4.10 (the 4.10 snapshot a
+  # pre-112 database is brought to first) and supabase/migrations (0500_from_4x.sql); a plain
+  # full checkout does, and nothing here may narrow it with sparse-checkout.
   sql:
     name: SQL schema (install, idempotency, verifier)
     runs-on: ubuntu-latest
@@ -387,13 +390,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Start harness and install core.sql
-        run: ./reset.ps1 -CoreOnly
+      - name: Release SQL is in the checkout
+        working-directory: .
+        run: |
+          foreach ($p in 'supabase/core.sql', 'supabase/legacy-4.10/core.sql', 'supabase/migrations/0500_from_4x.sql') {
+            if (-not (Test-Path $p)) { throw "missing from the checkout: $p" }
+          }
 
-      - name: Re-apply core.sql and install every module
+      - name: Start harness and install the 5.0 baseline
+        run: ./reset.ps1 -NoSeed
+
+      - name: Re-apply the baseline (idempotency)
         run: ./install.ps1
 
-      - name: Re-apply core.sql and every module again
+      - name: Re-apply the baseline again
         run: ./install.ps1
 
       - name: Verify schema against the release manifest

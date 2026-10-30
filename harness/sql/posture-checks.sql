@@ -2,7 +2,7 @@
 --
 -- Two kinds of thing live here.
 --
--- The first is what a REVOKE hides. apply_workflow_transition is not granted to
+-- The first is what a REVOKE hides. workflow_transition_apply is not granted to
 -- any client role any more, so the HTTP attack against it now stops at the ACL
 -- and never reaches the function body. That is a real fix and it is not the
 -- fix: the binding inside the function is, because that is what protects the
@@ -29,7 +29,7 @@
 -- The previous release stated flatly that this was impossible. It is not: a
 -- global ALTER DEFAULT PRIVILEGES - no IN SCHEMA - replaces the built-in
 -- PUBLIC EXECUTE default rather than merging with it, and
--- enforce_anon_execute_posture() now sets one for the installing role.
+-- anon_enforce_execute_posture() now sets one for the installing role.
 --
 -- Sweeping after the fact only ever closes what already exists. This closes
 -- what does not exist yet, which is the half that kept coming back.
@@ -63,11 +63,11 @@ DROP FUNCTION nc_posture_probe_fn();
 DROP PROCEDURE nc_posture_probe_proc();
 
 -- ===========================================================================
--- 2. apply_workflow_transition binds its transition to the file's organization
+-- 2. workflow_transition_apply binds its transition to the file's organization
 -- ===========================================================================
 -- Called directly, as the function's own two entry points call it, with the
 -- ACL out of the way. Alice is a genuine Acme member acting on a genuine Acme
--- file, so require_file_access() is satisfied - which is exactly the state in
+-- file, so file_require_access() is satisfied - which is exactly the state in
 -- which the old version applied another tenant's transition.
 DO $$
 DECLARE
@@ -79,13 +79,12 @@ BEGIN
                       'role', 'authenticated')::text, true);
 
   BEGIN
-    v_result := apply_workflow_transition(
+    v_result := workflow_transition_apply(
       'aaaaaaaa-3333-4000-8000-000000000002'::uuid,   -- Alice's own file
       'bbbbbbbb-8888-4000-8000-000000000001'::uuid,   -- Umbrella's transition
-      'aaaaaaaa-1111-4000-8000-000000000001'::uuid,
       'direct call', '{}'::jsonb);
 
-    RAISE EXCEPTION 'UNBOUND: apply_workflow_transition applied a foreign organization''s transition and returned %', v_result;
+    RAISE EXCEPTION 'UNBOUND: workflow_transition_apply applied a foreign organization''s transition and returned %', v_result;
   EXCEPTION
     WHEN invalid_parameter_value THEN
       NULL;  -- 'Transition not found', which is the whole point
@@ -104,21 +103,20 @@ BEGIN
 
   -- The legitimate move still works, so the refusal above is about the
   -- organization and not about the function having been broken.
-  v_result := apply_workflow_transition(
+  v_result := workflow_transition_apply(
     'aaaaaaaa-3333-4000-8000-000000000002'::uuid,
     'aaaaaaaa-8888-4000-8000-000000000001'::uuid,     -- Acme's own transition
-    'aaaaaaaa-1111-4000-8000-000000000001'::uuid,
     'direct call', '{}'::jsonb);
 
   IF NOT (v_result->>'success')::boolean THEN
-    RAISE EXCEPTION 'OVER-BOUND: apply_workflow_transition refused Acme''s own transition on an Acme file: %', v_result;
+    RAISE EXCEPTION 'OVER-BOUND: workflow_transition_apply refused Acme''s own transition on an Acme file: %', v_result;
   END IF;
 
-  RAISE NOTICE 'PASS - apply_workflow_transition refuses a foreign transition and accepts its own.';
+  RAISE NOTICE 'PASS - workflow_transition_apply refuses a foreign transition and accepts its own.';
 END $$;
 
 -- ===========================================================================
--- 3. rename_folder_files treats a folder name as text, not as a LIKE pattern
+-- 3. folder_rename treats a folder name as text, not as a LIKE pattern
 -- ===========================================================================
 -- Pre-existing, confined to the caller's own organization and vault, and still
 -- wrong: `LOWER(file_path) LIKE LOWER(prefix) || '/%'` made a folder called
@@ -133,9 +131,9 @@ BEGIN
     json_build_object('sub', 'aaaaaaaa-1111-4000-8000-000000000001',
                       'role', 'authenticated')::text, true);
 
-  DELETE FROM files WHERE part_number IN ('LIKE-VICTIM', 'LIKE-BYSTANDER');
+  DELETE FROM file WHERE part_number IN ('LIKE-VICTIM', 'LIKE-BYSTANDER');
 
-  INSERT INTO files (org_id, vault_id, file_path, file_name, extension, part_number,
+  INSERT INTO file (org_id, vault_id, file_path, file_name, extension, part_number,
                      revision, version, state, created_by)
   VALUES ('aaaaaaaa-0000-4000-8000-000000000001', 'aaaaaaaa-2222-4000-8000-000000000001',
           'Acme/100%/inside.sldprt', 'inside.sldprt', 'sldprt', 'LIKE-VICTIM',
@@ -145,28 +143,27 @@ BEGIN
           'Acme/1000-series/untouched.sldprt', 'untouched.sldprt', 'sldprt', 'LIKE-BYSTANDER',
           'A', 1, 'WIP', 'aaaaaaaa-1111-4000-8000-000000000001');
 
-  v_result := rename_folder_files('Acme/100%', 'Acme/renamed',
-                                  'aaaaaaaa-1111-4000-8000-000000000001',
+  v_result := folder_rename('Acme/100%', 'Acme/renamed',
                                   'aaaaaaaa-2222-4000-8000-000000000001');
 
-  SELECT file_path INTO v_bystander FROM files WHERE part_number = 'LIKE-BYSTANDER';
+  SELECT file_path INTO v_bystander FROM file WHERE part_number = 'LIKE-BYSTANDER';
 
   IF v_bystander <> 'Acme/1000-series/untouched.sldprt' THEN
     RAISE EXCEPTION 'LIKE METACHARACTER: renaming Acme/100%% also rewrote an unrelated file, now at %', v_bystander;
   END IF;
 
-  IF (SELECT file_path FROM files WHERE part_number = 'LIKE-VICTIM') <> 'Acme/renamed/inside.sldprt' THEN
+  IF (SELECT file_path FROM file WHERE part_number = 'LIKE-VICTIM') <> 'Acme/renamed/inside.sldprt' THEN
     RAISE EXCEPTION 'OVER-ESCAPED: the folder the caller actually named was not renamed: %',
-      (SELECT file_path FROM files WHERE part_number = 'LIKE-VICTIM');
+      (SELECT file_path FROM file WHERE part_number = 'LIKE-VICTIM');
   END IF;
 
-  DELETE FROM files WHERE part_number IN ('LIKE-VICTIM', 'LIKE-BYSTANDER');
+  DELETE FROM file WHERE part_number IN ('LIKE-VICTIM', 'LIKE-BYSTANDER');
 
   RAISE NOTICE 'PASS - a folder called 100%% renames itself and nothing else.';
 END $$;
 
 -- ===========================================================================
--- 4. consume_share_link and validate_share_link admit exactly the same callers
+-- 4. file_share_link_consume and file_share_link_validate admit exactly the same callers
 -- ===========================================================================
 -- They are two separate round trips and nothing forces a caller to make the
 -- first. If consume admits somebody validate refuses, the download the refusal
@@ -174,10 +171,10 @@ END $$;
 --
 -- WHY THIS IS A MATRIX AND NOT A CASE
 --
--- The previous version of this check asked about require_auth and nothing else.
+-- The previous version of this check asked about is_auth_required and nothing else.
 -- It passed, for the whole life of the release, while the two functions
 -- disagreed about whether the file still exists: consume's `deleted_at IS NULL`
--- test sat inside its require_auth branch, so with require_auth = false and the
+-- test sat inside its is_auth_required branch, so with is_auth_required = false and the
 -- file soft-deleted, validate answered 'Link not found' and consume spent a
 -- download. A check that names one axis can only ever find a defect on that
 -- axis, and picking the axis in advance is picking the bug in advance.
@@ -201,14 +198,14 @@ DECLARE
   v_refused   INTEGER := 0;
   v_mismatch  TEXT := '';
 BEGIN
-  DELETE FROM file_share_links WHERE token LIKE 'posture4-%';
+  DELETE FROM file_share_link WHERE token LIKE 'posture4-%';
 
   -- One link per condition. Written straight into the table rather than through
-  -- create_file_share_link() because several of these states - expired,
+  -- file_share_link_create() because several of these states - expired,
   -- exhausted, pointing at a file that has since been deleted - are states a
   -- link arrives in later and cannot be minted in.
-  INSERT INTO file_share_links (org_id, file_id, token, created_by, expires_at,
-                                max_downloads, download_count, require_auth, is_active)
+  INSERT INTO file_share_link (org_id, file_id, token, created_by, expires_at,
+                                max_downloads, download_count, is_auth_required, is_active)
   VALUES
     (c_acme, c_file, 'posture4-open',       c_alice, NOW() + INTERVAL '7 days', 9, 0, false, true),
     (c_acme, c_file, 'posture4-auth',       c_alice, NOW() + INTERVAL '7 days', 9, 0, true,  true),
@@ -216,7 +213,7 @@ BEGIN
     (c_acme, c_file, 'posture4-inactive',   c_alice, NOW() + INTERVAL '7 days', 9, 0, false, false),
     (c_acme, c_file, 'posture4-exhausted',  c_alice, NOW() + INTERVAL '7 days', 3, 3, false, true),
     -- The pair that was actually broken: same deleted file, once with the
-    -- require_auth branch taken and once without.
+    -- is_auth_required branch taken and once without.
     (c_acme, c_gone, 'posture4-deleted',    c_alice, NOW() + INTERVAL '7 days', 9, 0, false, true),
     (c_acme, c_gone, 'posture4-deleted-auth', c_alice, NOW() + INTERVAL '7 days', 9, 0, true, true),
     -- NULL where the column is nullable, because a NULL must not read as
@@ -247,8 +244,8 @@ BEGIN
         json_build_object('sub', s.sub, 'role', 'authenticated')::text, true);
     END IF;
 
-    SELECT is_valid INTO v_valid FROM validate_share_link(s.token);
-    v_spent := consume_share_link(s.token);
+    SELECT is_valid INTO v_valid FROM file_share_link_validate(s.token);
+    v_spent := file_share_link_consume(s.token);
 
     IF COALESCE(v_valid, false) IS DISTINCT FROM COALESCE(v_spent, false) THEN
       v_mismatch := v_mismatch || format(E'\n  %s as %s: validate=%s consume=%s',
@@ -260,12 +257,12 @@ BEGIN
   END LOOP;
 
   IF v_mismatch <> '' THEN
-    RAISE EXCEPTION 'ADMISSION DISAGREEMENT: validate_share_link and consume_share_link answer differently for:%', v_mismatch;
+    RAISE EXCEPTION 'ADMISSION DISAGREEMENT: file_share_link_validate and file_share_link_consume answer differently for:%', v_mismatch;
   END IF;
 
   -- Agreement is worthless if the answer is always no. The open link admits all
   -- three callers, the null-require_auth link admits all three, and the
-  -- require_auth link admits its owner: seven.
+  -- is_auth_required link admits its owner: seven.
   IF v_admitted < 7 THEN
     RAISE EXCEPTION 'OVER-REFUSED: only % of % (link, caller) pairs were admitted. The two functions agree because they refuse everything.',
       v_admitted, v_admitted + v_refused;
@@ -276,9 +273,9 @@ BEGIN
     RAISE EXCEPTION 'UNDER-REFUSED: every (link, caller) pair was admitted, including expired, inactive, exhausted and deleted links.';
   END IF;
 
-  DELETE FROM file_share_links WHERE token LIKE 'posture4-%';
+  DELETE FROM file_share_link WHERE token LIKE 'posture4-%';
 
-  RAISE NOTICE 'PASS - validate_share_link and consume_share_link admit the same callers across % (link, caller) pairs covering require_auth, expiry, deactivation, exhaustion, a deleted file and an unknown token (% admitted, % refused).',
+  RAISE NOTICE 'PASS - file_share_link_validate and file_share_link_consume admit the same callers across % (link, caller) pairs covering is_auth_required, expiry, deactivation, exhaustion, a deleted file and an unknown token (% admitted, % refused).',
     v_admitted + v_refused, v_admitted, v_refused;
 END $$;
 

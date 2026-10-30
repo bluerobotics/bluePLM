@@ -8,7 +8,7 @@
 --
 -- There is. A *global* ALTER DEFAULT PRIVILEGES - written without IN SCHEMA -
 -- replaces the built-in default instead of merging with it, so
--- enforce_anon_execute_posture() now leaves the postgres role in a state where
+-- anon_enforce_execute_posture() now leaves the postgres role in a state where
 -- the next routine it creates is born closed. Which means this control had
 -- stopped being a control: the hole no longer opens by itself, and a hole that
 -- does not exist is not evidence that the verifier can see one.

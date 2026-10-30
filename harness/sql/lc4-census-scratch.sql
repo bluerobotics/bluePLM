@@ -2,7 +2,7 @@
 -- migrate" is a measurement rather than an assertion.
 --
 -- The harness installs no extensions - BluePLM uses the built-in
--- gen_random_uuid() - so there is nothing for migrate_uuid_defaults() to move
+-- gen_random_uuid() - so there is nothing for schema_migrate_uuid_defaults() to move
 -- on a fresh container and a control built on the existing state would pass
 -- against a census that migrated everything in sight. This creates the one
 -- thing the migration is about: a column default that calls uuid_generate_v4().

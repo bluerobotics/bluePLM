@@ -3,7 +3,7 @@
 #
 # WHY THIS FILE HAD TO EXIST
 #
-# schema_release_manifest() has kinds 'table' and 'function' and no 'policy'.
+# schema_get_release_manifest() has kinds 'table' and 'function' and no 'policy'.
 # Five of schema 95's seven fixes are row-level security policies, so
 # check_schema_release() cannot see any of them: a database whose users
 # self-update policy has silently lost its WITH CHECK verifies clean and stamps.
@@ -190,7 +190,7 @@ function Assert-Write {
           -Evidence ("HTTP {0}: {1}" -f $Response.Status, (Trunc $Response.Body 260))
 }
 
-# complete_gate_review() answers 200 with a JSON object either way, so the
+# gate_review_complete() answers 200 with a JSON object either way, so the
 # verdict is the error_code and not the status. 'success' when it got past every
 # authorization term.
 function Assert-Rpc {
@@ -213,7 +213,7 @@ function Assert-Fact {
 
 function New-LinkToken {
   # Prefixed pc0 so sql/policy-fixtures.sql sweeps it up, 32 characters to match
-  # the shape create_file_share_link() mints.
+  # the shape file_share_link_create() mints.
   return ('pc0' + ([guid]::NewGuid().ToString('N')).Substring(0, 29))
 }
 
@@ -243,10 +243,10 @@ function Invoke-A1a {
                  -Prefer 'return=representation' -Body @{ org_id = $UMB_ORG; role = 'admin' })
 
   # A's regression control. If this fails the check is too wide and every
-  # sign-in in the product writes last_online.
-  Assert-Write -Fix 'A1a' -Id '4' -What 'viewer still writes their own last_online (regression control)' -Want 'succeeded' `
+  # sign-in in the product writes last_online_at.
+  Assert-Write -Fix 'A1a' -Id '4' -What 'viewer still writes their own last_online_at (regression control)' -Want 'succeeded' `
     -Response (Invoke-Rest -Path "/users?id=eq.$VIEWER" -Token $TOK_VIEWER -Method PATCH `
-                 -Prefer 'return=representation' -Body @{ last_online = (Get-Date).ToUniversalTime().ToString('o') })
+                 -Prefer 'return=representation' -Body @{ last_online_at = (Get-Date).ToUniversalTime().ToString('o') })
 
   Assert-Write -Fix 'A1a' -Id '5' -What 'anon patches a user row at all (proves TO authenticated)' -Want 'refused' `
     -Response (Invoke-Rest -Path "/users?id=eq.$VIEWER" -Token $TOK_ANON -Method PATCH `
@@ -269,114 +269,114 @@ function Invoke-A1b {
 
 function Invoke-A3 {
   Assert-Write -Fix 'A3' -Id '9' -What "engineer files a link under Acme pointing at UMBRELLA's file (the E1 attack)" -Want 'refused' `
-    -Response (Invoke-Rest -Path '/file_share_links' -Token $TOK_ENGINEER -Method POST `
+    -Response (Invoke-Rest -Path '/file_share_link' -Token $TOK_ENGINEER -Method POST `
                  -Prefer 'return=representation' -Body @{
                    org_id = $ACME_ORG; file_id = $UMB_FILE; token = (New-LinkToken)
-                   created_by = $ENGINEER; max_downloads = 5; require_auth = $false; is_active = $true })
+                   created_by = $ENGINEER; max_downloads = 5; is_auth_required = $false; is_active = $true })
 
   Assert-Write -Fix 'A3' -Id '10' -What 'engineer forges created_by as somebody else' -Want 'refused' `
-    -Response (Invoke-Rest -Path '/file_share_links' -Token $TOK_ENGINEER -Method POST `
+    -Response (Invoke-Rest -Path '/file_share_link' -Token $TOK_ENGINEER -Method POST `
                  -Prefer 'return=representation' -Body @{
                    org_id = $ACME_ORG; file_id = $F_LINK; token = (New-LinkToken)
-                   created_by = $VIEWER; max_downloads = 5; require_auth = $false; is_active = $true })
+                   created_by = $VIEWER; max_downloads = 5; is_auth_required = $false; is_active = $true })
 
   Assert-Write -Fix 'A3' -Id '11' -What 'viewer without module:explorer:create mints a link (pre-existing term, must stay)' -Want 'refused' `
-    -Response (Invoke-Rest -Path '/file_share_links' -Token $TOK_VIEWER -Method POST `
+    -Response (Invoke-Rest -Path '/file_share_link' -Token $TOK_VIEWER -Method POST `
                  -Prefer 'return=representation' -Body @{
                    org_id = $ACME_ORG; file_id = $F_LINK; token = (New-LinkToken)
-                   created_by = $VIEWER; max_downloads = 5; require_auth = $false; is_active = $true })
+                   created_by = $VIEWER; max_downloads = 5; is_auth_required = $false; is_active = $true })
 
   Assert-Write -Fix 'A3' -Id '12' -What 'engineer still mints a legitimate link for their own file (regression control)' -Want 'succeeded' `
-    -Response (Invoke-Rest -Path '/file_share_links' -Token $TOK_ENGINEER -Method POST `
+    -Response (Invoke-Rest -Path '/file_share_link' -Token $TOK_ENGINEER -Method POST `
                  -Prefer 'return=representation' -Body @{
                    org_id = $ACME_ORG; file_id = $F_LINK; token = (New-LinkToken)
-                   created_by = $ENGINEER; max_downloads = 5; require_auth = $false; is_active = $true })
+                   created_by = $ENGINEER; max_downloads = 5; is_auth_required = $false; is_active = $true })
 }
 
 function Invoke-A4 {
   Assert-Write -Fix 'A4' -Id '13' -What "viewer repoints their own link at UMBRELLA's file (the E2 attack)" -Want 'refused' `
-    -Response (Invoke-Rest -Path "/file_share_links?token=eq.$LINK_OWN" -Token $TOK_VIEWER -Method PATCH `
+    -Response (Invoke-Rest -Path "/file_share_link?token=eq.$LINK_OWN" -Token $TOK_VIEWER -Method PATCH `
                  -Prefer 'return=representation' -Body @{ file_id = $UMB_FILE })
 
   Assert-Write -Fix 'A4' -Id '14' -What 'viewer re-activates a link that had been revoked (the E4 attack)' -Want 'refused' `
-    -Response (Invoke-Rest -Path "/file_share_links?token=eq.$LINK_OFF" -Token $TOK_VIEWER -Method PATCH `
+    -Response (Invoke-Rest -Path "/file_share_link?token=eq.$LINK_OFF" -Token $TOK_VIEWER -Method PATCH `
                  -Prefer 'return=representation' -Body @{ is_active = $true })
 
   Assert-Write -Fix 'A4' -Id '15' -What 'viewer rewrites org_id on their own link' -Want 'refused' `
-    -Response (Invoke-Rest -Path "/file_share_links?token=eq.$LINK_OWN" -Token $TOK_VIEWER -Method PATCH `
+    -Response (Invoke-Rest -Path "/file_share_link?token=eq.$LINK_OWN" -Token $TOK_VIEWER -Method PATCH `
                  -Prefer 'return=representation' -Body @{ org_id = $UMB_ORG })
 
   Assert-Write -Fix 'A4' -Id '16' -What 'viewer still revokes their own link - the one update admitted (regression control)' -Want 'succeeded' `
-    -Response (Invoke-Rest -Path "/file_share_links?token=eq.$LINK_REV" -Token $TOK_VIEWER -Method PATCH `
+    -Response (Invoke-Rest -Path "/file_share_link?token=eq.$LINK_REV" -Token $TOK_VIEWER -Method PATCH `
                  -Prefer 'return=representation' -Body @{ is_active = $false })
 
   Assert-Write -Fix 'A4' -Id '17' -What "engineer revokes somebody else's link" -Want 'refused' `
-    -Response (Invoke-Rest -Path "/file_share_links?token=eq.$LINK_OWN" -Token $TOK_ENGINEER -Method PATCH `
+    -Response (Invoke-Rest -Path "/file_share_link?token=eq.$LINK_OWN" -Token $TOK_ENGINEER -Method PATCH `
                  -Prefer 'return=representation' -Body @{ is_active = $false })
 }
 
 function Invoke-A5 {
   Assert-Write -Fix 'A5' -Id '18' -What 'member without module:reviews:edit approves a review' -Want 'refused' `
-    -Response (Invoke-Rest -Path ("/pending_reviews?id=eq." + (Review '18')) -Token $TOK_MEMBER -Method PATCH `
+    -Response (Invoke-Rest -Path ("/workflow_gate_review?id=eq." + (Review '18')) -Token $TOK_MEMBER -Method PATCH `
                  -Prefer 'return=representation' -Body @{ status = 'approved'; reviewed_by = $MEMBER })
 
   Assert-Write -Fix 'A5' -Id '19' -What 'reviewer approves but records SOMEBODY ELSE as the reviewer' -Want 'refused' `
-    -Response (Invoke-Rest -Path ("/pending_reviews?id=eq." + (Review '19')) -Token $TOK_REVIEWER -Method PATCH `
+    -Response (Invoke-Rest -Path ("/workflow_gate_review?id=eq." + (Review '19')) -Token $TOK_REVIEWER -Method PATCH `
                  -Prefer 'return=representation' -Body @{ status = 'approved'; reviewed_by = $MEMBER })
 
   Assert-Write -Fix 'A5' -Id '20' -What 'reviewer approves and records themselves (regression control)' -Want 'succeeded' `
-    -Response (Invoke-Rest -Path ("/pending_reviews?id=eq." + (Review '20')) -Token $TOK_REVIEWER -Method PATCH `
+    -Response (Invoke-Rest -Path ("/workflow_gate_review?id=eq." + (Review '20')) -Token $TOK_REVIEWER -Method PATCH `
                  -Prefer 'return=representation' -Body @{ status = 'approved'; reviewed_by = $REVIEWER })
 
   Assert-Write -Fix 'A5' -Id '21' -What 'reviewer cancels, leaving reviewed_by NULL - the check admits NULL deliberately' -Want 'succeeded' `
-    -Response (Invoke-Rest -Path ("/pending_reviews?id=eq." + (Review '21')) -Token $TOK_REVIEWER -Method PATCH `
+    -Response (Invoke-Rest -Path ("/workflow_gate_review?id=eq." + (Review '21')) -Token $TOK_REVIEWER -Method PATCH `
                  -Prefer 'return=representation' -Body @{ status = 'cancelled' })
 }
 
 function Invoke-A6 {
   Assert-Rpc -Fix 'A6' -Id '22' -What 'member who is not the named reviewer approves an unassigned gate (the hole)' -Want 'NOT_A_REVIEWER' `
-    -Response (Invoke-Rest -Path '/rpc/complete_gate_review' -Token $TOK_MEMBER -Method POST `
+    -Response (Invoke-Rest -Path '/rpc/gate_review_complete' -Token $TOK_MEMBER -Method POST `
                  -Body @{ p_pending_review_id = (Review '22'); p_decision = 'approved'; p_comment = 'pc' })
 
   Assert-Rpc -Fix 'A6' -Id '23' -What 'the gate''s named reviewer approves it' -Want 'success' `
-    -Response (Invoke-Rest -Path '/rpc/complete_gate_review' -Token $TOK_REVIEWER -Method POST `
+    -Response (Invoke-Rest -Path '/rpc/gate_review_complete' -Token $TOK_REVIEWER -Method POST `
                  -Body @{ p_pending_review_id = (Review '23'); p_decision = 'approved'; p_comment = 'pc' })
 
   Assert-Rpc -Fix 'A6' -Id '24' -What 'an administrator stands in for the reviewer (deliberate override)' -Want 'success' `
-    -Response (Invoke-Rest -Path '/rpc/complete_gate_review' -Token $TOK_ALICE -Method POST `
+    -Response (Invoke-Rest -Path '/rpc/gate_review_complete' -Token $TOK_ALICE -Method POST `
                  -Body @{ p_pending_review_id = (Review '24'); p_decision = 'approved'; p_comment = 'pc' })
 
   Assert-Rpc -Fix 'A6' -Id '25' -What 'gate names NO reviewers: member without module:reviews:edit approves' -Want 'NOT_A_REVIEWER' `
-    -Response (Invoke-Rest -Path '/rpc/complete_gate_review' -Token $TOK_MEMBER -Method POST `
+    -Response (Invoke-Rest -Path '/rpc/gate_review_complete' -Token $TOK_MEMBER -Method POST `
                  -Body @{ p_pending_review_id = (Review '25'); p_decision = 'approved'; p_comment = 'pc' })
 
   Assert-Rpc -Fix 'A6' -Id '26' -What 'gate names NO reviewers: holder of module:reviews:edit approves' -Want 'success' `
-    -Response (Invoke-Rest -Path '/rpc/complete_gate_review' -Token $TOK_REVIEWER -Method POST `
+    -Response (Invoke-Rest -Path '/rpc/gate_review_complete' -Token $TOK_REVIEWER -Method POST `
                  -Body @{ p_pending_review_id = (Review '26'); p_decision = 'approved'; p_comment = 'pc' })
 
   Assert-Rpc -Fix 'A6' -Id '27' -What 'review assigned to somebody else (pre-existing term, must stay)' -Want 'NOT_ASSIGNED' `
-    -Response (Invoke-Rest -Path '/rpc/complete_gate_review' -Token $TOK_MEMBER -Method POST `
+    -Response (Invoke-Rest -Path '/rpc/gate_review_complete' -Token $TOK_MEMBER -Method POST `
                  -Body @{ p_pending_review_id = (Review '27'); p_decision = 'approved'; p_comment = 'pc' })
 
   # A's edge case: reviewer_type 'group' has never been matched by any code in
   # the schema, and what changed in 95 is the direction of the consequence -
   # such a gate used to be approvable by any member and is now admin-only.
   Assert-Rpc -Fix 'A6' -Id '27b' -What "gate whose only reviewer rows are reviewer_type='group': member approves" -Want 'NOT_A_REVIEWER' `
-    -Response (Invoke-Rest -Path '/rpc/complete_gate_review' -Token $TOK_MEMBER -Method POST `
+    -Response (Invoke-Rest -Path '/rpc/gate_review_complete' -Token $TOK_MEMBER -Method POST `
                  -Body @{ p_pending_review_id = (Review '2b'); p_decision = 'approved'; p_comment = 'pc' })
 
   # The equivalence A asked for, and the thing a future edit breaks first: the
   # list a user is offered and the set the database accepts from them are one
   # question. Reviews 22, 25 and 27b were all just refused to member, so none of
   # them may appear in member's own pending list.
-  $r = Invoke-Rest -Path '/rpc/get_my_pending_reviews' -Token $TOK_MEMBER -Method POST -Body @{}
+  $r = Invoke-Rest -Path '/rpc/gate_review_list_mine' -Token $TOK_MEMBER -Method POST -Body @{}
   $body = '' + $r.Body
   $offered = @()
   foreach ($suffix in @('22','25','2b')) {
     if ($body -match [regex]::Escape((Review $suffix))) { $offered += (Review $suffix) }
   }
   Assert-Fact -Fix 'A6' -Id '28eq' `
-    -What 'get_my_pending_reviews offers member nothing complete_gate_review would refuse them' `
+    -What 'gate_review_list_mine offers member nothing gate_review_complete would refuse them' `
     -Want 'agree' -Got $(if ($offered.Count -eq 0) { 'agree' } else { 'disagree' }) `
     -Evidence ("HTTP {0}; offered-but-refused: {1}; body {2}" -f `
                $r.Status, $(if ($offered.Count) { $offered -join ', ' } else { 'none' }), (Trunc $body 200))
@@ -405,43 +405,43 @@ function Invoke-A7 {
 $Fixes = @(
   @{ Id = 'A1a'; What = 'users self-update: WITH CHECK pinning role and org_id'
      Run = ${function:Invoke-A1a}; Revert = '/sql/revert-a1a.sql'
-     Objects = @(@{ Kind = 'policy'; Table = 'users'; Name = 'Users can update their own profile' })
+     Objects = @(@{ Kind = 'policy'; Table = 'app_user'; Name = 'Users can update their own profile' })
      Flips = @('1','2','3')
      NotFlipping = "5 stays refused either way: anon has no auth.uid(), so `id = auth.uid()` matches no row with or without the TO qualifier. It is defence in depth, not a reproduction. 4 is a regression control and must hold in both phases." }
 
   @{ Id = 'A1b'; What = 'users admin-update: the WITH CHECK A says is a no-op'
      Run = ${function:Invoke-A1b}; Revert = '/sql/revert-a1b.sql'
-     Objects = @(@{ Kind = 'policy'; Table = 'users'; Name = 'Admins can update org users' })
+     Objects = @(@{ Kind = 'policy'; Table = 'app_user'; Name = 'Admins can update org users' })
      Flips = @()
      NotFlipping = "Nothing is expected to flip, and that is the finding rather than a gap. A states the added WITH CHECK restates the USING expression exactly and is semantically a no-op. Running the revert phase with an empty Flips list is how that claim gets executed instead of believed: if anything DID flip, A's reasoning would be wrong." }
 
   @{ Id = 'A3'; What = 'share-link INSERT: file must be in the caller''s org, created_by must be the caller'
      Run = ${function:Invoke-A3}; Revert = '/sql/revert-a3.sql'
-     Objects = @(@{ Kind = 'policy'; Table = 'file_share_links'; Name = 'Engineers can create share links' })
+     Objects = @(@{ Kind = 'policy'; Table = 'file_share_link'; Name = 'Engineers can create share links' })
      Flips = @('9','10')
      NotFlipping = "11 is refused by the module:explorer:create term, which predates schema 95 and is unchanged. 12 is the regression control." }
 
   @{ Id = 'A4'; What = 'share-link UPDATE: revocation is the only update admitted'
      Run = ${function:Invoke-A4}; Revert = '/sql/revert-a4.sql'
-     Objects = @(@{ Kind = 'policy'; Table = 'file_share_links'; Name = 'Users can update own share links' })
+     Objects = @(@{ Kind = 'policy'; Table = 'file_share_link'; Name = 'Users can update own share links' })
      Flips = @('13','14')
      NotFlipping = "15 is A's own caveat: rewriting org_id was 'not reachable in practice, but only because PostgREST could not read the row back - the SELECT policy, not this one'. Whether it flips is therefore a fact about the SELECT policy, and pinning it here would attribute the refusal to the wrong clause. 17 is refused by created_by in USING, unchanged. 16 is the regression control." }
 
-  @{ Id = 'A5'; What = 'pending_reviews UPDATE: needs module:reviews:edit, reviewed_by must be the caller'
+  @{ Id = 'A5'; What = 'workflow_gate_review UPDATE: needs module:reviews:edit, reviewed_by must be the caller'
      Run = ${function:Invoke-A5}; Revert = '/sql/revert-a5.sql'
-     Objects = @(@{ Kind = 'policy'; Table = 'pending_reviews'; Name = 'Users can update pending reviews' })
+     Objects = @(@{ Kind = 'policy'; Table = 'workflow_gate_review'; Name = 'Users can update pending reviews' })
      Flips = @('18','19')
      NotFlipping = "20 and 21 are regression controls and must hold in both phases." }
 
-  @{ Id = 'A6'; What = 'complete_gate_review: an unassigned gate is decided by its reviewers'
+  @{ Id = 'A6'; What = 'gate_review_complete: an unassigned gate is decided by its reviewers'
      Run = ${function:Invoke-A6}; Revert = '/sql/revert-a6.sql'
-     Objects = @(@{ Kind = 'function'; Name = 'may_review_gate(uuid,uuid)' })
+     Objects = @(@{ Kind = 'function'; Name = 'can_review_gate(uuid,uuid)' })
      Flips = @('22','25','27b')
-     NotFlipping = "27 exercises the assigned branch, which schema 95 did not touch. 23, 24 and 26 are positive controls. 28eq compares two functions that both call may_review_gate, so the mutant moves both together and the equivalence is preserved by construction - it is an assertion about the fixed release, not a reproduction." }
+     NotFlipping = "27 exercises the assigned branch, which schema 95 did not touch. 23, 24 and 26 are positive controls. 28eq compares two functions that both call can_review_gate, so the mutant moves both together and the equivalence is preserved by construction - it is an assertion about the fixed release, not a reproduction." }
 
   @{ Id = 'A7'; What = 'files UPDATE: trashing needs module:explorer:delete, not edit'
      Run = ${function:Invoke-A7}; Revert = '/sql/revert-a7.sql'
-     Objects = @(@{ Kind = 'policy'; Table = 'files'; Name = 'Engineers can update files' })
+     Objects = @(@{ Kind = 'policy'; Table = 'file'; Name = 'Engineers can update file' })
      Flips = @('28')
      NotFlipping = "29, 30 and 31 are the three regression controls: delete still works for a holder of delete, the common rename path is untouched, and restoring from the trash still needs only edit." }
 )
@@ -722,15 +722,15 @@ if ($stamped -ne $release) {
   $script:Failures += 'left the database unverifiable'
 }
 
-# may_review_gate() is REVOKEd from PUBLIC, anon and authenticated by the
+# can_review_gate() is REVOKEd from PUBLIC, anon and authenticated by the
 # module, and A6's revert replaces its body. CREATE OR REPLACE preserves an
 # existing function's ACL, so the revoke should have survived - asked rather
 # than assumed, because a control that quietly grants anon EXECUTE on an
 # authorization helper would be worse than the defect it was testing.
-$reachable = Get-Scalar "SELECT has_function_privilege('authenticated', 'may_review_gate(uuid,uuid)', 'EXECUTE')"
+$reachable = Get-Scalar "SELECT has_function_privilege('authenticated', 'can_review_gate(uuid,uuid)', 'EXECUTE')"
 if ($reachable -ne 'f') {
-  Write-Host ("`nFAIL: may_review_gate is executable by authenticated after this run (has_function_privilege said '{0}'). The A6 revert changed its grants." -f $reachable) -ForegroundColor Red
-  $script:Failures += 'A6 revert left may_review_gate reachable'
+  Write-Host ("`nFAIL: can_review_gate is executable by authenticated after this run (has_function_privilege said '{0}'). The A6 revert changed its grants." -f $reachable) -ForegroundColor Red
+  $script:Failures += 'A6 revert left can_review_gate reachable'
 }
 
 if ($script:Ran -eq 0) {

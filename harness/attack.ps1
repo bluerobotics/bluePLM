@@ -1,7 +1,7 @@
 # Executed attacks, over real HTTP against real PostgREST, with real HS256 JWTs.
 #
-# F2  parts_with_pricing, read with no JWT and read across tenants
-# F3  share links: cross-tenant minting, and what require_auth actually means
+# F2  part_with_pricing, read with no JWT and read across tenants
+# F3  share links: cross-tenant minting, and what is_auth_required actually means
 # F4  the NULL-unsafe membership gates, from an account with no organization
 # F5  organization slug enumeration by response shape
 # F6  a workflow transition belonging to another tenant, applied to your file
@@ -67,8 +67,8 @@ $script:Results = @()
 # WHY THE BASELINE LENIENCY IS NEEDED, AND WHY IT IS SAFE
 #
 # The lane was built with a v90 baseline, where every object this suite touches
-# already exists. The owner's database is on 85, and execute_workflow_transition
-# and the five-argument apply_workflow_transition arrive in 86 - so against a
+# already exists. The owner's database is on 85, and workflow_transition_execute
+# and the five-argument workflow_transition_apply arrive in 86 - so against a
 # baseline older than that, three cases and one positive control ask for
 # functions that are simply not there. Scored as written, C8 reads BROKEN and
 # the run aborts with "the application is damaged", which is the one thing that
@@ -79,7 +79,7 @@ $script:Results = @()
 # The leniency was confined to the baseline run correctly. What was not written
 # down anywhere is what should happen on the *other* side, and the answer the
 # code gave was 'refused ' - the same verdict, and the same green, as an attack
-# the fix had genuinely turned away. get_item_designations was dropped while the
+# the fix had genuinely turned away. item_designation_list was dropped while the
 # renderer still called it (src/lib/supabase/itemDesignations.ts:31); F4e asked
 # for it, got PGRST202, and was scored as an attack that had been repelled. The
 # suite passed and the schema was stamped over an application that could not
@@ -104,13 +104,13 @@ function Report {
     # The 'missing' rule above says a PGRST202 after the fix is a dropped
     # function the application still calls, and that is right for every case
     # that asks for an entry point. It is exactly wrong for one that asks for an
-    # internal helper: may_review_gate() is REVOKEd from PUBLIC, anon and
+    # internal helper: can_review_gate() is REVOKEd from PUBLIC, anon and
     # authenticated on purpose, so PostgREST failing to offer it is the correct
     # answer and scoring it BROKEN would make the release unshippable for having
     # done the right thing.
     #
     # It suppresses 'missing' ONLY. On the baseline half a PGRST202 still means
-    # 'absent', because may_review_gate() arrives in 95 and a baseline older than
+    # 'absent', because can_review_gate() arrives in 95 and a baseline older than
     # that has nothing to revoke: the case is satisfied by the function not
     # existing yet, which is not evidence that the grant is correct. The first
     # version of this switch returned 'none' for both halves and the upgrade lane
@@ -177,9 +177,9 @@ if ($ping.Status -ne 200) {
   exit 2
 }
 # And that it is pointed at a database with the seed in it.
-$seedCheck = Invoke-Rest -Path '/rpc/get_org_auth_providers' -Token $TOK_ANON -Method POST -Body @{ p_org_slug = 'acme' }
+$seedCheck = Invoke-Rest -Path '/rpc/org_get_auth_providers' -Token $TOK_ANON -Method POST -Body @{ p_org_slug = 'acme' }
 if ($seedCheck.Status -ne 200) {
-  Write-Host "ABORT: the seed is missing (get_org_auth_providers returned $($seedCheck.Status)). Run sql/seed.sql first." -ForegroundColor Red
+  Write-Host "ABORT: the seed is missing (org_get_auth_providers returned $($seedCheck.Status)). Run sql/seed.sql first." -ForegroundColor Red
   exit 2
 }
 Write-Host "PostgREST is answering and the seed is present." -ForegroundColor Green
@@ -187,23 +187,23 @@ Write-Host "PostgREST is answering and the seed is present." -ForegroundColor Gr
 Write-Host "`n=== ATTACKS (expecting: $Expect) ===`n" -ForegroundColor Yellow
 
 # --------------------------------------------------------------- finding 2 ---
-# parts_with_pricing read with no authentication at all.
-$r = Invoke-Rest -Path '/parts_with_pricing?select=part_number,description,preferred_supplier,file_path' -Token $TOK_ANON
+# part_with_pricing read with no authentication at all.
+$r = Invoke-Rest -Path '/part_with_pricing?select=part_number,description,preferred_supplier,file_path' -Token $TOK_ANON
 $leaked = ($r.Status -eq 200 -and $r.Body -match 'ACME-SECRET-0001')
-Report -Id 'F2a' -What 'anon reads parts_with_pricing (another tenant''s parts and prices)' `
+Report -Id 'F2a' -What 'anon reads part_with_pricing (another tenant''s parts and prices)' `
        -Breached $leaked -Evidence ("HTTP {0}: {1}" -f $r.Status, (Trunc $r.Body))
 
 # Same view as a *member of the other org*: even authenticated, the view has no
 # RLS of its own and is not security_invoker, so Umbrella sees Acme.
-$r = Invoke-Rest -Path '/parts_with_pricing?select=part_number,description' -Token $TOK_BOB
+$r = Invoke-Rest -Path '/part_with_pricing?select=part_number,description' -Token $TOK_BOB
 $leaked2 = ($r.Status -eq 200 -and $r.Body -match 'ACME-SECRET-0001')
-Report -Id 'F2b' -What 'Umbrella member reads Acme parts through parts_with_pricing' `
+Report -Id 'F2b' -What 'Umbrella member reads Acme parts through part_with_pricing' `
        -Breached $leaked2 -Evidence ("HTTP {0}: {1}" -f $r.Status, (Trunc $r.Body))
 
 # --------------------------------------------------------------- finding 3 ---
 # Bob is a real member of Umbrella. He passes his own org id (so
-# require_org_member is satisfied) and Acme's file id (which nothing checks).
-$r = Invoke-Rest -Path '/rpc/create_file_share_link' -Token $TOK_BOB -Method POST -Body @{
+# org_require_member is satisfied) and Acme's file id (which nothing checks).
+$r = Invoke-Rest -Path '/rpc/file_share_link_create' -Token $TOK_BOB -Method POST -Body @{
   p_org_id = $UMBRELLA_ORG; p_file_id = $ACME_FILE; p_created_by = $BOB
   p_expires_in_days = 7; p_max_downloads = 10; p_require_auth = $true
 }
@@ -213,7 +213,7 @@ if ($minted) { $token = ($r.Body | ConvertFrom-Json)[0].token }
 Report -Id 'F3a' -What 'Umbrella member mints a share link for an Acme file' `
        -Breached $minted -Evidence ("HTTP {0}: {1}" -f $r.Status, (Trunc $r.Body))
 
-# F3b, F3c, F3d and F3e are about the require_auth flag, and they used to hang
+# F3b, F3c, F3d and F3e are about the is_auth_required flag, and they used to hang
 # off the token minted by F3a - so the moment F3a was fixed and minted nothing,
 # all of them reported 'refused' with the evidence "no token was minted". Three
 # of the four findings this release is about shipped with no executed coverage
@@ -221,7 +221,7 @@ Report -Id 'F3a' -What 'Umbrella member mints a share link for an Acme file' `
 #
 # They now mint their own links, legitimately, as Alice on Alice's own file.
 # That works in every state of the code, so a refusal below is always a
-# statement about require_auth and never about the mint.
+# statement about is_auth_required and never about the mint.
 $script:LastMint = ''
 function New-AliceLink {
   param([bool]$RequireAuth, [int]$MaxDownloads = 10)
@@ -232,7 +232,7 @@ function New-AliceLink {
   # result is the mistake $script:Transport exists to prevent everywhere else in
   # this file; the same rule applies to the setup.
   for ($try = 1; $try -le 3; $try++) {
-    $r = Invoke-Rest -Path '/rpc/create_file_share_link' -Token $TOK_ALICE -Method POST -Body @{
+    $r = Invoke-Rest -Path '/rpc/file_share_link_create' -Token $TOK_ALICE -Method POST -Body @{
       p_org_id = $ACME_ORG; p_file_id = $ACME_FILE; p_created_by = $ALICE
       p_expires_in_days = 7; p_max_downloads = $MaxDownloads; p_require_auth = $RequireAuth
     }
@@ -252,85 +252,85 @@ $protectedToken = New-AliceLink -RequireAuth $true
 $openToken      = New-AliceLink -RequireAuth $false -MaxDownloads 10
 
 if (-not $protectedToken -or -not $openToken) {
-  Write-Host "ABORT: Alice could not mint her own share links, so the require_auth attacks below would be measuring the wrong thing." -ForegroundColor Red
+  Write-Host "ABORT: Alice could not mint her own share links, so the is_auth_required attacks below would be measuring the wrong thing." -ForegroundColor Red
   Write-Host ("       last response was {0}" -f $script:LastMint) -ForegroundColor Red
   exit 2
 }
 
-# require_auth = true, called with no credentials at all.
-$r = Invoke-Rest -Path '/rpc/validate_share_link' -Token $TOK_ANON -Method POST -Body @{ p_token = $protectedToken }
-Report -Id 'F3b' -What 'anon redeems a require_auth=true link' `
+# is_auth_required = true, called with no credentials at all.
+$r = Invoke-Rest -Path '/rpc/file_share_link_validate' -Token $TOK_ANON -Method POST -Body @{ p_token = $protectedToken }
+Report -Id 'F3b' -What 'anon redeems a is_auth_required=true link' `
        -Breached ($r.Status -eq 200 -and $r.Body -match '"is_valid"\s*:\s*true') `
        -Evidence ("HTTP {0}: {1}" -f $r.Status, (Trunc $r.Body))
 
 # The allowance is spent by validating, not by downloading.
 $spent = 0
 for ($i = 0; $i -lt 12; $i++) {
-  $rr = Invoke-Rest -Path '/rpc/validate_share_link' -Token $TOK_ANON -Method POST -Body @{ p_token = $openToken }
+  $rr = Invoke-Rest -Path '/rpc/file_share_link_validate' -Token $TOK_ANON -Method POST -Body @{ p_token = $openToken }
   if ($rr.Body -match 'Download limit reached') { $spent = $i + 1; break }
 }
 Report -Id 'F3c' -What 'anon exhausts a 10-download allowance without downloading anything' `
        -Breached ($spent -gt 0) -Evidence ("limit hit after {0} validate calls" -f $spent)
 
-# require_auth = true, called by a signed-in member of a DIFFERENT tenant.
+# is_auth_required = true, called by a signed-in member of a DIFFERENT tenant.
 #
 # This is what "any Supabase account" bought an attacker: signing up is free, so
 # a flag that only asks whether you are signed in restricts nothing. Bob gets
 # the file id and the owning organization id of an Acme file he has no
 # relationship to.
-$r = Invoke-Rest -Path '/rpc/validate_share_link' -Token $TOK_BOB -Method POST -Body @{ p_token = $protectedToken }
-Report -Id 'F3d' -What 'Umbrella member redeems Acme''s require_auth=true link' `
+$r = Invoke-Rest -Path '/rpc/file_share_link_validate' -Token $TOK_BOB -Method POST -Body @{ p_token = $protectedToken }
+Report -Id 'F3d' -What 'Umbrella member redeems Acme''s is_auth_required=true link' `
        -Breached ($r.Status -eq 200 -and $r.Body -match '"is_valid"\s*:\s*true') `
        -Evidence ("HTTP {0}: {1}" -f $r.Status, (Trunc $r.Body))
 
 # And by an account that belongs to no organization at all, which is what any
 # attacker has thirty seconds after deciding to become one.
-$r = Invoke-Rest -Path '/rpc/validate_share_link' -Token $TOK_MALLORY -Method POST -Body @{ p_token = $protectedToken }
-Report -Id 'F3e' -What 'org-less account redeems Acme''s require_auth=true link' `
+$r = Invoke-Rest -Path '/rpc/file_share_link_validate' -Token $TOK_MALLORY -Method POST -Body @{ p_token = $protectedToken }
+Report -Id 'F3e' -What 'org-less account redeems Acme''s is_auth_required=true link' `
        -Breached ($r.Status -eq 200 -and $r.Body -match '"is_valid"\s*:\s*true') `
        -Evidence ("HTTP {0}: {1}" -f $r.Status, (Trunc $r.Body))
 
 # --------------------------------------------------------------- finding 4 ---
 # Mallory has users.org_id IS NULL. `p_org_id NOT IN (SELECT org_id ...)`
 # evaluates to NULL, the IF is not taken, and the body runs against Acme.
-$r = Invoke-Rest -Path "/rpc/get_org_odoo_configs" -Token $TOK_MALLORY -Method POST -Body @{ p_org_id = $ACME_ORG }
+$r = Invoke-Rest -Path "/rpc/odoo_saved_config_list" -Token $TOK_MALLORY -Method POST -Body @{ p_org_id = $ACME_ORG }
 $f4a = ($r.Status -eq 200 -and $r.Body -match 'acme-secret')
 Report -Id 'F4a' -What 'org-less account reads Acme''s Odoo configuration' `
        -Breached $f4a -Evidence ("HTTP {0}: {1}" -f $r.Status, (Trunc $r.Body))
 
-$r = Invoke-Rest -Path "/rpc/get_org_integration_status" -Token $TOK_MALLORY -Method POST -Body @{
+$r = Invoke-Rest -Path "/rpc/org_integration_get_status" -Token $TOK_MALLORY -Method POST -Body @{
   p_org_id = $ACME_ORG; p_integration_type = 'odoo' }
 $f4a2 = ($r.Status -eq 200 -and $r.Body -match '"integration_type"\s*:\s*"odoo"')
 Report -Id 'F4a2' -What 'org-less account reads Acme''s integration status' `
        -Breached $f4a2 -Evidence ("HTTP {0}: {1}" -f $r.Status, (Trunc $r.Body))
 
-$r = Invoke-Rest -Path "/rpc/get_item_designation_assignments" -Token $TOK_MALLORY -Method POST -Body @{
+$r = Invoke-Rest -Path "/rpc/item_designation_assignment_list" -Token $TOK_MALLORY -Method POST -Body @{
   p_org_id = $ACME_ORG; p_vault_id = $ACME_VAULT }
 $f4b = ($r.Status -eq 200 -and $r.Body -match 'ACME-SECRET-0001')
 Report -Id 'F4b' -What 'org-less account reads Acme''s item-designation assignments' `
        -Breached $f4b -Evidence ("HTTP {0}: {1}" -f $r.Status, (Trunc $r.Body))
 
-$r = Invoke-Rest -Path "/rpc/upsert_item_image" -Token $TOK_MALLORY -Method POST -Body @{
+$r = Invoke-Rest -Path "/rpc/item_image_upsert" -Token $TOK_MALLORY -Method POST -Body @{
   p_org_id = $ACME_ORG; p_part_number = 'ACME-SECRET-0001'
   p_image_type = 'icon'; p_icon_name = 'skull'; p_icon_color = '#000000' }
 $f4c = ($r.Status -eq 200 -and $r.Body -match 'skull')
-Report -Id 'F4c' -What 'org-less account OVERWRITES a row in Acme''s item_images' `
+Report -Id 'F4c' -What 'org-less account OVERWRITES a row in Acme''s item_image' `
        -Breached $f4c -Evidence ("HTTP {0}: {1}" -f $r.Status, (Trunc $r.Body))
 
-$r = Invoke-Rest -Path "/rpc/reset_item_image" -Token $TOK_MALLORY -Method POST -Body @{
+$r = Invoke-Rest -Path "/rpc/item_image_reset" -Token $TOK_MALLORY -Method POST -Body @{
   p_org_id = $ACME_ORG; p_part_number = 'ACME-SECRET-0001' }
 $f4d = ($r.Status -eq 200 -and $r.Body -match 'true')
-Report -Id 'F4d' -What 'org-less account DELETES a row from Acme''s item_images' `
+Report -Id 'F4d' -What 'org-less account DELETES a row from Acme''s item_image' `
        -Breached $f4d -Evidence ("HTTP {0}: {1}" -f $r.Status, (Trunc $r.Body))
 
-$r = Invoke-Rest -Path "/rpc/get_item_designations" -Token $TOK_MALLORY -Method POST -Body @{ p_org_id = $ACME_ORG }
+$r = Invoke-Rest -Path "/rpc/item_designation_list" -Token $TOK_MALLORY -Method POST -Body @{ p_org_id = $ACME_ORG }
 $f4e = ($r.Status -eq 200 -and $r.Body -match 'ITAR')
 Report -Id 'F4e' -What 'org-less account reads Acme''s item designations' `
        -Breached $f4e -Evidence ("HTTP {0}: {1}" -f $r.Status, (Trunc $r.Body))
 
 # The four "saved by a conjoined admin check" cases. These should refuse both
 # before and after; they are here so the fix can be shown not to regress them.
-$r = Invoke-Rest -Path "/rpc/upsert_item_designation" -Token $TOK_MALLORY -Method POST -Body @{
+$r = Invoke-Rest -Path "/rpc/item_designation_upsert" -Token $TOK_MALLORY -Method POST -Body @{
   p_org_id = $ACME_ORG; p_name = 'PWNED' }
 $f4f = ($r.Status -eq 200)
 Report -Id 'F4f' -What 'org-less account writes an Acme item designation (admin check should stop this)' `
@@ -348,8 +348,8 @@ Report -Id 'F4f' -What 'org-less account writes an Acme item designation (admin 
 #
 # Comparing a *configured* org against a miss would not be a fair test - those
 # have to differ, because the sign-in screen exists to show different buttons.
-$rGhost = Invoke-Rest -Path '/rpc/get_org_auth_providers' -Token $TOK_ANON -Method POST -Body @{ p_org_slug = 'ghost' }
-$rFake  = Invoke-Rest -Path '/rpc/get_org_auth_providers' -Token $TOK_ANON -Method POST -Body @{ p_org_slug = 'no-such-org-xyz' }
+$rGhost = Invoke-Rest -Path '/rpc/org_get_auth_providers' -Token $TOK_ANON -Method POST -Body @{ p_org_slug = 'ghost' }
+$rFake  = Invoke-Rest -Path '/rpc/org_get_auth_providers' -Token $TOK_ANON -Method POST -Body @{ p_org_slug = 'no-such-org-xyz' }
 $enumerable = ($rGhost.Body -ne $rFake.Body)
 Report -Id 'F5a' -What 'org slug enumeration: an existing org is distinguishable from a miss carrying the same answer' `
        -Breached $enumerable -Evidence ("hit ={0}`n         miss={1}" -f (Trunc $rGhost.Body 150), (Trunc $rFake.Body 150))
@@ -359,22 +359,22 @@ Report -Id 'F5a' -What 'org slug enumeration: an existing org is distinguishable
 # predecessor said it had closed, in a function that release listed.
 #
 # Alice is a genuine Acme member acting on her own file, so
-# require_file_access(p_file_id) is satisfied and always was. The second
+# file_require_access(p_file_id) is satisfied and always was. The second
 # argument is Umbrella's transition, and nothing asked which organization it
 # belonged to.
-$r = Invoke-Rest -Path '/rpc/apply_workflow_transition' -Token $TOK_ALICE -Method POST -Body @{
-  p_file_id = $ACME_FILE2; p_transition_id = $UMB_TRANSITION; p_user_id = $ALICE
+$r = Invoke-Rest -Path '/rpc/workflow_transition_apply' -Token $TOK_ALICE -Method POST -Body @{
+  p_file_id = $ACME_FILE2; p_transition_id = $UMB_TRANSITION
   p_comment = 'crossing tenants'; p_approvals = @{}
 }
 $f6a = ($r.Status -eq 200 -and $r.Body -match '"success"\s*:\s*true')
 # Whether the write below has anything to disclose depends entirely on this
-# call having happened. The five-argument apply_workflow_transition arrives in
+# call having happened. The workflow_transition_apply under attack arrives in
 # schema 86, so on an older baseline it does not.
 $f6aAbsent = ($r.Body -match 'PGRST202')
 Report -Id 'F6a' -What 'Acme member applies UMBRELLA''s transition to her own file' `
        -Breached $f6a -Evidence ("HTTP {0}: {1}" -f $r.Status, (Trunc $r.Body))
 
-# The write is only half of it. apply_workflow_transition copies the workflow,
+# The write is only half of it. workflow_transition_apply copies the workflow,
 # state and transition NAMES into workflow_history, and that row belongs to
 # Alice's organization - so Umbrella's private naming becomes readable by Acme
 # through Acme's own RLS-approved history. This reads it back over HTTP as
@@ -390,9 +390,9 @@ Report -Id 'F6b' -What 'Acme member reads Umbrella''s workflow/state/transition 
 # Two functions that must agree about admission, and did not.
 #
 # The seed carries a soft-deleted Acme file and a share link minted for it while
-# it was still there, with require_auth = false. validate_share_link tests
-# `deleted_at IS NULL` on its own path and refuses. consume_share_link tested it
-# only inside its require_auth branch - which this link does not enter - so it
+# it was still there, with is_auth_required = false. file_share_link_validate tests
+# `deleted_at IS NULL` on its own path and refuses. file_share_link_consume tested it
+# only inside its is_auth_required branch - which this link does not enter - so it
 # admitted the caller validation had just turned away and spent a download on a
 # file whose owner had already withdrawn it.
 #
@@ -401,24 +401,24 @@ Report -Id 'F6b' -What 'Acme member reads Umbrella''s workflow/state/transition 
 # is on the anon allowlist.
 $deletedFileToken = 'harness0000deleted0000file0000li'
 
-$rValidate = Invoke-Rest -Path '/rpc/validate_share_link' -Token $TOK_ANON -Method POST -Body @{ p_token = $deletedFileToken }
+$rValidate = Invoke-Rest -Path '/rpc/file_share_link_validate' -Token $TOK_ANON -Method POST -Body @{ p_token = $deletedFileToken }
 $validateRefuses = ($rValidate.Body -match '"is_valid"\s*:\s*false')
 
-$rConsume = Invoke-Rest -Path '/rpc/consume_share_link' -Token $TOK_ANON -Method POST -Body @{ p_token = $deletedFileToken }
+$rConsume = Invoke-Rest -Path '/rpc/file_share_link_consume' -Token $TOK_ANON -Method POST -Body @{ p_token = $deletedFileToken }
 $consumeAdmits = ($rConsume.Status -eq 200 -and $rConsume.Body -match '^\s*true\s*$')
 
 # Breached when they disagree in the dangerous direction: validation says no and
 # the download happens anyway. Written as a disagreement rather than as
 # "consume returned true" so that the test keeps its meaning if the admission
 # rules change - what is being asserted is that one answer governs both.
-Report -Id 'F7a' -What 'consume_share_link spends a download on a soft-deleted file validate_share_link refuses' `
+Report -Id 'F7a' -What 'file_share_link_consume spends a download on a soft-deleted file file_share_link_validate refuses' `
        -Breached ($validateRefuses -and $consumeAdmits) `
        -Evidence ("validate: {0} | consume: HTTP {1} {2}" -f (Trunc $rValidate.Body 120), $rConsume.Status, (Trunc $rConsume.Body 40))
 
 # --------------------------------------------------------------- schema 95 ---
-# may_review_gate() decides who may approve a workflow gate. It is new in schema
-# 95, it is SECURITY DEFINER, and it is reached only from complete_gate_review()
-# and get_my_pending_reviews(), which run as the owner and need no grant - so
+# can_review_gate() decides who may approve a workflow gate. It is new in schema
+# 95, it is SECURITY DEFINER, and it is reached only from gate_review_complete()
+# and gate_review_list_mine(), which run as the owner and need no grant - so
 # the module revokes it from PUBLIC, anon and authenticated.
 #
 # The revoke is the interesting part. Supabase's bootstrap issues
@@ -432,12 +432,12 @@ Report -Id 'F7a' -What 'consume_share_link spends a download on a soft-deleted f
 # Both a 403 and a PGRST202 are correct here, which is why this case is marked
 # -Unreachable: an internal helper PostgREST cannot offer is the goal, not a
 # dropped entry point.
-$r = Invoke-Rest -Path '/rpc/may_review_gate' -Token $TOK_ALICE -Method POST -Body @{
+$r = Invoke-Rest -Path '/rpc/can_review_gate' -Token $TOK_ALICE -Method POST -Body @{
   p_gate_id = '00000000-0000-4000-8000-000000000000'; p_user_id = $ALICE }
 Report -Id 'F8a' -What 'signed-in member calls the gate-review authorization helper directly' -Unreachable `
        -Breached ($r.Status -eq 200) -Evidence ("HTTP {0}: {1}" -f $r.Status, (Trunc $r.Body))
 
-$r = Invoke-Rest -Path '/rpc/may_review_gate' -Token $TOK_ANON -Method POST -Body @{
+$r = Invoke-Rest -Path '/rpc/can_review_gate' -Token $TOK_ANON -Method POST -Body @{
   p_gate_id = '00000000-0000-4000-8000-000000000000'; p_user_id = $ALICE }
 Report -Id 'F8b' -What '...and anon does the same' -Unreachable `
        -Breached ($r.Status -eq 200) -Evidence ("HTTP {0}: {1}" -f $r.Status, (Trunc $r.Body))
@@ -478,8 +478,8 @@ function Control {
 # Alice must still see her OWN organisation's parts through the view. This is
 # the control on security_invoker: it proves the view was made tenant-scoped
 # rather than simply broken.
-$r = Invoke-Rest -Path '/parts_with_pricing?select=part_number,preferred_supplier' -Token $TOK_ALICE
-Control -Id 'C1' -What 'Acme member still reads Acme parts through parts_with_pricing' `
+$r = Invoke-Rest -Path '/part_with_pricing?select=part_number,preferred_supplier' -Token $TOK_ALICE
+Control -Id 'C1' -What 'Acme member still reads Acme parts through part_with_pricing' `
         -Ok ($r.Status -eq 200 -and $r.Body -match 'ACME-SECRET-0001') `
         -Evidence ("HTTP {0}: {1}" -f $r.Status, (Trunc $r.Body 200))
 Control -Id 'C1b' -What '...and sees no other tenant in it' -FixedOnly `
@@ -487,7 +487,7 @@ Control -Id 'C1b' -What '...and sees no other tenant in it' -FixedOnly `
         -Evidence ("UMB-0001 present: {0}" -f [bool]($r.Body -match 'UMB-0001'))
 
 # Alice must still be able to share her own file.
-$r = Invoke-Rest -Path '/rpc/create_file_share_link' -Token $TOK_ALICE -Method POST -Body @{
+$r = Invoke-Rest -Path '/rpc/file_share_link_create' -Token $TOK_ALICE -Method POST -Body @{
   p_org_id = $ACME_ORG; p_file_id = $ACME_FILE; p_created_by = $ALICE
   p_expires_in_days = 7; p_max_downloads = 3; p_require_auth = $false
 }
@@ -501,13 +501,13 @@ Control -Id 'C2' -What 'Acme member still mints a share link for their OWN file'
 # the allowance draining - that is the point of splitting off consume.
 $c3 = $false; $c4 = $false
 if ($goodToken) {
-  $r = Invoke-Rest -Path '/rpc/validate_share_link' -Token $TOK_ANON -Method POST -Body @{ p_token = $goodToken }
+  $r = Invoke-Rest -Path '/rpc/file_share_link_validate' -Token $TOK_ANON -Method POST -Body @{ p_token = $goodToken }
   $c3 = ($r.Status -eq 200 -and $r.Body -match '"is_valid"\s*:\s*true')
   Control -Id 'C3' -What 'anon recipient still validates a legitimate share link' `
           -Ok $c3 -Evidence ("HTTP {0}: {1}" -f $r.Status, (Trunc $r.Body 200))
 
   for ($i = 0; $i -lt 6; $i++) {
-    $rr = Invoke-Rest -Path '/rpc/validate_share_link' -Token $TOK_ANON -Method POST -Body @{ p_token = $goodToken }
+    $rr = Invoke-Rest -Path '/rpc/file_share_link_validate' -Token $TOK_ANON -Method POST -Body @{ p_token = $goodToken }
   }
   $c4 = ($rr.Status -eq 200 -and $rr.Body -match '"is_valid"\s*:\s*true')
   Control -Id 'C4' -What '6 more validations do NOT exhaust a 3-download allowance' -FixedOnly `
@@ -518,27 +518,27 @@ if ($goodToken) {
 }
 
 # The login screen.
-$r = Invoke-Rest -Path '/rpc/get_org_auth_providers' -Token $TOK_ANON -Method POST -Body @{ p_org_slug = 'acme' }
+$r = Invoke-Rest -Path '/rpc/org_get_auth_providers' -Token $TOK_ANON -Method POST -Body @{ p_org_slug = 'acme' }
 $c5 = ($r.Status -eq 200)
 Control -Id 'C5' -What 'sign-in screen still reads auth providers with the anon key' `
         -Ok $c5 -Evidence ("HTTP {0}: {1}" -f $r.Status, (Trunc $r.Body 160))
 
 # Alice must still reach her own org's integration + designation data.
-$r = Invoke-Rest -Path '/rpc/get_org_odoo_configs' -Token $TOK_ALICE -Method POST -Body @{ p_org_id = $ACME_ORG }
+$r = Invoke-Rest -Path '/rpc/odoo_saved_config_list' -Token $TOK_ALICE -Method POST -Body @{ p_org_id = $ACME_ORG }
 $c6 = ($r.Status -eq 200 -and $r.Body -match 'acme-secret')
 Control -Id 'C6' -What 'Acme member still reads their OWN Odoo configuration' `
         -Ok $c6 -Evidence ("HTTP {0}: {1}" -f $r.Status, (Trunc $r.Body 160))
 
-$r = Invoke-Rest -Path '/rpc/upsert_item_image' -Token $TOK_ALICE -Method POST -Body @{
+$r = Invoke-Rest -Path '/rpc/item_image_upsert' -Token $TOK_ALICE -Method POST -Body @{
   p_org_id = $ACME_ORG; p_part_number = 'ACME-SECRET-0001'
   p_image_type = 'icon'; p_icon_name = 'rocket'; p_icon_color = '#00ff00' }
 $c7 = ($r.Status -eq 200 -and $r.Body -match 'rocket')
-Control -Id 'C7' -What 'Acme member still writes their OWN item_images row' `
+Control -Id 'C7' -What 'Acme member still writes their OWN item_image row' `
         -Ok $c7 -Evidence ("HTTP {0}: {1}" -f $r.Status, (Trunc $r.Body 160))
 
 # The named counterpart to F4e, and the reason it exists is finding E8.
 #
-# F4e attacks get_item_designations as an org-less account. When the function
+# F4e attacks item_designation_list as an org-less account. When the function
 # was dropped, F4e got PGRST202 and was scored 'refused' - so the suite reported
 # the attack repelled by the absence of a function the renderer calls on every
 # load of the item-designations screen. An attack case can only ever say who is
@@ -546,7 +546,7 @@ Control -Id 'C7' -What 'Acme member still writes their OWN item_images row' `
 #
 # Not -FixedOnly: Alice reading her own organization's designations works in
 # both states and must, or the fix has removed a feature rather than a hole.
-$r = Invoke-Rest -Path '/rpc/get_item_designations' -Token $TOK_ALICE -Method POST -Body @{ p_org_id = $ACME_ORG }
+$r = Invoke-Rest -Path '/rpc/item_designation_list' -Token $TOK_ALICE -Method POST -Body @{ p_org_id = $ACME_ORG }
 Control -Id 'C12' -What 'Acme member still reads their OWN item designations' `
         -Ok ($r.Status -eq 200 -and $r.Body -match 'ITAR') `
         -Evidence ("HTTP {0}: {1}" -f $r.Status, (Trunc $r.Body 160))
@@ -554,16 +554,16 @@ Control -Id 'C12' -What 'Acme member still reads their OWN item designations' `
 # The workflow control for finding 6. Binding the transition to the file's
 # organization has to leave the legitimate move working, or "the attack was
 # refused" is indistinguishable from "the function refuses everything".
-# execute_workflow_transition is the granted entry point - the one the renderer
-# actually calls - and apply_workflow_transition is its internal tail.
+# workflow_transition_execute is the granted entry point - the one the renderer
+# actually calls - and workflow_transition_apply is its internal tail.
 # Whichever of the two directions the file is currently in. The pair exists so
 # that running this script twice against one database still exercises a real
 # transition instead of reporting WRONG_STATE as a broken control.
-$r = Invoke-Rest -Path '/rpc/execute_workflow_transition' -Token $TOK_ALICE -Method POST -Body @{
+$r = Invoke-Rest -Path '/rpc/workflow_transition_execute' -Token $TOK_ALICE -Method POST -Body @{
   p_file_id = $ACME_FILE; p_transition_id = $ACME_TRANSITION; p_comment = 'legitimate move'
 }
 if ($r.Body -match 'WRONG_STATE') {
-  $r = Invoke-Rest -Path '/rpc/execute_workflow_transition' -Token $TOK_ALICE -Method POST -Body @{
+  $r = Invoke-Rest -Path '/rpc/workflow_transition_execute' -Token $TOK_ALICE -Method POST -Body @{
     p_file_id = $ACME_FILE; p_transition_id = $ACME_TRANSITION_BACK; p_comment = 'legitimate move back'
   }
 }
@@ -571,15 +571,15 @@ Control -Id 'C8' -What 'Acme member still runs Acme''s OWN workflow transition o
         -Ok ($r.Status -eq 200 -and $r.Body -match '"success"\s*:\s*true') `
         -Evidence ("HTTP {0}: {1}" -f $r.Status, (Trunc $r.Body 200))
 
-# require_auth means "a member of the file's organization", so the member it is
+# is_auth_required means "a member of the file's organization", so the member it is
 # meant for has to get through. Without this, F3b/F3d/F3e are satisfied by a
 # flag that refuses everybody.
-$r = Invoke-Rest -Path '/rpc/validate_share_link' -Token $TOK_ALICE -Method POST -Body @{ p_token = $protectedToken }
-Control -Id 'C9' -What 'Acme member still redeems Acme''s require_auth=true link' `
+$r = Invoke-Rest -Path '/rpc/file_share_link_validate' -Token $TOK_ALICE -Method POST -Body @{ p_token = $protectedToken }
+Control -Id 'C9' -What 'Acme member still redeems Acme''s is_auth_required=true link' `
         -Ok ($r.Status -eq 200 -and $r.Body -match '"is_valid"\s*:\s*true') `
         -Evidence ("HTTP {0}: {1}" -f $r.Status, (Trunc $r.Body 200))
 
-# max_downloads is enforced by consume_share_link or by nothing at all: it is
+# max_downloads is enforced by file_share_link_consume or by nothing at all: it is
 # the only thing that increments the counter now that validation does not.
 # Three downloads on a three-download link, then a refusal.
 $limited = New-AliceLink -RequireAuth $false -MaxDownloads 3
@@ -587,12 +587,12 @@ $spendOk = $false
 $accepted = 0
 if ($limited) {
   for ($i = 0; $i -lt 4; $i++) {
-    $rr = Invoke-Rest -Path '/rpc/consume_share_link' -Token $TOK_ANON -Method POST -Body @{ p_token = $limited }
+    $rr = Invoke-Rest -Path '/rpc/file_share_link_consume' -Token $TOK_ANON -Method POST -Body @{ p_token = $limited }
     if ($rr.Status -eq 200 -and $rr.Body -match 'true') { $accepted++ }
   }
   $spendOk = ($accepted -eq 3)
 }
-Control -Id 'C10' -What 'consume_share_link spends exactly max_downloads and then refuses' -FixedOnly `
+Control -Id 'C10' -What 'file_share_link_consume spends exactly max_downloads and then refuses' -FixedOnly `
         -Ok $spendOk -Evidence ("accepted {0} of 4 attempts on a 3-download link" -f $accepted)
 
 # The other direction of F7a. Routing both functions through one admission
@@ -603,8 +603,8 @@ $agreeToken = New-AliceLink -RequireAuth $false -MaxDownloads 4
 $agree = $false
 $agreeEvidence = 'no token'
 if ($agreeToken) {
-  $rv = Invoke-Rest -Path '/rpc/validate_share_link' -Token $TOK_ANON -Method POST -Body @{ p_token = $agreeToken }
-  $rc = Invoke-Rest -Path '/rpc/consume_share_link'  -Token $TOK_ANON -Method POST -Body @{ p_token = $agreeToken }
+  $rv = Invoke-Rest -Path '/rpc/file_share_link_validate' -Token $TOK_ANON -Method POST -Body @{ p_token = $agreeToken }
+  $rc = Invoke-Rest -Path '/rpc/file_share_link_consume'  -Token $TOK_ANON -Method POST -Body @{ p_token = $agreeToken }
   $agree = ($rv.Body -match '"is_valid"\s*:\s*true') -and ($rc.Body -match '^\s*true\s*$')
   $agreeEvidence = ("validate {0} | consume {1}" -f (Trunc $rv.Body 90), (Trunc $rc.Body 20))
 }

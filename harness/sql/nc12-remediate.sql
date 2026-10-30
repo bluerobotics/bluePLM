@@ -6,4 +6,4 @@
 -- stamp, then check_release_residue() is asking whether the credential is live
 -- rather than whether the row exists, which is the distinction the release
 -- depends on.
-SELECT remediate_cross_tenant_share_links();
+SELECT file_share_link_remediate_cross_tenant();

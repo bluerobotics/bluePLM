@@ -16,7 +16,7 @@ RETURNS TABLE (part_number TEXT, description TEXT)
 LANGUAGE sql
 SECURITY DEFINER
 AS $$
-  SELECT f.part_number, f.description FROM public.files f WHERE f.org_id = p_org_id;
+  SELECT f.part_number, f.description FROM public.file f WHERE f.org_id = p_org_id;
 $$;
 
 -- Belt and braces. The built-in default already grants EXECUTE to PUBLIC, which
