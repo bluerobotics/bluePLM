@@ -455,10 +455,12 @@ describe('release manifest', () => {
     const entries = await rows<{ kind: string; name: string; requires: string | null; since_version: number }>(
       `SELECT kind, name, requires, since_version FROM schema_manifest_entry WHERE since_version = 502`,
     )
-    // The release number and description are 5.0's own entries; 0502 only changes their values.
+    // The release number, its description and the minimum app are 5.0's own entries; 0502 only
+    // changes their values.
+    const fivePointOh = ['schema_release_version', 'schema_release_description', 'client_min_version']
     const defined = [...MIGRATION.matchAll(/CREATE OR REPLACE FUNCTION ([a-z_]+)\(/g)]
       .map((m) => m[1])
-      .filter((name) => name !== 'schema_release_version' && name !== 'schema_release_description')
+      .filter((name) => !fivePointOh.includes(name))
     const fnNames = new Set(entries.filter((e) => e.kind === 'function').map((e) => e.name.replace(/\(.*$/, '')))
     for (const name of defined) expect(fnNames, name).toContain(name)
     const tables = [...MIGRATION.matchAll(/CREATE TABLE IF NOT EXISTS ([a-z_]+)/g)].map((m) => m[1])

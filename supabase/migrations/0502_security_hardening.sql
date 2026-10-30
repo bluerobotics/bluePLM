@@ -1615,16 +1615,13 @@ LANGUAGE sql IMMUTABLE AS $$ SELECT 502 $$;
 
 CREATE OR REPLACE FUNCTION schema_release_description() RETURNS TEXT
 LANGUAGE sql IMMUTABLE AS $$ SELECT
-  'Security hardening and monitoring. can_access_module answers for the caller only. Realtime no '
-  'longer publishes DELETE events (they bypass RLS); deletes the client needs arrive as '
-  'realtime_tombstone inserts under RLS. organization.email_domains: one organization per domain, no '
-  'public mail domains, and a signed-in admin adds only the domain of their own verified address. '
-  'The stamp refuses any exposed public function no release registered (schema_function_inventory) '
-  'and a publication that sends deletes. security_monitor_run() (pg_cron, every 10 minutes) records '
-  'admin grants, email-domain joins, file and storage delete spikes, auth request spikes, accounts '
-  'left without an organization and schema drift, and notifies organization admins, with per-'
-  'organization thresholds in org_security_setting and a daily summary. '
-  'auth_hook_before_user_created() (Supabase Auth Before User Created hook, enabled in Auth '
-  'configuration) refuses an account for an address with no invitation, organization email domain '
-  'or supplier contact.'
+  'Security hardening and monitoring. can_access_module answers for the caller only. '
+  'Realtime sends no DELETE events (they bypass RLS); deletes arrive as realtime_tombstone '
+  'inserts under RLS. organization.email_domains: one organization per domain, no public '
+  'mail domains, and an admin adds only the domain of their own verified address. The stamp '
+  'refuses unregistered exposed functions. security_monitor_run() (pg_cron) notifies admins '
+  'of new administrators, email-domain joins, delete spikes, auth request spikes, backup '
+  'failures and schema drift. A Before User Created auth hook refuses sign-ups with no '
+  'invitation, organization domain or supplier contact; org_create_with_founder() creates '
+  'an organization with its founding admin invitation.'
 $$;

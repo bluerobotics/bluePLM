@@ -3,8 +3,8 @@
  * database or a window. Kept free of store and Supabase imports.
  */
 
-/** The schema version 5.0 needs; must equal EXPECTED_SCHEMA_VERSION (asserted in the test). */
-export const REQUIRED_SCHEMA_VERSION = 501
+/** The schema version this app needs; must equal EXPECTED_SCHEMA_VERSION (asserted in the test). */
+export const REQUIRED_SCHEMA_VERSION = 502
 /** The schema version a 4.10 database is stamped at. */
 export const LEGACY_SCHEMA_VERSION = 112
 /**

@@ -97,6 +97,12 @@ describe('estimatePending', () => {
     expect(estimatePending(500, migrations).migrations.map((m) => m.version)).toEqual([501])
   })
 
+  it('a 5.x database below the required version runs every migration after its own, not from the required one', () => {
+    const later = [...migrations, { version: 502, name: '0502_c' }]
+    expect(estimatePending(500, later).migrations.map((m) => m.version)).toEqual([501, 502])
+    expect(estimatePending(501, later).migrations.map((m) => m.version)).toEqual([502])
+  })
+
   it('with no recorded version leaves the list to the database', () => {
     expect(estimatePending(null, migrations).unknownStart).toBe(true)
   })
