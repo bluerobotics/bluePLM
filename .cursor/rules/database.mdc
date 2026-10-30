@@ -95,6 +95,10 @@ later change. Every change after 5.0 is a forward migration in `supabase/migrati
   longer grants the Data API access to new tables in `public` by default, so a table without a grant
   answers every client request with "permission denied". Every baseline table already has its grants
   written out.
+- From schema 502 every public function signed-in users can execute (or SECURITY DEFINER) must be in
+  `schema_function_inventory`, or verification withholds the stamp. A migration registers what it
+  defines; an installed extension's own SQL registers its functions under its module id (the private
+  extension `blueplm.customers` does this from 2.0.1), and is applied after the runner on an upgrade.
 - Released files are immutable. The runner stores each file's checksum in `schema_migration` and
   refuses to touch a database whose applied file has changed.
 
