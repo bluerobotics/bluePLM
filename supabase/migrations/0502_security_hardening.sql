@@ -783,10 +783,10 @@ CREATE POLICY "org_security_setting: admins update"
               AND updated_by = (SELECT auth.uid()));
 
 -- Signals that belong to no organization (accounts with no organization, sign-up and recovery
--- volume across the project, schema drift) go to the operators of the deployment: the users listed
--- here. Written from the SQL editor only. With no row, a database that holds exactly one
--- organization treats that organization's admins as its operators (every self-hosted install);
--- a multi-tenant database with no row sends these to nobody, and says so in the summary.
+-- volume across the project, schema drift) go to the operators of this database: the users listed
+-- here, written from the SQL editor only. Every BluePLM database is run by the organization that
+-- owns it (BluePLM hosts no one's database or service), so with no row the operators are the
+-- admins of every organization in it; nothing is ever sent outside the database.
 CREATE TABLE IF NOT EXISTS security_platform_operator (
   user_id UUID PRIMARY KEY REFERENCES app_user(id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -868,8 +868,7 @@ AS $$
   SELECT u.id
   FROM app_user u
   WHERE NOT EXISTS (SELECT 1 FROM security_platform_operator)
-    AND (SELECT COUNT(*) FROM organization) = 1
-    AND u.org_id = (SELECT id FROM organization LIMIT 1)
+    AND u.org_id IS NOT NULL
     AND (u.role = 'admin' OR EXISTS (
       SELECT 1 FROM team_member tm JOIN team t ON t.id = tm.team_id
       WHERE tm.user_id = u.id AND t.org_id = u.org_id AND t.name = 'Administrators'));
@@ -1410,8 +1409,9 @@ $$;
 
 REVOKE ALL ON FUNCTION security_monitor_run() FROM PUBLIC, anon, authenticated;
 
--- Schedule: every 10 minutes through pg_cron, which Supabase ships. Where it is not available
--- (plain Postgres, tests) the monitor still exists and can be called by any scheduler as postgres.
+-- Schedule: every 10 minutes through pg_cron, inside this database. Where pg_cron is not available
+-- (a self-run Postgres without it, tests) the migration still applies and says so; the monitor can
+-- then be called by any scheduler the owner runs, as postgres. Nothing runs outside the database.
 DO $$
 BEGIN
   BEGIN

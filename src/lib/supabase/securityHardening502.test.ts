@@ -547,6 +547,12 @@ describe('5. security monitoring', () => {
     expect(titles).toEqual(['Backups: a run failed', 'Backups: overdue', 'Backups: server worker silent'])
   })
 
+  it('with no operators listed, every admin in the database is one', async () => {
+    await as(null)
+    const ids = (await rows<{ id: string }>(`SELECT security_operator_user_ids() AS id`)).map((r) => r.id).sort()
+    expect(ids).toEqual([ADMIN_A, ADMIN_B, TEAM_ADMIN_A, GMAIL_ADMIN].sort())
+  })
+
   it('sends deployment-wide events to the operators and runs the drift check daily', async () => {
     await as(null)
     await db.exec(`
