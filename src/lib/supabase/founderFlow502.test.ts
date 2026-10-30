@@ -2,11 +2,14 @@
  * A new organization from nothing, on the real 5.0 baseline plus migration 0502 (PGlite): the
  * admin-setup flow end to end.
  *
- *   1. A fresh database: the sign-up hook refuses everyone and says the database is not set up.
+ *   1. Step 4: the founder connects the desktop app and signs in before any organization exists
+ *      (the hook is not on yet), so their account has no organization. With the hook on, a database
+ *      with no organization refuses everyone and says it is not set up.
  *   2. Step 5: org_create_with_founder() creates the organization, its domains and the founding
  *      admin's invitation. The founder's address is a gmail.com one, so only the invitation admits.
- *   3. The founder signs in with Google: the hook admits them, and the baseline's auth trigger and
- *      invitation appliers make them an admin of the organization in the Administrators team.
+ *   3. Step 7: the founder signs in again; the baseline's auth trigger and invitation appliers make
+ *      them an admin of the organization in the Administrators team. A second admin invited with
+ *      Step 7's fallback snippet signs up with Google through the hook and gets the same.
  *   4. A stranger is refused; a gmail.com address is refused even with gmail.com forced into the
  *      domain list; a colleague at the company domain is admitted and lands in the default team.
  *
@@ -23,8 +26,23 @@ import { actAs, actAsOwner, bootBaseline, MIGRATIONS, seed } from './testing/sch
 const MIGRATION = readFileSync(resolve(MIGRATIONS, '0502_security_hardening.sql'), 'utf8').replace(/\r\n/g, '\n')
 
 const FOUNDER = '00000000-0000-0000-0000-0000000000f1'
+const SECOND = '00000000-0000-0000-0000-0000000000f2'
 const COLLEAGUE = '00000000-0000-0000-0000-0000000000c1'
 const FOUNDER_EMAIL = 'founder.person@gmail.com'
+const SECOND_EMAIL = 'second.admin@outlook.com'
+
+/** The org, role and Administrators membership an account ended up with. */
+async function membership(id: string): Promise<Array<{ org: string; role: string; admin_team: boolean }>> {
+  await actAsOwner(db)
+  const r = await db.query<{ org: string; role: string; admin_team: boolean }>(
+    `SELECT o.slug AS org, u.role::text AS role,
+            EXISTS (SELECT 1 FROM team_member tm JOIN team t ON t.id = tm.team_id
+                    WHERE tm.user_id = u.id AND t.name = 'Administrators') AS admin_team
+     FROM app_user u JOIN organization o ON o.id = u.org_id WHERE u.id = $1`,
+    [id],
+  )
+  return r.rows
+}
 
 let db: PGlite
 let problemsBefore: string[] = []
@@ -74,6 +92,17 @@ describe('a new organization, end to end', () => {
     expect(await problems()).toEqual(problemsBefore)
   }, 120_000)
 
+  it('Step 4: the founder signs in before any organization exists, and has none', async () => {
+    // The hook is not on yet in Step 4, so Auth creates the account without asking it.
+    await actAsOwner(db)
+    await db.query(
+      `INSERT INTO auth.users (id, email, email_confirmed_at, raw_user_meta_data) VALUES ($1, $2, now(), $3::jsonb)`,
+      [FOUNDER, 'Founder.Person@gmail.com', JSON.stringify({ full_name: 'Founder Person' })],
+    )
+    const u = await db.query<{ org_id: string | null }>(`SELECT org_id FROM app_user WHERE id = $1`, [FOUNDER])
+    expect(u.rows).toEqual([{ org_id: null }])
+  })
+
   it('a database with no organization refuses sign-up and says why', async () => {
     const r = await hook('anyone@company.example')
     expect(r.error?.http_code).toBe(403)
@@ -105,18 +134,16 @@ describe('a new organization, end to end', () => {
     await actAsOwner(db)
   })
 
-  it('the founder signs in with Google and is the organization admin, in Administrators', async () => {
-    expect(await googleSignUp(FOUNDER, 'Founder.Person@gmail.com', 'Founder Person')).toEqual({})
+  it('Step 7: the founder signs in again and is the organization admin, in Administrators', async () => {
+    // A sign-in updates auth.users, which runs the baseline's sync trigger with the invitation.
     await actAsOwner(db)
-    const u = await db.query<{ org: string; role: string; admin_team: boolean; claimed: boolean }>(
-      `SELECT o.slug AS org, u.role::text AS role,
-              EXISTS (SELECT 1 FROM team_member tm JOIN team t ON t.id = tm.team_id
-                      WHERE tm.user_id = u.id AND t.name = 'Administrators') AS admin_team,
-              (SELECT claimed_at IS NOT NULL FROM pending_org_member WHERE email = $2) AS claimed
-       FROM app_user u JOIN organization o ON o.id = u.org_id WHERE u.id = $1`,
-      [FOUNDER, FOUNDER_EMAIL],
+    await db.query(`UPDATE auth.users SET last_sign_in_at = now() WHERE id = $1`, [FOUNDER])
+    expect(await membership(FOUNDER)).toEqual([{ org: 'acme-robotics', role: 'admin', admin_team: true }])
+    const claimed = await db.query<{ c: boolean }>(
+      `SELECT claimed_at IS NOT NULL AS c FROM pending_org_member WHERE email = $1`,
+      [FOUNDER_EMAIL],
     )
-    expect(u.rows).toEqual([{ org: 'acme-robotics', role: 'admin', admin_team: true, claimed: true }])
+    expect(claimed.rows).toEqual([{ c: true }])
 
     // The founder's own session agrees, and the admin grant is on the security record.
     await actAs(db, FOUNDER)
@@ -124,6 +151,19 @@ describe('a new organization, end to end', () => {
     await actAsOwner(db)
     const ev = await db.query<{ n: number }>(`SELECT COUNT(*)::int AS n FROM security_event WHERE kind = 'admin_granted'`)
     expect(ev.rows[0].n).toBeGreaterThan(0)
+  })
+
+  it('an admin invited with Step 7s snippet signs up with Google through the hook', async () => {
+    await actAsOwner(db)
+    await db.query(
+      `INSERT INTO pending_org_member (org_id, email, role, team_ids, notes)
+       SELECT o.id, lower($1), 'admin', ARRAY[t.id], 'Founding administrator'
+       FROM organization o JOIN team t ON t.org_id = o.id AND t.name = 'Administrators'
+       WHERE o.slug = 'acme-robotics'`,
+      [SECOND_EMAIL],
+    )
+    expect(await googleSignUp(SECOND, SECOND_EMAIL, 'Second Admin')).toEqual({})
+    expect(await membership(SECOND)).toEqual([{ org: 'acme-robotics', role: 'admin', admin_team: true }])
   })
 
   it('a claimed invitation does not admit a second account', async () => {
