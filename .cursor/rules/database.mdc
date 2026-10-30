@@ -90,6 +90,11 @@ later change. Every change after 5.0 is a forward migration in `supabase/migrati
   outside one (`ALTER TYPE ... ADD VALUE`, `CREATE INDEX CONCURRENTLY`) starts with the line
   `-- blueplm:no-transaction` and must be idempotent, because it is recorded only after every
   statement succeeds.
+- A table created by a migration carries its own grants in the same file (`GRANT ... ON TABLE x TO
+  authenticated, service_role`, and `anon` only where it must be public). Since 2026-10-30 Supabase no
+  longer grants the Data API access to new tables in `public` by default, so a table without a grant
+  answers every client request with "permission denied". Every baseline table already has its grants
+  written out.
 - Released files are immutable. The runner stores each file's checksum in `schema_migration` and
   refuses to touch a database whose applied file has changed.
 

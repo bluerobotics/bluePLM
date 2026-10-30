@@ -5,8 +5,9 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import prettier from 'eslint-config-prettier'
 
 export default tseslint.config(
-  // `scripts/*.js` joins `cli/**` here for the same reason: plain Node developer scripts, run
-  // directly rather than bundled, so the browser globals this config assumes do not apply.
+  // `scripts/*.js` and `scripts/*.mjs` join `cli/**` here for the same reason: plain Node developer
+  // scripts, run directly rather than bundled, so the browser globals this config assumes do not
+  // apply (`scripts/rename-5.0/` is the one-time 5.0 codemod; its own tests cover it).
   // The ignore is deliberately narrowed to `.js`: `scripts/repair-config-maps.ts` is a shipped
   // operator entry point (`npm run repair:config-maps`) for the schema-94 config-map repair, not a
   // developer convenience, and it is linted and typechecked like the rest of the TypeScript.
@@ -25,6 +26,7 @@ export default tseslint.config(
       'native/**',
       'cli/**',
       'scripts/**/*.js',
+      'scripts/**/*.mjs',
       'solidworks-service/**',
       'node_modules/**',
     ],
