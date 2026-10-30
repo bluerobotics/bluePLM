@@ -393,6 +393,7 @@ export const de: TranslationDict = {
     modified: 'Geändert',
     noFilesFound: 'Keine Dateien gefunden',
     dropFilesHere: 'Dateien hier ablegen zum Hochladen',
+    clearSearch: 'Suche löschen',
   },
 
   autoDiscard: {

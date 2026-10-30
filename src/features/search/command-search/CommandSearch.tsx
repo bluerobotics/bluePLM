@@ -10,6 +10,7 @@ import {
   useGoogleDriveSearch,
   useLocalFileSearch,
   useKeyboardNavigation,
+  useOpenResult,
 } from './hooks'
 import { FilterButton } from './FilterButton'
 import { FiltersDropdown } from './FiltersDropdown'
@@ -21,37 +22,26 @@ import { SearchResults } from './SearchResults'
  */
 export function CommandSearch({ maxWidth = 'max-w-lg' }: CommandSearchProps) {
   const {
-    toggleFileSelection,
     setGdriveOpenDocument,
     setActiveView,
     recentSearches,
     clearRecentSearches,
-    setSearchQuery,
     currentFolder,
-    setCurrentFolder,
-    setSelectedFiles,
-    expandedFolders,
-    toggleFolder,
   } = usePDMStore(
     useShallow((s) => ({
-      toggleFileSelection: s.toggleFileSelection,
       setGdriveOpenDocument: s.setGdriveOpenDocument,
       setActiveView: s.setActiveView,
       recentSearches: s.recentSearches,
       clearRecentSearches: s.clearRecentSearches,
-      setSearchQuery: s.setSearchQuery,
       currentFolder: s.currentFolder,
-      setCurrentFolder: s.setCurrentFolder,
-      setSelectedFiles: s.setSelectedFiles,
-      expandedFolders: s.expandedFolders,
-      toggleFolder: s.toggleFolder,
     })),
   )
+  const openResult = useOpenResult()
 
   // Core search state
   const {
     localQuery,
-    setLocalQuery,
+    setQuery,
     activeFilter,
     setActiveFilter,
     searchScope,
@@ -89,17 +79,28 @@ export function CommandSearch({ maxWidth = 'max-w-lg' }: CommandSearchProps) {
   // Total navigable results
   const totalResults = searchResults.length + driveResults.length + (recentSearches?.length || 0)
 
-  // Handle result selection
+  // Empty the box (and the filter) after jumping to a result. Opening a folder clears the pane's
+  // search on its own, but a dropdown-only filter ("by:", "state:") never set one, and its text
+  // would be left behind in the box.
+  const leaveSearch = useCallback(() => {
+    setQuery('', 'all')
+    setActiveFilter('all')
+    inputRef.current?.blur()
+  }, [setQuery, setActiveFilter])
+
+  // Picking a result goes to it: a folder opens, a file opens its folder with the file selected.
+  // Either way search ends, so the pane shows the folder rather than the results.
   const handleSelectResult = useCallback(
     (file: LocalFile) => {
-      toggleFileSelection(file.path, false)
       setIsOpen(false)
       if (localQuery.trim()) {
         addRecentSearch?.(localQuery.trim())
       }
       logSearch(localQuery, parsedQuery.filter)
+      leaveSearch()
+      openResult(file, 'open')
     },
-    [toggleFileSelection, setIsOpen, localQuery, addRecentSearch, parsedQuery.filter],
+    [setIsOpen, localQuery, addRecentSearch, parsedQuery.filter, leaveSearch, openResult],
   )
 
   const handleSelectDriveResult = useCallback(
@@ -129,33 +130,14 @@ export function CommandSearch({ maxWidth = 'max-w-lg' }: CommandSearchProps) {
     [setIsOpen, localQuery, addRecentSearch, setActiveView, setGdriveOpenDocument],
   )
 
-  // Handle "Open file location" - navigate to parent folder and select the file
+  // "Open file location": a folder result opens its parent with the folder selected
   const handleOpenFileLocation = useCallback(
     (file: LocalFile) => {
       setIsOpen(false)
-
-      // Get the parent folder path from relativePath
-      const parts = file.relativePath.split('/')
-      parts.pop() // Remove the file name
-      const parentPath = parts.join('/')
-
-      // Expand all ancestor folders so the file is visible in the tree
-      if (parentPath) {
-        for (let i = 1; i <= parts.length; i++) {
-          const ancestorPath = parts.slice(0, i).join('/')
-          if (!expandedFolders.has(ancestorPath)) {
-            toggleFolder(ancestorPath)
-          }
-        }
-      }
-
-      // Navigate to the parent folder
-      setCurrentFolder(parentPath)
-
-      // Select/highlight the file
-      setSelectedFiles([file.path])
+      leaveSearch()
+      openResult(file, 'location')
     },
-    [setIsOpen, expandedFolders, toggleFolder, setCurrentFolder, setSelectedFiles],
+    [setIsOpen, leaveSearch, openResult],
   )
 
   // Keyboard navigation handlers
@@ -169,8 +151,7 @@ export function CommandSearch({ maxWidth = 'max-w-lg' }: CommandSearchProps) {
         } else {
           const recentIndex = index - searchResults.length - driveResults.length
           if (recentSearches?.[recentIndex]) {
-            setLocalQuery(recentSearches[recentIndex])
-            setSearchQuery(recentSearches[recentIndex])
+            setQuery(recentSearches[recentIndex])
           }
         }
       } else if (localQuery.trim()) {
@@ -183,8 +164,7 @@ export function CommandSearch({ maxWidth = 'max-w-lg' }: CommandSearchProps) {
       recentSearches,
       handleSelectResult,
       handleSelectDriveResult,
-      setLocalQuery,
-      setSearchQuery,
+      setQuery,
       localQuery,
       executeSearch,
     ],
@@ -194,11 +174,10 @@ export function CommandSearch({ maxWidth = 'max-w-lg' }: CommandSearchProps) {
     if (isOpen) {
       setIsOpen(false)
     } else {
-      setLocalQuery('')
-      setSearchQuery('')
+      setQuery('')
     }
     inputRef.current?.blur()
-  }, [isOpen, setIsOpen, setLocalQuery, setSearchQuery])
+  }, [isOpen, setIsOpen, setQuery])
 
   const { handleKeyDown } = useKeyboardNavigation({
     totalResults,
@@ -218,27 +197,21 @@ export function CommandSearch({ maxWidth = 'max-w-lg' }: CommandSearchProps) {
     (filter: SearchFilter) => {
       setActiveFilter(filter)
       const option = FILTER_OPTIONS.find((f) => f.id === filter)
-      if (option?.prefix) {
-        const currentTerm = parsedQuery.searchTerm
-        setLocalQuery(option.prefix + currentTerm)
-      } else {
-        setLocalQuery(parsedQuery.searchTerm)
-      }
+      setQuery((option?.prefix ?? '') + parsedQuery.searchTerm, filter)
       setShowFilters(false)
       inputRef.current?.focus()
     },
-    [setActiveFilter, parsedQuery.searchTerm, setLocalQuery, setShowFilters],
+    [setActiveFilter, parsedQuery.searchTerm, setQuery, setShowFilters],
   )
 
   // Recent search click handler
   const handleRecentSearchClick = useCallback(
     (search: string) => {
-      setLocalQuery(search)
-      setSearchQuery(search)
+      setQuery(search)
       addRecentSearch?.(search)
       logSearch(search, 'recent')
     },
-    [setLocalQuery, setSearchQuery, addRecentSearch],
+    [setQuery, addRecentSearch],
   )
 
   // Click outside handler

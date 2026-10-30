@@ -1,5 +1,7 @@
 import { memo } from 'react'
-import { Search } from 'lucide-react'
+import { Search, X } from 'lucide-react'
+import { useTranslation } from '@/lib/i18n'
+import { usePDMStore } from '@/stores/pdmStore'
 
 export interface SearchIndicatorProps {
   searchQuery: string
@@ -8,13 +10,17 @@ export interface SearchIndicatorProps {
 }
 
 /**
- * Search mode indicator showing current search query and results count
+ * Search mode indicator showing current search query and results count, with a button that
+ * leaves search and shows the current folder again. Clearing the store's query also empties the
+ * search box, which mirrors it.
  */
 export const SearchIndicator = memo(function SearchIndicator({
   searchQuery,
   searchType,
   matchCount,
 }: SearchIndicatorProps) {
+  const { t } = useTranslation()
+  const setSearchQuery = usePDMStore((s) => s.setSearchQuery)
   const typeLabel =
     searchType === 'files' ? 'Files' : searchType === 'folders' ? 'Folders' : 'Results'
 
@@ -25,6 +31,15 @@ export const SearchIndicator = memo(function SearchIndicator({
         {typeLabel} for "<span className="text-plm-fg font-medium">{searchQuery}</span>"
       </span>
       <span className="text-plm-fg-muted">({matchCount} matches)</span>
+      <button
+        type="button"
+        onClick={() => setSearchQuery('')}
+        title={t('fileBrowser.clearSearch')}
+        aria-label={t('fileBrowser.clearSearch')}
+        className="p-0.5 rounded text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight transition-colors"
+      >
+        <X size={14} />
+      </button>
     </div>
   )
 })

@@ -386,6 +386,7 @@ export const pt: TranslationDict = {
     modified: 'Modificado',
     noFilesFound: 'Nenhum ficheiro encontrado',
     dropFilesHere: 'Largue ficheiros aqui para carregar',
+    clearSearch: 'Limpar pesquisa',
   },
 
   autoDiscard: {

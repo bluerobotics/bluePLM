@@ -423,6 +423,7 @@ export const en: TranslationDict = {
     modified: 'Modified',
     noFilesFound: 'No files found',
     dropFilesHere: 'Drop files here to upload',
+    clearSearch: 'Clear search',
   },
 
   // File operations

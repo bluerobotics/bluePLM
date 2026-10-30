@@ -18,6 +18,42 @@ export function parseQuery(query: string, activeFilter: SearchFilter): ParsedQue
   return { filter: activeFilter, searchTerm: trimmedQuery }
 }
 
+/** What the file pane searches for: a bare term and one of the types the pane can filter on. */
+export interface PaneSearch {
+  query: string
+  type: 'all' | 'files' | 'folders'
+}
+
+/**
+ * The file pane search a parsed query stands for. The pane matches on name, description and part
+ * number, so it gets the term without its prefix ("folder:bracket" searches folders for
+ * "bracket", not for the literal text). Filters the pane cannot express - who has a file checked
+ * out, a workflow state, Google Drive - leave the pane alone; their results show in the dropdown.
+ */
+export function toPaneSearch(parsed: ParsedQuery): PaneSearch {
+  switch (parsed.filter) {
+    case 'files':
+    case 'folders':
+      return { query: parsed.searchTerm, type: parsed.filter }
+    case 'checked-out':
+    case 'state':
+    case 'drive':
+      return { query: '', type: 'all' }
+    default:
+      return { query: parsed.searchTerm, type: 'all' }
+  }
+}
+
+/**
+ * The search box text for a pane search that changed elsewhere (a tab switch restoring its
+ * search), so the box shows the same filter the pane is using.
+ */
+export function fromPaneSearch(query: string, type: PaneSearch['type']): string {
+  if (!query) return ''
+  const prefix = FILTER_OPTIONS.find((f) => f.id === type)?.prefix ?? ''
+  return prefix + query
+}
+
 /**
  * Get the current filter option from parsed query filter
  */

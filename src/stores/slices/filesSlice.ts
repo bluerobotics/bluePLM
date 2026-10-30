@@ -1414,7 +1414,16 @@ export const createFilesSlice: StateCreator<
 
   setCurrentFolder: (currentFolder) => {
     logExplorer('setCurrentFolder', { folder: currentFolder || '(root)' })
-    set({ currentFolder })
+    // Opening a folder leaves search, as in Windows Explorer. Every caller is a navigation (file
+    // pane, breadcrumbs, back/forward, tree, search results, reveal-in-browser jumps), and while
+    // a query is set the pane shows results instead of the folder, so keeping it would make the
+    // navigation look like it did nothing. Tab switches restore their own search with a direct
+    // set() and never come through here.
+    if (get().searchQuery) {
+      set({ currentFolder, searchQuery: '', searchType: 'all' })
+    } else {
+      set({ currentFolder })
+    }
   },
 
   // Actions - Realtime Updates (incremental without full refresh)

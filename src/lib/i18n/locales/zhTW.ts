@@ -371,6 +371,7 @@ export const zhTW: TranslationDict = {
     modified: '修改時間',
     noFilesFound: '找不到檔案',
     dropFilesHere: '將檔案拖放到此處上傳',
+    clearSearch: '清除搜尋',
   },
 
   autoDiscard: {

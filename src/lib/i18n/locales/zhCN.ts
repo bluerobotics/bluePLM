@@ -371,6 +371,7 @@ export const zhCN: TranslationDict = {
     modified: '修改时间',
     noFilesFound: '未找到文件',
     dropFilesHere: '将文件拖放到此处上传',
+    clearSearch: '清除搜索',
   },
 
   autoDiscard: {

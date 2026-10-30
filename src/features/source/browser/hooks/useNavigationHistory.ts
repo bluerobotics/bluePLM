@@ -1,5 +1,6 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { logExplorer } from '@/lib/userActionLogger'
+import { usePDMStore } from '@/stores/pdmStore'
 
 export interface UseNavigationHistoryOptions {
   initialPath?: string
@@ -41,15 +42,38 @@ export function useNavigationHistory({
   activeTabId,
   updateTabFolder,
 }: UseNavigationHistoryOptions): UseNavigationHistoryReturn {
+  // Read from the store here rather than threaded through FilePane, which is over the split
+  // threshold. A search shows results instead of the folder, so Back leaves it first.
+  const currentFolder = usePDMStore((s) => s.currentFolder)
+  const isSearching = usePDMStore((s) => s.searchQuery.trim().length > 0)
+  const setSearchQuery = usePDMStore((s) => s.setSearchQuery)
+
   const [navigationHistory, setNavigationHistory] = useState<string[]>([initialPath])
   const [historyIndex, setHistoryIndex] = useState(0)
   const isNavigatingRef = useRef(false)
+  // A folder change that did not come through this hook (the sidebar tree, a search result, a
+  // reveal-in-browser jump) is recorded as a history entry, so Back returns to the folder the user
+  // was in before it rather than skipping over it. The folder this hook itself set last is what
+  // tells the two apart: the store updates synchronously and the history state a render later,
+  // so comparing against the history state would record our own navigations twice.
+  const lastOwnFolderRef = useRef(currentFolder)
+
+  useEffect(() => {
+    if (currentFolder === lastOwnFolderRef.current) return
+    lastOwnFolderRef.current = currentFolder
+    logExplorer('navigation history: external folder change', { folder: currentFolder || '(root)' })
+    setNavigationHistory((prev) => [...prev.slice(0, historyIndex + 1), currentFolder])
+    setHistoryIndex((prev) => prev + 1)
+    // Only a folder change is an event here; historyIndex is read at that moment.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentFolder])
 
   const navigateToFolder = useCallback(
     (folderPath: string) => {
       const startTime = performance.now()
       logExplorer('navigateToFolder START', { folder: folderPath || '(root)', historyIndex })
 
+      lastOwnFolderRef.current = folderPath
       setCurrentFolder(folderPath)
 
       // Add to navigation history (unless we're going back/forward)
@@ -120,6 +144,7 @@ export function useNavigationHistory({
 
   const navigateToRoot = useCallback(() => {
     logExplorer('navigateToRoot', { historyIndex })
+    lastOwnFolderRef.current = ''
     setCurrentFolder('')
 
     // Add to navigation history (unless we're going back/forward)
@@ -138,6 +163,13 @@ export function useNavigationHistory({
   }, [setCurrentFolder, historyIndex, tabsEnabled, activeTabId, updateTabFolder])
 
   const navigateBack = useCallback(() => {
+    // Search is a step of its own, as in Windows Explorer: Back first returns to the folder the
+    // search was made in, and only the next Back walks the folder history.
+    if (isSearching) {
+      logExplorer('navigateBack: leaving search')
+      setSearchQuery('')
+      return
+    }
     if (historyIndex <= 0) {
       logExplorer('navigateBack SKIP', { reason: 'at start of history' })
       return
@@ -153,6 +185,7 @@ export function useNavigationHistory({
       historyLength: navigationHistory.length,
     })
     setHistoryIndex(newIndex)
+    lastOwnFolderRef.current = targetFolder
     setCurrentFolder(targetFolder)
 
     // Sync with active tab when tabs are enabled
@@ -161,7 +194,16 @@ export function useNavigationHistory({
     }
 
     isNavigatingRef.current = false
-  }, [historyIndex, navigationHistory, setCurrentFolder, tabsEnabled, activeTabId, updateTabFolder])
+  }, [
+    isSearching,
+    setSearchQuery,
+    historyIndex,
+    navigationHistory,
+    setCurrentFolder,
+    tabsEnabled,
+    activeTabId,
+    updateTabFolder,
+  ])
 
   const navigateForward = useCallback(() => {
     if (historyIndex >= navigationHistory.length - 1) {
@@ -179,6 +221,7 @@ export function useNavigationHistory({
       historyLength: navigationHistory.length,
     })
     setHistoryIndex(newIndex)
+    lastOwnFolderRef.current = targetFolder
     setCurrentFolder(targetFolder)
 
     // Sync with active tab when tabs are enabled
@@ -198,7 +241,7 @@ export function useNavigationHistory({
     navigateToRoot,
     navigateBack,
     navigateForward,
-    canGoBack: historyIndex > 0,
+    canGoBack: historyIndex > 0 || isSearching,
     canGoForward: historyIndex < navigationHistory.length - 1,
   }
 }

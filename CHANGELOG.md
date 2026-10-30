@@ -6,6 +6,18 @@ All notable changes to BluePLM will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Search hands off to navigation.** Opening a folder now leaves search, wherever it is opened from
+  (double-click or Enter in the results, the breadcrumb, the sidebar tree, Back, a search result, a
+  reveal-in-browser jump); before, the folder changed underneath while the pane kept showing results.
+  Clicking a result in the top-bar search opens it: a folder opens, a file opens its folder with the
+  file selected and scrolled to (a moved file goes where its content lives). The top-bar filters
+  `file:` and `folder:` now search the pane for the bare term; the pane used to search for the
+  literal text, prefix included, and found nothing. Back during a search returns to the folder searched
+  in, folders opened from outside the pane are kept in Back/Forward history, Left arrow no longer
+  jumps out of search results, and the results banner has a clear button.
+
 ## [4.10.0] - 2026-10-30
 
 Schemas 111 and 112 and API 3.0.1. Schemas 111 and 112 are applied to production (2026-10-30);

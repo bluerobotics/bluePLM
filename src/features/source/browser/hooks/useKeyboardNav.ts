@@ -25,7 +25,7 @@
  * })
  */
 import { useEffect, useCallback, useRef } from 'react'
-import type { LocalFile } from '@/stores/pdmStore'
+import { usePDMStore, type LocalFile } from '@/stores/pdmStore'
 import type { KeybindingAction } from '@/types/settings'
 import { executeCommand } from '@/lib/commands'
 import type { SelectableRow } from '../components/FileList/rowTypes'
@@ -217,7 +217,9 @@ export function useKeyboardNav({
 
       // ArrowLeft - navigate to parent folder
       if (e.key === 'ArrowLeft' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        if (!currentPath) return
+        // Search results are not a folder, so there is no parent to go up to. Going up would
+        // leave search for the folder above the one searched in, which reads as a jump.
+        if (!currentPath || usePDMStore.getState().searchQuery.trim()) return
 
         e.preventDefault()
         e.stopPropagation()
