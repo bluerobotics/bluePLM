@@ -142,6 +142,18 @@ describe('downloadCommand.execute on the web', () => {
     expect(addToSyncIndex).not.toHaveBeenCalled()
   })
 
+  it('shows the zip in the toast the command queue opened, not a second one', async () => {
+    const folder = cloudFolder('Parts')
+    const ctx = makeContext([folder, cloudFile('Parts/a.sldprt'), cloudFile('Parts/b.sldprt')])
+    ;(ctx as { existingToastId?: string }).existingToastId = 'queued-toast'
+
+    await downloadCommand.execute({ files: [folder] }, ctx)
+
+    expect(ctx.addProgressToast).not.toHaveBeenCalled()
+    expect(ctx.updateProgressToast).toHaveBeenCalledWith('queued-toast', expect.any(Number), expect.any(Number), undefined, undefined, expect.any(String))
+    expect(ctx.removeToast).toHaveBeenCalledWith('queued-toast')
+  })
+
   it('does nothing for an empty cloud folder', async () => {
     const folder = cloudFolder('Empty')
     const ctx = makeContext([folder])

@@ -13,6 +13,7 @@ import type { LocalFile } from '../../../stores/pdmStore'
 import { log } from '@/lib/logger'
 import { t } from '@/lib/i18n'
 import { planWebDownload, saveItemsInBrowser } from '@/lib/webDownload'
+import { ProgressTracker } from '../executor'
 
 export async function executeWebDownload(
   files: LocalFile[],
@@ -62,28 +63,31 @@ export async function executeWebDownload(
   const total = plan.items.length
   log.info('[Download]', 'Browser download', { orgId: organization.id, count: total })
 
+  // One toast for the whole download: the one the command queue opened ("Download BALLAST..."),
+  // reused by ProgressTracker, with the zipping step as its status line.
+  const progress = new ProgressTracker(
+    ctx,
+    'download',
+    `download-${Date.now()}`,
+    t('fileOps.webDownloadZipping', { count: total }),
+    total,
+  )
+  if (total > 1) progress.setStatus(t('fileOps.webDownloadZipping', { count: total }))
   let succeeded: number
   let failures: Array<{ name: string; error: string }>
-  if (total === 1) {
-    ctx.addToast('info', t('fileOps.webDownloadStarted_one', { count: total }))
-    ;({ succeeded, failures } = await saveItemsInBrowser(organization.id, plan.items))
-  } else {
-    const toastId = `web-zip-${Date.now()}`
-    ctx.addProgressToast(toastId, t('fileOps.webDownloadZipping', { count: total }), total)
-    try {
-      const result = await saveItemsInBrowser(
-        organization.id,
-        plan.items,
-        (done) => ctx.updateProgressToast(toastId, done, Math.round((done / total) * 100)),
-        () => ctx.isProgressToastCancelled(toastId),
-      )
-      if (result.cancelled) {
-        return { success: false, message: 'Download cancelled', total, succeeded: 0, failed: 0 }
-      }
-      ;({ succeeded, failures } = result)
-    } finally {
-      ctx.removeToast(toastId)
+  try {
+    const result = await saveItemsInBrowser(
+      organization.id,
+      plan.items,
+      () => progress.update(),
+      () => progress.isCancelled(),
+    )
+    if (result.cancelled) {
+      return { success: false, message: 'Download cancelled', total, succeeded: 0, failed: 0 }
     }
+    ;({ succeeded, failures } = result)
+  } finally {
+    progress.finish()
   }
   for (const failure of failures.slice(0, 3)) {
     ctx.addToast('error', t('fileOps.webDownloadFailed', failure))

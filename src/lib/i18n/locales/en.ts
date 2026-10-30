@@ -458,7 +458,6 @@ export const en: TranslationDict = {
     webDownloadTooLarge:
       'The selection is {{size}} GB. A browser download holds at most {{max}} GB; select less, or use the desktop app.',
     webDownloadZipping: 'Zipping {{count}} files...',
-    webDownloadStarted_one: 'Downloading 1 file',
     webDownloadFailed: 'Could not download {{name}}: {{error}}',
     downloadVersion: 'Download this version',
     getLatest: 'Get Latest',
