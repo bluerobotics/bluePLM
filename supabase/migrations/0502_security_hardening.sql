@@ -714,6 +714,12 @@ SELECT s, 'baseline', 500 FROM unnest(ARRAY[
 ]::TEXT[]) s
 ON CONFLICT (signature) DO NOTHING;
 
+-- 0501 (server backups) ran before this table existed; its functions are registered here.
+INSERT INTO schema_function_inventory (signature, module, release) VALUES
+  ('backup_list_org_rows(uuid,text,uuid,integer)', '10-source-files', 501),
+  ('backup_list_vault_objects(uuid,text,integer)', '10-source-files', 501)
+ON CONFLICT (signature) DO NOTHING;
+
 INSERT INTO schema_function_inventory (signature, module, release) VALUES
   ('can_access_module(text,uuid)', 'core', 502),
   ('trg_realtime_tombstone_write()', 'core', 502),

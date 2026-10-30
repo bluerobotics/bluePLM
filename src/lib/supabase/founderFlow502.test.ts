@@ -25,7 +25,7 @@ import { actAs, actAsOwner, bootBaseline, MIGRATIONS, seed } from './testing/sch
 
 /** What a fresh 5.0 database takes, in order, up to and including 0502 (0500 is the 4.x upgrade). */
 const AFTER_BASELINE = readdirSync(MIGRATIONS)
-  .filter((f) => /^\d{4}_.+\.sql$/.test(f) && f > '0500' && f < '0503')
+  .filter((f) => /^\d{4}_.+\.sql$/.test(f) && f >= '0501' && f < '0503')
   .sort()
   .map((f) => readFileSync(resolve(MIGRATIONS, f), 'utf8').replace(/\r\n/g, '\n'))
 
@@ -105,6 +105,20 @@ describe('a new organization, end to end', () => {
     )
     const u = await db.query<{ org_id: string | null }>(`SELECT org_id FROM app_user WHERE id = $1`, [FOUNDER])
     expect(u.rows).toEqual([{ org_id: null }])
+  })
+
+  it('every public function the migrations define is in the inventory', async () => {
+    await actAsOwner(db)
+    const missing = await db.query<{ f: string }>(
+      `SELECT p.oid::regprocedure::text AS f
+       FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+       WHERE n.nspname = 'public'
+         AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = p.oid AND d.deptype = 'e')
+         AND p.oid NOT IN (SELECT to_regprocedure(signature) FROM schema_function_inventory
+                           WHERE to_regprocedure(signature) IS NOT NULL)
+       ORDER BY 1`,
+    )
+    expect(missing.rows.map((r) => r.f)).toEqual([])
   })
 
   it('a database with no organization refuses sign-up and says why', async () => {
