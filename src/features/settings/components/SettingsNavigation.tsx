@@ -2,7 +2,8 @@ import { usePDMStore } from '@/stores/pdmStore'
 import type { IntegrationStatusValue, IntegrationId, BackupStatusValue } from '@/stores/types'
 import type { SettingsTab } from '@/types/settings'
 import { logSettings } from '@/lib/userActionLogger'
-import { settingsSections } from '../settingsCatalog'
+import { isSettingsTabAvailable, settingsSections } from '../settingsCatalog'
+import { hasDesktop } from '@/lib/platform'
 import { SettingsSearchBox } from './SettingsSearchBox'
 import { useSettingsSearch } from '../useSettingsSearch'
 
@@ -82,6 +83,7 @@ export function SettingsNavigation({ activeTab, onTabChange }: SettingsNavigatio
   const backupStatus = usePDMStore((s) => s.backupStatus)
   const isAdmin = usePDMStore((s) => s.getEffectiveRole() === 'admin')
 
+  const desktop = hasDesktop()
   const { query, groups } = useSettingsSearch()
   const matchedTabs = new Set(groups.map((g) => g.tab))
 
@@ -90,7 +92,8 @@ export function SettingsNavigation({ activeTab, onTabChange }: SettingsNavigatio
     .map((section) => ({
       ...section,
       items: section.items.filter(
-        (item) => (!item.adminOnly || isAdmin) && (!query || matchedTabs.has(item.id)),
+        (item) =>
+          isSettingsTabAvailable(item, isAdmin, desktop) && (!query || matchedTabs.has(item.id)),
       ),
     }))
     .filter((section) => section.items.length > 0)

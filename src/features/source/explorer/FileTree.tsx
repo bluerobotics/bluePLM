@@ -10,7 +10,6 @@ import {
   ChevronRight,
   ChevronDown,
   Database,
-  Cloud,
   Loader2,
   Unlink,
   FolderOpen as FolderOpenIcon,
@@ -18,13 +17,9 @@ import {
   Check,
   Info,
   RefreshCw,
-  Plus,
-  Lock,
-  X,
   Filter,
   CloudOff,
   FolderMinus,
-  Move,
 } from 'lucide-react'
 // Shared file/folder components
 import { FileIcon, type CheckoutUser } from '@/components/shared/FileItem'
@@ -49,6 +44,8 @@ import { NoVaultAccessMessage } from './file-tree/RecentVaultsSection'
 import { VirtualizedTreeRow } from './file-tree/VirtualizedTreeRow'
 import { TreeHoverProvider } from './file-tree/TreeHoverContext'
 import { resolveMovedAwayOpenPath } from './file-tree/movedAwayOpenPath'
+import { VaultPropertiesModal } from './file-tree/VaultPropertiesModal'
+import { hasDesktop } from '@/lib/platform'
 // FileTree hooks
 import { useVaultTree } from './file-tree/hooks/useVaultTree'
 import { useFlattenedTree } from './file-tree/hooks/useFlattenedTree'
@@ -1400,18 +1397,21 @@ export function FileTree({ onRefresh }: FileTreeProps) {
                 }
                 return null
               })()}
-              <button
-                className="w-full px-3 py-2 text-left text-sm hover:bg-plm-highlight flex items-center gap-2 text-plm-fg"
-                onClick={() => {
-                  if (vaultContextMenu.vault.localPath) {
-                    window.electronAPI?.openInExplorer(vaultContextMenu.vault.localPath)
-                  }
-                  setVaultContextMenu(null)
-                }}
-              >
-                <FolderOpenIcon size={14} />
-                {platform === 'darwin' ? 'Reveal in Finder' : 'Open in Explorer'}
-              </button>
+              {/* The folder the vault lives in: desktop only (BluePLM Web has none). */}
+              {hasDesktop() && (
+                <button
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-plm-highlight flex items-center gap-2 text-plm-fg"
+                  onClick={() => {
+                    if (vaultContextMenu.vault.localPath) {
+                      window.electronAPI?.openInExplorer(vaultContextMenu.vault.localPath)
+                    }
+                    setVaultContextMenu(null)
+                  }}
+                >
+                  <FolderOpenIcon size={14} />
+                  {platform === 'darwin' ? 'Reveal in Finder' : 'Open in Explorer'}
+                </button>
+              )}
               <button
                 className="w-full px-3 py-2 text-left text-sm hover:bg-plm-highlight flex items-center gap-2 text-plm-fg"
                 onClick={() => {
@@ -1422,30 +1422,32 @@ export function FileTree({ onRefresh }: FileTreeProps) {
                 <Info size={14} />
                 Properties
               </button>
-              <button
-                className="w-full px-3 py-2 text-left text-sm hover:bg-plm-highlight flex items-center gap-2 text-plm-fg"
-                onClick={async () => {
-                  const vault = vaultContextMenu.vault
-                  setVaultContextMenu(null)
+              {hasDesktop() && (
+                <button
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-plm-highlight flex items-center gap-2 text-plm-fg"
+                  onClick={async () => {
+                    const vault = vaultContextMenu.vault
+                    setVaultContextMenu(null)
 
-                  const result = await window.electronAPI?.selectWorkingDir()
-                  if (result?.success && result.path) {
-                    const { updateConnectedVault, setVaultPath, setVaultConnected, addToast } =
-                      usePDMStore.getState()
-                    updateConnectedVault(vault.id, { localPath: result.path })
+                    const result = await window.electronAPI?.selectWorkingDir()
+                    if (result?.success && result.path) {
+                      const { updateConnectedVault, setVaultPath, setVaultConnected, addToast } =
+                        usePDMStore.getState()
+                      updateConnectedVault(vault.id, { localPath: result.path })
 
-                    if (activeVaultId === vault.id) {
-                      setVaultPath(result.path)
-                      setVaultConnected(true)
+                      if (activeVaultId === vault.id) {
+                        setVaultPath(result.path)
+                        setVaultConnected(true)
+                      }
+
+                      addToast('success', `Vault "${vault.name}" path changed to: ${result.path}`)
                     }
-
-                    addToast('success', `Vault "${vault.name}" path changed to: ${result.path}`)
-                  }
-                }}
-              >
-                <FolderOpen size={14} />
-                Change Path...
-              </button>
+                  }}
+                >
+                  <FolderOpen size={14} />
+                  Change Path...
+                </button>
+              )}
               <div className="border-t border-plm-border my-1" />
               <button
                 className="w-full px-3 py-2 text-left text-sm hover:bg-plm-highlight flex items-center gap-2 text-plm-warning"
@@ -1628,232 +1630,12 @@ export function FileTree({ onRefresh }: FileTreeProps) {
 
         {/* Vault Properties Modal */}
         {showVaultProperties && (
-          <div
-            data-native-preview-overlay="modal"
-            className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center"
-            onClick={() => setShowVaultProperties(null)}
-          >
-            <div
-              className="bg-plm-bg-light border border-plm-border rounded-xl shadow-2xl w-[500px] max-h-[80vh] overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="p-4 border-b border-plm-border bg-plm-bg flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-plm-accent/20 rounded-lg vault-icon-bg">
-                    <Database size={20} className="vault-icon text-plm-accent" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-plm-fg">
-                      {showVaultProperties.name}
-                    </h3>
-                    <p className="text-xs text-plm-fg-muted">Vault Properties</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowVaultProperties(null)}
-                  className="p-1 hover:bg-plm-bg-light rounded text-plm-fg-muted hover:text-plm-fg"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-
-              <div className="p-4 space-y-4 overflow-auto max-h-[60vh]">
-                <div className="p-3 bg-plm-bg rounded-lg border border-plm-border">
-                  <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-1">
-                    Local Path
-                  </div>
-                  <div className="text-sm text-plm-fg break-all font-mono">
-                    {showVaultProperties.localPath || 'Not connected locally'}
-                  </div>
-                </div>
-
-                {(() => {
-                  const vaultFiles = files.filter((f) => !f.isDirectory)
-                  const vaultFolders = files.filter((f) => f.isDirectory)
-                  const syncedFiles = vaultFiles.filter((f) => !f.diffStatus)
-                  const modifiedFiles = vaultFiles.filter((f) => f.diffStatus === 'modified')
-                  // 'moved_away' stubs are excluded - each is a shadow of the 'moved' row for
-                  // the same file at its new location, not a second file to report.
-                  const movedFiles = vaultFiles.filter((f) => f.diffStatus === 'moved')
-                  const addedFiles = vaultFiles.filter((f) => f.diffStatus === 'added')
-                  const cloudFiles = vaultFiles.filter((f) => f.diffStatus === 'cloud')
-                  const conflictFiles = vaultFiles.filter((f) => f.diffStatus === 'outdated')
-                  const checkedOutByMe = vaultFiles.filter(
-                    (f) => f.pdmData?.checked_out_by === user?.id,
-                  )
-                  const checkedOutByOthersVault = vaultFiles.filter(
-                    (f) => f.pdmData?.checked_out_by && f.pdmData.checked_out_by !== user?.id,
-                  )
-
-                  const totalLocalSize = vaultFiles
-                    .filter((f) => f.diffStatus !== 'cloud')
-                    .reduce((sum, f) => sum + (f.size || 0), 0)
-
-                  const formatSize = (bytes: number) => {
-                    if (bytes === 0) return '0 B'
-                    if (bytes >= 1024 * 1024 * 1024)
-                      return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
-                    if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
-                    if (bytes >= 1024) return `${(bytes / 1024).toFixed(2)} KB`
-                    return `${bytes} B`
-                  }
-
-                  return (
-                    <>
-                      <div className="grid grid-cols-3 gap-3">
-                        <div className="p-3 bg-plm-bg rounded-lg border border-plm-border text-center">
-                          <div className="text-2xl font-bold text-plm-fg">{vaultFiles.length}</div>
-                          <div className="text-xs text-plm-fg-muted">Files</div>
-                        </div>
-                        <div className="p-3 bg-plm-bg rounded-lg border border-plm-border text-center">
-                          <div className="text-2xl font-bold text-plm-fg">
-                            {vaultFolders.length}
-                          </div>
-                          <div className="text-xs text-plm-fg-muted">Folders</div>
-                        </div>
-                        <div className="p-3 bg-plm-bg rounded-lg border border-plm-border text-center">
-                          <div className="text-2xl font-bold text-plm-fg">
-                            {formatSize(totalLocalSize)}
-                          </div>
-                          <div className="text-xs text-plm-fg-muted">Local Size</div>
-                        </div>
-                      </div>
-
-                      <div className="p-3 bg-plm-bg rounded-lg border border-plm-border">
-                        <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-3">
-                          Sync Status
-                        </div>
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <Check size={14} className="text-plm-success" />
-                              <span className="text-sm text-plm-fg">Synced</span>
-                            </div>
-                            <span className="text-sm font-medium text-plm-fg">
-                              {syncedFiles.length}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <RefreshCw size={14} className="text-plm-warning" />
-                              <span className="text-sm text-plm-fg">Modified</span>
-                            </div>
-                            <span className="text-sm font-medium text-plm-fg">
-                              {modifiedFiles.length}
-                            </span>
-                          </div>
-                          {movedFiles.length > 0 && (
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <Move size={14} className="text-blue-400" />
-                                <span className="text-sm text-plm-fg">
-                                  {t('diffStatus.moved')}
-                                </span>
-                              </div>
-                              <span className="text-sm font-medium text-plm-fg">
-                                {movedFiles.length}
-                              </span>
-                            </div>
-                          )}
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <Plus size={14} className="text-plm-accent" />
-                              <span className="text-sm text-plm-fg">Local Only</span>
-                            </div>
-                            <span className="text-sm font-medium text-plm-fg">
-                              {addedFiles.length}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <Cloud size={14} className="text-plm-fg-muted" />
-                              <span className="text-sm text-plm-fg">Cloud Only</span>
-                            </div>
-                            <span className="text-sm font-medium text-plm-fg">
-                              {cloudFiles.length}
-                            </span>
-                          </div>
-                          {conflictFiles.length > 0 && (
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <AlertTriangle size={14} className="text-plm-error" />
-                                <span className="text-sm text-plm-fg">Conflicts</span>
-                              </div>
-                              <span className="text-sm font-medium text-plm-error">
-                                {conflictFiles.length}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="p-3 bg-plm-bg rounded-lg border border-plm-border">
-                        <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-3">
-                          Checkout Status
-                        </div>
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <Lock size={14} className="text-plm-accent" />
-                              <span className="text-sm text-plm-fg">Checked out by you</span>
-                            </div>
-                            <span className="text-sm font-medium text-plm-fg">
-                              {checkedOutByMe.length}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <Lock size={14} className="text-plm-warning" />
-                              <span className="text-sm text-plm-fg">Checked out by others</span>
-                            </div>
-                            <span className="text-sm font-medium text-plm-fg">
-                              {checkedOutByOthersVault.length}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {(() => {
-                        const typeCount = new Map<string, number>()
-                        vaultFiles.forEach((f) => {
-                          const ext = (f.extension || 'other').toLowerCase()
-                          typeCount.set(ext, (typeCount.get(ext) || 0) + 1)
-                        })
-
-                        const sortedTypes = [...typeCount.entries()]
-                          .sort((a, b) => b[1] - a[1])
-                          .slice(0, 10)
-
-                        if (sortedTypes.length === 0) return null
-
-                        return (
-                          <div className="p-3 bg-plm-bg rounded-lg border border-plm-border">
-                            <div className="text-xs text-plm-fg-muted uppercase tracking-wide mb-3">
-                              File Types
-                            </div>
-                            <div className="space-y-1.5">
-                              {sortedTypes.map(([ext, count]) => (
-                                <div key={ext} className="flex items-center justify-between">
-                                  <span className="text-sm text-plm-fg">.{ext}</span>
-                                  <span className="text-sm text-plm-fg-muted">{count}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )
-                      })()}
-                    </>
-                  )
-                })()}
-              </div>
-
-              <div className="p-4 border-t border-plm-border bg-plm-bg flex justify-end">
-                <button onClick={() => setShowVaultProperties(null)} className="btn btn-ghost">
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
+          <VaultPropertiesModal
+            vault={showVaultProperties}
+            files={files}
+            userId={user?.id}
+            onClose={() => setShowVaultProperties(null)}
+          />
         )}
 
         {/* New Folder Dialog */}

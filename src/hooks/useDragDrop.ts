@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from 'react'
 import type { LocalFile } from '@/stores/pdmStore'
 import { PDM_FILES_DATA_TYPE, type DragDropMode } from '@/lib/fileOperations'
 import { executeCommand } from '@/lib/commands'
+import { setFileDragImage } from '@/lib/dragPreview'
 
 interface UseDragDropOptions {
   mode: DragDropMode
@@ -33,18 +34,11 @@ export function useDragDrop(options: UseDragDropOptions) {
       e.dataTransfer.setData(PDM_FILES_DATA_TYPE, JSON.stringify(draggable.map((f) => f.path)))
 
       // Create a custom drag image
-      const dragPreview = document.createElement('div')
-      dragPreview.style.cssText =
-        'position:absolute;left:-1000px;padding:8px 12px;background:#1e293b;border:1px solid #3b82f6;border-radius:6px;color:white;font-size:13px;display:flex;align-items:center;gap:6px;'
-      const iconSvg = primaryFile.isDirectory
-        ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>'
-        : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>'
-      const label = draggable.length > 1 ? `${draggable.length} items` : primaryFile.name
-      dragPreview.innerHTML = iconSvg
-      dragPreview.appendChild(document.createTextNode(label))
-      document.body.appendChild(dragPreview)
-      e.dataTransfer.setDragImage(dragPreview, 20, 20)
-      setTimeout(() => dragPreview.remove(), 0)
+      setFileDragImage(e.dataTransfer, {
+        isDirectory: primaryFile.isDirectory,
+        name: primaryFile.name,
+        count: draggable.length,
+      })
     },
     [],
   )

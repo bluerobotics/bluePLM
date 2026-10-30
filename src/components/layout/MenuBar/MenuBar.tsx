@@ -37,6 +37,7 @@ import { OnlineUsersIndicator } from '@/components/shared/OnlineUsers'
 import { SolidWorksStatusIndicator } from '@/components/shared/SolidWorksStatusIndicator'
 import { getMachineId } from '@/lib/backup'
 import { log } from '@/lib/logger'
+import { hasDesktop } from '@/lib/platform'
 
 // Get user's initials for avatar fallback (1-2 characters from name or email)
 function getUserInitial(user: { full_name?: string | null; email?: string } | null): string {
@@ -162,6 +163,8 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showVaultDropdown, setShowVaultDropdown] = useState(false)
   const [showZoomDropdown, setShowZoomDropdown] = useState(false)
+  // BluePLM Web: no Electron zoom and no SOLIDWORKS, so their top-bar controls are left out.
+  const desktop = hasDesktop()
   const [showTopbarConfigDropdown, setShowTopbarConfigDropdown] = useState(false)
   const [showProfileModal, setShowProfileModal] = useState(false)
   const [orgLogoUrl, setOrgLogoUrl] = useState<string | null>(null)
@@ -567,7 +570,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
           )}
 
           {/* Zoom dropdown - condenses to icon only when narrow */}
-          {!minimal && topbarConfig.showZoom && (
+          {desktop && !minimal && topbarConfig.showZoom && (
             <div className="relative titlebar-no-drag" ref={zoomDropdownRef}>
               <button
                 onClick={() => setShowZoomDropdown(!showZoomDropdown)}
@@ -643,7 +646,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
           )}
 
           {/* SolidWorks Service Status Indicator */}
-          {!minimal && topbarConfig.showSolidworks && (
+          {desktop && !minimal && topbarConfig.showSolidworks && (
             <div className="flex items-center titlebar-no-drag">
               <div className="w-px h-4 bg-plm-border mx-1" />
               <SolidWorksStatusIndicator />
@@ -761,22 +764,24 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
                     </button>
 
                     {/* Zoom Controls */}
-                    <button
-                      onClick={() => setTopbarConfig({ showZoom: !topbarConfig.showZoom })}
-                      className="w-full flex items-center gap-2.5 px-3 py-1.5 text-sm text-plm-fg hover:bg-plm-bg-lighter transition-colors"
-                    >
-                      <span className="text-plm-fg-muted">
-                        <ZoomIn size={14} />
-                      </span>
-                      <span className="flex-1 text-left">Zoom Controls</span>
-                      <div
-                        className={`w-8 h-4 rounded-full transition-colors relative ${topbarConfig.showZoom ? 'bg-plm-accent' : 'bg-plm-border'}`}
+                    {desktop && (
+                      <button
+                        onClick={() => setTopbarConfig({ showZoom: !topbarConfig.showZoom })}
+                        className="w-full flex items-center gap-2.5 px-3 py-1.5 text-sm text-plm-fg hover:bg-plm-bg-lighter transition-colors"
                       >
+                        <span className="text-plm-fg-muted">
+                          <ZoomIn size={14} />
+                        </span>
+                        <span className="flex-1 text-left">Zoom Controls</span>
                         <div
-                          className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform ${topbarConfig.showZoom ? 'translate-x-4' : 'translate-x-0.5'}`}
-                        />
-                      </div>
-                    </button>
+                          className={`w-8 h-4 rounded-full transition-colors relative ${topbarConfig.showZoom ? 'bg-plm-accent' : 'bg-plm-border'}`}
+                        >
+                          <div
+                            className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform ${topbarConfig.showZoom ? 'translate-x-4' : 'translate-x-0.5'}`}
+                          />
+                        </div>
+                      </button>
+                    )}
 
                     {/* Organization */}
                     <button
@@ -835,24 +840,26 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
                     </button>
 
                     {/* SolidWorks Status */}
-                    <button
-                      onClick={() =>
-                        setTopbarConfig({ showSolidworks: !topbarConfig.showSolidworks })
-                      }
-                      className="w-full flex items-center gap-2.5 px-3 py-1.5 text-sm text-plm-fg hover:bg-plm-bg-lighter transition-colors"
-                    >
-                      <span className="text-plm-fg-muted">
-                        <Box size={14} />
-                      </span>
-                      <span className="flex-1 text-left">SolidWorks Status</span>
-                      <div
-                        className={`w-8 h-4 rounded-full transition-colors relative ${topbarConfig.showSolidworks ? 'bg-plm-accent' : 'bg-plm-border'}`}
+                    {desktop && (
+                      <button
+                        onClick={() =>
+                          setTopbarConfig({ showSolidworks: !topbarConfig.showSolidworks })
+                        }
+                        className="w-full flex items-center gap-2.5 px-3 py-1.5 text-sm text-plm-fg hover:bg-plm-bg-lighter transition-colors"
                       >
+                        <span className="text-plm-fg-muted">
+                          <Box size={14} />
+                        </span>
+                        <span className="flex-1 text-left">SolidWorks Status</span>
                         <div
-                          className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform ${topbarConfig.showSolidworks ? 'translate-x-4' : 'translate-x-0.5'}`}
-                        />
-                      </div>
-                    </button>
+                          className={`w-8 h-4 rounded-full transition-colors relative ${topbarConfig.showSolidworks ? 'bg-plm-accent' : 'bg-plm-border'}`}
+                        >
+                          <div
+                            className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform ${topbarConfig.showSolidworks ? 'translate-x-4' : 'translate-x-0.5'}`}
+                          />
+                        </div>
+                      </button>
+                    )}
 
                     {/* Panel Toggles */}
                     <button

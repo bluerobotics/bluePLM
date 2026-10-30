@@ -531,18 +531,6 @@ export function HalloweenEffects() {
         </button>
       </div>
 
-      {/* CSS animations */}
-      <style>{`
-        @keyframes pumpkinGlow {
-          0%, 100% { filter: drop-shadow(0 0 8px rgba(255, 107, 43, 0.6)); }
-          50% { filter: drop-shadow(0 0 15px rgba(255, 107, 43, 0.9)); }
-        }
-        
-        @keyframes bonfireGlow {
-          0%, 100% { opacity: 0.8; }
-          50% { opacity: 1; }
-        }
-      `}</style>
     </>
   )
 }

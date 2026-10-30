@@ -41,17 +41,18 @@ export function UpdateModal() {
     updateAvailable.downloadUrl?.includes('rollback') || updateAvailable.releaseNotes === 'rollback'
 
   const handleUpdateNow = async () => {
-    if (updateDownloading || updateDownloaded) return
+    const api = window.electronAPI
+    if (!api || updateDownloading || updateDownloaded) return
 
     // Clear any existing reminder when user clicks update
-    window.electronAPI.clearUpdateReminder()
+    api.clearUpdateReminder()
 
     setUpdateDownloading(true)
 
     try {
       if (isManualVersion && updateAvailable.downloadUrl) {
         // Manual version download from GitHub
-        const result = await window.electronAPI.downloadVersionInstaller(
+        const result = await api.downloadVersionInstaller(
           updateAvailable.version,
           updateAvailable.downloadUrl,
         )
@@ -71,7 +72,7 @@ export function UpdateModal() {
         // Auto-run the installer
         if (result.filePath) {
           setIsRunningInstaller(true)
-          const runResult = await window.electronAPI.runInstaller(result.filePath)
+          const runResult = await api.runInstaller(result.filePath)
           if (!runResult.success) {
             log.error('[Update]', 'Failed to run installer', { error: runResult.error })
             addToast('error', `Failed to run installer: ${runResult.error}`)
@@ -81,7 +82,7 @@ export function UpdateModal() {
         }
       } else {
         // Standard auto-update flow
-        const result = await window.electronAPI.downloadUpdate()
+        const result = await api.downloadUpdate()
         if (!result.success) {
           log.error('[Update]', 'Download failed', { error: result.error })
           addToast('error', `Download failed: ${result.error}`)
@@ -101,7 +102,7 @@ export function UpdateModal() {
     if (!isManualVersion) {
       const version = updateAvailable.version
       if (version) {
-        await window.electronAPI.postponeUpdate(version)
+        await window.electronAPI?.postponeUpdate(version)
         log.info(
           '[Update]',
           `Postponed update for version ${version}, will remind on next startup or in 24 hours`,

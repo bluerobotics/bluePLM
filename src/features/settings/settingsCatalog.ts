@@ -5,6 +5,11 @@ export interface SettingsNavigationItem {
   label: string
   /** Hidden from the navigation for everyone but an admin. The panel gates itself as well. */
   adminOnly?: boolean
+  /**
+   * Needs the desktop app (the local machine, Electron, SOLIDWORKS). Hidden on BluePLM Web,
+   * where `hasDesktop()` is false.
+   */
+  desktopOnly?: boolean
   /** Extra words the settings search should match this tab by. */
   keywords?: readonly string[]
 }
@@ -30,8 +35,8 @@ export const settingsSections = (): SettingsSection[] => [
   {
     category: 'Organization',
     items: [
-      { id: 'supabase', label: 'Supabase', keywords: ['database', 'backend', 'server'] },
-      { id: 'backup', label: 'Backups', keywords: ['restore', 'snapshot'] },
+      { id: 'supabase', label: 'Supabase', keywords: ['database', 'backend', 'server'], desktopOnly: true },
+      { id: 'backup', label: 'Backups', keywords: ['restore', 'snapshot'], desktopOnly: true },
       { id: 'vaults', label: 'Vaults', keywords: ['folders', 'storage'] },
       { id: 'team-members', label: 'Members & Teams', keywords: ['users', 'people', 'invite'] },
       { id: 'module-access', label: 'Module Access', keywords: ['permissions', 'roles'] },
@@ -49,8 +54,8 @@ export const settingsSections = (): SettingsSection[] => [
   {
     category: 'Extensions',
     items: [
-      { id: 'extension-store', label: 'Extension Store', keywords: ['plugins', 'install'] },
-      { id: 'solidworks', label: 'SolidWorks', keywords: ['cad', 'sw'] },
+      { id: 'extension-store', label: 'Extension Store', keywords: ['plugins', 'install'], desktopOnly: true },
+      { id: 'solidworks', label: 'SolidWorks', keywords: ['cad', 'sw'], desktopOnly: true },
       { id: 'google-drive', label: 'Google Drive', keywords: ['gdrive'] },
       { id: 'odoo', label: 'Odoo ERP', keywords: ['erp'] },
       { id: 'api', label: 'REST API', keywords: ['tokens', 'api keys'] },
@@ -60,10 +65,10 @@ export const settingsSections = (): SettingsSection[] => [
   {
     category: 'System',
     items: [
-      { id: 'performance', label: 'Performance', keywords: ['speed', 'memory', 'cpu'] },
-      { id: 'logs', label: 'Logs', keywords: ['debug', 'errors'] },
-      { id: 'dev-tools', label: 'Dev Tools', keywords: ['developer', 'debug'] },
-      { id: 'about', label: 'About', keywords: ['version', 'update', 'license'] },
+      { id: 'performance', label: 'Performance', keywords: ['speed', 'memory', 'cpu'], desktopOnly: true },
+      { id: 'logs', label: 'Logs', keywords: ['debug', 'errors'], desktopOnly: true },
+      { id: 'dev-tools', label: 'Dev Tools', keywords: ['developer', 'debug'], desktopOnly: true },
+      { id: 'about', label: 'About', keywords: ['version', 'update', 'license'], desktopOnly: true },
     ],
   },
 ]
@@ -72,6 +77,8 @@ export interface SettingsCatalogEntry {
   /** The setting's label as rendered in English, so its panel can be scrolled to it. */
   label: string
   keywords?: readonly string[]
+  /** The panel renders this setting only in the desktop app; search leaves it out on the web. */
+  desktopOnly?: boolean
 }
 
 export type SettingsCatalog = Partial<Record<SettingsTab, readonly SettingsCatalogEntry[]>>
@@ -92,8 +99,8 @@ export const settingsCatalog: SettingsCatalog = {
   ],
   preferences: [
     { label: 'Sessions', keywords: ['devices', 'sign out', 'logout'] },
-    { label: 'Application Updates', keywords: ['update', 'version', 'upgrade'] },
-    { label: 'Check for Updates', keywords: ['update', 'upgrade'] },
+    { label: 'Application Updates', keywords: ['update', 'version', 'upgrade'], desktopOnly: true },
+    { label: 'Check for Updates', keywords: ['update', 'upgrade'], desktopOnly: true },
     { label: 'Appearance', keywords: ['theme', 'dark mode', 'colors'] },
     { label: 'Dark', keywords: ['theme', 'dark mode'] },
     { label: 'Deep Blue', keywords: ['theme'] },
@@ -102,21 +109,22 @@ export const settingsCatalog: SettingsCatalog = {
     { label: 'Auto-apply seasonal themes', keywords: ['christmas', 'halloween', 'holiday'] },
     { label: 'Language', keywords: ['locale', 'translation'] },
     { label: 'Display Language', keywords: ['locale', 'translation', 'i18n'] },
-    { label: 'Sync Settings', keywords: ['download', 'sync'] },
-    { label: 'Auto-download cloud files', keywords: ['sync', 'download'] },
-    { label: 'Auto-download file updates', keywords: ['sync', 'download', 'newer versions'] },
-    { label: 'Skip large files', keywords: ['size limit', 'max size'] },
-    { label: 'Max file size:', keywords: ['size limit'] },
-    { label: 'Excluded files', keywords: ['exclude', 'skip list'] },
-    { label: 'Privacy', keywords: ['analytics', 'telemetry'] },
-    { label: 'Usage Statistics', keywords: ['analytics', 'telemetry', 'error reports', 'crash'] },
+    { label: 'Sync Settings', keywords: ['download', 'sync'], desktopOnly: true },
+    { label: 'Auto-download cloud files', keywords: ['sync', 'download'], desktopOnly: true },
+    { label: 'Auto-download file updates', keywords: ['sync', 'download', 'newer versions'], desktopOnly: true },
+    { label: 'Skip large files', keywords: ['size limit', 'max size'], desktopOnly: true },
+    { label: 'Max file size:', keywords: ['size limit'], desktopOnly: true },
+    { label: 'Excluded files', keywords: ['exclude', 'skip list'], desktopOnly: true },
+    { label: 'Privacy', keywords: ['analytics', 'telemetry'], desktopOnly: true },
+    { label: 'Usage Statistics', keywords: ['analytics', 'telemetry', 'error reports', 'crash'], desktopOnly: true },
     { label: 'Interface', keywords: ['ui', 'layout'] },
     { label: 'Browser-like Tabs', keywords: ['tabs', 'multiple views'] },
-    { label: 'File Extensions', keywords: ['extension'] },
-    { label: 'Lowercase Extensions on Upload', keywords: ['lowercase', 'extension', 'case'] },
+    { label: 'File Extensions', keywords: ['extension'], desktopOnly: true },
+    { label: 'Lowercase Extensions on Upload', keywords: ['lowercase', 'extension', 'case'], desktopOnly: true },
     {
       label: 'Ignore Patterns (Keep Local Only)',
       keywords: ['ignore', 'gitignore', 'exclude', 'local only'],
+      desktopOnly: true,
     },
   ],
   keybindings: [
@@ -422,4 +430,28 @@ export const settingsCatalog: SettingsCatalog = {
     { label: 'Installed', keywords: ['installed extensions'] },
     { label: 'Sideload', keywords: ['install from file', 'local extension'] },
   ],
+}
+
+/** Whether a settings tab shows for this user on this host (admin-only and desktop-only gates). */
+export function isSettingsTabAvailable(
+  item: Pick<SettingsNavigationItem, 'adminOnly' | 'desktopOnly'>,
+  isAdmin: boolean,
+  desktop: boolean,
+): boolean {
+  return (!item.adminOnly || isAdmin) && (!item.desktopOnly || desktop)
+}
+
+/** True for a tab that only the desktop app shows (marked `desktopOnly` in settingsSections). */
+export function isDesktopOnlySettingsTab(tab: SettingsTab): boolean {
+  return settingsSections().some((s) => s.items.some((i) => i.id === tab && i.desktopOnly))
+}
+
+/** The search catalog for this host: on the web, desktop-only settings are left out. */
+export function settingsCatalogFor(desktop: boolean): SettingsCatalog {
+  if (desktop) return settingsCatalog
+  const out: SettingsCatalog = {}
+  for (const tab of Object.keys(settingsCatalog) as SettingsTab[]) {
+    out[tab] = (settingsCatalog[tab] ?? []).filter((e) => !e.desktopOnly)
+  }
+  return out
 }

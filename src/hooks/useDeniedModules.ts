@@ -1,9 +1,8 @@
 import { useMemo } from 'react'
 import { fileWorkflowsEnabled } from '@/lib/fileWorkflows'
+import { hasDesktop } from '@/lib/platform'
 import { usePDMStore } from '@/stores/pdmStore'
-import type { ModuleId } from '@/types/modules'
-
-const NO_DENIED_MODULES: ReadonlySet<ModuleId> = new Set()
+import { computeDeniedModules, type ModuleId } from '@/types/modules'
 
 /**
  * Modules the current user is restricted out of, as a set suitable for passing
@@ -17,13 +16,17 @@ const NO_DENIED_MODULES: ReadonlySet<ModuleId> = new Set()
  * File workflows switched off for the organization (Settings > File Workflows)
  * deny the Workflows view to everyone, admins included, so every surface that
  * honours module access hides it too.
+ *
+ * On BluePLM Web (no Electron bridge, `hasDesktop()` false) the desktop-only modules
+ * (Pending Changes, Google Drive, Terminal: `desktopOnly` in MODULES) are denied the same way.
  */
 export function useDeniedModules(): ReadonlySet<ModuleId> {
   const deniedModules = usePDMStore((s) => s.deniedModules)
   const workflowsOn = usePDMStore((s) => fileWorkflowsEnabled(s.organization))
+  const desktop = hasDesktop()
 
-  return useMemo(() => {
-    if (workflowsOn) return deniedModules.length === 0 ? NO_DENIED_MODULES : new Set(deniedModules)
-    return new Set<ModuleId>([...deniedModules, 'workflows'])
-  }, [deniedModules, workflowsOn])
+  return useMemo(
+    () => computeDeniedModules(deniedModules, workflowsOn, desktop),
+    [deniedModules, workflowsOn, desktop],
+  )
 }

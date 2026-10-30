@@ -16,6 +16,7 @@ import { FolderVisibilityMenuItem } from '@/components/shared/HiddenFolder'
 // Import from local modules
 import { useMenuPosition, useContextMenuState } from './hooks'
 import { getCountLabel } from '@/lib/utils'
+import { hasDesktop } from '@/lib/platform'
 
 // Menu item components
 import { ClipboardItems } from './items/ClipboardItems'
@@ -382,19 +383,23 @@ export function FileContextMenu({
           unpinFolder={unpinFolder}
         />
 
-        {/* Clipboard Items */}
-        <ClipboardItems
-          contextFiles={contextFiles}
-          clipboard={clipboard}
-          userId={user?.id}
-          onCopy={onCopy}
-          onCut={onCut}
-          onPaste={onPaste}
-          onClose={onClose}
-        />
+        {/* Clipboard Items and Copy / Move to another connected vault (hidden when there is none
+            to go to): both move files on disk, so not on BluePLM Web */}
+        {hasDesktop() && (
+          <>
+            <ClipboardItems
+              contextFiles={contextFiles}
+              clipboard={clipboard}
+              userId={user?.id}
+              onCopy={onCopy}
+              onCut={onCut}
+              onPaste={onPaste}
+              onClose={onClose}
+            />
 
-        {/* Copy / Move to another connected vault (hidden when there is none to go to) */}
-        <VaultTransferMenuItems contextFiles={contextFiles} onClose={onClose} />
+            <VaultTransferMenuItems contextFiles={contextFiles} onClose={onClose} />
+          </>
+        )}
 
         {/* Collaboration Items */}
         <CollaborationItems
@@ -421,12 +426,14 @@ export function FileContextMenu({
           onClose={onClose}
         />
 
-        {/* Resolve Moved Files - for a single file that is 'moved' or 'moved_away' */}
-        <MovedFileItems
-          firstFile={firstFile}
-          multiSelect={multiSelect}
-          openDialog={state.openDialog}
-        />
+        {/* Resolve Moved Files - for a single file that is 'moved' or 'moved_away' (desktop only) */}
+        {hasDesktop() && (
+          <MovedFileItems
+            firstFile={firstFile}
+            multiSelect={multiSelect}
+            openDialog={state.openDialog}
+          />
+        )}
 
         {/* Admin Items */}
         <AdminItems

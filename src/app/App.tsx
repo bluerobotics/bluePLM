@@ -32,6 +32,7 @@ import {
   useLoadFiles,
   useAuth,
   useAutoDownload,
+  useWebVaultAutoConnect,
   useVaultManagement,
   useIntegrationStatus,
   useAppStartup,
@@ -171,6 +172,9 @@ export function App() {
 
   // Auto-download trigger hook
   useAutoDownload()
+
+  // BluePLM Web: connect the user's vaults (no folder to choose there)
+  useWebVaultAutoConnect()
 
   // Get store values needed for effects and computed values
   const {

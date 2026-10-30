@@ -12,7 +12,7 @@ import { createFakeElectron } from '@/test/fakeElectron'
 
 import type { Misses } from './lenientClient'
 
-type ElectronAPI = Window['electronAPI']
+type ElectronAPI = NonNullable<Window['electronAPI']>
 type Fn = (...args: unknown[]) => unknown
 
 /** Window and log calls with no disk, network or service behind them: answered by the real preload. */

@@ -37,6 +37,7 @@ import { ContextMenuGroup, ExpandableSection } from './components'
 import { NativePreviewContextMenuBackdrop } from './NativePreviewContextMenuBackdrop'
 import { ReviewsSubmenu } from '@/features/source/reviewPackage/components/ReviewsSubmenu'
 import { fileWorkflowsEnabled } from '@/lib/fileWorkflows'
+import { hasDesktop } from '@/lib/platform'
 import { shouldShowExpandableSection, countCollaborationActions } from './utils'
 
 export interface FileContextMenuProps {
@@ -179,6 +180,8 @@ export function FileContextMenu({
 
   // State for expandable section
   const [isExpanded, setIsExpanded] = useState(false)
+  // BluePLM Web: no local vault and no SOLIDWORKS, so the entries that need them are left out.
+  const desktop = hasDesktop()
 
   // Get context files
   const contextFiles = getContextMenuFiles()
@@ -202,7 +205,7 @@ export function FileContextMenu({
       state,
       userId: user?.id,
       isAdmin: getEffectiveRole() === 'admin',
-      solidworksEnabled: solidworksIntegrationEnabled,
+      solidworksEnabled: desktop && solidworksIntegrationEnabled,
       workflowsEnabled: fileWorkflowsEnabled(organization),
       allFiles: files,
     }),
@@ -215,6 +218,7 @@ export function FileContextMenu({
       user?.id,
       getEffectiveRole,
       solidworksIntegrationEnabled,
+      desktop,
       organization,
       files,
     ],
@@ -257,7 +261,7 @@ export function FileContextMenu({
     const ext = f.extension?.toLowerCase() || ''
     return !f.isDirectory && pdfStepExtensions.has(ext)
   })
-  const hasExportActions = hasSwExportActions || hasPdfStepTableExport
+  const hasExportActions = (desktop && hasSwExportActions) || hasPdfStepTableExport
 
   return (
     <>
@@ -286,29 +290,33 @@ export function FileContextMenu({
           onGoToFolder={onGoToFolder}
         />
 
-        {/* Assembly actions (insert into open SolidWorks assembly) */}
-        <AssemblyActions
-          contextFiles={contextFiles}
-          multiSelect={multiSelect}
-          firstFile={firstFile}
-          onClose={onClose}
-        />
+        {desktop && (
+          <>
+            {/* Assembly actions (insert into open SolidWorks assembly) */}
+            <AssemblyActions
+              contextFiles={contextFiles}
+              multiSelect={multiSelect}
+              firstFile={firstFile}
+              onClose={onClose}
+            />
 
-        {/* Duplicate a part together with its drawing, remapping the drawing's reference */}
-        <DuplicateActions
-          contextFiles={contextFiles}
-          multiSelect={multiSelect}
-          firstFile={firstFile}
-          onClose={onClose}
-        />
+            {/* Duplicate a part together with its drawing, remapping the drawing's reference */}
+            <DuplicateActions
+              contextFiles={contextFiles}
+              multiSelect={multiSelect}
+              firstFile={firstFile}
+              onClose={onClose}
+            />
 
-        {/* Bulk assembly actions (download/checkout/checkin all related files) */}
-        <BulkAssemblyActions
-          contextFiles={contextFiles}
-          multiSelect={multiSelect}
-          firstFile={firstFile}
-          onClose={onClose}
-        />
+            {/* Bulk assembly actions (download/checkout/checkin all related files) */}
+            <BulkAssemblyActions
+              contextFiles={contextFiles}
+              multiSelect={multiSelect}
+              firstFile={firstFile}
+              onClose={onClose}
+            />
+          </>
+        )}
 
         {/* Sync actions (download, ignore, first check in) */}
         <SyncActions
@@ -369,21 +377,25 @@ export function FileContextMenu({
           />
         </ContextMenuGroup>
 
-        {/* Edit submenu (copy, cut, paste) */}
-        <ContextMenuGroup label="Edit" icon={Clipboard}>
-          <ClipboardActions
-            contextFiles={contextFiles}
-            multiSelect={multiSelect}
-            firstFile={firstFile}
-            onClose={onClose}
-            handleCopy={handleCopy}
-            handleCut={handleCut}
-            handlePaste={handlePaste}
-          />
-        </ContextMenuGroup>
+        {/* Edit submenu (copy, cut, paste) and Copy / Move to another connected vault (hidden
+            when there is none to go to): both move files on disk, so desktop only */}
+        {desktop && (
+          <>
+            <ContextMenuGroup label="Edit" icon={Clipboard}>
+              <ClipboardActions
+                contextFiles={contextFiles}
+                multiSelect={multiSelect}
+                firstFile={firstFile}
+                onClose={onClose}
+                handleCopy={handleCopy}
+                handleCut={handleCut}
+                handlePaste={handlePaste}
+              />
+            </ContextMenuGroup>
 
-        {/* Copy / Move to another connected vault (hidden when there is none to go to) */}
-        <VaultTransferMenuItems contextFiles={contextFiles} onClose={handleCloseMenu} />
+            <VaultTransferMenuItems contextFiles={contextFiles} onClose={handleCloseMenu} />
+          </>
+        )}
 
         {/* Export submenu (SolidWorks STEP, IGES, STL, PDF, DXF) */}
         <ContextMenuGroup label="Export" icon={FileOutput} hasItems={hasExportActions}>
@@ -393,12 +405,14 @@ export function FileContextMenu({
             firstFile={firstFile}
             onClose={onClose}
           />
-          <ExportActions
-            contextFiles={contextFiles}
-            multiSelect={multiSelect}
-            firstFile={firstFile}
-            onClose={onClose}
-          />
+          {desktop && (
+            <ExportActions
+              contextFiles={contextFiles}
+              multiSelect={multiSelect}
+              firstFile={firstFile}
+              onClose={onClose}
+            />
+          )}
         </ContextMenuGroup>
 
         {/* ===== DELETE ACTIONS (always visible) ===== */}

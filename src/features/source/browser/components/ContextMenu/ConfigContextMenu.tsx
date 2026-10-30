@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import { Loader2, Check, Package, Settings, FolderOpen, FolderDown } from 'lucide-react'
 import type { ConfigContextMenuState } from '../../hooks/useContextMenuState'
 import { ContextSubmenu } from './components'
+import { hasDesktop } from '@/lib/platform'
 
 export interface ConfigContextMenuProps {
   configContextMenu: ConfigContextMenuState
@@ -156,8 +157,8 @@ export function ConfigContextMenu({
           )}
         </div>
 
-        {/* Export options for parts/assemblies */}
-        {isPartOrAsm && (
+        {/* Export options for parts/assemblies (SOLIDWORKS: desktop only) */}
+        {hasDesktop() && isPartOrAsm && (
           <>
             {renderExportSubmenu('step')}
             {renderExportSubmenu('iges')}

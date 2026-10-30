@@ -1,6 +1,7 @@
 // src/features/source/context-menu/items/PDMItems.tsx
 import { ArrowDown, ArrowUp, Undo2, RefreshCw, Network, FileSearch, Package2 } from 'lucide-react'
 import { t } from '@/lib/i18n'
+import { hasDesktop } from '@/lib/platform'
 import type { LocalFile } from '@/stores/pdmStore'
 import { useShallow } from 'zustand/react/shallow'
 import { usePDMStore } from '@/stores/pdmStore'
@@ -273,25 +274,30 @@ export function PDMItems({
     openDialog('matchGhostFile')
   }
 
+  // Download - for cloud-only files - show at TOP for cloud folders
+  const downloadItem = anyCloudOnly ? (
+    <div
+      className={`context-menu-item ${!canDownload.allowed ? 'disabled' : ''}`}
+      onClick={handleDownload}
+      title={!canDownload.allowed ? `Requires ${getPermissionRequirement('download')}` : ''}
+    >
+      <ArrowDown
+        size={14}
+        className={canDownload.allowed ? 'text-plm-success' : 'text-plm-fg-muted'}
+      />
+      Download {cloudOnlyCount > 0 ? `${cloudOnlyCount} files` : countLabel}
+      {!canDownload.allowed && (
+        <span className="text-xs text-plm-fg-muted ml-auto">(no permission)</span>
+      )}
+    </div>
+  ) : null
+
+  // BluePLM Web has no local vault: Download (a browser download) is the only PDM entry there.
+  if (!hasDesktop()) return downloadItem
+
   return (
     <>
-      {/* Download - for cloud-only files - show at TOP for cloud folders */}
-      {anyCloudOnly && (
-        <div
-          className={`context-menu-item ${!canDownload.allowed ? 'disabled' : ''}`}
-          onClick={handleDownload}
-          title={!canDownload.allowed ? `Requires ${getPermissionRequirement('download')}` : ''}
-        >
-          <ArrowDown
-            size={14}
-            className={canDownload.allowed ? 'text-plm-success' : 'text-plm-fg-muted'}
-          />
-          Download {cloudOnlyCount > 0 ? `${cloudOnlyCount} files` : countLabel}
-          {!canDownload.allowed && (
-            <span className="text-xs text-plm-fg-muted ml-auto">(no permission)</span>
-          )}
-        </div>
-      )}
+      {downloadItem}
 
       {/* Get Latest - for outdated files (never mixed with cloud-only Download above) */}
       {anyOutdated && (

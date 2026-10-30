@@ -7,6 +7,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { usePDMStore } from '@/stores/pdmStore'
 import { copyToClipboard } from '@/lib/clipboard'
 import { buildFullPath } from '@/lib/utils/path'
+import { hasDesktop } from '@/lib/platform'
 import type { ActionComponentProps } from './types'
 
 interface FileSystemActionsProps extends ActionComponentProps {
@@ -71,8 +72,9 @@ export function FileSystemActions({
     </div>
   )
 
-  // For cloud-only files, only show Copy Name
-  if (allCloudOnly) {
+  // For cloud-only files, and on BluePLM Web (no paths on disk, no rename without checkout), only
+  // show Copy Name
+  if (allCloudOnly || !hasDesktop()) {
     return copyNameItem
   }
 

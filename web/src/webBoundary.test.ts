@@ -1,8 +1,8 @@
-// BluePLM Web must never load the desktop app: the store, feature folders, components, hooks and
-// app shell pull in Electron and the vault sync engine. This walks the import graph from the web
-// entry (static imports, re-exports and dynamic import()) and fails on any module under a desktop
-// folder. It also bans the code patterns the CSP and Trusted Types policy rely on never appearing
-// (web/src/app/securityHeaders.ts).
+// BluePLM Web runs the desktop renderer (src/) in a browser. This walks the import graph from the
+// web entry (static imports, re-exports and dynamic import()) and fails if any module of the Electron
+// main process (electron/) is reached, or if any first-party module the web build reaches uses a
+// code pattern the CSP and Trusted Types policy (web/src/app/securityHeaders.ts) blocks at runtime.
+// A hit here is a feature that would break on blueplm.io: fix the code, never loosen the policy.
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs'
 import { dirname, join, relative, resolve, sep } from 'path'
 import { describe, expect, it } from 'vitest'
@@ -11,7 +11,7 @@ const ROOT = resolve(__dirname, '../..')
 const WEB_SRC = resolve(ROOT, 'web/src')
 const ENTRY = resolve(WEB_SRC, 'main.tsx')
 
-const FORBIDDEN_DIRS = ['src/stores', 'src/features', 'src/components', 'src/hooks', 'src/app', 'electron']
+const FORBIDDEN_DIRS = ['electron']
 
 // Built from parts so this file does not match its own scan.
 const join2 = (a: string, b: string) => a + b
@@ -29,7 +29,8 @@ const BANNED_REACHABLE: Array<[string, RegExp]> = [
   [join2('document.wr', 'ite'), new RegExp(join2('document\\.wr', 'ite(ln)?\\s*\\('))],
   [join2('src', 'doc'), new RegExp(join2('\\bsrc', '[Dd]oc\\b'))],
   [join2('new Wor', 'ker('), new RegExp(join2('new\\s+(Shared)?Wor', 'ker\\s*\\('))],
-  [join2('<scr', 'ipt> element'), new RegExp(join2('<scr', 'ipt\\b'))],
+  // A tag, not text such as `<script-path>` in a usage string.
+  [join2('<scr', 'ipt> element'), new RegExp(join2('<scr', 'ipt[\\s>/]'))],
   [join2('ReactDOM.pre', 'init'), new RegExp(join2('\\bpre', 'init(Module)?\\s*\\('))],
 ]
 
@@ -150,10 +151,11 @@ describe('BluePLM Web module boundary', () => {
 
   it('resolves every first-party import it walks', () => {
     expect(graph.unresolved).toEqual([])
-    expect(graph.files.size).toBeGreaterThan(10)
+    // The whole renderer: a small graph means the walk stopped early.
+    expect(graph.files.size).toBeGreaterThan(500)
   })
 
-  it('never reaches the desktop store, features, components, hooks, app shell or Electron', () => {
+  it('never reaches the Electron main process', () => {
     const offending = [...graph.files]
       .filter((file) => FORBIDDEN_DIRS.some((dir) => rel(file) === dir || rel(file).startsWith(`${dir}/`)))
       .map((file) => chain(graph, file))
@@ -166,6 +168,13 @@ describe('BluePLM Web module boundary', () => {
 
   it('has no Trusted Types sink in any first-party module the web build reaches', () => {
     expect(findBanned([...graph.files], BANNED_REACHABLE)).toEqual([])
+  })
+
+  it('renders no inline <style> element, which style-src without unsafe-inline blocks', () => {
+    // Components only: a .ts module may build a standalone HTML document (rfqPdfDocument.ts).
+    const components = [...graph.files].filter((file) => file.endsWith('.tsx'))
+    const inlineStyle: Array<[string, RegExp]> = [[join2('<sty', 'le> in JSX'), new RegExp(join2('<sty', 'le[\\s>]'))]]
+    expect(findBanned(components, inlineStyle)).toEqual([])
   })
 })
 

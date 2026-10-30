@@ -61,7 +61,7 @@ export function useAutoUpdater() {
         setUpdateProgress(null)
         // Auto-install after download completes
         try {
-          await window.electronAPI.installUpdate()
+          await window.electronAPI?.installUpdate()
         } catch (error) {
           log.error('[Update]', 'Auto-install error', { error: error })
         }

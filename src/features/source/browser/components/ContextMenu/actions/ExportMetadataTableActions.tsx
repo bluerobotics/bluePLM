@@ -15,6 +15,7 @@ import {
   resolvedText,
 } from '@/lib/metadata/overlay'
 import { log } from '@/lib/logger'
+import { saveBlobAs } from '@/lib/browserDownload'
 import { ContextSubmenu } from '../components'
 import type { ActionComponentProps } from './types'
 
@@ -120,7 +121,14 @@ export function ExportMetadataTableActions({ contextFiles, onClose }: ActionComp
       const body = await buildCsv()
       const utf8 = `\uFEFF${body}`
       const defaultName = `export-${tableFiles.length}-files.csv`
-      const result = await window.electronAPI.saveTextFileWithDialog(defaultName, utf8, [
+      const api = window.electronAPI
+      if (!api) {
+        // BluePLM Web: the browser's own download.
+        saveBlobAs(defaultName, new Blob([utf8], { type: 'text/csv;charset=utf-8' }))
+        addToast('success', `Saved table (${tableFiles.length} rows)`)
+        return
+      }
+      const result = await api.saveTextFileWithDialog(defaultName, utf8, [
         { name: 'CSV', extensions: ['csv'] },
       ])
       if (result?.success && result.path) {

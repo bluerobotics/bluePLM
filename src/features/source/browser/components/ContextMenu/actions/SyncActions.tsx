@@ -4,6 +4,7 @@
 import React from 'react'
 import { ArrowDown, ArrowUp, EyeOff, FileX, FolderX, RefreshCw } from 'lucide-react'
 import { t } from '@/lib/i18n'
+import { hasDesktop } from '@/lib/platform'
 import type { LocalFile } from '@/stores/pdmStore'
 import { useShallow } from 'zustand/react/shallow'
 import { usePDMStore } from '@/stores/pdmStore'
@@ -54,6 +55,8 @@ export function SyncActions({
   const anyOutdated =
     outdatedFilesInSelection.length > 0 || contextFiles.some((f) => f.diffStatus === 'outdated')
   const currentVaultId = activeVaultId
+  // BluePLM Web keeps Download (a browser download) but has no local vault to update or upload.
+  const desktop = hasDesktop()
 
   return (
     <>
@@ -76,7 +79,7 @@ export function SyncActions({
       )}
 
       {/* Get Latest for outdated files. Never touches cloud-only files - see Download above. */}
-      {anyOutdated && (
+      {desktop && anyOutdated && (
         <div
           className="context-menu-item text-purple-400"
           onClick={() => {
@@ -91,7 +94,7 @@ export function SyncActions({
       )}
 
       {/* Keep Local Only (Ignore) - for unsynced files */}
-      {state.anyUnsynced && !state.allCloudOnly && currentVaultId && (
+      {desktop && state.anyUnsynced && !state.allCloudOnly && currentVaultId && (
         <div
           className="context-menu-item relative"
           onMouseEnter={() => {
@@ -194,7 +197,7 @@ export function SyncActions({
       )}
 
       {/* First Check In - for unsynced items */}
-      {state.anyUnsynced && (
+      {desktop && state.anyUnsynced && (
         <div
           className="context-menu-item"
           onClick={() => {

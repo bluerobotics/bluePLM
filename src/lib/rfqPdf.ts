@@ -4,6 +4,7 @@
 import { buildRFQHtml, type RFQPdfDocumentInput } from './rfqPdfDocument'
 export type { AddressInfo, OrgBranding } from './rfqPdfDocument'
 import { log } from './logger'
+import { saveBlobAs } from './browserDownload'
 
 interface RFQPdfOptions extends RFQPdfDocumentInput {
   outputPath?: string // If provided, saves directly to this path without showing dialog
@@ -62,16 +63,7 @@ export async function generateRFQPdf(
   } else {
     // Fallback for browser environment - still saves HTML
     // (PDF generation requires Electron)
-    const blob = new Blob([html], { type: 'text/html' })
-    const url = URL.createObjectURL(blob)
-
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${options.rfq.rfq_number}.html`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    saveBlobAs(`${options.rfq.rfq_number}.html`, new Blob([html], { type: 'text/html' }))
 
     return { success: true }
   }
@@ -80,14 +72,5 @@ export async function generateRFQPdf(
 // Generate and download RFQ as HTML (fallback when PDF generation is not available)
 export function downloadRFQHtml(options: RFQPdfOptions): void {
   const html = buildRFQHtml(options)
-  const blob = new Blob([html], { type: 'text/html' })
-  const url = URL.createObjectURL(blob)
-
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `${options.rfq.rfq_number}.html`
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
+  saveBlobAs(`${options.rfq.rfq_number}.html`, new Blob([html], { type: 'text/html' }))
 }

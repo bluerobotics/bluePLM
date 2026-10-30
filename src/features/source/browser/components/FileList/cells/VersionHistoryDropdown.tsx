@@ -21,12 +21,16 @@ import {
   MessageSquare,
   Pencil,
   History,
+  Download,
 } from 'lucide-react'
 import { formatDistanceToNow, format } from 'date-fns'
 import { usePDMStore, type LocalFile } from '@/stores/pdmStore'
 import { useShallow } from 'zustand/react/shallow'
 import { getFileVersions, rollbackToVersion, updateVersionNote } from '@/lib/supabase'
 import { getDownloadUrl } from '@/lib/storage'
+import { hasDesktop } from '@/lib/platform'
+import { saveStoredFileInBrowser } from '@/lib/webDownload'
+import { t } from '@/lib/i18n'
 import { log } from '@/lib/logger'
 import { describeVersion } from '@/lib/files/versionDisplay'
 import { AddVersionToPackageButton } from '@/features/source/reviewPackage/components/AddVersionToPackageButton'
@@ -151,6 +155,15 @@ export function VersionHistoryDropdown({ file }: VersionHistoryDropdownProps) {
 
     loadVersions()
   }, [isOpen, file.pdmData?.id])
+
+  // BluePLM Web: there is no working copy to roll back, so a version is saved through the browser.
+  const handleDownloadVersion = async (version: VersionEntry) => {
+    if (!organization) return
+    const result = await saveStoredFileInBrowser(organization.id, version.content_hash, file.name)
+    if (!result.success) {
+      addToast('error', t('fileOps.webDownloadFailed', { name: file.name, error: result.error }))
+    }
+  }
 
   // Handle rollback/roll forward
   const handleRollback = async (targetVersion: number) => {
@@ -505,7 +518,8 @@ export function VersionHistoryDropdown({ file }: VersionHistoryDropdownProps) {
                         ? false
                         : version.version === serverVersion
 
-                    const canSwitch = !isLocalVersion && isCheckedOutByMe
+                    // Rollback rewrites the working copy, which only the desktop has.
+                    const canSwitch = !isLocalVersion && isCheckedOutByMe && hasDesktop()
                     const isRollForward = version.version > activeVersion
 
                     return (
@@ -548,6 +562,16 @@ export function VersionHistoryDropdown({ file }: VersionHistoryDropdownProps) {
                               version={version}
                               latestVersion={serverVersion}
                             />
+                            {!hasDesktop() && version.content_hash && (
+                              <button
+                                onClick={() => void handleDownloadVersion(version)}
+                                className="flex items-center px-1.5 py-0.5 text-[10px] rounded transition-colors bg-plm-accent/20 text-plm-accent hover:bg-plm-accent/30"
+                                title={t('fileOps.downloadVersion')}
+                                aria-label={t('fileOps.downloadVersion')}
+                              >
+                                <Download size={10} />
+                              </button>
+                            )}
                             {canSwitch && (
                               <button
                                 onClick={() => handleRollback(version.version)}

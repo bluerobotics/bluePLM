@@ -15,6 +15,7 @@ import { useSyncExternalStore } from 'react'
 import { create, type StateCreator } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { log } from '@/lib/logger'
+import { IS_WEB_BUILD } from '@/lib/platform'
 import { isExtensionWorkspaceId } from '@/lib/nativeExtensions/registry'
 import { isCadPreviewMode } from '@/types/cadPreviewMode'
 import { STORE_MUTATION_THRESHOLD_MS } from '@/lib/performanceThresholds'
@@ -461,10 +462,12 @@ export const usePDMStore = create<PDMStoreState>()(
             ...((persisted.topbarConfig as Partial<typeof currentState.topbarConfig>) || {}),
           },
           // Restore SolidWorks settings
+          // Always off on BluePLM Web (no SOLIDWORKS there), whatever the web storage holds.
           solidworksIntegrationEnabled:
-            persisted.solidworksIntegrationEnabled !== undefined
+            !IS_WEB_BUILD &&
+            (persisted.solidworksIntegrationEnabled !== undefined
               ? (persisted.solidworksIntegrationEnabled as boolean)
-              : true, // Default enabled, onboarding will auto-detect
+              : true), // Default enabled, onboarding will auto-detect
           solidworksPath: (persisted.solidworksPath as string | null) || null,
           solidworksDmLicenseKey: (persisted.solidworksDmLicenseKey as string | null) || null,
           solidworksProgId: (persisted.solidworksProgId as string | null) || null,

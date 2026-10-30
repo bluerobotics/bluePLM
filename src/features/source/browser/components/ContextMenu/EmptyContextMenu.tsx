@@ -1,6 +1,7 @@
 import { memo, type RefObject } from 'react'
 import { Folder, Upload, FolderPlus, ClipboardPaste, RefreshCw, Undo2 } from 'lucide-react'
 import { SolidWorksContextMenuItems } from '@/features/integrations/solidworks/components'
+import { hasDesktop } from '@/lib/platform'
 
 export interface EmptyContextMenuProps {
   x: number
@@ -46,6 +47,9 @@ export const EmptyContextMenu = memo(function EmptyContextMenu({
 }: EmptyContextMenuProps) {
   // Build the full target folder path for SOLIDWORKS file creation
   const targetFolder = vaultPath ? (currentPath ? `${vaultPath}\\${currentPath}` : vaultPath) : ''
+  // New folder, add from disk, paste, SOLIDWORKS new file and undo all write the local vault, which
+  // BluePLM Web does not have: there the menu offers Refresh only.
+  const desktop = hasDesktop()
 
   return (
     <>
@@ -62,56 +66,60 @@ export const EmptyContextMenu = memo(function EmptyContextMenu({
         className="context-menu"
         style={{ left: adjustedPos?.x ?? x, top: adjustedPos?.y ?? y }}
       >
-        <div
-          className="context-menu-item"
-          onClick={() => {
-            onNewFolder()
-            onClose()
-          }}
-        >
-          <Folder size={14} />
-          New Folder
-        </div>
-        <div
-          className="context-menu-item"
-          onClick={() => {
-            onAddFiles()
-            onClose()
-          }}
-        >
-          <Upload size={14} />
-          Add Files...
-        </div>
-        <div
-          className="context-menu-item"
-          onClick={() => {
-            onAddFolder()
-            onClose()
-          }}
-        >
-          <FolderPlus size={14} />
-          Add Folder...
-        </div>
-        <div
-          className={`context-menu-item ${!hasClipboard ? 'disabled' : ''}`}
-          onClick={() => {
-            if (hasClipboard) {
-              onPaste()
-            }
-            onClose()
-          }}
-        >
-          <ClipboardPaste size={14} />
-          Paste
-          <span className="text-xs text-plm-fg-muted ml-auto">Ctrl+V</span>
-        </div>
+        {desktop && (
+          <>
+            <div
+              className="context-menu-item"
+              onClick={() => {
+                onNewFolder()
+                onClose()
+              }}
+            >
+              <Folder size={14} />
+              New Folder
+            </div>
+            <div
+              className="context-menu-item"
+              onClick={() => {
+                onAddFiles()
+                onClose()
+              }}
+            >
+              <Upload size={14} />
+              Add Files...
+            </div>
+            <div
+              className="context-menu-item"
+              onClick={() => {
+                onAddFolder()
+                onClose()
+              }}
+            >
+              <FolderPlus size={14} />
+              Add Folder...
+            </div>
+            <div
+              className={`context-menu-item ${!hasClipboard ? 'disabled' : ''}`}
+              onClick={() => {
+                if (hasClipboard) {
+                  onPaste()
+                }
+                onClose()
+              }}
+            >
+              <ClipboardPaste size={14} />
+              Paste
+              <span className="text-xs text-plm-fg-muted ml-auto">Ctrl+V</span>
+            </div>
 
-        {/* SOLIDWORKS New File Items - conditionally rendered based on integration status */}
-        {targetFolder && (
-          <SolidWorksContextMenuItems targetFolder={targetFolder} onClose={onClose} />
+            {/* SOLIDWORKS New File Items - conditionally rendered based on integration status */}
+            {targetFolder && (
+              <SolidWorksContextMenuItems targetFolder={targetFolder} onClose={onClose} />
+            )}
+
+            <div className="context-menu-separator" />
+          </>
         )}
-
-        <div className="context-menu-separator" />
         <div
           className="context-menu-item"
           onClick={() => {
@@ -122,20 +130,24 @@ export const EmptyContextMenu = memo(function EmptyContextMenu({
           <RefreshCw size={14} />
           Refresh
         </div>
-        <div className="context-menu-separator" />
-        <div
-          className={`context-menu-item ${!hasUndoStack ? 'disabled' : ''}`}
-          onClick={() => {
-            if (hasUndoStack) {
-              onUndo()
-            }
-            onClose()
-          }}
-        >
-          <Undo2 size={14} />
-          Undo
-          <span className="text-xs text-plm-fg-muted ml-auto">Ctrl+Z</span>
-        </div>
+        {desktop && (
+          <>
+            <div className="context-menu-separator" />
+            <div
+              className={`context-menu-item ${!hasUndoStack ? 'disabled' : ''}`}
+              onClick={() => {
+                if (hasUndoStack) {
+                  onUndo()
+                }
+                onClose()
+              }}
+            >
+              <Undo2 size={14} />
+              Undo
+              <span className="text-xs text-plm-fg-muted ml-auto">Ctrl+Z</span>
+            </div>
+          </>
+        )}
       </div>
     </>
   )

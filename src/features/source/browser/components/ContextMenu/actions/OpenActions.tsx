@@ -6,6 +6,7 @@ import { FolderSearch } from 'lucide-react'
 import type { LocalFile } from '@/stores/pdmStore'
 import { usePDMStore } from '@/stores/pdmStore'
 import { buildFullPath } from '@/lib/utils/path'
+import { hasDesktop } from '@/lib/platform'
 import { useTranslation } from '@/lib/i18n'
 import type { ActionComponentProps } from './types'
 import { getCountLabel } from '@/lib/utils'
@@ -64,8 +65,11 @@ export function OpenActions({
       </div>
     ) : null
 
+  // BluePLM Web cannot open a file with a local application: files only offer Go to Folder.
+  const canOpenFiles = !allCloudOnly && hasDesktop()
+
   // Single file - not cloud only
-  if (!multiSelect && !isFolder && !allCloudOnly) {
+  if (!multiSelect && !isFolder && canOpenFiles) {
     return (
       <>
         <div
@@ -83,7 +87,7 @@ export function OpenActions({
   }
 
   // Multiple files - all are files, not cloud only
-  if (multiSelect && allFiles && !allCloudOnly) {
+  if (multiSelect && allFiles && canOpenFiles) {
     return (
       <div
         className="context-menu-item"

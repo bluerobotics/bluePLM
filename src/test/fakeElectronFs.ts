@@ -17,7 +17,7 @@
  */
 import type { DiskEntry, FakeDisk } from './fakeElectron'
 
-type ElectronAPI = Window['electronAPI']
+type ElectronAPI = NonNullable<Window['electronAPI']>
 
 export interface FakeFsOptions {
   /** The vault root, for `listWorkingFiles` and `relativePath`. */

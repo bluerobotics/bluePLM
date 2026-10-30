@@ -5,6 +5,8 @@ import { usePDMStore } from '@/stores/pdmStore'
 import { ExtensionStoreView } from '@/features/extensions'
 import { SettingsSearchResults } from './SettingsSearchResults'
 import { findSettingElement, flashSettingElement } from '../revealSetting'
+import { isDesktopOnlySettingsTab } from '../settingsCatalog'
+import { hasDesktop } from '@/lib/platform'
 
 // Lazy loaded settings panels - only loaded when the tab is selected
 // This saves memory by not loading all settings components upfront
@@ -161,6 +163,8 @@ export function SettingsContent({ activeTab }: SettingsContentProps) {
   const containerRef = useRevealSearchedSetting(activeTab)
 
   const renderContent = () => {
+    // A desktop-only tab (persisted or deep-linked) never renders on the web.
+    if (!hasDesktop() && isDesktopOnlySettingsTab(activeTab)) return <ProfileSettings />
     switch (activeTab) {
       case 'profile':
         return <ProfileSettings />

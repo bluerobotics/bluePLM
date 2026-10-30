@@ -46,9 +46,12 @@ export function buildContentSecurityPolicy(supabaseUrl: string): string {
   const directives: Array<[string, ...string[]]> = [
     ['default-src', "'self'"],
     ['script-src', "'self'"],
-    ['style-src', "'self'"],
-    ['img-src', "'self'", supabase.https, 'blob:', 'data:'],
-    ['font-src', "'self'"],
+    // The desktop renderer loads Plus Jakarta Sans from Google Fonts (index.html); the web uses the same.
+    ['style-src', "'self'", 'https://fonts.googleapis.com'],
+    // Google account avatars (users.avatar_url) are served from googleusercontent.com.
+    ['img-src', "'self'", supabase.https, 'https://*.googleusercontent.com', 'blob:', 'data:'],
+    // pdf.js (review PDFs) may load a drawing's embedded fonts as data: URLs.
+    ['font-src', "'self'", 'https://fonts.gstatic.com', 'data:'],
     ['connect-src', "'self'", supabase.https, supabase.wss],
     // Only the review PDF is framed, from a blob: URL; signed URLs are navigations, not frames.
     ['frame-src', 'blob:'],

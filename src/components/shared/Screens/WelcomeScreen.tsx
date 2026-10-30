@@ -40,6 +40,9 @@ import { log } from '@/lib/logger'
 import type { AccountType } from '@/types/database'
 
 import { createWelcomeCredentialAuthHandlers } from './welcomeCredentialAuth'
+import { WorkOfflineButton } from './WorkOfflineButton'
+import { hasDesktop } from '@/lib/platform'
+import { connectWebVault } from '@/lib/webVault'
 
 // Build vault path based on platform
 function buildVaultPath(platform: string, vaultSlug: string): string {
@@ -691,7 +694,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
     })
 
     if (!window.electronAPI) {
-      log.error('[WelcomeScreen]', 'electronAPI not available')
+      connectWebVault(vault) // BluePLM Web: no folder, the vault opens from the server
       return
     }
 
@@ -1451,22 +1454,11 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
                 {t('welcome.roleSetByOrg')}
               </div>
 
-              <div className="relative my-6">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-plm-border"></div>
-                </div>
-                <div className="relative flex justify-center text-xs">
-                  <span className="px-2 bg-plm-bg text-plm-fg-muted">{t('common.or')}</span>
-                </div>
-              </div>
-
-              <button
+              <WorkOfflineButton
+                withDivider
                 onClick={handleOfflineMode}
                 className="w-full btn btn-secondary gap-3 justify-center py-3"
-              >
-                <WifiOff size={18} />
-                {t('welcome.workOffline')}
-              </button>
+              />
             </div>
           )}
 
@@ -1751,7 +1743,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
               <Trash2 size={12} />
               {t('welcome.clearSession', 'Clear session & start fresh')}
             </button>
-            {onChangeOrg && (
+            {onChangeOrg && hasDesktop() && (
               <button
                 onClick={onChangeOrg}
                 className="text-xs text-plm-fg-muted hover:text-plm-fg transition-colors underline"
@@ -1872,13 +1864,10 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
               {t('welcome.signOutAndRetry', 'Sign Out & Try Different Account')}
             </button>
 
-            <button
+            <WorkOfflineButton
               onClick={handleOfflineMode}
               className="w-full py-3 bg-plm-bg-light border border-plm-border hover:bg-plm-bg-light/80 text-plm-fg font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
-            >
-              <WifiOff size={18} />
-              {t('welcome.workOffline')}
-            </button>
+            />
           </div>
 
           {/* Help Text */}

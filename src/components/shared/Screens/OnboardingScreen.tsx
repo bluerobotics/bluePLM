@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Globe, FileText, Check, ChevronRight, Shield } from 'lucide-react'
 import { usePDMStore, Language } from '@/stores/pdmStore'
 import { useShallow } from 'zustand/react/shallow'
+import { hasDesktop } from '@/lib/platform'
 
 // Only show languages that have actual translations in i18n.ts
 const LANGUAGES: { code: Language; name: string; nativeName: string; flag: string }[] = [
@@ -167,6 +168,11 @@ export function OnboardingScreen() {
   useEffect(() => {
     // Auto-detect platform and SolidWorks availability
     const detectSolidWorksAvailability = async () => {
+      // BluePLM Web has no SOLIDWORKS integration.
+      if (!hasDesktop()) {
+        setSolidworksEnabled(false)
+        return
+      }
       try {
         const platform = await window.electronAPI?.getPlatform()
 

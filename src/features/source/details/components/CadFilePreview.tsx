@@ -5,6 +5,7 @@ import { SWDatacardPanel } from '@/features/integrations/solidworks'
 import { useRetryableImage } from '@/hooks/useRetryableImage'
 import { t } from '@/lib/i18n'
 import { log } from '@/lib/logger'
+import { hasDesktop } from '@/lib/platform'
 import { buildThumbnailUrl } from '@/lib/thumbnailUrl'
 import { usePDMStore, type LocalFile } from '@/stores/pdmStore'
 
@@ -21,11 +22,17 @@ interface CadFilePreviewProps {
 
 export function CadFilePreview({
   file,
-  solidWorks = false,
-  embeddedAvailable = true,
+  solidWorks: solidWorksProp = false,
+  embeddedAvailable: embeddedAvailableProp = true,
   preferThumbnailInExternalMode = false,
 }: CadFilePreviewProps) {
-  const cadPreviewMode = usePDMStore((state) => state.cadPreviewMode)
+  // BluePLM Web has no SOLIDWORKS service and no eDrawings: it shows the stored thumbnail, or
+  // a plain "no preview" when there is none.
+  const desktop = hasDesktop()
+  const solidWorks = desktop && solidWorksProp
+  const embeddedAvailable = desktop && embeddedAvailableProp
+  const storedCadPreviewMode = usePDMStore((state) => state.cadPreviewMode)
+  const cadPreviewMode = desktop ? storedCadPreviewMode : 'thumbnail'
   const addToast = usePDMStore((state) => state.addToast)
   const [cadZoom, setCadZoom] = useState(100)
   const [eDrawingsInstalled, setEDrawingsInstalled] = useState(false)
@@ -174,8 +181,13 @@ export function CadFilePreview({
             {t('source.details.openInEDrawings')}
           </button>
         </div>
-      ) : (
+      ) : desktop ? (
         <MissingEDrawings messageKey="source.details.noPreviewAvailable" />
+      ) : (
+        <div className="flex-1 flex flex-col items-center justify-center text-center">
+          <Eye size={48} className="mb-4 text-plm-fg-muted opacity-50" />
+          <div className="text-lg font-medium">{t('source.details.noPreviewAvailable')}</div>
+        </div>
       )}
     </div>
   )

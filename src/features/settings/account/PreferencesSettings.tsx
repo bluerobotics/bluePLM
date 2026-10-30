@@ -36,6 +36,7 @@ import { getSupabaseClient, endRemoteSession } from '@/lib/supabase'
 import { getBackend } from '@/lib/backend'
 import { getMachineId } from '@/lib/backup'
 import { useTranslation } from '@/lib/i18n'
+import { hasDesktop } from '@/lib/platform'
 import { isAnalyticsEnabled, initAnalytics } from '@/lib/analytics'
 
 interface UserSession {
@@ -65,6 +66,8 @@ const languageOptions: { value: Language; label: string; nativeLabel: string }[]
 
 export function PreferencesSettings() {
   const { t } = useTranslation()
+  // Updates, sync, telemetry, upload and ignore-pattern options only touch the local machine.
+  const desktop = hasDesktop()
   const {
     user,
     setUser,
@@ -418,59 +421,61 @@ export function PreferencesSettings() {
       </section>
 
       {/* Application Updates */}
-      <section>
-        <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3">
-          {t('preferences.applicationUpdates')}
-        </h2>
-        <div className="p-4 bg-plm-bg rounded-lg border border-plm-border">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <div className="text-base font-medium text-plm-fg">BluePLM {appVersion || '...'}</div>
-              <div className="text-sm text-plm-fg-muted mt-0.5">
-                {updateCheckResult === 'none' && t('preferences.youHaveLatest')}
-                {updateCheckResult === 'available' && t('preferences.updateAvailable')}
-                {updateCheckResult === 'error' && t('preferences.couldNotCheck')}
-                {updateCheckResult === null &&
-                  !isCheckingUpdate &&
-                  t('preferences.checkForNewVersions')}
+      {desktop && (
+        <section>
+          <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3">
+            {t('preferences.applicationUpdates')}
+          </h2>
+          <div className="p-4 bg-plm-bg rounded-lg border border-plm-border">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <div className="text-base font-medium text-plm-fg">BluePLM {appVersion || '...'}</div>
+                <div className="text-sm text-plm-fg-muted mt-0.5">
+                  {updateCheckResult === 'none' && t('preferences.youHaveLatest')}
+                  {updateCheckResult === 'available' && t('preferences.updateAvailable')}
+                  {updateCheckResult === 'error' && t('preferences.couldNotCheck')}
+                  {updateCheckResult === null &&
+                    !isCheckingUpdate &&
+                    t('preferences.checkForNewVersions')}
+                </div>
               </div>
+              <button
+                onClick={handleCheckForUpdates}
+                disabled={isCheckingUpdate}
+                className={`flex items-center gap-2 px-4 py-2 text-base font-medium rounded-lg transition-colors ${
+                  updateCheckResult === 'none'
+                    ? 'bg-green-600/20 text-green-400 border border-green-600/30'
+                    : updateCheckResult === 'available'
+                      ? 'bg-plm-accent/20 text-plm-accent border border-plm-accent/30'
+                      : 'bg-plm-highlight text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight/80'
+                }`}
+              >
+                {isCheckingUpdate ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    {t('preferences.checking')}
+                  </>
+                ) : updateCheckResult === 'none' ? (
+                  <>
+                    <CheckCircle size={14} />
+                    {t('preferences.upToDate')}
+                  </>
+                ) : updateCheckResult === 'available' ? (
+                  <>
+                    <Download size={14} />
+                    {t('preferences.available')}
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw size={14} />
+                    {t('preferences.checkForUpdates')}
+                  </>
+                )}
+              </button>
             </div>
-            <button
-              onClick={handleCheckForUpdates}
-              disabled={isCheckingUpdate}
-              className={`flex items-center gap-2 px-4 py-2 text-base font-medium rounded-lg transition-colors ${
-                updateCheckResult === 'none'
-                  ? 'bg-green-600/20 text-green-400 border border-green-600/30'
-                  : updateCheckResult === 'available'
-                    ? 'bg-plm-accent/20 text-plm-accent border border-plm-accent/30'
-                    : 'bg-plm-highlight text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight/80'
-              }`}
-            >
-              {isCheckingUpdate ? (
-                <>
-                  <Loader2 size={14} className="animate-spin" />
-                  {t('preferences.checking')}
-                </>
-              ) : updateCheckResult === 'none' ? (
-                <>
-                  <CheckCircle size={14} />
-                  {t('preferences.upToDate')}
-                </>
-              ) : updateCheckResult === 'available' ? (
-                <>
-                  <Download size={14} />
-                  {t('preferences.available')}
-                </>
-              ) : (
-                <>
-                  <RefreshCw size={14} />
-                  {t('preferences.checkForUpdates')}
-                </>
-              )}
-            </button>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Theme Selection */}
       <section>
@@ -620,203 +625,207 @@ export function PreferencesSettings() {
       </section>
 
       {/* Sync Settings */}
-      <section>
-        <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3">
-          {t('preferences.syncSettings')}
-        </h2>
-        <div className="p-4 bg-plm-bg rounded-lg border border-plm-border space-y-4">
-          {/* Auto-download cloud files */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-plm-highlight">
-                <CloudDownload size={18} className="text-plm-fg-muted" />
-              </div>
-              <div>
-                <div className="text-base text-plm-fg">
-                  {t('preferences.autoDownloadCloudFiles')}
-                </div>
-                <div className="text-sm text-plm-fg-muted mt-0.5">
-                  {t('preferences.autoDownloadCloudFilesDesc')}
-                </div>
-              </div>
-            </div>
-            <button
-              onClick={() => setAutoDownloadCloudFiles(!autoDownloadCloudFiles)}
-              className="text-plm-accent"
-            >
-              {autoDownloadCloudFiles ? (
-                <ToggleRight size={28} />
-              ) : (
-                <ToggleLeft size={28} className="text-plm-fg-muted" />
-              )}
-            </button>
-          </div>
-
-          {/* Auto-download updates */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-plm-highlight">
-                <Download size={18} className="text-plm-fg-muted" />
-              </div>
-              <div>
-                <div className="text-base text-plm-fg">{t('preferences.autoDownloadUpdates')}</div>
-                <div className="text-sm text-plm-fg-muted mt-0.5">
-                  {t('preferences.autoDownloadUpdatesDesc')}
-                </div>
-              </div>
-            </div>
-            <button
-              onClick={() => setAutoDownloadUpdates(!autoDownloadUpdates)}
-              className="text-plm-accent"
-            >
-              {autoDownloadUpdates ? (
-                <ToggleRight size={28} />
-              ) : (
-                <ToggleLeft size={28} className="text-plm-fg-muted" />
-              )}
-            </button>
-          </div>
-
-          {/* Size limit for auto-downloads */}
-          {(autoDownloadCloudFiles || autoDownloadUpdates) && (
-            <div className="pt-3 border-t border-plm-border">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-plm-highlight">
-                    <Scale size={18} className="text-plm-fg-muted" />
-                  </div>
-                  <div>
-                    <div className="text-base text-plm-fg">
-                      {t('preferences.autoDownloadSizeLimit')}
-                    </div>
-                    <div className="text-sm text-plm-fg-muted mt-0.5">
-                      {t('preferences.autoDownloadSizeLimitDesc')}
-                    </div>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setAutoDownloadSizeLimit(autoDownloadSizeLimit > 0 ? 0 : 1024)}
-                  className="text-plm-accent"
-                >
-                  {autoDownloadSizeLimit > 0 ? (
-                    <ToggleRight size={28} />
-                  ) : (
-                    <ToggleLeft size={28} className="text-plm-fg-muted" />
-                  )}
-                </button>
-              </div>
-
-              {autoDownloadSizeLimit > 0 && (
-                <div className="flex items-center gap-2 mt-3 ml-11">
-                  <span className="text-sm text-plm-fg-muted">{t('preferences.maxFileSize')}</span>
-                  <input
-                    type="number"
-                    value={autoDownloadSizeLimit}
-                    onChange={(e) =>
-                      setAutoDownloadSizeLimit(Math.max(1, parseInt(e.target.value) || 1))
-                    }
-                    min={1}
-                    className="w-24 px-2 py-1.5 text-sm bg-plm-bg-secondary border border-plm-border rounded-lg focus:border-plm-accent focus:outline-none text-plm-fg"
-                  />
-                  <span className="text-sm text-plm-fg-muted">MB</span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Excluded files from auto-download */}
-          {activeVaultId && (autoDownloadExcludedFiles[activeVaultId]?.length || 0) > 0 && (
-            <div className="flex items-center justify-between pt-3 border-t border-plm-border">
+      {desktop && (
+        <section>
+          <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3">
+            {t('preferences.syncSettings')}
+          </h2>
+          <div className="p-4 bg-plm-bg rounded-lg border border-plm-border space-y-4">
+            {/* Auto-download cloud files */}
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-plm-highlight">
-                  <FileText size={18} className="text-plm-fg-muted" />
+                  <CloudDownload size={18} className="text-plm-fg-muted" />
                 </div>
                 <div>
-                  <div className="text-base text-plm-fg">{t('preferences.excludedFiles')}</div>
+                  <div className="text-base text-plm-fg">
+                    {t('preferences.autoDownloadCloudFiles')}
+                  </div>
                   <div className="text-sm text-plm-fg-muted mt-0.5">
-                    {t('preferences.excludedFilesDesc').replace(
-                      '{{count}}',
-                      String(autoDownloadExcludedFiles[activeVaultId]?.length || 0),
-                    )}
+                    {t('preferences.autoDownloadCloudFilesDesc')}
                   </div>
                 </div>
               </div>
               <button
-                onClick={() => clearAutoDownloadExclusions(activeVaultId)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-plm-highlight hover:bg-plm-border text-plm-fg-muted hover:text-plm-fg transition-colors"
-                title={t('preferences.clearExcludedFiles')}
+                onClick={() => setAutoDownloadCloudFiles(!autoDownloadCloudFiles)}
+                className="text-plm-accent"
               >
-                <Trash2 size={14} />
-                <span className="text-sm">{t('preferences.clearExcludedFiles')}</span>
+                {autoDownloadCloudFiles ? (
+                  <ToggleRight size={28} />
+                ) : (
+                  <ToggleLeft size={28} className="text-plm-fg-muted" />
+                )}
               </button>
             </div>
-          )}
-        </div>
-      </section>
 
-      {/* Privacy & Usage Statistics */}
-      <section>
-        <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3">
-          Privacy
-        </h2>
-        <div className="p-4 bg-plm-bg rounded-lg border border-plm-border space-y-4">
-          {/* Usage Statistics Toggle */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-plm-highlight">
-                <BarChart3 size={18} className="text-plm-fg-muted" />
-              </div>
-              <div>
-                <div className="text-base text-plm-fg">Usage Statistics</div>
-                <div className="text-sm text-plm-fg-muted mt-0.5">
-                  Send anonymous error reports and performance data to help improve BluePLM
+            {/* Auto-download updates */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-plm-highlight">
+                  <Download size={18} className="text-plm-fg-muted" />
+                </div>
+                <div>
+                  <div className="text-base text-plm-fg">{t('preferences.autoDownloadUpdates')}</div>
+                  <div className="text-sm text-plm-fg-muted mt-0.5">
+                    {t('preferences.autoDownloadUpdatesDesc')}
+                  </div>
                 </div>
               </div>
+              <button
+                onClick={() => setAutoDownloadUpdates(!autoDownloadUpdates)}
+                className="text-plm-accent"
+              >
+                {autoDownloadUpdates ? (
+                  <ToggleRight size={28} />
+                ) : (
+                  <ToggleLeft size={28} className="text-plm-fg-muted" />
+                )}
+              </button>
             </div>
-            <button
-              onClick={async () => {
-                const newValue = !logSharingEnabled
-                setLogSharingEnabled(newValue)
-                // Notify main process of the change
-                await window.electronAPI?.setAnalyticsEnabled(newValue)
-                // If enabling, try to initialize analytics in renderer
-                if (newValue) {
-                  initAnalytics(true)
+
+            {/* Size limit for auto-downloads */}
+            {(autoDownloadCloudFiles || autoDownloadUpdates) && (
+              <div className="pt-3 border-t border-plm-border">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-plm-highlight">
+                      <Scale size={18} className="text-plm-fg-muted" />
+                    </div>
+                    <div>
+                      <div className="text-base text-plm-fg">
+                        {t('preferences.autoDownloadSizeLimit')}
+                      </div>
+                      <div className="text-sm text-plm-fg-muted mt-0.5">
+                        {t('preferences.autoDownloadSizeLimitDesc')}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setAutoDownloadSizeLimit(autoDownloadSizeLimit > 0 ? 0 : 1024)}
+                    className="text-plm-accent"
+                  >
+                    {autoDownloadSizeLimit > 0 ? (
+                      <ToggleRight size={28} />
+                    ) : (
+                      <ToggleLeft size={28} className="text-plm-fg-muted" />
+                    )}
+                  </button>
+                </div>
+
+                {autoDownloadSizeLimit > 0 && (
+                  <div className="flex items-center gap-2 mt-3 ml-11">
+                    <span className="text-sm text-plm-fg-muted">{t('preferences.maxFileSize')}</span>
+                    <input
+                      type="number"
+                      value={autoDownloadSizeLimit}
+                      onChange={(e) =>
+                        setAutoDownloadSizeLimit(Math.max(1, parseInt(e.target.value) || 1))
+                      }
+                      min={1}
+                      className="w-24 px-2 py-1.5 text-sm bg-plm-bg-secondary border border-plm-border rounded-lg focus:border-plm-accent focus:outline-none text-plm-fg"
+                    />
+                    <span className="text-sm text-plm-fg-muted">MB</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Excluded files from auto-download */}
+            {activeVaultId && (autoDownloadExcludedFiles[activeVaultId]?.length || 0) > 0 && (
+              <div className="flex items-center justify-between pt-3 border-t border-plm-border">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-plm-highlight">
+                    <FileText size={18} className="text-plm-fg-muted" />
+                  </div>
+                  <div>
+                    <div className="text-base text-plm-fg">{t('preferences.excludedFiles')}</div>
+                    <div className="text-sm text-plm-fg-muted mt-0.5">
+                      {t('preferences.excludedFilesDesc').replace(
+                        '{{count}}',
+                        String(autoDownloadExcludedFiles[activeVaultId]?.length || 0),
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => clearAutoDownloadExclusions(activeVaultId)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-plm-highlight hover:bg-plm-border text-plm-fg-muted hover:text-plm-fg transition-colors"
+                  title={t('preferences.clearExcludedFiles')}
+                >
+                  <Trash2 size={14} />
+                  <span className="text-sm">{t('preferences.clearExcludedFiles')}</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* Privacy & Usage Statistics */}
+      {desktop && (
+        <section>
+          <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3">
+            Privacy
+          </h2>
+          <div className="p-4 bg-plm-bg rounded-lg border border-plm-border space-y-4">
+            {/* Usage Statistics Toggle */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-plm-highlight">
+                  <BarChart3 size={18} className="text-plm-fg-muted" />
+                </div>
+                <div>
+                  <div className="text-base text-plm-fg">Usage Statistics</div>
+                  <div className="text-sm text-plm-fg-muted mt-0.5">
+                    Send anonymous error reports and performance data to help improve BluePLM
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={async () => {
+                  const newValue = !logSharingEnabled
+                  setLogSharingEnabled(newValue)
+                  // Notify main process of the change
+                  await window.electronAPI?.setAnalyticsEnabled(newValue)
+                  // If enabling, try to initialize analytics in renderer
+                  if (newValue) {
+                    initAnalytics(true)
+                  }
+                }}
+                className="text-plm-accent"
+              >
+                {logSharingEnabled ? (
+                  <ToggleRight size={28} />
+                ) : (
+                  <ToggleLeft size={28} className="text-plm-fg-muted" />
+                )}
+              </button>
+            </div>
+
+            {/* Status indicator */}
+            <div className="flex items-center gap-2 px-3 py-2 bg-plm-bg-secondary rounded-lg">
+              <Shield
+                size={14}
+                className={
+                  logSharingEnabled && isAnalyticsEnabled() ? 'text-plm-success' : 'text-plm-fg-muted'
                 }
-              }}
-              className="text-plm-accent"
-            >
-              {logSharingEnabled ? (
-                <ToggleRight size={28} />
-              ) : (
-                <ToggleLeft size={28} className="text-plm-fg-muted" />
-              )}
-            </button>
-          </div>
+              />
+              <span className="text-sm text-plm-fg-muted">
+                {logSharingEnabled && isAnalyticsEnabled()
+                  ? 'Analytics active — errors and performance data are being reported'
+                  : logSharingEnabled
+                    ? 'Analytics enabled — will activate on next app restart'
+                    : 'Analytics disabled — no data is sent to our servers'}
+              </span>
+            </div>
 
-          {/* Status indicator */}
-          <div className="flex items-center gap-2 px-3 py-2 bg-plm-bg-secondary rounded-lg">
-            <Shield
-              size={14}
-              className={
-                logSharingEnabled && isAnalyticsEnabled() ? 'text-plm-success' : 'text-plm-fg-muted'
-              }
-            />
-            <span className="text-sm text-plm-fg-muted">
-              {logSharingEnabled && isAnalyticsEnabled()
-                ? 'Analytics active — errors and performance data are being reported'
-                : logSharingEnabled
-                  ? 'Analytics enabled — will activate on next app restart'
-                  : 'Analytics disabled — no data is sent to our servers'}
-            </span>
+            <p className="text-xs text-plm-fg-dim">
+              We collect error reports, crash data, and basic performance metrics. No file contents,
+              personal data, or design information is ever transmitted.
+            </p>
           </div>
-
-          <p className="text-xs text-plm-fg-dim">
-            We collect error reports, crash data, and basic performance metrics. No file contents,
-            personal data, or design information is ever transmitted.
-          </p>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Interface */}
       <section>
@@ -850,93 +859,97 @@ export function PreferencesSettings() {
       </section>
 
       {/* File Extensions */}
-      <section>
-        <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3">
-          {t('preferences.fileExtensions')}
-        </h2>
-        <div className="p-4 bg-plm-bg rounded-lg border border-plm-border">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-base text-plm-fg">{t('preferences.lowercaseExtensions')}</div>
-              <div className="text-sm text-plm-fg-muted mt-0.5">
-                {t('preferences.lowercaseExtensionsDesc')}
+      {desktop && (
+        <section>
+          <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3">
+            {t('preferences.fileExtensions')}
+          </h2>
+          <div className="p-4 bg-plm-bg rounded-lg border border-plm-border">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-base text-plm-fg">{t('preferences.lowercaseExtensions')}</div>
+                <div className="text-sm text-plm-fg-muted mt-0.5">
+                  {t('preferences.lowercaseExtensionsDesc')}
+                </div>
               </div>
+              <button
+                onClick={() => setLowercaseExtensions(!lowercaseExtensions)}
+                className="text-plm-accent"
+              >
+                {lowercaseExtensions ? (
+                  <ToggleRight size={28} />
+                ) : (
+                  <ToggleLeft size={28} className="text-plm-fg-muted" />
+                )}
+              </button>
             </div>
-            <button
-              onClick={() => setLowercaseExtensions(!lowercaseExtensions)}
-              className="text-plm-accent"
-            >
-              {lowercaseExtensions ? (
-                <ToggleRight size={28} />
-              ) : (
-                <ToggleLeft size={28} className="text-plm-fg-muted" />
-              )}
-            </button>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Ignore Patterns */}
-      <section>
-        <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3">
-          {t('preferences.ignorePatterns')}
-        </h2>
-        <div className="p-4 bg-plm-bg rounded-lg border border-plm-border space-y-3">
-          <p className="text-sm text-plm-fg-muted">{t('preferences.ignorePatternsDesc')}</p>
+      {desktop && (
+        <section>
+          <h2 className="text-sm text-plm-fg-muted uppercase tracking-wide font-medium mb-3">
+            {t('preferences.ignorePatterns')}
+          </h2>
+          <div className="p-4 bg-plm-bg rounded-lg border border-plm-border space-y-3">
+            <p className="text-sm text-plm-fg-muted">{t('preferences.ignorePatternsDesc')}</p>
 
-          {/* Add new pattern */}
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={newIgnorePattern}
-              onChange={(e) => setNewIgnorePattern(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleAddIgnorePattern()
-              }}
-              placeholder={t('preferences.ignorePlaceholder')}
-              className="flex-1 bg-plm-bg-secondary border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none font-mono"
-              disabled={!activeVaultId}
-            />
-            <button
-              onClick={handleAddIgnorePattern}
-              disabled={!newIgnorePattern.trim() || !activeVaultId}
-              className="btn btn-primary btn-sm flex items-center gap-1"
-            >
-              <Plus size={14} />
-              {t('common.add')}
-            </button>
-          </div>
-
-          {!activeVaultId && (
-            <p className="text-sm text-plm-warning">{t('preferences.connectVaultForPatterns')}</p>
-          )}
-
-          {/* Pattern list */}
-          {currentVaultPatterns.length > 0 ? (
-            <div className="space-y-1">
-              {currentVaultPatterns.map((pattern, index) => (
-                <div
-                  key={index}
-                  className="flex items-center gap-2 px-3 py-2 bg-plm-bg-secondary rounded-lg group"
-                >
-                  <FileText size={16} className="text-plm-fg-muted flex-shrink-0" />
-                  <code className="flex-1 text-base font-mono text-plm-fg">{pattern}</code>
-                  <button
-                    onClick={() => activeVaultId && removeIgnorePattern(activeVaultId, pattern)}
-                    className="p-1 text-plm-fg-muted hover:text-plm-error rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              ))}
+            {/* Add new pattern */}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newIgnorePattern}
+                onChange={(e) => setNewIgnorePattern(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleAddIgnorePattern()
+                }}
+                placeholder={t('preferences.ignorePlaceholder')}
+                className="flex-1 bg-plm-bg-secondary border border-plm-border rounded-lg px-3 py-2 text-base focus:border-plm-accent focus:outline-none font-mono"
+                disabled={!activeVaultId}
+              />
+              <button
+                onClick={handleAddIgnorePattern}
+                disabled={!newIgnorePattern.trim() || !activeVaultId}
+                className="btn btn-primary btn-sm flex items-center gap-1"
+              >
+                <Plus size={14} />
+                {t('common.add')}
+              </button>
             </div>
-          ) : activeVaultId ? (
-            <p className="text-sm text-plm-fg-dim text-center py-2">
-              {t('preferences.noIgnorePatterns')}
-            </p>
-          ) : null}
-        </div>
-      </section>
+
+            {!activeVaultId && (
+              <p className="text-sm text-plm-warning">{t('preferences.connectVaultForPatterns')}</p>
+            )}
+
+            {/* Pattern list */}
+            {currentVaultPatterns.length > 0 ? (
+              <div className="space-y-1">
+                {currentVaultPatterns.map((pattern, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center gap-2 px-3 py-2 bg-plm-bg-secondary rounded-lg group"
+                  >
+                    <FileText size={16} className="text-plm-fg-muted flex-shrink-0" />
+                    <code className="flex-1 text-base font-mono text-plm-fg">{pattern}</code>
+                    <button
+                      onClick={() => activeVaultId && removeIgnorePattern(activeVaultId, pattern)}
+                      className="p-1 text-plm-fg-muted hover:text-plm-error rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : activeVaultId ? (
+              <p className="text-sm text-plm-fg-dim text-center py-2">
+                {t('preferences.noIgnorePatterns')}
+              </p>
+            ) : null}
+          </div>
+        </section>
+      )}
     </div>
   )
 }

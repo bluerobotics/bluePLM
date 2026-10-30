@@ -78,12 +78,21 @@ export const packAndGoCommand: Command<PackAndGoParams> = {
       return 'No organization connected'
     }
 
+    // Zips files from the local vault, so it needs the desktop app.
+    if (!window.electronAPI) {
+      return 'Pack and Go needs the BluePLM desktop app'
+    }
+
     return null
   },
 
   async execute({ file }, ctx): Promise<CommandResult> {
     const operationId = `pack-and-go-${Date.now()}`
     const toastId = operationId
+    const api = window.electronAPI
+    if (!api) {
+      return { success: false, message: 'Pack and Go needs the BluePLM desktop app', total: 0, succeeded: 0, failed: 0 }
+    }
 
     logPackAndGo('info', 'Starting Pack and Go operation', {
       operationId,
@@ -94,7 +103,7 @@ export const packAndGoCommand: Command<PackAndGoParams> = {
     try {
       // Step 1: Show save dialog for output location
       const defaultName = file.name.replace(/\.sldasm$/i, '_PackAndGo.zip')
-      const saveResult = await window.electronAPI.showSaveDialog(defaultName, [
+      const saveResult = await api.showSaveDialog(defaultName, [
         { name: 'ZIP Archives', extensions: ['zip'] },
       ])
 
@@ -215,8 +224,8 @@ export const packAndGoCommand: Command<PackAndGoParams> = {
 
       // Subscribe to progress events
       let unsubscribeProgress: (() => void) | null = null
-      if (window.electronAPI.archive.onProgress) {
-        unsubscribeProgress = window.electronAPI.archive.onProgress((progressEvent) => {
+      if (api.archive.onProgress) {
+        unsubscribeProgress = api.archive.onProgress((progressEvent) => {
           const percent = Math.round(
             (progressEvent.filesProcessed / progressEvent.filesTotal) * 100,
           )
@@ -242,7 +251,7 @@ export const packAndGoCommand: Command<PackAndGoParams> = {
           fileCount: uniqueFiles.length,
         })
 
-        const zipResult = await window.electronAPI.archive.createZip(uniqueFiles, outputPath)
+        const zipResult = await api.archive.createZip(uniqueFiles, outputPath)
 
         // Cleanup progress listener
         if (unsubscribeProgress) {

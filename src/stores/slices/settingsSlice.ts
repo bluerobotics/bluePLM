@@ -10,6 +10,7 @@ import type {
 } from '../types'
 import type { KeybindingAction, Keybinding, KeybindingsConfig } from '../../types/settings'
 import { supabase } from '../../lib/supabase'
+import { IS_WEB_BUILD } from '../../lib/platform'
 
 const defaultColumns: ColumnConfig[] = [
   { id: 'name', label: 'Name', width: 280, visible: true, sortable: true },
@@ -77,7 +78,10 @@ export const createSettingsSlice: StateCreator<
   },
 
   // Initial state - SolidWorks
-  solidworksIntegrationEnabled: true,
+  // BluePLM Web has no SOLIDWORKS: forced off there. The build-time flag (not hasDesktop()) keeps
+  // the store's initial state identical for the desktop app and tests. Web storage is its own
+  // origin, so this never touches the desktop's persisted value.
+  solidworksIntegrationEnabled: !IS_WEB_BUILD,
   solidworksPath: null,
   solidworksDmLicenseKey: null,
   solidworksProgId: null,
@@ -170,7 +174,7 @@ export const createSettingsSlice: StateCreator<
 
   // Actions - SolidWorks
   setSolidworksIntegrationEnabled: (solidworksIntegrationEnabled) =>
-    set({ solidworksIntegrationEnabled }),
+    set({ solidworksIntegrationEnabled: solidworksIntegrationEnabled && !IS_WEB_BUILD }),
   setSolidworksPath: (solidworksPath) => set({ solidworksPath }),
   setSolidworksDmLicenseKey: (solidworksDmLicenseKey) => set({ solidworksDmLicenseKey }),
   setSolidworksProgId: (solidworksProgId) => set({ solidworksProgId }),
@@ -731,8 +735,8 @@ export const createSettingsSlice: StateCreator<
       // Note: auto-download settings are NOT force-enabled here anymore.
       // They default to false and should only be enabled via VaultSetupDialog or Settings.
       // Previously this was overriding user preferences made during vault setup.
-      autoStartSolidworksService: options?.solidworksIntegrationEnabled ?? true,
-      solidworksIntegrationEnabled: options?.solidworksIntegrationEnabled ?? true,
+      autoStartSolidworksService: (options?.solidworksIntegrationEnabled ?? true) && !IS_WEB_BUILD,
+      solidworksIntegrationEnabled: (options?.solidworksIntegrationEnabled ?? true) && !IS_WEB_BUILD,
     }),
   setLogSharingEnabled: (logSharingEnabled) => set({ logSharingEnabled }),
 

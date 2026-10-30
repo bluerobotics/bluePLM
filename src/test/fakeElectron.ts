@@ -1,7 +1,7 @@
 /**
  * A fake disk, a fake SolidWorks service and the `window.electronAPI` that fronts them.
  *
- * Typed against `Window['electronAPI']` from `src/electron.d.ts`: every method here must have the
+ * Typed against `NonNullable<Window['electronAPI']>` from `src/electron.d.ts`: every method here must have the
  * shape the preload exposes, so a renamed IPC or a changed response field fails to compile instead
  * of passing against an untyped fake. A method the code under test reaches for that is not
  * implemented returns `undefined` (the same as an older preload) and is recorded in `missing`, so
@@ -17,7 +17,7 @@ import type { ExtractedDrawingCharacteristics, InspectionBalloonRequest } from '
 
 import { createFakeFsApi, type FakeFsOptions } from './fakeElectronFs'
 
-type ElectronAPI = Window['electronAPI']
+type ElectronAPI = NonNullable<Window['electronAPI']>
 type SolidWorksAPI = ElectronAPI['solidworks']
 
 export interface SwConfiguration {

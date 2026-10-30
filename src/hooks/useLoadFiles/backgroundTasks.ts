@@ -4,6 +4,7 @@ import { executeCommand } from '@/lib/commands'
 import { recordMetric } from '@/lib/performanceMetrics'
 import { log } from '@/lib/logger'
 import { describeError } from '@/lib/errorDetails'
+import { hasDesktop } from '@/lib/platform'
 import {
   isSameCheckoutProfile,
   updateCachedUserInfo,
@@ -234,7 +235,8 @@ export async function runPostLoadBackgroundTasks(ctx: BackgroundTaskContext): Pr
     skipped: skipHashComputation,
   })
 
-  if (filesNeedingHash.length > 0 && window.electronAPI.computeFileHashes) {
+  const computeFileHashes = window.electronAPI?.computeFileHashes
+  if (filesNeedingHash.length > 0 && computeFileHashes) {
     window.electronAPI?.log('info', '[LoadFiles] Computing hashes for', {
       count: filesNeedingHash.length,
       forceHashComputation,
@@ -256,7 +258,7 @@ export async function runPostLoadBackgroundTasks(ctx: BackgroundTaskContext): Pr
     try {
       // Compute hashes in background (with progress updates via IPC)
       const hashComputeStart = performance.now()
-      const { results } = await window.electronAPI.computeFileHashes(hashRequests)
+      const { results } = await computeFileHashes(hashRequests)
       const hashComputeDuration = performance.now() - hashComputeStart
 
       recordMetric('VaultLoad', 'Hash IPC complete', {
@@ -392,7 +394,9 @@ export async function runPostLoadBackgroundTasks(ctx: BackgroundTaskContext): Pr
     isOfflineMode,
   })
 
+  // Auto-download fills the vault folder, which BluePLM Web does not have.
   if (
+    hasDesktop() &&
     !silent &&
     (autoDownloadCloudFiles || autoDownloadUpdates) &&
     organization &&

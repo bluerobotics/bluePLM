@@ -35,6 +35,7 @@ import { WhereUsedTab, SWPropertiesTab } from '@/features/integrations/solidwork
 import { InspectionTab } from '@/features/integrations/solidworks'
 import { VendorsTab } from './VendorsTab'
 import { CadFilePreview } from './components/CadFilePreview'
+import { hasDesktop } from '@/lib/platform'
 import { PdfAnnotationViewer } from './components/PdfAnnotationViewer'
 import type { AnnotationOverlay } from './components/PdfAnnotationViewer'
 import { CommentSidebar } from './components/CommentSidebar'
@@ -1037,13 +1038,15 @@ export function DetailsPanel() {
                           : t('source.details.unknown')}{' '}
                         {t('source.details.cannotPreview')}
                       </div>
-                      <button
-                        onClick={() => window.electronAPI?.openFile(file.path)}
-                        className="btn btn-secondary gap-2 mt-4"
-                      >
-                        <ExternalLink size={14} />
-                        {t('source.details.openWithDefaultApp')}
-                      </button>
+                      {hasDesktop() && (
+                        <button
+                          onClick={() => window.electronAPI?.openFile(file.path)}
+                          className="btn btn-secondary gap-2 mt-4"
+                        >
+                          <ExternalLink size={14} />
+                          {t('source.details.openWithDefaultApp')}
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>

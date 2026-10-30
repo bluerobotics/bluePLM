@@ -18,6 +18,8 @@ import { FileOperationTracker } from '../../fileOperationTracker'
 import { addToSyncIndex } from '../../cache/localSyncIndex'
 import { t } from '@/lib/i18n'
 import { withExpectedParentFolders } from '../expectedFileChanges'
+import { hasDesktop } from '@/lib/platform'
+import { executeWebDownload } from './downloadWeb'
 
 function toastSkippedNoHash(ctx: CommandContext, count: number): void {
   if (count <= 0) return
@@ -186,6 +188,9 @@ export const downloadCommand: Command<DownloadParams> = {
   },
 
   async execute({ files }, ctx): Promise<CommandResult> {
+    // BluePLM Web has no vault folder: the browser saves the files instead.
+    if (!hasDesktop()) return executeWebDownload(files, ctx)
+
     const organization = ctx.organization!
     const vaultPath = ctx.vaultPath!
     const operationId = `download-${Date.now()}`

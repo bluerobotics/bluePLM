@@ -88,14 +88,15 @@ function UpdateToastItem({ toast, onDismiss }: { toast: ToastMessage; onDismiss:
   const [isExiting, setIsExiting] = useState(false)
 
   const handleDownload = async () => {
-    if (updateDownloading || updateDownloaded) return
+    const api = window.electronAPI
+    if (!api || updateDownloading || updateDownloaded) return
 
     // Clear any existing reminder when user clicks download
-    window.electronAPI.clearUpdateReminder()
+    api.clearUpdateReminder()
 
     setUpdateDownloading(true)
     try {
-      const result = await window.electronAPI.downloadUpdate()
+      const result = await api.downloadUpdate()
       if (!result.success) {
         log.error('[Update]', 'Download failed', { error: result.error })
         setUpdateDownloading(false)
@@ -108,7 +109,7 @@ function UpdateToastItem({ toast, onDismiss }: { toast: ToastMessage; onDismiss:
 
   const handleInstall = async () => {
     try {
-      await window.electronAPI.installUpdate()
+      await window.electronAPI?.installUpdate()
     } catch (error) {
       log.error('[Update]', 'Install error', { error: error })
     }
@@ -118,7 +119,7 @@ function UpdateToastItem({ toast, onDismiss }: { toast: ToastMessage; onDismiss:
     // Save the reminder for this version
     const version = updateAvailable?.version || toast.message.replace('Update available: v', '')
     if (version) {
-      await window.electronAPI.postponeUpdate(version)
+      await window.electronAPI?.postponeUpdate(version)
     }
     setIsExiting(true)
     setTimeout(onDismiss, 200)

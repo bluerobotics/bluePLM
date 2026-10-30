@@ -6,6 +6,7 @@ import { AddMenu } from './AddMenu'
 import { PathActions } from './PathActions'
 import { SearchIndicator } from './SearchIndicator'
 import { CardViewFieldsPopover } from './CardViewFieldsPopover'
+import { hasDesktop } from '@/lib/platform'
 
 export interface FileToolbarProps {
   // Navigation
@@ -122,20 +123,27 @@ export const FileToolbar = memo(function FileToolbar({
         />
       )}
 
-      {/* Path actions */}
-      <PathActions
-        currentPath={currentPath}
-        vaultPath={vaultPath}
-        platform={platform}
-        addToast={addToast}
-      />
+      {/* Path actions (open in Explorer, copy path): the local vault folder, desktop only */}
+      {hasDesktop() && (
+        <PathActions
+          currentPath={currentPath}
+          vaultPath={vaultPath}
+          platform={platform}
+          addToast={addToast}
+        />
+      )}
 
       {/* Actions */}
       <div className="flex items-center gap-1">
-        <AddMenu onAddFiles={onAddFiles} onAddFolder={onAddFolder} />
+        {/* Add files or folders from disk: desktop only */}
+        {hasDesktop() && (
+          <>
+            <AddMenu onAddFiles={onAddFiles} onAddFolder={onAddFolder} />
 
-        {/* Separator */}
-        <div className="w-px h-5 bg-plm-border mx-1" />
+            {/* Separator */}
+            <div className="w-px h-5 bg-plm-border mx-1" />
+          </>
+        )}
 
         {/* View mode toggle */}
         <ViewToggle viewMode={viewMode} onViewModeChange={onViewModeChange} />

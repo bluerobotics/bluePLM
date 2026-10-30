@@ -29,7 +29,8 @@ export async function signInWithGoogle() {
   const client = getSupabaseClient()
 
   // In Electron (both dev and production), use system browser OAuth flow
-  const isElectron = !!window.electronAPI
+  const electronAPI = window.electronAPI
+  const isElectron = !!electronAPI
 
   authLog('info', 'signInWithGoogle called', {
     isElectron,
@@ -79,7 +80,7 @@ export async function signInWithGoogle() {
 
     // Open system browser via Electron IPC (this opens the user's default browser)
     authLog('info', 'Opening system browser for Google sign-in')
-    const result = await window.electronAPI.openOAuthWindow(data.url)
+    const result = await electronAPI.openOAuthWindow(data.url)
 
     authLog('info', 'OAuth flow returned', {
       success: result?.success,

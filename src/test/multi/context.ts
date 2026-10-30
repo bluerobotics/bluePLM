@@ -20,7 +20,7 @@ import type { Database } from '@/types/supabase'
 
 export interface MachineContext {
   name: string
-  electronAPI: Window['electronAPI']
+  electronAPI: NonNullable<Window['electronAPI']>
   client: SupabaseClient<Database>
   localStorage: Storage
   sessionStorage: Storage

@@ -5,6 +5,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { usePDMStore } from '@/stores/pdmStore'
 import { executeCommand } from '@/lib/commands'
 import { buildFullPath } from '@/lib/utils/path'
+import { hasDesktop } from '@/lib/platform'
 
 interface FileOperationItemsProps {
   firstFile: LocalFile
@@ -94,6 +95,9 @@ export function FileOperationItems({
   // This is different from allCloudOnly which derives folder status from children,
   // causing empty local folders to be incorrectly treated as cloud-only
   const isLocalItem = firstFile.diffStatus !== 'cloud'
+
+  // Open, Show in Explorer, Rename and New Folder all act on the local vault: none on BluePLM Web.
+  if (!hasDesktop()) return null
 
   return (
     <>

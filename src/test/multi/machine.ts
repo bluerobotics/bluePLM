@@ -90,7 +90,7 @@ export class Machine {
     server.addUser(spec.user)
     this.ctx = {
       name: spec.name,
-      electronAPI: undefined as unknown as Window['electronAPI'],
+      electronAPI: undefined as unknown as NonNullable<Window['electronAPI']>,
       client: undefined as unknown as MachineContext['client'],
       localStorage: new MemoryStorage(),
       sessionStorage: new MemoryStorage(),

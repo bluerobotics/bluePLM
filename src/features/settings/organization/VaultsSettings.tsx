@@ -32,6 +32,8 @@ import { VaultSetupDialog, type VaultSyncStats } from '@/components/shared/Dialo
 import { calculateVaultSyncStats } from '@/lib/vaultHealthCheck'
 import { useTranslation } from '@/lib/i18n'
 import { RealignSection } from './realign'
+import { hasDesktop } from '@/lib/platform'
+import { connectWebVault } from '@/lib/webVault'
 
 // Build vault path based on platform
 function buildVaultPath(platform: string, vaultSlug: string): string {
@@ -531,7 +533,9 @@ export function VaultsSettings() {
     try {
       const api = window.electronAPI
       if (!api) {
-        addToast('error', t('vaultOperations.electronUnavailable'))
+        // BluePLM Web: no folder and no setup wizard; the vault opens from the server.
+        connectWebVault(vault)
+        addToast('success', t('vaultOperations.connected', { name: vault.name }))
         return
       }
 
@@ -883,8 +887,8 @@ export function VaultsSettings() {
               </div>
               {renamingVaultId !== vault.id && (
                 <div className="flex items-center gap-2">
-                  {/* Show in folder button (only for connected vaults) */}
-                  {isVaultConnected(vault.id) && (
+                  {/* Show in folder button (only for connected vaults, on the desktop) */}
+                  {isVaultConnected(vault.id) && hasDesktop() && (
                     <button
                       onClick={() => {
                         const connectedVault = connectedVaults.find((v) => v.id === vault.id)
@@ -910,23 +914,25 @@ export function VaultsSettings() {
                         <Unlink size={14} />
                         Disconnect
                       </button>
-                      <button
-                        onClick={() => {
-                          const cv = connectedVaults.find((v) => v.id === vault.id)
-                          if (cv?.localPath) {
-                            setWipingVault({
-                              id: vault.id,
-                              name: vault.name,
-                              localPath: cv.localPath,
-                            })
-                          }
-                        }}
-                        className="btn btn-ghost btn-sm flex items-center gap-1 text-plm-error"
-                        title="Wipe local files"
-                      >
-                        <Eraser size={14} />
-                        Wipe Local
-                      </button>
+                      {hasDesktop() && (
+                        <button
+                          onClick={() => {
+                            const cv = connectedVaults.find((v) => v.id === vault.id)
+                            if (cv?.localPath) {
+                              setWipingVault({
+                                id: vault.id,
+                                name: vault.name,
+                                localPath: cv.localPath,
+                              })
+                            }
+                          }}
+                          className="btn btn-ghost btn-sm flex items-center gap-1 text-plm-error"
+                          title="Wipe local files"
+                        >
+                          <Eraser size={14} />
+                          Wipe Local
+                        </button>
+                      )}
                     </>
                   ) : (
                     <button
@@ -1162,7 +1168,7 @@ export function VaultsSettings() {
 
       {/* Re-align with Server — see src/features/settings/organization/realign/ for everything
           this section renders. Not admin-gated: any user may re-align their own vault copy. */}
-      {connectedVaults.length > 0 && <RealignSection />}
+      {connectedVaults.length > 0 && hasDesktop() && <RealignSection />}
 
       {/* Upload Warning Settings */}
       {connectedVaults.length > 0 && (

@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { usePDMStore } from '@/stores/pdmStore'
-import { settingsCatalog, settingsSections } from './settingsCatalog'
+import { hasDesktop } from '@/lib/platform'
+import { isSettingsTabAvailable, settingsCatalogFor, settingsSections } from './settingsCatalog'
 import {
   buildSettingsSearchIndex,
   flattenSettingsSearch,
@@ -19,15 +20,15 @@ interface SettingsSearchState {
 // result keeps that to a single pass.
 let cache: { key: string; value: SettingsSearchState } | null = null
 
-function runSearch(query: string, isAdmin: boolean): SettingsSearchState {
-  const key = `${isAdmin ? 1 : 0}\u0000${query}`
+function runSearch(query: string, isAdmin: boolean, desktop: boolean): SettingsSearchState {
+  const key = `${isAdmin ? 1 : 0}${desktop ? 1 : 0}\u0000${query}`
   if (cache?.key === key) return cache.value
   const sections = settingsSections().map((section) => ({
     ...section,
-    items: section.items.filter((item) => !item.adminOnly || isAdmin),
+    items: section.items.filter((item) => isSettingsTabAvailable(item, isAdmin, desktop)),
   }))
   const groups = query.trim()
-    ? searchSettings(buildSettingsSearchIndex(sections, settingsCatalog), query)
+    ? searchSettings(buildSettingsSearchIndex(sections, settingsCatalogFor(desktop)), query)
     : []
   const value = { query: query.trim(), groups, hits: flattenSettingsSearch(groups) }
   cache = { key, value }
@@ -38,5 +39,6 @@ function runSearch(query: string, isAdmin: boolean): SettingsSearchState {
 export function useSettingsSearch(): SettingsSearchState {
   const query = usePDMStore((s) => s.settingsSearchQuery)
   const isAdmin = usePDMStore((s) => s.getEffectiveRole() === 'admin')
-  return useMemo(() => runSearch(query, isAdmin), [query, isAdmin])
+  const desktop = hasDesktop()
+  return useMemo(() => runSearch(query, isAdmin, desktop), [query, isAdmin, desktop])
 }

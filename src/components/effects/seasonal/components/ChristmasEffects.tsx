@@ -704,18 +704,6 @@ export function ChristmasEffects() {
         </button>
       </div>
 
-      {/* CSS animations */}
-      <style>{`
-        @keyframes twinkle {
-          0%, 100% { opacity: 0.3; transform: scale(1); }
-          50% { opacity: 1; transform: scale(1.2); }
-        }
-        
-        @keyframes sleighBob {
-          0%, 100% { transform: translateY(-50%) rotate(-2deg); }
-          50% { transform: translateY(calc(-50% - 5px)) rotate(2deg); }
-        }
-      `}</style>
     </>
   )
 }

@@ -76,7 +76,7 @@ function expectUnchanged(columns: readonly Column[] | 'all') {
 async function reupload(metadata: Parameters<typeof syncFile>[9]) {
   const path = h.absolute(PART)
   h.electron.disk.write(path, 'new bytes')
-  const read = await window.electronAPI.readFile(path)
+  const read = await window.electronAPI!.readFile(path)
   const result = await syncFile(
     ORG_ID,
     VAULT_ID,

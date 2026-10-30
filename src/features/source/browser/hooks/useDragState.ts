@@ -32,6 +32,8 @@ import { buildFullPath } from '@/lib/utils/path'
 import { executeCommand } from '@/lib/commands'
 import type { ConflictDialogState } from './useDialogState'
 import type { FileConflict } from '../types'
+import { setFileDragImage } from '@/lib/dragPreview'
+import { hasDesktop } from '@/lib/platform'
 
 /**
  * Interface for collected entries from DataTransfer
@@ -654,18 +656,11 @@ export function useDragState(options: UseDragStateOptions): UseDragStateReturn {
       }
 
       // Create a custom drag image showing file/folder count
-      const dragPreview = document.createElement('div')
-      dragPreview.style.cssText =
-        'position:absolute;left:-1000px;padding:8px 12px;background:#1e293b;border:1px solid #3b82f6;border-radius:6px;color:white;font-size:13px;display:flex;align-items:center;gap:6px;'
-      const iconSvg = file.isDirectory
-        ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>'
-        : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>'
-      const label = filesToDrag.length > 1 ? `${filesToDrag.length} items` : file.name
-      dragPreview.innerHTML = iconSvg
-      dragPreview.appendChild(document.createTextNode(label))
-      document.body.appendChild(dragPreview)
-      e.dataTransfer.setDragImage(dragPreview, 20, 20)
-      setTimeout(() => dragPreview.remove(), 0)
+      setFileDragImage(e.dataTransfer, {
+        isDirectory: file.isDirectory,
+        name: file.name,
+        count: filesToDrag.length,
+      })
 
       // Also call Electron's startDrag for native multi-file support (only for files, not folders)
       const filePathsForNative = filesToDrag.filter((f) => !f.isDirectory).map((f) => f.path)
@@ -693,6 +688,8 @@ export function useDragState(options: UseDragStateOptions): UseDragStateReturn {
       const hasExternalFiles = e.dataTransfer.types.includes('Files') && !hasPdmFiles
 
       if (draggedFiles.length === 0 && !hasPdmFiles && !hasExternalFiles) return
+      // BluePLM Web: no drops into folders (see handleDragOver)
+      if (!hasDesktop()) return
 
       // For external file drops, just show the target highlight and set copy effect
       if (hasExternalFiles) {
@@ -1033,6 +1030,13 @@ export function useDragState(options: UseDragStateOptions): UseDragStateReturn {
     (e: React.DragEvent) => {
       e.preventDefault()
       e.stopPropagation()
+
+      // BluePLM Web has no local vault to drop into or move within: refuse every drop (the
+      // preventDefault above still stops the browser from opening a dropped file).
+      if (!hasDesktop()) {
+        e.dataTransfer.dropEffect = 'none'
+        return
+      }
 
       // Check for external files (from outside the app)
       if (

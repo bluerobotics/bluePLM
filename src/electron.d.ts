@@ -236,7 +236,7 @@ declare global {
   }
 
   interface Window {
-    electronAPI: {
+    electronAPI?: {
       // OAuth
       openOAuthWindow: (
         url: string,

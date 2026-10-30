@@ -33,7 +33,7 @@ export async function installPerfBoot(fileCount = 30_000): Promise<void> {
   const vault = buildSyntheticVault(fileCount)
   const misses: Misses = new Map()
 
-  const real = (window as Window & { electronAPIReal?: Window['electronAPI'] }).electronAPIReal
+  const real = (window as Window & { electronAPIReal?: NonNullable<Window['electronAPI']> }).electronAPIReal
   Object.defineProperty(window, 'electronAPI', {
     value: createPerfElectron(vault, FIXTURE_VAULT_ROOT, misses, real, electronHooks),
     configurable: true,

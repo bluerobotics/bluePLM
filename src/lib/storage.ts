@@ -12,6 +12,7 @@
  *   file_versions table             - All versions with hash references
  */
 import { supabase } from './supabase'
+import { withDownloadName } from './browserDownload'
 import { isRetryableError, getNetworkErrorMessage, getBackoffDelay, sleep } from './network'
 
 const BUCKET_NAME = 'vault'
@@ -546,12 +547,19 @@ export async function downloadFileWithProgress(
 /**
  * Get a signed URL for direct download (faster for large files)
  * Tries flat path first, then subdirectory structure
+ *
+ * `options.downloadName` makes the URL answer as an attachment under that file name. Storage
+ * objects are named by content hash, so a browser download (BluePLM Web) needs it to save the file
+ * under its real name; the desktop writes the bytes to a path itself and leaves it unset.
  */
 export async function getDownloadUrl(
   orgId: string,
   hash: string,
   expiresInSeconds: number = 3600,
+  options: { downloadName?: string } = {},
 ): Promise<{ url: string | null; error?: string }> {
+  const named = (signedUrl: string): string =>
+    options.downloadName ? withDownloadName(signedUrl, options.downloadName) : signedUrl
   const startTime = Date.now()
   const ctx: StorageLogContext = {
     operation: 'get-url',
@@ -584,7 +592,7 @@ export async function getDownloadUrl(
 
     if (!result.error && result.data) {
       logStorageOperation('debug', 'Got signed URL from flat path', ctx)
-      return { url: result.data.signedUrl }
+      return { url: named(result.data.signedUrl) }
     }
 
     // Log flat path failure
@@ -596,7 +604,9 @@ export async function getDownloadUrl(
     // Try subdirectory structure
     const storagePath = getStoragePath(orgId, hash)
     ctx.path = storagePath
-    result = await supabase.storage.from(BUCKET_NAME).createSignedUrl(storagePath, expiresInSeconds)
+    result = await supabase.storage
+      .from(BUCKET_NAME)
+      .createSignedUrl(storagePath, expiresInSeconds)
 
     if (result.error) {
       logStorageOperation('error', 'Failed to get signed URL from both paths', ctx, {
@@ -619,7 +629,7 @@ export async function getDownloadUrl(
     }
 
     logStorageOperation('debug', 'Got signed URL from subdirectory path', ctx)
-    return { url: result.data.signedUrl }
+    return { url: named(result.data.signedUrl) }
   } catch (error) {
     logStorageOperation('error', 'Exception getting signed URL', ctx, error)
     return {

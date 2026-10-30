@@ -66,6 +66,7 @@ import {
 import { detectInodeRenames, hashRenameCandidates } from './useLoadFiles/renameDetection'
 import { rowsSettledAtServerPath, takeOwnInodeMoves } from './useLoadFiles/autoReconcileOwnMoves'
 import { useRefreshCurrentFolder } from './useLoadFiles/useRefreshCurrentFolder'
+import { hasDesktop } from '@/lib/platform'
 
 export {
   buildAutoDiscardToastMessage,
@@ -75,6 +76,11 @@ export {
   shouldSkipAutoDiscardForOrphans,
 }
 export type { AutoDiscardSanityCheckInput } from './useLoadFiles/autoDiscard'
+
+/** What a local scan returns. On the web, with no bridge, it is always empty. */
+type LocalScanResult = Awaited<
+  ReturnType<NonNullable<Window['electronAPI']>['listWorkingFilesDelta']>
+>
 
 /** Enough orphan paths to see what a batch is without logging thousands. */
 const ORPHAN_LOG_SAMPLE_LIMIT = 10
@@ -191,7 +197,9 @@ export function useLoadFiles(sessionContext?: LoadFilesSessionContext) {
         authenticatedUserId: hashCheckoutIdentifier(loadContext.authenticatedUserId),
         sessionGeneration: loadContext.sessionGeneration,
       })
-      if (!window.electronAPI || !loadingForVaultPath) return
+      // BluePLM Web has no bridge and no vault folder: it loads the server rows only, against the
+      // vault's virtual path, and the local scan below is empty.
+      if (!loadingForVaultPath) return
 
       // A watcher delta refresh can be caused by BluePLM's own SolidWorks metadata write. Clearing
       // every configuration cache here would collapse the tree while the user is editing, even
@@ -301,11 +309,13 @@ export function useLoadFiles(sessionContext?: LoadFilesSessionContext) {
           changedRelativePaths !== undefined &&
           changedRelativePaths.length > 0
 
-        const localPromise = (
-          canDeltaScan
-            ? window.electronAPI.listWorkingFilesDelta(changedRelativePaths!)
-            : window.electronAPI.listWorkingFiles()
-        ).then((result) => {
+        const bridge = window.electronAPI
+        const localScan: Promise<LocalScanResult> = !bridge
+          ? Promise.resolve({ success: true, files: [] })
+          : canDeltaScan
+            ? bridge.listWorkingFilesDelta(changedRelativePaths!)
+            : bridge.listWorkingFiles()
+        const localPromise = localScan.then((result) => {
           localScanEnd = performance.now()
           return result
         })
@@ -822,7 +832,8 @@ export function useLoadFiles(sessionContext?: LoadFilesSessionContext) {
 
             // Update the local sync index with all server file paths
             // This ensures we track which files have been synced for orphan detection
-            if (currentVaultId) {
+            // Not on the web: nothing is ever synced there, so there is nothing to track.
+            if (currentVaultId && hasDesktop()) {
               const serverPaths = pdmFiles.map((file) => file.file_path)
 
               const inodeEntries = buildSyncIndexEntries(localFiles, rehashPaths)
@@ -1121,8 +1132,9 @@ export function useLoadFiles(sessionContext?: LoadFilesSessionContext) {
           `Loaded ${totalFiles} files, ${folderCount} folders${syncedCount > 0 ? ` (${syncedCount} synced)` : ''}`,
         )
 
-        // Background tasks (non-blocking) - run after UI renders
-        if (user && window.electronAPI) {
+        // Background tasks (non-blocking) - run after UI renders. They run on the web too, for
+        // checkout profile hydration; their hash pass and auto-download need the desktop.
+        if (user) {
           const backgroundFiles = localFiles
           setTimeout(() => {
             void runPostLoadBackgroundTasks({

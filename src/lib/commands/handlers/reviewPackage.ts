@@ -92,6 +92,7 @@ function localVaultRoots(): string[] {
 
 async function readPreviousManifest(root: string): Promise<string | null> {
   const api = window.electronAPI
+  if (!api) return null
   const path = joinLocalPath(root, MANIFEST_JSON)
   if (!(await api.fileExists(path))) return null
   const read = await api.readTextFile(path)
@@ -118,6 +119,8 @@ export const downloadReviewPackageCommand: Command<DownloadReviewPackageParams> 
   async execute({ reviewId, destination, itemIds }, ctx): Promise<CommandResult> {
     const startedAt = Date.now()
     const api = window.electronAPI
+    // validateCommon refuses the web; this keeps the type honest.
+    if (!api) return { success: false, message: t(key('validationDesktopOnly')), total: 0, succeeded: 0, failed: 0 }
     const orgId = ctx.organization!.id
 
     let progress: ProgressTracker | null = null

@@ -257,6 +257,11 @@ describe('native preview context-menu seam', () => {
   it('marks source-browser overlays that coexist with the details preview', () => {
     const sourceRoot = join(__dirname, '..', '..')
     const fileTree = readFileSync(join(sourceRoot, 'explorer', 'FileTree.tsx'), 'utf8')
+    // The vault Properties modal lives beside FileTree in file-tree/VaultPropertiesModal.tsx.
+    const vaultProperties = readFileSync(
+      join(sourceRoot, 'explorer', 'file-tree', 'VaultPropertiesModal.tsx'),
+      'utf8',
+    )
     const cardFields = readFileSync(
       join(sourceRoot, 'browser', 'components', 'Toolbar', 'CardViewFieldsPopover.tsx'),
       'utf8',
@@ -267,7 +272,7 @@ describe('native preview context-menu seam', () => {
     )
 
     expect(fileTree).toContain('data-native-preview-overlay="context-menu"')
-    expect(fileTree.match(/data-native-preview-overlay="modal"/g)).toHaveLength(3)
+    expect((fileTree + vaultProperties).match(/data-native-preview-overlay="modal"/g)).toHaveLength(3)
     expect(cardFields).toContain('data-native-preview-overlay="dropdown"')
     expect(cardTooltip).toContain('data-native-preview-overlay="tooltip"')
   })

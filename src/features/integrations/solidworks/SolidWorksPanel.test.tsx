@@ -64,7 +64,7 @@ function renderTab() {
 }
 
 async function documentProperties() {
-  const reply = await window.electronAPI.solidworks.getProperties(h.absolute(PART))
+  const reply = await window.electronAPI!.solidworks.getProperties(h.absolute(PART))
   if (!reply.success || !reply.data) throw new Error(reply.error)
   return reply.data.fileProperties
 }

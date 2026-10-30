@@ -5,6 +5,7 @@ import { usePDMStore } from '@/stores/pdmStore'
 import { useShallow } from 'zustand/react/shallow'
 import { useLoadFiles, useVaultManagement, useStagedCheckins, useDeniedModules } from '@/hooks'
 import type { ModuleId } from '@/types/modules'
+import { hasDesktop } from '@/lib/platform'
 import { Toast } from '@/components/core'
 import { ChristmasEffects, HalloweenEffects, WeatherEffects } from '@/components/effects/seasonal'
 import { ImpersonationBanner } from '@/components/shared/ImpersonationBanner'
@@ -80,6 +81,7 @@ export function AppShell({ showWelcome, isSignInScreen, handleChangeOrg }: AppSh
   const activeExtensionWorkspace = extensionWorkspaces.find((w) => w.id === activeView) ?? null
 
   const deniedModules = useDeniedModules()
+  const desktop = hasDesktop()
 
   // activeView is persisted, so someone whose access was revoked while they
   // were away would otherwise reopen the app straight into the restricted
@@ -230,38 +232,44 @@ export function AppShell({ showWelcome, isSignInScreen, handleChangeOrg }: AppSh
 
       <Toast />
 
-      {/* Update Modal */}
-      <UpdateModal />
+      {/* Desktop-only dialogs: app updates, SOLIDWORKS, and the local vault's checkouts. BluePLM
+          Web has none of these. */}
+      {desktop && (
+        <>
+          {/* Update Modal */}
+          <UpdateModal />
 
-      {/* SOLIDWORKS version picker (several releases installed, no choice saved) */}
-      <SolidWorksVersionModal />
+          {/* SOLIDWORKS version picker (several releases installed, no choice saved) */}
+          <SolidWorksVersionModal />
 
-      {/* Orphaned Checkouts Dialog */}
-      <OrphanedCheckoutsContainer onRefresh={loadFiles} />
+          {/* Orphaned Checkouts Dialog */}
+          <OrphanedCheckoutsContainer onRefresh={loadFiles} />
 
-      {/* Staged Check-in Conflict Dialog */}
-      {stagedConflicts.length > 0 && (
-        <StagedCheckinConflictDialog
-          conflicts={stagedConflicts}
-          onClose={clearStagedConflicts}
-          onRefresh={loadFiles}
-        />
+          {/* Staged Check-in Conflict Dialog */}
+          {stagedConflicts.length > 0 && (
+            <StagedCheckinConflictDialog
+              conflicts={stagedConflicts}
+              onClose={clearStagedConflicts}
+              onRefresh={loadFiles}
+            />
+          )}
+        </>
       )}
 
       {/* Missing Storage Files Dialog */}
       <MissingStorageFilesContainer onRefresh={loadFiles} />
 
-      {/* Upload Size Warning Dialog */}
-      <UploadSizeWarningContainer />
+      {/* Upload Size Warning Dialog (uploads from disk: desktop only) */}
+      {desktop && <UploadSizeWarningContainer />}
 
       {/* Command Confirmation Dialog (ctx.confirm from command handlers) */}
       <CommandConfirmContainer />
 
-      {/* Copy / Move to Vault (opened from the file context menus) */}
-      <VaultTransferContainer onRefresh={loadFiles} />
+      {/* Copy / Move to Vault (opened from the file context menus; desktop only) */}
+      {desktop && <VaultTransferContainer onRefresh={loadFiles} />}
 
-      {/* Vault Not Found Dialog */}
-      {vaultNotFoundPath && (
+      {/* Vault Not Found Dialog (a local vault folder: desktop only) */}
+      {desktop && vaultNotFoundPath && (
         <VaultNotFoundDialog
           vaultPath={vaultNotFoundPath}
           vaultName={vaultNotFoundName}

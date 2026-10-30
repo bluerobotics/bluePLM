@@ -9,6 +9,8 @@
  * JavaScript or re-extracting anything.
  */
 
+import { IS_WEB_BUILD } from './platform'
+
 /** Must match THUMBNAIL_SCHEME in electron/handlers/thumbnails/protocol.ts. */
 const THUMBNAIL_SCHEME = 'blueplm-thumb'
 
@@ -84,6 +86,9 @@ export function buildThumbnailUrl(
   tier: ThumbnailTier,
   options: ThumbnailUrlOptions = {},
 ): string | null {
+  // BluePLM Web has no Electron main process to serve the scheme (and its CSP refuses it): every
+  // such URL would be a blocked request and a broken image, so callers fall back to their icon.
+  if (IS_WEB_BUILD) return null
   if (!supportsThumbnail(file) || !file.path) return null
 
   const params = new URLSearchParams({

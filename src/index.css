@@ -2206,3 +2206,26 @@ tr.selected.diff-cloud {
   border-radius: 6px;
   animation: settings-search-flash 2.2s ease-out;
 }
+
+/* Seasonal effects (ChristmasEffects, HalloweenEffects). Kept here rather than in an inline
+   <style> element so BluePLM Web's Content-Security-Policy (style-src without 'unsafe-inline')
+   allows them. */
+@keyframes twinkle {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+
+@keyframes sleighBob {
+  0%, 100% { transform: translateY(-50%) rotate(-2deg); }
+  50% { transform: translateY(calc(-50% - 5px)) rotate(2deg); }
+}
+
+@keyframes pumpkinGlow {
+  0%, 100% { filter: drop-shadow(0 0 8px rgba(255, 107, 43, 0.6)); }
+  50% { filter: drop-shadow(0 0 15px rgba(255, 107, 43, 0.9)); }
+}
+
+@keyframes bonfireGlow {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
+}

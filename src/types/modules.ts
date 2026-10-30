@@ -73,6 +73,9 @@ export interface ModuleDefinition {
   parentId?: ModuleId
   // If true, the module is fully implemented; false = "Coming Soon"
   implemented?: boolean
+  // If true, the module needs the desktop app (local vault, terminal, Electron webviews) and is
+  // denied on BluePLM Web (see useDeniedModules / hasDesktop())
+  desktopOnly?: boolean
 }
 
 // Module group definition
@@ -211,6 +214,7 @@ export const MODULES: ModuleDefinition[] = [
     defaultEnabled: true,
     dependencies: ['explorer'],
     implemented: true,
+    desktopOnly: true,
   },
   {
     id: 'history',
@@ -337,6 +341,7 @@ export const MODULES: ModuleDefinition[] = [
     icon: 'GoogleDrive', // Custom icon
     defaultEnabled: true,
     implemented: true,
+    desktopOnly: true,
   },
 
   // ============================================
@@ -349,6 +354,7 @@ export const MODULES: ModuleDefinition[] = [
     icon: 'Terminal',
     defaultEnabled: false, // Hidden by default
     implemented: true,
+    desktopOnly: true,
   },
   {
     id: 'settings',
@@ -770,4 +776,29 @@ export function extractFromCombinedList(
   }
 
   return { moduleOrder, dividers, customGroups }
+}
+
+/** Modules that need the desktop app (`desktopOnly` above): denied on BluePLM Web. */
+export const DESKTOP_ONLY_MODULES: readonly ModuleId[] = MODULES.filter((m) => m.desktopOnly).map(
+  (m) => m.id,
+)
+
+const NO_DENIED_MODULES: ReadonlySet<ModuleId> = new Set()
+
+/**
+ * The full set of denied modules: the admin-managed denials, plus File Workflows when the
+ * organization switched them off, plus the desktop-only modules when `desktop` is false (BluePLM
+ * Web, see hasDesktop()). Returns one shared empty Set when nothing is denied, so the common case
+ * allocates nothing and memo dependencies downstream stay stable.
+ */
+export function computeDeniedModules(
+  deniedModules: readonly ModuleId[],
+  workflowsOn: boolean,
+  desktop: boolean,
+): ReadonlySet<ModuleId> {
+  const extra: ModuleId[] = []
+  if (!workflowsOn) extra.push('workflows')
+  if (!desktop) extra.push(...DESKTOP_ONLY_MODULES)
+  if (deniedModules.length === 0 && extra.length === 0) return NO_DENIED_MODULES
+  return new Set<ModuleId>([...deniedModules, ...extra])
 }

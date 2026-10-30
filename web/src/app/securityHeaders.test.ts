@@ -45,7 +45,7 @@ describe('buildContentSecurityPolicy', () => {
   it('allows scripts and styles from this origin only, with no inline code or eval', () => {
     expect(csp.get('default-src')).toEqual(["'self'"])
     expect(csp.get('script-src')).toEqual(["'self'"])
-    expect(csp.get('style-src')).toEqual(["'self'"])
+    expect(csp.get('style-src')).toEqual(["'self'", 'https://fonts.googleapis.com'])
     const all = [...csp.values()].flat()
     expect(all).not.toContain("'unsafe-inline'")
     expect(all).not.toContain("'unsafe-eval'")
@@ -57,9 +57,9 @@ describe('buildContentSecurityPolicy', () => {
   })
 
   it('limits images and frames to this origin, the Supabase host and local blob: URLs', () => {
-    expect(csp.get('img-src')).toEqual(["'self'", URL_, 'blob:', 'data:'])
+    expect(csp.get('img-src')).toEqual(["'self'", URL_, 'https://*.googleusercontent.com', 'blob:', 'data:'])
     expect(csp.get('frame-src')).toEqual(['blob:'])
-    // data: is for images only.
+    // data: is for images and pdf.js fonts, never for frames.
     expect(csp.get('frame-src')).not.toContain('data:')
   })
 

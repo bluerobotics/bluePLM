@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { usePDMStore } from '@/stores/pdmStore'
 import { useShallow } from 'zustand/react/shallow'
 import { executeCommand } from '@/lib/commands'
+import { hasDesktop } from '@/lib/platform'
 
 /**
  * Hook to trigger auto-download when settings are toggled ON
@@ -40,8 +41,8 @@ export function useAutoDownload() {
     // Only proceed if a setting was just toggled ON
     if (!cloudFilesJustEnabled && !updatesJustEnabled) return
 
-    // Need organization, vault, and not offline to download
-    if (!organization || isOfflineMode || !currentVaultId) return
+    // Need organization, vault, and not offline to download. BluePLM Web has no vault folder to fill.
+    if (!hasDesktop() || !organization || isOfflineMode || !currentVaultId) return
 
     const runAutoDownload = async () => {
       const { files, autoDownloadExcludedFiles, autoDownloadSizeLimit, addToast, activeVaultId } =

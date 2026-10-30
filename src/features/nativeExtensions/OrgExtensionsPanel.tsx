@@ -98,7 +98,9 @@ export function OrgExtensionsPanel() {
 
   const pickPackage = () =>
     run('pick', async () => {
-      const result = await window.electronAPI.extensions.nativeInspect()
+      const api = window.electronAPI
+      if (!api) return
+      const result = await api.extensions.nativeInspect()
       if (!result.success) {
         if (!result.canceled) throw new Error(result.error ?? 'Invalid package')
         return

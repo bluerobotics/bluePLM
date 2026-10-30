@@ -1,6 +1,6 @@
 import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
-import { existsSync } from 'fs'
+import { existsSync, readdirSync, readFileSync } from 'fs'
 import { resolve } from 'path'
 import pkg from './package.json'
 import { buildHeadersFile, findInlineCode } from './web/src/app/securityHeaders'
@@ -28,13 +28,18 @@ function cloudflarePagesHeaders(supabaseUrl: string): Plugin {
         if (findings.length > 0) this.error(`index.html has inline code the CSP blocks: ${findings.join('; ')}`)
       }
       this.emitFile({ type: 'asset', fileName: '_headers', source: buildHeadersFile(supabaseUrl) })
+      // The web-only public files (icons, robots.txt); the shared public/ folder is Vite's publicDir.
+      for (const name of readdirSync(resolve(__dirname, 'web/public'))) {
+        this.emitFile({ type: 'asset', fileName: name, source: readFileSync(resolve(__dirname, 'web/public', name)) })
+      }
     },
   }
 }
 
-// BluePLM Web (blueplm.io): a browser-only client of the same Supabase backend. It has no
-// Electron main process, no preload and no local vault, so it is built from `web/` with its own
-// entry and never through vite.config.ts, which wires in the Electron plugins.
+// BluePLM Web (blueplm.io): the desktop renderer (src/) built for the browser. There is no Electron
+// main process or preload, so window.electronAPI is undefined and desktop-only features are hidden
+// (src/lib/platform.ts). The entry is web/index.html, which pins the backend and then starts the same
+// App as the desktop. Never built through vite.config.ts, which wires in the Electron plugins.
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, __dirname, 'VITE_')
   if (mode === 'production' && (!env.VITE_SUPABASE_URL || !env.VITE_SUPABASE_ANON_KEY)) {
@@ -46,14 +51,18 @@ export default defineConfig(({ mode }) => {
   return {
     root: resolve(__dirname, 'web'),
     envDir: __dirname,
-    publicDir: resolve(__dirname, 'web/public'),
+    publicDir: resolve(__dirname, 'public'),
     define: {
       'import.meta.env.PACKAGE_VERSION': JSON.stringify(pkg.version),
       'import.meta.env.BLUEPLM_WEB': 'true',
     },
     plugins: [react(), ...(env.VITE_SUPABASE_URL ? [cloudflarePagesHeaders(env.VITE_SUPABASE_URL)] : [])],
     css: {
-      postcss: resolve(__dirname, 'web'),
+      // The desktop's postcss and Tailwind config, so classes in src/ compile the same way.
+      postcss: __dirname,
+    },
+    esbuild: {
+      keepNames: true,
     },
     resolve: {
       alias: {

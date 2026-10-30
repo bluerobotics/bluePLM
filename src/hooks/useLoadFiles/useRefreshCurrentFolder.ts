@@ -28,7 +28,12 @@ export function useRefreshCurrentFolder(currentVaultId: string | undefined) {
     async (folderPath: string) => {
       logExplorer('refreshCurrentFolder ENTRY', { folderPath, vaultPath })
       window.electronAPI?.log('info', '[RefreshFolder] Called with', { folderPath, vaultPath })
-      if (!window.electronAPI || !vaultPath) return
+      if (!vaultPath) return
+      // BluePLM Web has no folder to scan: a refresh reloads the server rows.
+      if (!window.electronAPI) {
+        usePDMStore.getState().requestFilesReload()
+        return
+      }
 
       // Guard against concurrent refreshes. isLoading misses silent watcher-driven
       // loadFiles passes, so check the in-flight tracker too.

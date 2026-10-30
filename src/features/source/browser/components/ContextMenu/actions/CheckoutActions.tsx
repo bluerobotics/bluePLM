@@ -17,6 +17,7 @@ import { isSolidWorksUsable } from '@/types/solidworks'
 import { ChangeStateSubmenu } from './ChangeStateSubmenu'
 import { isFileWriteInFlight } from '@/lib/metadata/writeInFlight'
 import { fileWorkflowsEnabled } from '@/lib/fileWorkflows'
+import { hasDesktop } from '@/lib/platform'
 
 interface CheckoutActionsProps extends RefreshableActionProps {
   counts: SelectionCounts
@@ -75,6 +76,9 @@ export function CheckoutActions({
   }
   const effectiveRole = getEffectiveRole()
   const isAdmin = effectiveRole === 'admin'
+  // BluePLM Web has no local vault: no check out, check in or discard. Force Release and
+  // Change State are server-side and stay.
+  const desktop = hasDesktop()
 
   // Permission checks
   const canCheckout = checkOperationPermission('checkout', hasPermission)
@@ -128,7 +132,7 @@ export function CheckoutActions({
   return (
     <>
       {/* Check Out - for synced files or folders */}
-      {state.allFolders && !multiSelect ? (
+      {!desktop ? null : state.allFolders && !multiSelect ? (
         <div
           className={`context-menu-item ${checkoutDisabled ? 'disabled' : ''}`}
           onClick={() => {
@@ -191,7 +195,8 @@ export function CheckoutActions({
       )}
 
       {/* Check In - only for synced files */}
-      {state.anySynced &&
+      {desktop &&
+        state.anySynced &&
         (state.allFolders && !multiSelect ? (
           <div
             className={`context-menu-item ${checkinDisabled ? 'disabled' : ''}`}
@@ -258,7 +263,7 @@ export function CheckoutActions({
         ))}
 
       {/* Discard Checkout - for files checked out by current user */}
-      {counts.checkinableCount > 0 && (
+      {desktop && counts.checkinableCount > 0 && (
         <div
           className={`context-menu-item ${discardDisabled ? 'disabled' : 'text-plm-warning'}`}
           onClick={() => {
@@ -408,7 +413,7 @@ export function CheckoutActions({
         onClose={onClose}
         onRefresh={onRefresh}
         user={user}
-        solidworksIntegrationEnabled={solidworksIntegrationEnabled}
+        solidworksIntegrationEnabled={desktop && solidworksIntegrationEnabled}
         swServiceRunning={isSolidWorksUsable(status)}
         swStatusChecked={swStatusChecked}
         isSyncing={isSyncing}

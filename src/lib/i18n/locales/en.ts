@@ -461,6 +461,12 @@ export const en: TranslationDict = {
     download: 'Download',
     downloadSkippedNoHash_one: '1 file had no downloadable hash',
     downloadSkippedNoHash_other: '{{count}} files had no downloadable hash',
+    webDownloadTooMany:
+      '{{count}} files selected. The browser downloads files one at a time, so select {{max}} or fewer.',
+    webDownloadStarted_one: 'Downloading 1 file',
+    webDownloadStarted_other: 'Downloading {{count}} files',
+    webDownloadFailed: 'Could not download {{name}}: {{error}}',
+    downloadVersion: 'Download this version',
     getLatest: 'Get Latest',
     upload: 'Upload',
     delete: 'Delete',
