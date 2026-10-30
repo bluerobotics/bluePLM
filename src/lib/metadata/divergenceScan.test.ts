@@ -84,7 +84,7 @@ describe('inFileScope', () => {
   /**
    * Both copy-path affordances in the browser hand out an absolute path, so this is the easiest
    * thing to paste into the folder box. The run knows its vault root exactly, so a path inside it
-   * is cut back to the relative part (Wilson's blank POWERMODULE run, 2026-10-29).
+   * is cut back to the relative part (a user's blank run, 2026-10-29).
    */
   it('accepts an absolute path inside the vault root', () => {
     const options = optionsWith('C:\\BluePLM\\br-vault\\0 - SHARED\\')

@@ -37,10 +37,10 @@ vi.mock('../src/infrastructure/supabase.js', () => ({
           single: async () => ({
             data: {
               id: USER_ID,
-              email: 'wilson@example.com',
+              email: 'user@example.com',
               role: profileRole,
               org_id: ORG_ID,
-              full_name: 'Wilson',
+              full_name: 'Test User',
             },
             error: null,
           }),

@@ -1,5 +1,5 @@
 /**
- * Incident: Zach downloaded a server-only folder in doris (Burn Wire Release).
+ * Incident: a user downloaded a server-only folder.
  * `removeFilesFromStore` prefix-pruned the folder AND its 33 files AND their
  * `serverFiles` rows, so the incremental download updates matched nothing
  * (`matchCount: 0`). The folder vanished; a later folder-scoped Refresh

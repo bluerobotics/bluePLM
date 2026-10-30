@@ -1,5 +1,5 @@
 /**
- * Incident: barxt600 (`.cursor/plans/barxt-move-download-incident-report.md`). First
+ * Incident: move-then-upload (`.cursor/plans/move-download-incident-report.md`). First
  * Check-In (`syncFile`) has no move awareness - it looks up an existing row only by the
  * exact path it is given, so uploading a file that was actually moved (rather than
  * created) inserts a brand-new server row and leaves the file at its old path

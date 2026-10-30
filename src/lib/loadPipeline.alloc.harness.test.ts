@@ -272,7 +272,7 @@ describe.skipIf(!ENABLED)('load pipeline allocation harness', () => {
     await profileAllocation('LOAD #1 (first load of the session, cache hit, 0-row delta)', () => loadFiles(false, false))
     reportStageLogs()
 
-    // Warm: Blake's case, a watcher refresh for one changed path with a 1-row delta.
+    // Warm: the reported case, a watcher refresh for one changed path with a 1-row delta.
     const changed = (state.serverRows[7] as CachedServerFile).file_path
     state.deltaRows = [{ ...(state.serverRows[7] as CachedServerFile), version: 50, deleted_at: null, is_deleted: false }]
     state.logs.length = 0

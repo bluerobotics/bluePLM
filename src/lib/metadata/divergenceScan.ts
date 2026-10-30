@@ -286,7 +286,7 @@ function normalizeRelativePath(value: string): string {
  * The folder scope as a vault-relative prefix, lower-cased with the ends trimmed.
  *
  * The browser's Copy Path buttons hand out absolute paths, and pasting one used to match no row
- * at all (Wilson, 2026-10-29: `C:\BluePLM\br-vault\POWERMODULE\development\` came back blank).
+ * at all (a user report, 2026-10-29: `C:\BluePLM\<vault>\<project>\development\` came back blank).
  * The run knows the vault root exactly, so a path inside it is cut back to its relative part. That
  * is not a guess: a path outside the root keeps its drive letter and still matches nothing, which
  * the result reports as an unmatched scope rather than a clean run.

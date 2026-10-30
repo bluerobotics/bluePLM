@@ -27,8 +27,8 @@
  * `src/lib/orphanedDirectories.ts` and
  * `.cursor/plans/release-4.3.2-empty-folders.plan.md`.
  *
- * `autoDiscard.directoriesTrackedByServer.*` (barxt incident,
- * `.cursor/plans/barxt-move-download-incident-report.md`) is the one exception to "every
+ * `autoDiscard.directoriesTrackedByServer.*` (move-download incident,
+ * `.cursor/plans/move-download-incident-report.md`) is the one exception to "every
  * locale gets a real translation": de/es/fr are real, but pt/zh-CN/zh-TW deliberately
  * keep the English text for now, so it is only checked below for key-set parity, not
  * folded into `KEY_PAIRS`/the per-locale distinctness assertions the older keys get.
