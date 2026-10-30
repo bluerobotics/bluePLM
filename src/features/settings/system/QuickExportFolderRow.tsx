@@ -32,7 +32,7 @@ export function QuickExportFolderRow() {
         <>
           <span className="block">{t('contextMenu.quickExport.folderDescription')}</span>
           <span
-            className="block truncate font-mono text-plm-fg-dim"
+            className="block truncate font-mono text-ui-fg-secondary"
             title={quickExportFolder ?? ''}
           >
             {quickExportFolder ?? t('contextMenu.quickExport.nextToFiles')}

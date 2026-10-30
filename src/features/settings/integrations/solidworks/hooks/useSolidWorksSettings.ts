@@ -769,26 +769,26 @@ export function useSolidWorksSettings() {
     { color: string; textColor: string; label: string; description: string }
   > = {
     online: {
-      color: 'bg-green-500',
-      textColor: 'text-green-400',
+      color: 'bg-ui-success',
+      textColor: 'text-ui-success',
       label: 'Full Mode',
       description: 'All features available - SolidWorks and Document Manager APIs connected',
     },
     partial: {
-      color: 'bg-yellow-500',
-      textColor: 'text-yellow-400',
+      color: 'bg-ui-warning',
+      textColor: 'text-ui-warning',
       label: 'Document Manager Mode',
       description: 'File properties and BOM extraction work. Install SolidWorks for exports.',
     },
     offline: {
-      color: 'bg-red-500',
-      textColor: 'text-red-400',
+      color: 'bg-ui-danger',
+      textColor: 'text-ui-danger',
       label: 'Limited',
       description: 'Configure a Document Manager license key to enable file operations',
     },
     stopped: {
-      color: 'bg-plm-fg-dim',
-      textColor: 'text-plm-fg-dim',
+      color: 'bg-ui-fg-tertiary',
+      textColor: 'text-ui-fg-secondary',
       label: 'Stopped',
       description: 'Service is not running',
     },

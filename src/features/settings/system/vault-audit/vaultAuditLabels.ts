@@ -185,8 +185,8 @@ export function resolutionDirection(
 
 /** Text colour per tone. Zero counts are muted by the caller so an empty category reads as calm. */
 export const TONE_TEXT: Record<VaultAuditTone, string> = {
-  critical: 'text-plm-error',
-  warning: 'text-yellow-500',
-  repairable: 'text-plm-accent',
-  neutral: 'text-plm-fg-muted',
+  critical: 'text-ui-danger',
+  warning: 'text-ui-warning',
+  repairable: 'text-ui-accent',
+  neutral: 'text-ui-fg-secondary',
 }
