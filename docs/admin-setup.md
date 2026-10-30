@@ -479,6 +479,32 @@ functions by name. An extension that ships SQL (such as the private extension `b
 must have its 5.0 SQL applied after the upgrade, in the Supabase SQL Editor.
 :::
 
+## Only Invited People Can Sign Up (Recommended)
+
+From schema 502, BluePLM ships a Supabase Auth hook that refuses to create an account for an address that belongs nowhere. An account is created only for:
+
+- an open invitation (Members & Teams → Invite),
+- an address at one of your organization's email domains (set in Members & Teams; public mail providers such as gmail.com cannot be added),
+- a supplier contact,
+- or the first account in a database with no organization yet, so you can set yours up.
+
+Anyone else sees "You haven't been invited to an organization. Ask your administrator for an invite." Without the hook, they get an account with no organization and can see nothing.
+
+Turn it on once, after the database is on schema 502:
+
+1. In your Supabase Dashboard, go to **Authentication → Hooks**
+2. Add a **Before User Created** hook of type **Postgres**
+3. Schema `public`, function `auth_hook_before_user_created`
+4. Save
+
+The same setting through the Management API: `hook_before_user_created_enabled = true`, `hook_before_user_created_uri = pg-functions://postgres/public/auth_hook_before_user_created`.
+
+Invite people before they sign in. An invitation sent after someone was refused works; they sign in again.
+
+## Security Monitoring
+
+From schema 502, the database checks itself every 10 minutes and notifies your administrators in BluePLM's notifications: new administrators, members who joined through an email domain, mass file or storage deletes, bursts of password-reset requests, accounts left without an organization, failed or overdue server backups, and schema drift. Thresholds are in **Settings → Security Monitoring**. It runs in your own database through `pg_cron` (enabled on Supabase by default). If your Postgres has no `pg_cron`, schedule `SELECT public.security_monitor_run();` every 10 minutes yourself. Nothing is sent outside your database.
+
 ## Troubleshooting
 
 ### Uploads fail with "Bucket not found"
