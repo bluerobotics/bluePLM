@@ -54,7 +54,13 @@ export interface VerifyReport {
   blobsReadFailed: Array<{ name: string; error: string }>
   drift: { liveObjects: number; notYetBackedUp: number; onlyInBackup: number } | null
   /** Live vault objects re-hashed (sample and full modes, given the source). */
-  liveAudit?: { checked: number; corrupt: string[]; unreadable: number }
+  liveAudit?: {
+    checked: number
+    corrupt: string[]
+    unreadable: number
+    /** Each damaged live object: the hash it should hold and what it holds. */
+    corruptDetails?: Array<{ name: string; contentHash: string; actualHash: string }>
+  }
   /** One sentence per failure, for the app. Empty when ok. */
   problems: string[]
   /** Names of missing blobs, at most 20, for the report. */
@@ -219,13 +225,17 @@ export async function verifyRepository(repo: BackupRepository, options: VerifyOp
     // the live vault; a damaged object is restorable from the backup.
     if (options.mode !== 'quick') {
       const sample = pickSample([...live.entries()], options.sampleSize ?? 25, random)
-      report.liveAudit = { checked: 0, corrupt: [], unreadable: 0 }
+      report.liveAudit = { checked: 0, corrupt: [], unreadable: 0, corruptDetails: [] }
       for (const [hash, name] of sample) {
         try {
           const digest = crypto.createHash('sha256')
           for await (const chunk of await options.source.openObject(name)) digest.update(chunk as Buffer)
           report.liveAudit.checked++
-          if (digest.digest('hex') !== hash) report.liveAudit.corrupt.push(name)
+          const actual = digest.digest('hex')
+          if (actual !== hash) {
+            report.liveAudit.corrupt.push(name)
+            report.liveAudit.corruptDetails!.push({ name, contentHash: hash, actualHash: actual })
+          }
         } catch {
           report.liveAudit.unreadable++
         }

@@ -76,9 +76,13 @@ export interface SnapshotObjectEntry {
 }
 
 export interface SnapshotProblem {
-  kind: 'corrupt_source' | 'unreadable_source' | 'not_content_addressed' | 'table_missing'
+  kind: 'corrupt_source' | 'missing_source' | 'unreadable_source' | 'not_content_addressed' | 'table_missing'
   name: string
   detail: string
+  /** The content hash the object should hold (corrupt_source, missing_source). */
+  contentHash?: string
+  /** What the stored bytes hash to (corrupt_source with a hash mismatch). */
+  actualHash?: string
   /**
    * The previous snapshot reported the same problem. It is still listed, but does not make the
    * run a warning again: a damaged object found once would otherwise warn (and notify admins)

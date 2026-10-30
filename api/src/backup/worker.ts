@@ -31,6 +31,7 @@ import { BackupRepository } from './repository.js'
 import { applyRetention, type PruneResult } from './retention.js'
 import { dueSlot, latestSlot } from './schedule.js'
 import type { BackupSource } from './source.js'
+import type { SnapshotProblem } from './repository.js'
 import { verifyRepository, type VerifyMode, type VerifyReport } from './verify.js'
 
 /** The backup_config columns the worker reads. The 501 columns are not in the generated types yet. */
@@ -251,6 +252,69 @@ export class BackupWorker {
       return []
     }
     return (data ?? []) as unknown as ServerBackupConfig[]
+  }
+
+  /**
+   * Keeps what a run found in vault_object_issue (0503), once per content hash: damaged and
+   * missing vault content from a backup, damaged live objects from a test's live audit. A
+   * database without 0503 answers an error, which is logged and does not fail the run.
+   */
+  private async recordFindings(
+    orgId: string,
+    runId: string | null,
+    foundBy: 'backup' | 'verify',
+    problems: SnapshotProblem[],
+    verify: VerifyReport | null,
+  ): Promise<void> {
+    const findings: Array<{ hash: string; kind: 'damaged' | 'missing'; name: string | null; actual: string | null; by: string }> = []
+    for (const p of problems) {
+      if (p.kind === 'corrupt_source' && p.contentHash) {
+        findings.push({ hash: p.contentHash, kind: 'damaged', name: p.name, actual: p.actualHash ?? null, by: foundBy })
+      } else if (p.kind === 'missing_source' && p.contentHash) {
+        findings.push({ hash: p.contentHash, kind: 'missing', name: null, actual: null, by: foundBy })
+      }
+    }
+    for (const d of verify?.liveAudit?.corruptDetails ?? []) {
+      if (!findings.some((f) => f.hash === d.contentHash)) {
+        findings.push({ hash: d.contentHash, kind: 'damaged', name: d.name, actual: d.actualHash, by: 'live_audit' })
+      }
+    }
+    for (const f of findings) {
+      const { error } = await this.untyped().rpc('backup_issue_record', {
+        p_org_id: orgId,
+        p_content_hash: f.hash,
+        p_kind: f.kind,
+        p_storage_name: f.name,
+        p_actual_hash: f.actual,
+        p_actual_size: null,
+        p_found_by: f.by,
+        p_run_id: runId,
+      })
+      if (error) {
+        this.log.warn('backup worker: could not record a finding', { orgId, hash: f.hash, error: error.message })
+        return
+      }
+    }
+  }
+
+  /** Closes open findings whose content a backup has now stored intact (repaired out of band). */
+  private async closeHealed(orgId: string, storedHashes: Set<string>): Promise<void> {
+    const { data, error } = await this.untyped()
+      .from('vault_object_issue')
+      .select('content_hash')
+      .eq('org_id', orgId)
+      .eq('status', 'open')
+    if (error) return
+    for (const row of (data ?? []) as Array<{ content_hash: string }>) {
+      if (!storedHashes.has(row.content_hash)) continue
+      await this.untyped().rpc('backup_issue_record_repair', {
+        p_org_id: orgId,
+        p_content_hash: row.content_hash,
+        p_resolution: 'healed',
+        p_actor_id: null,
+        p_detail: { note: 'A backup read this content back intact.' },
+      })
+    }
   }
 
   /** The last good backup and the last full test that ran to the end, from backup_history. */
@@ -499,6 +563,12 @@ export class BackupWorker {
           source,
           now: this.now,
         })
+        await this.recordFindings(orgId, historyId, 'backup', result.problems, verify).catch((err) =>
+          this.log.warn('backup worker: findings not recorded', { orgId, error: errorText(err) }),
+        )
+        await this.closeHealed(orgId, new Set((await repo.readObjects(result.manifest)).map((e) => e.hash))).catch(
+          (err) => this.log.warn('backup worker: healed findings not closed', { orgId, error: errorText(err) }),
+        )
         const serious = seriousProblems(result.problems)
         const retentionFailed = 'error' in retention
         const ok = serious.length === 0 && verify.ok && !retentionFailed
@@ -528,6 +598,9 @@ export class BackupWorker {
           now: this.now,
           onProgress: (p) => progress({ phase: p.phase, done: p.done, total: p.total }),
         })
+        await this.recordFindings(orgId, historyId, 'verify', [], verify).catch((err) =>
+          this.log.warn('backup worker: findings not recorded', { orgId, error: errorText(err) }),
+        )
         outcome = {
           status: verify.ok ? 'completed' : 'failed',
           snapshot_id: verify.snapshot?.id ?? null,
@@ -570,9 +643,11 @@ function summarizeBackupProblems(
   const parts: string[] = []
   const corrupt = serious.filter((p) => p.kind === 'corrupt_source').length
   const unreadable = serious.filter((p) => p.kind === 'unreadable_source').length
-  const other = serious.length - corrupt - unreadable
+  const missing = serious.filter((p) => p.kind === 'missing_source').length
+  const other = serious.length - corrupt - unreadable - missing
   if (corrupt) parts.push(`${corrupt} vault file(s) in BluePLM no longer match their content hash and were not backed up.`)
   if (unreadable) parts.push(`${unreadable} vault file(s) could not be read and were not backed up.`)
+  if (missing) parts.push(`${missing} file version(s) name content that storage does not have.`)
   if (other) parts.push(`${other} vault object(s) were skipped.`)
   if (!verify.ok) parts.push(`Test of the new snapshot failed: ${verify.problems[0] ?? 'unknown'}`)
   if ('error' in retention) parts.push(`Retention failed: ${retention.error}`)

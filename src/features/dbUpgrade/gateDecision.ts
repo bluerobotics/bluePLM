@@ -4,7 +4,7 @@
  */
 
 /** The schema version this app needs; must equal EXPECTED_SCHEMA_VERSION (asserted in the test). */
-export const REQUIRED_SCHEMA_VERSION = 502
+export const REQUIRED_SCHEMA_VERSION = 503
 /** The schema version a 4.10 database is stamped at. */
 export const LEGACY_SCHEMA_VERSION = 112
 /**

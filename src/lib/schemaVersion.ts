@@ -36,7 +36,7 @@ import { supabase } from './supabase'
 
 // The schema version this app version expects
 // Increment this when releasing app updates that require schema changes
-export const EXPECTED_SCHEMA_VERSION = 502
+export const EXPECTED_SCHEMA_VERSION = 503
 
 // 5.0 renamed the schema (supabase/rename-map-5.0.json), so no 5.x app can run against a 4.x
 // database at all: anything below this is a hard block (src/features/dbUpgrade), never a warning.
@@ -54,6 +54,8 @@ export const VERSION_DESCRIPTIONS: Record<number, string> = {
     "Server-run backups. backup_config.run_location chooses who runs scheduled and requested backups: the designated desktop machine (restic over its local vault copy, as before) or the API backup worker, which backs up the whole vault bucket and the organization's rows with no computer on. last_scheduled_slot_at lets a missed slot be caught up once; verify_requested_at and verify_mode request a test of the backup; server_worker_seen_at shows the worker is alive. backup_history gains kind (backup or verify), trigger, runner and report. backup_list_org_rows() and backup_list_vault_objects() are callable by service_role only.",
   502:
     'Security hardening and monitoring. can_access_module answers for the caller only. Realtime sends no DELETE events (they bypass RLS); deletes arrive as realtime_tombstone inserts under RLS. organization.email_domains: one organization per domain, no public mail domains, and an admin adds only the domain of their own verified address. The stamp refuses unregistered exposed functions. security_monitor_run() (pg_cron) notifies admins of new administrators, email-domain joins, delete spikes, auth request spikes, backup failures and schema drift. A Before User Created auth hook refuses sign-ups with no invitation, organization domain or supplier contact; org_create_with_founder() creates an organization with its founding admin invitation.',
+  503:
+    "Damaged and missing vault content. vault_object_issue keeps one row per content hash whose stored bytes do not match their name (damaged) or that a file version names with nothing in storage (missing), recorded by server backups and tests through backup_issue_record() (service_role), with status open, repaired, unrecoverable or accepted, and vault_object_issue_event logs every finding and action. Admins read them through vault_object_issue_list() and decide with vault_object_issue_resolve(); the API repairs through backup_issue_record_repair() after re-hashing; downloads ask vault_object_blocked() for content marked unrecoverable.",
 }
 
 export interface SchemaVersionInfo {

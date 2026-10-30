@@ -34,6 +34,50 @@ function fakeWith501(): FakeSupabase {
     const shape = fake.schema.tables.get(table)!
     for (const column of columns) (shape.columns as Set<string>).add(column)
   }
+  // Schema 503: vault_object_issue and the two service-role functions the worker calls, kept in
+  // memory with the same rules as the SQL (one row per hash; repaired reopens; repair closes).
+  ;(fake.schema.tables as Map<string, unknown>).set('vault_object_issue', {
+    columns: new Set(['id', 'org_id', 'content_hash', 'kind', 'status', 'storage_name', 'actual_hash', 'found_by', 'found_in_run_id', 'resolution']),
+    requiredOnInsert: new Set<string>(),
+  })
+  const issues = () => fake.rows('vault_object_issue' as never)
+  fake.defineRpc(
+    'backup_issue_record',
+    (a) => {
+      let row = issues().find((r) => r.org_id === a.p_org_id && r.content_hash === a.p_content_hash)
+      if (!row) {
+        row = {
+          id: `issue-${issues().length + 1}`,
+          org_id: a.p_org_id,
+          content_hash: a.p_content_hash,
+          kind: a.p_kind,
+          status: 'open',
+          storage_name: a.p_storage_name,
+          actual_hash: a.p_actual_hash,
+          found_by: a.p_found_by,
+          found_in_run_id: a.p_run_id,
+          resolution: null,
+        }
+        issues().push(row)
+      } else if (row.status === 'repaired') {
+        row.status = 'open'
+        row.resolution = null
+      }
+      return row.id
+    },
+    { untyped: true },
+  )
+  fake.defineRpc(
+    'backup_issue_record_repair',
+    (a) => {
+      const row = issues().find((r) => r.org_id === a.p_org_id && r.content_hash === a.p_content_hash)
+      if (!row || row.status === 'repaired') return false
+      row.status = 'repaired'
+      row.resolution = a.p_resolution
+      return true
+    },
+    { untyped: true },
+  )
   return fake
 }
 
@@ -361,6 +405,43 @@ describe('scheduled full test', () => {
     await tick(w.worker())
     expect(w.history()[0]).toMatchObject({ status: 'failed', error_details: { interrupted: true } })
     expect(w.config()).toMatchObject({ verify_requested_at: '2026-07-01T12:00:00.000Z', verify_mode: 'full' })
+  })
+})
+
+describe('findings (schema 503)', () => {
+  const issues = (w: World) => w.fake.rows('vault_object_issue' as never)
+
+  it('records a damaged vault object once, with what its bytes hash to', async () => {
+    const w = world({ backup_requested_at: '2026-07-01T11:59:00Z' })
+    const hash = w.org.corrupt('Parts/p1.sldprt')
+    const worker = w.worker()
+    await tick(worker)
+    w.set({ backup_requested_at: '2026-07-01T12:30:00Z' })
+    w.clock.now = Date.parse('2026-07-01T12:31:00Z')
+    await tick(worker)
+    expect(issues(w)).toEqual([
+      expect.objectContaining({ content_hash: hash, kind: 'damaged', status: 'open', found_by: 'backup' }),
+    ])
+    expect(issues(w)[0].actual_hash).toMatch(/^[0-9a-f]{64}$/)
+    expect(issues(w)[0].actual_hash).not.toBe(hash)
+  })
+
+  it('records content a file version names that storage does not have', async () => {
+    const w = world({ backup_requested_at: '2026-07-01T11:59:00Z' })
+    const hash = w.org.checkIn('Parts/lost.sldprt', seededBytes('lost', 900))
+    w.org.purgeObject(hash)
+    await tick(w.worker())
+    expect(w.history()[0].status).toBe('warning')
+    expect(String(w.history()[0].error_message)).toMatch(/name content that storage does not have/)
+    expect(issues(w)).toEqual([expect.objectContaining({ content_hash: hash, kind: 'missing', status: 'open' })])
+  })
+
+  it('closes an open finding as healed once a backup reads the content back intact', async () => {
+    const w = world({ backup_requested_at: '2026-07-01T11:59:00Z' })
+    const hash = String(w.org.rows('file')[0].content_hash)
+    issues(w).push({ id: 'old', org_id: w.org.orgId, content_hash: hash, kind: 'damaged', status: 'open', resolution: null })
+    await tick(w.worker())
+    expect(issues(w)[0]).toMatchObject({ status: 'repaired', resolution: 'healed' })
   })
 })
 

@@ -14,6 +14,7 @@ import healthRoutes from './health.js'
 import authRoutes from './auth.js'
 import integrationRoutes from './integrations/index.js'
 import webhookRoutes from './webhooks.js'
+import backupIssueRoutes from './backupIssues.js'
 import { getNativeExtensionRuntime, nativeExtensionRoutes } from '../src/native-extensions/index.js'
 
 const routes: FastifyPluginAsync = async (fastify) => {
@@ -28,6 +29,7 @@ const routes: FastifyPluginAsync = async (fastify) => {
 
   // Webhook routes
   await fastify.register(webhookRoutes)
+  await fastify.register(backupIssueRoutes)
 
   // Native extension routes (/ext/<id>/...) and POST /admin/extensions/reload
   await fastify.register(nativeExtensionRoutes, {

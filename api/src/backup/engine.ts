@@ -98,6 +98,8 @@ export async function runServerBackup(options: BackupRunOptions): Promise<Backup
   const orgName = await source.orgName()
   const tableParts: SnapshotManifest['tables'] = []
   const tablesMissing: string[] = []
+  // Content hashes the database names (file versions and files), to find content storage lacks.
+  const referencedHashes = new Set<string>()
   let rows = 0
   await onProgress?.({ phase: 'tables', objectsDone: 0, objectsTotal: 0, bytesUploaded: 0 })
   for (const table of tables) {
@@ -111,6 +113,13 @@ export async function runServerBackup(options: BackupRunOptions): Promise<Backup
         break
       }
       all.push(...page.rows)
+      if (table === 'file_version' || table === 'file') {
+        for (const row of page.rows) {
+          if (typeof row.content_hash === 'string' && /^[0-9a-f]{64}$/.test(row.content_hash)) {
+            referencedHashes.add(row.content_hash)
+          }
+        }
+      }
       if (page.rows.length < pageSize) break
       after = String(page.rows[page.rows.length - 1].id)
     }
@@ -191,6 +200,8 @@ export async function runServerBackup(options: BackupRunOptions): Promise<Backup
           failedHashes.add(item.hash)
           problems.push({
             kind: 'corrupt_source',
+            contentHash: item.hash,
+            actualHash: err.field === 'hash' ? err.actual : undefined,
             name: item.name,
             detail: `The stored bytes do not match the object's name (${err.field}: expected ${err.expected}, got ${err.actual}).`,
           })
@@ -243,6 +254,24 @@ export async function runServerBackup(options: BackupRunOptions): Promise<Backup
       bytesTotal += bytes.length
     } catch (err) {
       problems.push({ kind: 'unreadable_source', name: object.name, detail: err instanceof Error ? err.message : String(err) })
+    }
+  }
+
+  // Content a file version names with no object in storage at all. Check-in uploads before it
+  // writes the row, and the rows were read before storage was listed, so a gap here is real.
+  const stored = new Set<string>()
+  for (const object of objects) {
+    const hash = hashFromObjectName(object.name)
+    if (hash) stored.add(hash)
+  }
+  for (const hash of referencedHashes) {
+    if (!stored.has(hash)) {
+      problems.push({
+        kind: 'missing_source',
+        name: hash,
+        contentHash: hash,
+        detail: 'A file version names this content, and storage has no object for it.',
+      })
     }
   }
 
