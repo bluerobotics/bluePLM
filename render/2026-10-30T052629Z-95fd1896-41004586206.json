@@ -1,0 +1,2763 @@
+{
+  "schema": 1,
+  "sha": "95fd1896fd81a81bcfa48fdb9f02d450cc1dc2f8",
+  "ref": "refs/heads/main",
+  "runId": "41004586206",
+  "date": "2026-10-30T05:26:26.737Z",
+  "fileCount": 30000,
+  "reps": 3,
+  "sessionMinutes": 30,
+  "metrics": {
+    "coldStart.launchToLoadedMs": 3427,
+    "coldStart.navigationToLoadedMs": 2655,
+    "coldStart.longTasks": 7,
+    "coldStart.totalBlockingMs": 1275,
+    "coldStart.longestTaskMs": 475,
+    "coldStart.scriptingMs": 1639.9,
+    "coldStart.layoutMs": 87.1,
+    "coldStart.paintMs": 21.6,
+    "coldStart.gcMs": 129.7,
+    "display.vsyncMs": 15.6,
+    "search.settleMs": 270,
+    "search.rows": 25,
+    "search.longTasks": 1,
+    "search.totalBlockingMs": 77,
+    "search.longestTaskMs": 127,
+    "search.scriptingMs": 236.8,
+    "search.layoutMs": 36.5,
+    "search.paintMs": 37.6,
+    "search.gcMs": 1.4,
+    "scroll.distancePx": 719830,
+    "scroll.frames": 2065,
+    "scroll.durationMs": 115051,
+    "scroll.fps": 17.9,
+    "scroll.p50FrameMs": 46.9,
+    "scroll.p95FrameMs": 78.2,
+    "scroll.maxFrameMs": 328.2,
+    "scroll.droppedFrames": 5299,
+    "scroll.jankyFrames": 2064,
+    "scroll.longTasks": 525,
+    "scroll.totalBlockingMs": 4366,
+    "scroll.longestTaskMs": 112,
+    "scroll.scriptingMs": 27463.1,
+    "scroll.layoutMs": 40319.9,
+    "scroll.paintMs": 26560.5,
+    "scroll.gcMs": 1440.6,
+    "tree.settleMs": 106,
+    "tree.longTasks": 0,
+    "tree.totalBlockingMs": 0,
+    "tree.longestTaskMs": 0,
+    "tree.scriptingMs": 35.8,
+    "tree.layoutMs": 24.9,
+    "tree.paintMs": 16.5,
+    "tree.gcMs": 53.3,
+    "select.clicks": 10,
+    "select.medianClickMs": 105,
+    "select.maxClickMs": 188,
+    "select.longTasks": 1,
+    "select.totalBlockingMs": 14,
+    "select.longestTaskMs": 63,
+    "select.scriptingMs": 459.2,
+    "select.layoutMs": 109.6,
+    "select.paintMs": 299.1,
+    "select.gcMs": 58.5,
+    "realtime.delivered": 500,
+    "realtime.settleMs": 146,
+    "realtime.longTasks": 0,
+    "realtime.totalBlockingMs": 0,
+    "realtime.longestTaskMs": 0,
+    "realtime.scriptingMs": 0.4,
+    "realtime.layoutMs": 0,
+    "realtime.paintMs": 0.2,
+    "realtime.gcMs": 4.2,
+    "session.cycles": 1022,
+    "session.supersededRows": 100,
+    "session.heapStartMB": 94.8,
+    "session.heapEndMB": 90,
+    "session.heapPeakMB": 106,
+    "session.heapGrowthMB": -4.9,
+    "session.heapSlopeMBPer10Min": 0,
+    "session.longTasks": 3268,
+    "session.totalBlockingMs": 156997
+  },
+  "runner": {
+    "cpu": "AMD EPYC 7763 64-Core Processor",
+    "cores": 4
+  },
+  "repetitions": [
+    {
+      "coldStart.launchToLoadedMs": 3427,
+      "coldStart.navigationToLoadedMs": 2954,
+      "coldStart.longTasks": 7,
+      "coldStart.totalBlockingMs": 1551,
+      "coldStart.longestTaskMs": 508,
+      "coldStart.scriptingMs": 1639.9,
+      "coldStart.layoutMs": 447.4,
+      "coldStart.paintMs": 26.1,
+      "coldStart.gcMs": 129.7,
+      "display.vsyncMs": 15.6,
+      "search.settleMs": 270,
+      "search.rows": 25,
+      "search.longTasks": 1,
+      "search.totalBlockingMs": 77,
+      "search.longestTaskMs": 127,
+      "search.scriptingMs": 235.3,
+      "search.layoutMs": 36.5,
+      "search.paintMs": 40.6,
+      "search.gcMs": 1.4,
+      "scroll.distancePx": 719830,
+      "scroll.frames": 2065,
+      "scroll.durationMs": 121438,
+      "scroll.fps": 17,
+      "scroll.p50FrameMs": 62.4,
+      "scroll.p95FrameMs": 93.7,
+      "scroll.maxFrameMs": 328.2,
+      "scroll.droppedFrames": 5707,
+      "scroll.jankyFrames": 2064,
+      "scroll.longTasks": 532,
+      "scroll.totalBlockingMs": 5671,
+      "scroll.longestTaskMs": 111,
+      "scroll.scriptingMs": 28580.4,
+      "scroll.layoutMs": 42852.3,
+      "scroll.paintMs": 27969.5,
+      "scroll.gcMs": 1503.7,
+      "tree.settleMs": 106,
+      "tree.longTasks": 0,
+      "tree.totalBlockingMs": 0,
+      "tree.longestTaskMs": 0,
+      "tree.scriptingMs": 35.8,
+      "tree.layoutMs": 25.2,
+      "tree.paintMs": 18,
+      "tree.gcMs": 54.7,
+      "select.clicks": 10,
+      "select.medianClickMs": 108,
+      "select.maxClickMs": 188,
+      "select.longTasks": 1,
+      "select.totalBlockingMs": 14,
+      "select.longestTaskMs": 64,
+      "select.scriptingMs": 459.7,
+      "select.layoutMs": 110.3,
+      "select.paintMs": 299.1,
+      "select.gcMs": 58.5,
+      "realtime.delivered": 500,
+      "realtime.settleMs": 146,
+      "realtime.longTasks": 0,
+      "realtime.totalBlockingMs": 0,
+      "realtime.longestTaskMs": 0,
+      "realtime.scriptingMs": 0.4,
+      "realtime.layoutMs": 0,
+      "realtime.paintMs": 0.2,
+      "realtime.gcMs": 4.2
+    },
+    {
+      "coldStart.launchToLoadedMs": 2620,
+      "coldStart.navigationToLoadedMs": 2142,
+      "coldStart.longTasks": 6,
+      "coldStart.totalBlockingMs": 1054,
+      "coldStart.longestTaskMs": 475,
+      "coldStart.scriptingMs": 1431.4,
+      "coldStart.layoutMs": 66.7,
+      "coldStart.paintMs": 19,
+      "coldStart.gcMs": 121.9,
+      "display.vsyncMs": 15.6,
+      "search.settleMs": 238,
+      "search.rows": 25,
+      "search.longTasks": 1,
+      "search.totalBlockingMs": 65,
+      "search.longestTaskMs": 115,
+      "search.scriptingMs": 236.8,
+      "search.layoutMs": 31.799999999999997,
+      "search.paintMs": 33,
+      "search.gcMs": 1.4,
+      "scroll.distancePx": 719830,
+      "scroll.frames": 2065,
+      "scroll.durationMs": 115051,
+      "scroll.fps": 17.9,
+      "scroll.p50FrameMs": 46.9,
+      "scroll.p95FrameMs": 78.2,
+      "scroll.maxFrameMs": 359.4,
+      "scroll.droppedFrames": 5299,
+      "scroll.jankyFrames": 2064,
+      "scroll.longTasks": 525,
+      "scroll.totalBlockingMs": 4366,
+      "scroll.longestTaskMs": 113,
+      "scroll.scriptingMs": 27463.1,
+      "scroll.layoutMs": 40319.9,
+      "scroll.paintMs": 26560.5,
+      "scroll.gcMs": 1427.5,
+      "tree.settleMs": 172,
+      "tree.longTasks": 0,
+      "tree.totalBlockingMs": 0,
+      "tree.longestTaskMs": 0,
+      "tree.scriptingMs": 38.8,
+      "tree.layoutMs": 24.9,
+      "tree.paintMs": 13.6,
+      "tree.gcMs": 53.3,
+      "select.clicks": 10,
+      "select.medianClickMs": 105,
+      "select.maxClickMs": 190,
+      "select.longTasks": 3,
+      "select.totalBlockingMs": 20,
+      "select.longestTaskMs": 63,
+      "select.scriptingMs": 459.2,
+      "select.layoutMs": 109.6,
+      "select.paintMs": 308.5,
+      "select.gcMs": 77.6,
+      "realtime.delivered": 500,
+      "realtime.settleMs": 210,
+      "realtime.longTasks": 0,
+      "realtime.totalBlockingMs": 0,
+      "realtime.longestTaskMs": 0,
+      "realtime.scriptingMs": 0.4,
+      "realtime.layoutMs": 0,
+      "realtime.paintMs": 0.2,
+      "realtime.gcMs": 69.7
+    },
+    {
+      "coldStart.launchToLoadedMs": 4214,
+      "coldStart.navigationToLoadedMs": 2655,
+      "coldStart.longTasks": 8,
+      "coldStart.totalBlockingMs": 1275,
+      "coldStart.longestTaskMs": 462,
+      "coldStart.scriptingMs": 1669.8,
+      "coldStart.layoutMs": 87.1,
+      "coldStart.paintMs": 21.6,
+      "coldStart.gcMs": 140.7,
+      "display.vsyncMs": 15.6,
+      "search.settleMs": 286,
+      "search.rows": 25,
+      "search.longTasks": 2,
+      "search.totalBlockingMs": 92,
+      "search.longestTaskMs": 140,
+      "search.scriptingMs": 253.2,
+      "search.layoutMs": 44.1,
+      "search.paintMs": 37.6,
+      "search.gcMs": 1.8,
+      "scroll.distancePx": 719830,
+      "scroll.frames": 2065,
+      "scroll.durationMs": 111688,
+      "scroll.fps": 18.5,
+      "scroll.p50FrameMs": 46.9,
+      "scroll.p95FrameMs": 78.2,
+      "scroll.maxFrameMs": 328,
+      "scroll.droppedFrames": 5083,
+      "scroll.jankyFrames": 2064,
+      "scroll.longTasks": 391,
+      "scroll.totalBlockingMs": 3049,
+      "scroll.longestTaskMs": 112,
+      "scroll.scriptingMs": 26450,
+      "scroll.layoutMs": 38973.8,
+      "scroll.paintMs": 25700.8,
+      "scroll.gcMs": 1440.6,
+      "tree.settleMs": 96,
+      "tree.longTasks": 0,
+      "tree.totalBlockingMs": 0,
+      "tree.longestTaskMs": 0,
+      "tree.scriptingMs": 34.6,
+      "tree.layoutMs": 22.6,
+      "tree.paintMs": 16.5,
+      "tree.gcMs": 50.5,
+      "select.clicks": 10,
+      "select.medianClickMs": 103,
+      "select.maxClickMs": 177,
+      "select.longTasks": 1,
+      "select.totalBlockingMs": 3,
+      "select.longestTaskMs": 53,
+      "select.scriptingMs": 405.2,
+      "select.layoutMs": 95.3,
+      "select.paintMs": 252.2,
+      "select.gcMs": 55.3,
+      "realtime.delivered": 500,
+      "realtime.settleMs": 120,
+      "realtime.longTasks": 0,
+      "realtime.totalBlockingMs": 0,
+      "realtime.longestTaskMs": 0,
+      "realtime.scriptingMs": 0.4,
+      "realtime.layoutMs": 0,
+      "realtime.paintMs": 0.1,
+      "realtime.gcMs": 3.5
+    }
+  ],
+  "heap": [
+    {
+      "minute": 0,
+      "usedMB": 94.82451629638672
+    },
+    {
+      "minute": 1,
+      "usedMB": 102.85662078857422
+    },
+    {
+      "minute": 2.01,
+      "usedMB": 104.04157257080078
+    },
+    {
+      "minute": 3.02,
+      "usedMB": 105.96996307373047
+    },
+    {
+      "minute": 4,
+      "usedMB": 95.36500549316406
+    },
+    {
+      "minute": 5.01,
+      "usedMB": 96.6811408996582
+    },
+    {
+      "minute": 6.02,
+      "usedMB": 80.34017181396484
+    },
+    {
+      "minute": 7.03,
+      "usedMB": 81.35253143310547
+    },
+    {
+      "minute": 8,
+      "usedMB": 94.71747589111328
+    },
+    {
+      "minute": 9.01,
+      "usedMB": 93.91720199584961
+    },
+    {
+      "minute": 10.02,
+      "usedMB": 95.52803421020508
+    },
+    {
+      "minute": 11.02,
+      "usedMB": 89.71991729736328
+    },
+    {
+      "minute": 12.01,
+      "usedMB": 95.93557739257812
+    },
+    {
+      "minute": 13.01,
+      "usedMB": 95.55400466918945
+    },
+    {
+      "minute": 14,
+      "usedMB": 97.74927520751953
+    },
+    {
+      "minute": 15.04,
+      "usedMB": 88.1433219909668
+    },
+    {
+      "minute": 16.02,
+      "usedMB": 101.79240417480469
+    },
+    {
+      "minute": 17.01,
+      "usedMB": 101.22816848754883
+    },
+    {
+      "minute": 18,
+      "usedMB": 97.30370330810547
+    },
+    {
+      "minute": 19.02,
+      "usedMB": 97.66766357421875
+    },
+    {
+      "minute": 20,
+      "usedMB": 99.59203338623047
+    },
+    {
+      "minute": 21.01,
+      "usedMB": 100.19472122192383
+    },
+    {
+      "minute": 22.01,
+      "usedMB": 97.41259384155273
+    },
+    {
+      "minute": 23.03,
+      "usedMB": 88.78663635253906
+    },
+    {
+      "minute": 24,
+      "usedMB": 88.67316436767578
+    },
+    {
+      "minute": 25.02,
+      "usedMB": 97.86592864990234
+    },
+    {
+      "minute": 26,
+      "usedMB": 97.92838287353516
+    },
+    {
+      "minute": 27.02,
+      "usedMB": 102.41417694091797
+    },
+    {
+      "minute": 28.02,
+      "usedMB": 99.07530975341797
+    },
+    {
+      "minute": 29.05,
+      "usedMB": 88.70220184326172
+    },
+    {
+      "minute": 30.02,
+      "usedMB": 101.26389694213867
+    },
+    {
+      "minute": 30.03,
+      "usedMB": 89.97241973876953
+    }
+  ],
+  "heapByStep": {
+    "expand": -938.3,
+    "open-folder": -198.8,
+    "select": -91.8,
+    "search": -3.3,
+    "scroll": -12.9,
+    "scroll-top": -2.7,
+    "clear-search": 15.2,
+    "realtime-50": 181.4,
+    "collapse": 855.9,
+    "settle": -915.9
+  },
+  "retained": [
+    {
+      "stack": "split < (anonymous) src/features/source/explorer/file-tree/hooks/useVaultTree.ts:255 < updateMemo node_modules/react-dom/cjs/react-dom-client.production.js:5162 < useVaultTree src/features/source/explorer/file-tree/hooks/useVaultTree.ts:120 < FileTree src/features/source/explorer/FileTree.tsx:82 < updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.production.js:6489",
+      "MB": 32.3
+    },
+    {
+      "stack": "emitRealtime src/test/fakeSupabase.ts:581 < realtimeBurst src/perf/app/control.ts:187 < (anonymous) < evaluate < (anonymous) < (root)",
+      "MB": 23.1
+    },
+    {
+      "stack": "split < file src/features/source/browser/utils/filtering.ts:178 < filter < getFilesInFolder src/features/source/browser/utils/filtering.ts:174 < getFolderChildren src/features/source/browser/utils/folderIndex.ts:98 < (anonymous) src/features/source/browser/hooks/useSorting.ts:68",
+      "MB": 8.6
+    },
+    {
+      "stack": "split < file src/features/source/explorer/file-tree/hooks/useVaultTree.ts:194 < forEach < (anonymous) src/features/source/explorer/file-tree/hooks/useVaultTree.ts:154 < updateMemo node_modules/react-dom/cjs/react-dom-client.production.js:5162 < useVaultTree src/features/source/explorer/file-tree/hooks/useVaultTree.ts:120",
+      "MB": 3.1
+    },
+    {
+      "stack": "applyServerPdmUpdate src/stores/serverPdmUpdate.ts:10 < f src/stores/serverPdmUpdate.ts:117 < map < applyServerPdmUpdates src/stores/serverPdmUpdate.ts:107 < state src/stores/slices/filesSlice.ts:1709 < (anonymous) src/stores/pdmStore.ts:158",
+      "MB": 2.3
+    },
+    {
+      "stack": "applyServerPdmUpdate src/stores/serverPdmUpdate.ts:10 < reduce < f src/stores/serverPdmUpdate.ts:117 < map < applyServerPdmUpdates src/stores/serverPdmUpdate.ts:107 < state src/stores/slices/filesSlice.ts:1709",
+      "MB": 2.1
+    },
+    {
+      "stack": "indexOf src/stores/fileIdIndex.ts:23 < (anonymous) src/hooks/useRealtimeSubscriptions.ts:540 < emitRealtime src/test/fakeSupabase.ts:581 < realtimeBurst src/perf/app/control.ts:187 < (anonymous) < evaluate",
+      "MB": 2
+    },
+    {
+      "stack": "set < indexOf src/stores/fileIdIndex.ts:23 < (anonymous) src/hooks/useRealtimeSubscriptions.ts:540 < emitRealtime src/test/fakeSupabase.ts:581 < realtimeBurst src/perf/app/control.ts:187 < (anonymous)",
+      "MB": 0.9
+    },
+    {
+      "stack": "(anonymous) src/features/source/explorer/file-tree/VirtualizedTreeRow.tsx:247 < updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.production.js:6489 < beginWork node_modules/react-dom/cjs/react-dom-client.production.js:7392 < renderRootSync node_modules/react-dom/cjs/react-dom-client.production.js:11120 < performWorkOnRoot node_modules/react-dom/cjs/react-dom-client.production.js:10681 < flushSyncWorkAcrossRoots_impl node_modules/react-dom/cjs/react-dom-client.production.js:11918",
+      "MB": 0.8
+    },
+    {
+      "stack": "(anonymous) src/features/source/explorer/file-tree/hooks/useVaultTree.ts:255 < updateMemo node_modules/react-dom/cjs/react-dom-client.production.js:5162 < useVaultTree src/features/source/explorer/file-tree/hooks/useVaultTree.ts:120 < FileTree src/features/source/explorer/FileTree.tsx:82 < updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.production.js:6489 < beginWork node_modules/react-dom/cjs/react-dom-client.production.js:7392",
+      "MB": 0.7
+    },
+    {
+      "stack": "reconcileCheckoutProfile src/types/pdm.ts:533 < mergePdmFileData src/types/pdm.ts:546 < applyServerPdmUpdate src/stores/serverPdmUpdate.ts:10 < f src/stores/serverPdmUpdate.ts:117 < map < applyServerPdmUpdates src/stores/serverPdmUpdate.ts:107",
+      "MB": 0.7
+    },
+    {
+      "stack": "file src/features/source/explorer/file-tree/hooks/useVaultTree.ts:194 < forEach < (anonymous) src/features/source/explorer/file-tree/hooks/useVaultTree.ts:154 < updateMemo node_modules/react-dom/cjs/react-dom-client.production.js:5162 < useVaultTree src/features/source/explorer/file-tree/hooks/useVaultTree.ts:120 < FileTree src/features/source/explorer/FileTree.tsx:82",
+      "MB": 0.7
+    },
+    {
+      "stack": "applyServerPdmUpdate src/stores/serverPdmUpdate.ts:10 < f src/stores/serverPdmUpdate.ts:117 < map < applyServerPdmUpdates src/stores/serverPdmUpdate.ts:107 < state src/stores/slices/filesSlice.ts:1709 < (anonymous) node_modules/zustand/esm/vanilla.mjs:4",
+      "MB": 0.6
+    },
+    {
+      "stack": "buildIndex src/features/source/browser/utils/folderIndex.ts:45 < getFolderChildren src/features/source/browser/utils/folderIndex.ts:98 < (anonymous) src/features/source/browser/hooks/useSorting.ts:68 < updateMemo node_modules/react-dom/cjs/react-dom-client.production.js:5162 < useSorting src/features/source/browser/hooks/useSorting.ts:41 < FilePane src/features/source/browser/FilePane.tsx:125",
+      "MB": 0.6
+    },
+    {
+      "stack": "(anonymous) src/features/source/explorer/file-tree/hooks/useVaultTree.ts:292 < (anonymous) src/features/source/explorer/file-tree/hooks/useVaultTree.ts:255 < updateMemo node_modules/react-dom/cjs/react-dom-client.production.js:5162 < useVaultTree src/features/source/explorer/file-tree/hooks/useVaultTree.ts:120 < FileTree src/features/source/explorer/FileTree.tsx:82 < updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.production.js:6489",
+      "MB": 0.5
+    },
+    {
+      "stack": "(V8 API) < (root)",
+      "MB": 0.4
+    },
+    {
+      "stack": "split < file src/features/source/explorer/file-tree/hooks/useVaultTree.ts:194 < forEach < (anonymous) src/features/source/explorer/file-tree/hooks/useVaultTree.ts:154 < updateMemo node_modules/react-dom/cjs/react-dom-client.production.js:5162 < O.useMemo node_modules/react/cjs/react.production.js:513",
+      "MB": 0.4
+    },
+    {
+      "stack": "set < realtimeBurst src/perf/app/control.ts:187 < (anonymous) < evaluate < (anonymous) < (root)",
+      "MB": 0.4
+    },
+    {
+      "stack": "reconcileCheckoutProfile src/types/pdm.ts:533 < mergePdmFileData src/types/pdm.ts:546 < applyServerPdmUpdate src/stores/serverPdmUpdate.ts:10 < reduce < f src/stores/serverPdmUpdate.ts:117 < map",
+      "MB": 0.4
+    },
+    {
+      "stack": "(anonymous) < (root)",
+      "MB": 0.3
+    }
+  ],
+  "probes": {
+    "alive": 30100,
+    "newestEvent": 51099,
+    "files": 30000,
+    "superseded": 100,
+    "oldest": [
+      {
+        "event": 21000,
+        "file": 21000,
+        "superseded": true,
+        "path": [
+          "2 -> hidden:system / NativeContext / file://",
+          "global_object -> object:Window (global*) / file://",
+          "<symbol Window#DocumentCachedAccessor> -> native:HTMLDocument",
+          "[29] -> native:InternalNode",
+          "[7] -> native:<tr class=\"selected  diff-outdated  \" data-path=\"C:\\Users\\ha",
+          "__reactProps$zuc32n7usug -> object:Object",
+          "onClick -> closure:",
+          "context -> object:system / Context",
+          "previous -> object:system / Context",
+          "Ve -> closure:",
+          "context -> object:system / Context",
+          "q -> object:Array",
+          "[23023] -> object:Object",
+          "pdmData -> object:Object"
+        ]
+      },
+      {
+        "event": 21001,
+        "file": 21059,
+        "superseded": true,
+        "path": [
+          "2 -> hidden:system / NativeContext / file://",
+          "global_object -> object:Window (global*) / file://",
+          "<symbol Window#DocumentCachedAccessor> -> native:HTMLDocument",
+          "[29] -> native:InternalNode",
+          "[7] -> native:<tr class=\"selected  diff-outdated  \" data-path=\"C:\\Users\\ha",
+          "__reactProps$zuc32n7usug -> object:Object",
+          "onClick -> closure:",
+          "context -> object:system / Context",
+          "previous -> object:system / Context",
+          "Ve -> closure:",
+          "context -> object:system / Context",
+          "q -> object:Array",
+          "[23080] -> object:Object",
+          "pdmData -> object:Object"
+        ]
+      },
+      {
+        "event": 21002,
+        "file": 21118,
+        "superseded": true,
+        "path": [
+          "2 -> hidden:system / NativeContext / file://",
+          "global_object -> object:Window (global*) / file://",
+          "<symbol Window#DocumentCachedAccessor> -> native:HTMLDocument",
+          "[29] -> native:InternalNode",
+          "[7] -> native:<tr class=\"selected  diff-outdated  \" data-path=\"C:\\Users\\ha",
+          "__reactProps$zuc32n7usug -> object:Object",
+          "onClick -> closure:",
+          "context -> object:system / Context",
+          "previous -> object:system / Context",
+          "Ve -> closure:",
+          "context -> object:system / Context",
+          "q -> object:Array",
+          "[23138] -> object:Object",
+          "pdmData -> object:Object"
+        ]
+      },
+      {
+        "event": 21003,
+        "file": 21177,
+        "superseded": true,
+        "path": [
+          "2 -> hidden:system / NativeContext / file://",
+          "global_object -> object:Window (global*) / file://",
+          "<symbol Window#DocumentCachedAccessor> -> native:HTMLDocument",
+          "[29] -> native:InternalNode",
+          "[7] -> native:<tr class=\"selected  diff-outdated  \" data-path=\"C:\\Users\\ha",
+          "__reactProps$zuc32n7usug -> object:Object",
+          "onClick -> closure:",
+          "context -> object:system / Context",
+          "previous -> object:system / Context",
+          "Ve -> closure:",
+          "context -> object:system / Context",
+          "q -> object:Array",
+          "[23195] -> object:Object",
+          "pdmData -> object:Object"
+        ]
+      }
+    ]
+  },
+  "topSelfTime": {
+    "cold-start": [
+      [
+        "FunctionCall",
+        1144.1
+      ],
+      [
+        "RunTask",
+        580.5
+      ],
+      [
+        "TimerFire",
+        449.7
+      ],
+      [
+        "Layout",
+        407.9
+      ],
+      [
+        "V8.GC_SCAVENGER_SCAVENGE_PARALLEL",
+        95.9
+      ],
+      [
+        "UpdateLayoutTree",
+        36
+      ],
+      [
+        "v8.evaluateModule",
+        23.8
+      ],
+      [
+        "EvaluateScript",
+        9.6
+      ],
+      [
+        "Layerize",
+        8.7
+      ],
+      [
+        "v8.compileModule",
+        8.6
+      ],
+      [
+        "Paint",
+        8.1
+      ],
+      [
+        "V8.GC_SCAVENGER_SCAVENGE_ROOTS",
+        6.5
+      ]
+    ],
+    "search": [
+      [
+        "FunctionCall",
+        233.7
+      ],
+      [
+        "RunTask",
+        42.9
+      ],
+      [
+        "UpdateLayoutTree",
+        23.1
+      ],
+      [
+        "Layerize",
+        19.1
+      ],
+      [
+        "Paint",
+        15.6
+      ],
+      [
+        "Layout",
+        13.4
+      ],
+      [
+        "PrePaint",
+        4.6
+      ],
+      [
+        "HitTest",
+        1.2
+      ],
+      [
+        "Commit",
+        1
+      ],
+      [
+        "EventDispatch",
+        0.9
+      ],
+      [
+        "TimerFire",
+        0.4
+      ],
+      [
+        "UpdateLayer",
+        0.4
+      ]
+    ],
+    "scroll": [
+      [
+        "UpdateLayoutTree",
+        28673.6
+      ],
+      [
+        "FunctionCall",
+        26183.5
+      ],
+      [
+        "RunTask",
+        19162.8
+      ],
+      [
+        "Layout",
+        14178.7
+      ],
+      [
+        "Layerize",
+        9785.8
+      ],
+      [
+        "PrePaint",
+        9231.8
+      ],
+      [
+        "Paint",
+        8317.3
+      ],
+      [
+        "EventDispatch",
+        1477.4
+      ],
+      [
+        "FireAnimationFrame",
+        642.3
+      ],
+      [
+        "V8.GC_SCAVENGER_SCAVENGE_PARALLEL",
+        638
+      ],
+      [
+        "HitTest",
+        466.7
+      ],
+      [
+        "ScrollLayer",
+        432.6
+      ]
+    ],
+    "tree": [
+      [
+        "FunctionCall",
+        35.1
+      ],
+      [
+        "RunTask",
+        32.8
+      ],
+      [
+        "V8.GC_MC_INCREMENTAL",
+        32.2
+      ],
+      [
+        "Layout",
+        23.4
+      ],
+      [
+        "Layerize",
+        11.2
+      ],
+      [
+        "V8.GC_MC_INCREMENTAL_EMBEDDER_TRACING",
+        6.7
+      ],
+      [
+        "Paint",
+        3.9
+      ],
+      [
+        "V8.GC_MC_EVACUATE_UPDATE_POINTERS_TO_NEW_ROOTS",
+        3.2
+      ],
+      [
+        "PrePaint",
+        2.6
+      ],
+      [
+        "V8.GC_MC_CLEAR_EXTERNAL_STRING_TABLE",
+        1.8
+      ],
+      [
+        "UpdateLayoutTree",
+        1.8
+      ],
+      [
+        "V8.GC_MC_EVACUATE_COPY_PARALLEL",
+        1.7
+      ]
+    ],
+    "select": [
+      [
+        "FunctionCall",
+        430.5
+      ],
+      [
+        "RunTask",
+        161.3
+      ],
+      [
+        "Layerize",
+        146.7
+      ],
+      [
+        "Paint",
+        110.1
+      ],
+      [
+        "UpdateLayoutTree",
+        85.5
+      ],
+      [
+        "Layout",
+        24.8
+      ],
+      [
+        "V8.GC_MC_INCREMENTAL",
+        24.3
+      ],
+      [
+        "HitTest",
+        19.5
+      ],
+      [
+        "PrePaint",
+        19.4
+      ],
+      [
+        "Commit",
+        17
+      ],
+      [
+        "EventDispatch",
+        10.9
+      ],
+      [
+        "EvaluateScript",
+        9.3
+      ]
+    ],
+    "realtime": [
+      [
+        "RunTask",
+        135.2
+      ],
+      [
+        "V8.GC_SCAVENGER_SCAVENGE_PARALLEL",
+        2
+      ],
+      [
+        "V8.GC_SCAVENGER_SCAVENGE_PARALLEL_PHASE",
+        1.4
+      ],
+      [
+        "HitTest",
+        0.5
+      ],
+      [
+        "V8.GC_SCAVENGER_SCAVENGE_WEAK_GLOBAL_HANDLES_PROCESS",
+        0.2
+      ],
+      [
+        "Commit",
+        0.2
+      ],
+      [
+        "FireAnimationFrame",
+        0.1
+      ],
+      [
+        "V8.GC_SCAVENGER_SCAVENGE_ROOTS",
+        0.1
+      ],
+      [
+        "FunctionCall",
+        0.1
+      ],
+      [
+        "V8.GC_SCAVENGER_SCAVENGE",
+        0.1
+      ],
+      [
+        "V8.GC_SCAVENGER_SCAVENGE_FINALIZE",
+        0.1
+      ],
+      [
+        "V8.GC_SCAVENGER_TRACED_HANDLES_RESET_PARALLEL",
+        0.1
+      ]
+    ]
+  },
+  "topFunctions": {
+    "cold-start": {
+      "self": [
+        [
+          "f.onsuccess src/lib/cache/vaultFileCache.ts:724",
+          241.6
+        ],
+        [
+          "(anonymous) src/lib/cache/localSyncIndex.ts:163",
+          220.6
+        ],
+        [
+          "(garbage collector)",
+          200.5
+        ],
+        [
+          "(anonymous) src/lib/cache/vaultFileCache.ts:396",
+          170.1
+        ],
+        [
+          "callRpc src/test/fakeSupabase.ts:816",
+          163.7
+        ],
+        [
+          "file src/features/source/explorer/file-tree/hooks/useVaultTree.ts:194",
+          97.8
+        ],
+        [
+          "(anonymous) src/hooks/useLoadFiles.ts:164",
+          88.7
+        ],
+        [
+          "mergeLocalFileWithServer src/hooks/useLoadFiles/mergeLocalFile.ts:168",
+          68.6
+        ],
+        [
+          "file src/features/source/browser/utils/filtering.ts:178",
+          66.2
+        ],
+        [
+          "(anonymous) src/features/source/explorer/file-tree/hooks/useVaultTree.ts:255",
+          57.4
+        ],
+        [
+          "files src/stores/slices/filesSlice.ts:323",
+          55
+        ],
+        [
+          "reconcileCheckoutProfile src/types/pdm.ts:533",
+          50.6
+        ],
+        [
+          "classifyMovedFiles src/lib/commands/handlers/reconcileMovedPathsPreflight.ts:144",
+          47.4
+        ],
+        [
+          "ancestorsOf src/lib/ghostDirectories.ts:32",
+          36.6
+        ],
+        [
+          "renderWithHooks node_modules/react-dom/cjs/react-dom-client.production.js:4333",
+          33.8
+        ],
+        [
+          "sanitizeCachedFile src/lib/cache/vaultFileCache.ts:128",
+          31.1
+        ],
+        [
+          "normalizePath src/lib/commands/handlers/reconcileMovedPathsPreflight.ts:89",
+          29
+        ],
+        [
+          "classifyAdoptTargets src/lib/commands/handlers/adoptServerPathsPreflight.ts:160",
+          28.5
+        ],
+        [
+          "stampOf src/hooks/useLoadFiles/cachedHashValidity.ts:10",
+          25.7
+        ],
+        [
+          "c.onsuccess src/lib/cache/localSyncIndex.ts:514",
+          23.2
+        ],
+        [
+          "flattenTranslations src/lib/i18n/utils.ts:7",
+          23.2
+        ],
+        [
+          "classifyAgainstServerRow src/hooks/useLoadFiles/fileClassification.ts:69",
+          21.4
+        ],
+        [
+          "appendChild",
+          19.6
+        ],
+        [
+          "reconcileCloudFiles src/hooks/useLoadFiles/cloudFileReconciliation.ts:92",
+          18.9
+        ],
+        [
+          "getUnassertedEmptyDirectories src/lib/ghostDirectories.ts:47",
+          16.9
+        ]
+      ],
+      "total": [
+        [
+          "performWorkOnRoot node_modules/react-dom/cjs/react-dom-client.production.js:10681",
+          770.8
+        ],
+        [
+          "performUnitOfWork node_modules/react-dom/cjs/react-dom-client.production.js:11304",
+          718.8
+        ],
+        [
+          "beginWork node_modules/react-dom/cjs/react-dom-client.production.js:7392",
+          672.6
+        ],
+        [
+          "renderWithHooks node_modules/react-dom/cjs/react-dom-client.production.js:4333",
+          627.6
+        ],
+        [
+          "updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.production.js:6489",
+          604.5
+        ],
+        [
+          "renderRootSync node_modules/react-dom/cjs/react-dom-client.production.js:11120",
+          542
+        ],
+        [
+          "workLoopSync node_modules/react-dom/cjs/react-dom-client.production.js:11181",
+          539.2
+        ],
+        [
+          "performSyncWorkOnRoot node_modules/react-dom/cjs/react-dom-client.production.js:12084",
+          485.7
+        ],
+        [
+          "flushSyncWorkAcrossRoots_impl node_modules/react-dom/cjs/react-dom-client.production.js:11918",
+          485.7
+        ],
+        [
+          "processRootScheduleInMicrotask node_modules/react-dom/cjs/react-dom-client.production.js:11966",
+          479.7
+        ],
+        [
+          "(anonymous) node_modules/react-dom/cjs/react-dom-client.production.js:12089",
+          479.7
+        ],
+        [
+          "O.useMemo node_modules/react/cjs/react.production.js:513",
+          411.5
+        ],
+        [
+          "updateMemo node_modules/react-dom/cjs/react-dom-client.production.js:5162",
+          403.4
+        ],
+        [
+          "performWorkUntilDeadline node_modules/scheduler/cjs/scheduler.production.js:121",
+          323.5
+        ],
+        [
+          "performWorkOnRootViaSchedulerTask node_modules/react-dom/cjs/react-dom-client.production.js:12065",
+          290.2
+        ],
+        [
+          "(anonymous) src/hooks/useLoadFiles.ts:164",
+          278.8
+        ],
+        [
+          "f.onsuccess src/lib/cache/vaultFileCache.ts:724",
+          264.2
+        ],
+        [
+          "FileTree src/features/source/explorer/FileTree.tsx:82",
+          238.4
+        ],
+        [
+          "(anonymous) src/lib/cache/localSyncIndex.ts:163",
+          220.6
+        ],
+        [
+          "(garbage collector)",
+          200.5
+        ],
+        [
+          "(anonymous) src/lib/cache/vaultFileCache.ts:370",
+          191.5
+        ],
+        [
+          "useVaultTree src/features/source/explorer/file-tree/hooks/useVaultTree.ts:120",
+          182.5
+        ],
+        [
+          "workLoopConcurrentByScheduler node_modules/react-dom/cjs/react-dom-client.production.js:11300",
+          179.8
+        ],
+        [
+          "renderRootConcurrent node_modules/react-dom/cjs/react-dom-client.production.js:11184",
+          179.8
+        ],
+        [
+          "(anonymous) src/lib/cache/vaultFileCache.ts:396",
+          170.1
+        ]
+      ],
+      "app": [
+        [
+          "(anonymous) src/hooks/useLoadFiles.ts:164",
+          278.8
+        ],
+        [
+          "f.onsuccess src/lib/cache/vaultFileCache.ts:724",
+          264.2
+        ],
+        [
+          "FileTree src/features/source/explorer/FileTree.tsx:82",
+          238.4
+        ],
+        [
+          "(anonymous) src/lib/cache/localSyncIndex.ts:163",
+          220.6
+        ],
+        [
+          "(anonymous) src/lib/cache/vaultFileCache.ts:370",
+          191.5
+        ],
+        [
+          "useVaultTree src/features/source/explorer/file-tree/hooks/useVaultTree.ts:120",
+          182.5
+        ],
+        [
+          "(anonymous) src/lib/cache/vaultFileCache.ts:396",
+          170.1
+        ],
+        [
+          "callRpc src/test/fakeSupabase.ts:816",
+          163.7
+        ],
+        [
+          "(anonymous) src/test/fakeSupabase.ts:526",
+          163.7
+        ],
+        [
+          "(anonymous) src/perf/app/lenientClient.ts:209",
+          163.7
+        ],
+        [
+          "ResolveMovedFilesDialog src/features/source/context-menu/dialogs/ResolveMovedFilesDialog.tsx:55",
+          134.3
+        ],
+        [
+          "runPostLoadBackgroundTasks src/hooks/useLoadFiles/backgroundTasks.ts:55",
+          130.2
+        ],
+        [
+          "mapYielding src/hooks/useLoadFiles/mergeYield.ts:29",
+          119.1
+        ],
+        [
+          "localFile src/hooks/useLoadFiles.ts:682",
+          117.1
+        ],
+        [
+          "mergeLocalFileWithServer src/hooks/useLoadFiles/mergeLocalFile.ts:168",
+          116.1
+        ],
+        [
+          "(anonymous) src/features/source/explorer/file-tree/hooks/useVaultTree.ts:154",
+          108.1
+        ],
+        [
+          "files src/stores/slices/filesSlice.ts:323",
+          100.6
+        ],
+        [
+          "FilePane src/features/source/browser/FilePane.tsx:125",
+          99.7
+        ],
+        [
+          "file src/features/source/explorer/file-tree/hooks/useVaultTree.ts:194",
+          97.8
+        ],
+        [
+          "(anonymous) src/features/source/context-menu/dialogs/ResolveMovedFilesDialog.tsx:95",
+          79.8
+        ],
+        [
+          "classifyMovedFiles src/lib/commands/handlers/reconcileMovedPathsPreflight.ts:144",
+          76.7
+        ],
+        [
+          "(anonymous) src/features/source/browser/hooks/useSorting.ts:68",
+          73.7
+        ],
+        [
+          "useSorting src/features/source/browser/hooks/useSorting.ts:41",
+          73.7
+        ],
+        [
+          "getFolderChildren src/features/source/browser/utils/folderIndex.ts:98",
+          71.7
+        ],
+        [
+          "getFilesInFolder src/features/source/browser/utils/filtering.ts:174",
+          68.4
+        ]
+      ]
+    },
+    "search": {
+      "self": [
+        [
+          "put",
+          112.1
+        ],
+        [
+          "getSearchScore src/features/source/browser/utils/filtering.ts:57",
+          40.9
+        ],
+        [
+          "(anonymous) src/lib/cache/localSyncIndex.ts:163",
+          26.2
+        ],
+        [
+          "file src/features/search/command-search/hooks/useLocalFileSearch.ts:39",
+          7.2
+        ],
+        [
+          "file src/features/source/browser/hooks/useSorting.ts:101",
+          4.3
+        ],
+        [
+          "looksLikeItemNumber src/features/source/browser/utils/filtering.ts:45",
+          4.2
+        ],
+        [
+          "completeWork node_modules/react-dom/cjs/react-dom-client.production.js:7955",
+          4.1
+        ],
+        [
+          "(anonymous) src/features/source/browser/FilePane.tsx:941",
+          4
+        ],
+        [
+          "renderWithHooks node_modules/react-dom/cjs/react-dom-client.production.js:4333",
+          3.9
+        ],
+        [
+          "getFileProcessingOperation src/features/source/browser/utils/processingStatus.ts:7",
+          3.7
+        ],
+        [
+          "getMeasurements.E.key node_modules/@tanstack/virtual-core/dist/esm/index.js:415",
+          3.7
+        ],
+        [
+          "setProp node_modules/react-dom/cjs/react-dom-client.production.js:12957",
+          3.6
+        ],
+        [
+          "(anonymous) src/features/search/command-search/hooks/useLocalFileSearch.ts:22",
+          3.5
+        ],
+        [
+          "updateProperties node_modules/react-dom/cjs/react-dom-client.production.js:13577",
+          3.5
+        ],
+        [
+          "present src/lib/metadata/overlay.ts:68",
+          3.2
+        ],
+        [
+          "resolveDescription src/lib/metadata/overlay.ts:103",
+          3.2
+        ],
+        [
+          "(anonymous) src/features/source/browser/components/FileList/buildVirtualRows.ts:150",
+          3.1
+        ],
+        [
+          "MetadataWriteStateMarker src/components/MetadataWriteStateMarker.tsx:76",
+          3
+        ],
+        [
+          "resolveRevision src/lib/metadata/overlay.ts:107",
+          2.7
+        ],
+        [
+          "file src/features/source/browser/FilePane.tsx:947",
+          2.6
+        ],
+        [
+          "getFileStatus src/features/source/browser/hooks/useFileStatus.ts:130",
+          2.4
+        ],
+        [
+          "matchesSearch src/features/source/browser/utils/filtering.ts:136",
+          2.2
+        ],
+        [
+          "removeChild",
+          2.2
+        ],
+        [
+          "setAttribute",
+          2.1
+        ],
+        [
+          "commitPassiveMountOnFiber node_modules/react-dom/cjs/react-dom-client.production.js:10109",
+          1.8
+        ]
+      ],
+      "total": [
+        [
+          "performWorkOnRoot node_modules/react-dom/cjs/react-dom-client.production.js:10681",
+          160.8
+        ],
+        [
+          "workLoopSync node_modules/react-dom/cjs/react-dom-client.production.js:11181",
+          150.6
+        ],
+        [
+          "renderRootSync node_modules/react-dom/cjs/react-dom-client.production.js:11120",
+          150.6
+        ],
+        [
+          "performUnitOfWork node_modules/react-dom/cjs/react-dom-client.production.js:11304",
+          150.5
+        ],
+        [
+          "(anonymous) src/lib/cache/localSyncIndex.ts:163",
+          138.3
+        ],
+        [
+          "beginWork node_modules/react-dom/cjs/react-dom-client.production.js:7392",
+          135.5
+        ],
+        [
+          "renderWithHooks node_modules/react-dom/cjs/react-dom-client.production.js:4333",
+          133.2
+        ],
+        [
+          "performSyncWorkOnRoot node_modules/react-dom/cjs/react-dom-client.production.js:12084",
+          125.3
+        ],
+        [
+          "flushSyncWorkAcrossRoots_impl node_modules/react-dom/cjs/react-dom-client.production.js:11918",
+          125.3
+        ],
+        [
+          "processRootScheduleInMicrotask node_modules/react-dom/cjs/react-dom-client.production.js:11966",
+          125.3
+        ],
+        [
+          "(anonymous) node_modules/react-dom/cjs/react-dom-client.production.js:12089",
+          125.3
+        ],
+        [
+          "put",
+          112.1
+        ],
+        [
+          "updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.production.js:6489",
+          110.8
+        ],
+        [
+          "updateMemo node_modules/react-dom/cjs/react-dom-client.production.js:5162",
+          103.8
+        ],
+        [
+          "O.useMemo node_modules/react/cjs/react.production.js:513",
+          103.8
+        ],
+        [
+          "FilePane src/features/source/browser/FilePane.tsx:125",
+          77.8
+        ],
+        [
+          "(anonymous) src/features/source/browser/hooks/useSorting.ts:68",
+          70.1
+        ],
+        [
+          "useSorting src/features/source/browser/hooks/useSorting.ts:41",
+          70.1
+        ],
+        [
+          "getSearchScore src/features/source/browser/utils/filtering.ts:57",
+          55.2
+        ],
+        [
+          "performWorkUntilDeadline node_modules/scheduler/cjs/scheduler.production.js:121",
+          37.5
+        ],
+        [
+          "filterBySearch src/features/source/browser/utils/filtering.ts:205",
+          36.2
+        ],
+        [
+          "performWorkOnRootViaSchedulerTask node_modules/react-dom/cjs/react-dom-client.production.js:12065",
+          35.5
+        ],
+        [
+          "matchesSearch src/features/source/browser/utils/filtering.ts:136",
+          35.2
+        ],
+        [
+          "file src/features/source/browser/utils/filtering.ts:210",
+          35.2
+        ],
+        [
+          "sortByRelevance src/features/source/browser/utils/sorting.ts:112",
+          27.5
+        ]
+      ],
+      "app": [
+        [
+          "(anonymous) src/lib/cache/localSyncIndex.ts:163",
+          138.3
+        ],
+        [
+          "FilePane src/features/source/browser/FilePane.tsx:125",
+          77.8
+        ],
+        [
+          "(anonymous) src/features/source/browser/hooks/useSorting.ts:68",
+          70.1
+        ],
+        [
+          "useSorting src/features/source/browser/hooks/useSorting.ts:41",
+          70.1
+        ],
+        [
+          "getSearchScore src/features/source/browser/utils/filtering.ts:57",
+          55.2
+        ],
+        [
+          "filterBySearch src/features/source/browser/utils/filtering.ts:205",
+          36.2
+        ],
+        [
+          "matchesSearch src/features/source/browser/utils/filtering.ts:136",
+          35.2
+        ],
+        [
+          "file src/features/source/browser/utils/filtering.ts:210",
+          35.2
+        ],
+        [
+          "sortByRelevance src/features/source/browser/utils/sorting.ts:112",
+          27.5
+        ],
+        [
+          "file src/features/source/browser/hooks/useSorting.ts:101",
+          26.5
+        ],
+        [
+          "(anonymous) src/features/source/browser/utils/sorting.ts:116",
+          26.5
+        ],
+        [
+          "(anonymous) src/features/source/browser/components/FileList/FileListBody.tsx:123",
+          18.3
+        ],
+        [
+          "CommandSearch src/features/search/command-search/CommandSearch.tsx:23",
+          14.3
+        ],
+        [
+          "buildVirtualRows src/features/source/browser/components/FileList/buildVirtualRows.ts:120",
+          13.7
+        ],
+        [
+          "(anonymous) src/features/source/browser/components/FileList/FileListBody.tsx:213",
+          13.7
+        ],
+        [
+          "(anonymous) src/features/source/browser/components/FileList/buildVirtualRows.ts:150",
+          12.4
+        ],
+        [
+          "(anonymous) src/features/search/command-search/hooks/useLocalFileSearch.ts:22",
+          12.3
+        ],
+        [
+          "useLocalFileSearch src/features/search/command-search/hooks/useLocalFileSearch.ts:12",
+          12.3
+        ],
+        [
+          "file src/features/search/command-search/hooks/useLocalFileSearch.ts:39",
+          7.2
+        ],
+        [
+          "(anonymous) src/features/source/browser/FilePane.tsx:941",
+          6.7
+        ],
+        [
+          "filterValidFiles src/features/source/browser/utils/filtering.ts:157",
+          5.3
+        ],
+        [
+          "(anonymous) src/features/source/browser/utils/paneReaders.ts:72",
+          4.7
+        ],
+        [
+          "resolveDescription src/lib/metadata/overlay.ts:103",
+          4.3
+        ],
+        [
+          "f src/features/source/browser/utils/filtering.ts:163",
+          4.3
+        ],
+        [
+          "resolveMetadataField src/lib/metadata/overlay.ts:80",
+          4.2
+        ]
+      ]
+    },
+    "scroll": {
+      "self": [
+        [
+          "scrollFileList src/perf/app/control.ts:139",
+          32725.9
+        ],
+        [
+          "put",
+          4135.9
+        ],
+        [
+          "setAttribute",
+          2597
+        ],
+        [
+          "removeChild",
+          2209.6
+        ],
+        [
+          "(garbage collector)",
+          1876.7
+        ],
+        [
+          "get",
+          1137.5
+        ],
+        [
+          "appendChild",
+          926.6
+        ],
+        [
+          "(anonymous) node_modules/react-dom/cjs/react-dom-client.production.js:5588",
+          687.3
+        ],
+        [
+          "completeWork node_modules/react-dom/cjs/react-dom-client.production.js:7955",
+          646.3
+        ],
+        [
+          "createElementNS",
+          615
+        ],
+        [
+          "setProp node_modules/react-dom/cjs/react-dom-client.production.js:12957",
+          527.3
+        ],
+        [
+          "detachDeletedInstance node_modules/react-dom/cjs/react-dom-client.production.js:852",
+          524.9
+        ],
+        [
+          "(anonymous) src/lib/cache/localSyncIndex.ts:163",
+          466.5
+        ],
+        [
+          "set webkitSpeechRecognitionEvent",
+          438.8
+        ],
+        [
+          "createElement",
+          433.7
+        ],
+        [
+          "set natives",
+          411.7
+        ],
+        [
+          "commitHookEffectListUnmount node_modules/react-dom/cjs/react-dom-client.production.js:8593",
+          402
+        ],
+        [
+          "r ECOModal-C_xRdARF.js:1",
+          344.2
+        ],
+        [
+          "O.createElement node_modules/react/cjs/react.production.js:409",
+          325.8
+        ],
+        [
+          "setInitialProperties node_modules/react-dom/cjs/react-dom-client.production.js:13346",
+          311.5
+        ],
+        [
+          "u.onsuccess src/lib/cache/localSyncIndex.ts:772",
+          311.3
+        ],
+        [
+          "(anonymous) node_modules/lucide-react/dist/esm/Icon.js:13",
+          310.7
+        ],
+        [
+          "setValueForStyle node_modules/react-dom/cjs/react-dom-client.production.js:1273",
+          305
+        ],
+        [
+          "(anonymous) src/lib/cache/localSyncIndex.ts:733",
+          297.1
+        ],
+        [
+          "renderWithHooks node_modules/react-dom/cjs/react-dom-client.production.js:4333",
+          292.4
+        ]
+      ],
+      "total": [
+        [
+          "scrollFileList src/perf/app/control.ts:139",
+          32769.4
+        ],
+        [
+          "performWorkOnRoot node_modules/react-dom/cjs/react-dom-client.production.js:10681",
+          20371.8
+        ],
+        [
+          "(anonymous) node_modules/@tanstack/virtual-core/dist/esm/index.js:88",
+          20070
+        ],
+        [
+          "(anonymous) node_modules/@tanstack/virtual-core/dist/esm/index.js:327",
+          20015.7
+        ],
+        [
+          "memoizedFunction node_modules/@tanstack/virtual-core/dist/esm/utils.js:5",
+          20012.6
+        ],
+        [
+          "sync node_modules/@tanstack/virtual-core/dist/esm/index.js:264",
+          19963.1
+        ],
+        [
+          "isScrolling node_modules/@tanstack/virtual-core/dist/esm/index.js:277",
+          19963.1
+        ],
+        [
+          "(anonymous) node_modules/@tanstack/react-virtual/dist/esm/index.js:13",
+          19953.7
+        ],
+        [
+          "gn.flushSync node_modules/react-dom/cjs/react-dom.production.js:79",
+          19948.2
+        ],
+        [
+          "flushSyncWorkAcrossRoots_impl node_modules/react-dom/cjs/react-dom-client.production.js:11918",
+          19936.7
+        ],
+        [
+          "performSyncWorkOnRoot node_modules/react-dom/cjs/react-dom-client.production.js:12084",
+          19932.3
+        ],
+        [
+          "flushSyncWork$1 node_modules/react-dom/cjs/react-dom-client.production.js:10987",
+          19922.1
+        ],
+        [
+          "flushSyncWork node_modules/react-dom/cjs/react-dom-client.production.js:14359",
+          19922.1
+        ],
+        [
+          "renderRootSync node_modules/react-dom/cjs/react-dom-client.production.js:11120",
+          15681
+        ],
+        [
+          "workLoopSync node_modules/react-dom/cjs/react-dom-client.production.js:11181",
+          14400.9
+        ],
+        [
+          "performUnitOfWork node_modules/react-dom/cjs/react-dom-client.production.js:11304",
+          14387.5
+        ],
+        [
+          "completeWork node_modules/react-dom/cjs/react-dom-client.production.js:7955",
+          7642.1
+        ],
+        [
+          "beginWork node_modules/react-dom/cjs/react-dom-client.production.js:7392",
+          7500.5
+        ],
+        [
+          "completeUnitOfWork node_modules/react-dom/cjs/react-dom-client.production.js:11405",
+          7287
+        ],
+        [
+          "renderWithHooks node_modules/react-dom/cjs/react-dom-client.production.js:4333",
+          6249.5
+        ],
+        [
+          "updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.production.js:6489",
+          4717.4
+        ],
+        [
+          "commitRootWhenReady node_modules/react-dom/cjs/react-dom-client.production.js:10848",
+          4684.3
+        ],
+        [
+          "commitRoot node_modules/react-dom/cjs/react-dom-client.production.js:11457",
+          4677.1
+        ],
+        [
+          "setInitialProperties node_modules/react-dom/cjs/react-dom-client.production.js:13346",
+          4618
+        ],
+        [
+          "setProp node_modules/react-dom/cjs/react-dom-client.production.js:12957",
+          4140
+        ]
+      ],
+      "app": [
+        [
+          "scrollFileList src/perf/app/control.ts:139",
+          32769.4
+        ],
+        [
+          "(anonymous) src/lib/cache/localSyncIndex.ts:163",
+          2980.3
+        ],
+        [
+          "u.onsuccess src/lib/cache/localSyncIndex.ts:772",
+          2256.7
+        ],
+        [
+          "(anonymous) src/lib/cache/localSyncIndex.ts:733",
+          1945.4
+        ],
+        [
+          "updateInodes src/lib/cache/localSyncIndex.ts:719",
+          1318.9
+        ],
+        [
+          "resolve src/lib/cache/localSyncIndex.ts:726",
+          1310.3
+        ],
+        [
+          "NameCell src/features/source/browser/components/FileList/cells/NameCell.tsx:43",
+          887.3
+        ],
+        [
+          "ItemNumberCell src/features/source/browser/components/FileList/cells/ItemNumberCell.tsx:25",
+          604.6
+        ],
+        [
+          "MetadataWriteStateMarker src/components/MetadataWriteStateMarker.tsx:76",
+          594.1
+        ],
+        [
+          "VersionHistoryDropdown src/features/source/browser/components/FileList/cells/VersionHistoryDropdown.tsx:56",
+          579.5
+        ],
+        [
+          "(anonymous) src/components/shared/FileItem/FileItemComponents.tsx:55",
+          501.7
+        ],
+        [
+          "ModifiedTimeCell src/features/source/browser/components/FileList/cells/ModifiedTimeCell.tsx:7",
+          415.7
+        ],
+        [
+          "(anonymous) src/features/source/browser/components/FileList/FileListBody.tsx:123",
+          405.2
+        ],
+        [
+          "(anonymous) src/components/shared/FileItem/FileItemComponents.tsx:56",
+          321.3
+        ],
+        [
+          "useHiddenFolders src/hooks/useHiddenFolders.ts:35",
+          317.5
+        ],
+        [
+          "buildThumbnailUrl src/lib/thumbnailUrl.ts:84",
+          317.1
+        ],
+        [
+          "(anonymous) src/stores/pdmStore.ts:158",
+          279.1
+        ],
+        [
+          "virtualRow src/features/source/browser/components/FileList/FileListBody.tsx:712",
+          253.6
+        ],
+        [
+          "row src/features/source/browser/components/FileList/FileListBody.tsx:392",
+          239.3
+        ],
+        [
+          "RevisionCell src/features/source/browser/components/FileList/cells/RevisionCell.tsx:23",
+          228.6
+        ],
+        [
+          "(anonymous) src/hooks/useRetryableImage.ts:44",
+          213.3
+        ],
+        [
+          "DescriptionCell src/features/source/browser/components/FileList/cells/DescriptionCell.tsx:22",
+          196.3
+        ],
+        [
+          "(anonymous) src/stores/slices/integrationsSlice.ts:67",
+          169.5
+        ],
+        [
+          "(anonymous) src/stores/slices/integrationsSlice.ts:187",
+          160
+        ],
+        [
+          "useRetryableImage src/hooks/useRetryableImage.ts:27",
+          143.5
+        ]
+      ]
+    },
+    "tree": {
+      "self": [
+        [
+          "(garbage collector)",
+          62.9
+        ],
+        [
+          "setAttribute",
+          5.2
+        ],
+        [
+          "vault src/features/source/explorer/FileTree.tsx:873",
+          5.1
+        ],
+        [
+          "PinnedFoldersSection src/features/source/explorer/file-tree/PinnedFoldersSection.tsx:45",
+          3
+        ],
+        [
+          "(anonymous) node_modules/zustand/esm/vanilla/shallow.mjs:6",
+          2.1
+        ],
+        [
+          "updateElement node_modules/react-dom/cjs/react-dom-client.production.js:3365",
+          2.1
+        ],
+        [
+          "set config",
+          2
+        ],
+        [
+          "O.createElement node_modules/react/cjs/react.production.js:409",
+          1.8
+        ],
+        [
+          "string node_modules/lucide-react/dist/esm/shared/src/utils.js:8",
+          1.4
+        ],
+        [
+          "completeWork node_modules/react-dom/cjs/react-dom-client.production.js:7955",
+          1.3
+        ],
+        [
+          "removeChild",
+          1.2
+        ],
+        [
+          "virtualRow src/features/source/explorer/FileTree.tsx:1076",
+          1.1
+        ],
+        [
+          "commitHostUpdate node_modules/react-dom/cjs/react-dom-client.production.js:8725",
+          1.1
+        ],
+        [
+          "o main-wBseAroB.js:2",
+          1.1
+        ],
+        [
+          "(anonymous) node_modules/zustand/esm/vanilla/shallow.mjs:50",
+          1
+        ],
+        [
+          "(anonymous) node_modules/zustand/esm/react.mjs:8",
+          1
+        ],
+        [
+          "f src/features/source/explorer/file-tree/PinnedFoldersSection.tsx:99",
+          1
+        ],
+        [
+          "(anonymous) node_modules/react-dom/cjs/react-dom-client.production.js:3961",
+          1
+        ],
+        [
+          "reconcileChildrenArray node_modules/react-dom/cjs/react-dom-client.production.js:3622",
+          1
+        ],
+        [
+          "f src/features/source/explorer/FileTree.tsx:902",
+          1
+        ],
+        [
+          "FileActionButtons src/features/source/explorer/file-tree/TreeItemActions.tsx:53",
+          1
+        ],
+        [
+          "path src/stores/slices/filesSlice.ts:1396",
+          1
+        ],
+        [
+          "f src/features/source/explorer/FileTree.tsx:907",
+          1
+        ],
+        [
+          "s src/features/source/browser/hooks/useDrawingRefHandlers.ts:53",
+          1
+        ],
+        [
+          "(anonymous) src/features/source/explorer/file-tree/hooks/useFlattenedTree.ts:51",
+          1
+        ]
+      ],
+      "total": [
+        [
+          "(garbage collector)",
+          62.9
+        ],
+        [
+          "performWorkOnRoot node_modules/react-dom/cjs/react-dom-client.production.js:10681",
+          34
+        ],
+        [
+          "performSyncWorkOnRoot node_modules/react-dom/cjs/react-dom-client.production.js:12084",
+          33
+        ],
+        [
+          "flushSyncWorkAcrossRoots_impl node_modules/react-dom/cjs/react-dom-client.production.js:11918",
+          33
+        ],
+        [
+          "processRootScheduleInMicrotask node_modules/react-dom/cjs/react-dom-client.production.js:11966",
+          33
+        ],
+        [
+          "(anonymous) node_modules/react-dom/cjs/react-dom-client.production.js:12089",
+          33
+        ],
+        [
+          "performUnitOfWork node_modules/react-dom/cjs/react-dom-client.production.js:11304",
+          30.9
+        ],
+        [
+          "workLoopSync node_modules/react-dom/cjs/react-dom-client.production.js:11181",
+          30.9
+        ],
+        [
+          "renderRootSync node_modules/react-dom/cjs/react-dom-client.production.js:11120",
+          30.9
+        ],
+        [
+          "beginWork node_modules/react-dom/cjs/react-dom-client.production.js:7392",
+          24.4
+        ],
+        [
+          "renderWithHooks node_modules/react-dom/cjs/react-dom-client.production.js:4333",
+          19.2
+        ],
+        [
+          "updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.production.js:6489",
+          16
+        ],
+        [
+          "path src/stores/slices/filesSlice.ts:1396",
+          12.3
+        ],
+        [
+          "expandFolders src/perf/app/control.ts:175",
+          12.3
+        ],
+        [
+          "(anonymous)",
+          12.3
+        ],
+        [
+          "evaluate",
+          12.3
+        ],
+        [
+          "(anonymous) node_modules/zustand/esm/middleware.mjs:367",
+          10.3
+        ],
+        [
+          "(anonymous) src/stores/pdmStore.ts:158",
+          10.3
+        ],
+        [
+          "FileTree src/features/source/explorer/FileTree.tsx:82",
+          9.3
+        ],
+        [
+          "(anonymous) node_modules/zustand/esm/react.mjs:8",
+          9.3
+        ],
+        [
+          "(anonymous) node_modules/zustand/esm/vanilla.mjs:4",
+          9.3
+        ],
+        [
+          "vault src/features/source/explorer/FileTree.tsx:873",
+          8.3
+        ],
+        [
+          "vault src/features/source/explorer/FileTree.tsx:1304",
+          8.3
+        ],
+        [
+          "state node_modules/zustand/esm/react/shallow.mjs:6",
+          7.2
+        ],
+        [
+          "completeWork node_modules/react-dom/cjs/react-dom-client.production.js:7955",
+          6.5
+        ]
+      ],
+      "app": [
+        [
+          "path src/stores/slices/filesSlice.ts:1396",
+          12.3
+        ],
+        [
+          "expandFolders src/perf/app/control.ts:175",
+          12.3
+        ],
+        [
+          "(anonymous) src/stores/pdmStore.ts:158",
+          10.3
+        ],
+        [
+          "FileTree src/features/source/explorer/FileTree.tsx:82",
+          9.3
+        ],
+        [
+          "vault src/features/source/explorer/FileTree.tsx:873",
+          8.3
+        ],
+        [
+          "vault src/features/source/explorer/FileTree.tsx:1304",
+          8.3
+        ],
+        [
+          "PinnedFoldersSection src/features/source/explorer/file-tree/PinnedFoldersSection.tsx:45",
+          4
+        ],
+        [
+          "virtualRow src/features/source/explorer/FileTree.tsx:1076",
+          1.1
+        ],
+        [
+          "f src/features/source/explorer/file-tree/PinnedFoldersSection.tsx:99",
+          1
+        ],
+        [
+          "f src/features/source/explorer/FileTree.tsx:902",
+          1
+        ],
+        [
+          "FileActionButtons src/features/source/explorer/file-tree/TreeItemActions.tsx:53",
+          1
+        ],
+        [
+          "f src/features/source/explorer/FileTree.tsx:907",
+          1
+        ],
+        [
+          "s src/features/source/browser/hooks/useDrawingRefHandlers.ts:53",
+          1
+        ],
+        [
+          "(anonymous) src/features/source/explorer/file-tree/hooks/useFlattenedTree.ts:51",
+          1
+        ],
+        [
+          "useFlattenedTree src/features/source/explorer/file-tree/hooks/useFlattenedTree.ts:44",
+          1
+        ],
+        [
+          "isPersistedStateUnchanged src/stores/persistStorage.ts:131",
+          1
+        ],
+        [
+          "(anonymous) src/stores/persistStorage.ts:300",
+          1
+        ],
+        [
+          "logUserAction src/lib/userActionLogger.ts:33",
+          1
+        ],
+        [
+          "(anonymous) src/lib/userActionLogger.ts:90",
+          1
+        ],
+        [
+          "(anonymous) src/components/shared/InlineActions/InlineActionButtons.tsx:50",
+          0.6
+        ],
+        [
+          "(anonymous) src/components/shared/FileItem/FileItemComponents.tsx:55",
+          0.6
+        ],
+        [
+          "(anonymous) src/components/shared/InlineActions/InlineActionButtons.tsx:860",
+          0.1
+        ]
+      ]
+    },
+    "select": {
+      "self": [
+        [
+          "(garbage collector)",
+          56.6
+        ],
+        [
+          "vault src/features/source/explorer/FileTree.tsx:873",
+          37.7
+        ],
+        [
+          "PinnedFoldersSection src/features/source/explorer/file-tree/PinnedFoldersSection.tsx:45",
+          29.2
+        ],
+        [
+          "set opendirSync",
+          16.3
+        ],
+        [
+          "f src/stores/slices/filesSlice.ts:2369",
+          15.8
+        ],
+        [
+          "query",
+          15.4
+        ],
+        [
+          "O.createElement node_modules/react/cjs/react.production.js:409",
+          13.3
+        ],
+        [
+          "f src/features/source/explorer/file-tree/PinnedFoldersSection.tsx:108",
+          11.5
+        ],
+        [
+          "(anonymous)",
+          11.3
+        ],
+        [
+          "getSelectionCategories src/lib/fileOperations/selection.ts:7",
+          10.9
+        ],
+        [
+          "f src/features/source/browser/hooks/useFileOperations.ts:186",
+          10.5
+        ],
+        [
+          "f src/features/source/explorer/file-tree/PinnedFoldersSection.tsx:115",
+          10.3
+        ],
+        [
+          "getBoundingClientRect",
+          10.1
+        ],
+        [
+          "f src/features/source/browser/hooks/useFileOperations.ts:170",
+          10.1
+        ],
+        [
+          "f src/features/source/browser/hooks/useFileOperations.ts:127",
+          10
+        ],
+        [
+          "f src/features/source/explorer/file-tree/PinnedFoldersSection.tsx:89",
+          9.3
+        ],
+        [
+          "updateSyncExternalStore node_modules/react-dom/cjs/react-dom-client.production.js:4685",
+          9.3
+        ],
+        [
+          "f src/features/source/browser/hooks/useFileOperations.ts:162",
+          9.1
+        ],
+        [
+          "f src/features/source/browser/hooks/useFileOperations.ts:154",
+          8.8
+        ],
+        [
+          "f src/features/source/explorer/file-tree/PinnedFoldersSection.tsx:92",
+          8.5
+        ],
+        [
+          "(anonymous) node_modules/zustand/esm/vanilla/shallow.mjs:6",
+          8.2
+        ],
+        [
+          "f src/features/source/explorer/file-tree/PinnedFoldersSection.tsx:99",
+          7.9
+        ],
+        [
+          "f src/features/source/browser/hooks/useFileOperations.ts:143",
+          7.4
+        ],
+        [
+          "reconcileChildFibersImpl node_modules/react-dom/cjs/react-dom-client.production.js:3793",
+          7.3
+        ],
+        [
+          "performUnitOfWork node_modules/react-dom/cjs/react-dom-client.production.js:11304",
+          6.7
+        ]
+      ],
+      "total": [
+        [
+          "performWorkOnRoot node_modules/react-dom/cjs/react-dom-client.production.js:10681",
+          393.8
+        ],
+        [
+          "renderRootSync node_modules/react-dom/cjs/react-dom-client.production.js:11120",
+          358.6
+        ],
+        [
+          "performUnitOfWork node_modules/react-dom/cjs/react-dom-client.production.js:11304",
+          357.5
+        ],
+        [
+          "workLoopSync node_modules/react-dom/cjs/react-dom-client.production.js:11181",
+          357.5
+        ],
+        [
+          "beginWork node_modules/react-dom/cjs/react-dom-client.production.js:7392",
+          347.9
+        ],
+        [
+          "renderWithHooks node_modules/react-dom/cjs/react-dom-client.production.js:4333",
+          321.3
+        ],
+        [
+          "performSyncWorkOnRoot node_modules/react-dom/cjs/react-dom-client.production.js:12084",
+          310.8
+        ],
+        [
+          "flushSyncWorkAcrossRoots_impl node_modules/react-dom/cjs/react-dom-client.production.js:11918",
+          310.8
+        ],
+        [
+          "processRootScheduleInMicrotask node_modules/react-dom/cjs/react-dom-client.production.js:11966",
+          310.8
+        ],
+        [
+          "(anonymous) node_modules/react-dom/cjs/react-dom-client.production.js:12089",
+          310.8
+        ],
+        [
+          "updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.production.js:6489",
+          290.8
+        ],
+        [
+          "performWorkUntilDeadline node_modules/scheduler/cjs/scheduler.production.js:121",
+          90.2
+        ],
+        [
+          "FilePane src/features/source/browser/FilePane.tsx:125",
+          85.4
+        ],
+        [
+          "O.useMemo node_modules/react/cjs/react.production.js:513",
+          85.1
+        ],
+        [
+          "updateMemo node_modules/react-dom/cjs/react-dom-client.production.js:5162",
+          84.8
+        ],
+        [
+          "performWorkOnRootViaSchedulerTask node_modules/react-dom/cjs/react-dom-client.production.js:12065",
+          83.1
+        ],
+        [
+          "PinnedFoldersSection src/features/source/explorer/file-tree/PinnedFoldersSection.tsx:45",
+          77.8
+        ],
+        [
+          "useFileOperations src/features/source/browser/hooks/useFileOperations.ts:91",
+          68.2
+        ],
+        [
+          "FileTree src/features/source/explorer/FileTree.tsx:82",
+          58.3
+        ],
+        [
+          "(garbage collector)",
+          56.6
+        ],
+        [
+          "vault src/features/source/explorer/FileTree.tsx:873",
+          45.9
+        ],
+        [
+          "vault src/features/source/explorer/FileTree.tsx:1304",
+          45.9
+        ],
+        [
+          "(anonymous)",
+          38.1
+        ],
+        [
+          "updateForwardRef node_modules/react-dom/cjs/react-dom-client.production.js:6126",
+          36.7
+        ],
+        [
+          "commitRoot node_modules/react-dom/cjs/react-dom-client.production.js:11457",
+          35.3
+        ]
+      ],
+      "app": [
+        [
+          "FilePane src/features/source/browser/FilePane.tsx:125",
+          85.4
+        ],
+        [
+          "PinnedFoldersSection src/features/source/explorer/file-tree/PinnedFoldersSection.tsx:45",
+          77.8
+        ],
+        [
+          "useFileOperations src/features/source/browser/hooks/useFileOperations.ts:91",
+          68.2
+        ],
+        [
+          "FileTree src/features/source/explorer/FileTree.tsx:82",
+          58.3
+        ],
+        [
+          "vault src/features/source/explorer/FileTree.tsx:873",
+          45.9
+        ],
+        [
+          "vault src/features/source/explorer/FileTree.tsx:1304",
+          45.9
+        ],
+        [
+          "DetailsPanel src/features/source/details/DetailsPanel.tsx:133",
+          21
+        ],
+        [
+          "(anonymous) src/stores/slices/filesSlice.ts:2367",
+          20
+        ],
+        [
+          "(anonymous) src/stores/pdmStore.ts:158",
+          17.6
+        ],
+        [
+          "f src/stores/slices/filesSlice.ts:2369",
+          15.8
+        ],
+        [
+          "useSelectionCategories src/hooks/useSelectionCategories.ts:11",
+          13.5
+        ],
+        [
+          "(anonymous) src/features/source/browser/hooks/useFileSelection.ts:77",
+          13.4
+        ],
+        [
+          "(anonymous) src/features/source/browser/FilePane.tsx:994",
+          13.4
+        ],
+        [
+          "(anonymous) src/hooks/useStableCallback.ts:24",
+          13.4
+        ],
+        [
+          "e src/features/source/browser/components/FileList/FileListBody.tsx:415",
+          13.4
+        ],
+        [
+          "(anonymous) src/features/source/browser/hooks/useFileOperations.ts:183",
+          12.9
+        ],
+        [
+          "(anonymous) src/hooks/useSelectionCategories.ts:17",
+          12.5
+        ],
+        [
+          "(anonymous) src/features/source/browser/hooks/useFileOperations.ts:124",
+          12.3
+        ],
+        [
+          "(anonymous) src/features/source/browser/hooks/useFileOperations.ts:140",
+          11.5
+        ],
+        [
+          "f src/features/source/explorer/file-tree/PinnedFoldersSection.tsx:108",
+          11.5
+        ],
+        [
+          "(anonymous) src/features/source/browser/hooks/useFileOperations.ts:151",
+          10.9
+        ],
+        [
+          "getSelectionCategories src/lib/fileOperations/selection.ts:7",
+          10.9
+        ],
+        [
+          "f src/features/source/browser/hooks/useFileOperations.ts:186",
+          10.5
+        ],
+        [
+          "f src/features/source/explorer/file-tree/PinnedFoldersSection.tsx:115",
+          10.3
+        ],
+        [
+          "f src/features/source/browser/hooks/useFileOperations.ts:170",
+          10.1
+        ]
+      ]
+    },
+    "realtime": {
+      "self": [
+        [
+          "emitRealtime src/test/fakeSupabase.ts:581",
+          74.3
+        ],
+        [
+          "structuredClone",
+          15.4
+        ],
+        [
+          "isoNow src/test/fakeSupabase.ts:619",
+          8.1
+        ],
+        [
+          "clearTimeout",
+          4.1
+        ],
+        [
+          "indexOf src/stores/fileIdIndex.ts:23",
+          4.1
+        ],
+        [
+          "findFileById src/stores/fileIdIndex.ts:42",
+          3
+        ],
+        [
+          "(garbage collector)",
+          2.7
+        ],
+        [
+          "setTimeout",
+          2.1
+        ],
+        [
+          "(anonymous) src/hooks/useRealtimeSubscriptions.ts:540",
+          2.1
+        ],
+        [
+          "realtimeBurst src/perf/app/control.ts:187",
+          2.1
+        ],
+        [
+          "(anonymous) src/hooks/useRealtimeSubscriptions.ts:379",
+          2.1
+        ],
+        [
+          "index src/perf/app/backend.ts:72",
+          2.1
+        ],
+        [
+          "logMessage src/lib/logger.ts:114",
+          2.1
+        ],
+        [
+          "querySelector",
+          1
+        ],
+        [
+          "getItem",
+          1
+        ],
+        [
+          "isDebugEnabled src/lib/logger.ts:43",
+          1
+        ],
+        [
+          "(anonymous) src/hooks/useRealtimeSubscriptions.ts:975",
+          1
+        ],
+        [
+          "user src/hooks/useRealtimeSubscriptions.ts:798",
+          1
+        ],
+        [
+          "(anonymous) perf-DhQ4RmdU.js:2",
+          0.6
+        ]
+      ],
+      "total": [
+        [
+          "realtimeBurst src/perf/app/control.ts:187",
+          125.2
+        ],
+        [
+          "(anonymous)",
+          125.2
+        ],
+        [
+          "evaluate",
+          125.2
+        ],
+        [
+          "emitRealtime src/test/fakeSupabase.ts:581",
+          121.1
+        ],
+        [
+          "(anonymous) src/hooks/useRealtimeSubscriptions.ts:540",
+          23.3
+        ],
+        [
+          "(anonymous) src/hooks/useRealtimeSubscriptions.ts:985",
+          23.3
+        ],
+        [
+          "payload src/lib/realtime.ts:173",
+          23.3
+        ],
+        [
+          "deliver src/test/fakeSupabase.ts:451",
+          23.3
+        ],
+        [
+          "structuredClone",
+          15.4
+        ],
+        [
+          "isoNow src/test/fakeSupabase.ts:619",
+          8.1
+        ],
+        [
+          "(anonymous) src/hooks/useRealtimeSubscriptions.ts:379",
+          6.2
+        ],
+        [
+          "findFileById src/stores/fileIdIndex.ts:42",
+          6.1
+        ],
+        [
+          "logMessage src/lib/logger.ts:114",
+          4.1
+        ],
+        [
+          "debug src/lib/logger.ts:181",
+          4.1
+        ],
+        [
+          "clearTimeout",
+          4.1
+        ],
+        [
+          "indexOf src/stores/fileIdIndex.ts:23",
+          4.1
+        ],
+        [
+          "id src/lib/trailingBatcher.ts:67",
+          3.1
+        ],
+        [
+          "(anonymous) src/hooks/useRealtimeSubscriptions.ts:491",
+          3.1
+        ],
+        [
+          "(garbage collector)",
+          2.7
+        ],
+        [
+          "(anonymous) perf-DhQ4RmdU.js:2",
+          2.7
+        ],
+        [
+          "setTimeout",
+          2.1
+        ],
+        [
+          "isDebugEnabled src/lib/logger.ts:43",
+          2.1
+        ],
+        [
+          "handle src/lib/trailingBatcher.ts:39",
+          2.1
+        ],
+        [
+          "(anonymous) src/lib/trailingBatcher.ts:51",
+          2.1
+        ],
+        [
+          "index src/perf/app/backend.ts:72",
+          2.1
+        ]
+      ],
+      "app": [
+        [
+          "realtimeBurst src/perf/app/control.ts:187",
+          125.2
+        ],
+        [
+          "emitRealtime src/test/fakeSupabase.ts:581",
+          121.1
+        ],
+        [
+          "(anonymous) src/hooks/useRealtimeSubscriptions.ts:540",
+          23.3
+        ],
+        [
+          "(anonymous) src/hooks/useRealtimeSubscriptions.ts:985",
+          23.3
+        ],
+        [
+          "payload src/lib/realtime.ts:173",
+          23.3
+        ],
+        [
+          "deliver src/test/fakeSupabase.ts:451",
+          23.3
+        ],
+        [
+          "isoNow src/test/fakeSupabase.ts:619",
+          8.1
+        ],
+        [
+          "(anonymous) src/hooks/useRealtimeSubscriptions.ts:379",
+          6.2
+        ],
+        [
+          "findFileById src/stores/fileIdIndex.ts:42",
+          6.1
+        ],
+        [
+          "logMessage src/lib/logger.ts:114",
+          4.1
+        ],
+        [
+          "debug src/lib/logger.ts:181",
+          4.1
+        ],
+        [
+          "indexOf src/stores/fileIdIndex.ts:23",
+          4.1
+        ],
+        [
+          "id src/lib/trailingBatcher.ts:67",
+          3.1
+        ],
+        [
+          "(anonymous) src/hooks/useRealtimeSubscriptions.ts:491",
+          3.1
+        ],
+        [
+          "isDebugEnabled src/lib/logger.ts:43",
+          2.1
+        ],
+        [
+          "handle src/lib/trailingBatcher.ts:39",
+          2.1
+        ],
+        [
+          "(anonymous) src/lib/trailingBatcher.ts:51",
+          2.1
+        ],
+        [
+          "index src/perf/app/backend.ts:72",
+          2.1
+        ],
+        [
+          "(anonymous) src/hooks/useRealtimeSubscriptions.ts:974",
+          1.7
+        ],
+        [
+          "(anonymous) src/lib/trailingBatcher.ts:38",
+          1.1
+        ],
+        [
+          "findStoredFileById src/stores/fileIdIndex.ts:47",
+          1
+        ],
+        [
+          "fileId src/hooks/useRealtimeSubscriptions.ts:241",
+          1
+        ],
+        [
+          "queued src/hooks/realtimeLocalWrites.ts:26",
+          1
+        ],
+        [
+          "(anonymous) src/hooks/useRealtimeSubscriptions.ts:975",
+          1
+        ],
+        [
+          "user src/hooks/useRealtimeSubscriptions.ts:798",
+          1
+        ]
+      ]
+    }
+  },
+  "unmodelled": [
+    [
+      "rpc(get_backup_status): rpc 'get_backup_status' called but no handler is registered",
+      39
+    ],
+    [
+      "rpc(get_google_drive_settings): rpc 'get_google_drive_settings' called but no handler is registered",
+      38
+    ],
+    [
+      "rpc(update_last_online): rpc 'update_last_online' called but no handler is registered",
+      9
+    ],
+    [
+      "from(user_sessions).select: select('\n      user_id,\n      machine_name,\n      platform,\n      last_seen,\n      users!inner (\n        email,\n        full_name,\n        avatar_url,\n        custom_avatar_url,\n        role\n      )\n    '): this embedded select shape is not modelled",
+      4
+    ],
+    [
+      "electron.getAppVersion",
+      2
+    ],
+    [
+      "electron.prewarmThumbnails.call",
+      2
+    ],
+    [
+      "electron.getUpdateStatus",
+      1
+    ],
+    [
+      "from(org_installed_extensions).select: org_installed_extensions.package_sha256: no such column in src/types/supabase.ts",
+      1
+    ],
+    [
+      "electron.consumeCrashNotice",
+      1
+    ],
+    [
+      "rpc(get_review_badge_count): rpc 'get_review_badge_count' called but no handler is registered",
+      1
+    ],
+    [
+      "rpc(get_denied_modules): rpc 'get_denied_modules' called but no handler is registered",
+      1
+    ],
+    [
+      "electron.checkEDrawingsInstalled",
+      1
+    ]
+  ]
+}
