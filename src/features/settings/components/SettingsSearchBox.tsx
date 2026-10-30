@@ -59,11 +59,12 @@ export function SettingsSearchBox() {
   }
 
   return (
-    <div className="px-2.5 pb-1 pt-3">
+    <div className="px-[17px] pt-4">
       <div className="relative flex items-center">
         <Search
-          size={14}
-          className="absolute left-2.5 text-plm-fg-muted pointer-events-none"
+          size={16}
+          strokeWidth={1.75}
+          className="pointer-events-none absolute left-2.5 text-ui-fg-secondary"
           aria-hidden
         />
         <input
@@ -76,7 +77,7 @@ export function SettingsSearchBox() {
           aria-label={t('settings.searchPlaceholder')}
           spellCheck={false}
           autoComplete="off"
-          className={`${FIELD_CLASS} h-8 pl-8 pr-7`}
+          className={`${FIELD_CLASS} h-7 bg-ui-search pl-[34px] pr-7`}
         />
         {query && (
           <button
@@ -87,7 +88,7 @@ export function SettingsSearchBox() {
             }}
             title={t('settings.searchClear')}
             aria-label={t('settings.searchClear')}
-            className="absolute right-1.5 p-1 rounded text-plm-fg-muted hover:text-plm-fg hover:bg-plm-highlight"
+            className="absolute right-1.5 rounded p-1 text-ui-fg-secondary hover:bg-ui-hover hover:text-ui-fg"
           >
             <X size={12} />
           </button>

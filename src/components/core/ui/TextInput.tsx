@@ -1,8 +1,8 @@
 import { forwardRef, type InputHTMLAttributes, type TextareaHTMLAttributes } from 'react'
 
-/** Shared look of every text field: one height, one border, one focus ring. */
+/** Shared look of every text field: one height, one fill, one focus ring. */
 export const FIELD_CLASS =
-  'w-full rounded-md border border-plm-border bg-plm-input text-[13px] text-plm-fg placeholder:text-plm-fg-muted/70 transition-colors outline-none hover:border-plm-border-light focus:border-plm-accent focus:ring-2 focus:ring-plm-accent/25 disabled:cursor-not-allowed disabled:opacity-50 aria-[invalid=true]:border-plm-error'
+  'w-full rounded-lg border border-ui-field-border bg-ui-field text-[14px] text-ui-fg placeholder:text-ui-fg-secondary transition-colors outline-none focus:border-ui-accent/70 focus:ring-2 focus:ring-ui-accent/25 disabled:cursor-not-allowed disabled:opacity-50 aria-[invalid=true]:border-ui-danger'
 
 interface TextInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> {
   size?: 'sm' | 'md'
@@ -16,7 +16,7 @@ export const TextInput = forwardRef<HTMLInputElement, TextInputProps>(function T
     <input
       ref={ref}
       {...rest}
-      className={`${FIELD_CLASS} ${size === 'sm' ? 'h-7 px-2' : 'h-8 px-2.5'} ${className}`}
+      className={`${FIELD_CLASS} ${size === 'sm' ? 'h-6 px-2 text-[13px]' : 'h-7 px-2.5'} ${className}`}
     />
   )
 })
@@ -29,7 +29,7 @@ export const TextArea = forwardRef<
     <textarea
       ref={ref}
       {...rest}
-      className={`${FIELD_CLASS} px-2.5 py-2 leading-relaxed ${className}`}
+      className={`${FIELD_CLASS} px-3 py-2 leading-[1.45] ${className}`}
     />
   )
 })

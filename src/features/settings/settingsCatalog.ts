@@ -26,7 +26,6 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Tags,
-  Trash2,
   User,
   Users,
   Webhook,
@@ -105,7 +104,7 @@ export const settingsSections = (): SettingsSection[] => [
       },
       {
         id: 'keybindings',
-        label: 'Keyboard Shortcuts',
+        label: 'Keyboard shortcuts',
         icon: Keyboard,
         description: 'Keys for moving around and acting on files.',
         keywords: ['keybindings', 'shortcuts', 'hotkeys', 'keyboard'],
@@ -116,14 +115,6 @@ export const settingsSections = (): SettingsSection[] => [
         icon: PanelLeft,
         description: 'Which modules appear in the activity bar, and in what order.',
         keywords: ['modules', 'navigation', 'menu', 'activity bar'],
-      },
-      {
-        id: 'delete-account',
-        label: 'Delete Account',
-        icon: Trash2,
-        description: 'Permanently delete your BluePLM account.',
-        danger: true,
-        keywords: ['remove', 'close account'],
       },
     ],
   },
@@ -139,7 +130,7 @@ export const settingsSections = (): SettingsSection[] => [
       },
       {
         id: 'team-members',
-        label: 'Members & Teams',
+        label: 'Members and teams',
         icon: Users,
         description: 'People in your organization, their teams and their permissions.',
         layout: 'wide',
@@ -147,7 +138,7 @@ export const settingsSections = (): SettingsSection[] => [
       },
       {
         id: 'module-access',
-        label: 'Module Access',
+        label: 'Module access',
         icon: ShieldCheck,
         description: 'Which modules each team can open.',
         layout: 'wide',
@@ -155,21 +146,21 @@ export const settingsSections = (): SettingsSection[] => [
       },
       {
         id: 'auth-providers',
-        label: 'Sign-In Methods',
+        label: 'Sign-in methods',
         icon: KeyRound,
         description: 'How people in your organization sign in.',
         keywords: ['login', 'sso', 'auth'],
       },
       {
         id: 'security-monitoring',
-        label: 'Security Monitoring',
+        label: 'Security monitoring',
         icon: ShieldAlert,
         description: 'Alerts when deletions, sign-ins, joins or backups look unusual.',
         keywords: ['security', 'alerts', 'audit', 'backup alerts'],
       },
       {
         id: 'recovery-codes',
-        label: 'Recovery Codes',
+        label: 'Recovery codes',
         icon: LifeBuoy,
         description: 'Codes that restore admin access if every admin is locked out.',
         keywords: ['admin recovery'],
@@ -185,7 +176,7 @@ export const settingsSections = (): SettingsSection[] => [
     ],
   },
   {
-    category: 'Files & Data',
+    category: 'Files and data',
     items: [
       {
         id: 'vaults',
@@ -197,7 +188,7 @@ export const settingsSections = (): SettingsSection[] => [
       },
       {
         id: 'metadata-columns',
-        label: 'File Metadata',
+        label: 'File metadata',
         icon: Columns3,
         description: 'The properties BluePLM tracks for files and shows as columns.',
         layout: 'wide',
@@ -205,14 +196,14 @@ export const settingsSections = (): SettingsSection[] => [
       },
       {
         id: 'file-workflows',
-        label: 'File Workflows',
+        label: 'File workflows',
         icon: GitBranch,
         description: 'Whether files move through workflow states, and how review stages behave.',
         keywords: ['workflow', 'review stage', 'approval'],
       },
       {
         id: 'item-designations',
-        label: 'Item Designations',
+        label: 'Item designations',
         icon: Tags,
         description: 'The kinds of item your part numbers describe.',
         keywords: ['part types'],
@@ -292,7 +283,7 @@ export const settingsSections = (): SettingsSection[] => [
     ],
   },
   {
-    category: 'This Computer',
+    category: 'This computer',
     items: [
       {
         id: 'supabase',
@@ -371,6 +362,7 @@ export const settingsCatalog: SettingsCatalog = {
     { label: 'My RFQs', keywords: ['rfq', 'quotes', 'purchasing'] },
     { label: 'Emergency Admin Recovery', keywords: ['recovery', 'admin', 'lockout'] },
     { label: 'Recovery Code', keywords: ['code', 'admin access'] },
+    { label: 'Delete account', keywords: ['remove', 'close account', 'delete my account'] },
   ],
   appearance: [
     { label: 'Theme', keywords: ['dark mode', 'colors', 'appearance'] },
@@ -712,7 +704,6 @@ export const settingsCatalog: SettingsCatalog = {
     { label: 'GitHub Repository', keywords: ['source', 'github', 'code'] },
     { label: 'Report Issues', keywords: ['bug', 'issue', 'feedback'] },
   ],
-  'delete-account': [{ label: 'I want to delete my account', keywords: ['delete'] }],
 }
 
 /** Whether a settings tab shows for this user on this host (admin-only and desktop-only gates). */

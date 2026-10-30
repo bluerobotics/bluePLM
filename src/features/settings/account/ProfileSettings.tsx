@@ -15,6 +15,7 @@ import { usePDMStore } from '@/stores/pdmStore'
 import { getSupabaseClient, useAdminRecoveryCode, supabase } from '@/lib/supabase'
 import { getInitials, getEffectiveAvatarUrl } from '@/lib/utils'
 import { ContributionHistory } from '../system/ContributionHistory'
+import { DeleteAccountSettings } from './DeleteAccountSettings'
 
 // Supabase v2 client type inference incomplete for RPC/advanced queries
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -566,6 +567,8 @@ export function ProfileSettings() {
           </SettingsGroup>
         </SettingsSection>
       )}
+
+      <DeleteAccountSettings />
     </SettingsPage>
   )
 }

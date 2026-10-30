@@ -28,7 +28,7 @@ export function SegmentedControl<T extends string>({
     <div
       role="radiogroup"
       aria-label={ariaLabel}
-      className="inline-flex flex-shrink-0 items-center gap-0.5 rounded-lg border border-plm-border bg-plm-bg-light p-0.5"
+      className="inline-flex flex-shrink-0 items-center rounded-lg border border-ui-divider bg-ui-field p-0.5"
     >
       {options.map((option) => {
         const selected = option.value === value
@@ -41,12 +41,12 @@ export function SegmentedControl<T extends string>({
             disabled={option.disabled}
             title={option.title}
             onClick={() => onChange(option.value)}
-            className={`inline-flex items-center gap-1.5 rounded-md font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-plm-accent/60 disabled:cursor-not-allowed disabled:opacity-50 ${
-              size === 'sm' ? 'h-6 px-2 text-[12px]' : 'h-7 px-3 text-[13px]'
+            className={`inline-flex items-center gap-1.5 rounded-md border text-ui-fg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ui-accent/50 disabled:cursor-not-allowed disabled:opacity-40 ${
+              size === 'sm' ? 'h-6 px-2.5 text-[13px]' : 'h-7 px-3.5 text-[14px]'
             } ${
               selected
-                ? 'bg-plm-bg text-plm-fg shadow-sm ring-1 ring-plm-border'
-                : 'text-plm-fg-muted hover:text-plm-fg'
+                ? 'border-ui-selected-border bg-ui-selected'
+                : 'border-transparent hover:bg-ui-hover'
             }`}
           >
             {option.icon}

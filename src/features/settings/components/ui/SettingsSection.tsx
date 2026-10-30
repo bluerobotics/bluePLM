@@ -11,8 +11,8 @@ interface SettingsSectionProps {
 }
 
 /**
- * A titled part of a settings page. A page is a stack of sections (`SettingsPage`); a section
- * usually holds one SettingsGroup.
+ * A titled part of a settings page. A page has no title block of its own: it opens with its first
+ * section's heading, as Claude's settings do. A section usually holds one SettingsGroup.
  */
 export function SettingsSection({
   title,
@@ -22,24 +22,29 @@ export function SettingsSection({
   className = '',
 }: SettingsSectionProps) {
   return (
-    <section className={`space-y-3 ${className}`}>
+    <section className={className}>
       {(title || actions) && (
-        <div className="flex items-end justify-between gap-4">
+        <div className="flex items-end justify-between gap-4 pb-1">
           <div className="min-w-0">
-            {title && <h3 className="text-[14px] font-semibold text-plm-fg">{title}</h3>}
+            {title && (
+              <h3 className="text-[16px] font-semibold leading-6 text-ui-fg">{title}</h3>
+            )}
             {description && (
-              <p className="mt-0.5 text-[12px] leading-relaxed text-plm-fg-muted">{description}</p>
+              <p className="mt-1 text-[14px] leading-[1.4] text-ui-fg-secondary">{description}</p>
             )}
           </div>
           {actions && <div className="flex flex-shrink-0 items-center gap-2">{actions}</div>}
         </div>
+      )}
+      {!title && !actions && description && (
+        <p className="pb-1 text-[14px] leading-[1.4] text-ui-fg-secondary">{description}</p>
       )}
       {children}
     </section>
   )
 }
 
-/** The body of a settings page: its sections, evenly spaced. */
+/** The body of a settings page: its sections, 40px apart. */
 export function SettingsPage({ children }: { children: ReactNode }) {
-  return <div className="space-y-8">{children}</div>
+  return <div className="space-y-10">{children}</div>
 }

@@ -19,7 +19,8 @@ interface SettingRowProps {
 
 /**
  * One setting: its name and a sentence about it on the left, its control on the right. Rows go
- * inside a SettingsGroup, which draws the dividers between them.
+ * inside a SettingsGroup, which draws the hairlines between them. Flush with the section heading,
+ * like Claude's settings.
  */
 export function SettingRow({
   label,
@@ -35,19 +36,19 @@ export function SettingRow({
   return (
     <div
       data-setting-row=""
-      className={`flex gap-x-8 gap-y-3 px-4 py-3.5 ${
+      className={`flex gap-x-12 gap-y-3 py-4 ${
         stacked ? 'flex-col' : 'items-center justify-between'
-      } ${disabled ? 'opacity-60' : ''} ${className}`}
+      } ${disabled ? 'opacity-50' : ''} ${className}`}
     >
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <LabelTag htmlFor={htmlFor} className="text-[13px] font-medium text-plm-fg">
+          <LabelTag htmlFor={htmlFor} className="text-[14px] leading-5 text-ui-fg">
             {label}
           </LabelTag>
           {badge}
         </div>
         {description && (
-          <div className="mt-0.5 text-[12px] leading-relaxed text-plm-fg-muted">{description}</div>
+          <div className="mt-1 text-[14px] leading-[1.4] text-ui-fg-secondary">{description}</div>
         )}
       </div>
       {children && (

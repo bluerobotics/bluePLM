@@ -20,12 +20,12 @@ const integrationIds = ['supabase', 'solidworks', 'google-drive', 'odoo', 'webho
 type DotStatus = IntegrationStatusValue | BackupStatusValue
 
 const DOT_COLOR: Record<DotStatus, string> = {
-  online: 'bg-plm-success',
-  partial: 'bg-plm-warning',
-  offline: 'bg-plm-error',
+  online: 'bg-ui-success',
+  partial: 'bg-ui-warning',
+  offline: 'bg-ui-danger',
   'not-configured': '',
   'coming-soon': '',
-  checking: 'bg-plm-accent animate-pulse',
+  checking: 'bg-ui-fg-tertiary animate-pulse',
 }
 
 const DOT_TITLE: Record<DotStatus, string> = {
@@ -82,14 +82,12 @@ export function SettingsNavigation({ activeTab, onTabChange }: SettingsNavigatio
       <SettingsSearchBox />
 
       <nav
-        className="flex-1 overflow-y-auto px-2.5 pb-4 pt-1 hide-scrollbar"
+        className="flex-1 overflow-y-auto px-[17px] pb-4 hide-scrollbar"
         aria-label={t('settings.navigation')}
       >
         {sections.map((section) => (
-          <div key={section.category} className="mt-4 first:mt-2">
-            <div className="mb-1 px-2.5 text-[11px] font-medium tracking-wide text-plm-fg-muted">
-              {section.category}
-            </div>
+          <div key={section.category} className="pt-5">
+            <div className="pb-1.5 text-[13px] leading-5 text-ui-fg-tertiary">{section.category}</div>
             <ul>
               {section.items.map((item) => {
                 const selected = activeTab === item.id && !query
@@ -108,26 +106,11 @@ export function SettingsNavigation({ activeTab, onTabChange }: SettingsNavigatio
                           onTabChange(item.id)
                         }
                       }}
-                      className={`group flex h-8 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-[13px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-plm-accent/60 ${
-                        selected
-                          ? 'bg-plm-fg/[0.08] font-medium text-plm-fg'
-                          : item.danger
-                            ? 'text-plm-error/80 hover:bg-plm-error/10 hover:text-plm-error'
-                            : 'text-plm-fg-dim hover:bg-plm-fg/[0.05] hover:text-plm-fg'
+                      className={`flex h-8 w-full items-center gap-3 rounded-lg px-[9px] text-left text-[14px] text-ui-fg outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ui-accent/50 ${
+                        selected ? 'bg-ui-selected font-medium' : 'hover:bg-ui-hover'
                       }`}
                     >
-                      <Icon
-                        size={15}
-                        strokeWidth={1.75}
-                        aria-hidden
-                        className={`flex-shrink-0 ${
-                          selected
-                            ? 'text-plm-fg'
-                            : item.danger
-                              ? 'text-current'
-                              : 'text-plm-fg-muted group-hover:text-plm-fg-dim'
-                        }`}
-                      />
+                      <Icon size={18} strokeWidth={1.6} aria-hidden className="flex-shrink-0" />
                       <span className="min-w-0 flex-1 truncate">{item.label}</span>
                       {status && <StatusDot status={status} />}
                     </button>

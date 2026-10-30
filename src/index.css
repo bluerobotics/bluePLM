@@ -41,6 +41,57 @@
   letter-spacing: normal;
 }
 
+/*
+ * UI tokens: the Claude-style neutral palette (.cursor/plans/settings-claude-aesthetic.md).
+ * Settings uses these today; the rest of the app moves to them next. Every dark theme shares the
+ * dark values; the light theme has its own.
+ */
+:root {
+  --ui-bg: #1f1f1f;
+  --ui-nav: #181818;
+  --ui-scrim: rgb(0 0 0 / 0.62);
+  --ui-field: #2a2a2a;
+  --ui-search: #252525;
+  --ui-field-border: #323232;
+  --ui-hover: #2a2a2a;
+  --ui-selected: #3b3b3b;
+  --ui-selected-border: #4d4d4d;
+  --ui-border: #2e2e2e;
+  --ui-divider: #2a2a2a;
+  --ui-fg: #ececec;
+  --ui-fg-secondary: #9d9d9d;
+  --ui-fg-tertiary: #8a8a8a;
+  --ui-accent: #557dd8;
+  --ui-switch-off: #4a4a4a;
+  --ui-danger: #e5534b;
+  --ui-success: #4fb26c;
+  --ui-warning: #d6a33d;
+  --ui-font: system-ui, 'Segoe UI Variable Text', 'Segoe UI', -apple-system, BlinkMacSystemFont,
+    'Helvetica Neue', Arial, sans-serif;
+}
+
+[data-theme="light"] {
+  --ui-bg: #ffffff;
+  --ui-nav: #f7f7f7;
+  --ui-scrim: rgb(0 0 0 / 0.32);
+  --ui-field: #f4f4f4;
+  --ui-search: #efefef;
+  --ui-field-border: #dedede;
+  --ui-hover: #ededed;
+  --ui-selected: #e4e4e4;
+  --ui-selected-border: #d4d4d4;
+  --ui-border: #e5e5e5;
+  --ui-divider: #ececec;
+  --ui-fg: #1f1f1f;
+  --ui-fg-secondary: #6b6b6b;
+  --ui-fg-tertiary: #8f8f8f;
+  --ui-accent: #3a6bd6;
+  --ui-switch-off: #cfcfcf;
+  --ui-danger: #c93c37;
+  --ui-success: #2f8a4a;
+  --ui-warning: #a86d00;
+}
+
 /* VS Code Dark Modern Theme (default) */
 :root,
 [data-theme="dark"] {

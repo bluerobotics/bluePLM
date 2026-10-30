@@ -2,13 +2,14 @@ import type { ReactNode } from 'react'
 
 export type BadgeTone = 'neutral' | 'accent' | 'success' | 'warning' | 'error' | 'info'
 
+// Quiet by default: coloured text on a faint tint, never a solid block.
 const TONE: Record<BadgeTone, string> = {
-  neutral: 'bg-plm-fg-muted/15 text-plm-fg-dim',
-  accent: 'bg-plm-accent/15 text-plm-accent',
-  success: 'bg-plm-success/15 text-plm-success',
-  warning: 'bg-plm-warning/15 text-plm-warning',
-  error: 'bg-plm-error/15 text-plm-error',
-  info: 'bg-plm-info/15 text-plm-info',
+  neutral: 'bg-ui-field text-ui-fg-secondary',
+  accent: 'bg-ui-accent/15 text-ui-accent',
+  success: 'bg-ui-success/15 text-ui-success',
+  warning: 'bg-ui-warning/15 text-ui-warning',
+  error: 'bg-ui-danger/15 text-ui-danger',
+  info: 'bg-ui-accent/15 text-ui-accent',
 }
 
 interface BadgeProps {
@@ -24,7 +25,7 @@ export function Badge({ tone = 'neutral', icon, children, className = '', title 
   return (
     <span
       title={title}
-      className={`inline-flex flex-shrink-0 items-center gap-1 whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] font-medium leading-none ${TONE[tone]} ${className}`}
+      className={`inline-flex flex-shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-1.5 py-0.5 text-[12px] font-medium leading-4 ${TONE[tone]} ${className}`}
     >
       {icon}
       {children}

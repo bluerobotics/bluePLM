@@ -2,13 +2,8 @@ import { useState } from 'react'
 import { Trash2 } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 
-import { Button, Callout, TextInput } from '@/components/core/ui'
-import {
-  SettingRow,
-  SettingsGroup,
-  SettingsPage,
-  SettingsSection,
-} from '@/features/settings/components/ui'
+import { Button, TextInput } from '@/components/core/ui'
+import { SettingRow, SettingsGroup, SettingsSection } from '@/features/settings/components/ui'
 import { getBackend } from '@/lib/backend'
 import { log } from '@/lib/logger'
 import { getSupabaseClient } from '@/lib/supabase'
@@ -66,82 +61,61 @@ export function DeleteAccountSettings() {
   }
 
   return (
-    <SettingsPage>
-      <SettingsSection title="What happens when you delete your account">
-        <SettingsGroup>
-          <ul className="list-disc space-y-1.5 py-3.5 pl-8 pr-4 text-[13px] text-plm-fg-dim marker:text-plm-error">
-            <li>Your user profile will be permanently deleted</li>
-            <li>You will be removed from your organization</li>
-            <li>All your team memberships will be removed</li>
-            <li>All your active sessions will be terminated</li>
-            <li>Any files you have checked out will be released</li>
-          </ul>
-        </SettingsGroup>
-        <Callout tone="info">
-          Activity history and file versions you created will be preserved for audit purposes
-        </Callout>
-      </SettingsSection>
-
-      <SettingsSection title="Danger zone">
-        <SettingsGroup tone="danger">
-          {!showConfirmation ? (
-            <SettingRow
-              label="This action is irreversible"
-              description="Once you delete your account, there is no way to recover it. You will need to create a new account and be re-invited to any organizations."
+    <SettingsSection title="Delete account">
+      <SettingsGroup>
+        {!showConfirmation ? (
+          <SettingRow
+            label="Delete your account"
+            description="Permanently removes your profile, organization and team memberships and signs out every device. Files you have checked out are released; activity history and file versions you created stay for audit. This cannot be undone."
+          >
+            <Button variant="danger-subtle" onClick={() => setShowConfirmation(true)}>
+              Delete account
+            </Button>
+          </SettingRow>
+        ) : (
+          <div className="space-y-3 py-4">
+            <label
+              htmlFor="settings-delete-confirmation"
+              className="block text-[14px] leading-[1.4] text-ui-fg-secondary"
             >
+              To confirm, type{' '}
+              <span className="rounded-md bg-ui-field px-1.5 py-0.5 font-mono text-ui-fg">
+                {requiredConfirmation}
+              </span>{' '}
+              below.
+            </label>
+            <TextInput
+              id="settings-delete-confirmation"
+              value={confirmationText}
+              onChange={(e) => setConfirmationText(e.target.value)}
+              placeholder={`Type "${requiredConfirmation}" to confirm`}
+              disabled={isDeleting}
+              autoFocus
+            />
+            <div className="flex items-center justify-end gap-2">
               <Button
-                variant="danger-subtle"
-                icon={<Trash2 size={14} />}
-                onClick={() => setShowConfirmation(true)}
-              >
-                I want to delete my account
-              </Button>
-            </SettingRow>
-          ) : (
-            <div className="space-y-3 px-4 py-4">
-              <label
-                htmlFor="settings-delete-confirmation"
-                className="block text-[13px] text-plm-fg-dim"
-              >
-                To confirm, type{' '}
-                <span className="rounded bg-plm-bg-secondary px-1.5 py-0.5 font-mono font-semibold text-plm-fg">
-                  {requiredConfirmation}
-                </span>{' '}
-                below:
-              </label>
-              <TextInput
-                id="settings-delete-confirmation"
-                value={confirmationText}
-                onChange={(e) => setConfirmationText(e.target.value)}
-                placeholder={`Type "${requiredConfirmation}" to confirm`}
+                variant="ghost"
+                onClick={() => {
+                  setShowConfirmation(false)
+                  setConfirmationText('')
+                }}
                 disabled={isDeleting}
-                autoFocus
-              />
-              <div className="flex items-center justify-end gap-2">
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    setShowConfirmation(false)
-                    setConfirmationText('')
-                  }}
-                  disabled={isDeleting}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  variant="danger"
-                  icon={<Trash2 size={14} />}
-                  loading={isDeleting}
-                  onClick={handleDeleteAccount}
-                  disabled={!isConfirmed}
-                >
-                  {isDeleting ? 'Deleting account...' : 'Delete my account permanently'}
-                </Button>
-              </div>
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                icon={<Trash2 size={14} />}
+                loading={isDeleting}
+                onClick={handleDeleteAccount}
+                disabled={!isConfirmed}
+              >
+                {isDeleting ? 'Deleting account...' : 'Delete my account permanently'}
+              </Button>
             </div>
-          )}
-        </SettingsGroup>
-      </SettingsSection>
-    </SettingsPage>
+          </div>
+        )}
+      </SettingsGroup>
+    </SettingsSection>
   )
 }

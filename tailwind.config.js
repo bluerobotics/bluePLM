@@ -4,10 +4,13 @@
  * bg-opacity-* utilities (Tailwind passes `var(--tw-bg-opacity)`) are not used, so they get the
  * plain variable too.
  */
-const plmColor = (name) => ({ opacityValue }) =>
+const cssVarColor = (variable) => ({ opacityValue }) =>
   opacityValue === undefined || opacityValue === '1' || String(opacityValue).startsWith('var(')
-    ? `var(--plm-${name})`
-    : `color-mix(in srgb, var(--plm-${name}) calc(${opacityValue} * 100%), transparent)`
+    ? `var(${variable})`
+    : `color-mix(in srgb, var(${variable}) calc(${opacityValue} * 100%), transparent)`
+
+const plmColor = (name) => cssVarColor(`--plm-${name}`)
+const uiColor = (name) => cssVarColor(`--ui-${name}`)
 
 /** @type {import('tailwindcss').Config} */
 module.exports = {
@@ -18,6 +21,27 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        // Claude-style UI tokens (src/index.css --ui-*): settings now, the whole app next.
+        'ui': {
+          'bg': uiColor('bg'),
+          'nav': uiColor('nav'),
+          'field': uiColor('field'),
+          'search': uiColor('search'),
+          'field-border': uiColor('field-border'),
+          'hover': uiColor('hover'),
+          'selected': uiColor('selected'),
+          'selected-border': uiColor('selected-border'),
+          'border': uiColor('border'),
+          'divider': uiColor('divider'),
+          'fg': uiColor('fg'),
+          'fg-secondary': uiColor('fg-secondary'),
+          'fg-tertiary': uiColor('fg-tertiary'),
+          'accent': uiColor('accent'),
+          'switch-off': uiColor('switch-off'),
+          'danger': uiColor('danger'),
+          'success': uiColor('success'),
+          'warning': uiColor('warning'),
+        },
         // Theme colours are CSS variables (src/index.css), mixed through plmColor() so opacity
         // modifiers such as bg-plm-accent/20 work. A bare 'var(--x)' silently drops them.
         'plm': {
@@ -53,6 +77,7 @@ module.exports = {
         }
       },
       fontFamily: {
+        'ui': ['var(--ui-font)'],
         'mono': ['JetBrains Mono', 'Cascadia Code', 'Consolas', 'Monaco', 'monospace'],
         'sans': ['Plus Jakarta Sans', 'Inter', 'Segoe UI', 'Helvetica Neue', 'Arial', 'sans-serif'],
       },

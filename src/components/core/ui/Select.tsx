@@ -17,14 +17,14 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
       <select
         ref={ref}
         {...rest}
-        className={`${FIELD_CLASS} cursor-pointer appearance-none pr-8 ${size === 'sm' ? 'h-7 pl-2' : 'h-8 pl-2.5'}`}
+        className={`${FIELD_CLASS} cursor-pointer appearance-none pr-9 ${size === 'sm' ? 'h-6 pl-2 text-[13px]' : 'h-7 pl-2.5'}`}
       >
         {children}
       </select>
       <ChevronDown
-        size={14}
+        size={16}
         aria-hidden
-        className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-plm-fg-muted"
+        className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-ui-fg-secondary"
       />
     </div>
   )

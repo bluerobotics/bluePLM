@@ -114,9 +114,6 @@ const SupabaseSettings = lazy(() =>
 const RecoveryCodeSettings = lazy(() =>
   import('../system/RecoveryCodeSettings').then((m) => ({ default: m.RecoveryCodeSettings })),
 )
-const DeleteAccountSettings = lazy(() =>
-  import('../account/DeleteAccountSettings').then((m) => ({ default: m.DeleteAccountSettings })),
-)
 interface SettingsContentProps {
   activeTab: SettingsTab
 }
@@ -124,7 +121,7 @@ interface SettingsContentProps {
 // Loading fallback for lazy-loaded settings panels
 function SettingsLoading() {
   return (
-    <div className="flex items-center justify-center h-32 text-plm-fg-muted">
+    <div className="flex h-32 items-center justify-center text-ui-fg-secondary">
       <Loader2 size={20} className="animate-spin" />
     </div>
   )
@@ -242,7 +239,8 @@ export function SettingsContent({ activeTab }: SettingsContentProps) {
       case 'about':
         return <AboutSettings />
       case 'delete-account':
-        return <DeleteAccountSettings />
+        // Account deletion is the last section of Profile; old links land there.
+        return <ProfileSettings />
       case 'extensions':
         return <OrgExtensionsPanel />
       default:
@@ -254,31 +252,21 @@ export function SettingsContent({ activeTab }: SettingsContentProps) {
     return <SettingsSearchResults />
   }
 
-  const item = findSettingsItem(activeTab)
-  const layout = item?.layout ?? 'default'
-  const header = item && (
-    <header className="mb-7 flex-shrink-0">
-      <h1 className="text-[20px] font-semibold tracking-tight text-plm-fg">{item.label}</h1>
-      <p className="mt-1 text-[13px] text-plm-fg-muted">{item.description}</p>
-    </header>
-  )
+  const layout = findSettingsItem(activeTab)?.layout ?? 'default'
 
+  // No page title block: a page opens with its first section heading, as in Claude's settings.
   // A full page (the log viewer) fills the height and scrolls itself.
   if (layout === 'full') {
     return (
-      <div ref={containerRef} className="flex min-h-0 flex-1 flex-col px-8 pb-6 pt-7">
-        {header}
-        <div className="min-h-0 flex-1">
-          <Suspense fallback={<SettingsLoading />}>{renderContent()}</Suspense>
-        </div>
+      <div ref={containerRef} className="flex min-h-0 flex-1 flex-col px-4 pb-4 pt-4">
+        <Suspense fallback={<SettingsLoading />}>{renderContent()}</Suspense>
       </div>
     )
   }
 
   return (
     <div ref={containerRef} className="min-h-0 flex-1 overflow-y-auto">
-      <div className={`mx-auto px-8 pb-16 pt-7 ${layout === 'wide' ? 'max-w-none' : 'max-w-[860px]'}`}>
-        {header}
+      <div className="px-4 pb-12 pt-4">
         <Suspense fallback={<SettingsLoading />}>{renderContent()}</Suspense>
       </div>
     </div>
