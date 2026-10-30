@@ -1,0 +1,82 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Theme tokens: the same values as the desktop's dark and light themes (src/index.css). */
+:root,
+[data-theme='dark'] {
+  --plm-bg: #181818;
+  --plm-bg-light: #1f1f1f;
+  --plm-bg-lighter: #252526;
+  --plm-bg-secondary: #1f1f1f;
+  --plm-sidebar: #181818;
+  --plm-activitybar: #181818;
+  --plm-panel: #181818;
+  --plm-input: #313131;
+  --plm-border: #2b2b2b;
+  --plm-border-light: #3c3c3c;
+  --plm-fg: #cccccc;
+  --plm-fg-dim: #b4b4b4;
+  --plm-fg-muted: #6e6e6e;
+  --plm-accent: #0078d4;
+  --plm-accent-hover: #1177bb;
+  --plm-accent-dim: #005a9e;
+  --plm-selection: #264f78;
+  --plm-highlight: rgba(0, 120, 212, 0.15);
+  --plm-success: #4ade80;
+  --plm-warning: #dcdcaa;
+  --plm-error: #f14c4c;
+  --plm-info: #3794ff;
+  --plm-wip: #dcdcaa;
+  --plm-released: #4ade80;
+  --plm-in-review: #3794ff;
+  --plm-obsolete: #6b7280;
+  --plm-locked: #f14c4c;
+  color-scheme: dark;
+}
+
+[data-theme='light'] {
+  --plm-bg: #ffffff;
+  --plm-bg-light: #f3f3f3;
+  --plm-bg-lighter: #e8e8e8;
+  --plm-bg-secondary: #f3f3f3;
+  --plm-sidebar: #f3f3f3;
+  --plm-activitybar: #f0f0f0;
+  --plm-panel: #ffffff;
+  --plm-input: #ffffff;
+  --plm-border: #e0e0e0;
+  --plm-border-light: #c8c8c8;
+  --plm-fg: #333333;
+  --plm-fg-dim: #444444;
+  --plm-fg-muted: #717171;
+  --plm-accent: #0078d4;
+  --plm-accent-hover: #005a9e;
+  --plm-accent-dim: #004578;
+  --plm-selection: rgba(0, 120, 212, 0.15);
+  --plm-highlight: rgba(0, 120, 212, 0.08);
+  --plm-success: #388a34;
+  --plm-warning: #bf8803;
+  --plm-error: #e51400;
+  --plm-info: #0066bf;
+  --plm-wip: #bf8803;
+  --plm-released: #388a34;
+  --plm-in-review: #0066bf;
+  --plm-obsolete: #6b7280;
+  --plm-locked: #e51400;
+  color-scheme: light;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--plm-bg);
+  color: var(--plm-fg);
+  font-family: 'Plus Jakarta Sans', Inter, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+}

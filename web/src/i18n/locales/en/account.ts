@@ -1,0 +1,53 @@
+// Two levels below the namespace at most: TranslationValue allows namespace -> group -> key.
+
+export const account: Record<string, string | Record<string, string>> = {
+  title: 'Account',
+  profile: {
+    heading: 'Profile',
+    email: 'Email',
+    organization: 'Organization',
+    role: 'Role',
+    teams: 'Teams',
+    noTeams: 'No teams',
+    administrator: 'Administrator',
+    displayName: 'Display name',
+    save: 'Save name',
+    saving: 'Saving…',
+    saved: 'Name saved',
+    empty: 'Enter a name.',
+    tooLong: 'The name is too long.',
+    failed: 'Could not save the name: {{message}}',
+    refused: 'The server refused the change.',
+  },
+  roles: {
+    admin: 'Admin',
+    engineer: 'Engineer',
+    viewer: 'Viewer',
+  },
+  preferences: {
+    heading: 'Preferences',
+    language: 'Language',
+    theme: 'Theme',
+    dark: 'Dark',
+    light: 'Light',
+    savedInBrowser: 'Saved in this browser.',
+  },
+  languageNames: {
+    en: 'English',
+    de: 'Deutsch',
+    es: 'Español',
+    fr: 'Français',
+    pt: 'Português',
+    'zh-CN': '简体中文',
+    'zh-TW': '繁體中文',
+  },
+  session: {
+    heading: 'Sessions',
+    signOut: 'Sign out',
+    signOutAll: 'Sign out of all sessions',
+    signOutAllHelp: 'Ends every session of this account, including the desktop app and other browsers.',
+    signOutAllConfirm: 'Sign out everywhere?',
+    confirm: 'Confirm',
+    failed: 'Could not sign out: {{message}}',
+  },
+}

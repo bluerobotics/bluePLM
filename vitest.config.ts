@@ -11,6 +11,8 @@ export default defineConfig({
       'api/**/*.test.ts',
       'src/**/*.test.ts',
       'src/**/*.test.tsx',
+      'web/src/**/*.test.ts',
+      'web/src/**/*.test.tsx',
       'electron/**/*.test.ts',
       'scripts/**/*.test.ts',
     ],
@@ -29,6 +31,7 @@ export default defineConfig({
   // imports through '@/' fails to resolve, which rules out most of src.
   resolve: {
     alias: {
+      '@web': resolve(__dirname, 'web/src'),
       '@': resolve(__dirname, 'src'),
     },
   },

@@ -71,6 +71,9 @@ function initializeClient() {
 function getClientOptions() {
   return {
     auth: {
+      // BluePLM Web (vite.web.config.ts) signs in with PKCE so OAuth never returns tokens in the
+      // URL. The desktop build leaves the flow as it was.
+      ...(import.meta.env.BLUEPLM_WEB ? { flowType: 'pkce' as const } : {}),
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: true,

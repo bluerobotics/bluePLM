@@ -21,14 +21,18 @@
     
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@web/*": ["web/src/*"]
     }
   },
   // `scripts/**/*.ts` is checked here rather than under tsconfig.node.json because
   // scripts/repair-config-maps.ts imports src/lib/metadata/* by explicit `.ts` specifier, which
   // needs the `allowImportingTsExtensions` and `bundler` resolution this config sets. Checking it
   // against the same config as the modules it reuses is also what makes the check meaningful.
-  "include": ["src", "scripts/**/*.ts"],
+  "include": ["src", "web/src", "scripts/**/*.ts"],
+  // securityHeaders.ts (and its test) run in Node at build time from vite.web.config.ts, so they
+  // belong to tsconfig.node.json; listing them here too makes tsc report TS6305.
+  "exclude": ["web/src/app/securityHeaders.ts", "web/src/app/securityHeaders.test.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
 

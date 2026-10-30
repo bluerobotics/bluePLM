@@ -19,6 +19,7 @@ export default tseslint.config(
     ignores: [
       '**/dist/**',
       'dist-electron/**',
+      'dist-web/**',
       'release/**',
       'docs/**',
       'native/**',

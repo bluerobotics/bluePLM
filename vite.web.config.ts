@@ -1,0 +1,75 @@
+import { defineConfig, loadEnv, type Plugin } from 'vite'
+import react from '@vitejs/plugin-react'
+import { existsSync } from 'fs'
+import { resolve } from 'path'
+import pkg from './package.json'
+import { buildHeadersFile, findInlineCode } from './web/src/app/securityHeaders'
+
+/**
+ * Writes Cloudflare Pages' `_headers` (CSP naming the pinned Supabase host, HSTS, caching) and
+ * refuses a build whose index.html carries inline code the CSP would block. Deep links need no
+ * `_redirects`: with no top-level 404.html, Pages serves index.html for unknown paths (SPA mode).
+ */
+function cloudflarePagesHeaders(supabaseUrl: string): Plugin {
+  return {
+    name: 'blueplm-web:cloudflare-pages-headers',
+    apply: 'build',
+    // After vite:build-html, so index.html is in the bundle when it is checked.
+    enforce: 'post',
+    generateBundle(_options, bundle) {
+      for (const name of ['_headers', '_redirects', '404.html']) {
+        if (existsSync(resolve(__dirname, 'web/public', name))) {
+          this.error(`web/public/${name} must not exist: _headers is generated and 404.html would end SPA mode`)
+        }
+      }
+      const html = bundle['index.html']
+      if (html?.type === 'asset') {
+        const findings = findInlineCode(String(html.source))
+        if (findings.length > 0) this.error(`index.html has inline code the CSP blocks: ${findings.join('; ')}`)
+      }
+      this.emitFile({ type: 'asset', fileName: '_headers', source: buildHeadersFile(supabaseUrl) })
+    },
+  }
+}
+
+// BluePLM Web (blueplm.io): a browser-only client of the same Supabase backend. It has no
+// Electron main process, no preload and no local vault, so it is built from `web/` with its own
+// entry and never through vite.config.ts, which wires in the Electron plugins.
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, __dirname, 'VITE_')
+  if (mode === 'production' && (!env.VITE_SUPABASE_URL || !env.VITE_SUPABASE_ANON_KEY)) {
+    // The web build pins its backend at build time. A build without one would ship a client that
+    // cannot sign anyone in, so refuse it here instead of at runtime.
+    throw new Error('BluePLM Web: set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY for the build')
+  }
+
+  return {
+    root: resolve(__dirname, 'web'),
+    envDir: __dirname,
+    publicDir: resolve(__dirname, 'web/public'),
+    define: {
+      'import.meta.env.PACKAGE_VERSION': JSON.stringify(pkg.version),
+      'import.meta.env.BLUEPLM_WEB': 'true',
+    },
+    plugins: [react(), ...(env.VITE_SUPABASE_URL ? [cloudflarePagesHeaders(env.VITE_SUPABASE_URL)] : [])],
+    css: {
+      postcss: resolve(__dirname, 'web'),
+    },
+    resolve: {
+      alias: {
+        '@web': resolve(__dirname, 'web/src'),
+        '@': resolve(__dirname, 'src'),
+      },
+    },
+    server: {
+      port: 5174,
+      strictPort: true,
+    },
+    build: {
+      outDir: resolve(__dirname, 'dist-web'),
+      emptyOutDir: true,
+      sourcemap: false,
+      target: 'es2020',
+    },
+  }
+})

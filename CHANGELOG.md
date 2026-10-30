@@ -6,6 +6,17 @@ All notable changes to BluePLM will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **BluePLM Web.** A browser client of the same backend, built from `web/` (`npm run build:web`)
+  for Cloudflare Pages at blueplm.io. Sign in with email or Google, browse vaults and folders,
+  search, open a file's details, versions and references, download any version, take part in
+  drawing and gate reviews (with the drawing PDF), request a review, run ECOs and deviations, and
+  administer users, invites, teams and vault access. Checking files in and out and anything that
+  touches SOLIDWORKS or the local vault stays in the desktop app. The backend is fixed at build
+  time, sign-in uses PKCE, and the build writes a strict CSP with Trusted Types. Deploy steps:
+  `web/DEPLOY.md`. Desktop behaviour is unchanged.
+
 ## [4.9.0] - 2026-10-29
 
 Schema 110 (no API or SolidWorks service change, so it runs on API 3.0.0 and service 1.26.0 like

@@ -1,5 +1,5 @@
 // Backup service - simplified to use restic directly for everything
-import { getSupabaseClient } from './supabase'
+import { getSupabaseClient } from './supabase/client'
 import { log } from '@/lib/logger'
 
 // ============================================

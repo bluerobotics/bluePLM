@@ -12,6 +12,6 @@
   },
   // api/src/native-extensions/safeExtract.ts is the one package extractor; the API
   // (built on its own from api/) and the desktop both use it.
-  "include": ["vite.config.ts", "vite.perf.ts", "electron/**/*.ts", "api/src/native-extensions/safeExtract.ts"]
+  "include": ["vite.config.ts", "vite.perf.ts", "vite.web.config.ts", "web/src/app/securityHeaders.ts", "web/src/app/securityHeaders.test.ts", "electron/**/*.ts", "api/src/native-extensions/safeExtract.ts"]
 }
 
