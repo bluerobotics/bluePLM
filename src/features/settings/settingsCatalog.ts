@@ -49,6 +49,7 @@ export const settingsSections = (): SettingsSection[] => [
       { id: 'item-designations', label: 'Item Designations', keywords: ['part types'] },
       { id: 'rfq', label: 'RFQ Settings', keywords: ['quote', 'request for quote'] },
       { id: 'recovery-codes', label: 'Recovery Codes', keywords: ['admin recovery'] },
+      { id: 'security-monitoring', label: 'Security Monitoring', keywords: ['security', 'alerts', 'audit', 'backup alerts'] },
     ],
   },
   {
@@ -264,6 +265,15 @@ export const settingsCatalog: SettingsCatalog = {
     { label: 'Show notes column', keywords: ['notes'] },
     { label: 'Terms and Conditions', keywords: ['legal', 't&c'] },
     { label: 'Footer Text', keywords: ['footer'] },
+  ],
+  'security-monitoring': [
+    { label: 'Monitor this organization', keywords: ['security', 'alerts'] },
+    { label: 'Files permanently deleted', keywords: ['purge', 'threshold'] },
+    { label: 'Stored file versions removed', keywords: ['storage', 'threshold'] },
+    { label: 'Password reset or repeated sign-up requests', keywords: ['sign-in', 'auth'] },
+    { label: 'Members who join through an email domain', keywords: ['domain', 'join'] },
+    { label: 'Backup alerts', keywords: ['backup', 'overdue'] },
+    { label: 'Daily summary', keywords: ['summary', 'digest'] },
   ],
   'file-workflows': [
     { label: 'Use file workflows', keywords: ['enable workflows', 'states'] },

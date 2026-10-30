@@ -24,6 +24,7 @@ import { FakeSupabase, FakeSupabaseMisuse, type Row, type RowOf, type TableName 
 import { defineFileRpcs } from '../fakeSupabaseRpcs'
 import type { MachineLink } from './network'
 import { RealtimeNetwork } from './network'
+import { TOMBSTONE_TABLES } from '@/lib/realtimeTombstones'
 import { defineMultiMachineRpcs } from './serverRpcs'
 
 export const ORG_ID = 'org-1'
@@ -82,6 +83,8 @@ export class SharedServer {
     }
   }
 
+  private tombstoneSeq = 0
+
   /** Publish every change since the last call: what Postgres would have sent, row by row. */
   publishChanges(): void {
     const events: Parameters<RealtimeNetwork['publish']>[0] = []
@@ -100,7 +103,26 @@ export class SharedServer {
         }
       }
       for (const [id, previous] of before) {
-        if (!seen.has(id)) events.push({ table, eventType: 'DELETE', new: {}, old: previous.row, commit_timestamp })
+        // Schema 502: the publication sends no DELETE; a deleted row of a tombstone table arrives
+        // as a realtime_tombstone insert, as it does from Supabase.
+        if (!seen.has(id) && (TOMBSTONE_TABLES as readonly string[]).includes(table)) {
+          const old = previous.row
+          events.push({
+            table: 'realtime_tombstone',
+            eventType: 'INSERT',
+            new: {
+              id: ++this.tombstoneSeq,
+              org_id: old.org_id ?? null,
+              table_name: table,
+              row_id: id,
+              vault_id: old.vault_id ?? null,
+              subject_user_id: old.user_id ?? null,
+              created_at: commit_timestamp,
+            },
+            old: {},
+            commit_timestamp,
+          })
+        }
       }
     }
     this.takeSnapshot()

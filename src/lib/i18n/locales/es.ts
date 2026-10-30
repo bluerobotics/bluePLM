@@ -2,6 +2,7 @@ import type { TranslationDict } from '../types'
 import { reviewsUiStrings } from './reviewsUi'
 import { reviewPackageStrings } from './reviewPackage'
 import { dbUpgradeStrings } from './dbUpgrade'
+import { securityMonitoringStrings } from './securityMonitoring'
 
 // Spanish translations
 export const es: TranslationDict = {
@@ -38,6 +39,7 @@ export const es: TranslationDict = {
   ...reviewsUiStrings.es,
   reviewPackage: reviewPackageStrings.es,
   dbUpgrade: dbUpgradeStrings.es,
+  securityMonitoring: securityMonitoringStrings.es,
   checkoutDisplay: {
     you: 'Tú',
     loadingOwner: 'Cargando propietario del checkout',

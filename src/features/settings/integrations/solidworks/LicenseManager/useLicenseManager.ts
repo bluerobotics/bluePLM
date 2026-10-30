@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
+import { onRowDeleted } from '@/lib/realtimeTombstones'
 import { usePDMStore } from '@/stores/pdmStore'
 import { useShallow } from 'zustand/react/shallow'
 import { log } from '@/lib/logger'
@@ -222,7 +223,9 @@ export function useLicenseManager() {
           fetchLicenses()
         },
       )
-      .subscribe()
+    // Deletes arrive as tombstones (schema 502).
+    onRowDeleted(licensesChannel, 'solidworks_license', () => fetchLicenses())
+    licensesChannel.subscribe()
 
     const assignmentsChannel = supabase
       .channel('solidworks_license_assignments_changes')
@@ -237,7 +240,8 @@ export function useLicenseManager() {
           fetchLicenses()
         },
       )
-      .subscribe()
+    onRowDeleted(assignmentsChannel, 'solidworks_license_assignment', () => fetchLicenses())
+    assignmentsChannel.subscribe()
 
     return () => {
       licensesChannel.unsubscribe()

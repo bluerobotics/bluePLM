@@ -57,6 +57,11 @@ const FileWorkflowsSettings = lazy(() =>
     default: m.FileWorkflowsSettings,
   })),
 )
+const SecurityMonitoringSettings = lazy(() =>
+  import('../organization/SecurityMonitoringSettings').then((m) => ({
+    default: m.SecurityMonitoringSettings,
+  })),
+)
 const MetadataColumnsSettings = lazy(() =>
   import('../organization/MetadataColumnsSettings').then((m) => ({
     default: m.MetadataColumnsSettings,
@@ -193,6 +198,8 @@ export function SettingsContent({ activeTab }: SettingsContentProps) {
         return <MetadataColumnsSettings />
       case 'file-workflows':
         return <FileWorkflowsSettings />
+      case 'security-monitoring':
+        return <SecurityMonitoringSettings />
       case 'item-designations':
         return <ItemDesignationsSettings />
       case 'backup':

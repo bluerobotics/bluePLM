@@ -1604,6 +1604,12 @@ ON CONFLICT (kind, name) DO UPDATE
 -- ===========================================
 -- Release
 -- ===========================================
+-- An app older than the one shipping 0502 listens for DELETE events, which this release no longer
+-- publishes, so it would keep showing purged files, lost vaults and old memberships until a reload.
+-- It updates first (the app's forced-update screen reads this).
+CREATE OR REPLACE FUNCTION client_min_version() RETURNS TEXT
+LANGUAGE sql IMMUTABLE AS $$ SELECT '5.1.0'::text $$;
+
 CREATE OR REPLACE FUNCTION schema_release_version() RETURNS INTEGER
 LANGUAGE sql IMMUTABLE AS $$ SELECT 502 $$;
 

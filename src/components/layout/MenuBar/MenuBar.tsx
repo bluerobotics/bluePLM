@@ -38,6 +38,7 @@ import { SolidWorksStatusIndicator } from '@/components/shared/SolidWorksStatusI
 import { getMachineId } from '@/lib/backup'
 import { log } from '@/lib/logger'
 import { hasDesktop } from '@/lib/platform'
+import { signupErrorText } from '@/lib/auth/signupRefusal'
 
 // Get user's initials for avatar fallback (1-2 characters from name or email)
 function getUserInitial(user: { full_name?: string | null; email?: string } | null): string {
@@ -393,7 +394,7 @@ export function MenuBar({ minimal = false }: MenuBarProps) {
 
       if (error) {
         log.error('[MenuBar]', 'Sign in failed', { error: error.message })
-        addToast('error', `Sign in failed: ${error.message}`)
+        addToast('error', `Sign in failed: ${signupErrorText(error.message)}`)
       } else {
         log.info(
           '[MenuBar]',

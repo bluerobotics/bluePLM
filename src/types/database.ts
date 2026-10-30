@@ -109,6 +109,9 @@ export type SupplierContact = Tables<'supplier_contact'>
 export type ReviewStatus = 'pending' | 'approved' | 'rejected' | 'cancelled' | 'kicked_back'
 
 export type NotificationType =
+  // Security monitoring (schema 502, security_monitor_run)
+  | 'security_alert'
+  | 'security_summary'
   // File Reviews
   | 'review_request'
   | 'review_approved'

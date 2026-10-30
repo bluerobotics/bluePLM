@@ -16,6 +16,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 import type { Database } from '@/types/supabase'
+import type { TombstoneTable } from '@/lib/realtimeTombstones'
 
 import { loadSchemaShape, type SchemaShape } from './supabaseSchema'
 
@@ -600,6 +601,22 @@ export class FakeSupabase {
       })
     }
     return delivered
+  }
+
+  /**
+   * Deliver a row's deletion the way Supabase does from schema 502: the publication sends no
+   * DELETE, the database writes a realtime_tombstone row and its INSERT is delivered.
+   */
+  emitDelete(table: TombstoneTable, old: Row): number {
+    return this.emitRealtime('realtime_tombstone' as TableName, 'INSERT', {
+      id: this.now,
+      org_id: old.org_id ?? null,
+      table_name: table,
+      row_id: String(old.id ?? old.extension_id),
+      vault_id: old.vault_id ?? null,
+      subject_user_id: old.user_id ?? null,
+      created_at: this.isoNow(),
+    })
   }
 
   /** Change a row and deliver the UPDATE its write would echo. Returns the updated row. */

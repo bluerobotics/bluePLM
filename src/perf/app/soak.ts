@@ -134,7 +134,7 @@ export function installSoak(
 
   const insertAndDelete = (count: number) => {
     let delivered = 0
-    for (const row of inserted) delivered += db.emitRealtime('file', 'DELETE', {}, row)
+    for (const row of inserted) delivered += db.emitDelete('file', row)
     inserted = []
     for (let i = 0; i < count; i++) {
       const base = backend.fileRow((insertSerial * 31) % total)

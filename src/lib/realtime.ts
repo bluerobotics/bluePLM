@@ -7,9 +7,16 @@
  * - State changes (see releases in real-time)
  *
  * New files require manual refresh (F5) - less critical.
+ *
+ * Deletes (schema 502): the publication sends no DELETE events, because Realtime cannot check
+ * RLS on a deleted row and sent its key to every subscriber in every organization. Each channel
+ * that acts on deletes adds `onRowDeleted` for its table and gets the delete from a
+ * `realtime_tombstone` insert, which RLS does filter. Only the deleted row's key is known, as it
+ * was with DELETE events.
  */
 
 import { supabase } from './supabase'
+import { onRowDeleted } from './realtimeTombstones'
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import type { PDMFile } from '../types/pdm'
 import type { Organization } from '../types/pdm'
@@ -177,7 +184,11 @@ export function subscribeToFiles(
         onFileChange(eventType, newFile, oldFile)
       },
     )
-    .subscribe(onStatus)
+  onRowDeleted(filesChannel, 'file', (row) => {
+    const gone = { id: row.row_id } as PDMFile
+    onFileChange('DELETE', gone, gone)
+  })
+  filesChannel.subscribe(onStatus)
 
   // Return unsubscribe function
   return () => {
@@ -230,7 +241,11 @@ export function subscribeToFolders(
         onFolderChange(eventType, newFolder, oldFolder)
       },
     )
-    .subscribe()
+  onRowDeleted(foldersChannel, 'folder', (row) => {
+    const gone = { id: row.row_id, org_id: row.org_id, vault_id: row.vault_id } as FolderRealtimeRow
+    onFolderChange('DELETE', gone, gone)
+  })
+  foldersChannel.subscribe()
 
   // Return unsubscribe function
   return () => {
@@ -381,28 +396,16 @@ export function subscribeToColorSwatches(
         )
       },
     )
-    .on(
-      'postgres_changes',
-      {
-        event: 'DELETE',
-        schema: 'public',
-        table: 'color_swatch',
-        filter: `org_id=eq.${orgId}`,
-      },
-      (payload) => {
-        onSwatchChange(
-          'DELETE',
-          payload.old as {
-            id: string
-            color: string
-            org_id: string | null
-            user_id: string | null
-            created_at: string
-          },
-        )
-      },
-    )
-    .subscribe()
+  onRowDeleted(colorSwatchesChannel, 'color_swatch', (row) => {
+    onSwatchChange('DELETE', {
+      id: row.row_id,
+      color: '',
+      org_id: row.org_id,
+      user_id: null,
+      created_at: row.created_at,
+    })
+  })
+  colorSwatchesChannel.subscribe()
 
   // Return unsubscribe function
   return () => {
@@ -457,7 +460,11 @@ export function subscribeToVaults(orgId: string, onVaultChange: VaultChangeCallb
         onVaultChange(eventType, newVault, oldVault)
       },
     )
-    .subscribe()
+  onRowDeleted(vaultsChannel, 'vault', (row) => {
+    const gone = { id: row.row_id, name: '', slug: '', org_id: row.org_id, is_default: null }
+    onVaultChange('DELETE', gone, gone)
+  })
+  vaultsChannel.subscribe()
 
   // Return unsubscribe function
   return () => {
@@ -541,7 +548,13 @@ export function subscribeToMemberChanges(
         }
       },
     )
-    .subscribe()
+  onRowDeleted(memberChangesChannel, 'team_member', (row) => {
+    if (row.subject_user_id) onMemberChange('team_member', 'DELETE', row.subject_user_id)
+  })
+  onRowDeleted(memberChangesChannel, 'user_workflow_role', (row) => {
+    if (row.subject_user_id) onMemberChange('workflow_role', 'DELETE', row.subject_user_id)
+  })
+  memberChangesChannel.subscribe()
 
   // Return unsubscribe function
   return () => {
@@ -704,7 +717,18 @@ export function subscribeToPermissions(
         onPermissionChange('teams', eventType)
       },
     )
-    .subscribe()
+  // A delete names its member; the old DELETE events ignored the user filter and reached everyone.
+  onRowDeleted(permissionsChannel, 'vault_access', (row) => {
+    if (row.subject_user_id === userId) onPermissionChange('vault_access', 'DELETE', userId)
+  })
+  onRowDeleted(permissionsChannel, 'team_member', (row) => {
+    if (row.subject_user_id === userId) onPermissionChange('team_member', 'DELETE', userId)
+  })
+  onRowDeleted(permissionsChannel, 'user_workflow_role', (row) => {
+    if (row.subject_user_id === userId) onPermissionChange('workflow_role', 'DELETE', userId)
+  })
+  onRowDeleted(permissionsChannel, 'team', () => onPermissionChange('teams', 'DELETE'))
+  permissionsChannel.subscribe()
 
   // Return unsubscribe function
   return () => {

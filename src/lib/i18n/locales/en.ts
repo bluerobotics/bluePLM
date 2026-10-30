@@ -2,6 +2,7 @@ import type { TranslationDict } from '../types'
 import { reviewsUiStrings } from './reviewsUi'
 import { reviewPackageStrings } from './reviewPackage'
 import { dbUpgradeStrings } from './dbUpgrade'
+import { securityMonitoringStrings } from './securityMonitoring'
 
 // English translations (default/fallback)
 export const en: TranslationDict = {
@@ -38,6 +39,7 @@ export const en: TranslationDict = {
   ...reviewsUiStrings.en,
   reviewPackage: reviewPackageStrings.en,
   dbUpgrade: dbUpgradeStrings.en,
+  securityMonitoring: securityMonitoringStrings.en,
   app: {
     recoveredFromCrash: 'BluePLM stopped responding and reloaded. Your vault is being re-read.',
   },

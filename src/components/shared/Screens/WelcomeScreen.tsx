@@ -43,6 +43,7 @@ import {
 } from './welcomeCredentialAuth'
 import { WorkOfflineButton } from './WorkOfflineButton'
 import { hasDesktop } from '@/lib/platform'
+import { readAuthRedirectError, signupErrorText } from '@/lib/auth/signupRefusal'
 import { connectWebVault } from '@/lib/webVault'
 
 // Build vault path based on platform
@@ -166,6 +167,16 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
   const [setupVault, setSetupVault] = useState<Vault | null>(null)
   const [setupVaultPath, setSetupVaultPath] = useState<string | null>(null)
   const [setupVaultSyncStats, setSetupVaultSyncStats] = useState<VaultSyncStats | null>(null)
+
+  // BluePLM Web: a Google sign-in refused by Supabase Auth (the sign-up hook, schema 502) comes back
+  // to this page with the reason in the URL. Show it, then drop it from the address bar.
+  useEffect(() => {
+    if (hasDesktop()) return
+    const redirectError = readAuthRedirectError(window.location)
+    if (!redirectError) return
+    setAuthError(signupErrorText(redirectError))
+    window.history.replaceState(null, '', window.location.pathname)
+  }, [])
 
   // Get platform on mount
   useEffect(() => {
@@ -579,7 +590,7 @@ export function WelcomeScreen({ onOpenRecentVault, onChangeOrg }: WelcomeScreenP
 
       if (error) {
         log.error('[WelcomeScreen]', 'Sign in failed', { error: error.message })
-        const errorMsg = error.message || 'Sign in failed'
+        const errorMsg = signupErrorText(error.message || 'Sign in failed')
         setAuthError(errorMsg)
         setStatusMessage(`Sign in failed: ${errorMsg}`)
       } else {
