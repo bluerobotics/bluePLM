@@ -62,7 +62,7 @@ CREATE TABLE file (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), org_id uuid, v
 CREATE TABLE folder (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), org_id uuid, vault_id uuid);
 CREATE TABLE color_swatch (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id uuid, org_id uuid, color text);
 CREATE TABLE module_access (org_id uuid, module_id text, user_id uuid, team_id uuid);
-CREATE TABLE pending_org_member (org_id uuid, email text, claimed_at timestamptz);
+CREATE TABLE pending_org_member (org_id uuid, email text, claimed_at timestamptz, expires_at timestamptz);
 CREATE TABLE blocked_user (org_id uuid, email text);
 CREATE TABLE supplier_contact (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), email text UNIQUE);
 CREATE ROLE supabase_auth_admin;
@@ -466,7 +466,10 @@ describe('release manifest', () => {
     // The redefined 5.0 function takes 0502's marker.
     expect(entries.find((e) => e.name === 'verify_and_stamp_schema()')?.requires).toBe('schema_list_problems')
     for (const e of entries.filter((x) => x.kind === 'function' && x.requires)) {
-      const src = (await one<{ src: string }>(`SELECT prosrc AS src FROM pg_proc WHERE oid = $1::regprocedure`, [e.name])).src
+      // The stamp matches with comments and string literals removed (sql_strip_noise), so a marker
+      // that only appears inside a quoted string would never be found there.
+      const raw = (await one<{ src: string }>(`SELECT prosrc AS src FROM pg_proc WHERE oid = $1::regprocedure`, [e.name])).src
+      const src = raw.replace(/--[^\n]*/g, '').replace(/'(?:[^']|'')*'/g, "''")
       for (const token of (e.requires ?? '').split(' && ')) expect(src, `${e.name}: ${token}`).toContain(token)
     }
   })

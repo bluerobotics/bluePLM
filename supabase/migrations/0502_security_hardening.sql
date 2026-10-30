@@ -19,6 +19,7 @@
 --      release checks once a day. Thresholds are per organization (org_security_setting).
 --   6. auth_hook_before_user_created(jsonb): Supabase Auth's Before User Created hook. No account
 --      is created for an address with no invitation, organization domain or supplier contact.
+--      org_create_with_founder() creates an organization with its founding admin's invitation.
 --
 -- Runs in one transaction under the migration runner. Idempotent where the runner may meet a
 -- partly prepared database (IF NOT EXISTS, CREATE OR REPLACE, DROP ... IF EXISTS before CREATE).
@@ -524,6 +525,7 @@ SELECT s, 'baseline', 500 FROM unnest(ARRAY[
   'can_run_transition(uuid, uuid)',
   'can_user_access_vault(uuid, uuid)',
   'check_anon_reach()',
+  'check_definer_search_path()',
   'check_gate_requirements(uuid, text)',
   'check_null_unsafe_org_gates()',
   'check_org_gates()',
@@ -531,21 +533,17 @@ SELECT s, 'baseline', 500 FROM unnest(ARRAY[
   'check_schema_release()',
   'check_unbound_entity_args()',
   'check_withdrawn_execute()',
+  'client_min_version()',
   'custom_properties_merge(jsonb, jsonb)',
   'drawing_pdf_render_get(uuid)',
   'drawing_pdf_render_record(uuid, text, bigint, boolean)',
   'eco_gate_approve(uuid, text, text)',
   'eco_require_access(uuid)',
-  'extension_config_get(uuid, text)',
-  'extension_config_update(uuid, text, jsonb)',
-  'extension_get_stats(uuid, text)',
-  'extension_http_log_cleanup(integer)',
-  'extension_secret_access_cleanup(integer)',
-  'file_checkin(uuid, uuid, text, bigint, text, text, text, text, integer, jsonb, text, text, text)',
-  'file_checkout(uuid, uuid, text, text, text)',
+  'file_checkin(uuid, text, bigint, text, text, text, text, integer, jsonb, text, text, text)',
+  'file_checkout(uuid, text, text, text)',
   'file_get_active_by_path(uuid, text)',
   'file_get_legacy_state(text)',
-  'file_move(uuid, uuid, text, text)',
+  'file_move(uuid, text, text)',
   'file_repair_config_maps(uuid, jsonb)',
   'file_require_access(uuid)',
   'file_share_link_admit(text)',
@@ -558,7 +556,7 @@ SELECT s, 'baseline', 500 FROM unnest(ARRAY[
   'file_version_reference_list_edges(uuid[], uuid)',
   'file_version_reference_record(uuid, jsonb)',
   'folder_remediate_case_collisions()',
-  'folder_rename(text, text, uuid, uuid)',
+  'folder_rename(text, text, uuid)',
   'gate_review_complete(uuid, review_status, text, jsonb)',
   'gate_review_list_awaiting_ids(uuid)',
   'gate_review_list_mine()',
@@ -644,11 +642,9 @@ SELECT s, 'baseline', 500 FROM unnest(ARRAY[
   'review_withdraw_lost_reviewers()',
   'revision_get_next(text, revision_scheme)',
   'rfq_generate_number(uuid)',
-  'routine_drop_overloads(text)',
   'routine_list_row_selecting_id_args(oid)',
   'schema_get_release_manifest()',
   'schema_get_withdrawn_execute_manifest()',
-  'schema_migrate_uuid_defaults()',
   'schema_release_description()',
   'schema_release_version()',
   'schema_remediation_record(text, integer, jsonb, text)',
@@ -668,7 +664,6 @@ SELECT s, 'baseline', 500 FROM unnest(ARRAY[
   'team_reviewer_list_user_ids(uuid)',
   'team_set_module_defaults(uuid, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb)',
   'trg_app_user_claim_pending_membership()',
-  'trg_app_user_set_org_id()',
   'trg_auth_user_sync_app_user()',
   'trg_color_swatch_set_creator()',
   'trg_eco_sync_file_tags()',
@@ -704,13 +699,13 @@ SELECT s, 'baseline', 500 FROM unnest(ARRAY[
   'vault_require_access(uuid)',
   'verify_and_stamp_schema()',
   'webhook_list_for_event(uuid, webhook_event)',
-  'workflow_create_default(uuid, uuid)',
+  'workflow_create_default(uuid)',
   'workflow_history_remediate_cross_tenant()',
   'workflow_import_graph(uuid, jsonb)',
-  'workflow_transition_apply(uuid, uuid, uuid, text, jsonb)',
+  'workflow_transition_apply(uuid, uuid, text, jsonb)',
   'workflow_transition_execute(uuid, uuid, text)',
   'workflow_transition_execute_to_legacy_state(uuid, text, text)',
-  'workflow_transition_list_available(uuid, uuid)'
+  'workflow_transition_list_available(uuid)'
   -- @inventory:baseline:end
 ]::TEXT[]) s
 ON CONFLICT (signature) DO NOTHING;
@@ -733,7 +728,8 @@ INSERT INTO schema_function_inventory (signature, module, release) VALUES
   ('trg_team_member_security_watch()', 'core', 502),
   ('trg_team_security_watch()', 'core', 502),
   ('security_monitor_run()', 'core', 502),
-  ('auth_hook_before_user_created(jsonb)', 'core', 502)
+  ('auth_hook_before_user_created(jsonb)', 'core', 502),
+  ('org_create_with_founder(text,text,text,text[])', 'core', 502)
 ON CONFLICT (signature) DO NOTHING;
 
 -- ===========================================
@@ -1052,7 +1048,10 @@ CREATE TRIGGER trg_team_security_watch
 --     public mail provider, added by an admin holding an address there), unless that
 --     organization blocked the address;
 --   - a supplier contact (supplier_contact.email, module 30, when installed);
---   - or a database with no organization yet, whose first account has to be able to create one.
+--
+-- A database with no organization yet admits nobody, and says why: the organization and its
+-- founding administrator's invitation are created first, in the SQL editor, by
+-- org_create_with_founder() below (docs/admin-setup.md, Step 5).
 --
 -- Contract (Supabase Auth hooks, Postgres function): takes the event as jsonb, returns '{}' to
 -- allow or {"error": {"http_code", "message"}} to refuse. Auth sends the refusal back to the
@@ -1071,7 +1070,9 @@ DECLARE
   v_allowed BOOLEAN;
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM organization) THEN
-    RETURN '{}'::jsonb;
+    RETURN jsonb_build_object('error', jsonb_build_object(
+      'http_code', 403,
+      'message', 'Not set up: this BluePLM database has no organization yet. Your administrator creates it first (Admin Setup, Step 5).'));
   END IF;
 
   IF v_email IS NULL OR v_email = '' OR position('@' IN v_email) = 0 THEN
@@ -1079,7 +1080,9 @@ BEGIN
   ELSE
     v_domain := split_part(v_email, '@', 2);
     v_allowed :=
-      EXISTS (SELECT 1 FROM pending_org_member p WHERE lower(p.email) = v_email AND p.claimed_at IS NULL)
+      EXISTS (SELECT 1 FROM pending_org_member p
+              WHERE lower(p.email) = v_email AND p.claimed_at IS NULL
+                AND (p.expires_at IS NULL OR p.expires_at > NOW()))
       OR EXISTS (
         SELECT 1 FROM org_email_domain d
         WHERE d.domain = v_domain
@@ -1109,6 +1112,66 @@ BEGIN
     GRANT EXECUTE ON FUNCTION auth_hook_before_user_created(JSONB) TO supabase_auth_admin;
   END IF;
 END $$;
+
+-- Creating an organization, from the SQL editor (docs/admin-setup.md, Step 5). One call makes the
+-- organization (its default teams come from trg_organization_create_defaults), sets its email
+-- domains (the same checks as any other write: no public mail provider, one organization per
+-- domain) and invites its founding administrator by address, role admin, in the Administrators
+-- team. The founder then signs in: the Before User Created hook admits the invitation,
+-- trg_auth_user_sync_app_user gives the account the organization and the role, and
+-- team_member_apply_pending adds it to Administrators. The founder's address may be anywhere
+-- (gmail.com included): an invitation names one person, a domain names everyone at it.
+CREATE OR REPLACE FUNCTION org_create_with_founder(
+  p_name TEXT,
+  p_slug TEXT,
+  p_founder_email TEXT,
+  p_email_domains TEXT[] DEFAULT '{}'
+) RETURNS JSON
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_email TEXT := lower(btrim(p_founder_email));
+  v_org_id UUID;
+  v_admins_id UUID;
+BEGIN
+  IF auth.uid() IS NOT NULL THEN
+    RAISE EXCEPTION 'org_create_with_founder is run from the SQL editor'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  IF COALESCE(btrim(p_name), '') = '' THEN
+    RAISE EXCEPTION 'An organization needs a name' USING ERRCODE = 'check_violation';
+  END IF;
+  IF p_slug IS NULL OR p_slug !~ '^[a-z0-9]+(-[a-z0-9]+)*$' THEN
+    RAISE EXCEPTION 'The slug % must be lower case letters, digits and single hyphens', p_slug
+      USING ERRCODE = 'check_violation';
+  END IF;
+  IF v_email IS NULL OR v_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' THEN
+    RAISE EXCEPTION 'Not an email address: %', p_founder_email USING ERRCODE = 'check_violation';
+  END IF;
+
+  INSERT INTO organization (name, slug, email_domains)
+  VALUES (btrim(p_name), p_slug, COALESCE(p_email_domains, '{}'))
+  RETURNING id INTO v_org_id;
+
+  SELECT id INTO v_admins_id FROM team WHERE org_id = v_org_id AND name = 'Administrators';
+
+  INSERT INTO pending_org_member (org_id, email, role, team_ids, notes, expires_at)
+  VALUES (v_org_id, v_email, 'admin', ARRAY[v_admins_id], 'Founding administrator',
+          NOW() + INTERVAL '30 days');
+
+  RETURN json_build_object(
+    'org_id', v_org_id,
+    'slug', p_slug,
+    'email_domains', (SELECT email_domains FROM organization WHERE id = v_org_id),
+    'founder_email', v_email,
+    'next', 'Turn on the Before User Created hook (Authentication > Hooks, Postgres, '
+         || 'public.auth_hook_before_user_created), then sign in to BluePLM as ' || v_email || '.'
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION org_create_with_founder(TEXT, TEXT, TEXT, TEXT[]) FROM PUBLIC, anon, authenticated;
 
 -- ===========================================
 -- The stamp: every check, one list
@@ -1526,13 +1589,14 @@ INSERT INTO schema_manifest_entry (kind, name, module, probe, requires, since_ve
   ('function', 'verify_and_stamp_schema()', 'core', NULL, 'schema_list_problems', 502),
   ('function', 'is_security_operator()', 'core', NULL, 'security_operator_user_ids', 502),
   ('function', 'security_operator_user_ids()', 'core', NULL, 'security_platform_operator', 502),
-  ('function', 'org_admin_user_ids(uuid)', 'core', NULL, 'Administrators', 502),
+  ('function', 'org_admin_user_ids(uuid)', 'core', NULL, 'team_member && p_org_id', 502),
   ('function', 'security_event_record(uuid,text,text,text,jsonb)', 'core', NULL, 'security_event', 502),
   ('function', 'trg_app_user_security_watch()', 'core', NULL, 'security_event_record', 502),
   ('function', 'trg_team_member_security_watch()', 'core', NULL, 'new_rows', 502),
   ('function', 'trg_team_security_watch()', 'core', NULL, 'security_event', 502),
   ('function', 'security_monitor_run()', 'core', NULL, 'org_admin_user_ids && security_operator_user_ids && schema_list_problems', 502),
-  ('function', 'auth_hook_before_user_created(jsonb)', 'core', NULL, 'pending_org_member && org_email_domain && is_public_email_domain && blocked_user', 502)
+  ('function', 'auth_hook_before_user_created(jsonb)', 'core', NULL, 'pending_org_member && org_email_domain && is_public_email_domain && blocked_user && expires_at', 502),
+  ('function', 'org_create_with_founder(text,text,text,text[])', 'core', NULL, 'auth.uid() IS NOT NULL && pending_org_member', 502)
 ON CONFLICT (kind, name) DO UPDATE
   SET module = EXCLUDED.module, probe = EXCLUDED.probe, requires = EXCLUDED.requires,
       since_version = EXCLUDED.since_version;
