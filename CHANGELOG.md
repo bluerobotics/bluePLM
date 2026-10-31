@@ -6,12 +6,15 @@ All notable changes to BluePLM will be documented in this file.
 
 ## [Unreleased]
 
-## [5.2.1] - 2026-10-31
+## [5.2.2] - 2026-10-31
 
-App only: no schema or API change; it runs on schema 503 and API 4.2.0 like 5.2.0.
+App only: no schema or API change; it runs on schema 503 and API 4.2.0 like 5.2.0. The v5.2.1 tag was never published (its release build stopped on a flaky watcher test, fixed here), so this is the first release of its fix.
 
 ### Fixed
 
+- The vault watcher reports files written together in one batch again. Each file in a pass carried its own
+  timestamp, so a re-check that fired a moment early could report one file of a burst now and the next a
+  moment later.
 - Editing metadata on a file that is not on disk says why instead of calling it read-only. A file renamed
   or moved on disk names where it went and asks you to check in the new file; a deleted or never-downloaded
   row cannot be edited inline; a save to a path with nothing there says the file is missing, not that
