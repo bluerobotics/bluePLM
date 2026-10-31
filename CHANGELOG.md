@@ -6,6 +6,10 @@ All notable changes to BluePLM will be documented in this file.
 
 ## [Unreleased]
 
+## [5.3.0] - 2026-10-31
+
+App and release workflow only: no schema or API change, so it runs on schema 503 and API 4.2.0 like 5.2.2.
+
 ### Changed
 
 - **A release upgrades the database before it goes out.** When the `PRODUCTION_DATABASE_URL` secret is
