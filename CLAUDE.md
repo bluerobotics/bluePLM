@@ -229,7 +229,9 @@ The points that most often get violated:
   production from a terminal command. A release tag upgrades the production database first: the
   `migrate-db` job in `release.yml` runs the same runner (`scripts/db-migrate.ts`) with the
   `PRODUCTION_DATABASE_URL` secret before anything is published, and a refused or failed upgrade stops
-  the release. A migration must therefore keep the previous release working. Land a migration on
+  the release. A migration must therefore keep the previous release working. An organization whose
+  pipeline does this sets `organization.settings.schema_upgrades = 'release'` (Settings > Connection;
+  `schemaUpgradesByRelease()`): its apps then never upgrade on their own. Land a migration on
   `main` only when it is ready for production.
 - **API changes require two files.** Bump `version` in `api/package.json` and
   `EXPECTED_API_VERSION` in `src/lib/apiVersion.ts`, with an `API_VERSION_DESCRIPTIONS` entry.

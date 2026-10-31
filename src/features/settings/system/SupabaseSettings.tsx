@@ -4,10 +4,12 @@ import { Check, Copy, Eye, EyeOff, Loader2, RefreshCw } from 'lucide-react'
 import { Badge, Button, SegmentedControl, type BadgeTone } from '@/components/core/ui'
 import { copyToClipboard } from '@/lib/clipboard'
 import { log } from '@/lib/logger'
+import { t } from '@/lib/i18n'
 import { EXPECTED_SCHEMA_VERSION } from '@/lib/schemaVersion'
 import { supabase } from '@/lib/supabase'
 
 import { SettingRow, SettingsGroup, SettingsPage, SettingsSection } from '../components/ui'
+import { SchemaUpgradesSetting } from './SchemaUpgradesSetting'
 import { StatCard, StatGrid } from './StatCard'
 import { SupabaseActivityChart } from './SupabaseActivityChart'
 import {
@@ -219,14 +221,14 @@ export function SupabaseSettings() {
                 <Badge tone="warning">Unknown</Badge>
               </SettingRow>
             )}
+            {isAdmin && <SchemaUpgradesSetting />}
           </SettingsGroup>
           {!c.loadingSchema &&
             schemaVersion &&
             schemaVersion.version < EXPECTED_SCHEMA_VERSION &&
             isAdmin && (
               <p className="pt-3 text-[14px] leading-[1.4] text-ui-fg-secondary">
-                Admin action needed: run the latest schema in your Supabase SQL editor to enable new
-                features.
+                {t('dbUpgrade.behindAdmin')}
               </p>
             )}
           {!c.loadingSchema && schemaVersion && schemaVersion.version > EXPECTED_SCHEMA_VERSION && (
@@ -237,8 +239,7 @@ export function SupabaseSettings() {
           )}
           {!c.loadingSchema && !schemaVersion && isAdmin && (
             <p className="pt-3 text-[14px] leading-[1.4] text-ui-fg-secondary">
-              Admin action needed: run the latest schema in your Supabase SQL editor to enable
-              schema version tracking.
+              {t('dbUpgrade.behindAdmin')}
             </p>
           )}
         </SettingsSection>

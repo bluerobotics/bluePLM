@@ -28,6 +28,8 @@ export interface DbGateState {
   /** Recorded as applied_by in schema_migration. */
   userEmail: string | null
   checkedAt: number | null
+  /** The organization's release pipeline upgrades the database; the app does not on its own. */
+  upgradesByRelease: boolean
 }
 
 export type DbUpgradeRunPhase = 'idle' | 'planning' | 'planned' | 'applying' | 'succeeded' | 'failed'
@@ -62,6 +64,7 @@ export const INITIAL_DB_GATE: DbGateState = {
   userId: null,
   userEmail: null,
   checkedAt: null,
+  upgradesByRelease: false,
 }
 
 export const INITIAL_DB_UPGRADE_RUN: DbUpgradeRunState = {

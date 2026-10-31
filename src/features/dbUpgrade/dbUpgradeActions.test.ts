@@ -9,6 +9,7 @@ vi.mock('./readDbState', () => ({
   readRecordedVersion: vi.fn(async () => ({ ok: true, version: 112 })),
   readClientMinVersion: vi.fn(async () => null),
   readIsOrgAdmin: vi.fn(async () => true),
+  readUpgradesByRelease: vi.fn(async () => false),
 }))
 vi.mock('@/lib/platform', () => ({ hasDesktop: () => true, IS_WEB_BUILD: false }))
 
@@ -17,6 +18,7 @@ import { INITIAL_DB_GATE, INITIAL_DB_UPGRADE_RUN } from '@/stores/slices/dbUpgra
 import type { DbUpgradeApplyResult } from '@/types/electron/dbUpgrade'
 
 import { resetAutoApplyForTests, runDbGateCheck, setReloadForTests } from './dbUpgradeActions'
+import { readUpgradesByRelease } from './readDbState'
 
 const verifyFailed: DbUpgradeApplyResult = {
   success: false,
@@ -100,5 +102,21 @@ describe('automatic upgrade with a remembered connection', () => {
     const run = usePDMStore.getState().dbUpgradeRun
     expect(run.phase).toBe('failed')
     expect(run.result?.error?.message).toContain('112')
+  })
+})
+
+describe('an organization whose release pipeline upgrades the database', () => {
+  it('never starts an automatic upgrade, even with a remembered connection', async () => {
+    vi.mocked(readUpgradesByRelease).mockResolvedValueOnce(true)
+    installBridge(verifyFailed)
+
+    await runDbGateCheck('user-1', 'admin@example.com')
+    await flush()
+
+    const gate = usePDMStore.getState().dbGate
+    expect(gate.status).toBe('db-upgrade-admin')
+    expect(gate.upgradesByRelease).toBe(true)
+    expect(apply).not.toHaveBeenCalled()
+    expect(usePDMStore.getState().dbUpgradeRun.phase).toBe('idle')
   })
 })

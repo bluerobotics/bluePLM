@@ -715,6 +715,12 @@ export interface OrgSettings {
   review_stage_on_approval?: 'hold' | 'advance'
   /** A package moves 'together' (default) once fully approved, or 'approved_only' files move as approved. */
   review_stage_package_policy?: 'together' | 'approved_only'
+  /**
+   * Who applies schema upgrades: 'in_app' (unset, default) = an admin from the app, which also
+   * applies them on its own with a remembered connection; 'release' = the organization's release
+   * pipeline (release.yml migrate-db) applies them before publishing, and the app does not.
+   */
+  schema_upgrades?: 'in_app' | 'release'
 }
 
 /**

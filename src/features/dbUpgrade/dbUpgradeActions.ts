@@ -9,7 +9,12 @@ import { hasDesktop } from '@/lib/platform'
 import type { DbUpgradeContext } from '@/types/electron/dbUpgrade'
 
 import { decideGate, REQUIRED_SCHEMA_VERSION } from './gateDecision'
-import { readClientMinVersion, readIsOrgAdmin, readRecordedVersion } from './readDbState'
+import {
+  readClientMinVersion,
+  readIsOrgAdmin,
+  readRecordedVersion,
+  readUpgradesByRelease,
+} from './readDbState'
 
 export const APP_VERSION: string = import.meta.env.PACKAGE_VERSION || '0.0.0'
 
@@ -66,15 +71,21 @@ export function runDbGateCheck(userId: string, userEmail: string | null): Promis
         recordedVersion: recorded.version,
         clientMinVersion,
       })
+      const upgradesByRelease =
+        decision === 'db-upgrade-admin' && recorded.version !== null
+          ? await readUpgradesByRelease()
+          : false
       usePDMStore.getState().setDbGate({
         status: decision,
+        upgradesByRelease,
         recordedVersion: recorded.version,
         clientMinVersion,
         userId,
         userEmail,
         checkedAt: Date.now(),
       })
-      if (decision === 'db-upgrade-admin') void maybeAutoApply()
+      // The release pipeline owns upgrades for this organization: never start one on our own.
+      if (decision === 'db-upgrade-admin' && !upgradesByRelease) void maybeAutoApply()
     } catch (error) {
       log.error('[DbUpgrade]', 'Gate check failed', { error: String(error) })
     }

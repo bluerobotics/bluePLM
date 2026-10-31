@@ -1,5 +1,13 @@
 import { useEffect, useState } from 'react'
-import { AlertCircle, CheckCircle2, Database, ExternalLink, Loader2 } from 'lucide-react'
+import {
+  AlertCircle,
+  CheckCircle2,
+  Database,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  Loader2,
+} from 'lucide-react'
 
 import { useTranslation } from '@/lib/i18n'
 import { getCurrentConfig } from '@/lib/supabase'
@@ -91,6 +99,11 @@ export function AdminUpgradeScreen() {
   const [canRemember, setCanRemember] = useState(false)
   const [remembered, setRemembered] = useState(false)
   const [inputError, setInputError] = useState<string | null>(null)
+  const upgradesByRelease = usePDMStore((s) => s.dbGate.upgradesByRelease)
+  const [upgradeHere, setUpgradeHere] = useState(false)
+  const [revealed, setRevealed] = useState(false)
+  /** The last Check or Apply used the saved connection, not a typed one. */
+  const [usedSaved, setUsedSaved] = useState(false)
 
   useEffect(() => {
     const api = window.electronAPI?.dbUpgrade
@@ -112,6 +125,7 @@ export function AdminUpgradeScreen() {
   /** Hands over a typed string first; with none typed, the held or remembered one is used. */
   const withCredential = async (action: () => Promise<void>) => {
     setInputError(null)
+    setUsedSaved(!connectionString.trim() && remembered)
     if (connectionString.trim()) {
       const error = await submitConnectionString(connectionString, remember && canRemember)
       if (error) {
@@ -140,6 +154,10 @@ export function AdminUpgradeScreen() {
   const errorText = errorKey
     ? t(ERROR_KEYS[errorKey] ?? 'dbUpgrade.error.connect', { message: run.errorMessage ?? '' })
     : null
+  const connectFailed = !inputError && run.errorCode === 'connect'
+  const passwordRefused = connectFailed && /28P01/.test(run.errorMessage ?? '')
+  const savedFailed = connectFailed && (usedSaved || run.automatic)
+  const showForm = !upgradesByRelease || upgradeHere
 
   return (
     <BlockingScreen icon={<Database size={28} />} title={t(recordedVersion === null ? 'dbUpgrade.setupTitle' : 'dbUpgrade.adminTitle')}>
@@ -176,7 +194,16 @@ export function AdminUpgradeScreen() {
         </ol>
       </div>
 
-      {!done && (
+      {upgradesByRelease && !upgradeHere && !done && (
+        <div className="space-y-2">
+          <p className="text-plm-info">{t('dbUpgrade.releaseManaged')}</p>
+          <button type="button" onClick={() => setUpgradeHere(true)} className="btn btn-secondary">
+            {t('dbUpgrade.upgradeHereInstead')}
+          </button>
+        </div>
+      )}
+
+      {!done && showForm && (
         <div className="space-y-2">
           <label className="block font-medium" htmlFor="db-upgrade-connection">
             {t('dbUpgrade.connectionLabel')}
@@ -194,9 +221,10 @@ export function AdminUpgradeScreen() {
           {remembered && !connectionString && (
             <p className="text-xs text-plm-success">{t('dbUpgrade.usingRemembered')}</p>
           )}
+          <div className="flex items-center gap-1">
           <input
             id="db-upgrade-connection"
-            type="password"
+            type={revealed ? 'text' : 'password'}
             autoComplete="off"
             spellCheck={false}
             disabled={busy}
@@ -205,6 +233,16 @@ export function AdminUpgradeScreen() {
             placeholder="postgresql://postgres.<project>:[YOUR-PASSWORD]@aws-0-<region>.pooler.supabase.com:5432/postgres"
             className="w-full rounded border border-plm-border bg-plm-input px-2 py-1.5 font-mono text-xs"
           />
+          <button
+            type="button"
+            onClick={() => setRevealed((v) => !v)}
+            aria-label={revealed ? t('dbUpgrade.hideConnection') : t('dbUpgrade.showConnection')}
+            title={revealed ? t('dbUpgrade.hideConnection') : t('dbUpgrade.showConnection')}
+            className="btn btn-ghost px-2"
+          >
+            {revealed ? <EyeOff size={14} /> : <Eye size={14} />}
+          </button>
+          </div>
           {canRemember ? (
             <label className="flex items-start gap-2 text-xs">
               <input
@@ -290,6 +328,8 @@ export function AdminUpgradeScreen() {
           {errorText}
         </p>
       )}
+      {passwordRefused && <p className="text-xs text-plm-fg-muted">{t('dbUpgrade.passwordRefused')}</p>}
+      {savedFailed && <p className="text-xs text-plm-fg-muted">{t('dbUpgrade.savedConnectionFailed')}</p>}
       {run.phase === 'failed' && result?.error && !refusal && (
         <div>
           <h2 className="mb-1 font-medium text-plm-error">{t('dbUpgrade.failedTitle')}</h2>

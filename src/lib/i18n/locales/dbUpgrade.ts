@@ -51,6 +51,21 @@ const en: NamespaceDict = {
   errorHint: 'Hint: {{hint}}',
   errorWhere: 'Context: {{where}}',
   errorStatement: 'Failing statement',
+  releaseManaged:
+    'Your organization upgrades its database when a release is published, so this upgrade normally runs before the update reaches you. Check the release workflow, or upgrade from this computer.',
+  upgradeHereInstead: 'Upgrade from this computer instead',
+  showConnection: 'Show the connection string',
+  hideConnection: 'Hide the connection string',
+  savedConnectionFailed:
+    'This used the connection saved on this computer. If the password changed, choose Forget the saved connection and enter the new one.',
+  passwordRefused:
+    'The database refused the password. Use the database password (Supabase: Database, Settings), not your Supabase sign-in, with no [ ] around it.',
+  settingReleaseLabel: 'Upgrade the database from the release pipeline',
+  settingReleaseHelp:
+    'On: the release workflow applies schema upgrades before each release is published, and BluePLM never upgrades the database on its own. Off: an administrator upgrades it from the app.',
+  settingSaveFailed: 'Could not save the setting: {{message}}',
+  behindAdmin:
+    'An administrator can upgrade the database from the app, or the next release applies it.',
   error: {
     format: 'That is not a Postgres connection string. It starts with postgresql://',
     transactionPooler:
@@ -132,6 +147,21 @@ const de: NamespaceDict = {
   errorHint: 'Hinweis: {{hint}}',
   errorWhere: 'Kontext: {{where}}',
   errorStatement: 'Fehlgeschlagene Anweisung',
+  releaseManaged:
+    'Ihre Organisation aktualisiert die Datenbank, wenn ein Release veröffentlicht wird, daher läuft dieses Upgrade normalerweise vor dem Update. Prüfen Sie den Release-Workflow oder führen Sie das Upgrade von diesem Computer aus.',
+  upgradeHereInstead: 'Stattdessen von diesem Computer aktualisieren',
+  showConnection: 'Verbindungszeichenfolge anzeigen',
+  hideConnection: 'Verbindungszeichenfolge ausblenden',
+  savedConnectionFailed:
+    'Dabei wurde die auf diesem Computer gespeicherte Verbindung verwendet. Wenn sich das Passwort geändert hat, wählen Sie „Gespeicherte Verbindung vergessen“ und geben Sie die neue ein.',
+  passwordRefused:
+    'Die Datenbank hat das Passwort abgelehnt. Verwenden Sie das Datenbankpasswort (Supabase: Database, Settings), nicht Ihre Supabase-Anmeldung, ohne [ ] darum.',
+  settingReleaseLabel: 'Datenbank über die Release-Pipeline aktualisieren',
+  settingReleaseHelp:
+    'Ein: Der Release-Workflow wendet Schema-Upgrades an, bevor ein Release veröffentlicht wird, und BluePLM aktualisiert die Datenbank nie selbst. Aus: Ein Administrator aktualisiert sie in der App.',
+  settingSaveFailed: 'Die Einstellung konnte nicht gespeichert werden: {{message}}',
+  behindAdmin:
+    'Ein Administrator kann die Datenbank in der App aktualisieren, oder das nächste Release übernimmt es.',
   error: {
     format: 'Das ist keine Postgres-Verbindungszeichenfolge. Sie beginnt mit postgresql://',
     transactionPooler:
@@ -214,6 +244,21 @@ const es: NamespaceDict = {
   errorHint: 'Sugerencia: {{hint}}',
   errorWhere: 'Contexto: {{where}}',
   errorStatement: 'Instrucción que falló',
+  releaseManaged:
+    'Su organización actualiza la base de datos al publicar una versión, así que esta actualización suele ejecutarse antes de que le llegue. Revise el flujo de publicación o actualice desde este equipo.',
+  upgradeHereInstead: 'Actualizar desde este equipo',
+  showConnection: 'Mostrar la cadena de conexión',
+  hideConnection: 'Ocultar la cadena de conexión',
+  savedConnectionFailed:
+    'Se usó la conexión guardada en este equipo. Si la contraseña cambió, elija Olvidar la conexión guardada e introduzca la nueva.',
+  passwordRefused:
+    'La base de datos rechazó la contraseña. Use la contraseña de la base de datos (Supabase: Database, Settings), no su inicio de sesión de Supabase, sin [ ] alrededor.',
+  settingReleaseLabel: 'Actualizar la base de datos desde el flujo de publicación',
+  settingReleaseHelp:
+    'Activado: el flujo de publicación aplica las actualizaciones del esquema antes de publicar cada versión y BluePLM nunca actualiza la base de datos por sí mismo. Desactivado: un administrador la actualiza desde la aplicación.',
+  settingSaveFailed: 'No se pudo guardar el ajuste: {{message}}',
+  behindAdmin:
+    'Un administrador puede actualizar la base de datos desde la aplicación, o la próxima versión lo hará.',
   error: {
     format: 'Eso no es una cadena de conexión de Postgres. Empieza por postgresql://',
     transactionPooler:
@@ -296,6 +341,21 @@ const fr: NamespaceDict = {
   errorHint: 'Conseil : {{hint}}',
   errorWhere: 'Contexte : {{where}}',
   errorStatement: 'Instruction en échec',
+  releaseManaged:
+    'Votre organisation met à niveau sa base de données à la publication d’une version : cette mise à niveau s’exécute normalement avant que la mise à jour vous parvienne. Vérifiez le flux de publication ou mettez à niveau depuis cet ordinateur.',
+  upgradeHereInstead: 'Mettre à niveau depuis cet ordinateur',
+  showConnection: 'Afficher la chaîne de connexion',
+  hideConnection: 'Masquer la chaîne de connexion',
+  savedConnectionFailed:
+    'La connexion enregistrée sur cet ordinateur a été utilisée. Si le mot de passe a changé, choisissez Oublier la connexion enregistrée et saisissez la nouvelle.',
+  passwordRefused:
+    'La base de données a refusé le mot de passe. Utilisez le mot de passe de la base de données (Supabase : Database, Settings), pas votre connexion Supabase, sans [ ] autour.',
+  settingReleaseLabel: 'Mettre à niveau la base de données depuis le flux de publication',
+  settingReleaseHelp:
+    'Activé : le flux de publication applique les mises à niveau du schéma avant chaque version, et BluePLM ne met jamais la base de données à niveau lui-même. Désactivé : un administrateur la met à niveau depuis l’application.',
+  settingSaveFailed: 'Impossible d’enregistrer le réglage : {{message}}',
+  behindAdmin:
+    'Un administrateur peut mettre la base de données à niveau depuis l’application, ou la prochaine version le fera.',
   error: {
     format: 'Ce n’est pas une chaîne de connexion Postgres. Elle commence par postgresql://',
     transactionPooler:
@@ -378,6 +438,21 @@ const pt: NamespaceDict = {
   errorHint: 'Dica: {{hint}}',
   errorWhere: 'Contexto: {{where}}',
   errorStatement: 'Instrução que falhou',
+  releaseManaged:
+    'A sua organização atualiza a base de dados quando uma versão é publicada, por isso esta atualização normalmente corre antes de a atualização lhe chegar. Verifique o fluxo de publicação ou atualize a partir deste computador.',
+  upgradeHereInstead: 'Atualizar a partir deste computador',
+  showConnection: 'Mostrar a cadeia de ligação',
+  hideConnection: 'Ocultar a cadeia de ligação',
+  savedConnectionFailed:
+    'Foi usada a ligação guardada neste computador. Se a senha mudou, escolha Esquecer a ligação guardada e introduza a nova.',
+  passwordRefused:
+    'A base de dados recusou a senha. Use a senha da base de dados (Supabase: Database, Settings), não o seu início de sessão no Supabase, sem [ ] à volta.',
+  settingReleaseLabel: 'Atualizar a base de dados pelo fluxo de publicação',
+  settingReleaseHelp:
+    'Ligado: o fluxo de publicação aplica as atualizações do esquema antes de cada versão ser publicada, e o BluePLM nunca atualiza a base de dados sozinho. Desligado: um administrador atualiza-a na aplicação.',
+  settingSaveFailed: 'Não foi possível guardar a definição: {{message}}',
+  behindAdmin:
+    'Um administrador pode atualizar a base de dados na aplicação, ou a próxima versão fá-lo-á.',
   error: {
     format: 'Isso não é uma string de conexão do Postgres. Ela começa com postgresql://',
     transactionPooler:
@@ -455,6 +530,16 @@ const zhCN: NamespaceDict = {
   errorHint: '提示：{{hint}}',
   errorWhere: '上下文：{{where}}',
   errorStatement: '失败的语句',
+  releaseManaged: '你的组织在发布新版本时升级数据库，因此此升级通常会在更新到达你之前完成。请检查发布工作流，或从这台电脑升级。',
+  upgradeHereInstead: '改为从这台电脑升级',
+  showConnection: '显示连接字符串',
+  hideConnection: '隐藏连接字符串',
+  savedConnectionFailed: '这次使用的是这台电脑上保存的连接。如果密码已更改，请选择“忘记保存的连接”并输入新的连接。',
+  passwordRefused: '数据库拒绝了该密码。请使用数据库密码（Supabase：Database、Settings），而不是 Supabase 登录密码，且两侧不要有 [ ]。',
+  settingReleaseLabel: '由发布流水线升级数据库',
+  settingReleaseHelp: '开启：发布工作流会在每个版本发布前应用架构升级，BluePLM 不会自行升级数据库。关闭：由管理员在应用中升级。',
+  settingSaveFailed: '无法保存该设置：{{message}}',
+  behindAdmin: '管理员可以在应用中升级数据库，或由下一个版本完成升级。',
   error: {
     format: '这不是 Postgres 连接字符串。它以 postgresql:// 开头',
     transactionPooler: '这是 Transaction pooler（端口 6543）。请使用 Session pooler 连接字符串（端口 5432）。',
@@ -525,6 +610,16 @@ const zhTW: NamespaceDict = {
   errorHint: '提示：{{hint}}',
   errorWhere: '內容：{{where}}',
   errorStatement: '失敗的陳述式',
+  releaseManaged: '你的組織在發佈新版本時升級資料庫，因此此升級通常會在更新到達你之前完成。請檢查發佈工作流程，或從這台電腦升級。',
+  upgradeHereInstead: '改為從這台電腦升級',
+  showConnection: '顯示連線字串',
+  hideConnection: '隱藏連線字串',
+  savedConnectionFailed: '這次使用的是這台電腦上儲存的連線。如果密碼已變更，請選擇「忘記儲存的連線」並輸入新的連線。',
+  passwordRefused: '資料庫拒絕了該密碼。請使用資料庫密碼（Supabase：Database、Settings），而不是 Supabase 登入密碼，且兩側不要有 [ ]。',
+  settingReleaseLabel: '由發佈流程升級資料庫',
+  settingReleaseHelp: '開啟：發佈工作流程會在每個版本發佈前套用結構描述升級，BluePLM 不會自行升級資料庫。關閉：由管理員在應用程式中升級。',
+  settingSaveFailed: '無法儲存該設定：{{message}}',
+  behindAdmin: '管理員可以在應用程式中升級資料庫，或由下一個版本完成升級。',
   error: {
     format: '這不是 Postgres 連線字串。它以 postgresql:// 開頭',
     transactionPooler: '這是 Transaction pooler（連接埠 6543）。請使用 Session pooler 連線字串（連接埠 5432）。',

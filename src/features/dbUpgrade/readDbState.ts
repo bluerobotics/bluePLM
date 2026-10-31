@@ -72,3 +72,18 @@ export async function readIsOrgAdmin(): Promise<boolean> {
     return false
   }
 }
+
+/**
+ * Whether the organization upgrades its database from its release pipeline. The upgrade gate reads
+ * it before the store has the organization; anything unreadable counts as the app's own upgrade.
+ */
+export async function readUpgradesByRelease(): Promise<boolean> {
+  try {
+    const { data, error } = await client().from('organization').select('settings')
+    if (error || !Array.isArray(data) || data.length !== 1) return false
+    const settings = (data[0] as { settings?: { schema_upgrades?: unknown } | null }).settings
+    return settings?.schema_upgrades === 'release'
+  } catch {
+    return false
+  }
+}

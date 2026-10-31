@@ -12,11 +12,18 @@ All notable changes to BluePLM will be documented in this file.
   set, the release workflow applies the pending migrations with the app's own upgrade runner before
   the installers are published, so people who update are not stopped by "Database upgrade required".
   Without the secret, an admin upgrades from the app as before.
+- **Organizations can hand database upgrades to their release pipeline.** Settings > Connection has a
+  switch for administrators: when it is on, BluePLM never upgrades the database on its own (not even
+  with a remembered connection), and the upgrade screen says the release pipeline does it, with
+  "Upgrade from this computer instead" for when it has not. Off (the default) works as before.
 
 ### Fixed
 
 - The database upgrade screen says when the password is still inside the `[YOUR-PASSWORD]` brackets,
   instead of a bare "password authentication failed".
+- The database upgrade screen can show the connection string you typed, explains a refused password,
+  and says when a failure came from the connection saved on this computer. Settings > Connection no
+  longer tells administrators to run the schema in the Supabase SQL editor.
 
 ## [5.2.2] - 2026-10-31
 
