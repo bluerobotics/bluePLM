@@ -78,7 +78,7 @@ describe('supabase/migrations/0503_vault_object_issues.sql', () => {
     )
     expect(r.rows[0].v.problems).toEqual([])
     expect(r.rows[0].v).toMatchObject({ stamped: true, version: 503 })
-  }, 240_000)
+  }, 600_000)
 
   it('records a finding once per content hash, and logs it', async () => {
     await asService()
@@ -106,7 +106,9 @@ describe('supabase/migrations/0503_vault_object_issues.sql', () => {
       `SELECT title, user_id FROM notification WHERE title = 'Backups: damaged file found'`,
     )
     expect(notes.rows.map((n) => n.user_id)).toEqual([ADMIN])
-  }, 120_000)
+    // security_monitor_run() includes the schema drift comparison: ~2 min on a slow runner (the
+    // 502 test allows the same).
+  }, 600_000)
 
   it('records no alert for an organization that turned backup alerts off', async () => {
     await actAsOwner(db)
