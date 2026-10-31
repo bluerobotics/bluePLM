@@ -111,7 +111,9 @@ export function SettingsNavigation({ activeTab, onTabChange }: SettingsNavigatio
                       }`}
                     >
                       <Icon size={18} strokeWidth={1.6} aria-hidden className="flex-shrink-0" />
-                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                      <span className="min-w-0 flex-1 truncate" title={item.label}>
+                        {item.label}
+                      </span>
                       {status && <StatusDot status={status} />}
                     </button>
                   </li>

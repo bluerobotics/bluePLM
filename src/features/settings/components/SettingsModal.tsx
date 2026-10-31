@@ -70,7 +70,7 @@ export function SettingsModal() {
         aria-modal="true"
         aria-labelledby="settings-modal-title"
         tabIndex={-1}
-        className="relative flex h-[min(800px,calc(100vh-32px))] w-[min(1000px,calc(100vw-32px))] flex-col overflow-hidden rounded-xl border border-ui-border bg-ui-bg text-ui-fg shadow-[0_24px_64px_rgb(0_0_0/0.45)] outline-none animate-dialog-in"
+        className="relative flex h-[min(880px,calc(100vh-32px))] w-[min(1200px,calc(100vw-32px))] flex-col overflow-hidden rounded-xl border border-ui-border bg-ui-bg text-ui-fg shadow-[0_24px_64px_rgb(0_0_0/0.45)] outline-none animate-dialog-in"
       >
         <header className="flex h-[46px] flex-shrink-0 items-center justify-between border-b border-ui-border pl-[18px] pr-2">
           <h2 id="settings-modal-title" className="text-[16px] font-semibold text-ui-fg">
@@ -88,7 +88,7 @@ export function SettingsModal() {
         </header>
 
         <div className="flex min-h-0 flex-1">
-          <aside className="w-[208px] flex-shrink-0 border-r border-ui-border bg-ui-nav">
+          <aside className="w-[256px] flex-shrink-0 border-r border-ui-border bg-ui-nav">
             <SettingsNavigation activeTab={activeTab} onTabChange={setSettingsTab} />
           </aside>
           <main className="flex min-w-0 flex-1 flex-col">

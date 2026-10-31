@@ -11,7 +11,8 @@ All notable changes to BluePLM will be documented in this file.
 - **A release upgrades the database before it goes out.** When the `PRODUCTION_DATABASE_URL` secret is
   set, the release workflow applies the pending migrations with the app's own upgrade runner before
   the installers are published, so people who update are not stopped by "Database upgrade required".
-  Without the secret, an admin upgrades from the app as before.
+  Without the secret, an admin upgrades from the app as before. A prerelease tag (`-beta`) never
+  upgrades the production database.
 - **Organizations can hand database upgrades to their release pipeline.** Settings > Connection has a
   switch for administrators: when it is on, BluePLM never upgrades the database on its own (not even
   with a remembered connection), and the upgrade screen says the release pipeline does it, with
@@ -24,6 +25,8 @@ All notable changes to BluePLM will be documented in this file.
 - The database upgrade screen can show the connection string you typed, explains a refused password,
   and says when a failure came from the connection saved on this computer. Settings > Connection no
   longer tells administrators to run the schema in the Supabase SQL editor.
+- Settings opens larger (up to 1200 by 880), and its sidebar is wide enough for every page name;
+  a name that still does not fit (longer languages) shows in full on hover.
 
 ## [5.2.2] - 2026-10-31
 
