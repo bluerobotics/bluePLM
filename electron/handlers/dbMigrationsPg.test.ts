@@ -47,6 +47,17 @@ describe('parseConnectionString', () => {
     expect(parseConnectionString('host=x user=y', null)).toEqual({ ok: false, reason: 'format' })
   })
 
+  it('refuses a password left inside the placeholder brackets, but not one that contains a bracket', () => {
+    const withPassword = (password: string) =>
+      `postgresql://postgres.abcdefghij:${password}@aws-0-us-west-1.pooler.supabase.com:5432/postgres`
+    expect(parseConnectionString(withPassword('[MyPass!123]'), 'abcdefghij')).toEqual({
+      ok: false,
+      reason: 'password-brackets',
+    })
+    const inner = parseConnectionString(withPassword('My[Pass]!123'), 'abcdefghij')
+    expect(inner.ok && inner.connection.password).toBe('My[Pass]!123')
+  })
+
   it('ignores sslmode in the string: TLS is always on and verified', () => {
     const parsed = parseConnectionString(`${POOLER}?sslmode=disable`, null)
     if (!parsed.ok) throw new Error('expected a connection')

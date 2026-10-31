@@ -64,6 +64,7 @@ export type DbUpgradeCredentialError =
   | 'format'
   | 'transaction-pooler'
   | 'no-password'
+  | 'password-brackets'
   | 'project-mismatch'
   | 'no-credential'
   | 'connect'

@@ -21,7 +21,10 @@ export interface ParsedConnection {
 
 export type ParseResult =
   | { ok: true; connection: ParsedConnection }
-  | { ok: false; reason: 'format' | 'transaction-pooler' | 'no-password' | 'project-mismatch' }
+  | {
+      ok: false
+      reason: 'format' | 'transaction-pooler' | 'no-password' | 'password-brackets' | 'project-mismatch'
+    }
 
 const SUPABASE_POOLER_TRANSACTION_PORT = 6543
 
@@ -66,6 +69,9 @@ export function parseConnectionString(
     return { ok: false, reason: 'format' }
   }
   if (!password) return { ok: false, reason: 'no-password' }
+  // The dashboard's placeholder is [YOUR-PASSWORD]; pasting a password inside its brackets is the
+  // usual mistake, and the server only answers with a bare authentication failure.
+  if (/^\[.*\]$/.test(password)) return { ok: false, reason: 'password-brackets' }
   const port = url.port ? Number(url.port) : 5432
   if (!Number.isInteger(port) || port <= 0 || port > 65535) return { ok: false, reason: 'format' }
   if (port === SUPABASE_POOLER_TRANSACTION_PORT) return { ok: false, reason: 'transaction-pooler' }

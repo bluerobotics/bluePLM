@@ -57,6 +57,8 @@ const en: NamespaceDict = {
       'That is the transaction pooler (port 6543). Use the Session pooler connection string (port 5432).',
     noPassword:
       'The connection string has no password. Replace [YOUR-PASSWORD] with the database password.',
+    passwordBrackets:
+      'The password is still inside the square brackets. Remove [ and ] so only the password is between : and @.',
     projectMismatch:
       'That connection string is for a different Supabase project than the one BluePLM is signed in to.',
     noCredential: 'Enter the connection string first.',
@@ -136,6 +138,8 @@ const de: NamespaceDict = {
       'Das ist der Transaction Pooler (Port 6543). Verwenden Sie die Session-Pooler-Verbindungszeichenfolge (Port 5432).',
     noPassword:
       'Die Verbindungszeichenfolge enthält kein Passwort. Ersetzen Sie [YOUR-PASSWORD] durch das Datenbankpasswort.',
+    passwordBrackets:
+      'Das Passwort steht noch in den eckigen Klammern. Entfernen Sie [ und ], sodass zwischen : und @ nur das Passwort steht.',
     projectMismatch:
       'Diese Verbindungszeichenfolge gehört zu einem anderen Supabase-Projekt als dem, bei dem BluePLM angemeldet ist.',
     noCredential: 'Geben Sie zuerst die Verbindungszeichenfolge ein.',
@@ -216,6 +220,8 @@ const es: NamespaceDict = {
       'Ese es el Transaction pooler (puerto 6543). Use la cadena de conexión del Session pooler (puerto 5432).',
     noPassword:
       'La cadena de conexión no tiene contraseña. Sustituya [YOUR-PASSWORD] por la contraseña de la base de datos.',
+    passwordBrackets:
+      'La contraseña sigue entre corchetes. Quite [ y ] para que entre : y @ quede solo la contraseña.',
     projectMismatch:
       'Esa cadena de conexión es de un proyecto de Supabase distinto del que usa BluePLM.',
     noCredential: 'Introduzca primero la cadena de conexión.',
@@ -296,6 +302,8 @@ const fr: NamespaceDict = {
       'C’est le Transaction pooler (port 6543). Utilisez la chaîne de connexion du Session pooler (port 5432).',
     noPassword:
       'La chaîne de connexion n’a pas de mot de passe. Remplacez [YOUR-PASSWORD] par le mot de passe de la base de données.',
+    passwordBrackets:
+      'Le mot de passe est encore entre crochets. Retirez [ et ] pour qu’entre : et @ il ne reste que le mot de passe.',
     projectMismatch:
       'Cette chaîne de connexion appartient à un autre projet Supabase que celui auquel BluePLM est connecté.',
     noCredential: 'Saisissez d’abord la chaîne de connexion.',
@@ -376,6 +384,8 @@ const pt: NamespaceDict = {
       'Esse é o Transaction pooler (porta 6543). Use a string de conexão do Session pooler (porta 5432).',
     noPassword:
       'A string de conexão não tem senha. Substitua [YOUR-PASSWORD] pela senha do banco de dados.',
+    passwordBrackets:
+      'A senha ainda está entre colchetes. Remova [ e ] para que entre : e @ fique só a senha.',
     projectMismatch:
       'Essa string de conexão é de um projeto do Supabase diferente daquele em que o BluePLM está conectado.',
     noCredential: 'Informe primeiro a string de conexão.',
@@ -449,6 +459,7 @@ const zhCN: NamespaceDict = {
     format: '这不是 Postgres 连接字符串。它以 postgresql:// 开头',
     transactionPooler: '这是 Transaction pooler（端口 6543）。请使用 Session pooler 连接字符串（端口 5432）。',
     noPassword: '连接字符串中没有密码。请将 [YOUR-PASSWORD] 替换为数据库密码。',
+    passwordBrackets: '密码仍在方括号内。请删除 [ 和 ]，使 : 与 @ 之间只有密码。',
     projectMismatch: '该连接字符串属于另一个 Supabase 项目，而不是 BluePLM 当前登录的项目。',
     noCredential: '请先输入连接字符串。',
     connect: '无法连接到数据库：{{message}}',
@@ -518,6 +529,7 @@ const zhTW: NamespaceDict = {
     format: '這不是 Postgres 連線字串。它以 postgresql:// 開頭',
     transactionPooler: '這是 Transaction pooler（連接埠 6543）。請使用 Session pooler 連線字串（連接埠 5432）。',
     noPassword: '連線字串中沒有密碼。請將 [YOUR-PASSWORD] 替換為資料庫密碼。',
+    passwordBrackets: '密碼仍在方括號內。請刪除 [ 和 ]，使 : 與 @ 之間只有密碼。',
     projectMismatch: '此連線字串屬於另一個 Supabase 專案，而不是 BluePLM 目前登入的專案。',
     noCredential: '請先輸入連線字串。',
     connect: '無法連線到資料庫：{{message}}',

@@ -24,6 +24,7 @@ const ERROR_KEYS: Record<string, string> = {
   format: 'dbUpgrade.error.format',
   'transaction-pooler': 'dbUpgrade.error.transactionPooler',
   'no-password': 'dbUpgrade.error.noPassword',
+  'password-brackets': 'dbUpgrade.error.passwordBrackets',
   'project-mismatch': 'dbUpgrade.error.projectMismatch',
   'no-credential': 'dbUpgrade.error.noCredential',
   connect: 'dbUpgrade.error.connect',
