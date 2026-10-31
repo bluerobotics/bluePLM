@@ -6,15 +6,9 @@ All notable changes to BluePLM will be documented in this file.
 
 ## [Unreleased]
 
-### Changed
+## [5.2.0] - 2026-10-31
 
-- **Settings looks like Claude's settings.** The modal now follows the look of Claude's own settings,
-  measured from it: neutral greys, the system font, a darker navigation column with sentence-case
-  items, a plain header with only a close button, and pages that open on their first heading. Settings
-  sit in flat rows divided by thin lines instead of cards, with 14px text, 28px controls and a softer
-  blue switch, in dark and light themes. This is the first step of a refresh of the whole app.
-- **Deleting your account moved to Profile.** It is no longer in the settings navigation; it is the
-  last section of Profile, and still asks you to type a confirmation.
+Schema 503 (`supabase/migrations/0503_vault_object_issues.sql`; an organization admin opening 5.2.0 applies it) and API 4.2.0 (redeploys itself).
 
 ### Added
 
@@ -39,6 +33,40 @@ All notable changes to BluePLM will be documented in this file.
   or next to each file when none is set. Shortcuts can be pressed file after file: exports queue and run one at a
   time, and a file already waiting for the same export is not queued twice. The context menu's Export submenus
   share the queue and gain "Export to Quick Export Folder" when one is set. Desktop only.
+
+- **Damaged files: find them, see them, repair them.** Server backups and tests now keep every vault file whose
+  stored bytes do not match their content hash (damaged), or that a version names with nothing in storage
+  (missing), in Settings > Backup > Damaged files: the file, the version, who checked it in and when, and whether it
+  is the current version. An admin can restore it from the server backup, store this computer's copy, roll the file
+  back to its last good version, mark it unrecoverable, or accept it with a note. Every repair that writes storage
+  is checked against the content hash before and after, every finding and decision is logged, and admins are
+  notified of a new finding through the security monitor.
+- **A full restore test runs by itself every 30 days.** Four hours after the nightly backup (06:00 with a 02:00
+  backup), the server reads the whole backup back from the bucket and checks every file. It shows in Recent runs,
+  and a failure notifies admins like any failed run. The first full test of Blue Robotics' backup (2026-10-30)
+  read back all 33,927 files, 94.9 GB, with no problem.
+
+### Changed
+
+- **Settings looks like Claude's settings.** The modal now follows the look of Claude's own settings,
+  measured from it: neutral greys, the system font, a darker navigation column with sentence-case
+  items, a plain header with only a close button, and pages that open on their first heading. Settings
+  sit in flat rows divided by thin lines instead of cards, with 14px text, 28px controls and a softer
+  blue switch, in dark and light themes. This is the first step of a refresh of the whole app.
+- **Deleting your account moved to Profile.** It is no longer in the settings navigation; it is the
+  last section of Profile, and still asks you to type a confirmation.
+
+- **Downloads refuse damaged content with a clear message.** Content marked unrecoverable is refused before it is
+  fetched, and a download whose bytes do not match their hash says the server copy is damaged and where to repair
+  it. BluePLM Web now checks every file's hash in the browser before saving it (files over 512 MB are saved
+  directly).
+
+### Fixed
+
+- **A backup test cut short by a server restart is resumed,** in the same mode, the way an interrupted backup
+  already was. Before, it was closed as interrupted and not run again.
+- **Server backups find content a version names but storage does not have** (missing), not only content whose
+  bytes changed.
 
 ## [5.1.2] - 2026-10-30
 
