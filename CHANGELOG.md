@@ -6,6 +6,18 @@ All notable changes to BluePLM will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **A release upgrades the database before it goes out.** When the `PRODUCTION_DATABASE_URL` secret is
+  set, the release workflow applies the pending migrations with the app's own upgrade runner before
+  the installers are published, so people who update are not stopped by "Database upgrade required".
+  Without the secret, an admin upgrades from the app as before.
+
+### Fixed
+
+- The database upgrade screen says when the password is still inside the `[YOUR-PASSWORD]` brackets,
+  instead of a bare "password authentication failed".
+
 ## [5.2.2] - 2026-10-31
 
 App only: no schema or API change; it runs on schema 503 and API 4.2.0 like 5.2.0. The v5.2.1 tag was never published (its release build stopped on a flaky watcher test, fixed here), so this is the first release of its fix.

@@ -175,6 +175,47 @@ jobs:
             release/alpha*.yml
           if-no-files-found: error
 
+  # Upgrades the production database with the app's own migration runner (scripts/db-migrate.ts)
+  # before anything is published, so nobody who updates is met by "database upgrade required".
+  # Same plan, lock, transactions and checksums as the in-app upgrade. A migration must keep the
+  # previous release working (database.mdc), since installs update over the following hours.
+  # Without the PRODUCTION_DATABASE_URL secret (the Session pooler string, port 5432) the job
+  # skips and an admin applies the upgrade in the app as before. A refused or failed upgrade
+  # stops the release.
+  migrate-db:
+    needs: [verify, check-release-metadata]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+    steps:
+      - name: Checkout
+        if: ${{ env.DATABASE_URL != '' }}
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        if: ${{ env.DATABASE_URL != '' }}
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      # --ignore-scripts: the runner needs pg and tsx, none of the desktop's install scripts, and
+      # none of them should run on a machine holding the database password.
+      - name: Install dependencies
+        if: ${{ env.DATABASE_URL != '' }}
+        run: npm ci --ignore-scripts
+
+      - name: Apply pending migrations
+        env:
+          SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::notice::PRODUCTION_DATABASE_URL is not set; an admin applies the upgrade in the app."
+            exit 0
+          fi
+          npx tsx scripts/db-migrate.ts
+
   build-api:
     needs: [verify, check-release-metadata]
     runs-on: ubuntu-latest
@@ -218,7 +259,7 @@ jobs:
             GIT_COMMIT_SHA=${{ github.sha }}
 
   release:
-    needs: [build-windows, build-macos, build-api]
+    needs: [build-windows, build-macos, build-api, migrate-db]
     runs-on: ubuntu-latest
     permissions:
       contents: write

@@ -31,8 +31,13 @@
   // against the same config as the modules it reuses is also what makes the check meaningful.
   "include": ["src", "web/src", "scripts/**/*.ts"],
   // securityHeaders.ts (and its test) run in Node at build time from vite.web.config.ts, so they
-  // belong to tsconfig.node.json; listing them here too makes tsc report TS6305.
-  "exclude": ["web/src/app/securityHeaders.ts", "web/src/app/securityHeaders.test.ts"],
+  // belong to tsconfig.node.json; listing them here too makes tsc report TS6305. scripts/db-migrate.ts
+  // runs the Electron migration runner from a release job, so it lives there too.
+  "exclude": [
+    "web/src/app/securityHeaders.ts",
+    "web/src/app/securityHeaders.test.ts",
+    "scripts/db-migrate.ts"
+  ],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
 

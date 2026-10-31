@@ -226,8 +226,11 @@ The points that most often get violated:
   recorded in `schema_migration`. A fresh database gets the baseline (`core.sql`, then modules in name
   order); a 4.x database gets `legacy-4.10/` if below 112, then `0500_from_4x.sql`. An installed
   native extension's own SQL (such as `blueplm.customers`) is applied after core. Never push SQL to
-  production from a terminal command. A nightly cloud routine (08:00 UTC) may apply a finished schema
-  release from `main`, so land a migration on `main` only when it is ready for production.
+  production from a terminal command. A release tag upgrades the production database first: the
+  `migrate-db` job in `release.yml` runs the same runner (`scripts/db-migrate.ts`) with the
+  `PRODUCTION_DATABASE_URL` secret before anything is published, and a refused or failed upgrade stops
+  the release. A migration must therefore keep the previous release working. Land a migration on
+  `main` only when it is ready for production.
 - **API changes require two files.** Bump `version` in `api/package.json` and
   `EXPECTED_API_VERSION` in `src/lib/apiVersion.ts`, with an `API_VERSION_DESCRIPTIONS` entry.
 - **State goes in `usePDMStore` slices.** Never create a new Zustand store.
