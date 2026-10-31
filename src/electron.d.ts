@@ -469,7 +469,7 @@ declare global {
       }>
       isReadonly: (
         path: string,
-      ) => Promise<{ success: boolean; readonly?: boolean; error?: string }>
+      ) => Promise<{ success: boolean; readonly?: boolean; error?: string; code?: string }>
 
       // Test framework support
       /** Compute a cryptographic hash of a file (default: SHA-256) */

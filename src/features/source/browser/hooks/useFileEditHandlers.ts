@@ -10,6 +10,8 @@ import { listWriteAddresses } from '@/lib/metadata/writeState'
 import type { PendingMetadataEdit } from '@/stores/types'
 import { log } from '@/lib/logger'
 
+import { getNoContentBlock } from '../utils/fileEditability'
+
 // SolidWorks file extensions that support custom properties
 const SW_EXTENSIONS = ['.sldprt', '.sldasm', '.slddrw']
 
@@ -210,8 +212,11 @@ export function useFileEditHandlers(deps: FileEditHandlersDeps): UseFileEditHand
   // Check if file metadata is editable
   // - Unsynced files (no pdmData.id): always editable (local-only files)
   // - Synced files (has pdmData.id): must be checked out by current user
+  // - Rows with no file on disk (moved_away stub, deleted ghost, cloud-only): never editable,
+  //   whoever holds the checkout - the write would target a path that does not exist
   const isFileEditable = useCallback(
     (file: LocalFile): boolean => {
+      if (getNoContentBlock(file)) return false
       // Unsynced local files are always editable (allows setting BR number before first sync)
       if (!file.pdmData?.id) {
         return true
@@ -228,6 +233,23 @@ export function useFileEditHandlers(deps: FileEditHandlersDeps): UseFileEditHand
       // Check if user is logged in
       if (!user?.id) {
         addToast('info', 'Sign in to edit metadata')
+        return
+      }
+
+      // A row with no file behind it cannot take a metadata write. A cloud-only row falls
+      // through: the checkout message below is the actionable one for it.
+      const noContent = getNoContentBlock(file)
+      if (noContent?.kind === 'moved_away') {
+        addToast(
+          'info',
+          noContent.movedToRelativePath
+            ? t('fileReadonly.movedTo', { path: noContent.movedToRelativePath })
+            : t('fileReadonly.notOnDisk'),
+        )
+        return
+      }
+      if (noContent?.kind === 'deleted') {
+        addToast('info', t('fileReadonly.notOnDisk'))
         return
       }
 

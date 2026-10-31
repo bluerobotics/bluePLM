@@ -53,6 +53,11 @@ export const fr: TranslationDict = {
   fileReadonly: {
     blocked: 'Ce fichier est en lecture seule sur le disque, donc rien n’a été écrit.',
     unknown: 'Impossible de savoir si ce fichier est en lecture seule, donc rien n’a été écrit.',
+    missing:
+      'Ce fichier n’est pas sur le disque à son chemin enregistré. Il a peut-être été renommé ou déplacé, donc rien n’a été écrit.',
+    notOnDisk: 'Cette ligne n’a aucun fichier sur le disque et ne peut pas être modifiée.',
+    movedTo:
+      'Ce fichier a été renommé ou déplacé vers {{path}}. Archivez le nouveau fichier pour mettre à jour son chemin, puis modifiez-le à cet endroit.',
     stillCheckedOut: 'Récupéré, mais toujours en lecture seule sur le disque : {{names}}',
     madeWritable: '{{count}} fichier(s) étaient déjà récupérés et sont maintenant modifiables.',
     solidWorksStillReadonly:

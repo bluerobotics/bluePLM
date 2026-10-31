@@ -54,6 +54,11 @@ export const de: TranslationDict = {
     blocked: 'Diese Datei ist auf dem Datenträger schreibgeschützt, daher wurde nichts geschrieben.',
     unknown:
       'Es ließ sich nicht feststellen, ob diese Datei schreibgeschützt ist, daher wurde nichts geschrieben.',
+    missing:
+      'Diese Datei befindet sich nicht am erfassten Pfad auf dem Datenträger. Sie wurde möglicherweise umbenannt oder verschoben, daher wurde nichts geschrieben.',
+    notOnDisk: 'Diese Zeile hat keine Datei auf dem Datenträger und kann nicht bearbeitet werden.',
+    movedTo:
+      'Diese Datei wurde in {{path}} umbenannt oder dorthin verschoben. Checken Sie die neue Datei ein, um den Pfad zu aktualisieren, und bearbeiten Sie sie dann dort.',
     stillCheckedOut: 'Ausgecheckt, aber auf dem Datenträger weiterhin schreibgeschützt: {{names}}',
     madeWritable: '{{count}} Datei(en) waren bereits ausgecheckt und sind jetzt beschreibbar.',
     solidWorksStillReadonly:

@@ -50,6 +50,9 @@ export const zhCN: TranslationDict = {
   fileReadonly: {
     blocked: '此文件在磁盘上为只读，因此没有写入任何内容。',
     unknown: '无法确认此文件是否为只读，因此没有写入任何内容。',
+    missing: '此文件不在其记录的磁盘路径上，可能已被重命名或移动，因此没有写入任何内容。',
+    notOnDisk: '此行在磁盘上没有对应文件，无法编辑。',
+    movedTo: '此文件已被重命名或移动到 {{path}}。请签入新文件以更新其路径，然后在新文件上编辑。',
     stillCheckedOut: '已签出，但在磁盘上仍为只读：{{names}}',
     madeWritable: '{{count}} 个文件此前已签出，现在可以写入。',
     solidWorksStillReadonly:

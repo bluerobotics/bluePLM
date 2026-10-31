@@ -11,13 +11,18 @@ import { listWriteAddresses } from '@/lib/metadata/writeState'
 import { usePDMStore } from '@/stores/pdmStore'
 import type { PendingMetadataEdit } from '@/stores/types'
 
-export type DiskWriteAccess = 'writable' | 'readonly' | 'unknown'
+/** `missing` means nothing exists at the path - a rename or move, not a permissions problem. */
+export type DiskWriteAccess = 'writable' | 'readonly' | 'missing' | 'unknown'
 
 const READONLY_RETRY_COUNT = 1
+const FILE_NOT_FOUND_CODE = 'ENOENT'
 
 export async function readDiskWriteAccess(filePath: string): Promise<DiskWriteAccess> {
   try {
     const result = await window.electronAPI?.isReadonly(filePath)
+    if (result && result.success === false && result.code === FILE_NOT_FOUND_CODE) {
+      return 'missing'
+    }
     if (!result || result.success === false || typeof result.readonly !== 'boolean') {
       return 'unknown'
     }
@@ -75,7 +80,12 @@ export async function stopIfFileNotWritable(
   const access = await readDiskWriteAccess(filePath)
   if (access === 'writable') return false
 
-  const reason = access === 'readonly' ? t('fileReadonly.blocked') : t('fileReadonly.unknown')
+  const reason =
+    access === 'readonly'
+      ? t('fileReadonly.blocked')
+      : access === 'missing'
+        ? t('fileReadonly.missing')
+        : t('fileReadonly.unknown')
   const { addToast, recordMetadataWriteStates } = usePDMStore.getState()
   addToast('error', reason)
 

@@ -53,6 +53,11 @@ export const pt: TranslationDict = {
   fileReadonly: {
     blocked: 'Este ficheiro é só de leitura no disco, por isso nada foi escrito.',
     unknown: 'Não foi possível saber se este ficheiro é só de leitura, por isso nada foi escrito.',
+    missing:
+      'Este ficheiro não está no disco no caminho registado. Pode ter sido renomeado ou movido, por isso nada foi escrito.',
+    notOnDisk: 'Esta linha não tem nenhum ficheiro no disco, por isso não pode ser editada.',
+    movedTo:
+      'Este ficheiro foi renomeado ou movido para {{path}}. Faça check-in do novo ficheiro para atualizar o caminho e edite-o aí.',
     stillCheckedOut: 'Em checkout, mas continua só de leitura no disco: {{names}}',
     madeWritable: '{{count}} ficheiro(s) já estavam em checkout e agora podem ser gravados.',
     solidWorksStillReadonly:

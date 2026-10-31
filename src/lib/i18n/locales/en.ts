@@ -63,6 +63,11 @@ export const en: TranslationDict = {
   fileReadonly: {
     blocked: 'This file is read-only on disk, so nothing was written.',
     unknown: 'Could not tell whether this file is read-only, so nothing was written.',
+    missing:
+      "This file isn't on disk at its recorded path. It may have been renamed or moved, so nothing was written.",
+    notOnDisk: 'This row has no file on disk, so it cannot be edited.',
+    movedTo:
+      'This file was renamed or moved to {{path}}. Check in the new file to update its path, then edit it there.',
     stillCheckedOut: 'Checked out, but still read-only on disk: {{names}}',
     madeWritable: '{{count}} file(s) were already checked out and are now writable.',
     solidWorksStillReadonly:

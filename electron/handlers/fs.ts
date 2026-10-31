@@ -2964,7 +2964,13 @@ export function registerFsHandlers(window: BrowserWindow, deps: FsHandlerDepende
       const isReadonly = (stats.mode & 0o200) === 0
       return { success: true, readonly: isReadonly }
     } catch (error) {
-      return { success: false, error: String(error) }
+      // The code lets the renderer tell a missing file (ENOENT) from one it cannot stat.
+      const code = (error as NodeJS.ErrnoException | null)?.code
+      return {
+        success: false,
+        error: String(error),
+        code: typeof code === 'string' ? code : undefined,
+      }
     }
   })
 

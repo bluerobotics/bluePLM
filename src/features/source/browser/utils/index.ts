@@ -42,6 +42,8 @@ export {
   getFileProcessingOperation,
   getFolderProcessingOperation,
 } from './processingStatus'
+export { getNoContentBlock } from './fileEditability'
+export type { NoContentBlock, NoContentKind } from './fileEditability'
 export { buildConfigTreeFlat } from './configTree'
 export type { ConfigInput } from './configTree'
 

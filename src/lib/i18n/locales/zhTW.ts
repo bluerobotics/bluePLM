@@ -50,6 +50,9 @@ export const zhTW: TranslationDict = {
   fileReadonly: {
     blocked: '此檔案在磁碟上為唯讀，因此沒有寫入任何內容。',
     unknown: '無法確認此檔案是否為唯讀，因此沒有寫入任何內容。',
+    missing: '此檔案不在其記錄的磁碟路徑上，可能已被重新命名或移動，因此沒有寫入任何內容。',
+    notOnDisk: '此列在磁碟上沒有對應檔案，無法編輯。',
+    movedTo: '此檔案已被重新命名或移動到 {{path}}。請簽入新檔案以更新其路徑，然後在新檔案上編輯。',
     stillCheckedOut: '已簽出，但在磁碟上仍為唯讀：{{names}}',
     madeWritable: '{{count}} 個檔案先前已簽出，現在可以寫入。',
     solidWorksStillReadonly:

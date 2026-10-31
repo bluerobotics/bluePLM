@@ -1130,7 +1130,7 @@ declare global {
       }>
       isReadonly: (
         path: string,
-      ) => Promise<{ success: boolean; readonly?: boolean; error?: string }>
+      ) => Promise<{ success: boolean; readonly?: boolean; error?: string; code?: string }>
 
       // Dialogs
       selectFiles: () => Promise<FileSelectResult>
