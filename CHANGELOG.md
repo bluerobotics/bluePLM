@@ -6,6 +6,17 @@ All notable changes to BluePLM will be documented in this file.
 
 ## [Unreleased]
 
+## [5.2.1] - 2026-10-31
+
+App only: no schema or API change; it runs on schema 503 and API 4.2.0 like 5.2.0.
+
+### Fixed
+
+- Editing metadata on a file that is not on disk says why instead of calling it read-only. A file renamed
+  or moved on disk names where it went and asks you to check in the new file; a deleted or never-downloaded
+  row cannot be edited inline; a save to a path with nothing there says the file is missing, not that
+  BluePLM could not tell whether it is read-only.
+
 ## [5.2.0] - 2026-10-31
 
 Schema 503 (`supabase/migrations/0503_vault_object_issues.sql`; an organization admin opening 5.2.0 applies it) and API 4.2.0 (redeploys itself).
